@@ -28,7 +28,7 @@ There are three realistic reasons, and none of them are optional once you hit th
 
 **Reproducibility.** A paper, report or production pipeline that ran on R 4.1.3 last year should produce the same output this year. If you overwrite R 4.1.3 with 4.4.0, package loading can still succeed while numerical output subtly changes. A pinned R version removes that entire failure mode.
 
-**Package compatibility.** `rstan`, some Bioconductor packages, and several niche GIS packages often lag behind the latest R release by months. A project that depends on them needs the last R version the binary was built for — not whatever is current.
+**Package compatibility.** `rstan`, some Bioconductor packages, and several niche GIS packages often lag behind the latest R release by months. A project that depends on them needs the last R version the binary was built for, not whatever is current.
 
 **Client and team constraints.** A consulting client running R 4.2 on their server wants code you developed locally to behave identically. Matching their version locally prevents the "works on my machine" conversation.
 
@@ -71,7 +71,7 @@ On Windows, do not install R with the standard installer after installing rig. A
 
 ## How do you switch R versions inside RStudio and VS Code?
 
-Switching globally with `rig default` is fine for a quick test. The version you actually care about is the one a specific *project* uses — and both RStudio and Positron/VS Code let you set that per project.
+Switching globally with `rig default` is fine for a quick test. The version you actually care about is the one a specific *project* uses, and both RStudio and Positron/VS Code let you set that per project.
 
 **RStudio.** After running `rig add`, RStudio's launcher detects every installed R version on startup. In RStudio, go to `Tools → Global Options → General → Basic → R version` and pick the one you want. Hold Ctrl (or Cmd on macOS) while launching RStudio to get a version picker each time. The chosen version is remembered per project inside `.Rproj`.
 
@@ -128,7 +128,7 @@ renv::restore()
 ```
 
 [TIP]
-Commit `renv.lock` and `.Rprofile` to git. Do not commit `renv/library/` — it is big, platform specific, and rebuildable from the lockfile with one `renv::restore()` call.
+Commit `renv.lock` and `.Rprofile` to git. Do not commit `renv/library/`, it is big, platform specific, and rebuildable from the lockfile with one `renv::restore()` call.
 
 [WARNING]
 `renv::restore()` does not install R. It installs *packages* into the project library using whatever R is currently running. If you need a different R version, switch it with rig first, then run restore.
@@ -137,7 +137,7 @@ Commit `renv.lock` and `.Rprofile` to git. Do not commit `renv/library/` — it 
 
 These are the ones that bite almost every person the first time they try to run multiple versions.
 
-**Mistake 1: Sharing one library folder across versions.** R cannot load a package compiled against R 4.2 in an R 4.4 session — you will see `package 'xyz' was installed before R 4.0.0: please re-install it` or segfaults. Every R version needs its own library. rig and renv both handle this for you *as long as you do not override `.libPaths()` manually in your `.Rprofile`*.
+**Mistake 1: Sharing one library folder across versions.** R cannot load a package compiled against R 4.2 in an R 4.4 session, you will see `package 'xyz' was installed before R 4.0.0: please re-install it` or segfaults. Every R version needs its own library. rig and renv both handle this for you *as long as you do not override `.libPaths()` manually in your `.Rprofile`*.
 
 ```r
 # Check where your current R is looking for packages:
@@ -247,16 +247,16 @@ renv::snapshot()
 - Use **rig** as your only installer for R. It handles multiple versions cleanly on Windows, macOS and Linux.
 - `rig default <ver>` switches the global default; RStudio and Positron let you override per project.
 - Use **renv** inside each project to lock the R version and package versions into `renv.lock`.
-- Never share a library folder across R versions — let rig and renv manage library paths.
+- Never share a library folder across R versions, let rig and renv manage library paths.
 - Remove unused R versions with `rig rm`. You can always reinstall with `rig add`.
 
 ## References
 
-- [rig on GitHub](https://github.com/r-lib/rig) — official documentation
+- [rig on GitHub](https://github.com/r-lib/rig), official documentation
 - [renv package site](https://rstudio.github.io/renv/)
 - [Posit support: Using rig](https://posit.co/blog/rig-the-r-installation-manager/)
 
 ## Continue Learning
 
-- [Install R and RStudio — The Setup That Actually Works First Time](Install-R-and-RStudio-2026.html)
+- [Install R and RStudio, The Setup That Actually Works First Time](Install-R-and-RStudio-2026.html)
 - [R Project Structure: The Setup That Eliminates setwd() Forever](R-Project-Structure.html)

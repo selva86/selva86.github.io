@@ -1,7 +1,7 @@
 ---
-title: "R Data Frames Exercises: 15 Practice Questions (Beginner to Advanced — Solved Step-by-Step)"
+title: "R Data Frames Exercises: 15 Practice Questions (Beginner to Advanced, Solved Step-by-Step)"
 slug: "R-Data-Frames-Exercises"
-description: "15 interactive R data frame exercises with worked solutions — create, subset, filter, add columns, group, merge and reshape. Runnable right in the page."
+description: "15 interactive R data frame exercises with worked solutions, create, subset, filter, add columns, group, merge and reshape. Runnable right in the page."
 keywords: "R data frames exercises, R data frame practice, R subset exercises, R data frame filtering, R data frame practice problems"
 mathjax: false
 webr: true
@@ -16,9 +16,9 @@ fr_parent: "R-Data-Frames.html"
 difficulty: "Intermediate"
 ---
 
-# R Data Frames Exercises: 15 Practice Questions (Beginner to Advanced — Solved Step-by-Step)
+# R Data Frames Exercises: 15 Practice Questions (Beginner to Advanced, Solved Step-by-Step)
 
-<p class="lead">Fifteen focused exercises that take you from creating a data frame from scratch to filtering, grouping, merging and reshaping. Every problem runs in the browser with an expandable worked solution. No downloads, no setup — just code and check.</p>
+<p class="lead">Fifteen focused exercises that take you from creating a data frame from scratch to filtering, grouping, merging and reshaping. Every problem runs in the browser with an expandable worked solution. No downloads, no setup, just code and check.</p>
 
 Data frames are the workhorse of R. Almost every analysis you will ever write consumes or produces one. These exercises use only base R so they work in any R session, including the one embedded in this page. Once you are fluent here, the `dplyr` version of the same operations will feel obvious.
 
@@ -35,11 +35,11 @@ dim(iris)     # 150 5
 head(mtcars, 3)
 ```
 
-## Section 1 — Creating and inspecting data frames
+## Section 1, Creating and inspecting data frames
 
 ### Exercise 1. Build a data frame from vectors
 
-Create a data frame `students` with three columns — `name` (character), `age` (integer), `score` (double) — and five rows of your own made-up data. Confirm the types with `str()`.
+Create a data frame `students` with three columns, `name` (character), `age` (integer), `score` (double), and five rows of your own made-up data. Confirm the types with `str()`.
 
 ```r
 # Your attempt here
@@ -64,7 +64,7 @@ str(students)
 #  $ score: num  87.5 72 91.2 68.4 79.9
 ```
 
-In R 4.0 and later, `stringsAsFactors = FALSE` is the default — the argument is only needed for compatibility with older code.
+In R 4.0 and later, `stringsAsFactors = FALSE` is the default, the argument is only needed for compatibility with older code.
 
 </details>
 
@@ -114,11 +114,11 @@ identical(students$score, students[, "score"])   # TRUE
 identical(students$score, students[, 3])         # TRUE
 ```
 
-All four return an *atomic vector*. Note that `students["score"]` (without the comma) returns a *one-column data frame*, not a vector — a surprising but consistent rule.
+All four return an *atomic vector*. Note that `students["score"]` (without the comma) returns a *one-column data frame*, not a vector, a surprising but consistent rule.
 
 </details>
 
-## Section 2 — Subsetting rows and columns
+## Section 2, Subsetting rows and columns
 
 ### Exercise 4. Select specific columns
 
@@ -185,7 +185,7 @@ Return the rows of `mtcars` where `mpg > 25`.
 mtcars[mtcars$mpg > 25, ]
 ```
 
-Note the trailing comma — `mtcars[mtcars$mpg > 25]` (no comma) tries to index columns, not rows, and will give you something unexpected.
+Note the trailing comma, `mtcars[mtcars$mpg > 25]` (no comma) tries to index columns, not rows, and will give you something unexpected.
 
 </details>
 
@@ -209,7 +209,7 @@ Combine the row filter with column selection in a single `[ , ]` call. Use `&` f
 
 </details>
 
-## Section 3 — Adding and transforming columns
+## Section 3, Adding and transforming columns
 
 ### Exercise 8. Add a computed column
 
@@ -254,7 +254,7 @@ table(mt$efficiency)
 #     6     3    23
 ```
 
-`ifelse()` is vectorised — it walks the condition element by element. Nest calls to build more than two branches, or switch to `dplyr::case_when()` for many branches.
+`ifelse()` is vectorised, it walks the condition element by element. Nest calls to build more than two branches, or switch to `dplyr::case_when()` for many branches.
 
 </details>
 
@@ -279,7 +279,7 @@ You assign into `names(mt)` at the position where the current name matches. This
 
 </details>
 
-## Section 4 — Aggregation, merging and reshaping
+## Section 4, Aggregation, merging and reshaping
 
 ### Exercise 11. Group and summarise with aggregate
 
@@ -388,7 +388,7 @@ long
 # 4      q4   175
 ```
 
-`stack()` is base R's minimal reshape tool. For anything bigger than this, reach for `tidyr::pivot_longer()` — but `stack()` is fine for toy examples and quick work.
+`stack()` is base R's minimal reshape tool. For anything bigger than this, reach for `tidyr::pivot_longer()`, but `stack()` is fine for toy examples and quick work.
 
 </details>
 
@@ -416,15 +416,15 @@ mtcars[order(mtcars$cyl, -mtcars$mpg), ][1:10, ]
 
 - Build data frames with `data.frame()` and inspect with `dim()`, `str()`, `summary()`, `head()`.
 - Subset with `df[row_condition, column_selector]`. Always include the comma.
-- Add columns by assigning into `df$new_col` — vectorised arithmetic applies automatically.
+- Add columns by assigning into `df$new_col`, vectorised arithmetic applies automatically.
 - Conditional columns: `ifelse()` for binary, nested `ifelse()` or `dplyr::case_when()` for more branches.
 - Aggregation: `aggregate(y ~ g, data, FUN)`. Counts: `table()`. Joins: `merge()`.
-- Sorting: `df[order(...), ]` — a minus sign reverses a numeric column.
+- Sorting: `df[order(...), ]`, a minus sign reverses a numeric column.
 
 ## References
 
-- [R Language Definition — data frames](https://cran.r-project.org/doc/manuals/r-release/R-intro.html#Data-frames)
-- [Advanced R — Data frames and tibbles](https://adv-r.hadley.nz/vectors-chap.html#tibble)
+- [R Language Definition, data frames](https://cran.r-project.org/doc/manuals/r-release/R-intro.html#Data-frames)
+- [Advanced R, Data frames and tibbles](https://adv-r.hadley.nz/vectors-chap.html#tibble)
 - [R for Data Science (2e)](https://r4ds.hadley.nz/)
 
 ## Continue Learning

@@ -1,5 +1,5 @@
 ---
-title: "dplyr mutate(): Create New Columns, Transform Existing Ones — 8 Real Examples"
+title: "dplyr mutate(): Create New Columns, Transform Existing Ones, 8 Real Examples"
 slug: "dplyr-mutate-rename"
 description: "mutate() is the main tool for engineering features. Learn to create computed columns, apply conditional logic with if_else(), transform multiple columns with across(), and rename cleanly."
 keywords: "dplyr mutate, dplyr across, if_else dplyr, case_when R, mutate across, dplyr rename, feature engineering R"
@@ -16,7 +16,7 @@ sidebar_order: 4
 difficulty: "Intermediate"
 ---
 
-# dplyr mutate(): Create New Columns, Transform Existing Ones — 8 Real Examples
+# dplyr mutate(): Create New Columns, Transform Existing Ones, 8 Real Examples
 
 <p class="lead">In dplyr, <code>mutate()</code> adds new columns or modifies existing ones, letting you engineer features, apply conditional logic, and transform many columns in a single expression. It's the verb you'll reach for every time the raw data needs shaping before analysis.</p>
 
@@ -37,7 +37,7 @@ mtcars |>
 #> Datsun 710   22.8 9.6900
 ```
 
-One line: new column, computed from an existing one. Multiple new columns at once work too — and later ones can reference earlier ones within the same `mutate()` call.
+One line: new column, computed from an existing one. Multiple new columns at once work too, and later ones can reference earlier ones within the same `mutate()` call.
 
 ```r
 mtcars |>
@@ -83,7 +83,7 @@ mtcars |>
 #> Valiant           3.460    1.569161
 ```
 
-`wt / 2.205` is computed element-wise across all 32 rows and stored into the new column `weight_tons`. The `select(wt, weight_tons)` afterwards just trims the output to the two relevant columns so you can eyeball the conversion side-by-side — the rest of the data frame is unchanged.
+`wt / 2.205` is computed element-wise across all 32 rows and stored into the new column `weight_tons`. The `select(wt, weight_tons)` afterwards just trims the output to the two relevant columns so you can eyeball the conversion side-by-side, the rest of the data frame is unchanged.
 </details>
 
 ## How do you modify an existing column in place?
@@ -134,7 +134,7 @@ iris |> mutate(Species = toupper(Species)) |> head()
 #> 6          5.4         3.9          1.7         0.4  SETOSA
 ```
 
-Because `Species` is a factor, `toupper()` coerces it to character first and the `mutate()` replaces the column with the upper-cased version — the factor levels are lost. If you need to preserve factor structure, wrap the result in `factor()` afterwards: `Species = factor(toupper(Species))`.
+Because `Species` is a factor, `toupper()` coerces it to character first and the `mutate()` replaces the column with the upper-cased version, the factor levels are lost. If you need to preserve factor structure, wrap the result in `factor()` afterwards: `Species = factor(toupper(Species))`.
 </details>
 
 ## How do you apply conditional logic with if_else() and case_when()?
@@ -174,7 +174,7 @@ mtcars |>
 #> 3 small      6
 ```
 
-The `TRUE ~ "large"` is the catch-all — every row that didn't match an earlier condition falls through to it. Always include one, or you'll get `NA`s where no branch matched.
+The `TRUE ~ "large"` is the catch-all, every row that didn't match an earlier condition falls through to it. Always include one, or you'll get `NA`s where no branch matched.
 
 > [KEY INSIGHT]
 > `case_when()` conditions are evaluated top-to-bottom and the first match wins. Order them from most-specific to most-general, and put the `TRUE ~ ...` catch-all last.
@@ -210,7 +210,7 @@ mtcars |>
 #> 3          small 11
 ```
 
-`case_when()` evaluates each condition top-down and assigns the matching label to a new character column. Because every row's `cyl` is one of 4, 6, or 8, no row falls through the three branches — you'd only need a `TRUE ~ "other"` catch-all if a fourth cylinder count were possible.
+`case_when()` evaluates each condition top-down and assigns the matching label to a new character column. Because every row's `cyl` is one of 4, 6, or 8, no row falls through the three branches, you'd only need a `TRUE ~ "other"` catch-all if a fourth cylinder count were possible.
 </details>
 
 ## How do you transform many columns at once with across()?
@@ -250,7 +250,7 @@ iris |>
 #>   Sepal.Length Sepal.Width Petal.Length Petal.Width Species Sepal.Length_log ...
 ```
 
-The `.names = "{.col}_{.fn}"` glue pattern controls the output column names — `{.col}` is the original column name and `{.fn}` is the function name.
+The `.names = "{.col}_{.fn}"` glue pattern controls the output column names, `{.col}` is the original column name and `{.fn}` is the function name.
 
 **Try it:** Use `across()` to take the log of every numeric column in `iris`.
 
@@ -274,7 +274,7 @@ iris |> mutate(across(where(is.numeric), log)) |> head()
 #> 6     1.686399    1.360977    0.5306283   -0.916291  setosa
 ```
 
-`across(where(is.numeric), log)` walks every column, keeps only the numeric ones, and applies `log()` element-wise — the factor column `Species` is left untouched. Passing `log` as a bare function name is the cleanest form when no extra arguments are needed; reach for the `~` lambda syntax (`~ log(.)`) only when you need to wire in other arguments.
+`across(where(is.numeric), log)` walks every column, keeps only the numeric ones, and applies `log()` element-wise, the factor column `Species` is left untouched. Passing `log` as a bare function name is the cleanest form when no extra arguments are needed; reach for the `~` lambda syntax (`~ log(.)`) only when you need to wire in other arguments.
 </details>
 
 ## How do you rank, lag, and lead values within a column?
@@ -305,7 +305,7 @@ sales |>
 #> 6     6     580        2      455       NA    125
 ```
 
-`lag()` shifts the vector back by one (introducing `NA` at the start); `lead()` shifts forward. `rank_rev` uses `desc()` to rank highest-revenue as rank 1. All four are vectorized — no loops needed.
+`lag()` shifts the vector back by one (introducing `NA` at the start); `lead()` shifts forward. `rank_rev` uses `desc()` to rank highest-revenue as rank 1. All four are vectorized, no loops needed.
 
 > [TIP]
 > Window functions play beautifully with `group_by()`: `df |> group_by(store) |> mutate(day_over_day = revenue - lag(revenue))` computes a per-store change, handling each group independently.
@@ -338,12 +338,12 @@ sales |> mutate(revenue_change = revenue - lag(revenue))
 #> 6     6     580            125
 ```
 
-`lag(revenue)` shifts the column one row down, placing `NA` in row 1 because there's no previous day to compare against. Subtracting the shifted vector from the original produces a day-over-day delta — positive for a jump, negative for a drop. Pair this with `group_by()` if you need per-group deltas across several stores at once.
+`lag(revenue)` shifts the column one row down, placing `NA` in row 1 because there's no previous day to compare against. Subtracting the shifted vector from the original produces a day-over-day delta, positive for a jump, negative for a drop. Pair this with `group_by()` if you need per-group deltas across several stores at once.
 </details>
 
 ## How do you drop and rename columns cleanly?
 
-Within `mutate()`, assigning `NULL` removes a column. If you only want to rename without adding anything, use `rename()` — cleaner than a full `select()`.
+Within `mutate()`, assigning `NULL` removes a column. If you only want to rename without adding anything, use `rename()`, cleaner than a full `select()`.
 
 ```r
 mtcars |>
@@ -359,7 +359,7 @@ mtcars |>
 #> Mazda RX4               21   6  160        110  3.9 2.62 16.46  0  1    4    4
 ```
 
-`rename_with()` applies a function to rename many columns at once — useful for converting styles en masse (e.g., `.` to `_`).
+`rename_with()` applies a function to rename many columns at once, useful for converting styles en masse (e.g., `.` to `_`).
 
 ```r
 iris |>
@@ -391,7 +391,7 @@ mtcars |> rename_with(toupper) |> head()
 #> Valiant           18.1   6  225 105 2.76 3.460 20.32  1  0    3    1
 ```
 
-`rename_with(toupper)` applies the function to every column name at once — no `.cols` argument means "all columns". The data itself isn't touched; only the column labels change. Pass a tidyselect helper as the second argument (e.g., `rename_with(toupper, starts_with("m"))`) to target a subset of columns.
+`rename_with(toupper)` applies the function to every column name at once, no `.cols` argument means "all columns". The data itself isn't touched; only the column labels change. Pass a tidyselect helper as the second argument (e.g., `rename_with(toupper, starts_with("m"))`) to target a subset of columns.
 </details>
 
 ## What does transmute() do differently?
@@ -436,7 +436,7 @@ mtcars |> transmute(mpg, log_mpg = log(mpg)) |> head()
 #> Valiant           18.1 2.895912
 ```
 
-`transmute()` behaves like `mutate()` but discards every column you didn't name — the result here has only `mpg` and the newly computed `log_mpg`, while the other nine columns of `mtcars` are dropped. Reach for it when you want a minimal output data frame without chaining a `select()` afterwards.
+`transmute()` behaves like `mutate()` but discards every column you didn't name, the result here has only `mpg` and the newly computed `log_mpg`, while the other nine columns of `mtcars` are dropped. Reach for it when you want a minimal output data frame without chaining a `select()` afterwards.
 </details>
 
 ## Practice Exercises
@@ -519,7 +519,7 @@ mtcars |>
   head(5)
 ```
 
-Five new columns, one clean type conversion, one selection — all in one pipeline. That's what idiomatic dplyr feature engineering looks like.
+Five new columns, one clean type conversion, one selection, all in one pipeline. That's what idiomatic dplyr feature engineering looks like.
 
 ## Summary
 
@@ -541,11 +541,11 @@ Five new columns, one clean type conversion, one selection — all in one pipeli
 1. [dplyr mutate() reference](https://dplyr.tidyverse.org/reference/mutate.html)
 2. [across() reference](https://dplyr.tidyverse.org/reference/across.html)
 3. [case_when() reference](https://dplyr.tidyverse.org/reference/case_when.html)
-4. [R for Data Science — Data Transformation](https://r4ds.hadley.nz/data-transform)
+4. [R for Data Science, Data Transformation](https://r4ds.hadley.nz/data-transform)
 5. [dplyr cheat sheet](https://rstudio.github.io/cheatsheets/data-transformation.pdf)
 
 ## Continue Learning
 
-- [dplyr filter() and select()](dplyr-filter-select.html) — the verbs you use before mutate().
-- [dplyr group_by() + summarise()](dplyr-group-by-summarise.html) — aggregate mutated features.
-- [dplyr arrange(), slice(), top_n()](dplyr-arrange-slice.html) — ordering and top-N queries.
+- [dplyr filter() and select()](dplyr-filter-select.html), the verbs you use before mutate().
+- [dplyr group_by() + summarise()](dplyr-group-by-summarise.html), aggregate mutated features.
+- [dplyr arrange(), slice(), top_n()](dplyr-arrange-slice.html), ordering and top-N queries.

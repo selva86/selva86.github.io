@@ -1,7 +1,7 @@
 ---
 title: "ggplot2 Exercises: 15 Chart-Building Practice Problems (With Solutions)"
 slug: "ggplot2-Exercises"
-description: "Practice ggplot2 with 15 chart-building exercises. Problems cover scatter plots, bar charts, line charts, heatmaps, facets, themes, and more — all with worked solutions and runnable code."
+description: "Practice ggplot2 with 15 chart-building exercises. Problems cover scatter plots, bar charts, line charts, heatmaps, facets, themes, and more, all with worked solutions and runnable code."
 keywords: "ggplot2 exercises, ggplot2 practice problems, ggplot2 exercises with solutions, R visualization exercises, ggplot2 coding practice"
 auto_link_terms: "ggplot2 exercises|ggplot2 practice problems"
 auto_link_case_sensitive: false
@@ -17,17 +17,17 @@ difficulty: "Intermediate"
 
 # ggplot2 Exercises: 15 Chart-Building Practice Problems (With Solutions)
 
-<p class="lead">Fifteen hands-on ggplot2 exercises covering scatter plots, bar charts, line charts, heatmaps, facets, themes, and more — each with a worked solution and runnable code.</p>
+<p class="lead">Fifteen hands-on ggplot2 exercises covering scatter plots, bar charts, line charts, heatmaps, facets, themes, and more, each with a worked solution and runnable code.</p>
 
 ## Introduction
 
 Reading about ggplot2 is useful. Writing ggplot2 code without looking at notes is how you actually learn it.
 
-These 15 exercises cover the full core ggplot2 toolkit — geoms, aesthetics, scales, facets, themes, and coordinate systems — using built-in R datasets so no data download is needed. Each exercise has a clear goal, optional hints, and a complete worked solution.
+These 15 exercises cover the full core ggplot2 toolkit, geoms, aesthetics, scales, facets, themes, and coordinate systems, using built-in R datasets so no data download is needed. Each exercise has a clear goal, optional hints, and a complete worked solution.
 
 Work through them in order (they progress from easier to harder) or jump to the topics you want to reinforce.
 
-**All exercises use only base R datasets** — `mtcars`, `iris`, `airquality`, `mpg`, `diamonds`, `economics` — so you can run them anywhere.
+**All exercises use only base R datasets**, `mtcars`, `iris`, `airquality`, `mpg`, `diamonds`, `economics`, so you can run them anywhere.
 
 ---
 
@@ -594,7 +594,7 @@ ggplot(mt, aes(x = wt, y = mpg)) +
 - Color by month using a sequential palette
 - Properly labeled with a clean theme
 
-This combines everything — multiple geom layers, color scales, transparency, and theme customization.
+This combines everything, multiple geom layers, color scales, transparency, and theme customization.
 
 ```r
 # Hint: use geom_violin() + geom_boxplot(width = 0.1) + geom_jitter()
@@ -663,6 +663,6 @@ ggplot(airquality, aes(x = Month_f, y = Temp, fill = Month_f)) +
 
 ## Continue Learning
 
-- **ggplot2 Getting Started** — the full ggplot2 grammar explained from the ground up
-- **ggplot2 Themes in R** — master `theme()` to create professional publication-ready plots
-- **ggplot2 Scales** — control color, size, shape, and axis scales precisely
+- **ggplot2 Getting Started**, the full ggplot2 grammar explained from the ground up
+- **ggplot2 Themes in R**, master `theme()` to create professional publication-ready plots
+- **ggplot2 Scales**, control color, size, shape, and axis scales precisely

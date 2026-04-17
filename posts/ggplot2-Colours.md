@@ -18,7 +18,7 @@ difficulty: "Intermediate"
 
 # ggplot2 Colours: Choose Palettes That Are Beautiful, Accessible, and Honest
 
-<p class="lead">Colour in ggplot2 controls how viewers read your data — the right palette highlights patterns, respects colour-blind readers, and avoids misleading gradients.</p>
+<p class="lead">Colour in ggplot2 controls how viewers read your data, the right palette highlights patterns, respects colour-blind readers, and avoids misleading gradients.</p>
 
 ## Introduction
 
@@ -26,7 +26,7 @@ A chart with a bad colour palette can mislead your audience or exclude readers w
 
 ggplot2 gives you a powerful colour system built on a simple idea: map a data variable to a colour aesthetic, and a scale function translates values into colours. You pick the scale function that matches your data type and your communication goal.
 
-In this tutorial you will learn how to choose the right palette for your data (qualitative, sequential, or diverging), apply it with the correct `scale_color_*()` or `scale_fill_*()` function, set custom colours for brand or publication needs, and test your chart for colour-blindness safety. All code runs in your browser — no setup required.
+In this tutorial you will learn how to choose the right palette for your data (qualitative, sequential, or diverging), apply it with the correct `scale_color_*()` or `scale_fill_*()` function, set custom colours for brand or publication needs, and test your chart for colour-blindness safety. All code runs in your browser, no setup required.
 
 ![Decision flow for choosing a colour palette by data type.](screenshots/ggplot2-Colours-palette-decision.webp)
 *Figure 1: Decision flow for choosing a colour palette by data type.*
@@ -111,7 +111,7 @@ print(ex_plot1)
 
 Sometimes the default palette is not enough. You need exact colours for brand guidelines, journal requirements, or to match a specific meaning (red for danger, green for safe). That is when you reach for `scale_color_manual()`.
 
-The function takes a `values` argument — a vector of colours. You can use colour names (`"steelblue"`), hex codes (`"#E41A1C"`), or a named vector that maps each level to a specific colour.
+The function takes a `values` argument, a vector of colours. You can use colour names (`"steelblue"`), hex codes (`"#E41A1C"`), or a named vector that maps each level to a specific colour.
 
 ```r
 # Named vector: explicit mapping from level to colour
@@ -184,9 +184,9 @@ Cynthia Brewer designed the ColorBrewer palettes for cartography, but they are a
 
 **Qualitative palettes** (e.g., "Set2", "Dark2", "Paired") use distinct hues with similar brightness. They work for unordered categories like country, species, or car class.
 
-**Sequential palettes** (e.g., "Blues", "YlOrRd", "Greens") go from light to dark in one hue. They show ordered data where more means more — population density, temperature, count.
+**Sequential palettes** (e.g., "Blues", "YlOrRd", "Greens") go from light to dark in one hue. They show ordered data where more means more, population density, temperature, count.
 
-**Diverging palettes** (e.g., "RdBu", "PiYG", "BrBG") have two hues that diverge from a neutral midpoint. They show data that has a meaningful centre — profit/loss, above/below average, positive/negative correlation.
+**Diverging palettes** (e.g., "RdBu", "PiYG", "BrBG") have two hues that diverge from a neutral midpoint. They show data that has a meaningful centre, profit/loss, above/below average, positive/negative correlation.
 
 Let's apply a qualitative Brewer palette to our scatter plot.
 
@@ -244,7 +244,7 @@ p_diverge <- ggplot(mpg, aes(x = displ, y = cty, color = hwy_dev)) +
 print(p_diverge)
 ```
 
-Blue dots sit above average highway MPG, red dots below. The neutral midpoint (zero deviation) appears as a pale centre. Notice we used `scale_color_distiller()` — the continuous version of `scale_color_brewer()` — because `hwy_dev` is numeric.
+Blue dots sit above average highway MPG, red dots below. The neutral midpoint (zero deviation) appears as a pale centre. Notice we used `scale_color_distiller()`, the continuous version of `scale_color_brewer()`, because `hwy_dev` is numeric.
 
 **Try it:** Apply the diverging "PiYG" palette to the same plot. What colour represents above-average MPG now?
 
@@ -277,10 +277,10 @@ print(ex_div)
 
 Most colour palettes have a hidden problem: they are not perceptually uniform. A step from yellow to green looks bigger than a step from blue to purple, even if the data difference is the same. The viridis family of palettes solves this by varying luminance (brightness) monotonically from dark to light.
 
-This gives viridis three practical advantages. It still works when printed in greyscale, because brightness alone carries the information. It is robust to the most common forms of colour blindness (deuteranopia and protanopia). And it represents data honestly — equal data steps produce equal perceptual steps.
+This gives viridis three practical advantages. It still works when printed in greyscale, because brightness alone carries the information. It is robust to the most common forms of colour blindness (deuteranopia and protanopia). And it represents data honestly, equal data steps produce equal perceptual steps.
 
 ![The three dimensions of HCL colour space.](screenshots/ggplot2-Colours-hcl-components.webp)
-*Figure 3: The three dimensions of HCL colour space — hue (which colour), chroma (how vivid), and luminance (how bright). Viridis varies luminance monotonically.*
+*Figure 3: The three dimensions of HCL colour space, hue (which colour), chroma (how vivid), and luminance (how bright). Viridis varies luminance monotonically.*
 
 The viridis package ships with 8 palette options: "viridis" (D), "magma" (A), "inferno" (B), "plasma" (C), "cividis" (E), "rocket" (F), "mako" (G), and "turbo" (H). Let's apply viridis to a continuous variable.
 
@@ -324,7 +324,7 @@ for (opt in c("viridis", "magma", "plasma", "inferno", "mako", "rocket")) {
 Each row of swatches goes from dark to light. That monotonic luminance change is what makes these palettes work in greyscale and for colour-blind readers.
 
 [KEY INSIGHT]
-**Viridis is perceptually uniform because it varies luminance monotonically.** In simpler terms, the brightness always increases from left to right. Your eyes perceive brightness differences more accurately than hue differences, so the gradient reads honestly — no colour appears to "jump out" more than another.
+**Viridis is perceptually uniform because it varies luminance monotonically.** In simpler terms, the brightness always increases from left to right. Your eyes perceive brightness differences more accurately than hue differences, so the gradient reads honestly, no colour appears to "jump out" more than another.
 
 **Try it:** Apply the "mako" option to a continuous colour scale. Then try "turbo". Which one varies luminance more smoothly?
 
@@ -350,7 +350,7 @@ print(ex_mako)
 #> Smooth dark blue to light teal gradient
 ```
 
-**Explanation:** "mako" varies luminance smoothly from dark to light. "turbo" is a rainbow-like palette that does not vary luminance monotonically — it is included for backward compatibility but is not recommended for honest data representation.
+**Explanation:** "mako" varies luminance smoothly from dark to light. "turbo" is a rainbow-like palette that does not vary luminance monotonically, it is included for backward compatibility but is not recommended for honest data representation.
 
 </details>
 
@@ -387,14 +387,14 @@ show_col(pal_viridis)
 The viridis colours differ not just in hue but in brightness. Even if two hues look similar to a colour-blind viewer, the luminance difference keeps them distinguishable. That is the key principle: vary brightness, not just colour.
 
 [WARNING]
-**Never rely on colour alone to encode information.** Add a redundant visual channel — point shapes, line types, direct labels, or patterns. A colour-blind reader who cannot distinguish red from green can still read shapes (circles vs triangles) or text labels.
+**Never rely on colour alone to encode information.** Add a redundant visual channel, point shapes, line types, direct labels, or patterns. A colour-blind reader who cannot distinguish red from green can still read shapes (circles vs triangles) or text labels.
 
 Here are practical rules for colour-blind-safe charts:
 
 - Use viridis or ColorBrewer palettes marked `colorblind = TRUE`
 - Limit discrete colours to 6-8 maximum
 - Add `shape` as a redundant aesthetic: `aes(color = group, shape = group)`
-- Test your palette by converting it to greyscale — if two colours merge, they will also merge for many colour-blind viewers
+- Test your palette by converting it to greyscale, if two colours merge, they will also merge for many colour-blind viewers
 
 ```r
 # Practical test: convert palette to greyscale
@@ -701,7 +701,7 @@ The `alpha = 0.8` adds slight transparency to reduce overplotting. The minimal t
 **Key takeaways:**
 
 - Match palette type to data type: qualitative for categories, sequential for ordered, diverging for centred
-- Viridis is the safest default for continuous data — perceptually uniform, greyscale-safe, colour-blind-robust
+- Viridis is the safest default for continuous data, perceptually uniform, greyscale-safe, colour-blind-robust
 - Use named vectors with `scale_color_manual()` so colours stick to their levels
 - Add shape or label as a redundant channel for colour-blind safety
 - Test your palette by checking greyscale brightness values
@@ -725,15 +725,15 @@ The practical limit is 6-8 colours. Beyond that, viewers struggle to match colou
 
 ## References
 
-1. Wickham, H. — *ggplot2: Elegant Graphics for Data Analysis*, 3rd Edition. Chapter 11: Colour Scales and Legends. [Link](https://ggplot2-book.org/scales-colour.html)
-2. ggplot2 documentation — scale_colour_viridis_d() reference. [Link](https://ggplot2.tidyverse.org/reference/scale_viridis.html)
-3. ggplot2 documentation — scale_colour_brewer() reference. [Link](https://ggplot2.tidyverse.org/reference/scale_brewer.html)
-4. Brewer, C.A. — ColorBrewer 2.0: Color Advice for Cartography. [Link](https://colorbrewer2.org/)
-5. Garnier, S. — Introduction to the viridis color maps (CRAN vignette). [Link](https://cran.r-project.org/web/packages/viridis/vignettes/intro-to-viridis.html)
-6. Okabe, M. & Ito, K. — Color Universal Design: How to make figures and presentations that are friendly to Colorblind people (2008). [Link](https://jfly.uni-koeln.de/color/)
-7. R Core Team — grDevices: Colors and palettes. [Link](https://stat.ethz.ch/R-manual/R-devel/library/grDevices/html/palettes.html)
+1. Wickham, H., *ggplot2: Elegant Graphics for Data Analysis*, 3rd Edition. Chapter 11: Colour Scales and Legends. [Link](https://ggplot2-book.org/scales-colour.html)
+2. ggplot2 documentation, scale_colour_viridis_d() reference. [Link](https://ggplot2.tidyverse.org/reference/scale_viridis.html)
+3. ggplot2 documentation, scale_colour_brewer() reference. [Link](https://ggplot2.tidyverse.org/reference/scale_brewer.html)
+4. Brewer, C.A., ColorBrewer 2.0: Color Advice for Cartography. [Link](https://colorbrewer2.org/)
+5. Garnier, S., Introduction to the viridis color maps (CRAN vignette). [Link](https://cran.r-project.org/web/packages/viridis/vignettes/intro-to-viridis.html)
+6. Okabe, M. & Ito, K., Color Universal Design: How to make figures and presentations that are friendly to Colorblind people (2008). [Link](https://jfly.uni-koeln.de/color/)
+7. R Core Team, grDevices: Colors and palettes. [Link](https://stat.ethz.ch/R-manual/R-devel/library/grDevices/html/palettes.html)
 
 ## Continue Learning
 
-- [ggplot2 Tutorial](ggplot2-Tutorial-With-R.html) — A complete introduction to building plots with ggplot2, from geoms to facets
-- [ggplot2 Theme Customization](Complete-Ggplot2-Tutorial-Part2-Customizing-Theme-With-R-Code.html) — Control fonts, backgrounds, axes, and every visual element of your chart
+- [ggplot2 Tutorial](ggplot2-Tutorial-With-R.html), A complete introduction to building plots with ggplot2, from geoms to facets
+- [ggplot2 Theme Customization](Complete-Ggplot2-Tutorial-Part2-Customizing-Theme-With-R-Code.html), Control fonts, backgrounds, axes, and every visual element of your chart

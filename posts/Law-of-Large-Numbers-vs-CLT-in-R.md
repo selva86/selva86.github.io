@@ -56,7 +56,7 @@ sd(sample_means_30)
 #> [1] 0.1826
 ```
 
-The left plot's wiggly line settles on 1 — that's LLN. The right plot's histogram is bell-shaped and centered on 1, with an empirical standard deviation of 0.183 that matches the CLT prediction $\sigma/\sqrt{n} = 1/\sqrt{30} \approx 0.183$. Same data, two different questions, two different answers.
+The left plot's wiggly line settles on 1, that's LLN. The right plot's histogram is bell-shaped and centered on 1, with an empirical standard deviation of 0.183 that matches the CLT prediction $\sigma/\sqrt{n} = 1/\sqrt{30} \approx 0.183$. Same data, two different questions, two different answers.
 
 [KEY INSIGHT]
 **LLN is a statement about one estimate; CLT is a statement about the estimator.** LLN looks at a specific sample mean and says it converges. CLT looks at the rule for producing sample means and describes the distribution of outputs the rule produces. Once that distinction clicks, the two laws stop feeling interchangeable.
@@ -84,7 +84,7 @@ sd(ex_means_5)
 #> [1] 0.451
 ```
 
-**Explanation:** Smaller `n` means each sample mean is less precise, so the histogram is wider — its standard deviation grows like `1/sqrt(n)`. With `n=5` the sd is about 0.45, more than double the value at `n=30`.
+**Explanation:** Smaller `n` means each sample mean is less precise, so the histogram is wider, its standard deviation grows like `1/sqrt(n)`. With `n=5` the sd is about 0.45, more than double the value at `n=30`.
 
 </details>
 
@@ -98,11 +98,11 @@ $$\bar{X}_n \xrightarrow{P} \mu \quad \text{as } n \to \infty$$
 
 Where:
 
-- $\bar{X}_n = \frac{1}{n}\sum_{i=1}^{n} X_i$ — the sample mean of the first $n$ observations
-- $\xrightarrow{P}$ means "converges in probability" — for any tolerance $\epsilon > 0$, $P(|\bar{X}_n - \mu| > \epsilon) \to 0$
-- $\mu$ — the true population mean
+- $\bar{X}_n = \frac{1}{n}\sum_{i=1}^{n} X_i$, the sample mean of the first $n$ observations
+- $\xrightarrow{P}$ means "converges in probability", for any tolerance $\epsilon > 0$, $P(|\bar{X}_n - \mu| > \epsilon) \to 0$
+- $\mu$, the true population mean
 
-A stronger version (the **Strong Law of Large Numbers**) replaces convergence in probability with almost-sure convergence. The practical takeaway is the same: the sample mean lands on the truth. The strong version just guarantees that if you watched the simulation forever, almost every individual path would converge — not just *most of them in probability*.
+A stronger version (the **Strong Law of Large Numbers**) replaces convergence in probability with almost-sure convergence. The practical takeaway is the same: the sample mean lands on the truth. The strong version just guarantees that if you watched the simulation forever, almost every individual path would converge, not just *most of them in probability*.
 
 The simulation that makes the LLN feel real is the running proportion of heads in a biased coin flip. Set the true probability to 0.3 and watch the sample proportion home in on it.
 
@@ -124,10 +124,10 @@ running_p[c(10, 100, 1000, 10000)]
 #> [1] 0.4000 0.3300 0.3060 0.3014
 ```
 
-At n=10 the proportion is off by 0.10 from the truth. By n=10,000 the gap is down to 0.0014. The line on the plot doesn't approach the dashed red line in a straight march — it wiggles, sometimes overshoots, sometimes lags. But the wiggles get smaller, and the overall trajectory is locked toward 0.3.
+At n=10 the proportion is off by 0.10 from the truth. By n=10,000 the gap is down to 0.0014. The line on the plot doesn't approach the dashed red line in a straight march, it wiggles, sometimes overshoots, sometimes lags. But the wiggles get smaller, and the overall trajectory is locked toward 0.3.
 
 [KEY INSIGHT]
-**LLN is the reason simulation works as evidence.** Every Monte Carlo estimate — a probability, an integral, an expected value — leans on LLN to promise that more iterations give a tighter answer. Without it, "I ran a simulation and got X" would be just an anecdote.
+**LLN is the reason simulation works as evidence.** Every Monte Carlo estimate, a probability, an integral, an expected value, leans on LLN to promise that more iterations give a tighter answer. Without it, "I ran a simulation and got X" would be just an anecdote.
 
 **Try it:** Change the bias to `prob = 0.7` and predict before running where the line will settle.
 
@@ -152,13 +152,13 @@ ex_running_7[10000]
 #> [1] 0.7008
 ```
 
-**Explanation:** LLN guarantees the running proportion converges to the true probability `p`. Change `p` and the destination changes accordingly — the plot shape is the same, the dashed line just moves.
+**Explanation:** LLN guarantees the running proportion converges to the true probability `p`. Change `p` and the destination changes accordingly, the plot shape is the same, the dashed line just moves.
 
 </details>
 
 ## What does the Central Limit Theorem actually say?
 
-LLN watches one running mean. CLT asks a different question: if you collect *many* sample means from independent samples of size $n$, what does the *distribution* of those means look like? The answer is the surprise — it morphs into a normal regardless of the parent distribution's shape, as long as the parent has finite variance.
+LLN watches one running mean. CLT asks a different question: if you collect *many* sample means from independent samples of size $n$, what does the *distribution* of those means look like? The answer is the surprise, it morphs into a normal regardless of the parent distribution's shape, as long as the parent has finite variance.
 
 The formal statement: for iid $X_1, \ldots, X_n$ with mean $\mu$ and finite variance $\sigma^2$,
 
@@ -170,9 +170,9 @@ $$\bar{X}_n \approx N\left(\mu, \frac{\sigma^2}{n}\right) \quad \text{for large 
 
 Where:
 
-- $\xrightarrow{d}$ means "converges in distribution" — the cumulative distribution function of $\sqrt{n}(\bar{X}_n - \mu)$ converges to the normal CDF
-- $\sigma^2$ — the population variance (must be finite)
-- $\sigma / \sqrt{n}$ — the standard error of the sample mean, the typical CLT scaling
+- $\xrightarrow{d}$ means "converges in distribution", the cumulative distribution function of $\sqrt{n}(\bar{X}_n - \mu)$ converges to the normal CDF
+- $\sigma^2$, the population variance (must be finite)
+- $\sigma / \sqrt{n}$, the standard error of the sample mean, the typical CLT scaling
 
 Visualise the convergence by drawing 5000 sample means at three different sample sizes from the same skewed parent (the exponential).
 
@@ -202,7 +202,7 @@ sapply(list(clt_means_2, clt_means_10, clt_means_30), sd)
 #> [1] 0.7071 0.3162 0.1826
 ```
 
-At n=2 the histogram is still visibly skewed — two exponentials averaged together are not yet normal. At n=10 the right tail is still a bit heavier than the red normal curve, but the bulk fits. At n=30 the empirical histogram and the theoretical normal are nearly indistinguishable, and the empirical standard deviations match $1/\sqrt{n}$ to three decimals.
+At n=2 the histogram is still visibly skewed, two exponentials averaged together are not yet normal. At n=10 the right tail is still a bit heavier than the red normal curve, but the bulk fits. At n=30 the empirical histogram and the theoretical normal are nearly indistinguishable, and the empirical standard deviations match $1/\sqrt{n}$ to three decimals.
 
 [TIP]
 **n ≥ 30 is the textbook rule of thumb.** For moderately skewed distributions like the exponential, sample sizes of 30 and above usually give a tight normal approximation. Heavier skew or smaller `n` calls for a quick sanity check by simulation before trusting the CLT.
@@ -233,17 +233,17 @@ sqrt(1/12) / sqrt(5)
 #> [1] 0.1291
 ```
 
-**Explanation:** The uniform distribution is symmetric, so the CLT kicks in much faster than for the skewed exponential — even at `n=5` the histogram is visibly bell-shaped. Symmetry buys you smaller required `n`; skew costs you larger `n`.
+**Explanation:** The uniform distribution is symmetric, so the CLT kicks in much faster than for the skewed exponential, even at `n=5` the histogram is visibly bell-shaped. Symmetry buys you smaller required `n`; skew costs you larger `n`.
 
 </details>
 
 ## How do LLN and CLT work together in the same simulation?
 
-The two laws are not competing answers to the same question. They are two views of the same experiment. LLN watches the *limit of one path*. CLT watches the *cross-section of many paths*. The link is that the CLT predicts how wide a confidence band the running mean lives inside — and that band shrinks at the $1/\sqrt{n}$ rate.
+The two laws are not competing answers to the same question. They are two views of the same experiment. LLN watches the *limit of one path*. CLT watches the *cross-section of many paths*. The link is that the CLT predicts how wide a confidence band the running mean lives inside, and that band shrinks at the $1/\sqrt{n}$ rate.
 
 ![LLN and CLT compared](screenshots/Law-of-Large-Numbers-vs-CLT-in-R-side-by-side.webp)
 
-*Figure 1: LLN and CLT ask different questions about the same data — one about destination, one about scatter.*
+*Figure 1: LLN and CLT ask different questions about the same data, one about destination, one about scatter.*
 
 Make the link concrete by drawing the running mean from an exponential and overlaying the CLT-derived 95% band $\mu \pm 1.96 \cdot \sigma / \sqrt{n}$.
 
@@ -269,7 +269,7 @@ abline(h = 1, col = "red", lty = 2)
 #> [1] 0.3920 0.1240 0.0392
 ```
 
-The blue dashed band funnels in toward the red true-mean line, and the running mean stays inside it (with brief excursions, which is exactly what a 95% band predicts). The band's full width drops from 0.39 at n=100 to 0.039 at n=10,000 — a tenfold shrinkage for a 100-fold increase in `n`, the signature $1/\sqrt{n}$ rate.
+The blue dashed band funnels in toward the red true-mean line, and the running mean stays inside it (with brief excursions, which is exactly what a 95% band predicts). The band's full width drops from 0.39 at n=100 to 0.039 at n=10,000, a tenfold shrinkage for a 100-fold increase in `n`, the signature $1/\sqrt{n}$ rate.
 
 | Question | LLN | CLT |
 |---|---|---|
@@ -277,11 +277,11 @@ The blue dashed band funnels in toward the red true-mean line, and the running m
 | Type of convergence | In probability (or almost surely) | In distribution |
 | Requires finite mean? | Yes | Yes |
 | Requires finite variance? | No | Yes |
-| Gives a distribution? | No — just a destination | Yes — Normal$(\mu, \sigma^2/n)$ |
+| Gives a distribution? | No, just a destination | Yes, Normal$(\mu, \sigma^2/n)$ |
 | Practical use | Justifies Monte Carlo estimates | Builds confidence intervals and tests |
 
 [NOTE]
-**This band is exactly how confidence intervals are born.** A 95% confidence interval for the population mean is just $\bar{X}_n \pm 1.96 \cdot \hat{\sigma}/\sqrt{n}$ — the CLT band centered on the observed sample mean instead of the true mean. The whole machinery of inferential statistics rides on this one fact.
+**This band is exactly how confidence intervals are born.** A 95% confidence interval for the population mean is just $\bar{X}_n \pm 1.96 \cdot \hat{\sigma}/\sqrt{n}$, the CLT band centered on the observed sample mean instead of the true mean. The whole machinery of inferential statistics rides on this one fact.
 
 **Try it:** Compute the CLT half-band width at n=2500 by hand (using $\sigma=1$) and verify against the simulation's running standard error.
 
@@ -301,13 +301,13 @@ ex_se_2500
 #> [1] 0.0392
 ```
 
-**Explanation:** The CLT half-band is $1.96 \cdot \sigma / \sqrt{n}$. Plug in $\sigma=1$ and $n=2500$ to get 0.0392. That matches `band_upper[2500] - 1` from the simulation — the half-distance from the true mean to the upper band edge.
+**Explanation:** The CLT half-band is $1.96 \cdot \sigma / \sqrt{n}$. Plug in $\sigma=1$ and $n=2500$ to get 0.0392. That matches `band_upper[2500] - 1` from the simulation, the half-distance from the true mean to the upper band edge.
 
 </details>
 
 ## When do LLN and CLT break down?
 
-Both laws come with fine print. LLN needs the population mean to exist. CLT needs the population variance to be finite. Heavy-tailed distributions can violate either condition, and the cleanest demonstration of failure is the **Cauchy distribution** — it has no finite mean at all, so LLN fails and CLT-style normality of sample means never appears.
+Both laws come with fine print. LLN needs the population mean to exist. CLT needs the population variance to be finite. Heavy-tailed distributions can violate either condition, and the cleanest demonstration of failure is the **Cauchy distribution**, it has no finite mean at all, so LLN fails and CLT-style normality of sample means never appears.
 
 ![When does each law apply?](screenshots/Law-of-Large-Numbers-vs-CLT-in-R-decision.webp)
 
@@ -343,10 +343,10 @@ exp_run[c(100, 1000, 10000)]
 #> [1] 1.0466 1.0124 1.0023
 ```
 
-The exponential running mean clamps onto 1 and never lets go. The Cauchy running mean jumps wildly even at n=10,000 — sometimes wandering by half a unit between snapshots. A single extreme draw can shift the running mean significantly because the Cauchy's tails decay so slowly that very large values keep arriving at every scale. Re-running with a different seed gives a totally different trajectory.
+The exponential running mean clamps onto 1 and never lets go. The Cauchy running mean jumps wildly even at n=10,000, sometimes wandering by half a unit between snapshots. A single extreme draw can shift the running mean significantly because the Cauchy's tails decay so slowly that very large values keep arriving at every scale. Re-running with a different seed gives a totally different trajectory.
 
 [WARNING]
-**LLN failures are silent.** The simulation does not throw an error or warn. It just produces a number that looks like an estimate but isn't converging to anything. If you summarize a heavy-tailed dataset with `mean()` and report it as a population estimate, you may be reporting noise — always check for finite mean and variance before quoting Monte Carlo means.
+**LLN failures are silent.** The simulation does not throw an error or warn. It just produces a number that looks like an estimate but isn't converging to anything. If you summarize a heavy-tailed dataset with `mean()` and report it as a population estimate, you may be reporting noise, always check for finite mean and variance before quoting Monte Carlo means.
 
 **Try it:** Use a Student's t with `df=2` (heavy tail, finite mean but infinite variance). Predict whether LLN holds and whether CLT holds, then check.
 
@@ -376,7 +376,7 @@ sd(ex_t2_means)
 #> [1] 0.6843  # much wider than 1/sqrt(30) due to infinite variance
 ```
 
-**Explanation:** A `t(df=2)` distribution has a finite mean (zero) but infinite variance. LLN still holds — the running mean drifts toward zero but more erratically than for a thin-tailed distribution. CLT, however, fails: the sampling distribution of the mean is still heavy-tailed and not well approximated by a normal at any practical `n`.
+**Explanation:** A `t(df=2)` distribution has a finite mean (zero) but infinite variance. LLN still holds, the running mean drifts toward zero but more erratically than for a thin-tailed distribution. CLT, however, fails: the sampling distribution of the mean is still heavy-tailed and not well approximated by a normal at any practical `n`.
 
 </details>
 
@@ -414,7 +414,7 @@ my_errors[2] / my_errors[3]
 #> [1] 2.95
 ```
 
-**Explanation:** LLN promises convergence; CLT pins down the rate. The absolute error of the running mean shrinks as $\sigma/\sqrt{n}$, so a 100x increase in `n` should reduce error by about $\sqrt{100} = 10$. Two factors of $\sqrt{10}$ (each between 1000x intervals) should each be near 3.16 — small-sample noise pushes them off slightly but the order of magnitude matches.
+**Explanation:** LLN promises convergence; CLT pins down the rate. The absolute error of the running mean shrinks as $\sigma/\sqrt{n}$, so a 100x increase in `n` should reduce error by about $\sqrt{100} = 10$. Two factors of $\sqrt{10}$ (each between 1000x intervals) should each be near 3.16, small-sample noise pushes them off slightly but the order of magnitude matches.
 
 </details>
 
@@ -448,11 +448,11 @@ mean(my_props); sd(my_props)
 #> [1] 0.0497
 ```
 
-**Explanation:** For a Bernoulli with $p = 0.5$, the variance of one trial is $p(1-p) = 0.25$. The standard error of the sample proportion at $n = 100$ is $\sqrt{0.25/100} = 0.05$. The histogram and the overlaid normal match almost exactly — a textbook CLT.
+**Explanation:** For a Bernoulli with $p = 0.5$, the variance of one trial is $p(1-p) = 0.25$. The standard error of the sample proportion at $n = 100$ is $\sqrt{0.25/100} = 0.05$. The histogram and the overlaid normal match almost exactly, a textbook CLT.
 
 </details>
 
-### Exercise 3: Borderline case — Pareto with shape α=3
+### Exercise 3: Borderline case, Pareto with shape α=3
 
 Investigate whether CLT applies to a Pareto distribution with shape $\alpha = 3$. Simulate it via $X = U^{-1/\alpha}$ where $U \sim$ Uniform(0,1). The distribution has finite mean $\alpha/(\alpha-1) = 1.5$ and finite variance only when $\alpha > 2$. Draw 5000 sample means of size 30, plot the histogram, and overlay the theoretical normal.
 
@@ -493,7 +493,7 @@ sqrt(true_var / 30)
 #> [1] 0.158
 ```
 
-**Explanation:** Pareto with $\alpha = 3$ has finite variance, so CLT should apply — and it does. The empirical mean (1.52) is close to the theoretical 1.5, and the empirical sd (0.171) is close to the theoretical 0.158. A small upward bias in the sd is the signature of a still-heavy right tail at `n=30` — bumping `n` to 100 would close the gap further.
+**Explanation:** Pareto with $\alpha = 3$ has finite variance, so CLT should apply, and it does. The empirical mean (1.52) is close to the theoretical 1.5, and the empirical sd (0.171) is close to the theoretical 0.158. A small upward bias in the sd is the signature of a still-heavy right tail at `n=30`, bumping `n` to 100 would close the gap further.
 
 </details>
 
@@ -541,7 +541,7 @@ sim_lift + c(-1.96, 1.96) * se_lift
 #> [1] 0.00197 0.00765
 ```
 
-The required sample size is about 45,600 per group. At that size the standard error of the lift is 0.00144, so a 0.5pp lift is roughly 3.5 standard errors away from zero — clearly significant. The simulated A/B test produced a 0.48pp lift, and the 95% CI [0.20pp, 0.77pp] excludes zero — the test would correctly conclude the lift is real. At the original 1000 users per group, the standard error would have been about 0.0098 — so a 0.5pp lift would be only half a standard error from zero, statistically indistinguishable from random noise.
+The required sample size is about 45,600 per group. At that size the standard error of the lift is 0.00144, so a 0.5pp lift is roughly 3.5 standard errors away from zero, clearly significant. The simulated A/B test produced a 0.48pp lift, and the 95% CI [0.20pp, 0.77pp] excludes zero, the test would correctly conclude the lift is real. At the original 1000 users per group, the standard error would have been about 0.0098, so a 0.5pp lift would be only half a standard error from zero, statistically indistinguishable from random noise.
 
 [TIP]
 **Halving your margin of error means quadrupling your sample.** The CLT formula $n \propto 1/E^2$ is the most useful piece of arithmetic in applied statistics. Wanting a smaller error band by a factor of 2 costs a factor of 4 in sample size. Wanting it 10x tighter costs 100x.
@@ -561,20 +561,20 @@ This is LLN and CLT working together in production: LLN justifies *why* a large 
 | Practical use | Justifies Monte Carlo, simulation, sample averages | Confidence intervals, hypothesis tests, sample size formulas |
 | Common failure case | Cauchy (no mean) | Cauchy or `t(df=2)` (infinite variance) |
 
-The two laws are complementary. LLN says *where* the sample mean lands; CLT says *how* it scatters around the landing spot. Confusing them is the most common mistake in introductory statistics — and the most consequential, because almost every applied technique (CIs, t-tests, A/B tests, bootstrap) leans on the CLT's distributional promise, not just LLN's destination promise.
+The two laws are complementary. LLN says *where* the sample mean lands; CLT says *how* it scatters around the landing spot. Confusing them is the most common mistake in introductory statistics, and the most consequential, because almost every applied technique (CIs, t-tests, A/B tests, bootstrap) leans on the CLT's distributional promise, not just LLN's destination promise.
 
 ## References
 
-1. Wasserman, L. — *All of Statistics*, Chapter 5 (Convergence of Random Variables). Springer (2004). [Link](https://www.stat.cmu.edu/~larry/all-of-statistics/)
-2. Casella, G. & Berger, R. — *Statistical Inference*, 2nd Edition, Chapter 5 (Properties of a Random Sample). Cengage (2002).
-3. Wickham, H. — *Advanced R*, 2nd Edition, Chapter 23 (Measuring performance). CRC Press (2019). [Link](https://adv-r.hadley.nz/)
-4. R Core Team — Distributions reference (`rcauchy`, `rexp`, `rbinom`, `rt`). [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/Distributions.html)
-5. MIT 18.05 — Central Limit Theorem and the Law of Large Numbers, Class 6 prep notes. [Link](https://math.mit.edu/~dav/05.dir/class6-prep.pdf)
-6. Wikipedia — Law of Large Numbers. [Link](https://en.wikipedia.org/wiki/Law_of_large_numbers)
-7. Wikipedia — Central Limit Theorem. [Link](https://en.wikipedia.org/wiki/Central_limit_theorem)
+1. Wasserman, L., *All of Statistics*, Chapter 5 (Convergence of Random Variables). Springer (2004). [Link](https://www.stat.cmu.edu/~larry/all-of-statistics/)
+2. Casella, G. & Berger, R., *Statistical Inference*, 2nd Edition, Chapter 5 (Properties of a Random Sample). Cengage (2002).
+3. Wickham, H., *Advanced R*, 2nd Edition, Chapter 23 (Measuring performance). CRC Press (2019). [Link](https://adv-r.hadley.nz/)
+4. R Core Team, Distributions reference (`rcauchy`, `rexp`, `rbinom`, `rt`). [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/Distributions.html)
+5. MIT 18.05, Central Limit Theorem and the Law of Large Numbers, Class 6 prep notes. [Link](https://math.mit.edu/~dav/05.dir/class6-prep.pdf)
+6. Wikipedia, Law of Large Numbers. [Link](https://en.wikipedia.org/wiki/Law_of_large_numbers)
+7. Wikipedia, Central Limit Theorem. [Link](https://en.wikipedia.org/wiki/Central_limit_theorem)
 
 ## Continue Learning
 
-- [Central Limit Theorem in R: Simulate It From Skewed, Bimodal, and Uniform Distributions](Central-Limit-Theorem-in-R.html) — go deeper on CLT with parent shapes the simulation in this article didn't cover.
-- [Sampling Distributions in R: What Actually Varies Across Repeated Samples](Sampling-Distributions-in-R.html) — the underlying machinery both laws describe.
-- [Normal, t, F, and Chi-Squared in R: Understand Each Distribution and When It Arises](Normal-t-F-and-Chi-Squared-Distributions-in-R.html) — the limit distributions referenced throughout this tutorial.
+- [Central Limit Theorem in R: Simulate It From Skewed, Bimodal, and Uniform Distributions](Central-Limit-Theorem-in-R.html), go deeper on CLT with parent shapes the simulation in this article didn't cover.
+- [Sampling Distributions in R: What Actually Varies Across Repeated Samples](Sampling-Distributions-in-R.html), the underlying machinery both laws describe.
+- [Normal, t, F, and Chi-Squared in R: Understand Each Distribution and When It Arises](Normal-t-F-and-Chi-Squared-Distributions-in-R.html), the limit distributions referenced throughout this tutorial.

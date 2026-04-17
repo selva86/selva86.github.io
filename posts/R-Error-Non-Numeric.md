@@ -1,5 +1,5 @@
 ---
-title: "R Error: 'non-numeric argument to binary operator' — Find the Hidden Character"
+title: "R Error: 'non-numeric argument to binary operator', Find the Hidden Character"
 slug: "R-Error-Non-Numeric"
 description: "R is trying to do arithmetic on something that isn't a number. Use class(), str() and is.numeric() to find the hidden character and fix the silent coercion."
 keywords: "non-numeric argument to binary operator, R type mismatch error, as.numeric R, R character to numeric, R factor to numeric, R hidden character, R data type debugging"
@@ -14,13 +14,13 @@ fr_parent: "R-Common-Errors.html"
 difficulty: "Intermediate"
 ---
 
-# R Error: 'non-numeric argument to binary operator' — Find the Hidden Character
+# R Error: 'non-numeric argument to binary operator', Find the Hidden Character
 
-<p class="lead"><code>Error in x * y : non-numeric argument to binary operator</code> means R was asked to do arithmetic on something that isn't a number. The fastest way to find the culprit is to ask <code>class()</code> what each operand actually is — once you know that, the fix is usually a single conversion function.</p>
+<p class="lead"><code>Error in x * y : non-numeric argument to binary operator</code> means R was asked to do arithmetic on something that isn't a number. The fastest way to find the culprit is to ask <code>class()</code> what each operand actually is, once you know that, the fix is usually a single conversion function.</p>
 
 ## What does "non-numeric argument to binary operator" mean in R?
 
-R throws this error the moment an arithmetic operator — `+`, `-`, `*`, `/`, `^`, `%%` — sees an operand that isn't numeric. The value may print exactly like a number and still be a character string, a factor, or a date under the hood. The one-line diagnosis is `class()`: once you know what R thinks each operand is, the fix is usually a single conversion function.
+R throws this error the moment an arithmetic operator, `+`, `-`, `*`, `/`, `^`, `%%`, sees an operand that isn't numeric. The value may print exactly like a number and still be a character string, a factor, or a date under the hood. The one-line diagnosis is `class()`: once you know what R thinks each operand is, the fix is usually a single conversion function.
 
 Let's reproduce the error on purpose, then solve it in three lines.
 
@@ -46,7 +46,7 @@ total
 #> [1] 59.97
 ```
 
-The string `"19.99"` and the number `19.99` print identically, but `class()` exposes the difference. Once you know which operand is the character, `as.numeric()` patches it in one call. The rest of this guide is about recognising the same mismatch when it's less obvious — buried inside data frames, hidden in whitespace, or wearing a factor disguise.
+The string `"19.99"` and the number `19.99` print identically, but `class()` exposes the difference. Once you know which operand is the character, `as.numeric()` patches it in one call. The rest of this guide is about recognising the same mismatch when it's less obvious, buried inside data frames, hidden in whitespace, or wearing a factor disguise.
 
 [KEY INSIGHT]
 **class() answers 90% of these errors in one line.** Before you change any code, run `class()` on every operand of the failing expression. The error almost always goes away once you know which side is not numeric.
@@ -109,10 +109,10 @@ names(shop)[!sapply(shop, is.numeric)]
 #> [1] "item"     "price"    "in_stock"
 ```
 
-`str()` is great for eyeballing, but `sapply(shop, is.numeric)` is what you actually want in a script — it returns a named logical vector you can feed straight into column selection. Wrapping it with `names(shop)[!...]` prints exactly the columns that would break an arithmetic expression.
+`str()` is great for eyeballing, but `sapply(shop, is.numeric)` is what you actually want in a script, it returns a named logical vector you can feed straight into column selection. Wrapping it with `names(shop)[!...]` prints exactly the columns that would break an arithmetic expression.
 
 [TIP]
-**The one-line culprit finder is `names(df)[!sapply(df, is.numeric)]`.** Keep it in your snippet library — it's the single fastest way to find every non-numeric column in a data frame, no matter how wide.
+**The one-line culprit finder is `names(df)[!sapply(df, is.numeric)]`.** Keep it in your snippet library, it's the single fastest way to find every non-numeric column in a data frame, no matter how wide.
 
 **Try it:** Using the data frame `ex_df` below, write one line that returns the names of every non-numeric column.
 
@@ -146,12 +146,12 @@ names(ex_df)[!sapply(ex_df, is.numeric)]
 
 The hardest version of this bug is the column that *looks* numeric when you `print()` it but fails `is.numeric()`. A single stray character anywhere in the column forces the whole thing to character. The usual suspects are:
 
-1. **Leading or trailing whitespace** — `" 19.99"` from a poorly-trimmed CSV.
-2. **Currency symbols** — `"$19.99"` or `"€12.00"`.
-3. **Thousand separators** — `"1,200"` from Excel exports.
-4. **Placeholder text** — `"N/A"`, `"TBD"`, `"-"`.
-5. **Stray units** — `"42kg"`, `"15%"`.
-6. **Unicode minus** — `"−5"` (U+2212) instead of ASCII `-5`.
+1. **Leading or trailing whitespace**, `" 19.99"` from a poorly-trimmed CSV.
+2. **Currency symbols**, `"$19.99"` or `"€12.00"`.
+3. **Thousand separators**, `"1,200"` from Excel exports.
+4. **Placeholder text**, `"N/A"`, `"TBD"`, `"-"`.
+5. **Stray units**, `"42kg"`, `"15%"`.
+6. **Unicode minus**, `"−5"` (U+2212) instead of ASCII `-5`.
 
 The cleanest fix is `readr::parse_number()`, which strips everything that isn't part of a number and converts in one call. It also keeps the bad rows as `NA` instead of crashing, which is what you usually want.
 
@@ -174,12 +174,12 @@ sum(cleaned, na.rm = TRUE)
 #> [1] 1282.49
 ```
 
-`parse_number()` handled whitespace, `$`, `,`, and `"42kg"` without a single manual `gsub`. The one value it couldn't rescue — `"N/A"` — became `NA`, which `sum(..., na.rm = TRUE)` ignores. That's a much safer outcome than a hard error mid-script.
+`parse_number()` handled whitespace, `$`, `,`, and `"42kg"` without a single manual `gsub`. The one value it couldn't rescue, `"N/A"`, became `NA`, which `sum(..., na.rm = TRUE)` ignores. That's a much safer outcome than a hard error mid-script.
 
 [WARNING]
 **One bad value drags the entire column to character.** R data frames are column-typed, so if even a single cell in a 10,000-row column is `"N/A"` or `"$"`, the whole column becomes character and every arithmetic operation on it fails. Clean on import, not after the error hits.
 
-**Try it:** Clean the price vector `ex_prices` so its values become a numeric vector. Use any approach — `gsub()` + `as.numeric()` or `parse_number()`.
+**Try it:** Clean the price vector `ex_prices` so its values become a numeric vector. Use any approach, `gsub()` + `as.numeric()` or `parse_number()`.
 
 ```r
 # Try it: clean a messy price vector
@@ -244,7 +244,7 @@ rowSums(mess)
 #> [1] 1295  962 2408
 ```
 
-All three columns are numeric after the fix, and `rowSums(mess)` — which would have errored before — now returns one total per row. Pattern B is the one that trips people up most: calling `as.numeric()` directly on a factor returns the level *indices*, not the label values. The `as.character()` step rescues the original strings first.
+All three columns are numeric after the fix, and `rowSums(mess)`, which would have errored before, now returns one total per row. Pattern B is the one that trips people up most: calling `as.numeric()` directly on a factor returns the level *indices*, not the label values. The `as.character()` step rescues the original strings first.
 
 [WARNING]
 **Calling as.numeric() directly on a factor returns level indices, not labels.** `as.numeric(factor(c("10","20","30")))` returns `1 2 3`, not `10 20 30`. Always route factors through `as.character()` first: `as.numeric(as.character(x))`.
@@ -319,7 +319,7 @@ grand_total
 
 ### Exercise 2: Auto-clean every non-numeric column in a survey
 
-`survey` has three suspect columns (`q1`, `q2`, `q3`) that should all be numeric but look like they were typed by humans. Write a short pipeline that (a) finds the non-numeric columns, (b) cleans each with `parse_number()`, and (c) adds a `row_total` column. Don't hard-code column names — use `sapply()` so your code works on any survey.
+`survey` has three suspect columns (`q1`, `q2`, `q3`) that should all be numeric but look like they were typed by humans. Write a short pipeline that (a) finds the non-numeric columns, (b) cleans each with `parse_number()`, and (c) adds a `row_total` column. Don't hard-code column names, use `sapply()` so your code works on any survey.
 
 ```r
 # Capstone 2: detect + clean + total, all from a generic pipeline
@@ -361,7 +361,7 @@ print(survey)
 
 ## Complete Example: Debug a Broken Revenue Report
 
-Here's the kind of mess that shows up in real CSV exports. The `revenue_df` data frame should let us compute total revenue per region — but every numeric column is secretly a character, and one is a factor. Watch the diagnostic workflow end-to-end.
+Here's the kind of mess that shows up in real CSV exports. The `revenue_df` data frame should let us compute total revenue per region, but every numeric column is secretly a character, and one is a factor. Watch the diagnostic workflow end-to-end.
 
 ```r
 # A real-world messy CSV-style data frame
@@ -403,7 +403,7 @@ sum(revenue_df$revenue)
 #> [1] 103271.41
 ```
 
-Four commands, four patches, one grand total. The key is that the `sapply()` scan in Step 1 *told* us exactly which columns needed which treatment before we wrote a single fix — no guessing, no re-running, no error messages to decode.
+Four commands, four patches, one grand total. The key is that the `sapply()` scan in Step 1 *told* us exactly which columns needed which treatment before we wrote a single fix, no guessing, no re-running, no error messages to decode.
 
 [NOTE]
 **Prevention beats diagnosis.** When reading CSVs with `readr::read_csv()`, pass `col_types = cols(units_sold = col_number(), unit_price = col_number())` to parse numeric columns correctly at import time. Most of these errors never happen if the data enters R with the right types.
@@ -423,16 +423,16 @@ Four commands, four patches, one grand total. The key is that the `sapply()` sca
 
 ## References
 
-1. R Core Team — *R Language Definition*, Operators. [Link](https://cran.r-project.org/doc/manuals/r-release/R-lang.html#Operators)
-2. Wickham, H. — *Advanced R* (2nd ed.), Chapter 3: Vectors. [Link](https://adv-r.hadley.nz/vectors-chap.html)
-3. readr — `parse_number()` reference. [Link](https://readr.tidyverse.org/reference/parse_number.html)
-4. R Core Team — *R FAQ*: `as.numeric()` on a factor. [Link](https://cran.r-project.org/doc/FAQ/R-FAQ.html)
-5. R Documentation — `base::class()`. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/class.html)
-6. Wickham, H. — *Tidyverse Style Guide*. [Link](https://style.tidyverse.org/)
-7. Posit Community — "non-numeric argument to binary operator" thread. [Link](https://forum.posit.co/t/non-numeric-argument-to-binary-operator-error/93588)
+1. R Core Team, *R Language Definition*, Operators. [Link](https://cran.r-project.org/doc/manuals/r-release/R-lang.html#Operators)
+2. Wickham, H., *Advanced R* (2nd ed.), Chapter 3: Vectors. [Link](https://adv-r.hadley.nz/vectors-chap.html)
+3. readr, `parse_number()` reference. [Link](https://readr.tidyverse.org/reference/parse_number.html)
+4. R Core Team, *R FAQ*: `as.numeric()` on a factor. [Link](https://cran.r-project.org/doc/FAQ/R-FAQ.html)
+5. R Documentation, `base::class()`. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/class.html)
+6. Wickham, H., *Tidyverse Style Guide*. [Link](https://style.tidyverse.org/)
+7. Posit Community, "non-numeric argument to binary operator" thread. [Link](https://forum.posit.co/t/non-numeric-argument-to-binary-operator-error/93588)
 
 ## Continue Learning
 
-1. **R Errors Decoded: Plain-English Explanations and Exact Fixes** — the parent reference for all 50 common R errors. [R-Common-Errors.html](R-Common-Errors.html)
-2. **R Warning: NAs introduced by coercion** — what happens after `as.numeric()` silently fails on bad values. [R-Warning-NAs-Introduced-By-Coercion.html](R-Warning-NAs-Introduced-By-Coercion.html)
-3. **R Error: object 'x' not found** — when the variable name itself is the problem, not its type. [R-Error-Object-Not-Found.html](R-Error-Object-Not-Found.html)
+1. **R Errors Decoded: Plain-English Explanations and Exact Fixes**, the parent reference for all 50 common R errors. [R-Common-Errors.html](R-Common-Errors.html)
+2. **R Warning: NAs introduced by coercion**, what happens after `as.numeric()` silently fails on bad values. [R-Warning-NAs-Introduced-By-Coercion.html](R-Warning-NAs-Introduced-By-Coercion.html)
+3. **R Error: object 'x' not found**, when the variable name itself is the problem, not its type. [R-Error-Object-Not-Found.html](R-Error-Object-Not-Found.html)

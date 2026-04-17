@@ -1,5 +1,5 @@
 ---
-title: "sloop Package in R: otype(), ftype() — Inspect Any Object's OOP System"
+title: "sloop Package in R: otype(), ftype(), Inspect Any Object's OOP System"
 slug: "sloop-Package-in-R"
 description: "Use the sloop package to identify R's OOP system with otype(), classify functions with ftype(), and trace S3 method dispatch with s3_dispatch() in one line."
 keywords: "sloop package R, otype R, ftype R, s3_dispatch, R OOP inspection, R object type, S3 method dispatch, R mystery object, sloop tutorial"
@@ -14,13 +14,13 @@ fr_parent: "OOP-in-R.html"
 difficulty: "Intermediate"
 ---
 
-# sloop Package in R: otype(), ftype() — Inspect Any Object's OOP System
+# sloop Package in R: otype(), ftype(), Inspect Any Object's OOP System
 
 <p class="lead">R has four OOP systems (S3, S4, RC, R6), and from the outside an unfamiliar object rarely tells you which one it uses. The <strong>sloop</strong> package answers "what kind of object is this?" and "which method will run?" in a single line instead of three base-R calls stitched together.</p>
 
 ## What does sloop do that base R doesn't?
 
-Suppose a colleague hands you a fitted model and asks why `predict()` behaves oddly on it. Before you can debug, you need three facts: its class, its OOP system, and which `predict` method actually runs. Base R makes you chain `class()`, `isS4()`, `methods()`, and `getAnywhere()` to reach those answers. sloop delivers all three in three short calls — short enough to type from memory.
+Suppose a colleague hands you a fitted model and asks why `predict()` behaves oddly on it. Before you can debug, you need three facts: its class, its OOP system, and which `predict` method actually runs. Base R makes you chain `class()`, `isS4()`, `methods()`, and `getAnywhere()` to reach those answers. sloop delivers all three in three short calls, short enough to type from memory.
 
 Here is what that looks like. The block below fits an ordinary linear model, asks sloop what kind of object it is, and then asks which method `print()` will dispatch to. Read the `#>` comments as the answers R prints back.
 
@@ -78,7 +78,7 @@ s3_dispatch(print(ex_fit))
 
 ## How does otype() identify an object's OOP system?
 
-`otype()` returns one word — `"base"`, `"S3"`, `"S4"`, or `"R6"` — answering the question "which dispatch engine handles this object?" That answer determines everything else: whether you reach for `UseMethod()`, `setMethod()`, or `$method()` to extend it.
+`otype()` returns one word, `"base"`, `"S3"`, `"S4"`, or `"R6"`, answering the question "which dispatch engine handles this object?" That answer determines everything else: whether you reach for `UseMethod()`, `setMethod()`, or `$method()` to extend it.
 
 The next block runs `otype()` across the four OOP systems using objects you already have: a base integer, a data frame (S3), a fitted model (S3), and a fresh S4 class. Expect one-word labels for each.
 
@@ -132,12 +132,12 @@ identify_oop(exp1)
 #> [1] "S4"
 ```
 
-The helper checks four signals in priority order: `isS4()` catches formal classes, an environment with a `clone` binding is the tell-tale sign of R6, a class attribute alone implies S3, and anything else is a base type. It is what `otype()` does internally — now you know the trick.
+The helper checks four signals in priority order: `isS4()` catches formal classes, an environment with a `clone` binding is the tell-tale sign of R6, a class attribute alone implies S3, and anything else is a base type. It is what `otype()` does internally, now you know the trick.
 
 [TIP]
 **Prefer otype() over class() for the OOP question.** `class()` tells you what an object is *called* (the label); `otype()` tells you which dispatch engine will *process* it. Two different questions, two different answers.
 
-**Try it:** Return the OOP system of a factor in one line — using whichever function is available.
+**Try it:** Return the OOP system of a factor in one line, using whichever function is available.
 
 ```r
 # Try it: one-line OOP check on a factor
@@ -166,7 +166,7 @@ identify_oop(ex_f)       # or: sloop::otype(ex_f)
 
 `otype()` answers questions about *objects*; `ftype()` answers the parallel question about *functions*: is this function a generic, a method, a primitive, or something else? That classification tells you whether it participates in method dispatch at all.
 
-The block below calls `ftype()` on five very different functions. Watch the returned character vectors — they pack two or three labels per call.
+The block below calls `ftype()` on five very different functions. Watch the returned character vectors, they pack two or three labels per call.
 
 ```r
 ftype(print)
@@ -181,7 +181,7 @@ ftype(unclass)
 #> [1] "primitive"
 ```
 
-Read the labels left-to-right. `print` is a regular (non-primitive) S3 generic. `print.data.frame` is registered as the S3 method for the `data.frame` class. `mean` is an S3 generic that happens to dispatch on numeric types. `sum` is a *primitive* (implemented in C) but still a generic — it has methods you can override. `unclass` is primitive with no dispatch at all.
+Read the labels left-to-right. `print` is a regular (non-primitive) S3 generic. `print.data.frame` is registered as the S3 method for the `data.frame` class. `mean` is an S3 generic that happens to dispatch on numeric types. `sum` is a *primitive* (implemented in C) but still a generic, it has methods you can override. `unclass` is primitive with no dispatch at all.
 
 When sloop is missing, you can classify a function by inspecting its body for the telltale dispatch calls. The helper below runs in-browser and catches the common cases.
 
@@ -205,7 +205,7 @@ is_generic_body(lm)
 #> [1] "regular function"
 ```
 
-The helper hinges on two magic words. An S3 generic always calls `UseMethod()` in its body; an S4 generic calls `standardGeneric()`. Anything else with no `body()` at all is a primitive written in C. `lm()` has neither marker, so it is an ordinary function — which is why you cannot add methods to it.
+The helper hinges on two magic words. An S3 generic always calls `UseMethod()` in its body; an S4 generic calls `standardGeneric()`. Anything else with no `body()` at all is a primitive written in C. `lm()` has neither marker, so it is an ordinary function, which is why you cannot add methods to it.
 
 **Try it:** Is `t.test` a generic or a regular function? Classify it with whichever tool you have.
 
@@ -225,13 +225,13 @@ is_generic_body(t.test)   # or: sloop::ftype(t.test)
 #> [1] "S3 generic"
 ```
 
-**Explanation:** `t.test` dispatches on its first argument's class (formula, default, etc.), so its body calls `UseMethod("t.test")` — a generic in disguise.
+**Explanation:** `t.test` dispatches on its first argument's class (formula, default, etc.), so its body calls `UseMethod("t.test")`, a generic in disguise.
 
 </details>
 
 ## How does s3_dispatch() trace S3 method dispatch?
 
-Of sloop's functions, `s3_dispatch()` is the one you will reach for most often. It answers "when I call `generic(x)`, which method actually runs?" — and it draws a little arrow diagram of every candidate R considered on the way there.
+Of sloop's functions, `s3_dispatch()` is the one you will reach for most often. It answers "when I call `generic(x)`, which method actually runs?", and it draws a little arrow diagram of every candidate R considered on the way there.
 
 The next block runs dispatch on three familiar calls. Each `#>` line is a method name; the marker on the left tells you what happened to it.
 
@@ -249,7 +249,7 @@ s3_dispatch(summary(fit))
 #>  * summary.default
 ```
 
-Three dispatch traces, three winners. On a data frame, R finds `print.data.frame()` immediately — that is the `=>` method and the one that runs. The `*` next to `print.default()` means the method *exists* but was skipped because a more specific one was found first. For the `lm` fit, dispatch jumps straight to `summary.lm()`, which is why `summary(fit)` prints coefficients instead of the five-number list `summary()` gives a plain vector.
+Three dispatch traces, three winners. On a data frame, R finds `print.data.frame()` immediately, that is the `=>` method and the one that runs. The `*` next to `print.default()` means the method *exists* but was skipped because a more specific one was found first. For the `lm` fit, dispatch jumps straight to `summary.lm()`, which is why `summary(fit)` prints coefficients instead of the five-number list `summary()` gives a plain vector.
 
 [KEY INSIGHT]
 **The three dispatch symbols are the whole story.** `=>` marks the method R actually ran; `*` marks methods that exist but were skipped in favour of something more specific; `->` marks a method that `NextMethod()` will call later in the chain. Internalise these three markers and you can debug any S3 dispatch puzzle, including the "why is my method not being called?" class.
@@ -312,7 +312,7 @@ trace_dispatch("format", Sys.Date())
 
 ## How do you list all methods for a generic or class?
 
-Once you know a generic exists, the next natural question is "what classes have overridden it?" And the mirror question — "given this class, what generics can I call on it?" — is equally useful when you are shopping for a class to subclass. sloop answers both with `s3_methods_generic()` and `s3_methods_class()`.
+Once you know a generic exists, the next natural question is "what classes have overridden it?" And the mirror question, "given this class, what generics can I call on it?", is equally useful when you are shopping for a class to subclass. sloop answers both with `s3_methods_generic()` and `s3_methods_class()`.
 
 ```r
 s3_methods_generic("mean")
@@ -338,7 +338,7 @@ s3_methods_class("Date")
 #> ...
 ```
 
-Both calls return tibbles, which matters more than it sounds: you can `filter()`, pipe, or count them. The `visible` column tells you whether the method is exported (callable by name) or registered internally via `S3method()` — a detail `methods()` hides.
+Both calls return tibbles, which matters more than it sounds: you can `filter()`, pipe, or count them. The `visible` column tells you whether the method is exported (callable by name) or registered internally via `S3method()`, a detail `methods()` hides.
 
 The base-R equivalent uses the built-in `methods()` function. It prints a character vector instead of a tibble, but the information content is the same.
 
@@ -380,7 +380,7 @@ nrow(sloop::s3_methods_class("glm"))
 #> [1] 18
 ```
 
-**Explanation:** Both commands enumerate the same set — sloop returns a tibble (use `nrow()`), base R returns a character vector (use `length()`). Loading more packages (e.g., `broom`) will add methods to the count.
+**Explanation:** Both commands enumerate the same set, sloop returns a tibble (use `nrow()`), base R returns a character vector (use `length()`). Loading more packages (e.g., `broom`) will add methods to the count.
 
 </details>
 
@@ -415,7 +415,7 @@ trace_dispatch("print", my_obj)
 #> => print.default 
 ```
 
-**Explanation:** `my_obj` has a class attribute but no formal definition, so it is S3. Its class vector is `c("weekly", "list")`, but neither `print.weekly` nor `print.list` exists, so dispatch falls all the way through to `print.default`. This is why custom S3 classes need you to actually *write* `print.classname()` — otherwise there is no visible change from a plain list.
+**Explanation:** `my_obj` has a class attribute but no formal definition, so it is S3. Its class vector is `c("weekly", "list")`, but neither `print.weekly` nor `print.list` exists, so dispatch falls all the way through to `print.default`. This is why custom S3 classes need you to actually *write* `print.classname()`, otherwise there is no visible change from a plain list.
 
 </details>
 
@@ -485,7 +485,7 @@ trace_dispatch("my_area", shape)
 #> => my_area.circle 
 ```
 
-**Explanation:** `my_area()` is a classic `UseMethod()`-based S3 generic. Because `shape` has `"circle"` first in its class vector, dispatch picks `my_area.circle()` and returns the correct area. The tracer confirms the choice with a single `=>` line — proof that your generic is wired up correctly.
+**Explanation:** `my_area()` is a classic `UseMethod()`-based S3 generic. Because `shape` has `"circle"` first in its class vector, dispatch picks `my_area.circle()` and returns the correct area. The tracer confirms the choice with a single `=>` line, proof that your generic is wired up correctly.
 
 </details>
 
@@ -551,15 +551,15 @@ Four questions, four one-liners, and a base-R backup for every case. Keep this t
 
 ## References
 
-1. sloop package on CRAN — [cran.r-project.org/package=sloop](https://cran.r-project.org/package=sloop)
-2. Wickham, H. — *Advanced R*, 2nd Edition. Chapter 13: S3. [adv-r.hadley.nz/s3.html](https://adv-r.hadley.nz/s3.html)
-3. r-lib/sloop on GitHub — [github.com/r-lib/sloop](https://github.com/r-lib/sloop)
-4. sloop function reference (pkgdown site) — [sloop.r-lib.org/reference/index.html](https://sloop.r-lib.org/reference/index.html)
-5. R Core Team — `methods` documentation. [stat.ethz.ch/R-manual/R-devel/library/utils/html/methods.html](https://stat.ethz.ch/R-manual/R-devel/library/utils/html/methods.html)
-6. Chambers, J. — *Object-Oriented Programming, Functional Programming and R*. Statistical Science 29(2), 2014. [projecteuclid.org/journals/statistical-science/volume-29/issue-2](https://projecteuclid.org/journals/statistical-science/volume-29/issue-2/Object-Oriented-Programming-Functional-Programming-and-R/10.1214/13-STS452.full)
+1. sloop package on CRAN, [cran.r-project.org/package=sloop](https://cran.r-project.org/package=sloop)
+2. Wickham, H., *Advanced R*, 2nd Edition. Chapter 13: S3. [adv-r.hadley.nz/s3.html](https://adv-r.hadley.nz/s3.html)
+3. r-lib/sloop on GitHub, [github.com/r-lib/sloop](https://github.com/r-lib/sloop)
+4. sloop function reference (pkgdown site), [sloop.r-lib.org/reference/index.html](https://sloop.r-lib.org/reference/index.html)
+5. R Core Team, `methods` documentation. [stat.ethz.ch/R-manual/R-devel/library/utils/html/methods.html](https://stat.ethz.ch/R-manual/R-devel/library/utils/html/methods.html)
+6. Chambers, J., *Object-Oriented Programming, Functional Programming and R*. Statistical Science 29(2), 2014. [projecteuclid.org/journals/statistical-science/volume-29/issue-2](https://projecteuclid.org/journals/statistical-science/volume-29/issue-2/Object-Oriented-Programming-Functional-Programming-and-R/10.1214/13-STS452.full)
 
 ## Continue Learning
 
-- [OOP in R Overview](OOP-in-R.html) — compare all four OOP systems side by side with runnable examples.
-- [S3 Method Dispatch in R](S3-Method-Dispatch-in-R.html) — a deeper dive into `UseMethod()`, `NextMethod()`, and the full dispatch algorithm.
-- [S4 Classes in R](S4-Classes-in-R.html) — the formal OOP system that sloop's `s3_dispatch()` does not cover.
+- [OOP in R Overview](OOP-in-R.html), compare all four OOP systems side by side with runnable examples.
+- [S3 Method Dispatch in R](S3-Method-Dispatch-in-R.html), a deeper dive into `UseMethod()`, `NextMethod()`, and the full dispatch algorithm.
+- [S4 Classes in R](S4-Classes-in-R.html), the formal OOP system that sloop's `s3_dispatch()` does not cover.

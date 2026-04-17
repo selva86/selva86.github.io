@@ -16,11 +16,11 @@ difficulty: "Intermediate"
 
 # tidyr expand() & complete() in R: Make Implicit Missing Values Explicit
 
-<p class="lead">Sometimes your data hides rows that should be there but aren't — a month with zero sales, a panel subject who skipped a visit, a date with no trades. These are implicit missing values, and they break plots, models, and joins silently. tidyr's <code>expand()</code> and <code>complete()</code> drag those gaps into the open as explicit NAs you can then fill.</p>
+<p class="lead">Sometimes your data hides rows that should be there but aren't, a month with zero sales, a panel subject who skipped a visit, a date with no trades. These are implicit missing values, and they break plots, models, and joins silently. tidyr's <code>expand()</code> and <code>complete()</code> drag those gaps into the open as explicit NAs you can then fill.</p>
 
 ## Why should you care about implicit missing values?
 
-Picture a small sales table: three products, three months, but only five rows because some products didn't sell in some months. Nothing looks wrong until you plot monthly totals and a whole column is missing. Rows that should exist but don't are called implicit missing values. `complete()` turns them into real rows you can see and handle — here's the one-liner that does it.
+Picture a small sales table: three products, three months, but only five rows because some products didn't sell in some months. Nothing looks wrong until you plot monthly totals and a whole column is missing. Rows that should exist but don't are called implicit missing values. `complete()` turns them into real rows you can see and handle, here's the one-liner that does it.
 
 ```r
 library(dplyr)
@@ -47,10 +47,10 @@ sales |> complete(month, product)
 #> 9 Mar   C           8
 ```
 
-Five rows went in, nine rows came out. The four new rows carry NA in the `units` column — those are the combinations that were missing entirely from the raw data. You can now spot them, fill them, or count them. Before `complete()` they were invisible.
+Five rows went in, nine rows came out. The four new rows carry NA in the `units` column, those are the combinations that were missing entirely from the raw data. You can now spot them, fill them, or count them. Before `complete()` they were invisible.
 
 [KEY INSIGHT]
-**Implicit and explicit missing values are both missing, but only one is visible.** An explicit NA is a row that exists with a missing value; an implicit miss is a row that doesn't exist at all — and the second kind silently corrupts every downstream calculation.
+**Implicit and explicit missing values are both missing, but only one is visible.** An explicit NA is a row that exists with a missing value; an implicit miss is a row that doesn't exist at all, and the second kind silently corrupts every downstream calculation.
 
 **Try it:** Build a 4-row tibble with three cities across two days (one city is missing on one day), then use `complete()` to make every city-day pair appear.
 
@@ -89,7 +89,7 @@ temps |> complete(city, day)
 
 ## How does expand() build all combinations?
 
-Before fixing implicit misses, it helps to see them. `expand()` is the inspection tool: given a data frame and a set of columns, it returns every unique combination of those columns — and *only* those columns. The row count of the result has nothing to do with the row count of the input.
+Before fixing implicit misses, it helps to see them. `expand()` is the inspection tool: given a data frame and a set of columns, it returns every unique combination of those columns, and *only* those columns. The row count of the result has nothing to do with the row count of the input.
 
 ```r
 sales |> expand(month, product)
@@ -107,9 +107,9 @@ sales |> expand(month, product)
 #> 9 Mar   C
 ```
 
-Notice the `units` column is gone — `expand()` returns the grid alone, not your data joined to it. Use this when you want a clean scaffold you can compare against the original. Think of it as the "what should exist" blueprint.
+Notice the `units` column is gone, `expand()` returns the grid alone, not your data joined to it. Use this when you want a clean scaffold you can compare against the original. Think of it as the "what should exist" blueprint.
 
-If you want to build a grid from bare vectors — without any data frame involved — reach for `crossing()`. It's `expand()`'s standalone sibling and accepts named arguments directly.
+If you want to build a grid from bare vectors, without any data frame involved, reach for `crossing()`. It's `expand()`'s standalone sibling and accepts named arguments directly.
 
 ```r
 crossing(
@@ -130,7 +130,7 @@ crossing(
 #> 9 Mar   C
 ```
 
-Same nine rows, but `crossing()` never touches the `sales` tibble. This matters when you want the full expected universe of values regardless of what the data contains — for example, every month in a fiscal year whether or not sales were logged.
+Same nine rows, but `crossing()` never touches the `sales` tibble. This matters when you want the full expected universe of values regardless of what the data contains, for example, every month in a fiscal year whether or not sales were logged.
 
 [NOTE]
 **expand() reads columns from the data; crossing() takes bare vectors.** Use `expand()` when the data is authoritative ("all months that appear"); use `crossing()` when you know the universe externally ("all 12 months of the fiscal year").
@@ -188,9 +188,9 @@ sales |> complete(month, product, fill = list(units = 0))
 #> 9 Mar   C           8
 ```
 
-Same nine rows as before, but now the previously-NA `units` are zero — the right default when "no sale" means "zero units sold." You can pass several columns at once: `fill = list(units = 0, revenue = 0, discount = 0)`.
+Same nine rows as before, but now the previously-NA `units` are zero, the right default when "no sale" means "zero units sold." You can pass several columns at once: `fill = list(units = 0, revenue = 0, discount = 0)`.
 
-What if the raw data already contains a real NA that you want to preserve — say, a genuinely unknown sale? By default `complete()` replaces it along with the new NAs. Set `explicit = FALSE` (tidyr 1.2+) and the fill list only touches the rows `complete()` just added.
+What if the raw data already contains a real NA that you want to preserve, say, a genuinely unknown sale? By default `complete()` replaces it along with the new NAs. Set `explicit = FALSE` (tidyr 1.2+) and the fill list only touches the rows `complete()` just added.
 
 ```r
 sales_na <- tibble(
@@ -209,7 +209,7 @@ sales_na |> complete(month, product, fill = list(units = 0), explicit = FALSE)
 #> 4 Jan   B          NA
 ```
 
-Jan/B keeps its original NA because the row already existed in the data. Only Feb/B — a brand-new row — gets the default zero. This distinction matters when "we don't know" and "definitely zero" mean different things in your analysis.
+Jan/B keeps its original NA because the row already existed in the data. Only Feb/B, a brand-new row, gets the default zero. This distinction matters when "we don't know" and "definitely zero" mean different things in your analysis.
 
 [TIP]
 **Default the fill value to whatever "no observation" means in your domain.** Zero for counts and revenue, previous value for prices (chain `tidyr::fill()` after `complete()`), domain mean for survey responses. The wrong default silently biases every aggregate that follows.
@@ -251,7 +251,7 @@ grades |> complete(student, exam, fill = list(score = 0))
 
 ## How do you fill missing dates in a time series?
 
-The most common real-world use of `complete()` is filling date gaps. Your data might log daily sales, website visits, or sensor readings — but on days with no activity, no row gets written. `complete()` plus `seq.Date()` rebuilds the full calendar.
+The most common real-world use of `complete()` is filling date gaps. Your data might log daily sales, website visits, or sensor readings, but on days with no activity, no row gets written. `complete()` plus `seq.Date()` rebuilds the full calendar.
 
 Pass the date sequence as a **named argument** to `complete()`. The name is the column; the value is the full range of values you want to see.
 
@@ -278,7 +278,7 @@ visits |>
 
 The two missing days (March 3 and March 6) now appear as proper rows with NA visit counts. A downstream plot will draw gaps where there were gaps; a forecasting model can now see that the time series is regular.
 
-A common next step is to carry the last observation forward. `tidyr::fill()` handles that — the `.direction = "down"` argument says "copy the previous non-NA value downward."
+A common next step is to carry the last observation forward. `tidyr::fill()` handles that, the `.direction = "down"` argument says "copy the previous non-NA value downward."
 
 ```r
 visits |>
@@ -337,9 +337,9 @@ prices |>
 
 ## When should you use nesting() instead?
 
-Sometimes two columns describe the same entity — a `patient_id` and their `diagnosis`, a `product_code` and its `category`, an `employee` and their `department`. These columns are linked, not independent, so you never want to mix one patient with another patient's diagnosis. That's exactly what raw `complete()` would do.
+Sometimes two columns describe the same entity, a `patient_id` and their `diagnosis`, a `product_code` and its `category`, an `employee` and their `department`. These columns are linked, not independent, so you never want to mix one patient with another patient's diagnosis. That's exactly what raw `complete()` would do.
 
-`nesting()` tells tidyr: "treat these columns as a unit — only the combinations that already appear together in the data are valid."
+`nesting()` tells tidyr: "treat these columns as a unit, only the combinations that already appear together in the data are valid."
 
 ```r
 panel <- tibble(
@@ -372,10 +372,10 @@ panel |> complete(nesting(patient_id, diagnosis), visit)
 #> 6          3 flu       V2       NA
 ```
 
-Raw `complete()` produced 12 nonsense rows that paired every patient with every diagnosis — including diagnoses they never had. `complete(nesting(patient_id, diagnosis), visit)` keeps each `(patient_id, diagnosis)` pair exactly as it appeared and crosses it with every visit. The only new row is patient 3's V2, which is genuinely missing.
+Raw `complete()` produced 12 nonsense rows that paired every patient with every diagnosis, including diagnoses they never had. `complete(nesting(patient_id, diagnosis), visit)` keeps each `(patient_id, diagnosis)` pair exactly as it appeared and crosses it with every visit. The only new row is patient 3's V2, which is genuinely missing.
 
 [KEY INSIGHT]
-**nesting() preserves linked variables while expanding everything else.** Any time two columns describe the same entity — id and name, product and category, subject and cohort — wrap them in `nesting()` so tidyr treats them as a single unit.
+**nesting() preserves linked variables while expanding everything else.** Any time two columns describe the same entity, id and name, product and category, subject and cohort, wrap them in `nesting()` so tidyr treats them as a single unit.
 
 **Try it:** An `hours` tibble logs how many hours each employee worked per month. Each employee belongs to exactly one department. Use `complete(nesting(employee, department), month, fill = list(hours = 0))` so every employee has every month, without mixing departments.
 
@@ -442,7 +442,7 @@ regional_sales |>
 #> 8 South  B       Jan       0
 ```
 
-North has all four `product × month` pairs, and so does South — each region independently. The grouping column `region` isn't expanded (you can't `complete()` a grouping column; tidyr will error if you try), which is the safe default.
+North has all four `product × month` pairs, and so does South, each region independently. The grouping column `region` isn't expanded (you can't `complete()` a grouping column; tidyr will error if you try), which is the safe default.
 
 [NOTE]
 **group_by() + complete() is ideal for multi-site panels.** Each site gets its own complete grid with no cross-pollination. Remember to `ungroup()` afterwards unless downstream steps also need grouping.
@@ -538,7 +538,7 @@ my_stocks |>
 
 ### Exercise 2: Find missing student-exam pairs without adding rows
 
-Given a grades tibble that's incomplete, return a data frame listing only the `(student, exam)` pairs where no grade exists — without touching the original.
+Given a grades tibble that's incomplete, return a data frame listing only the `(student, exam)` pairs where no grade exists, without touching the original.
 
 ```r
 my_grades <- tibble(
@@ -571,7 +571,7 @@ my_grades |>
 
 ## Complete Example
 
-Here is an end-to-end pipeline that ties everything together. The raw `regional_sales_raw` tibble has gaps across regions, products, and months. The goal is per-region monthly totals — and those totals will be wrong unless every region has a row for every product in every month.
+Here is an end-to-end pipeline that ties everything together. The raw `regional_sales_raw` tibble has gaps across regions, products, and months. The goal is per-region monthly totals, and those totals will be wrong unless every region has a row for every product in every month.
 
 ```r
 regional_sales_raw <- tibble(
@@ -600,7 +600,7 @@ regional_sales_full |>
 #> 6 South  Mar             7
 ```
 
-Without the `complete()` step, North's March total would count only product B (six units) and omit product A entirely — even though the "correct" interpretation is that A sold zero units. After completion, the totals are consistent across regions, months, and products, and a downstream plot will show all three months for both regions without gaps in the x-axis.
+Without the `complete()` step, North's March total would count only product B (six units) and omit product A entirely, even though the "correct" interpretation is that A sold zero units. After completion, the totals are consistent across regions, months, and products, and a downstream plot will show all three months for both regions without gaps in the x-axis.
 
 ## Summary
 
@@ -615,11 +615,11 @@ Without the `complete()` step, North's March total would count only product B (s
 
 Key takeaways:
 
-- Tidy data has a row for every combination that should exist — even if the measurement is NA.
+- Tidy data has a row for every combination that should exist, even if the measurement is NA.
 - `complete()` equals `expand()` plus `dplyr::full_join()` plus `tidyr::replace_na()` in a single call.
 - Use `nesting()` for columns that describe the same entity; pass raw arguments for genuinely independent columns.
 - Pass sequences by name for dates (`seq.Date`) and numerics (`full_seq`) to expand to a known universe.
-- `group_by() |> complete()` gives each group its own independent grid — ideal for multi-site panels.
+- `group_by() |> complete()` gives each group its own independent grid, ideal for multi-site panels.
 
 ![From raw data with gaps, expand() builds the full grid, complete() fills in explicit NAs, and a fill list replaces them with sensible defaults.](screenshots/tidyr-expand-complete-Make-Implicit-Missing-Values-Explicit-progression.webp)
 
@@ -627,15 +627,15 @@ Key takeaways:
 
 ## References
 
-1. tidyr documentation — `complete()`. [Link](https://tidyr.tidyverse.org/reference/complete.html)
-2. tidyr documentation — `expand()` and `crossing()`. [Link](https://tidyr.tidyverse.org/reference/expand.html)
-3. tidyr documentation — `full_seq()`. [Link](https://tidyr.tidyverse.org/reference/full_seq.html)
-4. Wickham, H. & Grolemund, G. — *R for Data Science (2e)*, Chapter 18: Missing values. [Link](https://r4ds.hadley.nz/missing-values.html)
-5. tidyr 1.2.0 release notes — introduces the `explicit` argument. [Link](https://www.tidyverse.org/blog/2022/02/tidyr-1-2-0/)
-6. tidyr documentation — `fill()` for carry-forward imputation. [Link](https://tidyr.tidyverse.org/reference/fill.html)
+1. tidyr documentation, `complete()`. [Link](https://tidyr.tidyverse.org/reference/complete.html)
+2. tidyr documentation, `expand()` and `crossing()`. [Link](https://tidyr.tidyverse.org/reference/expand.html)
+3. tidyr documentation, `full_seq()`. [Link](https://tidyr.tidyverse.org/reference/full_seq.html)
+4. Wickham, H. & Grolemund, G., *R for Data Science (2e)*, Chapter 18: Missing values. [Link](https://r4ds.hadley.nz/missing-values.html)
+5. tidyr 1.2.0 release notes, introduces the `explicit` argument. [Link](https://www.tidyverse.org/blog/2022/02/tidyr-1-2-0/)
+6. tidyr documentation, `fill()` for carry-forward imputation. [Link](https://tidyr.tidyverse.org/reference/fill.html)
 
 ## Continue Learning
 
-- [pivot_longer() and pivot_wider(): Reshape Data in R Without Losing Your Mind](pivot_longer-pivot_wider-Reshape-Data-in-R.html) — the parent reshaping guide that sets up why long data so often needs completing.
-- [Missing Values in R: Detect, Count, Remove, and Impute NA](Missing-Values-in-R-Detect-Count-Remove-Impute-NA.html) — once gaps are explicit NAs, learn how to count, visualise, and impute them.
-- [tidyr separate() & unite() in R: Split & Combine Character Columns](tidyr-separate-unite-Split-Combine-Columns-in-R.html) — the sibling tidyr helper pair for splitting and rejoining character columns.
+- [pivot_longer() and pivot_wider(): Reshape Data in R Without Losing Your Mind](pivot_longer-pivot_wider-Reshape-Data-in-R.html), the parent reshaping guide that sets up why long data so often needs completing.
+- [Missing Values in R: Detect, Count, Remove, and Impute NA](Missing-Values-in-R-Detect-Count-Remove-Impute-NA.html), once gaps are explicit NAs, learn how to count, visualise, and impute them.
+- [tidyr separate() & unite() in R: Split & Combine Character Columns](tidyr-separate-unite-Split-Combine-Columns-in-R.html), the sibling tidyr helper pair for splitting and rejoining character columns.

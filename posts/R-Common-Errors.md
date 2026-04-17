@@ -18,13 +18,13 @@ difficulty: "Advanced"
 
 # 50 R Errors Decoded: Plain-English Explanations and Exact Fixes
 
-<p class="lead">R errors look cryptic, but almost every one belongs to one of seven tight families — once you can name the family, the fix is usually a single line. This page is the full decoder: 50 real errors, the exact code that triggers each one, and the one-line fix.</p>
+<p class="lead">R errors look cryptic, but almost every one belongs to one of seven tight families, once you can name the family, the fix is usually a single line. This page is the full decoder: 50 real errors, the exact code that triggers each one, and the one-line fix.</p>
 
-Bookmark it. Hit `Ctrl+F`, paste the error text, and jump to the fix. Every code block is runnable — trigger the error yourself, then watch the fix work, all without leaving the page.
+Bookmark it. Hit `Ctrl+F`, paste the error text, and jump to the fix. Every code block is runnable, trigger the error yourself, then watch the fix work, all without leaving the page.
 
 ## How do you read an R error message?
 
-Every R error has the same shape: the function that exploded, the thing that went wrong, and a pointer back to your code. If you can spot those three parts, you can fix most errors in under a minute — even ones you've never seen before. Let's trigger a real error inside a safe wrapper (so the page keeps running) and pull it apart.
+Every R error has the same shape: the function that exploded, the thing that went wrong, and a pointer back to your code. If you can spot those three parts, you can fix most errors in under a minute, even ones you've never seen before. Let's trigger a real error inside a safe wrapper (so the page keeps running) and pull it apart.
 
 ```r
 # Trigger a real error and capture the message
@@ -44,13 +44,13 @@ cat("Pointer back to you    : missing_vec\n")
 #> Pointer back to you    : missing_vec
 ```
 
-The call `mean(missing_vec)` blew up because `missing_vec` doesn't exist. Instead of letting the page crash, `tryCatch()` caught the error and handed us the message as a string. That's the same text you'd see in the RStudio console — and the three parts are always there, in that order. The **function name** tells you where to start looking; the **problem phrase** names the category; the **pointer** (usually an object or variable name) tells you exactly what to fix.
+The call `mean(missing_vec)` blew up because `missing_vec` doesn't exist. Instead of letting the page crash, `tryCatch()` caught the error and handed us the message as a string. That's the same text you'd see in the RStudio console, and the three parts are always there, in that order. The **function name** tells you where to start looking; the **problem phrase** names the category; the **pointer** (usually an object or variable name) tells you exactly what to fix.
 
 ![Anatomy of an R error message](screenshots/R-Common-Errors-anatomy.webp)
 *Figure 1: The three parts of every R error message.*
 
 [KEY INSIGHT]
-**The first noun after "Error in" is almost always the function that exploded — start there.** Don't scan the whole traceback first. Nine times out of ten, the function name and the last phrase of the error line together tell you the fix.
+**The first noun after "Error in" is almost always the function that exploded, start there.** Don't scan the whole traceback first. Nine times out of ten, the function name and the last phrase of the error line together tell you the fix.
 
 **Try it:** Use `tryCatch()` to capture the error from calling `ex_nope()` (a function that doesn't exist) and store the message in `ex_err`. Then print it.
 
@@ -108,13 +108,13 @@ bucket_of("non-numeric argument to binary operator")
 #> [1] "Types / coercion"
 ```
 
-The first call classifies the earlier `err_msg` as a **Name lookup** failure — the same family as "could not find function". The other two show the classifier routing a syntax error and a type error to their correct buckets. In real debugging you won't write a grep classifier; you'll do it in your head. But the shape of the thinking is exactly this: read the message, match a phrase, pick a family, then apply that family's standard fix.
+The first call classifies the earlier `err_msg` as a **Name lookup** failure, the same family as "could not find function". The other two show the classifier routing a syntax error and a type error to their correct buckets. In real debugging you won't write a grep classifier; you'll do it in your head. But the shape of the thinking is exactly this: read the message, match a phrase, pick a family, then apply that family's standard fix.
 
 ![7 families of R errors](screenshots/R-Common-Errors-categories.webp)
 *Figure 2: The 7 families every R error belongs to.*
 
 [TIP]
-**Keep this mindmap open in a tab while you debug.** When a strange error lands, name the family first. The family decides whether to check spelling, check types, check packages, or check data — and that single decision usually saves you ten minutes of blind reading.
+**Keep this mindmap open in a tab while you debug.** When a strange error lands, name the family first. The family decides whether to check spelling, check types, check packages, or check data, and that single decision usually saves you ten minutes of blind reading.
 
 **Try it:** Extend `bucket_of()` to return `"Models / formulas"` for the error phrase `"factor has new levels"`. Test it on that exact string.
 
@@ -148,7 +148,7 @@ ex_bucket("factor has new levels Wed")
 
 Syntax errors are the ones R catches before it even runs your code. The parser reaches a token it can't make sense of and stops. The good news: the error always points at the exact offending character, so the fix is almost always a typo. The bad news: R's phrasing ("unexpected X") is vague enough that beginners often stare at the wrong line.
 
-Let's walk through the eight most common syntax errors — errors **1 through 8** in the master table at the bottom — and fix each one in place.
+Let's walk through the eight most common syntax errors, errors **1 through 8** in the master table at the bottom, and fix each one in place.
 
 ```r
 # Error 1: unexpected symbol
@@ -163,7 +163,7 @@ fix_syntax()
 #> [1] 5
 ```
 
-The parser sees `x`, then `y`, and has no rule that says two bare names can sit next to each other — so it complains about the second one. Joining them with an underscore (or adding a real operator between them) makes the line parse. The same shape fixes errors like `x.y` typos and missing commas in argument lists.
+The parser sees `x`, then `y`, and has no rule that says two bare names can sit next to each other, so it complains about the second one. Joining them with an underscore (or adding a real operator between them) makes the line parse. The same shape fixes errors like `x.y` typos and missing commas in argument lists.
 
 ```r
 # Error 2: unexpected ')'
@@ -182,7 +182,7 @@ fix_syntax2
 #> [1] 6
 ```
 
-Both of these are parser complaints about what comes *after* a valid expression. The trailing-comma bug is especially common when you're refactoring `c()` or `list()` calls and delete the last item but forget the comma. Errors **4** (unexpected string constant) and **5** (unexpected `}`) follow the same pattern — something valid, then something the parser can't attach to it.
+Both of these are parser complaints about what comes *after* a valid expression. The trailing-comma bug is especially common when you're refactoring `c()` or `list()` calls and delete the last item but forget the comma. Errors **4** (unexpected string constant) and **5** (unexpected `}`) follow the same pattern, something valid, then something the parser can't attach to it.
 
 [WARNING]
 **Mixing `=` and `<-` inside function calls silently swallows named arguments.** If you write `mean(x <- 1:5)`, R creates a new variable `x` and passes its value as the first positional argument, not as a named one. Always use `=` for named arguments inside function calls, and `<-` only for assignment outside them.
@@ -226,7 +226,7 @@ my_val * 2
 #> [1] 84
 ```
 
-This is the #1 most-seen R error on Stack Overflow. The lookup chain is strict: `my_value` and `myvalue` are different names, and R does not guess. A frequent surprise is that variables created inside a function are not visible outside — if `my_val` was assigned inside `f()`, calling `my_val` at the top level still errors.
+This is the #1 most-seen R error on Stack Overflow. The lookup chain is strict: `my_value` and `myvalue` are different names, and R does not guess. A frequent surprise is that variables created inside a function are not visible outside, if `my_val` was assigned inside `f()`, calling `my_val` at the top level still errors.
 
 ```r
 # Error 10: could not find function "filter"
@@ -254,7 +254,7 @@ dplyr::filter(mtc, cyl == 6)
 #> Mazda RX4 Wag  21   6  160 110  3.9 2.88 17.02  0  1    4    4
 ```
 
-When you load a package that defines a function with the same name as one already on the search path, R prints a "masked from" message at load time and then the new one wins. If the caller was expecting the old function, you get a type error, a formula error, or worst of all a wrong answer with no error at all. Errors **13–16** in this family include `$ on non-list`, `error in UseMethod`, and `invalid argument to unary operator` — all flavours of "R looked up a name and got something of the wrong kind."
+When you load a package that defines a function with the same name as one already on the search path, R prints a "masked from" message at load time and then the new one wins. If the caller was expecting the old function, you get a type error, a formula error, or worst of all a wrong answer with no error at all. Errors **13–16** in this family include `$ on non-list`, `error in UseMethod`, and `invalid argument to unary operator`, all flavours of "R looked up a name and got something of the wrong kind."
 
 [TIP]
 **Use pkg::func() to dodge masking bugs entirely.** `dplyr::filter(df, cond)` always calls dplyr's `filter()` regardless of search-path order. Reach for this the moment you see a "masked from" message at package load.
@@ -287,7 +287,7 @@ head(ex_sel, 2)
 
 ## How do type and coercion errors sneak in?
 
-R is strict about types at operation time but lazy about them at assignment time. You can stuff anything into a variable without a complaint, then get screamed at the moment you try to use it. That mismatch is where errors **17 through 26** come from — operations that demanded numeric and found character, or vice versa.
+R is strict about types at operation time but lazy about them at assignment time. You can stuff anything into a variable without a complaint, then get screamed at the moment you try to use it. That mismatch is where errors **17 through 26** come from, operations that demanded numeric and found character, or vice versa.
 
 ```r
 # Error 17: non-numeric argument to binary operator
@@ -311,7 +311,7 @@ suppressWarnings(as.numeric(mixed))
 #> [1]  1  2 NA
 ```
 
-This one is a **warning**, not a hard error — the call still returns a vector. But the `NA` in position 3 will bite you downstream the moment you call `sum()` or `mean()` without `na.rm = TRUE`. Always fix the root cause: either clean the strings before coercing, or use `readr::parse_number()` which extracts the leading numeric part safely. Errors **22–26** in this family include `invalid factor level, NA generated`, `argument is of length zero`, `invalid type (list) for variable`, `$ on atomic vector`, and `! not meaningful for factors`.
+This one is a **warning**, not a hard error, the call still returns a vector. But the `NA` in position 3 will bite you downstream the moment you call `sum()` or `mean()` without `na.rm = TRUE`. Always fix the root cause: either clean the strings before coercing, or use `readr::parse_number()` which extracts the leading numeric part safely. Errors **22–26** in this family include `invalid factor level, NA generated`, `argument is of length zero`, `invalid type (list) for variable`, `$ on atomic vector`, and `! not meaningful for factors`.
 
 [KEY INSIGHT]
 **R is strict about types at operation time, lazy about them at assignment time.** Nothing stops you from writing `x <- "42"`, but `x + 1` explodes. The fix is always to coerce before the operation, not pretend the assignment was different.
@@ -419,7 +419,7 @@ ex_result
 
 ## What about package, file, and model-fitting errors?
 
-The last stretch covers errors that surface when R talks to the outside world — packages, files, URLs, the working directory — and errors from statistical modelling functions like `lm()` and `glm()`. Together they make up errors **37 through 50** in the reference table. The patterns are mostly about missing resources and unexpected data shapes.
+The last stretch covers errors that surface when R talks to the outside world, packages, files, URLs, the working directory, and errors from statistical modelling functions like `lm()` and `glm()`. Together they make up errors **37 through 50** in the reference table. The patterns are mostly about missing resources and unexpected data shapes.
 
 ```r
 # Error 37: there is no package called 'ghostpkg'
@@ -433,7 +433,7 @@ pkg_err
 #> [1] "there is no package called 'ghostpkg'"
 ```
 
-This error blocks `library()` itself. The fix is always `install.packages("<name>")` first, then `library(<name>)`. If install fails with "package is not available for this version of R", you're on an older R; upgrade R or install from the CRAN archive. Error **38** (`cannot open file 'data.csv'`) means the file path is wrong relative to `getwd()` — fix it with `file.exists(path)` before `read.csv()`. Error **39** (`cannot change working directory`) points at a typo in `setwd()`.
+This error blocks `library()` itself. The fix is always `install.packages("<name>")` first, then `library(<name>)`. If install fails with "package is not available for this version of R", you're on an older R; upgrade R or install from the CRAN archive. Error **38** (`cannot open file 'data.csv'`) means the file path is wrong relative to `getwd()`, fix it with `file.exists(path)` before `read.csv()`. Error **39** (`cannot change working directory`) points at a typo in `setwd()`.
 
 ```r
 # Error 45: contrasts can be applied only to factors with 2 or more levels
@@ -452,10 +452,10 @@ round(coef(fit), 3)
 #>       0.640       0.104
 ```
 
-The `lm()` call failed because `grp` has only one level — you can't fit a coefficient for a group that never varies. `droplevels(model_df)` is the usual fix when the single level is a leftover from filtering; dropping the factor from the formula works when it was never meaningful. Errors **46–50** in this family include `factor has new levels` (your test data has a level the training data didn't see), `system is computationally singular` (perfectly collinear predictors), `non-conformable arguments` (matrix dimension mismatch), `variable lengths differ`, and `missing values in object` (NAs in `lm()` without `na.action = na.omit`).
+The `lm()` call failed because `grp` has only one level, you can't fit a coefficient for a group that never varies. `droplevels(model_df)` is the usual fix when the single level is a leftover from filtering; dropping the factor from the formula works when it was never meaningful. Errors **46–50** in this family include `factor has new levels` (your test data has a level the training data didn't see), `system is computationally singular` (perfectly collinear predictors), `non-conformable arguments` (matrix dimension mismatch), `variable lengths differ`, and `missing values in object` (NAs in `lm()` without `na.action = na.omit`).
 
 [NOTE]
-**Model errors almost always trace back to unused factor levels or hidden NAs.** `droplevels(df)` and `na.omit(df)` — in that order — fix roughly 90% of `lm()`/`glm()` errors without touching the formula.
+**Model errors almost always trace back to unused factor levels or hidden NAs.** `droplevels(df)` and `na.omit(df)`, in that order, fix roughly 90% of `lm()`/`glm()` errors without touching the formula.
 
 **Try it:** `predict()` on new data with an unseen factor level will error. Handle it by using `droplevels()` on the training data first, then fitting. Fill in the fit step.
 
@@ -523,7 +523,7 @@ my_result
 #> 1    110
 ```
 
-**Explanation:** Three fixes: (1) `cylinders` → `cyl` (no such column), (2) fully qualifying `dplyr::filter` dodges any masking by `stats::filter`, and (3) `mean("hp")` was passing a character string instead of the column — drop the quotes so `hp` resolves to the column vector inside `summarise()`.
+**Explanation:** Three fixes: (1) `cylinders` → `cyl` (no such column), (2) fully qualifying `dplyr::filter` dodges any masking by `stats::filter`, and (3) `mean("hp")` was passing a character string instead of the column, drop the quotes so `hp` resolves to the column vector inside `summarise()`.
 
 </details>
 
@@ -563,7 +563,7 @@ my_diag["e1"]
 #> "Types / coercion -> as.numeric() the character side"
 ```
 
-**Explanation:** Each message has a signature phrase that points at one family. Once you name the family, the fix is the family's standard recipe — coerce, load, wrap, bounds-check.
+**Explanation:** Each message has a signature phrase that points at one family. Once you name the family, the fix is the family's standard recipe, coerce, load, wrap, bounds-check.
 
 </details>
 
@@ -640,14 +640,14 @@ round(coef(final_fit), 3)
 #>     104.500      -0.561
 ```
 
-Walking through: (1) the raw `age` column was character, so `as.numeric()` coerces it and would issue a "NAs introduced by coercion" warning for `"NA"` — expected and suppressed. (2) `complete.cases()` drops the row with NA age/score, avoiding the `"missing values in object"` error that `lm()` would throw with default `na.action`. (3) `droplevels()` collapses the factor so `"contrasts can be applied only to factors with 2 or more levels"` never fires. (4) Dropping `group` from the formula sidesteps the single-level factor entirely. Each fix maps directly to one of the seven families, and each one is a single line.
+Walking through: (1) the raw `age` column was character, so `as.numeric()` coerces it and would issue a "NAs introduced by coercion" warning for `"NA"`, expected and suppressed. (2) `complete.cases()` drops the row with NA age/score, avoiding the `"missing values in object"` error that `lm()` would throw with default `na.action`. (3) `droplevels()` collapses the factor so `"contrasts can be applied only to factors with 2 or more levels"` never fires. (4) Dropping `group` from the formula sidesteps the single-level factor entirely. Each fix maps directly to one of the seven families, and each one is a single line.
 
 ![Diagnostic flowchart for R errors](screenshots/R-Common-Errors-diagnostic.webp)
 *Figure 3: Four questions that pin down any R error.*
 
 ## Summary
 
-The 50 errors in one reference table — grouped by family, with the trigger and the one-line fix. Ctrl+F the error text on this page, then jump to the row below for the pattern.
+The 50 errors in one reference table, grouped by family, with the trigger and the one-line fix. Ctrl+F the error text on this page, then jump to the row below for the pattern.
 
 | #  | Error phrase                                   | Family            | Typical trigger                      | One-line fix                          |
 |----|------------------------------------------------|-------------------|--------------------------------------|---------------------------------------|
@@ -704,22 +704,22 @@ The 50 errors in one reference table — grouped by family, with the trigger and
 
 **Three takeaways:**
 
-1. Every error names a function, a problem, and a pointer — read those three first and you'll spot the family instantly.
+1. Every error names a function, a problem, and a pointer, read those three first and you'll spot the family instantly.
 2. Seven families cover all 50 errors. Memorise the families, not the messages.
 3. Most fixes are one line: coerce, load, drop, bounds-check, or rename. If your fix is five lines long, you're probably fixing the wrong thing.
 
 ## References
 
-1. R Core Team. *R Language Definition* — Conditions and error handling. [Link](https://cran.r-project.org/doc/manuals/r-release/R-lang.html#Condition-handling)
+1. R Core Team. *R Language Definition*, Conditions and error handling. [Link](https://cran.r-project.org/doc/manuals/r-release/R-lang.html#Condition-handling)
 2. Wickham, H. *Advanced R*, 2nd ed. Chapter 8: Conditions. [Link](https://adv-r.hadley.nz/conditions.html)
 3. Wickham, H. *Advanced R*, 2nd ed. Chapter 22: Debugging. [Link](https://adv-r.hadley.nz/debugging.html)
-4. `rlang::abort()` — structured error signalling. [Link](https://rlang.r-lib.org/reference/abort.html)
-5. R Core Team. *Writing R Extensions* — Error handling. [Link](https://cran.r-project.org/doc/manuals/r-release/R-exts.html)
-6. `tryCatch()` reference — base R documentation. [Link](https://rdrr.io/r/base/conditions.html)
-7. R FAQ on Stack Overflow — common errors tag. [Link](https://stackoverflow.com/questions/tagged/r+faq)
+4. `rlang::abort()`, structured error signalling. [Link](https://rlang.r-lib.org/reference/abort.html)
+5. R Core Team. *Writing R Extensions*, Error handling. [Link](https://cran.r-project.org/doc/manuals/r-release/R-exts.html)
+6. `tryCatch()` reference, base R documentation. [Link](https://rdrr.io/r/base/conditions.html)
+7. R FAQ on Stack Overflow, common errors tag. [Link](https://stackoverflow.com/questions/tagged/r+faq)
 
 ## Continue Learning
 
-- **[Debugging R Code](R-Debugging.html)** — full walkthrough of `traceback()`, `debug()`, `browser()`, and the RStudio debugger.
-- **[R Conditions System](R-Conditions-System.html)** — throw and catch your own errors, warnings, and messages with `rlang::abort()` and `withCallingHandlers()`.
-- **[Getting Help in R](Getting-Help-in-R.html)** — the right order in which to read `?help`, vignettes, and package issues when the error itself isn't enough.
+- **[Debugging R Code](R-Debugging.html)**, full walkthrough of `traceback()`, `debug()`, `browser()`, and the RStudio debugger.
+- **[R Conditions System](R-Conditions-System.html)**, throw and catch your own errors, warnings, and messages with `rlang::abort()` and `withCallingHandlers()`.
+- **[Getting Help in R](Getting-Help-in-R.html)**, the right order in which to read `?help`, vignettes, and package issues when the error itself isn't enough.

@@ -16,7 +16,7 @@ difficulty: Intermediate
 
 # Cauchy & Heavy-Tailed Distributions in R: When the CLT Fails You
 
-<p class="lead">The Central Limit Theorem promises that averages stabilize as samples grow. Cauchy and other heavy-tailed distributions break that promise because their variance is infinite, which means sample means never settle — no matter how large <code>n</code> gets. This post shows the failure in action and gives you a practical playbook for what to do instead.</p>
+<p class="lead">The Central Limit Theorem promises that averages stabilize as samples grow. Cauchy and other heavy-tailed distributions break that promise because their variance is infinite, which means sample means never settle, no matter how large <code>n</code> gets. This post shows the failure in action and gives you a practical playbook for what to do instead.</p>
 
 ## Why does the Central Limit Theorem fail for Cauchy samples?
 
@@ -43,10 +43,10 @@ plot(seq_along(cum_mean), cum_mean, type = "l", col = "firebrick",
 abline(h = 0, lty = 2)
 ```
 
-Two things stand out. First, the raw draws span roughly `-2193` to `+730` — a single extreme observation can dwarf thousands of moderate ones. Second, the red line (the running mean) swings around wildly and shows no sign of shrinking toward any fixed value. That's the CLT failing in plain sight.
+Two things stand out. First, the raw draws span roughly `-2193` to `+730`, a single extreme observation can dwarf thousands of moderate ones. Second, the red line (the running mean) swings around wildly and shows no sign of shrinking toward any fixed value. That's the CLT failing in plain sight.
 
 [KEY INSIGHT]
-**The average of `n` Cauchy variables is itself Cauchy, not a narrower bell curve.** Averaging is supposed to shrink the spread by a factor of `sqrt(n)`. Not here — the Cauchy is *stable under averaging*, so a 5,000-sample mean is just as noisy as a single draw.
+**The average of `n` Cauchy variables is itself Cauchy, not a narrower bell curve.** Averaging is supposed to shrink the spread by a factor of `sqrt(n)`. Not here, the Cauchy is *stable under averaging*, so a 5,000-sample mean is just as noisy as a single draw.
 
 **Try it:** Replace `rcauchy()` with `rnorm()` and confirm the running mean settles close to zero as `n` grows.
 
@@ -84,7 +84,7 @@ abline(h = 0, lty = 2)
 
 ## What makes a distribution "heavy-tailed"?
 
-A distribution is **heavy-tailed** when extreme values happen far more often than a Normal distribution would suggest. The technical version: the tail probability `P(X > x)` decays *slower than exponentially* — typically as a power `x^(-alpha)`. Power-law decay keeps non-trivial probability in the tails even for huge `x`, which is why a single draw can be thousands of times larger than the bulk of your data.
+A distribution is **heavy-tailed** when extreme values happen far more often than a Normal distribution would suggest. The technical version: the tail probability `P(X > x)` decays *slower than exponentially*, typically as a power `x^(-alpha)`. Power-law decay keeps non-trivial probability in the tails even for huge `x`, which is why a single draw can be thousands of times larger than the bulk of your data.
 
 Let's visualize this. We'll plot the density `f(x)` for a standard Normal, a Student-t with 3 degrees of freedom, and a standard Cauchy on a log-y axis. On a log scale, exponential decay (Normal) looks like a steep straight-down curve, while power-law decay (Cauchy, t with low df) stays high.
 
@@ -104,16 +104,16 @@ legend("topright", legend = c("Normal", "Student-t df=3", "Cauchy"),
        col = c("steelblue", "darkorange", "firebrick"), lwd = 2)
 ```
 
-The Normal curve plunges off the chart by `x = 6` — its density at `x = 10` is about `1e-23`, effectively zero. The Cauchy curve, in contrast, is still at `~0.003` at `x = 10`. That three-decimal-place probability is why extreme values keep showing up in Cauchy samples and why the running mean never settles.
+The Normal curve plunges off the chart by `x = 6`, its density at `x = 10` is about `1e-23`, effectively zero. The Cauchy curve, in contrast, is still at `~0.003` at `x = 10`. That three-decimal-place probability is why extreme values keep showing up in Cauchy samples and why the running mean never settles.
 
 ![Tail decay across distribution families](screenshots/Cauchy-and-Heavy-Tailed-Distributions-in-R-tail-decay-flow.webp)
-*Figure 1: Moving from Normal to Pareto, each step down loses another finite moment — by the time you reach Cauchy, even the mean is undefined.*
+*Figure 1: Moving from Normal to Pareto, each step down loses another finite moment, by the time you reach Cauchy, even the mean is undefined.*
 
 If you want the math, the Cauchy PDF is:
 
 $$f(x) = \frac{1}{\pi\,(1 + x^2)}$$
 
-The variance is defined as $E[X^2] = \int_{-\infty}^{\infty} x^2 f(x) \, dx$. Plug in the Cauchy density and the integrand behaves like $x^2 / x^2 = 1$ out in the tails — so the integral goes to infinity. No finite variance, no CLT. *If you're not interested in the math, skip to the next section.*
+The variance is defined as $E[X^2] = \int_{-\infty}^{\infty} x^2 f(x) \, dx$. Plug in the Cauchy density and the integrand behaves like $x^2 / x^2 = 1$ out in the tails, so the integral goes to infinity. No finite variance, no CLT. *If you're not interested in the math, skip to the next section.*
 
 [NOTE]
 **"Heavy tail" is a spectrum, not a yes/no label.** Student-t with df = 30 is nearly Normal. Student-t with df = 3 has finite variance but fat tails. Student-t with df = 1 *is* Cauchy. As df shrinks, the tails grow heavier and moments disappear one by one.
@@ -145,7 +145,7 @@ legend("topright", legend = c("Normal", "t(10)", "Cauchy"),
        col = c("steelblue", "darkgreen", "firebrick"), lwd = 2)
 ```
 
-**Explanation:** `dt(x, df = 10)` gives the Student-t density. With 10 degrees of freedom, it's visually close to Normal in the bulk but has slightly heavier tails — a small fat-tail upgrade you'd still trust CLT-based methods for, cautiously.
+**Explanation:** `dt(x, df = 10)` gives the Student-t density. With 10 degrees of freedom, it's visually close to Normal in the bulk but has slightly heavier tails, a small fat-tail upgrade you'd still trust CLT-based methods for, cautiously.
 
 </details>
 
@@ -153,12 +153,12 @@ legend("topright", legend = c("Normal", "t(10)", "Cauchy"),
 
 R ships a full four-function family for Cauchy, matching the convention used for every built-in distribution:
 
-- `dcauchy(x, location, scale)` — **d**ensity at `x`
-- `pcauchy(q)` — **p**robability that `X <= q` (the CDF)
-- `qcauchy(p)` — the **q**uantile for probability `p` (the inverse CDF)
-- `rcauchy(n)` — `n` **r**andom draws
+- `dcauchy(x, location, scale)`, **d**ensity at `x`
+- `pcauchy(q)`, **p**robability that `X <= q` (the CDF)
+- `qcauchy(p)`, the **q**uantile for probability `p` (the inverse CDF)
+- `rcauchy(n)`, `n` **r**andom draws
 
-Defaults are `location = 0`, `scale = 1` — that combination is called the **standard Cauchy**, and it's identical to a Student-t with 1 degree of freedom. One demo block shows all four in action so you can see how they relate.
+Defaults are `location = 0`, `scale = 1`, that combination is called the **standard Cauchy**, and it's identical to a Student-t with 1 degree of freedom. One demo block shows all four in action so you can see how they relate.
 
 ```r
 # All four Cauchy functions on the standard Cauchy
@@ -185,12 +185,12 @@ cauchy_sample
 #> [1]  2.287121 -1.086867 -1.049114  0.471131
 ```
 
-Read off the key facts. The density at zero is `1/pi ≈ 0.318`, which is lower than the Normal's peak of `~0.399` — Cauchy spreads mass into the tails to make up for it. And the 95th percentile sits at `6.31` versus `1.64` for the Normal, showing how much further you have to go to capture the same tail probability.
+Read off the key facts. The density at zero is `1/pi ≈ 0.318`, which is lower than the Normal's peak of `~0.399`, Cauchy spreads mass into the tails to make up for it. And the 95th percentile sits at `6.31` versus `1.64` for the Normal, showing how much further you have to go to capture the same tail probability.
 
 [TIP]
 **The standard Cauchy has no "scale" in the usual sense.** The `scale` argument controls the half-width at half-maximum, not the standard deviation (which doesn't exist). Doubling `scale` doubles how spread out the draws are, but there's no sigma to report.
 
-**Try it:** Compute the probability that a standard Cauchy sample exceeds `10` in absolute value — i.e., `P(|X| > 10)`. Use `pcauchy()` and symmetry.
+**Try it:** Compute the probability that a standard Cauchy sample exceeds `10` in absolute value, i.e., `P(|X| > 10)`. Use `pcauchy()` and symmetry.
 
 ```r
 # Try it: P(|X| > 10) for standard Cauchy
@@ -208,7 +208,7 @@ ex_p_extreme
 #> [1] 0.06345783
 ```
 
-**Explanation:** Cauchy is symmetric, so `P(|X| > 10) = 2 * P(X > 10) = 2 * (1 - P(X <= 10))`. The result — over 6% — is enormous compared to the Normal's `2e-23`. Those extreme events are why sample means don't converge.
+**Explanation:** Cauchy is symmetric, so `P(|X| > 10) = 2 * P(X > 10) = 2 * (1 - P(X <= 10))`. The result, over 6%, is enormous compared to the Normal's `2e-23`. Those extreme events are why sample means don't converge.
 
 </details>
 
@@ -240,12 +240,12 @@ legend("topright", legend = c("t(30)", "t(5)", "t(1) = Cauchy"),
        col = c("steelblue", "darkorange", "firebrick"), lwd = 2)
 ```
 
-The blue `t(30)` line is near zero almost immediately. The orange `t(5)` line wobbles more but visibly narrows toward zero. The red `t(1)` (Cauchy) line jumps around without settling — exactly what Section 1 showed, now put in family context. Degrees of freedom act as a continuous dial between "standard CLT works fine" and "CLT is broken."
+The blue `t(30)` line is near zero almost immediately. The orange `t(5)` line wobbles more but visibly narrows toward zero. The red `t(1)` (Cauchy) line jumps around without settling, exactly what Section 1 showed, now put in family context. Degrees of freedom act as a continuous dial between "standard CLT works fine" and "CLT is broken."
 
 [NOTE]
 **R has no `rpareto()` in base.** You can hand-roll it via inverse transform: given scale `x_m` and shape `alpha`, `rpareto(n) <- x_m * (runif(n))^(-1/alpha)`. For a proper implementation with `dpareto/ppareto/qpareto`, use the **extraDistr** or **actuar** packages in your local R.
 
-**Try it:** Draw three independent samples of 1,000 values each from `rt(df = 1)` and compute `var()` on each. The three numbers should disagree wildly — because the theoretical variance doesn't exist, your sample estimate is meaningless.
+**Try it:** Draw three independent samples of 1,000 values each from `rt(df = 1)` and compute `var()` on each. The three numbers should disagree wildly, because the theoretical variance doesn't exist, your sample estimate is meaningless.
 
 ```r
 # Try it: variance of three Cauchy (t df=1) replicates
@@ -280,7 +280,7 @@ Detecting that the CLT doesn't apply is half the battle. The other half is repla
 ![Decision flow for choosing a robust alternative to the sample mean](screenshots/Cauchy-and-Heavy-Tailed-Distributions-in-R-what-to-use-decision.webp)
 *Figure 2: A quick decision flow for picking a robust alternative to the sample mean when tails misbehave.*
 
-**Move 1: use the median or a trimmed mean.** Unlike the mean, the median ignores how extreme outliers are — only their rank matters. A trimmed mean (e.g. `mean(x, trim = 0.1)` drops the top and bottom 10%) keeps more information but still resists extremes.
+**Move 1: use the median or a trimmed mean.** Unlike the mean, the median ignores how extreme outliers are, only their rank matters. A trimmed mean (e.g. `mean(x, trim = 0.1)` drops the top and bottom 10%) keeps more information but still resists extremes.
 
 **Move 2: bootstrap your confidence intervals.** The percentile bootstrap computes your statistic on many resamples and uses the empirical quantiles as a CI. It doesn't need finite variance, which is why it's the go-to when CLT-based intervals would be nonsense.
 
@@ -315,10 +315,10 @@ legend("topright", legend = c("running median", "running mean"),
        col = c("steelblue", "firebrick"), lwd = 2)
 ```
 
-The final median is near `-0.03` — within spitting distance of the true Cauchy location parameter, zero. The final mean lands at `-0.18`, not catastrophic here but you can see it bounce in the plot. Run this chunk repeatedly with different seeds and the pattern is always the same: the blue line is calm, the red line is not.
+The final median is near `-0.03`, within spitting distance of the true Cauchy location parameter, zero. The final mean lands at `-0.18`, not catastrophic here but you can see it bounce in the plot. Run this chunk repeatedly with different seeds and the pattern is always the same: the blue line is calm, the red line is not.
 
 [WARNING]
-**Heavy-tailed sample means can *look* stable for thousands of draws, then jump.** If you stopped the simulation at `n = 1000` you might convince yourself the mean was converging. One big observation later, it isn't. Never judge Cauchy stability from a short run — and use median-like estimators if you can't guarantee finite variance.
+**Heavy-tailed sample means can *look* stable for thousands of draws, then jump.** If you stopped the simulation at `n = 1000` you might convince yourself the mean was converging. One big observation later, it isn't. Never judge Cauchy stability from a short run, and use median-like estimators if you can't guarantee finite variance.
 
 **Try it:** Compare `mean()` versus `median()` on the first 1,000 draws and on all 5,000 draws of `cauchy_series`. Notice which estimator changed more when you added 4,000 more draws.
 
@@ -349,7 +349,7 @@ c(mean_1k = ex_mean_1k, mean_all = ex_mean_all,
 #> -0.450317 -0.183942  0.008291 -0.026104
 ```
 
-**Explanation:** Adding 4,000 more draws shifted the mean by about `0.27` but the median by only about `0.03`. The median's *breakdown point* (the fraction of outliers it can tolerate) is `50%`, compared to `0%` for the mean — a single extreme value can drag the mean anywhere.
+**Explanation:** Adding 4,000 more draws shifted the mean by about `0.27` but the median by only about `0.03`. The median's *breakdown point* (the fraction of outliers it can tolerate) is `50%`, compared to `0%` for the mean, a single extreme value can drag the mean anywhere.
 
 </details>
 
@@ -387,13 +387,13 @@ my_ci
 #> -0.3268791  0.2604961
 ```
 
-**Explanation:** `replicate(B, ...)` runs the resampling `B` times. Each resample has the same size as the original. The quantiles of the distribution of resampled medians form the percentile CI. This works because it doesn't require finite variance — only that the median is well-defined, which it is for Cauchy.
+**Explanation:** `replicate(B, ...)` runs the resampling `B` times. Each resample has the same size as the original. The quantiles of the distribution of resampled medians form the percentile CI. This works because it doesn't require finite variance, only that the median is well-defined, which it is for Cauchy.
 
 </details>
 
 ### Exercise 2: Diagnose a mystery sample
 
-You're handed `my_mystery <- c(rcauchy(99), 1e6)` — 99 Cauchy draws plus one massive outlier. Compute four summaries: `mean`, `median`, `mad` (median absolute deviation, a robust spread), and `sd`. Then quantify the outlier's *leverage* — how much the outlier shifts `mean` vs `median` — by recomputing both with and without the outlier and storing the two differences in `my_leverage`.
+You're handed `my_mystery <- c(rcauchy(99), 1e6)`, 99 Cauchy draws plus one massive outlier. Compute four summaries: `mean`, `median`, `mad` (median absolute deviation, a robust spread), and `sd`. Then quantify the outlier's *leverage*, how much the outlier shifts `mean` vs `median`, by recomputing both with and without the outlier and storing the two differences in `my_leverage`.
 
 ```r
 # Exercise 2: diagnose heavy tails in a mystery sample
@@ -434,7 +434,7 @@ my_leverage
 #>    9999.9986       0.0052
 ```
 
-**Explanation:** The single outlier shifts the mean by about 10,000 and the median by about 0.005 — a ratio of roughly 2,000,000x. `sd` is similarly ruined while `mad` is not. The takeaway: `mean` and `sd` can be arbitrarily manipulated by one bad observation; their robust counterparts (`median`, `mad`) cannot.
+**Explanation:** The single outlier shifts the mean by about 10,000 and the median by about 0.005, a ratio of roughly 2,000,000x. `sd` is similarly ruined while `mad` is not. The takeaway: `mean` and `sd` can be arbitrarily manipulated by one bad observation; their robust counterparts (`median`, `mad`) cannot.
 
 </details>
 
@@ -469,13 +469,13 @@ round(my_sim, 4)
 #>  36.1882   0.7034   0.0780   0.0595   0.0468
 ```
 
-**Explanation:** CLT predicts `SD(mean) = sigma / sqrt(n)`. At `df = 30` with `n = 500`, the predicted SD is about `1.04 / sqrt(500) ≈ 0.047` — matching the simulation. As `df` drops, the prediction breaks down: at `df = 1` the SD of sample means is roughly 36, utterly unstable. The prediction isn't just wrong, it's meaningless, because `sigma` doesn't exist.
+**Explanation:** CLT predicts `SD(mean) = sigma / sqrt(n)`. At `df = 30` with `n = 500`, the predicted SD is about `1.04 / sqrt(500) ≈ 0.047`, matching the simulation. As `df` drops, the prediction breaks down: at `df = 1` the SD of sample means is roughly 36, utterly unstable. The prediction isn't just wrong, it's meaningless, because `sigma` doesn't exist.
 
 </details>
 
-## Complete Example — Diagnosing Heavy Tails in Real-World Data
+## Complete Example, Diagnosing Heavy Tails in Real-World Data
 
-Tie everything together with a plausible scenario. Suppose you're modeling "returns" that are mostly well-behaved but occasionally explode — think financial-style data. The simulation mixes draws from a Normal with rare large jumps. The goal is a short diagnostic workflow that decides whether the CLT applies, and if not, which robust method to use.
+Tie everything together with a plausible scenario. Suppose you're modeling "returns" that are mostly well-behaved but occasionally explode, think financial-style data. The simulation mixes draws from a Normal with rare large jumps. The goal is a short diagnostic workflow that decides whether the CLT applies, and if not, which robust method to use.
 
 ```r
 # Simulate a returns-like series: 95% Normal, 5% big jumps
@@ -546,16 +546,16 @@ A compact recipe for spotting CLT failure and picking the right response.
 
 ## References
 
-1. Rickert, J. — *Some Notes on the Cauchy Distribution*. R Views (2017). [Link](https://rviews.rstudio.com/2017/02/15/some-notes-on-the-cauchy-distribution/)
-2. R Core Team — *The Cauchy Distribution*. R documentation for `dcauchy`, `pcauchy`, `qcauchy`, `rcauchy`. [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/Cauchy.html)
-3. Wikipedia — *Cauchy distribution*. [Link](https://en.wikipedia.org/wiki/Cauchy_distribution)
-4. Wikipedia — *Heavy-tailed distribution*. [Link](https://en.wikipedia.org/wiki/Heavy-tailed_distribution)
-5. Nair, J., Wierman, A., Zwart, B. — *The Fundamentals of Heavy Tails: Properties, Emergence, and Estimation* (2022). [Link](https://users.cms.caltech.edu/~adamw/papers/book-2020-03.pdf)
-6. University of Texas at Austin M358K — *An Example Where the Central Limit Theorem Fails*. Course note. [Link](https://web.ma.utexas.edu/users/mks/M358KInstr/Cauchy.pdf)
-7. Taleb, N. N. — *Statistical Consequences of Fat Tails*. (arXiv:2001.10488). [Link](https://arxiv.org/abs/2001.10488)
+1. Rickert, J., *Some Notes on the Cauchy Distribution*. R Views (2017). [Link](https://rviews.rstudio.com/2017/02/15/some-notes-on-the-cauchy-distribution/)
+2. R Core Team, *The Cauchy Distribution*. R documentation for `dcauchy`, `pcauchy`, `qcauchy`, `rcauchy`. [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/Cauchy.html)
+3. Wikipedia, *Cauchy distribution*. [Link](https://en.wikipedia.org/wiki/Cauchy_distribution)
+4. Wikipedia, *Heavy-tailed distribution*. [Link](https://en.wikipedia.org/wiki/Heavy-tailed_distribution)
+5. Nair, J., Wierman, A., Zwart, B., *The Fundamentals of Heavy Tails: Properties, Emergence, and Estimation* (2022). [Link](https://users.cms.caltech.edu/~adamw/papers/book-2020-03.pdf)
+6. University of Texas at Austin M358K, *An Example Where the Central Limit Theorem Fails*. Course note. [Link](https://web.ma.utexas.edu/users/mks/M358KInstr/Cauchy.pdf)
+7. Taleb, N. N., *Statistical Consequences of Fat Tails*. (arXiv:2001.10488). [Link](https://arxiv.org/abs/2001.10488)
 
 ## Continue Learning
 
-- **[Central Limit Theorem in R](Central-Limit-Theorem-in-R.html)** — the parent post this article is a follow-up to. Simulate the CLT working in the cases where it actually does.
-- **[Law of Large Numbers vs Central Limit Theorem](Law-of-Large-Numbers-vs-CLT-in-R.html)** — the LLN also requires finite mean and breaks on Cauchy. Compare both laws side by side.
-- **[Normal, t, F, and Chi-Squared Distributions in R](Normal-t-F-and-Chi-Squared-Distributions-in-R.html)** — a deeper tour of the Student-t family and its better-behaved relatives.
+- **[Central Limit Theorem in R](Central-Limit-Theorem-in-R.html)**, the parent post this article is a follow-up to. Simulate the CLT working in the cases where it actually does.
+- **[Law of Large Numbers vs Central Limit Theorem](Law-of-Large-Numbers-vs-CLT-in-R.html)**, the LLN also requires finite mean and breaks on Cauchy. Compare both laws side by side.
+- **[Normal, t, F, and Chi-Squared Distributions in R](Normal-t-F-and-Chi-Squared-Distributions-in-R.html)**, a deeper tour of the Student-t family and its better-behaved relatives.

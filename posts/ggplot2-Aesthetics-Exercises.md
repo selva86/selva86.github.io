@@ -1,7 +1,7 @@
 ---
-title: "ggplot2 Aesthetics Exercises: 10 color, fill, size Practice Problems — Solved Step-by-Step"
+title: "ggplot2 Aesthetics Exercises: 10 color, fill, size Practice Problems, Solved Step-by-Step"
 slug: "ggplot2-Aesthetics-Exercises"
-description: "Practice ggplot2 aesthetics with 10 colour, fill, size, shape, and alpha exercises — each with runnable starter code and detailed step-by-step solutions in R."
+description: "Practice ggplot2 aesthetics with 10 colour, fill, size, shape, and alpha exercises, each with runnable starter code and detailed step-by-step solutions in R."
 keywords: "ggplot2 aesthetics exercises, ggplot2 color exercises, ggplot2 fill exercises, ggplot2 size exercises, aes() practice problems, ggplot2 exercises with solutions, R visualization exercises, ggplot2 colour mapping practice"
 auto_link_terms: "ggplot2 aesthetics exercises|aes exercises R|ggplot2 color fill exercises|ggplot2 aesthetic practice|aesthetics practice problems|ggplot2 aes exercises"
 auto_link_case_sensitive: false
@@ -16,9 +16,9 @@ difficulty: "Intermediate"
 ---
 
 
-# ggplot2 Aesthetics Exercises: 10 color, fill, size Practice Problems — Solved Step-by-Step
+# ggplot2 Aesthetics Exercises: 10 color, fill, size Practice Problems, Solved Step-by-Step
 
-<p class="lead">The <code>aes()</code> function maps data columns to visual properties like colour, fill, size, and shape — but knowing the syntax and choosing the right mapping for the right chart are different skills. These 10 exercises build that skill progressively, from single-aesthetic scatter plots to publication-ready multi-layered visualizations.</p>
+<p class="lead">The <code>aes()</code> function maps data columns to visual properties like colour, fill, size, and shape, but knowing the syntax and choosing the right mapping for the right chart are different skills. These 10 exercises build that skill progressively, from single-aesthetic scatter plots to publication-ready multi-layered visualizations.</p>
 
 ## Which Aesthetic Controls What?
 
@@ -49,12 +49,12 @@ ggplot(mpg, aes(x = displ, y = hwy, colour = class, size = cyl)) +
 #> Two legends appear: one for colour, one for size
 ```
 
-One scatter plot, four variables encoded (x, y, colour, size). That is the power of `aes()` — it turns a two-dimensional chart into a window onto your entire dataset. The `colour = class` part goes *inside* `aes()` because it maps a data column, while `alpha = 0.7` stays *outside* because it is a fixed value that applies to every point.
+One scatter plot, four variables encoded (x, y, colour, size). That is the power of `aes()`, it turns a two-dimensional chart into a window onto your entire dataset. The `colour = class` part goes *inside* `aes()` because it maps a data column, while `alpha = 0.7` stays *outside* because it is a fixed value that applies to every point.
 
 [KEY INSIGHT]
 **Inside aes() = data-driven, outside aes() = constant.** When you write `aes(colour = class)`, ggplot2 picks a different colour for each class. When you write `geom_point(colour = "steelblue")`, every point gets the same colour.
 
-**Try it:** In the scatter above, replace `colour = class` with `shape = drv` — what changes?
+**Try it:** In the scatter above, replace `colour = class` with `shape = drv`, what changes?
 
 ```r
 # Try it: swap colour for shape
@@ -83,7 +83,7 @@ ggplot(mpg, aes(x = displ, y = hwy, shape = drv, size = cyl)) +
 
 ## How Do You Map Colour and Fill? (Exercises 1–3)
 
-Colour and fill are the two most-used aesthetics, but they behave differently depending on the geom. Points use colour for the dot itself. Bars use fill for the body and colour for the border. Shapes 21-25 accept *both* — fill for the interior and colour for the outline.
+Colour and fill are the two most-used aesthetics, but they behave differently depending on the geom. Points use colour for the dot itself. Bars use fill for the body and colour for the border. Shapes 21-25 accept *both*, fill for the interior and colour for the outline.
 
 ### Exercise 1: Colour a Scatter by Category
 
@@ -151,7 +151,7 @@ p2
 #> 2seater has only rear-wheel drive (single bar)
 ```
 
-**Explanation:** `fill = drv` colours the *interior* of each bar. `position = "dodge"` places bars side-by-side so you can compare counts within each class. Without `"dodge"`, bars would stack on top of each other — useful for showing totals, but harder for comparing individual groups.
+**Explanation:** `fill = drv` colours the *interior* of each bar. `position = "dodge"` places bars side-by-side so you can compare counts within each class. Without `"dodge"`, bars would stack on top of each other, useful for showing totals, but harder for comparing individual groups.
 
 </details>
 
@@ -187,7 +187,7 @@ p3
 #> Every point has a crisp black border
 ```
 
-**Explanation:** Shapes 21-25 are the only point shapes that accept both `fill` (interior) and `colour` (border). By mapping `fill` to cylinder count and fixing `colour = "black"`, each point gets a coloured interior with a clean black outline. This two-channel approach is especially useful when points overlap — the black border keeps each point visually distinct.
+**Explanation:** Shapes 21-25 are the only point shapes that accept both `fill` (interior) and `colour` (border). By mapping `fill` to cylinder count and fixing `colour = "black"`, each point gets a coloured interior with a clean black outline. This two-channel approach is especially useful when points overlap, the black border keeps each point visually distinct.
 
 </details>
 
@@ -222,13 +222,13 @@ ex_fill_21
 #> Coloured fills return — 4-cyl red, 6-cyl green, 8-cyl blue
 ```
 
-**Explanation:** Shape 16 is a "solid" shape — it only responds to `colour`, not `fill`. When you map `fill` with a non-fillable shape, ggplot2 silently ignores the mapping. No error, no warning — just missing visual encoding. Always pair fill mappings with shapes 21-25.
+**Explanation:** Shape 16 is a "solid" shape, it only responds to `colour`, not `fill`. When you map `fill` with a non-fillable shape, ggplot2 silently ignores the mapping. No error, no warning, just missing visual encoding. Always pair fill mappings with shapes 21-25.
 
 </details>
 
 ## How Do You Control Size and Alpha? (Exercises 4–6)
 
-Size and alpha are the go-to aesthetics for continuous variables. Size encodes magnitude — a bigger point means a bigger value. Alpha encodes density — lowering transparency reveals where hundreds of points pile up on top of each other.
+Size and alpha are the go-to aesthetics for continuous variables. Size encodes magnitude, a bigger point means a bigger value. Alpha encodes density, lowering transparency reveals where hundreds of points pile up on top of each other.
 
 ### Exercise 4: Map Size to a Continuous Variable
 
@@ -335,12 +335,12 @@ p6
 #> Two legends appear: one for size, one for colour
 ```
 
-**Explanation:** A bubble chart encodes three variables beyond x and y: `size = hp` turns each point into a bubble whose area reflects horsepower, while `colour = factor(gear)` separates gearbox types. The `alpha = 0.7` prevents large bubbles from completely hiding smaller ones behind them. Bubble charts are powerful but can get crowded — keep the dataset small (under 100 points) for readability.
+**Explanation:** A bubble chart encodes three variables beyond x and y: `size = hp` turns each point into a bubble whose area reflects horsepower, while `colour = factor(gear)` separates gearbox types. The `alpha = 0.7` prevents large bubbles from completely hiding smaller ones behind them. Bubble charts are powerful but can get crowded, keep the dataset small (under 100 points) for readability.
 
 </details>
 
 [WARNING]
-**Never map size to a categorical variable.** Mapping `size = factor(gear)` would assign arbitrary point sizes to gear levels 3, 4, and 5. Readers instinctively interpret bigger points as "more" — when categories have no magnitude, the visual weight is misleading.
+**Never map size to a categorical variable.** Mapping `size = factor(gear)` would assign arbitrary point sizes to gear levels 3, 4, and 5. Readers instinctively interpret bigger points as "more", when categories have no magnitude, the visual weight is misleading.
 
 **Try it:** In Exercise 6, swap `size = hp` for `size = factor(gear)`. Why is the result misleading?
 
@@ -368,13 +368,13 @@ ex_size_bad
 #> Readers think big circle = big value, which misrepresents the data
 ```
 
-**Explanation:** ggplot2 warns you because size implies magnitude. A 5-gear car is not "more" than a 3-gear car the way 300 horsepower is "more" than 100. For categorical variables, use colour or shape instead — they signal "different" without implying "bigger."
+**Explanation:** ggplot2 warns you because size implies magnitude. A 5-gear car is not "more" than a 3-gear car the way 300 horsepower is "more" than 100. For categorical variables, use colour or shape instead, they signal "different" without implying "bigger."
 
 </details>
 
 ## How Do You Use Shape and Linetype? (Exercises 7–8)
 
-Shape and linetype are inherently categorical aesthetics — they create discrete visual groups rather than continuous gradients. Shape offers about 25 symbols, but human perception tops out at distinguishing 5-6. Linetype has exactly 6 built-in patterns. Keep your category count low.
+Shape and linetype are inherently categorical aesthetics, they create discrete visual groups rather than continuous gradients. Shape offers about 25 symbols, but human perception tops out at distinguishing 5-6. Linetype has exactly 6 built-in patterns. Keep your category count low.
 
 ### Exercise 7: Map Shape to a Categorical Variable
 
@@ -409,7 +409,7 @@ p7
 #> One combined legend shows colour + shape together
 ```
 
-**Explanation:** When you map the same variable to both `colour` and `shape`, ggplot2 merges the legends into one. This is called "redundant encoding" — it helps readers who are colourblind (they see the shape) and readers in greyscale prints. It is one of the most effective accessibility patterns in data visualization.
+**Explanation:** When you map the same variable to both `colour` and `shape`, ggplot2 merges the legends into one. This is called "redundant encoding", it helps readers who are colourblind (they see the shape) and readers in greyscale prints. It is one of the most effective accessibility patterns in data visualization.
 
 </details>
 
@@ -450,7 +450,7 @@ p8
 #> Combined legend shows colour + linetype together
 ```
 
-**Explanation:** Just as mapping one variable to both colour and shape creates redundant encoding for points, mapping one variable to both colour and linetype does the same for lines. The result is accessible in colour prints, greyscale prints, *and* low-resolution screens. Always use `labs()` with identical names for both aesthetics — that is what tells ggplot2 to merge the legends.
+**Explanation:** Just as mapping one variable to both colour and shape creates redundant encoding for points, mapping one variable to both colour and linetype does the same for lines. The result is accessible in colour prints, greyscale prints, *and* low-resolution screens. Always use `labs()` with identical names for both aesthetics, that is what tells ggplot2 to merge the legends.
 
 </details>
 
@@ -491,7 +491,7 @@ ex_manual
 
 ## How Do You Override Default Aesthetic Scales? (Exercises 9–10)
 
-ggplot2 picks colours, sizes, and shapes automatically — but defaults rarely match what a report or presentation needs. The `scale_*` functions let you override every automatic choice: `scale_colour_manual()` for exact colours, `scale_colour_brewer()` for perceptually tested palettes, `scale_size_continuous()` for size ranges, and many more.
+ggplot2 picks colours, sizes, and shapes automatically, but defaults rarely match what a report or presentation needs. The `scale_*` functions let you override every automatic choice: `scale_colour_manual()` for exact colours, `scale_colour_brewer()` for perceptually tested palettes, `scale_size_continuous()` for size ranges, and many more.
 
 ### Exercise 9: Custom Colour Palette with scale_colour_manual
 
@@ -576,14 +576,14 @@ p10
 #> Two separate legends: one for colour, one for shape
 ```
 
-**Explanation:** This plot layers four aesthetics: x position, y position, colour, and shape — encoding five variables from `mpg` in a single chart. `scale_colour_brewer(palette = "Set2")` provides a palette designed by Cynthia Brewer for maximum perceptual contrast including under colour-vision deficiency. The `theme_minimal()` strips the grey background and heavy gridlines, giving a cleaner look for reports and slides.
+**Explanation:** This plot layers four aesthetics: x position, y position, colour, and shape, encoding five variables from `mpg` in a single chart. `scale_colour_brewer(palette = "Set2")` provides a palette designed by Cynthia Brewer for maximum perceptual contrast including under colour-vision deficiency. The `theme_minimal()` strips the grey background and heavy gridlines, giving a cleaner look for reports and slides.
 
 </details>
 
 [KEY INSIGHT]
 **scale_*_manual() gives exact control; scale_*_brewer() gives perceptually tested palettes.** Use manual when you need specific brand colours. Use brewer when you want a scientifically validated palette that works for colourblind readers, printers, and projectors.
 
-**Try it:** Replace `palette = "Set2"` with `palette = "Dark2"` in Exercise 10 — which palette has better contrast on a white background?
+**Try it:** Replace `palette = "Set2"` with `palette = "Dark2"` in Exercise 10, which palette has better contrast on a white background?
 
 ```r
 # Try it: swap brewer palettes
@@ -610,7 +610,7 @@ ex_brewer
 #> Better for slides and print; Set2 is gentler for on-screen reading
 ```
 
-**Explanation:** "Dark2" uses more saturated, higher-contrast colours than "Set2". On a white background or projected slide, Dark2 pops more. On a screen in a long article, Set2 is easier on the eyes. The choice depends on your medium — there is no universal "best" palette.
+**Explanation:** "Dark2" uses more saturated, higher-contrast colours than "Set2". On a white background or projected slide, Dark2 pops more. On a screen in a long article, Set2 is easier on the eyes. The choice depends on your medium, there is no universal "best" palette.
 
 </details>
 
@@ -758,7 +758,7 @@ cap_after
 #> Cut quality is mixed across all carat ranges (no clean separation)
 ```
 
-**Explanation:** Five aesthetic choices transformed a black blob into an informative chart. `colour = cut` adds group separation. `alpha = 0.2` reveals density. `scale_colour_viridis_d()` provides a palette that works in colour, greyscale, and for colourblind readers. `labs()` tells the reader what they are looking at. `theme_minimal()` removes visual clutter. Each layer adds information — that is the aesthetic upgrade workflow.
+**Explanation:** Five aesthetic choices transformed a black blob into an informative chart. `colour = cut` adds group separation. `alpha = 0.2` reveals density. `scale_colour_viridis_d()` provides a palette that works in colour, greyscale, and for colourblind readers. `labs()` tells the reader what they are looking at. `theme_minimal()` removes visual clutter. Each layer adds information, that is the aesthetic upgrade workflow.
 
 </details>
 
@@ -785,7 +785,7 @@ step2
 #> The negative trend is actually several parallel clusters
 ```
 
-Now the story deepens — the overall trend is actually multiple class-specific trends layered on top of each other.
+Now the story deepens, the overall trend is actually multiple class-specific trends layered on top of each other.
 
 ```r
 # Step 3: add shape = drv for drive type
@@ -833,21 +833,21 @@ Four steps, four aesthetic additions, one complete story. The bare scatter told 
 
 **Three rules to remember:**
 1. Inside `aes()` = data-driven mapping. Outside `aes()` = fixed constant.
-2. Shapes 21-25 accept *both* `colour` (border) and `fill` (interior) — all other shapes ignore fill.
+2. Shapes 21-25 accept *both* `colour` (border) and `fill` (interior), all other shapes ignore fill.
 3. Map the same variable to two aesthetics (colour + shape, or colour + linetype) for redundant encoding that works in print, greyscale, and for colourblind readers.
 
 ## References
 
-1. Wickham, H. — *ggplot2: Elegant Graphics for Data Analysis*, 3rd Edition. Springer (2024). Chapter 2.4: Colour, size, shape and other aesthetic attributes. [Link](https://ggplot2-book.org/getting-started.html#sec-aesthetics)
-2. ggplot2 documentation — Aesthetic specifications vignette. [Link](https://ggplot2.tidyverse.org/articles/ggplot2-specs.html)
-3. ggplot2 documentation — Colour related aesthetics: colour, fill, and alpha. [Link](https://ggplot2.tidyverse.org/reference/aes_colour_fill_alpha.html)
-4. R Graph Gallery — Dealing with color in ggplot2. [Link](https://r-graph-gallery.com/ggplot2-color.html)
-5. Posit cheat sheet — Data visualization with ggplot2. [Link](https://rstudio.github.io/cheatsheets/data-visualization.pdf)
-6. Healy, K. — *Data Visualization: A Practical Introduction*. Princeton University Press (2019). Chapter 3. [Link](https://socviz.co/makeplot.html)
-7. ColorBrewer 2.0 — Colour advice for cartography and data visualization. [Link](https://colorbrewer2.org/)
+1. Wickham, H., *ggplot2: Elegant Graphics for Data Analysis*, 3rd Edition. Springer (2024). Chapter 2.4: Colour, size, shape and other aesthetic attributes. [Link](https://ggplot2-book.org/getting-started.html#sec-aesthetics)
+2. ggplot2 documentation, Aesthetic specifications vignette. [Link](https://ggplot2.tidyverse.org/articles/ggplot2-specs.html)
+3. ggplot2 documentation, Colour related aesthetics: colour, fill, and alpha. [Link](https://ggplot2.tidyverse.org/reference/aes_colour_fill_alpha.html)
+4. R Graph Gallery, Dealing with color in ggplot2. [Link](https://r-graph-gallery.com/ggplot2-color.html)
+5. Posit cheat sheet, Data visualization with ggplot2. [Link](https://rstudio.github.io/cheatsheets/data-visualization.pdf)
+6. Healy, K., *Data Visualization: A Practical Introduction*. Princeton University Press (2019). Chapter 3. [Link](https://socviz.co/makeplot.html)
+7. ColorBrewer 2.0, Colour advice for cartography and data visualization. [Link](https://colorbrewer2.org/)
 
 ## Continue Learning
 
-1. [ggplot2 aes(): Map Any Variable to Any Visual Property](ggplot2-Aesthetics-aes-Map-Data.html) — the parent tutorial covering every aesthetic in depth with theory, examples, and scale overrides
-2. [ggplot2 Exercises (15 problems)](ggplot2-Exercises.html) — broader ggplot2 practice covering aesthetics, scales, facets, themes, and coordinate systems
-3. [ggplot2 Geom Exercises (12 problems)](ggplot2-Geom-Exercises.html) — practice choosing the right chart type with geom_point, geom_bar, geom_boxplot, and more
+1. [ggplot2 aes(): Map Any Variable to Any Visual Property](ggplot2-Aesthetics-aes-Map-Data.html), the parent tutorial covering every aesthetic in depth with theory, examples, and scale overrides
+2. [ggplot2 Exercises (15 problems)](ggplot2-Exercises.html), broader ggplot2 practice covering aesthetics, scales, facets, themes, and coordinate systems
+3. [ggplot2 Geom Exercises (12 problems)](ggplot2-Geom-Exercises.html), practice choosing the right chart type with geom_point, geom_bar, geom_boxplot, and more

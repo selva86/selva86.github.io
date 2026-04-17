@@ -1,7 +1,7 @@
 ---
-title: "R read.csv Error: 'more columns than column names' — 4 Common CSV Problems Fixed"
+title: "R read.csv Error: 'more columns than column names', 4 Common CSV Problems Fixed"
 slug: "R-Error-CSV-Columns"
-description: "Fix R's read.csv 'more columns than column names' error. Four causes — trailing commas, wrong separator, unclosed quotes, extra columns — with the exact fix."
+description: "Fix R's read.csv 'more columns than column names' error. Four causes, trailing commas, wrong separator, unclosed quotes, extra columns, with the exact fix."
 keywords: "R more columns than column names, read.csv error, R CSV parse error, R delimiter error, read.csv fill, read.csv quote, read.csv sep, R CSV troubleshooting"
 auto_link_terms: "more columns than column names|read.csv column error|read.csv more columns|R CSV parse error|read.csv delimiter error"
 auto_link_case_sensitive: false
@@ -14,13 +14,13 @@ fr_parent: "R-Common-Errors.html"
 difficulty: "Intermediate"
 ---
 
-# R read.csv Error: 'more columns than column names' — 4 Common CSV Problems Fixed
+# R read.csv Error: 'more columns than column names', 4 Common CSV Problems Fixed
 
-<p class="lead"><code>Error in read.table(...) : more columns than column names</code> means a data row in your CSV contains more fields than the header line declared. R stops rather than guess which values belong in which column, and four small file problems cause nearly every occurrence — each with a one-argument fix in <code>read.csv()</code>.</p>
+<p class="lead"><code>Error in read.table(...) : more columns than column names</code> means a data row in your CSV contains more fields than the header line declared. R stops rather than guess which values belong in which column, and four small file problems cause nearly every occurrence, each with a one-argument fix in <code>read.csv()</code>.</p>
 
 ## What does "more columns than column names" actually mean?
 
-The fastest way to understand this error is to trigger it, read the message R prints, then fix it with one argument. The error is not about missing data or corrupted bytes — it is about R counting more fields on a data row than on the header. The moment those two counts disagree, `read.table()` aborts. Once you know which of the four file problems caused the mismatch, the fix is a single argument change.
+The fastest way to understand this error is to trigger it, read the message R prints, then fix it with one argument. The error is not about missing data or corrupted bytes, it is about R counting more fields on a data row than on the header. The moment those two counts disagree, `read.table()` aborts. Once you know which of the four file problems caused the mismatch, the fix is a single argument change.
 
 Let's reproduce the error on a tiny in-memory CSV where the header names two columns but one data row sneaks in a third value. We build the text with `read.csv(text = ...)` so every example in this post runs without touching a file on disk.
 
@@ -46,10 +46,10 @@ good_df
 #> 2  2   Bob extra
 ```
 
-We skipped the original header (`skip = 1`) and supplied three names ourselves. Row 1 now has `NA` for the unnamed third column, and row 2 parses cleanly. This single pattern — "tell R how many columns there really are" — is the workhorse behind every fix in this post.
+We skipped the original header (`skip = 1`) and supplied three names ourselves. Row 1 now has `NA` for the unnamed third column, and row 2 parses cleanly. This single pattern, "tell R how many columns there really are", is the workhorse behind every fix in this post.
 
 [KEY INSIGHT]
-**The error is a field-count mismatch, not a data-quality problem.** R is not complaining about missing values or bad numbers — it is refusing to parse a row that has more comma-separated fields than the header line. Find the count mismatch and you find the fix.
+**The error is a field-count mismatch, not a data-quality problem.** R is not complaining about missing values or bad numbers, it is refusing to parse a row that has more comma-separated fields than the header line. Find the count mismatch and you find the fix.
 
 **Try it:** The CSV below has a header of 2 columns and one row with 3 fields. Fix the call so both rows parse without error, using `col.names` to supply a third name.
 
@@ -113,7 +113,7 @@ clean_df
 We told R there are three columns, let it happily park the empty strings in `trailing`, then subset them away. The result is the clean two-column frame the file was meant to produce.
 
 [WARNING]
-**Excel and Google Sheets can export trailing commas without warning.** If you asked for "CSV (comma delimited)" and every row ends in `,`, the export tool padded the sheet to a wider rectangle than the header. Open the raw file in a text editor before trusting the header — spreadsheets lie about what they save.
+**Excel and Google Sheets can export trailing commas without warning.** If you asked for "CSV (comma delimited)" and every row ends in `,`, the export tool padded the sheet to a wider rectangle than the header. Open the raw file in a text editor before trusting the header, spreadsheets lie about what they save.
 
 **Try it:** The CSV below has trailing commas on every data row. Parse it into a clean 2-column data frame named `ex2_df` with columns `product` and `price`.
 
@@ -151,7 +151,7 @@ ex2_df
 
 ## Cause #2: What if your .csv isn't actually comma-delimited?
 
-The second common cause is a file named `something.csv` that is not actually comma-delimited. European Excel exports use `;` by default because commas are the decimal separator over there. Tab-separated exports are also common. When R tries to split on commas, a row like `1;Alice;NYC` becomes one giant field — until another row sneaks in a stray comma inside a value, and suddenly that row has more fields than the header's one.
+The second common cause is a file named `something.csv` that is not actually comma-delimited. European Excel exports use `;` by default because commas are the decimal separator over there. Tab-separated exports are also common. When R tries to split on commas, a row like `1;Alice;NYC` becomes one giant field, until another row sneaks in a stray comma inside a value, and suddenly that row has more fields than the header's one.
 
 ```r
 semi_csv <- "id;name;city
@@ -168,7 +168,7 @@ semi_wrong
 #> 3        3;Carol;SF
 ```
 
-Row 2's embedded comma in `Bob,Jr` tripped R into thinking that row had two fields while the header had one — the classic mismatch in disguise. Switching the separator fixes everything in one argument:
+Row 2's embedded comma in `Bob,Jr` tripped R into thinking that row had two fields while the header had one, the classic mismatch in disguise. Switching the separator fixes everything in one argument:
 
 ```r
 semi_df <- read.csv(text = semi_csv, sep = ";")
@@ -231,7 +231,7 @@ read.csv(text = quote_csv)
 #>   more columns than column names
 ```
 
-Row 2 has a bare `"` in the middle of `broken"half`, and R starts reading a quoted field there — gobbling up the rest of the string and the next line. The fastest fix when you don't control the file is to disable quoting entirely:
+Row 2 has a bare `"` in the middle of `broken"half`, and R starts reading a quoted field there, gobbling up the rest of the string and the next line. The fastest fix when you don't control the file is to disable quoting entirely:
 
 ```r
 quote_df <- read.csv(text = quote_csv, quote = "")
@@ -242,7 +242,7 @@ quote_df
 #> 3  3     "also ok"
 ```
 
-With `quote = ""`, R treats every `"` as literal data, so the stray quote in row 2 is harmless and the field counts line up again. The downside is that legitimate quoted fields containing commas will split incorrectly — so only use this when the file has no commas inside quoted values.
+With `quote = ""`, R treats every `"` as literal data, so the stray quote in row 2 is harmless and the field counts line up again. The downside is that legitimate quoted fields containing commas will split incorrectly, so only use this when the file has no commas inside quoted values.
 
 [NOTE]
 **CSV spec says embedded quotes should be doubled.** The formal rule for a `"` inside a quoted field is to write it as `""`, so `She said "hi"` becomes `"She said ""hi"""`. Well-behaved exports follow this rule. If yours does not and you can re-export from the source, fix the exporter; `quote = ""` is a last resort when you cannot.
@@ -285,7 +285,7 @@ Sometimes the file is fine and the header is wrong. An analyst exports a table w
 
 ![Decision flow for the four causes.](screenshots/R-Error-CSV-Columns-diagnosis-flow.webp)
 
-*Figure 1: Decision flow — which of the four causes is behind your "more columns than column names" error.*
+*Figure 1: Decision flow, which of the four causes is behind your "more columns than column names" error.*
 
 Here is a file with two junk metadata lines at the top, followed by a header that forgot to name the row-id column:
 
@@ -314,7 +314,7 @@ meta_df
 #> 3  3 Carol    78
 ```
 
-`skip = 3` jumps past the two comment lines AND the broken header. `header = FALSE` plus `col.names` supplies the three names the file really needs. This is the general shape of every "header is wrong" fix — take control away from auto-detection and name the columns yourself.
+`skip = 3` jumps past the two comment lines AND the broken header. `header = FALSE` plus `col.names` supplies the three names the file really needs. This is the general shape of every "header is wrong" fix, take control away from auto-detection and name the columns yourself.
 
 **Try it:** The CSV below has one metadata line and a header missing the row-id. Parse it into `ex5_df` with columns `id`, `fruit`, and `weight`.
 
@@ -441,7 +441,7 @@ diagnose_csv(test_csv)
 
 ## Complete Example: Fix a real CSV export end-to-end
 
-Here is a messy export that combines three of the four causes — metadata lines at the top, semicolon separator, AND a trailing `;` on every data row. We will diagnose it step by step with `readLines()` and `count.fields()`, then stack the fixes into one clean `read.csv()` call.
+Here is a messy export that combines three of the four causes, metadata lines at the top, semicolon separator, AND a trailing `;` on every data row. We will diagnose it step by step with `readLines()` and `count.fields()`, then stack the fixes into one clean `read.csv()` call.
 
 ```r
 messy_export <- "# report generated 2026-04-13
@@ -458,7 +458,7 @@ raw_lines[1:4]
 #> [3] "sku;qty;price"                 "A01;100;2.50;"
 ```
 
-Two comment lines, then a semicolon header, then data rows ending in `;`. Now count fields on each line — first assuming commas (wrong), then semicolons:
+Two comment lines, then a semicolon header, then data rows ending in `;`. Now count fields on each line, first assuming commas (wrong), then semicolons:
 
 ```r
 field_counts <- count.fields(textConnection(messy_export), sep = ";")
@@ -493,23 +493,23 @@ Match the symptom to the cause, then use the exact argument in the right column:
 | Unclosed quotes | Stray `"` glues rows together | `quote = ""` |
 | Extra columns / metadata | Header names fewer columns than data rows | `skip = N` + `header = FALSE` + `col.names` |
 
-The universal fallback is `header = FALSE, col.names = c(...)` — if you tell R how many columns the file has, the mismatch goes away regardless of which of the four problems caused it.
+The universal fallback is `header = FALSE, col.names = c(...)`, if you tell R how many columns the file has, the mismatch goes away regardless of which of the four problems caused it.
 
 [KEY INSIGHT]
 **Every fix is really the same fix: take control of column counting.** Whether the noise is a stray comma, a wrong separator, a broken quote, or a missing header name, the remedy is to tell `read.csv()` up front how many columns there really are. Auto-detection is a convenience, not a contract.
 
 ## References
 
-1. R Core Team — `read.table` documentation. [Link](https://stat.ethz.ch/R-manual/R-devel/library/utils/html/read.table.html)
-2. R Core Team — *An Introduction to R*, Chapter 7: Reading data from files. [Link](https://cran.r-project.org/doc/manuals/r-release/R-intro.html#Reading-data-from-files)
-3. R Core Team — `count.fields` reference. [Link](https://stat.ethz.ch/R-manual/R-devel/library/utils/html/count.fields.html)
-4. Statology — How to Fix in R: more columns than column names. [Link](https://www.statology.org/r-more-columns-than-column-names/)
-5. ProgrammingR — How To Fix R Error more columns than column names. [Link](https://www.programmingr.com/r-error-messages/more-columns-than-column-names/)
-6. Statistics Globe — R Error in read.table: more columns than column names (3 Examples). [Link](https://statisticsglobe.com/error-more-columns-than-column-names-in-r)
-7. Wickham, H. & Grolemund, G. — *R for Data Science*, Chapter 7: Data import. [Link](https://r4ds.hadley.nz/data-import.html)
+1. R Core Team, `read.table` documentation. [Link](https://stat.ethz.ch/R-manual/R-devel/library/utils/html/read.table.html)
+2. R Core Team, *An Introduction to R*, Chapter 7: Reading data from files. [Link](https://cran.r-project.org/doc/manuals/r-release/R-intro.html#Reading-data-from-files)
+3. R Core Team, `count.fields` reference. [Link](https://stat.ethz.ch/R-manual/R-devel/library/utils/html/count.fields.html)
+4. Statology, How to Fix in R: more columns than column names. [Link](https://www.statology.org/r-more-columns-than-column-names/)
+5. ProgrammingR, How To Fix R Error more columns than column names. [Link](https://www.programmingr.com/r-error-messages/more-columns-than-column-names/)
+6. Statistics Globe, R Error in read.table: more columns than column names (3 Examples). [Link](https://statisticsglobe.com/error-more-columns-than-column-names-in-r)
+7. Wickham, H. & Grolemund, G., *R for Data Science*, Chapter 7: Data import. [Link](https://r4ds.hadley.nz/data-import.html)
 
 ## Continue Learning
 
-- [R Common Errors and Fixes](R-Common-Errors.html) — the master index of R error messages and their root-cause fixes.
-- [Importing Data in R](Importing-Data-in-R.html) — the full `read.csv` / `read.table` / `readr` tour, with every argument explained.
-- [R Error: cannot open the connection](R-Error-Cannot-Open-Connection.html) — the sister error for when R cannot even find the file, let alone parse it.
+- [R Common Errors and Fixes](R-Common-Errors.html), the master index of R error messages and their root-cause fixes.
+- [Importing Data in R](Importing-Data-in-R.html), the full `read.csv` / `read.table` / `readr` tour, with every argument explained.
+- [R Error: cannot open the connection](R-Error-Cannot-Open-Connection.html), the sister error for when R cannot even find the file, let alone parse it.

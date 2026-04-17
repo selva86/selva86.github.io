@@ -1,5 +1,5 @@
 ---
-title: "R Subsetting Exercises: 10 [] vs [[]] vs $ Practice Problems — Solved Step-by-Step"
+title: "R Subsetting Exercises: 10 [] vs [[]] vs $ Practice Problems, Solved Step-by-Step"
 slug: R-Subsetting-Exercises
 description: "Practice R subsetting with 10 solved exercises on [], [[]], and $. Work through vectors, lists, and data frames with interactive code you can run in your browser."
 keywords: "R subsetting exercises, R bracket exercises, [] vs [[]] vs $ R, R indexing practice problems, R subsetting practice, subset R exercises, R extract elements, R list subsetting exercises, double bracket R"
@@ -15,13 +15,13 @@ fr_parent: R-Vectors.html
 difficulty: "Intermediate"
 ---
 
-<p class="lead">Subsetting — pulling specific pieces out of vectors, lists, and data frames with <code>[]</code>, <code>[[]]</code>, and <code>$</code> — is one of the most-used skills in R, and one of the trickiest to master. These 10 exercises take you from basic vector indexing to nested list extraction, each with starter code and a full worked solution.</p>
+<p class="lead">Subsetting, pulling specific pieces out of vectors, lists, and data frames with <code>[]</code>, <code>[[]]</code>, and <code>$</code>, is one of the most-used skills in R, and one of the trickiest to master. These 10 exercises take you from basic vector indexing to nested list extraction, each with starter code and a full worked solution.</p>
 
 Run every block, predict the output before you peek at the answer, and you'll have the three operators locked in by the end.
 
 ## How does [] work on vectors?
 
-R gives you three subsetting operators, and each returns something different. The fastest way to build intuition is to run code and check your predictions. Let's start with vectors — the simplest structure — and `[]`, the operator you'll use most.
+R gives you three subsetting operators, and each returns something different. The fastest way to build intuition is to run code and check your predictions. Let's start with vectors, the simplest structure, and `[]`, the operator you'll use most.
 
 ### Problem 1: Extract by position and by name
 
@@ -82,7 +82,7 @@ scores[-3]
 #>      88      92      95      84
 ```
 
-**Explanation:** Logical subsetting is powerful because you don't need to know *where* the elements are — just *what* they look like. R evaluates `scores > 85` into a logical vector (`TRUE, TRUE, FALSE, TRUE, FALSE`) and keeps only the `TRUE` positions. Negative indexing is the flip side: instead of "give me these", you say "give me everything *except* these."
+**Explanation:** Logical subsetting is powerful because you don't need to know *where* the elements are, just *what* they look like. R evaluates `scores > 85` into a logical vector (`TRUE, TRUE, FALSE, TRUE, FALSE`) and keeps only the `TRUE` positions. Negative indexing is the flip side: instead of "give me these", you say "give me everything *except* these."
 
 </details>
 
@@ -115,7 +115,7 @@ ex_cities[c(1, length(ex_cities))]
 
 ## How does [] behave differently on lists?
 
-Here's where most R learners hit their first wall. When you use `[]` on a list, you don't get the *contents* — you get a **smaller list** containing those elements.
+Here's where most R learners hit their first wall. When you use `[]` on a list, you don't get the *contents*, you get a **smaller list** containing those elements.
 
 Think of a list as a train with numbered cars. `[]` gives you a train car (still a train), while `[[]]` opens the car door and hands you what's inside.
 
@@ -152,11 +152,11 @@ class(sub)
 #> [1] "list"
 ```
 
-**Explanation:** Even though you only asked for two elements, the result is still a list. That's the key rule: `[]` on a list always returns a list. This is *preserving* subsetting — the output structure matches the input structure.
+**Explanation:** Even though you only asked for two elements, the result is still a list. That's the key rule: `[]` on a list always returns a list. This is *preserving* subsetting, the output structure matches the input structure.
 
 </details>
 
-### Problem 4: [] vs [[]] — what's the actual difference?
+### Problem 4: [] vs [[]], what's the actual difference?
 
 Compare `student[2]` and `student[[2]]`. What type does each return? Why does `mean(student[2])` fail while `mean(student[[2]])` works?
 
@@ -231,11 +231,11 @@ is.list(ex_sub)
 
 ## When should you use [[]] to extract elements?
 
-Use `[[]]` whenever you need the *value itself* for computation — not a container holding the value. `[[]]` works by name or by position, but it can only extract **one element at a time**. Its superpower over `$` is programmatic access: you can store a name in a variable and pass it to `[[]]`.
+Use `[[]]` whenever you need the *value itself* for computation, not a container holding the value. `[[]]` works by name or by position, but it can only extract **one element at a time**. Its superpower over `$` is programmatic access: you can store a name in a variable and pass it to `[[]]`.
 
 ### Problem 5: Extract and compute with [[]]
 
-Given a configuration list, extract the `port` value using `[[]]` — by name and by position. Add 1 to prove it's a plain number, not a list.
+Given a configuration list, extract the `port` value using `[[]]`, by name and by position. Add 1 to prove it's a plain number, not a list.
 
 ```r
 # Setup
@@ -302,7 +302,7 @@ mean(mpg_vec)
 #> [1] 20.09062
 ```
 
-**Explanation:** A data frame is just a list of equal-length vectors. So `mtcars[["mpg"]]` extracts the `mpg` vector the same way `student[["grades"]]` extracted the grades vector from a list earlier. `mtcars[[1]]` gives you the first column as a vector — same idea, just by position.
+**Explanation:** A data frame is just a list of equal-length vectors. So `mtcars[["mpg"]]` extracts the `mpg` vector the same way `student[["grades"]]` extracted the grades vector from a list earlier. `mtcars[[1]]` gives you the first column as a vector, same idea, just by position.
 
 </details>
 
@@ -329,13 +329,13 @@ median(mtcars[[ex_col]])
 #> [1] 123
 ```
 
-**Explanation:** `[[col_name]]` evaluates the variable `col_name` to get the string `"hp"`, then extracts that column. This is why `[[]]` is preferred in functions and loops — `$` can't accept variables.
+**Explanation:** `[[col_name]]` evaluates the variable `col_name` to get the string `"hp"`, then extracts that column. This is why `[[]]` is preferred in functions and loops, `$` can't accept variables.
 
 </details>
 
 ## How does $ simplify named access?
 
-The `$` operator is shorthand for `[["name"]]`. It's the most readable option for interactive use — `mtcars$mpg` is quicker to type and easier to scan than `mtcars[["mpg"]]`.
+The `$` operator is shorthand for `[["name"]]`. It's the most readable option for interactive use, `mtcars$mpg` is quicker to type and easier to scan than `mtcars[["mpg"]]`.
 
 But it has two limitations: it only works with **literal names** (not variables), and it does **partial matching** (which can silently return the wrong element).
 
@@ -399,7 +399,7 @@ person$a
 #> [1] 30
 ```
 
-**Explanation:** `person$f` matches `first_name` because `f` is an unambiguous prefix — only one element starts with "f". Similarly, `person$a` matches `age`. The real danger is that partial matching happens **silently** — no warning, no error. If someone later adds a `favorite_color` element, `person$f` becomes ambiguous and returns `NULL` instead. Your code breaks without any obvious reason.
+**Explanation:** `person$f` matches `first_name` because `f` is an unambiguous prefix, only one element starts with "f". Similarly, `person$a` matches `age`. The real danger is that partial matching happens **silently**, no warning, no error. If someone later adds a `favorite_color` element, `person$f` becomes ambiguous and returns `NULL` instead. Your code breaks without any obvious reason.
 
 </details>
 
@@ -430,7 +430,7 @@ length(unique(ex_species))
 
 ## How do you combine [], [[]], and $ on data frames?
 
-Data frames respond to all three operators, but the return types differ. Understanding this is the final piece of the puzzle — and it's where most bugs hide.
+Data frames respond to all three operators, but the return types differ. Understanding this is the final piece of the puzzle, and it's where most bugs hide.
 
 Here's the rule of thumb:
 
@@ -493,7 +493,7 @@ cyl6
 #> Ferrari Dino   19.7 175 2.770
 ```
 
-**Explanation:** Part (a) returns a data frame because `[]` preserves structure. Part (b) returns a numeric vector because `[[]]` extracts the element. Part (c) combines row filtering with column selection — `mtcars$cyl == 6` creates a logical vector for rows, and `c("mpg", "hp", "wt")` selects columns. This `[rows, cols]` syntax is the workhorse of data frame subsetting.
+**Explanation:** Part (a) returns a data frame because `[]` preserves structure. Part (b) returns a numeric vector because `[[]]` extracts the element. Part (c) combines row filtering with column selection, `mtcars$cyl == 6` creates a logical vector for rows, and `c("mpg", "hp", "wt")` selects columns. This `[rows, cols]` syntax is the workhorse of data frame subsetting.
 
 </details>
 
@@ -533,12 +533,12 @@ records$team_b$scores[2]
 #> [1] 25
 ```
 
-**Explanation:** Read left to right: `records[["team_b"]]` extracts the team_b list, `[["scores"]]` extracts the scores vector from that list, and `[2]` grabs the second element. The `$` version reads more naturally. Notice the switch from `$` (named access into lists) to `[]` (position access into a vector) at the final step — that's because `scores` is a vector, not a list.
+**Explanation:** Read left to right: `records[["team_b"]]` extracts the team_b list, `[["scores"]]` extracts the scores vector from that list, and `[2]` grabs the second element. The `$` version reads more naturally. Notice the switch from `$` (named access into lists) to `[]` (position access into a vector) at the final step, that's because `scores` is a vector, not a list.
 
 </details>
 
 [KEY INSIGHT]
-**A data frame is just a named list of equal-length vectors.** That's why [[]] and $ work on data frames exactly like they work on lists — because a data frame *is* a list under the hood. Once you internalize this, subsetting rules stop feeling arbitrary.
+**A data frame is just a named list of equal-length vectors.** That's why [[]] and $ work on data frames exactly like they work on lists, because a data frame *is* a list under the hood. Once you internalize this, subsetting rules stop feeling arbitrary.
 
 **Try it:** Extract the value in the 3rd row and 2nd column of `mtcars` as a single number using `[row, col]` notation.
 
@@ -659,7 +659,7 @@ my_heads
 #> "Sara" "Dev"
 ```
 
-**Explanation:** Part (a) chains `[[]]` to drill into the nested structure, then switches to `[]` for multi-element selection from the character vector. Part (b) uses `sapply()` to iterate over each department and extract the `"head"` element — `sapply()` simplifies the result into a named character vector because each extraction returns a single string.
+**Explanation:** Part (a) chains `[[]]` to drill into the nested structure, then switches to `[]` for multi-element selection from the character vector. Part (b) uses `sapply()` to iterate over each department and extract the `"head"` element, `sapply()` simplifies the result into a named character vector because each extraction returns a single string.
 
 </details>
 
@@ -703,7 +703,7 @@ rownames(high_mpg_4cyl)
 #> [4] "Fiat X1-9"      "Porsche 914-2"  "Lotus Europa"
 ```
 
-This example used all three operators naturally: `$` for quick column checks in the filter condition, `[]` with a logical condition for row filtering and column selection, and `[[]]` to extract a vector for computing the mean. Six 4-cylinder cars exceed 25 mpg, with an average horsepower of about 76 — confirming that fuel-efficient 4-cylinder cars tend to have modest power.
+This example used all three operators naturally: `$` for quick column checks in the filter condition, `[]` with a logical condition for row filtering and column selection, and `[[]]` to extract a vector for computing the mean. Six 4-cylinder cars exceed 25 mpg, with an average horsepower of about 76, confirming that fuel-efficient 4-cylinder cars tend to have modest power.
 
 ## Summary
 
@@ -720,23 +720,23 @@ Here's a side-by-side comparison of the three subsetting operators:
 
 **Key takeaways:**
 
-1. `[]` preserves structure — subset a list, get a list; subset a data frame, get a data frame
-2. `[[]]` extracts the raw value — essential when you need to compute with the result
+1. `[]` preserves structure, subset a list, get a list; subset a data frame, get a data frame
+2. `[[]]` extracts the raw value, essential when you need to compute with the result
 3. `$` is convenient shorthand for `[["name"]]` but watch out for partial matching
 4. A data frame is a list of vectors, so `[[]]` and `$` work on data frames the same way they work on lists
-5. For 2D subsetting, `df[rows, cols]` is the workhorse — combine logical row filters with column name vectors
+5. For 2D subsetting, `df[rows, cols]` is the workhorse, combine logical row filters with column name vectors
 
 ## References
 
-1. Wickham, H. — *Advanced R*, 2nd Edition. CRC Press (2019). Chapter 4: Subsetting. [Link](https://adv-r.hadley.nz/subsetting.html)
-2. R Core Team — *An Introduction to R*. Section 2.7: Index vectors. [Link](https://cran.r-project.org/doc/manuals/r-release/R-intro.html#Index-vectors)
-3. R Documentation — Extract or Replace Parts of an Object. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/Extract.html)
-4. Wickham, H. & Grolemund, G. — *R for Data Science*, 2nd Edition. Chapter 27: A field guide to base R. [Link](https://r4ds.hadley.nz/base-r)
-5. Burns, P. — *The R Inferno*. Circle 8: Believing it does as intended. [Link](https://www.burns-stat.com/pages/Tutor/R_inferno.pdf)
-6. McMaster University — Indexing in R: why you should use [[ more and [, $ less. [Link](https://ms.mcmaster.ca/~bolker/misc/brackets.html)
+1. Wickham, H., *Advanced R*, 2nd Edition. CRC Press (2019). Chapter 4: Subsetting. [Link](https://adv-r.hadley.nz/subsetting.html)
+2. R Core Team, *An Introduction to R*. Section 2.7: Index vectors. [Link](https://cran.r-project.org/doc/manuals/r-release/R-intro.html#Index-vectors)
+3. R Documentation, Extract or Replace Parts of an Object. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/Extract.html)
+4. Wickham, H. & Grolemund, G., *R for Data Science*, 2nd Edition. Chapter 27: A field guide to base R. [Link](https://r4ds.hadley.nz/base-r)
+5. Burns, P., *The R Inferno*. Circle 8: Believing it does as intended. [Link](https://www.burns-stat.com/pages/Tutor/R_inferno.pdf)
+6. McMaster University, Indexing in R: why you should use [[ more and [, $ less. [Link](https://ms.mcmaster.ca/~bolker/misc/brackets.html)
 
 ## Continue Learning
 
-1. [R Vectors: The Foundation of Everything in R](/R-Vectors.html) — deep dive on creating, naming, and operating on the data structure these exercises are built on
-2. [R Lists Exercises](/R-Lists-Exercises.html) — 10 more practice problems focused on list creation, nested access, and lapply/sapply
-3. [R Data Types](/R-Data-Types.html) — understand the type system that determines how subsetting behaves on different objects
+1. [R Vectors: The Foundation of Everything in R](/R-Vectors.html), deep dive on creating, naming, and operating on the data structure these exercises are built on
+2. [R Lists Exercises](/R-Lists-Exercises.html), 10 more practice problems focused on list creation, nested access, and lapply/sapply
+3. [R Data Types](/R-Data-Types.html), understand the type system that determines how subsetting behaves on different objects

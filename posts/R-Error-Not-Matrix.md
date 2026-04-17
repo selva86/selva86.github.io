@@ -1,5 +1,5 @@
 ---
-title: "R apply() Error: 'argument is not a matrix' — Try These Alternatives"
+title: "R apply() Error: 'argument is not a matrix', Try These Alternatives"
 slug: "R-Error-Not-Matrix"
 description: "Fix R's apply() error when you pass a data frame, list, or vector. Learn correct matrix conversion, when to use lapply/sapply/vapply, and the dplyr fix."
 keywords: "R argument is not a matrix, apply() error R, R apply data frame, as.matrix R, lapply vs apply, sapply alternative, dplyr across"
@@ -14,9 +14,9 @@ fr_parent: "R-Common-Errors.html"
 difficulty: "Intermediate"
 ---
 
-# R apply() Error: 'argument is not a matrix' — Try These Alternatives
+# R apply() Error: 'argument is not a matrix', Try These Alternatives
 
-<p class="lead">The message <code>argument is not a matrix</code> (and its modern cousin <code>'X' must have at least 2 dimensions</code>) means you handed <code>apply()</code> something it can't treat as a rectangular, single-type grid — usually a data frame with mixed columns, a list, or a plain vector. The fix is to pick the right tool: convert the structure honestly, or switch to <code>lapply()</code>, <code>sapply()</code>, <code>vapply()</code>, or <code>dplyr::across()</code>.</p>
+<p class="lead">The message <code>argument is not a matrix</code> (and its modern cousin <code>'X' must have at least 2 dimensions</code>) means you handed <code>apply()</code> something it can't treat as a rectangular, single-type grid, usually a data frame with mixed columns, a list, or a plain vector. The fix is to pick the right tool: convert the structure honestly, or switch to <code>lapply()</code>, <code>sapply()</code>, <code>vapply()</code>, or <code>dplyr::across()</code>.</p>
 
 ## Why does apply() throw "argument is not a matrix"?
 
@@ -40,10 +40,10 @@ row_means
 #> [1] 84.5 93.5 77.0
 ```
 
-The first call fails because `as.matrix()` promoted the `student` column (character) and dragged every number along with it — `mean()` on character data returns `NA`. The second call selects only the numeric columns first, so the matrix is genuinely numeric and the row means come out as expected. That one move — "pick numeric columns *before* you convert" — fixes ninety percent of real-world cases.
+The first call fails because `as.matrix()` promoted the `student` column (character) and dragged every number along with it, `mean()` on character data returns `NA`. The second call selects only the numeric columns first, so the matrix is genuinely numeric and the row means come out as expected. That one move, "pick numeric columns *before* you convert", fixes ninety percent of real-world cases.
 
 [KEY INSIGHT]
-**A matrix is a single-type grid, and that is the entire source of trouble.** Every time `apply()` surprises you, the explanation is that R was forced to pick one type for the whole rectangle — and the type it picked wasn't the one you wanted.
+**A matrix is a single-type grid, and that is the entire source of trouble.** Every time `apply()` surprises you, the explanation is that R was forced to pick one type for the whole rectangle, and the type it picked wasn't the one you wanted.
 
 **Try it:** Using the built-in `iris` dataset, compute the row-wise sum of its four numeric columns (columns 1 through 4) with `apply()`. Store the result in `ex_row_sums` and print the first six values.
 
@@ -70,7 +70,7 @@ head(ex_row_sums)
 
 ## How do you convert a data frame correctly?
 
-The error is almost always a conversion error, not an `apply()` error. Your job is to hand `apply()` a numeric matrix — which means picking the numeric columns explicitly, then coercing. Let's see the silent failure mode up close, because no error is thrown and the wrong answer ships to production.
+The error is almost always a conversion error, not an `apply()` error. Your job is to hand `apply()` a numeric matrix, which means picking the numeric columns explicitly, then coercing. Let's see the silent failure mode up close, because no error is thrown and the wrong answer ships to production.
 
 ```r
 # iris has four numeric columns plus a Species factor.
@@ -90,7 +90,7 @@ col_means
 #>     5.843333     3.057333     3.758000     1.199333
 ```
 
-Two things are worth noticing. First, `typeof(bad)` is `"character"` — no warning, no error, just numbers secretly turned into text. Second, the `sapply(iris, is.numeric)` trick returns a logical vector the same length as the number of columns, which you can use to filter. From there, `apply(iris_num, 2, mean)` walks across columns (MARGIN = 2) and returns the four feature means. This pattern — `df[, sapply(df, is.numeric)]` — is the single most useful defensive move in the apply ecosystem.
+Two things are worth noticing. First, `typeof(bad)` is `"character"`, no warning, no error, just numbers secretly turned into text. Second, the `sapply(iris, is.numeric)` trick returns a logical vector the same length as the number of columns, which you can use to filter. From there, `apply(iris_num, 2, mean)` walks across columns (MARGIN = 2) and returns the four feature means. This pattern, `df[, sapply(df, is.numeric)]`, is the single most useful defensive move in the apply ecosystem.
 
 [WARNING]
 **Mixed-type apply() fails silently.** If even one column is character or factor, `as.matrix()` promotes the whole matrix to character, and numeric functions return `NA` with only a warning. Always filter to numeric columns before matrix coercion.
@@ -120,13 +120,13 @@ ex_aq_means
 #> 42.129310 185.93151  9.957516 77.882353  6.993464 15.803922
 ```
 
-**Explanation:** Every column in `airquality` is already numeric, so the `sapply(..., is.numeric)` filter is a no-op here — but it makes the code robust to future columns. `na.rm = TRUE` is passed through `apply()` to `mean()`.
+**Explanation:** Every column in `airquality` is already numeric, so the `sapply(..., is.numeric)` filter is a no-op here, but it makes the code robust to future columns. `na.rm = TRUE` is passed through `apply()` to `mean()`.
 
 </details>
 
 ## When should you use lapply, sapply, or vapply instead?
 
-Some structures have no rows and columns at all — lists in particular. `apply()` can't help them, and trying is the most common cause of the raw "argument is not a matrix" phrasing. The list family (`lapply`, `sapply`, `vapply`) exists specifically for this case.
+Some structures have no rows and columns at all, lists in particular. `apply()` can't help them, and trying is the most common cause of the raw "argument is not a matrix" phrasing. The list family (`lapply`, `sapply`, `vapply`) exists specifically for this case.
 
 ![Decision flowchart showing which apply-family function to use based on data shape](screenshots/R-Error-Not-Matrix-apply-family-decision.webp)
 *Figure 1: Choosing between apply(), lapply()/sapply()/vapply(), tapply(), and mapply() based on your data's shape.*
@@ -155,10 +155,10 @@ vapply(scores_list, mean, numeric(1))
 #> 88.33 78.33 95.00
 ```
 
-`sapply()` is the lazy-friendly choice: it returns whatever shape is most natural — a vector if each call returns one value, a matrix if each returns the same-length vector. That flexibility is also its weakness, because a single weird element can silently change the return type. `vapply()` asks you to commit: "I promise each call returns a length-one numeric." If one doesn't, it errors immediately, which is exactly what you want in production code.
+`sapply()` is the lazy-friendly choice: it returns whatever shape is most natural, a vector if each call returns one value, a matrix if each returns the same-length vector. That flexibility is also its weakness, because a single weird element can silently change the return type. `vapply()` asks you to commit: "I promise each call returns a length-one numeric." If one doesn't, it errors immediately, which is exactly what you want in production code.
 
 [TIP]
-**Use vapply() in anything you will read again in six months.** The extra argument — a prototype like `numeric(1)` or `character(1)` — costs you a few keystrokes and buys you a loud error the moment the data changes shape.
+**Use vapply() in anything you will read again in six months.** The extra argument, a prototype like `numeric(1)` or `character(1)`, costs you a few keystrokes and buys you a loud error the moment the data changes shape.
 
 **Try it:** Given a list of three numeric vectors `ex_list <- list(a = 1:5, b = 6:10, c = 11:15)`, compute the sum of each element and return a named numeric vector. Save it to `ex_sums`.
 
@@ -188,7 +188,7 @@ ex_sums
 
 ## How do you do this the tidyverse way with dplyr::across()?
 
-If your workflow already lives in dplyr, `across()` is the modern, readable alternative to `apply()` for column-wise operations. It picks columns with `tidyselect` helpers like `where(is.numeric)` — no manual filter step needed.
+If your workflow already lives in dplyr, `across()` is the modern, readable alternative to `apply()` for column-wise operations. It picks columns with `tidyselect` helpers like `where(is.numeric)`, no manual filter step needed.
 
 ```r
 library(dplyr)
@@ -204,7 +204,7 @@ sw_numeric
 #> 1   174.  97.3       87.6
 ```
 
-Three things are worth calling out. `where(is.numeric)` is a tidyselect helper that scans the incoming data and keeps only columns matching the predicate, so character columns like `name` and `hair_color` are transparently dropped. `across()` then applies `mean()` to each survivor. And because `across()` lives inside `summarise()`, the result is a tidy one-row tibble — the same shape you'd get for any other aggregation — which plugs straight into downstream joins, plots, and writes.
+Three things are worth calling out. `where(is.numeric)` is a tidyselect helper that scans the incoming data and keeps only columns matching the predicate, so character columns like `name` and `hair_color` are transparently dropped. `across()` then applies `mean()` to each survivor. And because `across()` lives inside `summarise()`, the result is a tidy one-row tibble, the same shape you'd get for any other aggregation, which plugs straight into downstream joins, plots, and writes.
 
 [NOTE]
 **dplyr 1.1+ supersedes the old `mutate_if()` / `summarise_at()` variants with `across()`.** If you see tutorials using `summarise_if(is.numeric, mean)`, the modern rewrite is `summarise(across(where(is.numeric), mean))`. Check your dplyr version with `packageVersion("dplyr")`.
@@ -261,7 +261,7 @@ head(fast_means, 3)
 #>  20.091   6.188 230.722
 ```
 
-Each line earns its keep. `stopifnot()` turns a silent misuse ("I passed a vector") into a clear, early error. The `drop = FALSE` argument to `[` stops R from silently collapsing a one-column data frame into a vector — the single most common way users lose dimensionality and then hit the error. And `colMeans()`, `rowMeans()`, `colSums()`, `rowSums()` are implemented in C: for the exact operations they cover, they are 5–50x faster than the equivalent `apply()` call. Reach for them first, and fall back to `apply()` only when you need a custom function.
+Each line earns its keep. `stopifnot()` turns a silent misuse ("I passed a vector") into a clear, early error. The `drop = FALSE` argument to `[` stops R from silently collapsing a one-column data frame into a vector, the single most common way users lose dimensionality and then hit the error. And `colMeans()`, `rowMeans()`, `colSums()`, `rowSums()` are implemented in C: for the exact operations they cover, they are 5–50x faster than the equivalent `apply()` call. Reach for them first, and fall back to `apply()` only when you need a custom function.
 
 [TIP]
 **Prefer `colMeans()` / `rowMeans()` / `colSums()` / `rowSums()` over `apply()` when you can.** They're implemented in C, run much faster, and sidestep the entire "is this a matrix?" question because they enforce numeric input themselves.
@@ -301,7 +301,7 @@ head(ex_col_mins(mtcars), 3)
 
 ### Exercise 1: Row-wise means on airquality with missing values
 
-`airquality` has six numeric columns — `Ozone`, `Solar.R`, `Wind`, `Temp`, `Month`, `Day` — and scattered `NA`s in the first two. Compute a numeric vector of row means across all six columns, handling `NA`s. Save the result to `aq_row_means` and show the first six values.
+`airquality` has six numeric columns, `Ozone`, `Solar.R`, `Wind`, `Temp`, `Month`, `Day`, and scattered `NA`s in the first two. Compute a numeric vector of row means across all six columns, handling `NA`s. Save the result to `aq_row_means` and show the first six values.
 
 ```r
 # Exercise 1: row means of airquality (NA-safe)
@@ -367,7 +367,7 @@ ragged_summary
 #> 3  east  8.0000 1.414214
 ```
 
-**Explanation:** The list has uneven element lengths, so it can never be coerced to a rectangular matrix — `apply()` is off the table. `sapply()` walks the list twice (once for `mean`, once for `sd`), returning a named numeric vector each time. Those two vectors plus the element names become the three columns of the summary data frame. `row.names = NULL` stops R from reusing the list names as row names.
+**Explanation:** The list has uneven element lengths, so it can never be coerced to a rectangular matrix, `apply()` is off the table. `sapply()` walks the list twice (once for `mean`, once for `sd`), returning a named numeric vector each time. Those two vectors plus the element names become the three columns of the summary data frame. `row.names = NULL` stops R from reusing the list names as row names.
 
 </details>
 
@@ -403,7 +403,7 @@ colMeans(sales[, num_cols])
 #> 125.75 139.25 152.50
 ```
 
-All three return the same numbers, but they communicate different intents. Approach A is the explicit fix — useful when you want to see every step and debug a stubborn error. Approach B is the readable pipeline — the right choice inside a tidyverse workflow. Approach C is the performance shortcut — reach for it when your job is one of the four built-in row/column reductions. There is no single winner; the mental model is "match the tool to the shape and to the function."
+All three return the same numbers, but they communicate different intents. Approach A is the explicit fix, useful when you want to see every step and debug a stubborn error. Approach B is the readable pipeline, the right choice inside a tidyverse workflow. Approach C is the performance shortcut, reach for it when your job is one of the four built-in row/column reductions. There is no single winner; the mental model is "match the tool to the shape and to the function."
 
 ## Summary
 
@@ -421,14 +421,14 @@ All three return the same numbers, but they communicate different intents. Appro
 
 ## References
 
-1. R Core Team — `?apply` help page. Official documentation for the apply family. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/apply.html)
-2. Wickham, H. — *Advanced R*, 2nd Edition. Chapter 9: Functionals. [Link](https://adv-r.hadley.nz/functionals.html)
-3. dplyr reference — `across()`. [Link](https://dplyr.tidyverse.org/reference/across.html)
-4. R Core Team — *An Introduction to R*, Section 5: Arrays and Matrices. [Link](https://cran.r-project.org/doc/manuals/r-release/R-intro.html#Arrays-and-matrices)
-5. R Core Team — `?vapply` help page, on type-safe list iteration. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/lapply.html)
+1. R Core Team, `?apply` help page. Official documentation for the apply family. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/apply.html)
+2. Wickham, H., *Advanced R*, 2nd Edition. Chapter 9: Functionals. [Link](https://adv-r.hadley.nz/functionals.html)
+3. dplyr reference, `across()`. [Link](https://dplyr.tidyverse.org/reference/across.html)
+4. R Core Team, *An Introduction to R*, Section 5: Arrays and Matrices. [Link](https://cran.r-project.org/doc/manuals/r-release/R-intro.html#Arrays-and-matrices)
+5. R Core Team, `?vapply` help page, on type-safe list iteration. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/lapply.html)
 
 ## Continue Learning
 
-1. **R Common Errors** — the full reference of 50 R errors, with plain-English fixes for each.
-2. **Functional Programming in R** — how `map()`, `reduce()`, and purrr sit on top of the apply family.
-3. **dplyr across()** — the modern, tidyselect-aware replacement for column-wise `apply()`.
+1. **R Common Errors**, the full reference of 50 R errors, with plain-English fixes for each.
+2. **Functional Programming in R**, how `map()`, `reduce()`, and purrr sit on top of the apply family.
+3. **dplyr across()**, the modern, tidyselect-aware replacement for column-wise `apply()`.

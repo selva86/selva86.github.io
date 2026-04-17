@@ -49,7 +49,7 @@ ggplot(study_results, aes(x = study, y = effect)) +
   theme_minimal(base_size = 12)
 ```
 
-Both studies report a 12% point estimate, but Study A's interval ranges from 2% to 22% — the true effect could be tiny or huge. Study B's interval is tight at 9% to 15%, so we can act on it with confidence. Strip the bars away and a reader sees two identical columns; add them, and the story is honest.
+Both studies report a 12% point estimate, but Study A's interval ranges from 2% to 22%, the true effect could be tiny or huge. Study B's interval is tight at 9% to 15%, so we can act on it with confidence. Strip the bars away and a reader sees two identical columns; add them, and the story is honest.
 
 **Try it:** Add an error bar layer to a one-row data frame. The mean is 50, the lower bound is 45, the upper bound is 55. Plot a single bar with the interval drawn on top.
 
@@ -80,7 +80,7 @@ ex_p1
 
 </details>
 
-## What do error bars actually mean — SD, SE, or CI?
+## What do error bars actually mean, SD, SE, or CI?
 
 The phrase "error bar" hides three very different things. Standard deviation tells you how much the raw data varies around its mean. Standard error tells you how precise that mean estimate is. A 95% confidence interval is the range you would expect the true population mean to live in if you repeated the experiment many times. Same data, three widths.
 
@@ -106,7 +106,7 @@ data.frame(
 #> 3 95% CI  8.36679
 ```
 
-The SD bar is roughly seven times wider than the CI bar. They answer different questions, so the choice changes the chart's meaning. SD bars say "look how spread out the data are." CI bars say "look how confident I am about the mean." Picking the wrong one is not a stylistic choice — it changes the claim.
+The SD bar is roughly seven times wider than the CI bar. They answer different questions, so the choice changes the chart's meaning. SD bars say "look how spread out the data are." CI bars say "look how confident I am about the mean." Picking the wrong one is not a stylistic choice, it changes the claim.
 
 ```r
 bar_widths <- data.frame(
@@ -124,10 +124,10 @@ ggplot(bar_widths, aes(x = type, y = mean)) +
   theme_minimal(base_size = 12)
 ```
 
-Notice that the dot — the sample mean — is in the same place in all three columns. Only the bar width changes. A reader who does not know which type you are showing has no way to interpret the chart.
+Notice that the dot, the sample mean, is in the same place in all three columns. Only the bar width changes. A reader who does not know which type you are showing has no way to interpret the chart.
 
 [KEY INSIGHT]
-**An error bar without a label is unfinished.** Always state in the caption or legend whether the bar is SD, SE, or a CI at a specific confidence level — otherwise you are inviting readers to guess, and most will guess wrong.
+**An error bar without a label is unfinished.** Always state in the caption or legend whether the bar is SD, SE, or a CI at a specific confidence level, otherwise you are inviting readers to guess, and most will guess wrong.
 
 **Try it:** Compute a 99% confidence interval (use 2.576 instead of 1.96) for a fresh sample of 100 draws from N(50, 8). Save the half-width to `ex_ci99`.
 
@@ -157,7 +157,7 @@ ex_ci99
 
 ## How do you add error bars and confidence bands in ggplot2?
 
-ggplot2 gives you two core tools. `geom_errorbar()` draws discrete bars on top of categorical summaries — useful for comparing group means. `geom_smooth()` or `geom_ribbon()` draws a continuous band around a fitted line — useful for regressions or trends. Pick the one that matches the shape of your data.
+ggplot2 gives you two core tools. `geom_errorbar()` draws discrete bars on top of categorical summaries, useful for comparing group means. `geom_smooth()` or `geom_ribbon()` draws a continuous band around a fitted line, useful for regressions or trends. Pick the one that matches the shape of your data.
 
 ```r
 iris_summary <- aggregate(Sepal.Length ~ Species, data = iris,
@@ -184,9 +184,9 @@ ggplot(iris_summary, aes(x = Species, y = mean, fill = Species)) +
   theme(legend.position = "none")
 ```
 
-Each species gets one column (the mean) and one vertical interval (the 95% CI on that mean). Setosa and virginica are clearly different — their intervals do not even come close. Versicolor sits between them. Without the bars you would still see the ordering, but you would have no idea how confident the differences are.
+Each species gets one column (the mean) and one vertical interval (the 95% CI on that mean). Setosa and virginica are clearly different, their intervals do not even come close. Versicolor sits between them. Without the bars you would still see the ordering, but you would have no idea how confident the differences are.
 
-For a continuous predictor, switch to `geom_smooth()`. The grey ribbon is the 95% confidence interval around the fitted regression line — wider where the data are sparse, narrower where the data are dense.
+For a continuous predictor, switch to `geom_smooth()`. The grey ribbon is the 95% confidence interval around the fitted regression line, wider where the data are sparse, narrower where the data are dense.
 
 ```r
 ggplot(mtcars, aes(x = wt, y = mpg)) +
@@ -199,10 +199,10 @@ ggplot(mtcars, aes(x = wt, y = mpg)) +
   theme_minimal(base_size = 12)
 ```
 
-The ribbon balloons at the extremes of weight because we have fewer cars there — the model is less sure about the slope where data are thin. That balloon is information, not decoration. Readers who ignore the band see a single confident line; readers who read it see where the model knows what it is doing and where it is guessing.
+The ribbon balloons at the extremes of weight because we have fewer cars there, the model is less sure about the slope where data are thin. That balloon is information, not decoration. Readers who ignore the band see a single confident line; readers who read it see where the model knows what it is doing and where it is guessing.
 
 [TIP]
-**Always say what the ribbon is.** A grey band is meaningless without a caption stating the level (95%, 99%, 50%) and what it represents (CI on the mean, prediction interval, bootstrap interval). The default `geom_smooth` ribbon is a 95% CI on the fitted mean — not a prediction interval for new points.
+**Always say what the ribbon is.** A grey band is meaningless without a caption stating the level (95%, 99%, 50%) and what it represents (CI on the mean, prediction interval, bootstrap interval). The default `geom_smooth` ribbon is a 95% CI on the fitted mean, not a prediction interval for new points.
 
 **Try it:** Repeat the mtcars regression plot with a 99% confidence band instead of 95%.
 
@@ -290,10 +290,10 @@ ggplot(dist_df, aes(x = pattern, y = value)) +
   theme_minimal(base_size = 12)
 ```
 
-Both groups share roughly the same mean, but one cluster is tightly packed and the other is split into two camps. A bar chart with error bars would have shown you a single column with a moderate CI for each — and you would never have known the bimodal group was hiding two populations. Always sanity-check by plotting raw points when sample size allows it.
+Both groups share roughly the same mean, but one cluster is tightly packed and the other is split into two camps. A bar chart with error bars would have shown you a single column with a moderate CI for each, and you would never have known the bimodal group was hiding two populations. Always sanity-check by plotting raw points when sample size allows it.
 
 [WARNING]
-**Overlapping CIs do not mean "no significant difference".** Two 95% intervals can overlap and still be significantly different at p < 0.05, and non-overlap is not the same as significance. If you need a hypothesis test, run one — do not eyeball overlap.
+**Overlapping CIs do not mean "no significant difference".** Two 95% intervals can overlap and still be significantly different at p < 0.05, and non-overlap is not the same as significance. If you need a hypothesis test, run one, do not eyeball overlap.
 
 **Try it:** A colleague shows you a bar chart of monthly revenue where the y-axis starts at $98,000 and ends at $102,000. The bars look dramatically different. Should you trust the visual impression? Print "honest" or "misleading" with one sentence of reasoning.
 
@@ -318,7 +318,7 @@ ex_check
 
 ## What are quantile dotplots, gradient intervals, and honest captions?
 
-Even a perfectly drawn 95% CI is hard for non-statisticians to interpret. Research on how people read uncertainty shows that a row of discrete dots — each representing a chunk of probability — is more accurate for laypeople than a continuous ribbon. This is called frequency framing: humans count better than they integrate. Below is a hand-built quantile dotplot in ggplot2 with no extra packages.
+Even a perfectly drawn 95% CI is hard for non-statisticians to interpret. Research on how people read uncertainty shows that a row of discrete dots, each representing a chunk of probability, is more accurate for laypeople than a continuous ribbon. This is called frequency framing: humans count better than they integrate. Below is a hand-built quantile dotplot in ggplot2 with no extra packages.
 
 ```r
 set.seed(99)
@@ -347,10 +347,10 @@ ggplot(qd_df, aes(x = estimate)) +
   theme_minimal(base_size = 12)
 ```
 
-The plot answers questions a CI bar struggles with. "How likely is the value to be below 85?" Count the dots — about three out of twenty, so roughly 15%. "What is the most likely region?" The fattest stack. Readers who would freeze at the words "95% confidence interval" can read this chart immediately because it is just counting.
+The plot answers questions a CI bar struggles with. "How likely is the value to be below 85?" Count the dots, about three out of twenty, so roughly 15%. "What is the most likely region?" The fattest stack. Readers who would freeze at the words "95% confidence interval" can read this chart immediately because it is just counting.
 
 [NOTE]
-**For richer uncertainty geoms, install ggdist locally.** Packages like `ggdist` add `stat_dotsinterval()`, `stat_lineribbon()`, and gradient intervals that go far beyond what base ggplot2 ships with. They run in your local R session — this tutorial sticks to base ggplot2 so every block is reproducible inline.
+**For richer uncertainty geoms, install ggdist locally.** Packages like `ggdist` add `stat_dotsinterval()`, `stat_lineribbon()`, and gradient intervals that go far beyond what base ggplot2 ships with. They run in your local R session, this tutorial sticks to base ggplot2 so every block is reproducible inline.
 
 The chart is only half of the message. Whatever words you wrap around it shape how readers interpret it. A neutral phrasing like "the data are consistent with an effect between 2% and 22%" is honest. A confident phrasing like "the treatment improves outcomes by 12%" is not, even if the chart is correct.
 
@@ -364,7 +364,7 @@ The chart is only half of the message. Whatever words you wrap around it shape h
 [TIP]
 **Treat the caption as part of the chart.** Always state the sample size, the type of interval (SD, SE, CI), and the confidence level. A reader who skips the body should still know what they are looking at from the caption alone.
 
-**Try it:** Rewrite this misleading caption to be honest: *"Treatment X works — patients improved by 8 points."*
+**Try it:** Rewrite this misleading caption to be honest: *"Treatment X works, patients improved by 8 points."*
 
 ```r
 # Try it
@@ -423,7 +423,7 @@ my_plot1 <- ggplot(my_groups, aes(x = group, y = mean, fill = group)) +
 my_plot1
 ```
 
-**Explanation:** Computing `lower` and `upper` from the SE keeps the plotting code readable. The subtitle is doing real work — it says how big the groups are and what the bars mean.
+**Explanation:** Computing `lower` and `upper` from the SE keeps the plotting code readable. The subtitle is doing real work, it says how big the groups are and what the bars mean.
 
 </details>
 
@@ -557,20 +557,20 @@ The plot earns its honesty in three places: the subtitle states the sample size 
 - **Truncated axes exaggerate.** Either start at zero or mark the break clearly.
 - **Bars hide distributions.** Plot raw points or use a quantile dotplot when the shape might matter.
 - **Captions are part of the chart.** State the sample size, the interval type, and the level. Replace "shows" and "proves" with "estimates" and "is consistent with".
-- **Overlap is not significance.** If you need a test, run one — do not eyeball intervals.
+- **Overlap is not significance.** If you need a test, run one, do not eyeball intervals.
 
 ## References
 
-1. Wilke, C. — *Fundamentals of Data Visualization*, Chapter 16: Visualizing uncertainty. [Link](https://clauswilke.com/dataviz/visualizing-uncertainty.html)
-2. Cookbook-R — Plotting means and error bars (ggplot2). [Link](http://www.cookbook-r.com/Graphs/Plotting_means_and_error_bars_(ggplot2)/)
-3. Cumming, G. & Finch, S. — Inference by eye: confidence intervals and how to read pictures of data. *American Psychologist*, 2005. [Link](https://www.apa.org/pubs/journals/releases/amp-60-2-170.pdf)
-4. ggplot2 reference — `geom_errorbar`, `geom_ribbon`, `geom_smooth`. [Link](https://ggplot2.tidyverse.org/reference/geom_linerange.html)
-5. Kay, M. — ggdist: Visualizations of Distributions and Uncertainty. [Link](https://mjskay.github.io/ggdist/)
-6. Hofman, J., Goldstein, D. & Hullman, J. — How visualizing inferential uncertainty can mislead readers about treatment effects. *CHI 2020*. [Link](https://dl.acm.org/doi/10.1145/3313831.3376454)
-7. R Core Team — `t.test()` reference. [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/t.test.html)
+1. Wilke, C., *Fundamentals of Data Visualization*, Chapter 16: Visualizing uncertainty. [Link](https://clauswilke.com/dataviz/visualizing-uncertainty.html)
+2. Cookbook-R, Plotting means and error bars (ggplot2). [Link](http://www.cookbook-r.com/Graphs/Plotting_means_and_error_bars_(ggplot2)/)
+3. Cumming, G. & Finch, S., Inference by eye: confidence intervals and how to read pictures of data. *American Psychologist*, 2005. [Link](https://www.apa.org/pubs/journals/releases/amp-60-2-170.pdf)
+4. ggplot2 reference, `geom_errorbar`, `geom_ribbon`, `geom_smooth`. [Link](https://ggplot2.tidyverse.org/reference/geom_linerange.html)
+5. Kay, M., ggdist: Visualizations of Distributions and Uncertainty. [Link](https://mjskay.github.io/ggdist/)
+6. Hofman, J., Goldstein, D. & Hullman, J., How visualizing inferential uncertainty can mislead readers about treatment effects. *CHI 2020*. [Link](https://dl.acm.org/doi/10.1145/3313831.3376454)
+7. R Core Team, `t.test()` reference. [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/t.test.html)
 
 ## Continue Learning
 
-- [Bias in Data and Models](Bias-in-Data-and-Models.html) — Sources of error your error bars do not show.
-- [R and the Reproducibility Crisis](Reproducibility-Crisis.html) — Why honest reporting matters at the publication level.
-- [Data Ethics for R Programmers](Data-Ethics-for-R-Programmers.html) — Questions to ask before you analyse.
+- [Bias in Data and Models](Bias-in-Data-and-Models.html), Sources of error your error bars do not show.
+- [R and the Reproducibility Crisis](Reproducibility-Crisis.html), Why honest reporting matters at the publication level.
+- [Data Ethics for R Programmers](Data-Ethics-for-R-Programmers.html), Questions to ask before you analyse.

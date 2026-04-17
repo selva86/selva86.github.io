@@ -20,7 +20,7 @@ difficulty: "Intermediate"
 
 ## How do data.table and dplyr differ at a glance?
 
-Both packages solve the same problem — wrangling rectangular data — but they pick opposite trade-offs. dplyr reads like English verbs chained with a pipe; data.table compresses the same idea into a single bracket expression. The fastest way to feel the difference is to run the *same* task in both and look at the code side by side. Below is a group-by-and-summarise on the built-in `mtcars` dataset, written each way.
+Both packages solve the same problem, wrangling rectangular data, but they pick opposite trade-offs. dplyr reads like English verbs chained with a pipe; data.table compresses the same idea into a single bracket expression. The fastest way to feel the difference is to run the *same* task in both and look at the code side by side. Below is a group-by-and-summarise on the built-in `mtcars` dataset, written each way.
 
 ```r
 library(data.table)
@@ -50,7 +50,7 @@ mt_tbl |>
 #> 3     8     15.1
 ```
 
-Same answer, two very different shapes. The data.table version fits on a single line; the dplyr version reads almost like English. Notice how data.table uses `[i, j, by]` — rows, then columns or expressions, then groups — while dplyr uses one verb per step. Neither is wrong; they are just different mental models for the same task.
+Same answer, two very different shapes. The data.table version fits on a single line; the dplyr version reads almost like English. Notice how data.table uses `[i, j, by]`, rows, then columns or expressions, then groups, while dplyr uses one verb per step. Neither is wrong; they are just different mental models for the same task.
 
 [KEY INSIGHT]
 **One mental model per package.** data.table thinks "subset, compute, group" as a single expression. dplyr thinks "do one verb, pass the result, do the next." Once you internalise either model, you move fast inside it.
@@ -100,7 +100,7 @@ The cleanest way to learn either package is to map every dplyr verb to its data.
 | Group + summarise | `group_by(cyl) \|> summarise(...)` | `DT[, .(...), by = cyl]` |
 | Inner join | `inner_join(x, y, by = "id")` | `x[y, on = "id", nomatch = 0]` |
 
-Let's start with filtering and selecting columns. The same task — keep light, fuel-efficient cars and show only three columns — looks like this in both packages.
+Let's start with filtering and selecting columns. The same task, keep light, fuel-efficient cars and show only three columns, looks like this in both packages.
 
 ```r
 # Filter + select: light fuel-efficient cars
@@ -134,7 +134,7 @@ light_tbl
 #> 5 Lotus Europa    30.4  1.51
 ```
 
-Both produce the same five cars. dplyr's pipeline reads top-to-bottom: add a model column, filter, select. data.table folds it into one expression — `[rows, columns]` — which is shorter but harder to scan if you have not seen the syntax before.
+Both produce the same five cars. dplyr's pipeline reads top-to-bottom: add a model column, filter, select. data.table folds it into one expression, `[rows, columns]`, which is shorter but harder to scan if you have not seen the syntax before.
 
 Now let's add a column. This is where the two packages really diverge. dplyr's `mutate()` returns a *new* tibble; data.table's `:=` operator updates the original object **in place**, with no copy.
 
@@ -159,7 +159,7 @@ head(mt_tbl2[, c("mpg", "kpl")], 3)
 #> 3  22.8  9.69
 ```
 
-Notice the assignment styles. data.table's `:=` returns nothing visible — it changes `mt_dt` directly. dplyr's `mutate()` is pure: it gives you back a new object that you have to capture with `<-`. This single difference is the root of most performance gaps you will see in the next section.
+Notice the assignment styles. data.table's `:=` returns nothing visible, it changes `mt_dt` directly. dplyr's `mutate()` is pure: it gives you back a new object that you have to capture with `<-`. This single difference is the root of most performance gaps you will see in the next section.
 
 [KEY INSIGHT]
 **Reference semantics is data.table's secret weapon.** When you write `DT[, col := value]`, no copy of the table is made. dplyr's mutate always produces a new object, which is safer but slower on large data.
@@ -195,7 +195,7 @@ list(dt = ex_dt, tbl = ex_tbl)
 
 ## Which package is faster for filtering and group-by?
 
-Speed is the headline reason people reach for data.table. The package is written in C, sorts with radix sort (one of the fastest known sort algorithms), and updates columns in place — three things that compound on large data. Let's measure it on a million-row synthetic dataset.
+Speed is the headline reason people reach for data.table. The package is written in C, sorts with radix sort (one of the fastest known sort algorithms), and updates columns in place, three things that compound on large data. Let's measure it on a million-row synthetic dataset.
 
 ```r
 # Build a 1M-row dataset and benchmark a group-by-and-summarise
@@ -226,7 +226,7 @@ t_tbl["elapsed"]
 #>   0.115
 ```
 
-On this run, data.table finished the same job in roughly a third of the time. The exact ratio varies with the operation, the number of groups, and the column types — but the direction is consistent. data.table also allocates less memory because it never copies the underlying columns. dplyr's modern engine has closed a lot of this gap, so on small data (under ~100k rows) you usually cannot tell the difference by eye.
+On this run, data.table finished the same job in roughly a third of the time. The exact ratio varies with the operation, the number of groups, and the column types, but the direction is consistent. data.table also allocates less memory because it never copies the underlying columns. dplyr's modern engine has closed a lot of this gap, so on small data (under ~100k rows) you usually cannot tell the difference by eye.
 
 Here is a quick memory check using base R's `object.size()`. Numbers will vary slightly across runs.
 
@@ -238,7 +238,7 @@ format(object.size(res_tbl), units = "Kb")
 #> [1] "1.5 Kb"
 ```
 
-The result objects are tiny because the summary collapses 1M rows down to 26. But during the computation, data.table held a single in-place reference while dplyr built intermediate group structures — that intermediate cost is what really matters on large data.
+The result objects are tiny because the summary collapses 1M rows down to 26. But during the computation, data.table held a single in-place reference while dplyr built intermediate group structures, that intermediate cost is what really matters on large data.
 
 [TIP]
 **Under 100k rows, pick on readability not speed.** Both packages run in milliseconds at that size, so the choice is really about who reads your code next.
@@ -246,7 +246,7 @@ The result objects are tiny because the summary collapses 1M rows down to 26. Bu
 [NOTE]
 **Why data.table is faster, in one line.** Radix sort + reference semantics + C internals. The first beats `sort()`, the second avoids copies, the third skips R's interpreter overhead.
 
-**Try it:** Use `system.time()` to benchmark a sum-by-group on a 100k-row table — you should see both packages finish in a fraction of a second.
+**Try it:** Use `system.time()` to benchmark a sum-by-group on a 100k-row table, you should see both packages finish in a fraction of a second.
 
 ```r
 # Try it: build 100k rows and time both packages
@@ -278,7 +278,7 @@ system.time(ex_tbl2 |> group_by(g) |> summarise(s = sum(v)))["elapsed"]
 
 ## How do they compare on joins?
 
-Joins are the second place where data.table's speed advantage shows up clearly. dplyr ships the familiar SQL family — `inner_join()`, `left_join()`, `right_join()`, `full_join()`, `anti_join()`, `semi_join()`. data.table uses bracket notation: `X[Y, on = "id"]`, optionally with a sorted `setkey()` for extra speed. Same operation, different spelling.
+Joins are the second place where data.table's speed advantage shows up clearly. dplyr ships the familiar SQL family, `inner_join()`, `left_join()`, `right_join()`, `full_join()`, `anti_join()`, `semi_join()`. data.table uses bracket notation: `X[Y, on = "id"]`, optionally with a sorted `setkey()` for extra speed. Same operation, different spelling.
 
 ```r
 # Set up two small tables
@@ -319,12 +319,12 @@ joined_tbl
 #> 5        5     102     50 Bob  
 ```
 
-Both joins return the same five rows with order, customer, and amount glued together. The data.table syntax flips the mental order — you index *into* `customers_dt` *with* `orders_dt` — which feels strange at first but reads cleanly once you get used to it.
+Both joins return the same five rows with order, customer, and amount glued together. The data.table syntax flips the mental order, you index *into* `customers_dt` *with* `orders_dt`, which feels strange at first but reads cleanly once you get used to it.
 
 [NOTE]
 **setkey() makes joins even faster.** Calling `setkey(DT, cust_id)` once sorts the table by `cust_id` and lets future joins on that column skip the search step. dplyr 1.1+ added `join_by()` for non-equi conditions like `join_by(closest(date >= start_date))`, closing one of the few feature gaps with data.table.
 
-**Try it:** Write a left join — keep all `orders_dt` rows even when no customer matches — using both packages.
+**Try it:** Write a left join, keep all `orders_dt` rows even when no customer matches, using both packages.
 
 ```r
 # Try it: left join orders to customers
@@ -346,7 +346,7 @@ list(dt = ex_joined_dt, tbl = ex_joined_tbl)
 #> Both return all 5 orders with the name column attached
 ```
 
-**Explanation:** Dropping `nomatch = 0` from the data.table join turns it into a left join — unmatched rows on the right side become `NA`. dplyr's `left_join()` does the same thing by default.
+**Explanation:** Dropping `nomatch = 0` from the data.table join turns it into a left join, unmatched rows on the right side become `NA`. dplyr's `left_join()` does the same thing by default.
 
 </details>
 
@@ -356,13 +356,13 @@ There is no universal winner. The right choice depends on three things: how big 
 
 | Situation | Pick |
 |---|---|
-| Under 100k rows, learning R | **dplyr** — readable, gentle curve, huge tutorial supply |
-| Production pipeline on millions of rows | **data.table** — speed and memory both matter |
-| Team already deep in tidyverse | **dplyr** — consistency beats microseconds |
-| Memory-tight environment (cloud cost matters) | **data.table** — in-place updates avoid copies |
-| You want dplyr syntax with data.table speed | **dtplyr** — best of both worlds |
-| Interactive exploration, frequent rewrites | **dplyr** — pipes are easy to refactor |
-| One-line scripts, CLI workflows | **data.table** — concise wins |
+| Under 100k rows, learning R | **dplyr**, readable, gentle curve, huge tutorial supply |
+| Production pipeline on millions of rows | **data.table**, speed and memory both matter |
+| Team already deep in tidyverse | **dplyr**, consistency beats microseconds |
+| Memory-tight environment (cloud cost matters) | **data.table**, in-place updates avoid copies |
+| You want dplyr syntax with data.table speed | **dtplyr**, best of both worlds |
+| Interactive exploration, frequent rewrites | **dplyr**, pipes are easy to refactor |
+| One-line scripts, CLI workflows | **data.table**, concise wins |
 
 ![Decision tree for picking data.table, dplyr, or dtplyr](screenshots/data-table-vs-dplyr-decision-tree.webp)
 *Figure 1: When to pick data.table, dplyr, or dtplyr based on data size and code priorities.*
@@ -388,7 +388,7 @@ lazy_mt |>
 #> 2     6   115.      3
 ```
 
-The key call is `as_tibble()` (or `as.data.table()`) at the end — that is what triggers dtplyr to actually run the translated query. Until then, everything is lazy: dtplyr is just building up a data.table expression in the background.
+The key call is `as_tibble()` (or `as.data.table()`) at the end, that is what triggers dtplyr to actually run the translated query. Until then, everything is lazy: dtplyr is just building up a data.table expression in the background.
 
 [TIP]
 **dtplyr is the easiest upgrade path.** If you already know dplyr and need more speed, switch to dtplyr first before learning native data.table syntax. You will get most of the speedup with none of the new mental model.
@@ -469,7 +469,7 @@ my_mt_tbl |>
 #> 3     8     15.1    14
 ```
 
-**Explanation:** data.table chains two `[` calls — the first computes the summary, the second filters it. dplyr does the same in two pipeline steps. All three groups have more than 5 cars, so all survive.
+**Explanation:** data.table chains two `[` calls, the first computes the summary, the second filters it. dplyr does the same in two pipeline steps. All three groups have more than 5 cars, so all survive.
 
 </details>
 
@@ -623,7 +623,7 @@ summary_tbl
 #> 4 West          94216.      316.
 ```
 
-Both pipelines return the four regions ranked by Q4 revenue. The data.table version chains three `[` calls; the dplyr version chains five named verbs. Pick the one that matches how you want the next person reading the code to think. At 10k rows, both finish in milliseconds — the speed difference would only matter if `sales` had millions of rows.
+Both pipelines return the four regions ranked by Q4 revenue. The data.table version chains three `[` calls; the dplyr version chains five named verbs. Pick the one that matches how you want the next person reading the code to think. At 10k rows, both finish in milliseconds, the speed difference would only matter if `sales` had millions of rows.
 
 ## Summary
 
@@ -637,21 +637,21 @@ Both pipelines return the four regions ranked by Q4 revenue. The data.table vers
 | Tidyverse fit | **dplyr** | Plays well with ggplot2, tidyr, purrr |
 | Best of both | **dtplyr** | dplyr syntax, data.table backend |
 
-**Bottom line:** Use **dplyr** for everyday data work, exploration, and code that other people read. Reach for **data.table** when speed or memory becomes a real bottleneck. Use **dtplyr** when you want both — it is the lowest-friction upgrade path from dplyr to data.table speed.
+**Bottom line:** Use **dplyr** for everyday data work, exploration, and code that other people read. Reach for **data.table** when speed or memory becomes a real bottleneck. Use **dtplyr** when you want both, it is the lowest-friction upgrade path from dplyr to data.table speed.
 
 ## References
 
 1. data.table CRAN page. [Link](https://cran.r-project.org/package=data.table)
-2. dplyr — Tidyverse documentation. [Link](https://dplyr.tidyverse.org/)
+2. dplyr, Tidyverse documentation. [Link](https://dplyr.tidyverse.org/)
 3. data.table introduction vignette. [Link](https://cran.r-project.org/web/packages/data.table/vignettes/datatable-intro.html)
-4. Wickham, H. & Grolemund, G. — *R for Data Science (2e)*, Data Transformation chapter. [Link](https://r4ds.hadley.nz/data-transform)
-5. dtplyr — data.table backend for dplyr. [Link](https://dtplyr.tidyverse.org/)
-6. Rdatatable — Benchmarks: Grouping (official wiki). [Link](https://github.com/Rdatatable/data.table/wiki/Benchmarks-:-Grouping)
-7. Atrebas — *A data.table and dplyr tour*. [Link](https://atrebas.github.io/post/2019-03-03-datatable-dplyr/)
-8. Tyson Barrett — *Comparing efficiency and speed of data.table*. [Link](https://tysonbarrett.com/jekyll/update/2019/10/06/datatable_memory/)
+4. Wickham, H. & Grolemund, G., *R for Data Science (2e)*, Data Transformation chapter. [Link](https://r4ds.hadley.nz/data-transform)
+5. dtplyr, data.table backend for dplyr. [Link](https://dtplyr.tidyverse.org/)
+6. Rdatatable, Benchmarks: Grouping (official wiki). [Link](https://github.com/Rdatatable/data.table/wiki/Benchmarks-:-Grouping)
+7. Atrebas, *A data.table and dplyr tour*. [Link](https://atrebas.github.io/post/2019-03-03-datatable-dplyr/)
+8. Tyson Barrett, *Comparing efficiency and speed of data.table*. [Link](https://tysonbarrett.com/jekyll/update/2019/10/06/datatable_memory/)
 
 ## Continue Learning
 
-1. [dplyr filter() and select()](dplyr-filter-select.html) — the core dplyr verbs for subsetting rows and columns.
-2. [dplyr group_by() and summarise()](dplyr-group-by-summarise.html) — split-apply-combine the dplyr way.
-3. [dplyr mutate() and rename()](dplyr-mutate-rename.html) — add and rename columns in a dplyr pipeline.
+1. [dplyr filter() and select()](dplyr-filter-select.html), the core dplyr verbs for subsetting rows and columns.
+2. [dplyr group_by() and summarise()](dplyr-group-by-summarise.html), split-apply-combine the dplyr way.
+3. [dplyr mutate() and rename()](dplyr-mutate-rename.html), add and rename columns in a dplyr pipeline.

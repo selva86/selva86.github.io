@@ -19,24 +19,24 @@ difficulty: "Intermediate"
 
 # ggplot2 Themes: From theme_classic to Your Own Custom House Style
 
-<p class="lead">Themes control every non-data element of a ggplot2 chart — fonts, grid lines, backgrounds, and legend position — letting you go from the grey default to a polished, publication-ready style in one line of code.</p>
+<p class="lead">Themes control every non-data element of a ggplot2 chart, fonts, grid lines, backgrounds, and legend position, letting you go from the grey default to a polished, publication-ready style in one line of code.</p>
 
 ## Introduction
 
-Every ggplot2 user eventually types `+ theme_minimal()` and watches their plot transform. The grey background vanishes, the grid lines soften, and the chart suddenly looks professional. Most people stop there — but themes can do far more.
+Every ggplot2 user eventually types `+ theme_minimal()` and watches their plot transform. The grey background vanishes, the grid lines soften, and the chart suddenly looks professional. Most people stop there, but themes can do far more.
 
 A theme is ggplot2's styling layer. It controls everything you see that is NOT your data: title fonts, axis labels, grid line thickness, background colour, legend placement, and facet strip styling. The data layer (geoms, scales, coordinates) tells ggplot2 *what* to draw. The theme layer tells it *how everything around the data should look*.
 
 Why does this matter? Because consistent, clean styling is the difference between a plot that communicates and one that distracts. If you build reports or dashboards, a reusable custom theme saves hours of repetitive formatting. If you publish research, a clean theme meets journal standards without manual tweaking.
 
-In this tutorial, you will master all 8 built-in themes and the 4 element functions that control every visual property. You'll also learn the inheritance system and build your own reusable theme function. Every code block is live — click **Run** to execute directly in your browser.
+In this tutorial, you will master all 8 built-in themes and the 4 element functions that control every visual property. You'll also learn the inheritance system and build your own reusable theme function. Every code block is live, click **Run** to execute directly in your browser.
 
 ![ggplot2 theme system overview](screenshots/ggplot2-Themes-in-R-overview-mindmap.webp)
 *Figure 1: The four pillars of the ggplot2 theme system.*
 
 ## What are the built-in ggplot2 themes?
 
-ggplot2 ships with 8 complete themes. Each one is a pre-built collection of `theme()` settings that override every visual element at once. Think of them as ready-made style sheets — you add one to any plot and the entire look changes.
+ggplot2 ships with 8 complete themes. Each one is a pre-built collection of `theme()` settings that override every visual element at once. Think of them as ready-made style sheets, you add one to any plot and the entire look changes.
 
 Let's create a base plot first, then cycle through all 8 themes. We'll use `mtcars` so the data stays familiar.
 
@@ -58,7 +58,7 @@ p_base
 #> (scatter plot with grey background, default ggplot2 styling)
 ```
 
-This is `theme_grey()` — the default. The grey background with white grid lines was Hadley Wickham's deliberate design choice: it puts the data in the foreground while the grid recedes. Now let's compare all 8 themes.
+This is `theme_grey()`, the default. The grey background with white grid lines was Hadley Wickham's deliberate design choice: it puts the data in the foreground while the grid recedes. Now let's compare all 8 themes.
 
 ```r
 # Apply each built-in theme
@@ -92,7 +92,7 @@ Each theme is a complete replacement. When you add `theme_bw()`, it overrides ev
 [TIP]
 **Start with theme_minimal() for most custom work.** It strips away the most visual clutter, giving you a clean slate. Add back only the elements you need.
 
-**Try it:** Take `p_base` and apply `theme_classic()` instead of the default. Then add a subtitle "No grid lines — just clean axes" using `labs()`.
+**Try it:** Take `p_base` and apply `theme_classic()` instead of the default. Then add a subtitle "No grid lines, just clean axes" using `labs()`.
 
 ```r
 # Try it: apply theme_classic with a custom subtitle
@@ -122,7 +122,7 @@ ex_classic
 
 ## How does theme() modify individual plot elements?
 
-Complete themes are all-or-nothing. The `theme()` function gives you surgical control — you target one element at a time. Each argument in `theme()` maps to a specific visual piece of the plot, and you set its appearance using one of four `element_*()` functions.
+Complete themes are all-or-nothing. The `theme()` function gives you surgical control, you target one element at a time. Each argument in `theme()` maps to a specific visual piece of the plot, and you set its appearance using one of four `element_*()` functions.
 
 ![Theme element types](screenshots/ggplot2-Themes-in-R-element-types.webp)
 *Figure 2: Each element function controls a different visual type.*
@@ -143,7 +143,7 @@ p_base +
 #> (scatter plot with large, bold, navy title)
 ```
 
-The title jumps out now — 18pt, bold, navy. Every other element stays exactly as `theme_minimal()` set it. That's the power of `theme()`: it layers on top of whatever complete theme you start from.
+The title jumps out now, 18pt, bold, navy. Every other element stays exactly as `theme_minimal()` set it. That's the power of `theme()`: it layers on top of whatever complete theme you start from.
 
 Now let's remove the grid lines entirely. The argument is `panel.grid`, and to remove any element, you use `element_blank()`.
 
@@ -302,7 +302,7 @@ ex_bg
 Theme elements form a hierarchy. At the top sit three root elements: `text`, `line`, and `rect`. Every specific element inherits from one of these roots, possibly through intermediate parents.
 
 ![Theme inheritance hierarchy](screenshots/ggplot2-Themes-in-R-inheritance.webp)
-*Figure 3: Theme elements inherit from parent elements — set once at the top, override where needed.*
+*Figure 3: Theme elements inherit from parent elements, set once at the top, override where needed.*
 
 This means you can set a global default at the top and only override the specifics that differ. For example, setting `text = element_text(family = "serif")` changes every piece of text on the plot in one line. That includes the title, subtitle, axis labels, legend text, and facet strip labels.
 
@@ -318,7 +318,7 @@ p_base +
 #> (all text is 12pt grey20, except title is 20pt bold, and x-axis title is steelblue)
 ```
 
-Notice what happened. `plot.title` inherited the `colour = "grey20"` from `text` but overrode `size` and `face`. The x-axis title overrode `colour` but inherited `size = 12` from `text`. This is how inheritance keeps your code short — you set the base once and override only what differs.
+Notice what happened. `plot.title` inherited the `colour = "grey20"` from `text` but overrode `size` and `face`. The x-axis title overrode `colour` but inherited `size = 12` from `text`. This is how inheritance keeps your code short, you set the base once and override only what differs.
 
 [KEY INSIGHT]
 **Inheritance means "set once, override where needed."** Instead of styling every text element individually, set the root `text` element and only customize the exceptions. This is the same principle as CSS inheritance on the web.
@@ -398,7 +398,7 @@ p_base +
 The `legend.justification` argument controls which corner of the legend box aligns to the position coordinates. Setting it to `c(1, 1)` means the top-right corner of the legend sits at the specified position.
 
 [TIP]
-**Use legend.position = "none" to hide all legends at once.** This is simpler than `guides(colour = "none", size = "none")` when you want every legend gone — useful for faceted plots where the facet labels carry the information.
+**Use legend.position = "none" to hide all legends at once.** This is simpler than `guides(colour = "none", size = "none")` when you want every legend gone, useful for faceted plots where the facet labels carry the information.
 
 **Try it:** Move the legend to the top of the plot using `legend.position`.
 
@@ -434,7 +434,7 @@ ex_legend
 
 ## How do you build a reusable custom theme function?
 
-Once you've settled on a look — maybe for your organisation, your thesis, or your blog — you don't want to copy-paste 15 lines of `theme()` every time. The solution is to wrap your settings in a function.
+Once you've settled on a look, maybe for your organisation, your thesis, or your blog, you don't want to copy-paste 15 lines of `theme()` every time. The solution is to wrap your settings in a function.
 
 The pattern is simple: create a function that returns the result of a complete theme plus your `theme()` overrides. Accept a `base_size` argument so users can scale everything up or down.
 
@@ -594,7 +594,7 @@ p_base +
 # Size resets to default because the second theme() replaces axis.text entirely
 ```
 
-**Why it is wrong:** Each `theme()` call replaces the element you name — it doesn't merge with the previous call. The second call sets `colour = "red"` but drops the `size = 14`.
+**Why it is wrong:** Each `theme()` call replaces the element you name, it doesn't merge with the previous call. The second call sets `colour = "red"` but drops the `size = 14`.
 
 ✅ **Correct:**
 ```r
@@ -854,7 +854,7 @@ Here is a reference table of the most useful `theme()` arguments grouped by area
 
 Key takeaways:
 
-- **8 built-in themes** give you instant style — `theme_minimal()` and `theme_classic()` are the most popular starting points
+- **8 built-in themes** give you instant style, `theme_minimal()` and `theme_classic()` are the most popular starting points
 - **theme()** layers surgical tweaks on top of any complete theme
 - **4 element functions** control everything: `element_text()`, `element_line()`, `element_rect()`, `element_blank()`
 - **Inheritance** lets you set global defaults at the root (`text`, `line`, `rect`) and override specifics
@@ -873,7 +873,7 @@ No. Each complete theme replaces all settings from the previous one. If you writ
 
 **How do I save my custom theme for use across projects?**
 
-Put your theme function in an R script (e.g., `theme_corporate.R`) and `source()` it at the top of each project. For team-wide use, wrap it in an R package with `usethis::create_package()` — then anyone can load it with `library(yourpackage)`.
+Put your theme function in an R script (e.g., `theme_corporate.R`) and `source()` it at the top of each project. For team-wide use, wrap it in an R package with `usethis::create_package()`, then anyone can load it with `library(yourpackage)`.
 
 **How do I change the font family in ggplot2?**
 
@@ -881,20 +881,20 @@ Set `family = "your font"` inside `element_text()`. Built-in families include `"
 
 **What is the difference between theme() and theme_update()?**
 
-`theme()` modifies the theme of a single plot. `theme_update()` modifies the current default theme globally — it affects all subsequent plots in the session. Use `theme_update()` when you want to set a session-wide default without writing a custom function. Use `theme_set()` to replace the default entirely.
+`theme()` modifies the theme of a single plot. `theme_update()` modifies the current default theme globally, it affects all subsequent plots in the session. Use `theme_update()` when you want to set a session-wide default without writing a custom function. Use `theme_set()` to replace the default entirely.
 
 ## References
 
-1. Wickham, H. — *ggplot2: Elegant Graphics for Data Analysis*, 3rd Edition. Chapter 17: Themes. [Link](https://ggplot2-book.org/themes.html)
-2. ggplot2 documentation — `theme()` reference. [Link](https://ggplot2.tidyverse.org/reference/theme.html)
-3. ggplot2 documentation — Complete themes (ggtheme). [Link](https://ggplot2.tidyverse.org/reference/ggtheme.html)
-4. ggplot2 documentation — Theme elements (element_text, element_line, element_rect). [Link](https://ggplot2.tidyverse.org/reference/element.html)
-5. R for the Rest of Us — Create your own custom ggplot2 theme (2025). [Link](https://rfortherestofus.com/2025/04/ggplot2-theme)
-6. Jumping Rivers — Getting started with theme() (2025). [Link](https://www.jumpingrivers.com/blog/intro-to-theme-ggplot2-r/)
-7. Mock, T. — Creating and using custom ggplot2 themes (2020). [Link](https://themockup.blog/posts/2020-12-26-creating-and-using-custom-ggplot2-themes/)
-8. Peng, R. — *Mastering Software Development in R*. Section 4.6: Building a New Theme. [Link](https://bookdown.org/rdpeng/RProgDA/building-a-new-theme.html)
+1. Wickham, H., *ggplot2: Elegant Graphics for Data Analysis*, 3rd Edition. Chapter 17: Themes. [Link](https://ggplot2-book.org/themes.html)
+2. ggplot2 documentation, `theme()` reference. [Link](https://ggplot2.tidyverse.org/reference/theme.html)
+3. ggplot2 documentation, Complete themes (ggtheme). [Link](https://ggplot2.tidyverse.org/reference/ggtheme.html)
+4. ggplot2 documentation, Theme elements (element_text, element_line, element_rect). [Link](https://ggplot2.tidyverse.org/reference/element.html)
+5. R for the Rest of Us, Create your own custom ggplot2 theme (2025). [Link](https://rfortherestofus.com/2025/04/ggplot2-theme)
+6. Jumping Rivers, Getting started with theme() (2025). [Link](https://www.jumpingrivers.com/blog/intro-to-theme-ggplot2-r/)
+7. Mock, T., Creating and using custom ggplot2 themes (2020). [Link](https://themockup.blog/posts/2020-12-26-creating-and-using-custom-ggplot2-themes/)
+8. Peng, R., *Mastering Software Development in R*. Section 4.6: Building a New Theme. [Link](https://bookdown.org/rdpeng/RProgDA/building-a-new-theme.html)
 
 ## Continue Learning
 
-- **[ggplot2 Tutorial 1 - Intro](Complete-Ggplot2-Tutorial-Part1-With-R-Code.html)** — covers the foundations of ggplot2 layers, geoms, and aesthetics
-- **[ggplot2 Quickref](ggplot2-cheatsheet.html)** — a compact reference card for common ggplot2 operations and syntax
+- **[ggplot2 Tutorial 1 - Intro](Complete-Ggplot2-Tutorial-Part1-With-R-Code.html)**, covers the foundations of ggplot2 layers, geoms, and aesthetics
+- **[ggplot2 Quickref](ggplot2-cheatsheet.html)**, a compact reference card for common ggplot2 operations and syntax

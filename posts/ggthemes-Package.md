@@ -16,7 +16,7 @@ difficulty: "Intermediate"
 
 # ggthemes Package in R: Economist, FiveThirtyEight & 20 More Ready-Made Themes
 
-<p class="lead">The ggthemes package gives you 20+ publication-quality themes for ggplot2 — Economist, FiveThirtyEight, Wall Street Journal, Tufte, and more — each with matching colour scales so your plots look polished in one line of code.</p>
+<p class="lead">The ggthemes package gives you 20+ publication-quality themes for ggplot2, Economist, FiveThirtyEight, Wall Street Journal, Tufte, and more, each with matching colour scales so your plots look polished in one line of code.</p>
 
 ## How Do You Apply a ggthemes Theme to Any ggplot?
 
@@ -37,7 +37,7 @@ base_plot + theme_economist() + scale_colour_economist()
 #> background, bold axis labels, and matching colour palette
 ```
 
-That single addition — `theme_economist()` — transformed a plain ggplot into something that looks like it belongs in a magazine. Every ggthemes theme works the same way: add it with `+` just like any other ggplot2 layer.
+That single addition, `theme_economist()`, transformed a plain ggplot into something that looks like it belongs in a magazine. Every ggthemes theme works the same way: add it with `+` just like any other ggplot2 layer.
 
 For comparison, here's the same plot with the default theme.
 
@@ -49,7 +49,7 @@ base_plot
 The difference is dramatic. The default theme works for quick exploration, but ggthemes themes give you a professional finish without manually adjusting dozens of `theme()` parameters.
 
 [TIP]
-**Every ggthemes theme has a matching colour scale.** Pair theme_economist() with scale_colour_economist(), theme_wsj() with scale_colour_wsj(), and so on. The colours are designed to work together — mix-and-matching creates visual clashes.
+**Every ggthemes theme has a matching colour scale.** Pair theme_economist() with scale_colour_economist(), theme_wsj() with scale_colour_wsj(), and so on. The colours are designed to work together, mix-and-matching creates visual clashes.
 
 **Try it:** Apply `theme_fivethirtyeight()` to `base_plot` and see how the style changes.
 
@@ -74,7 +74,7 @@ ex_fte
 #> background, prominent gridlines, and 3-colour palette
 ```
 
-**Explanation:** FiveThirtyEight's style uses a light gray background with bold gridlines and removes axis titles — the chart title carries the message.
+**Explanation:** FiveThirtyEight's style uses a light gray background with bold gridlines and removes axis titles, the chart title carries the message.
 
 </details>
 
@@ -103,7 +103,7 @@ ggplot(econ_data, aes(reorder(region, growth), growth, fill = region)) +
 
 The bars pop against the blue-gray background, and removing the legend (the axis labels are self-explanatory) keeps the chart clean. This is exactly how The Economist presents simple comparisons.
 
-The Wall Street Journal theme strips charts down to essentials — no background colour, minimal axes, and high-contrast text. It works best with line charts.
+The Wall Street Journal theme strips charts down to essentials, no background colour, minimal axes, and high-contrast text. It works best with line charts.
 
 ```r
 set.seed(101)
@@ -195,7 +195,7 @@ ggplot(ex_wsj_data, aes(factor(cyl), avg_mpg, fill = factor(cyl))) +
 
 ## Which Themes Focus on Minimalism and Data Clarity?
 
-Edward Tufte and Stephen Few champion the "data-ink ratio" — maximise the ink spent on data, minimise everything else. These themes strip away gridlines, borders, and background fills to let the data speak.
+Edward Tufte and Stephen Few champion the "data-ink ratio", maximise the ink spent on data, minimise everything else. These themes strip away gridlines, borders, and background fills to let the data speak.
 
 The Tufte theme is the most aggressive minimalist. Combine it with `geom_tufteboxplot()` for Tufte's signature minimal box plot.
 
@@ -209,7 +209,7 @@ ggplot(mpg, aes(class, hwy)) +
 #> instead of filled boxes — maximum data, minimum ink
 ```
 
-Tufte's box plot replaces the traditional filled box with a thin vertical line and offset staples. Every mark on the chart represents a data value — no decorative fills or borders waste ink.
+Tufte's box plot replaces the traditional filled box with a thin vertical line and offset staples. Every mark on the chart represents a data value, no decorative fills or borders waste ink.
 
 For axis lines that extend only to the data range (another Tufte principle), use `geom_rangeframe()`.
 
@@ -245,7 +245,7 @@ ggplot(diamonds |> dplyr::sample_n(500), aes(carat, price, colour = cut)) +
 
 The Few palette uses muted colours that work well in both print and on screen. The gridlines are subtle enough to guide the eye without competing with the data.
 
-The igray theme inverts the typical grey scheme — gray panel on a white background. The clean theme is similar but even simpler.
+The igray theme inverts the typical grey scheme, gray panel on a white background. The clean theme is similar but even simpler.
 
 ```r
 ggplot(mtcars, aes(hp, mpg)) +
@@ -294,7 +294,7 @@ ex_tufte
 
 These themes recreate the look of charts from familiar software. Some are practical (matching an existing report style), and one is intentionally funny.
 
-The original theme_excel() recreates Excel 97's infamous chart style — complete with the gray background and harsh gridlines that data visualisation experts love to hate.
+The original theme_excel() recreates Excel 97's infamous chart style, complete with the gray background and harsh gridlines that data visualisation experts love to hate.
 
 ```r
 ggplot(mpg, aes(class, fill = class)) +
@@ -416,7 +416,7 @@ The matched palette uses colours specifically chosen to contrast with the theme'
 [KEY INSIGHT]
 **Colour scales work independently of themes.** You can use scale_colour_tableau() with theme_minimal(), or scale_colour_few() with theme_classic(). The "matching" pairings look best, but you're free to mix and match when you need a specific palette's properties.
 
-The ggthemes package also includes several standalone colour palettes — these don't have a matching theme but are useful with any theme.
+The ggthemes package also includes several standalone colour palettes, these don't have a matching theme but are useful with any theme.
 
 ```r
 ggplot(mpg, aes(displ, hwy, colour = class)) +
@@ -428,7 +428,7 @@ ggplot(mpg, aes(displ, hwy, colour = class)) +
 #> Tableau's default for categorical data
 ```
 
-The Tableau palette is one of the best categorical palettes available — its 10 colours are maximally distinct and work in both print and on screen. Another excellent option is scale_colour_colorblind(), which uses an 8-colour palette safe for all common forms of colour vision deficiency.
+The Tableau palette is one of the best categorical palettes available, its 10 colours are maximally distinct and work in both print and on screen. Another excellent option is scale_colour_colorblind(), which uses an 8-colour palette safe for all common forms of colour vision deficiency.
 
 ```r
 ggplot(mpg |> dplyr::filter(class %in% c("compact", "midsize", "suv", "pickup")),
@@ -476,7 +476,7 @@ ex_cb
 
 ## How Do You Customise a ggthemes Theme Further?
 
-ggthemes themes are starting points, not straitjackets. Layer `+ theme(...)` on top to tweak individual elements — font sizes, legend position, axis text angles, panel spacing — without losing the theme's overall look.
+ggthemes themes are starting points, not straitjackets. Layer `+ theme(...)` on top to tweak individual elements, font sizes, legend position, axis text angles, panel spacing, without losing the theme's overall look.
 
 Every ggthemes theme function accepts a `base_size` argument that controls the overall text scaling. Adjust this first, then fine-tune individual elements.
 
@@ -500,7 +500,7 @@ ggplot(mpg, aes(class, fill = class)) +
 The key is the order: first apply the ggthemes theme, then layer your `theme()` overrides. Putting `theme()` before the ggthemes theme would wipe out your changes.
 
 [NOTE]
-**ggthemes theme functions accept a base_size argument.** Adjust base_size before adding individual theme() overrides — it scales all text proportionally. The default is usually 12 or 13 depending on the theme.
+**ggthemes theme functions accept a base_size argument.** Adjust base_size before adding individual theme() overrides, it scales all text proportionally. The default is usually 12 or 13 depending on the theme.
 
 For repeated use, wrap your customisations in a function.
 
@@ -821,7 +821,7 @@ Here's a quick-reference table of every ggthemes theme, its matching scale, and 
 | theme_wsj() | scale_colour_wsj() | Financial reports | Minimal, high contrast |
 | theme_fivethirtyeight() | scale_colour_fivethirtyeight() | Blog posts, screen charts | Gray background, large text |
 | theme_stata() | scale_colour_stata() | Academic, statistical reports | Clean, familiar to Stata users |
-| theme_tufte() | (none — minimal approach) | Academic papers, print | Maximum data-ink ratio |
+| theme_tufte() | (none, minimal approach) | Academic papers, print | Maximum data-ink ratio |
 | theme_few() | scale_colour_few() | Reports, publications | Light gridlines, muted colours |
 | theme_clean() | (none) | General purpose | Simple, uncluttered |
 | theme_igray() | (none) | Subtle, professional plots | Inverted gray scheme |
@@ -840,16 +840,16 @@ Here's a quick-reference table of every ggthemes theme, its matching scale, and 
 
 ## References
 
-1. Arnold, J. — *ggthemes: Extra Themes, Scales and Geoms for 'ggplot2'*. CRAN v5.2.0 (2025). [Link](https://cran.r-project.org/package=ggthemes)
-2. Arnold, J. — ggthemes GitHub repository. [Link](https://github.com/jrnold/ggthemes)
-3. Tufte, E. — *The Visual Display of Quantitative Information*. Graphics Press (2001).
-4. Few, S. — *Show Me the Numbers: Designing Tables and Graphs to Enlighten*. Analytics Press (2012).
-5. Wickham, H. — *ggplot2: Elegant Graphics for Data Analysis*, 3rd Edition. Springer (2024). [Link](https://ggplot2-book.org/)
-6. ggplot2 reference — theme() documentation. [Link](https://ggplot2.tidyverse.org/reference/theme.html)
-7. R Graph Gallery — ggthemes package overview. [Link](https://r-graph-gallery.com/package/ggthemes.html)
+1. Arnold, J., *ggthemes: Extra Themes, Scales and Geoms for 'ggplot2'*. CRAN v5.2.0 (2025). [Link](https://cran.r-project.org/package=ggthemes)
+2. Arnold, J., ggthemes GitHub repository. [Link](https://github.com/jrnold/ggthemes)
+3. Tufte, E., *The Visual Display of Quantitative Information*. Graphics Press (2001).
+4. Few, S., *Show Me the Numbers: Designing Tables and Graphs to Enlighten*. Analytics Press (2012).
+5. Wickham, H., *ggplot2: Elegant Graphics for Data Analysis*, 3rd Edition. Springer (2024). [Link](https://ggplot2-book.org/)
+6. ggplot2 reference, theme() documentation. [Link](https://ggplot2.tidyverse.org/reference/theme.html)
+7. R Graph Gallery, ggthemes package overview. [Link](https://r-graph-gallery.com/package/ggthemes.html)
 
 ## Continue Learning
 
-1. [ggplot2 Themes in R](ggplot2-Themes-in-R.html) — Master built-in themes and build your own custom theme() from scratch
-2. [ggplot2 Scales](ggplot2-Scales.html) — Control how data maps to colours, axes, sizes, and shapes
-3. [Publication-Quality Figures in R](Publication-Quality-Figures-in-R.html) — The checklist for journal and thesis figures
+1. [ggplot2 Themes in R](ggplot2-Themes-in-R.html), Master built-in themes and build your own custom theme() from scratch
+2. [ggplot2 Scales](ggplot2-Scales.html), Control how data maps to colours, axes, sizes, and shapes
+3. [Publication-Quality Figures in R](Publication-Quality-Figures-in-R.html), The checklist for journal and thesis figures

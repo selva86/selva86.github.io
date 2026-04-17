@@ -1,7 +1,7 @@
 ---
-title: "R OOP Systems Explained: S3, S4, R5, R6 — Pick the Right One in 3 Questions"
+title: "R OOP Systems Explained: S3, S4, R5, R6, Pick the Right One in 3 Questions"
 slug: "OOP-in-R"
-description: "R has four OOP systems with very different trade-offs. Answer 3 questions to pick the right one — S3, S4, R5, or R6 — and start building confidently."
+description: "R has four OOP systems with very different trade-offs. Answer 3 questions to pick the right one, S3, S4, R5, or R6, and start building confidently."
 keywords: "R OOP, R object oriented programming, S3 class R, S4 class R, R6 class R, R5 reference class, R OOP comparison, S3 vs S4 vs R6, OOP in R, R class system"
 mathjax: false
 webr: true
@@ -16,13 +16,13 @@ auto_link_case_sensitive: false
 difficulty: "Advanced"
 ---
 
-# R OOP Systems Explained: S3, S4, R5, R6 — Pick the Right One in 3 Questions
+# R OOP Systems Explained: S3, S4, R5, R6, Pick the Right One in 3 Questions
 
-<p class="lead">R has four object-oriented programming systems — S3, S4, R5 (Reference Classes), and R6 — each with different trade-offs around formality, mutability, and ease of use. Three questions are all you need to pick the right one for your project.</p>
+<p class="lead">R has four object-oriented programming systems, S3, S4, R5 (Reference Classes), and R6, each with different trade-offs around formality, mutability, and ease of use. Three questions are all you need to pick the right one for your project.</p>
 
 ## What are R's four OOP systems and why do they exist?
 
-R grew its OOP toolkit over three decades. S3 arrived in the early 1990s as a lightweight naming convention. S4 added formal type-checked slots in R 1.4. R5 (Reference Classes) brought mutable objects in R 2.12. R6, a CRAN package, refined the mutable approach with a cleaner, lighter API. Let's see S3 — the most common system — at work right now.
+R grew its OOP toolkit over three decades. S3 arrived in the early 1990s as a lightweight naming convention. S4 added formal type-checked slots in R 1.4. R5 (Reference Classes) brought mutable objects in R 2.12. R6, a CRAN package, refined the mutable approach with a cleaner, lighter API. Let's see S3, the most common system, at work right now.
 
 ```r
 # Create an S3 object: a simple "dog" with name and breed
@@ -47,13 +47,13 @@ class(dog)
 
 That's polymorphism in action: the `describe()` generic examines the object's class and routes the call to `describe.dog()`. If you created a `"cat"` class, you'd write `describe.cat()` and the same `describe()` call would work on both. No `if-else` chains needed.
 
-This is **functional OOP** — the method belongs to the generic function, not to the object. S3 and S4 both work this way. R5 and R6 take the opposite approach: **encapsulated OOP**, where methods live inside the object itself (like Python or Java). Think of it this way: functional OOP is like a restaurant where the waiter (generic) decides who handles your order based on cuisine type. Encapsulated OOP is like a food truck where the truck (object) does everything itself.
+This is **functional OOP**, the method belongs to the generic function, not to the object. S3 and S4 both work this way. R5 and R6 take the opposite approach: **encapsulated OOP**, where methods live inside the object itself (like Python or Java). Think of it this way: functional OOP is like a restaurant where the waiter (generic) decides who handles your order based on cuisine type. Encapsulated OOP is like a food truck where the truck (object) does everything itself.
 
 ![Functional vs Encapsulated OOP in R](screenshots/OOP-in-R-functional-vs-encapsulated.webp)
 *Figure 1: Functional OOP (S3/S4) dispatches methods through generics; encapsulated OOP (R5/R6) keeps methods inside objects.*
 
 [KEY INSIGHT]
-**The fundamental divide in R's OOP world is functional vs encapsulated.** S3 and S4 use functional OOP where methods belong to generic functions. R5 and R6 use encapsulated OOP where methods belong to objects. This isn't a quality difference — it's a design philosophy difference that shapes how you structure your code.
+**The fundamental divide in R's OOP world is functional vs encapsulated.** S3 and S4 use functional OOP where methods belong to generic functions. R5 and R6 use encapsulated OOP where methods belong to objects. This isn't a quality difference, it's a design philosophy difference that shapes how you structure your code.
 
 Here's a quick overview of what makes each system unique:
 
@@ -101,7 +101,7 @@ describe(ex_cat)
 
 ## How does S3 work?
 
-S3 is the simplest and most widely used OOP system in R. Every time you call `print()`, `summary()`, or `plot()` on an R object, S3 is working behind the scenes. There are no formal class definitions — just a naming convention.
+S3 is the simplest and most widely used OOP system in R. Every time you call `print()`, `summary()`, or `plot()` on an R object, S3 is working behind the scenes. There are no formal class definitions, just a naming convention.
 
 Let's build a proper S3 class with a constructor, validation, and inheritance.
 
@@ -130,7 +130,7 @@ buddy
 [TIP]
 **Always write a constructor function for S3 classes.** Directly setting `class(x) <- "myclass"` on an arbitrary list skips validation and makes bugs hard to trace. A constructor like `new_dog()` guarantees every object starts in a valid state.
 
-Now let's see how S3 handles inheritance. It uses the class vector — a character vector where earlier entries take priority during method dispatch.
+Now let's see how S3 handles inheritance. It uses the class vector, a character vector where earlier entries take priority during method dispatch.
 
 ```r
 # Puppy inherits from dog — just prepend "puppy" to the class vector
@@ -163,10 +163,10 @@ class(pup)
 #> [1] "puppy" "dog"
 ```
 
-When you call `describe(pup)`, R looks for `describe.puppy` first. It finds it and calls it. When you call `print(pup)`, R looks for `print.puppy`, doesn't find it, and falls back to `print.dog`. That's S3 method dispatch — simple, predictable, and zero boilerplate.
+When you call `describe(pup)`, R looks for `describe.puppy` first. It finds it and calls it. When you call `print(pup)`, R looks for `print.puppy`, doesn't find it, and falls back to `print.dog`. That's S3 method dispatch, simple, predictable, and zero boilerplate.
 
 [WARNING]
-**S3 has no built-in type checking on fields.** Anyone can write `buddy$age <- "old"` and R won't complain. If field integrity matters, validate in every function that modifies the object — or consider S4 instead.
+**S3 has no built-in type checking on fields.** Anyone can write `buddy$age <- "old"` and R won't complain. If field integrity matters, validate in every function that modifies the object, or consider S4 instead.
 
 **Try it:** Create an S3 `"book"` class with a constructor `new_book(title, author, pages)`. Write a `print.book()` method that displays `"<title> by <author> (<pages> pages)"`. Test it with your favourite book.
 
@@ -250,7 +250,7 @@ cat1@species
 Notice the differences from S3: you declare each slot's type upfront, access fields with `@` instead of `$`, and the validity function runs automatically when the object is created.
 
 [KEY INSIGHT]
-**S4's validity function runs automatically on object creation — S3 can't do this.** If someone tries to create an Animal with negative weight, they get an error immediately, not a silent bug that surfaces three functions later.
+**S4's validity function runs automatically on object creation, S3 can't do this.** If someone tries to create an Animal with negative weight, they get an error immediately, not a silent bug that surfaces three functions later.
 
 Let's see inheritance and validity rejection in action.
 
@@ -340,7 +340,7 @@ area(ex_rect)
 
 ## What are R5 reference classes?
 
-R5 — officially called **Reference Classes (RC)** — brought mutable objects to base R in version 2.12. Unlike S3 and S4 where modifying an object creates a copy, R5 objects change in place. Methods live inside the class definition, just like in Python or Java.
+R5, officially called **Reference Classes (RC)**, brought mutable objects to base R in version 2.12. Unlike S3 and S4 where modifying an object creates a copy, R5 objects change in place. Methods live inside the class definition, just like in Python or Java.
 
 Let's build a mutable BankAccount to see how reference semantics work.
 
@@ -383,7 +383,7 @@ acct
 #> Account: Alice | Balance: $120.00
 ```
 
-Notice how `acct$deposit(50)` changes the balance in place — no reassignment needed. The `<<-` operator modifies the field in the object's environment.
+Notice how `acct$deposit(50)` changes the balance in place, no reassignment needed. The `<<-` operator modifies the field in the object's environment.
 
 [WARNING]
 **Reference semantics mean assignment does not copy.** This is the biggest gotcha for R programmers accustomed to copy-on-modify behaviour. If you assign an R5 object to a new variable, both variables point to the same object.
@@ -466,7 +466,7 @@ ex_ctr$count
 
 ## How does R6 improve on reference classes?
 
-R6 is a CRAN package that provides the same mutable, encapsulated OOP as R5 but with a cleaner, more modern API. It adds **private fields** (true encapsulation), **active bindings** (computed properties), and **method chaining** — features R5 lacks or makes awkward.
+R6 is a CRAN package that provides the same mutable, encapsulated OOP as R5 but with a cleaner, more modern API. It adds **private fields** (true encapsulation), **active bindings** (computed properties), and **method chaining**, features R5 lacks or makes awkward.
 
 ```r
 library(R6)
@@ -552,7 +552,7 @@ savings$deposit(500)$add_interest()$withdraw(75)
 #> Withdrew $75.00. Balance: $1500.00
 ```
 
-Method chaining works because each method returns `invisible(self)`. This lets you string operations together like a pipeline — familiar if you've used Python's fluent interfaces or JavaScript's jQuery.
+Method chaining works because each method returns `invisible(self)`. This lets you string operations together like a pipeline, familiar if you've used Python's fluent interfaces or JavaScript's jQuery.
 
 [KEY INSIGHT]
 **If you come from Python, Java, or JavaScript, R6 will feel immediately familiar.** Objects own their methods, private fields enforce encapsulation, and inheritance uses a single `inherit` argument. R6 bridges the gap between R's functional roots and mainstream OOP conventions.
@@ -625,7 +625,7 @@ Here's the decision framework promised in the title. Three binary questions, fou
 
 **Question 1: Does your object need to modify itself in place (mutable state)?**
 
-Think database connections, GUI widgets, caches, game characters with changing HP. If yes, you need reference semantics — go to Question 2b. If no (most data analysis tasks), go to Question 2a.
+Think database connections, GUI widgets, caches, game characters with changing HP. If yes, you need reference semantics, go to Question 2b. If no (most data analysis tasks), go to Question 2a.
 
 **Question 2a: Do you need formal type checking and multiple dispatch?**
 
@@ -636,7 +636,7 @@ If you're building a large package with many interrelated classes (like Biocondu
 
 **Question 2b: Can your project depend on an external package?**
 
-R6 is a CRAN package — lightweight and with zero compiled code, but still a dependency. R5 is built into base R with no extra installs.
+R6 is a CRAN package, lightweight and with zero compiled code, but still a dependency. R5 is built into base R with no extra installs.
 
 - **Yes** → **R6** (cleaner API, private fields, active bindings)
 - **No** → **R5 / Reference Classes** (base R only, no external dependencies)
@@ -653,7 +653,7 @@ Here's when real-world packages use each system:
 | R5 | Mutable objects in base-R-only environments | Some internal R packages | You want private fields or a modern API |
 | R6 | Stateful objects, Shiny modules, APIs | Shiny, plumber, R6-based frameworks | Your package can't take any dependency |
 
-Let's see how each system handles the same tiny problem — a 2D point with x and y coordinates.
+Let's see how each system handles the same tiny problem, a 2D point with x and y coordinates.
 
 ```r
 # S3 Point
@@ -701,7 +701,7 @@ PointR6$new(3, 4)
 Four systems, same result. The differences show up in how much ceremony each requires and what guarantees you get back.
 
 [TIP]
-**When in doubt, start with S3.** It covers 90% of R use cases with minimal boilerplate. You can always refactor to S4 (for formal validation) or R6 (for mutable state) later — the concepts transfer directly.
+**When in doubt, start with S3.** It covers 90% of R use cases with minimal boilerplate. You can always refactor to S4 (for formal validation) or R6 (for mutable state) later, the concepts transfer directly.
 
 **Try it:** A game character has a name and HP (health points) that changes during combat. Which OOP system would you pick? Write a 1-line justification, then create the class with a `take_damage(amount)` method.
 
@@ -750,7 +750,7 @@ ex_hero
 #> Hero: Aria | HP: 75
 ```
 
-**Explanation:** R6 is the natural choice — HP changes in place (mutable state) and the character has methods attached to it (encapsulated). S3 would require reassignment after every damage event.
+**Explanation:** R6 is the natural choice, HP changes in place (mutable state) and the character has methods attached to it (encapsulated). S3 would require reassignment after every damage event.
 
 </details>
 
@@ -772,7 +772,7 @@ Here's the comprehensive comparison table. Bookmark this for quick reference.
 | **Learning curve** | Low | High | Medium | Medium |
 | **Used by** | Base R, tidyverse | Bioconductor | Rare | Shiny, plumber |
 
-Let's see the practical difference with a full BankAccount example in all four systems — same operations, different mechanics.
+Let's see the practical difference with a full BankAccount example in all four systems, same operations, different mechanics.
 
 ```r
 # --- S3 BankAccount (immutable — returns new copy) ---
@@ -833,10 +833,10 @@ cat("R6 balance:", b4$balance, "\n")
 #> R6 balance: 150
 ```
 
-The key takeaway: S3 and S4 require `b <- deposit(b, amount)` — you reassign the modified copy. R5 and R6 modify in place — `b$deposit(amount)` and the object updates. Neither approach is "better" — they serve different design needs.
+The key takeaway: S3 and S4 require `b <- deposit(b, amount)`, you reassign the modified copy. R5 and R6 modify in place, `b$deposit(amount)` and the object updates. Neither approach is "better", they serve different design needs.
 
 [NOTE]
-**S7 is an emerging OOP system** that unifies the best ideas from S3 and S4 — S3's simplicity with S4's type safety. It's being developed by the R Consortium and may eventually become part of base R. For now, the four systems above cover all production use cases.
+**S7 is an emerging OOP system** that unifies the best ideas from S3 and S4, S3's simplicity with S4's type safety. It's being developed by the R Consortium and may eventually become part of base R. For now, the four systems above cover all production use cases.
 
 **Try it:** Look at the comparison table above. For each scenario, name the best system: (a) a quick analysis script that needs a custom print method, (b) a Bioconductor package with 20 interrelated classes, (c) a Shiny app with a stateful shopping cart.
 
@@ -852,11 +852,11 @@ The key takeaway: S3 and S4 require `b <- deposit(b, amount)` — you reassign t
 <details>
 <summary>Click to reveal solution</summary>
 
-**(a) S3** — minimal boilerplate, just need a `print.myclass()` method. No formal structure needed for a script.
+**(a) S3**, minimal boilerplate, just need a `print.myclass()` method. No formal structure needed for a script.
 
-**(b) S4** — formal slots, validity functions, and multiple dispatch keep 20 interrelated classes consistent. Bioconductor mandates S4.
+**(b) S4**, formal slots, validity functions, and multiple dispatch keep 20 interrelated classes consistent. Bioconductor mandates S4.
 
-**(c) R6** — the shopping cart needs mutable state (items change in place) and private fields protect internal state from accidental modification in Shiny's reactive environment.
+**(c) R6**, the shopping cart needs mutable state (items change in place) and private fields protect internal state from accidental modification in Shiny's reactive environment.
 
 </details>
 
@@ -1101,13 +1101,13 @@ cat("R6 peek after pop:", s2$peek(), "\n")
 #> R6 peek after pop: 10
 ```
 
-**Explanation:** The S3 version requires `s <- push_s3(s, value)` — you must reassign because it returns a modified copy. The R6 version uses `s$push(value)` — the object changes in place. R6 also enables method chaining with `$push(10)$push(20)`. This is exactly the kind of task where mutability makes the API cleaner.
+**Explanation:** The S3 version requires `s <- push_s3(s, value)`, you must reassign because it returns a modified copy. The R6 version uses `s$push(value)`, the object changes in place. R6 also enables method chaining with `$push(10)$push(20)`. This is exactly the kind of task where mutability makes the API cleaner.
 
 </details>
 
 ## Putting It All Together
 
-Let's build a small **Library system** that combines S3 and R6 — proving that different OOP systems can coexist in one project. Books are simple data containers (S3), while the Library manages a mutable collection (R6).
+Let's build a small **Library system** that combines S3 and R6, proving that different OOP systems can coexist in one project. Books are simple data containers (S3), while the Library manages a mutable collection (R6).
 
 ```r
 # S3 book objects — immutable data records
@@ -1188,37 +1188,37 @@ This is a common real-world pattern: use S3 for lightweight data records that do
 
 Here are the key takeaways from this guide:
 
-- **S3** is R's simplest OOP system — just a list with a class attribute and method naming conventions. Use it for 90% of your classes.
+- **S3** is R's simplest OOP system, just a list with a class attribute and method naming conventions. Use it for 90% of your classes.
 - **S4** adds formal slots, type checking, validity functions, and multiple dispatch. Use it for large package ecosystems and Bioconductor.
 - **R5 (Reference Classes)** provides mutable, encapsulated objects in base R. Use it when you need mutability without external dependencies.
 - **R6** improves on R5 with private fields, active bindings, and method chaining. Use it for stateful objects in modern R applications.
 - **Functional vs encapsulated** is the fundamental divide: S3/S4 methods belong to generics, R5/R6 methods belong to objects.
 - **Three questions** get you to the right system: (1) mutable state needed? (2) formal validation needed? (3) external dependency OK?
-- Different OOP systems can coexist in one project — use each where it fits best.
+- Different OOP systems can coexist in one project, use each where it fits best.
 
 ![R OOP Systems at a Glance](screenshots/OOP-in-R-overview-mindmap.webp)
-*Figure 3: R's four OOP systems at a glance — key traits of each.*
+*Figure 3: R's four OOP systems at a glance, key traits of each.*
 
 | System | One-line summary |
 |--------|-----------------|
-| S3 | Lightweight, convention-based classes — the R default |
+| S3 | Lightweight, convention-based classes, the R default |
 | S4 | Formal, type-safe classes with built-in validation |
 | R5 | Mutable reference objects built into base R |
 | R6 | Modern mutable objects with private fields and chaining |
 
 ## References
 
-1. Wickham, H. — *Advanced R*, 2nd Edition. CRC Press (2019). Part III: Object-Oriented Programming. [Link](https://adv-r.hadley.nz/oo.html)
-2. Wickham, H. — *Advanced R*, 2nd Edition. Chapter 16: Trade-offs. [Link](https://adv-r.hadley.nz/oo-tradeoffs.html)
-3. R Core Team — Reference Classes documentation. [Link](https://stat.ethz.ch/R-manual/R-devel/library/methods/html/refClass.html)
-4. Chang, W. — R6: Encapsulated Object-Oriented Programming. CRAN. [Link](https://r6.r-lib.org/)
-5. R Core Team — S4 Classes and Methods. [Link](https://stat.ethz.ch/R-manual/R-devel/library/methods/html/Introduction.html)
-6. Wickham, H. — *Advanced R*, 2nd Edition. Chapter 13: S3. [Link](https://adv-r.hadley.nz/s3.html)
-7. Wickham, H. — *Advanced R*, 2nd Edition. Chapter 15: S4. [Link](https://adv-r.hadley.nz/s4.html)
-8. Wickham, H. — *Advanced R*, 2nd Edition. Chapter 14: R6. [Link](https://adv-r.hadley.nz/r6.html)
+1. Wickham, H., *Advanced R*, 2nd Edition. CRC Press (2019). Part III: Object-Oriented Programming. [Link](https://adv-r.hadley.nz/oo.html)
+2. Wickham, H., *Advanced R*, 2nd Edition. Chapter 16: Trade-offs. [Link](https://adv-r.hadley.nz/oo-tradeoffs.html)
+3. R Core Team, Reference Classes documentation. [Link](https://stat.ethz.ch/R-manual/R-devel/library/methods/html/refClass.html)
+4. Chang, W., R6: Encapsulated Object-Oriented Programming. CRAN. [Link](https://r6.r-lib.org/)
+5. R Core Team, S4 Classes and Methods. [Link](https://stat.ethz.ch/R-manual/R-devel/library/methods/html/Introduction.html)
+6. Wickham, H., *Advanced R*, 2nd Edition. Chapter 13: S3. [Link](https://adv-r.hadley.nz/s3.html)
+7. Wickham, H., *Advanced R*, 2nd Edition. Chapter 15: S4. [Link](https://adv-r.hadley.nz/s4.html)
+8. Wickham, H., *Advanced R*, 2nd Edition. Chapter 14: R6. [Link](https://adv-r.hadley.nz/r6.html)
 
 ## Continue Learning
 
-- [S3 Classes in R](S3-Classes-in-R.html) — deep dive into S3 constructors, validators, and method dispatch patterns
-- [S4 Classes in R](S4-Classes-in-R.html) — formal class definitions, slots, validity functions, and Bioconductor patterns
-- [R6 Classes in R](R6-Classes-in-R.html) — public/private methods, active bindings, inheritance, and real-world applications
+- [S3 Classes in R](S3-Classes-in-R.html), deep dive into S3 constructors, validators, and method dispatch patterns
+- [S4 Classes in R](S4-Classes-in-R.html), formal class definitions, slots, validity functions, and Bioconductor patterns
+- [R6 Classes in R](R6-Classes-in-R.html), public/private methods, active bindings, inheritance, and real-world applications

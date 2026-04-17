@@ -735,17 +735,17 @@ Report MCSE in parentheses after each performance measure, e.g., "Coverage = 0.9
 
 ## References
 
-1. Morris, T. P., White, I. R., & Crowther, M. J. — Using simulation studies to evaluate statistical methods. *Statistics in Medicine*, 38(11), 2074-2102 (2019). [Link](https://doi.org/10.1002/sim.8086)
-2. Siepe, B. S., Bussmann, K., Smeets, I., & Nestler, S. — Simulation Studies for Methodological Research in Psychology: A Standardized Template. *Psychological Methods* (2024). [Link](https://pmc.ncbi.nlm.nih.gov/articles/PMC7616844/)
-3. Pustejovsky, J. E. — *Designing Monte Carlo Simulations in R*. [Link](https://jepusto.github.io/Designing-Simulations-in-R/)
-4. R Documentation — `replicate()`: Repeated Evaluation of an Expression. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/lapply.html)
-5. R Documentation — `set.seed()`: Random Number Generation. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/Random.html)
-6. Gasparini, A. — `rsimsum`: Summarise Results from Simulation Studies. CRAN. [Link](https://cran.r-project.org/package=rsimsum)
-7. Sigal, M. J. & Chalmers, R. P. — `SimDesign`: Structure for Organizing Monte Carlo Simulation Designs. CRAN. [Link](https://cran.r-project.org/package=SimDesign)
-8. Burton, A., Altman, D. G., Royston, P., & Holder, R. L. — The design of simulation studies in medical statistics. *Statistics in Medicine*, 25(24), 4279-4292 (2006). [Link](https://doi.org/10.1002/sim.2673)
+1. Morris, T. P., White, I. R., & Crowther, M. J., Using simulation studies to evaluate statistical methods. *Statistics in Medicine*, 38(11), 2074-2102 (2019). [Link](https://doi.org/10.1002/sim.8086)
+2. Siepe, B. S., Bussmann, K., Smeets, I., & Nestler, S., Simulation Studies for Methodological Research in Psychology: A Standardized Template. *Psychological Methods* (2024). [Link](https://pmc.ncbi.nlm.nih.gov/articles/PMC7616844/)
+3. Pustejovsky, J. E., *Designing Monte Carlo Simulations in R*. [Link](https://jepusto.github.io/Designing-Simulations-in-R/)
+4. R Documentation, `replicate()`: Repeated Evaluation of an Expression. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/lapply.html)
+5. R Documentation, `set.seed()`: Random Number Generation. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/Random.html)
+6. Gasparini, A., `rsimsum`: Summarise Results from Simulation Studies. CRAN. [Link](https://cran.r-project.org/package=rsimsum)
+7. Sigal, M. J. & Chalmers, R. P., `SimDesign`: Structure for Organizing Monte Carlo Simulation Designs. CRAN. [Link](https://cran.r-project.org/package=SimDesign)
+8. Burton, A., Altman, D. G., Royston, P., & Holder, R. L., The design of simulation studies in medical statistics. *Statistics in Medicine*, 25(24), 4279-4292 (2006). [Link](https://doi.org/10.1002/sim.2673)
 
 ## Continue Learning
 
-1. **[Statistical Consulting in R](Statistical-Consulting-in-R.html)** — The parent tutorial on translating client questions into well-posed statistical problems using the PPDAC cycle.
-2. **[Sample Size Planning in R](Sample-Size-Planning-in-R.html)** — Learn power analysis and simulation-based sample size calculation for complex designs.
-3. **[Sensitivity Analysis in R](Sensitivity-Analysis-in-R.html)** — Test how robust your statistical conclusions are to changes in assumptions and model specifications.
+1. **[Statistical Consulting in R](Statistical-Consulting-in-R.html)**, The parent tutorial on translating client questions into well-posed statistical problems using the PPDAC cycle.
+2. **[Sample Size Planning in R](Sample-Size-Planning-in-R.html)**, Learn power analysis and simulation-based sample size calculation for complex designs.
+3. **[Sensitivity Analysis in R](Sensitivity-Analysis-in-R.html)**, Test how robust your statistical conclusions are to changes in assumptions and model specifications.

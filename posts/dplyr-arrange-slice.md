@@ -1,7 +1,7 @@
 ---
 title: "dplyr arrange(), slice(), and top_n(): Get Exactly the Rows You Want"
 slug: "dplyr-arrange-slice"
-description: "Sort rows with arrange(), pick positions with slice(), and get top-N per group with slice_max() — the modern successor to top_n() in dplyr 1.1+."
+description: "Sort rows with arrange(), pick positions with slice(), and get top-N per group with slice_max(), the modern successor to top_n() in dplyr 1.1+."
 keywords: "dplyr arrange, dplyr slice, dplyr top_n, slice_max, slice_min, slice_sample, sort rows R, top n per group R, dplyr sort, R order rows"
 auto_link_terms: "dplyr arrange|dplyr slice|arrange()|slice()|slice_max()|slice_min()|top_n()|sort rows in R|top n per group"
 auto_link_case_sensitive: false
@@ -22,7 +22,7 @@ difficulty: "Intermediate"
 
 ## How does arrange() sort rows in dplyr?
 
-When you need to rank, compare, or just eyeball the biggest and smallest values, sorting is the first move. `arrange()` reorders rows by one or more columns — ascending by default, wrap a column in `desc()` for descending. Here are the fastest cars in `mtcars`, ranked by quarter-mile time (smaller `qsec` = faster):
+When you need to rank, compare, or just eyeball the biggest and smallest values, sorting is the first move. `arrange()` reorders rows by one or more columns, ascending by default, wrap a column in `desc()` for descending. Here are the fastest cars in `mtcars`, ranked by quarter-mile time (smaller `qsec` = faster):
 
 ```r
 library(dplyr)
@@ -39,10 +39,10 @@ head(fastest_cars, 5)
 #> Ford Pantera L 15.8   8 351.0 264 4.22 3.170 14.50  0  1    5    4
 ```
 
-The Ford Pantera L comes out on top with a 14.5-second quarter mile, followed closely by the Maserati Bora at 14.6. Notice the row names stay attached — `arrange()` moves whole rows, not just the sort column. That's a key property: every column in every row travels together, so your table remains consistent after sorting.
+The Ford Pantera L comes out on top with a 14.5-second quarter mile, followed closely by the Maserati Bora at 14.6. Notice the row names stay attached, `arrange()` moves whole rows, not just the sort column. That's a key property: every column in every row travels together, so your table remains consistent after sorting.
 
 [KEY INSIGHT]
-**arrange() is a verb about row order, not row selection.** Every row that went in comes out — just reshuffled. If you want to keep only the top few after sorting, you'll chain `slice()` or `head()` on the result.
+**arrange() is a verb about row order, not row selection.** Every row that went in comes out, just reshuffled. If you want to keep only the top few after sorting, you'll chain `slice()` or `head()` on the result.
 
 **Try it:** Sort `iris` so the longest `Sepal.Length` comes first. Save to `ex_iris_sorted` and show the top 3 rows.
 
@@ -69,13 +69,13 @@ head(ex_iris_sorted, 3)
 #> 3          7.7         2.6          6.9         2.3 virginica
 ```
 
-**Explanation:** `desc()` flips the sort direction for that single column — cleaner than negating the values.
+**Explanation:** `desc()` flips the sort direction for that single column, cleaner than negating the values.
 
 </details>
 
 ## How do you sort by multiple columns at once?
 
-Single-column sorting is fine until you hit ties. What if you want all four-cylinder cars first, then six-cylinder, then eight — and within each cylinder group, the highest-mpg car on top? Pass multiple columns to `arrange()` and dplyr sorts by the first column, then uses the second as a tie-breaker, and so on. The order you list the columns matters.
+Single-column sorting is fine until you hit ties. What if you want all four-cylinder cars first, then six-cylinder, then eight, and within each cylinder group, the highest-mpg car on top? Pass multiple columns to `arrange()` and dplyr sorts by the first column, then uses the second as a tie-breaker, and so on. The order you list the columns matters.
 
 ```r
 cyl_mpg_sort <- mtcars |>
@@ -91,10 +91,10 @@ head(cyl_mpg_sort, 6)
 #> Porsche 914-2  26.0   4  66.3  91 4.22 1.984 16.90  1  1    5    1
 ```
 
-The four-cylinder block leads, and within it the Toyota Corolla (33.9 mpg) sits at the top. Scroll further and you'd see six-cylinder cars start, then eight-cylinder — always sorted high-to-low by mpg inside each group. This is exactly how SQL's `ORDER BY col1, col2` works, and it's how you build leaderboards that respect natural categories.
+The four-cylinder block leads, and within it the Toyota Corolla (33.9 mpg) sits at the top. Scroll further and you'd see six-cylinder cars start, then eight-cylinder, always sorted high-to-low by mpg inside each group. This is exactly how SQL's `ORDER BY col1, col2` works, and it's how you build leaderboards that respect natural categories.
 
 [TIP]
-**The order of columns in arrange() determines the sort hierarchy.** Put the "outer" category first and the "inner" tie-breaker second. Swapping `arrange(cyl, desc(mpg))` to `arrange(desc(mpg), cyl)` gives a completely different result — the overall highest-mpg cars first, regardless of cylinder.
+**The order of columns in arrange() determines the sort hierarchy.** Put the "outer" category first and the "inner" tie-breaker second. Swapping `arrange(cyl, desc(mpg))` to `arrange(desc(mpg), cyl)` gives a completely different result, the overall highest-mpg cars first, regardless of cylinder.
 
 **Try it:** Sort the `starwars` dataset by `species` alphabetically, then within each species by `mass` descending. Save to `ex_sw_sorted`.
 
@@ -129,7 +129,7 @@ head(ex_sw_sorted |> select(name, species, mass), 3)
 
 ## What's the difference between arrange() and base R's order()?
 
-If you've used base R you already know `order()` — it returns the *indices* that would sort a vector, and you use those indices to subset the data frame. `arrange()` skips that indirection: it takes the whole data frame, sorts it, and hands it back. Same result, half the keystrokes and none of the bracket gymnastics.
+If you've used base R you already know `order()`, it returns the *indices* that would sort a vector, and you use those indices to subset the data frame. `arrange()` skips that indirection: it takes the whole data frame, sorts it, and hands it back. Same result, half the keystrokes and none of the bracket gymnastics.
 
 ```r
 # Base R way
@@ -146,7 +146,7 @@ identical(
 #> [1] TRUE
 ```
 
-Both lines produce the same sorted table, confirmed by `identical()` on the row names. The dplyr version reads left-to-right like English — *take mtcars, arrange by cyl then descending mpg* — while the base R version needs you to parse nested bracket syntax and remember that `-mtcars$mpg` is the trick for descending. For interactive analysis, `arrange()` wins on readability every time.
+Both lines produce the same sorted table, confirmed by `identical()` on the row names. The dplyr version reads left-to-right like English, *take mtcars, arrange by cyl then descending mpg*, while the base R version needs you to parse nested bracket syntax and remember that `-mtcars$mpg` is the trick for descending. For interactive analysis, `arrange()` wins on readability every time.
 
 **Try it:** Rewrite `iris[order(-iris$Petal.Length), ][1:3, ]` using `arrange()` + `slice()` or `head()`. Save to `ex_base_rewrite`.
 
@@ -174,13 +174,13 @@ ex_base_rewrite
 #> 3          7.7         2.8          6.7         2.0 virginica
 ```
 
-**Explanation:** `head(3)` and `slice(1:3)` are interchangeable here — both grab the first three rows after sorting.
+**Explanation:** `head(3)` and `slice(1:3)` are interchangeable here, both grab the first three rows after sorting.
 
 </details>
 
 ## How do you pick rows by position with slice()?
 
-Sometimes you don't care about values — you just want "row 5" or "rows 10 through 15" or "everything except the first row." That's what `slice()` does: it subsets rows by their integer position in the table. It accepts a single index, a range with `:`, a vector with `c()`, or negative indices to *exclude* rows.
+Sometimes you don't care about values, you just want "row 5" or "rows 10 through 15" or "everything except the first row." That's what `slice()` does: it subsets rows by their integer position in the table. It accepts a single index, a range with `:`, a vector with `c()`, or negative indices to *exclude* rows.
 
 ```r
 first_five <- mtcars |>
@@ -195,7 +195,7 @@ first_five
 #> Hornet Sportabout 18.7   8  360 175 3.30 3.215 16.46  0  0    3    2
 ```
 
-That's the first five rows of `mtcars` — position 1 through 5, in their original order. To grab specific non-contiguous rows, pass a vector: `slice(c(1, 3, 5))`. To drop the first row instead of keeping it, use a negative index: `slice(-1)`. And to drop several, `slice(-c(1, 2))`. The pattern mirrors base R indexing, but it returns a proper tibble and plays nicely with pipes.
+That's the first five rows of `mtcars`, position 1 through 5, in their original order. To grab specific non-contiguous rows, pass a vector: `slice(c(1, 3, 5))`. To drop the first row instead of keeping it, use a negative index: `slice(-1)`. And to drop several, `slice(-c(1, 2))`. The pattern mirrors base R indexing, but it returns a proper tibble and plays nicely with pipes.
 
 [NOTE]
 **slice() uses integer positions, not logical conditions.** For row selection by value ("rows where mpg > 20"), you want `filter()`, not `slice()`. Mixing these up is a common early-stage dplyr confusion.
@@ -234,7 +234,7 @@ ex_iris_slice
 
 ## When should you use slice_head(), slice_tail(), slice_min(), slice_max()?
 
-dplyr ships a whole family of `slice_*()` helpers — each one answering a different flavor of "give me rows." They spare you from writing `arrange() |> head()` every time and they handle ties and sampling gracefully. The right choice depends on *how* you want to pick:
+dplyr ships a whole family of `slice_*()` helpers, each one answering a different flavor of "give me rows." They spare you from writing `arrange() |> head()` every time and they handle ties and sampling gracefully. The right choice depends on *how* you want to pick:
 
 ![Which slice_*() variant should you use?](screenshots/dplyr-arrange-slice-family.webp)
 *Figure 1: Choosing the right slice_*() variant based on how you want to pick rows.*
@@ -247,7 +247,7 @@ dplyr ships a whole family of `slice_*()` helpers — each one answering a diffe
 | `slice_max(col, n = 5)` | N largest values of `col` | Heaviest 5 characters |
 | `slice_sample(n = 5)` | Random N rows | Bootstrap sample, data check |
 
-Here's `slice_max()` in action — no `arrange()` needed:
+Here's `slice_max()` in action, no `arrange()` needed:
 
 ```r
 heaviest_sw <- starwars |>
@@ -265,10 +265,10 @@ heaviest_sw |> select(name, species, mass)
 #> 5 Chewbacca             Wookiee  112
 ```
 
-Five lines of output, ranked heaviest first, with `Jabba` unsurprisingly dominating at 1358 kg. Behind the scenes `slice_max()` sorts by `mass` descending and takes the top 5 — but the verb name reads directly as intent: *slice the max*. Prefer these helpers over `arrange(desc(mass)) |> head(5)` when you want self-documenting code.
+Five lines of output, ranked heaviest first, with `Jabba` unsurprisingly dominating at 1358 kg. Behind the scenes `slice_max()` sorts by `mass` descending and takes the top 5, but the verb name reads directly as intent: *slice the max*. Prefer these helpers over `arrange(desc(mass)) |> head(5)` when you want self-documenting code.
 
 [TIP]
-**slice_sample() is perfect for quick data checks.** Running `slice_sample(n = 10)` on a 100,000-row dataset gives you a random preview — far more representative than the first 10 rows, which often share a common source or timestamp.
+**slice_sample() is perfect for quick data checks.** Running `slice_sample(n = 10)` on a 100,000-row dataset gives you a random preview, far more representative than the first 10 rows, which often share a common source or timestamp.
 
 **Try it:** Get the 3 shortest Star Wars characters by `height`. Save to `ex_shortest_sw`.
 
@@ -299,13 +299,13 @@ ex_shortest_sw |> select(name, height)
 #> 3 Wicket Systri Warrick     88
 ```
 
-**Explanation:** `slice_min()` is the mirror image of `slice_max()` — smallest values first.
+**Explanation:** `slice_min()` is the mirror image of `slice_max()`, smallest values first.
 
 </details>
 
 ## How do you get the top N rows per group?
 
-Here's the pattern that makes `slice_max()` genuinely powerful: combine it with `group_by()` and you get top-N-per-group in one short pipeline. "Top 2 most fuel-efficient cars *within each cylinder class*" — that's a question analysts ask constantly, and it would take an ugly loop in base R.
+Here's the pattern that makes `slice_max()` genuinely powerful: combine it with `group_by()` and you get top-N-per-group in one short pipeline. "Top 2 most fuel-efficient cars *within each cylinder class*", that's a question analysts ask constantly, and it would take an ugly loop in base R.
 
 ![Top-N-per-group with group_by() + slice_max()](screenshots/dplyr-arrange-slice-top-n-per-group.webp)
 *Figure 2: Getting the top rows within each group by combining group_by() and slice_max().*
@@ -328,7 +328,7 @@ top_by_cyl |> select(mpg, cyl, hp)
 #> 6  18.7     8   175
 ```
 
-Six rows total — two per cylinder class, ranked highest mpg first within each group. The Toyota Corolla leads the 4-cylinder class, a Hornet tops the 6-cylinder, and a Pontiac leads the 8-cylinder. The `ungroup()` at the end is a good habit: it clears the grouping so downstream operations act on the whole table.
+Six rows total, two per cylinder class, ranked highest mpg first within each group. The Toyota Corolla leads the 4-cylinder class, a Hornet tops the 6-cylinder, and a Pontiac leads the 8-cylinder. The `ungroup()` at the end is a good habit: it clears the grouping so downstream operations act on the whole table.
 
 [WARNING]
 **Ties may give you more rows than n.** If the 2nd and 3rd ranked cars have identical mpg, `slice_max(n = 2)` returns all of them by default. Set `with_ties = FALSE` to enforce an exact count and break ties arbitrarily. Use this when downstream code expects a fixed row count.
@@ -372,7 +372,7 @@ head(ex_top_by_species |> select(name, species, height), 4)
 
 ## Is top_n() still the right way to get the top rows?
 
-If you've read older dplyr tutorials you've seen `top_n()` — a function that grabs the top N rows by some column. It still works, but as of dplyr 1.0.0 (May 2020) it's officially superseded by `slice_max()` and `slice_min()`. Superseded means "still supported forever, but not the recommended choice anymore" — new code should use the slice family.
+If you've read older dplyr tutorials you've seen `top_n()`, a function that grabs the top N rows by some column. It still works, but as of dplyr 1.0.0 (May 2020) it's officially superseded by `slice_max()` and `slice_min()`. Superseded means "still supported forever, but not the recommended choice anymore", new code should use the slice family.
 
 ```r
 # Superseded (still works):
@@ -388,7 +388,7 @@ identical(old_top_n, new_top)
 #> [1] TRUE
 ```
 
-Both lines return the three highest-mpg cars. Why was `top_n()` superseded? Two reasons: its argument order (`n` first, then the column) was inconsistent with the rest of the slice family, and `slice_max()` offers explicit `with_ties` and `prop` arguments for controlling ties and proportional sampling. The migration is a one-for-one replacement — no behavior changes to worry about.
+Both lines return the three highest-mpg cars. Why was `top_n()` superseded? Two reasons: its argument order (`n` first, then the column) was inconsistent with the rest of the slice family, and `slice_max()` offers explicit `with_ties` and `prop` arguments for controlling ties and proportional sampling. The migration is a one-for-one replacement, no behavior changes to worry about.
 
 [NOTE]
 **Don't rewrite working top_n() code just for cosmetics.** Superseded functions remain in dplyr indefinitely. Update when you're touching the code anyway or when a colleague asks, but don't churn files just to modernize.
@@ -422,7 +422,7 @@ ex_top_hp |> select(hp)
 #> Camaro Z28          245
 ```
 
-**Explanation:** Same rows, cleaner syntax. Note the last two cars tie at 245 hp — `slice_max()` returns both by default (`with_ties = TRUE`).
+**Explanation:** Same rows, cleaner syntax. Note the last two cars tie at 245 hp, `slice_max()` returns both by default (`with_ties = TRUE`).
 
 </details>
 
@@ -432,7 +432,7 @@ These capstones combine arrange, slice, and group_by patterns. Use `my_*` prefix
 
 ### Exercise 1: Second-heaviest per species
 
-In `starwars`, find the second-heaviest character of each species (not the heaviest — exactly the second). Ignore rows with missing `mass`. Save to `my_second_heaviest` with columns `name`, `species`, and `mass`.
+In `starwars`, find the second-heaviest character of each species (not the heaviest, exactly the second). Ignore rows with missing `mass`. Save to `my_second_heaviest` with columns `name`, `species`, and `mass`.
 
 ```r
 # Exercise 1: second-heaviest per species
@@ -467,7 +467,7 @@ head(my_second_heaviest, 5)
 #> 5 Greedo         Rodian       74
 ```
 
-**Explanation:** After sorting within each group (`.by_group = TRUE`), `slice(2)` picks the row in position 2. Species with only one member are silently dropped — that's the correct behavior here since "second-heaviest" is undefined for a group of one.
+**Explanation:** After sorting within each group (`.by_group = TRUE`), `slice(2)` picks the row in position 2. Species with only one member are silently dropped, that's the correct behavior here since "second-heaviest" is undefined for a group of one.
 
 </details>
 
@@ -505,7 +505,7 @@ my_extremes |> select(mpg, rank)
 #> Honda Civic         30.4    top
 ```
 
-**Explanation:** `bind_rows()` stacks two tables vertically. Adding a `rank` column with `mutate()` before binding keeps each slice's origin traceable. Note the tie at 10.4 mpg produces 3 rows in the bottom even though we asked for 3 — ties include extra rows by default.
+**Explanation:** `bind_rows()` stacks two tables vertically. Adding a `rank` column with `mutate()` before binding keeps each slice's origin traceable. Note the tie at 10.4 mpg produces 3 rows in the bottom even though we asked for 3, ties include extra rows by default.
 
 </details>
 
@@ -552,7 +552,7 @@ my_stratified_sample |> select(mpg, cyl)
 #> 6  19.2     8
 ```
 
-**Explanation:** `slice_sample()` inside a grouped pipeline samples independently within each group — the same stratification trick used in train/test splits. `set.seed()` makes the result reproducible across runs.
+**Explanation:** `slice_sample()` inside a grouped pipeline samples independently within each group, the same stratification trick used in train/test splits. `set.seed()` makes the result reproducible across runs.
 
 </details>
 
@@ -584,7 +584,7 @@ head(sw_top_mass, 8)
 #> 8 Padmé Amidala     Naboo         185
 ```
 
-Every line corresponds to one intent: *drop rows with missing height or homeworld*, *for each homeworld*, *keep only homeworlds with 2+ characters*, *take the 3 tallest*, *sort nicely*, *clean up grouping*, *show just the columns we care about*. That's the tidyverse in its natural habitat — each verb small and focused, the pipeline reading top to bottom like a recipe.
+Every line corresponds to one intent: *drop rows with missing height or homeworld*, *for each homeworld*, *keep only homeworlds with 2+ characters*, *take the 3 tallest*, *sort nicely*, *clean up grouping*, *show just the columns we care about*. That's the tidyverse in its natural habitat, each verb small and focused, the pipeline reading top to bottom like a recipe.
 
 ## Summary
 
@@ -601,20 +601,20 @@ Every line corresponds to one intent: *drop rows with missing height or homeworl
 | `slice_min(col, n = 5)` | Bottom N by value | "Cheapest 5 items" |
 | `slice_sample(n = 5)` | Random N rows | Quick data check, bootstrap |
 | `group_by() \|> slice_max()` | Top N per group | Leaderboard within each category |
-| `top_n()` | Superseded — prefer `slice_max()` | Legacy code only |
+| `top_n()` | Superseded, prefer `slice_max()` | Legacy code only |
 
 ## References
 
-1. dplyr reference — `arrange()`. [Link](https://dplyr.tidyverse.org/reference/arrange.html)
-2. dplyr reference — `slice()` and the `slice_*()` family. [Link](https://dplyr.tidyverse.org/reference/slice.html)
-3. dplyr reference — `top_n()` (superseded). [Link](https://dplyr.tidyverse.org/reference/top_n.html)
-4. Posit tidyverse blog — dplyr 1.0.0 release notes introducing `slice_*()`. [Link](https://www.tidyverse.org/blog/2020/03/dplyr-1-0-0-select-rename-relocate/)
-5. Wickham, H., & Grolemund, G. — *R for Data Science*, Chapter 4: Data Transformation. [Link](https://r4ds.hadley.nz/data-transform.html)
-6. R documentation — `order()` base function. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/order.html)
-7. dplyr grouping vignette — grouped operations. [Link](https://dplyr.tidyverse.org/articles/grouping.html)
+1. dplyr reference, `arrange()`. [Link](https://dplyr.tidyverse.org/reference/arrange.html)
+2. dplyr reference, `slice()` and the `slice_*()` family. [Link](https://dplyr.tidyverse.org/reference/slice.html)
+3. dplyr reference, `top_n()` (superseded). [Link](https://dplyr.tidyverse.org/reference/top_n.html)
+4. Posit tidyverse blog, dplyr 1.0.0 release notes introducing `slice_*()`. [Link](https://www.tidyverse.org/blog/2020/03/dplyr-1-0-0-select-rename-relocate/)
+5. Wickham, H., & Grolemund, G., *R for Data Science*, Chapter 4: Data Transformation. [Link](https://r4ds.hadley.nz/data-transform.html)
+6. R documentation, `order()` base function. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/order.html)
+7. dplyr grouping vignette, grouped operations. [Link](https://dplyr.tidyverse.org/articles/grouping.html)
 
 ## Continue Learning
 
-1. **[dplyr filter() and select()](dplyr-filter-select.html)** — Row and column subsetting, the verbs you reach for alongside arrange and slice.
-2. **[dplyr group_by() and summarise()](dplyr-group-by-summarise.html)** — Aggregate data by group, pairs naturally with grouped slice_max for top-N-per-group.
-3. **[dplyr mutate() and rename()](dplyr-mutate-rename.html)** — Add computed columns, useful for creating the columns you'll sort or slice by.
+1. **[dplyr filter() and select()](dplyr-filter-select.html)**, Row and column subsetting, the verbs you reach for alongside arrange and slice.
+2. **[dplyr group_by() and summarise()](dplyr-group-by-summarise.html)**, Aggregate data by group, pairs naturally with grouped slice_max for top-N-per-group.
+3. **[dplyr mutate() and rename()](dplyr-mutate-rename.html)**, Add computed columns, useful for creating the columns you'll sort or slice by.

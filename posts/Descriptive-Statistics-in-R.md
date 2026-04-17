@@ -1,7 +1,7 @@
 ---
 title: "Descriptive Statistics in R: The 8 Numbers That Tell You What Your Data Is Doing"
 slug: "Descriptive-Statistics-in-R"
-description: "Learn the 8 essential descriptive statistics in R — mean, median, sd, quantile, skewness and more. Interactive code examples with summary(), psych, and dplyr."
+description: "Learn the 8 essential descriptive statistics in R, mean, median, sd, quantile, skewness and more. Interactive code examples with summary(), psych, and dplyr."
 keywords: "descriptive statistics in R, summary statistics R, mean median mode R, standard deviation R, quantile R, skewness kurtosis R, summary function R, describe psych R"
 mathjax: true
 webr: true
@@ -18,11 +18,11 @@ sidebar_order: 41
 
 # Descriptive Statistics in R: The 8 Numbers That Tell You What Your Data Is Doing
 
-<p class="lead"><strong>Descriptive statistics</strong> are the handful of numbers — mean, median, standard deviation, quartiles, skewness — that summarise a dataset so you can understand its centre, spread, and shape before doing any modelling or testing. In R, <code>summary()</code> gives you six of these in one call, and a few extra functions complete the picture.</p>
+<p class="lead"><strong>Descriptive statistics</strong> are the handful of numbers, mean, median, standard deviation, quartiles, skewness, that summarise a dataset so you can understand its centre, spread, and shape before doing any modelling or testing. In R, <code>summary()</code> gives you six of these in one call, and a few extra functions complete the picture.</p>
 
 ## What does summary() tell you about your data?
 
-Every analysis starts with the same question: *what does this data actually look like?* Before you fit models or run tests, you need to know where the centre is, how spread out the values are, and whether anything looks unusual. Let's start with R's built-in `summary()` — it gives you six key numbers in one line.
+Every analysis starts with the same question: *what does this data actually look like?* Before you fit models or run tests, you need to know where the centre is, how spread out the values are, and whether anything looks unusual. Let's start with R's built-in `summary()`, it gives you six key numbers in one line.
 
 ```r
 # Quick snapshot of a single column
@@ -42,14 +42,14 @@ summary(airquality)
 #>  NA's   :37       NA's   :7
 ```
 
-Look at Ozone: the mean (42.13) is noticeably higher than the median (31.50). That gap tells you the data is right-skewed — a few very high ozone days are pulling the average up. You also see 37 missing values, which is important to know before you compute anything else.
+Look at Ozone: the mean (42.13) is noticeably higher than the median (31.50). That gap tells you the data is right-skewed, a few very high ozone days are pulling the average up. You also see 37 missing values, which is important to know before you compute anything else.
 
 [TIP]
-**Run summary() on the whole data frame, not just one column.** You get per-column stats plus NA counts for every variable at once — the fastest way to spot problems in a new dataset.
+**Run summary() on the whole data frame, not just one column.** You get per-column stats plus NA counts for every variable at once, the fastest way to spot problems in a new dataset.
 
 When `summary()` reports NA's, that means those values were excluded from the min, max, mean, median, and quartile calculations. R did not silently treat them as zeros.
 
-**Try it:** Run `summary(mtcars$mpg)`. The output shows six numbers. A car that gets 21 mpg — does it fall above or below the median? Above or below the third quartile?
+**Try it:** Run `summary(mtcars$mpg)`. The output shows six numbers. A car that gets 21 mpg, does it fall above or below the median? Above or below the third quartile?
 
 ```r
 # Try it: interpret summary() output
@@ -74,9 +74,9 @@ summary(mtcars$mpg)
 
 These three numbers answer the simplest possible question: *where is the centre of your data?* But they answer it in very different ways, and choosing the wrong one can mislead you.
 
-The **mean** is the balance point — add up every value and divide by the count. The **median** is the middle value when you sort the data. The **mode** is whichever value appears most often.
+The **mean** is the balance point, add up every value and divide by the count. The **median** is the middle value when you sort the data. The **mode** is whichever value appears most often.
 
-Here's why the distinction matters. Imagine 10 people each earning \$50,000, plus one billionaire. The mean income is about \$91 million. The median is still \$50,000. The mean is technically correct but completely misleading — the median tells the real story.
+Here's why the distinction matters. Imagine 10 people each earning \$50,000, plus one billionaire. The mean income is about \$91 million. The median is still \$50,000. The mean is technically correct but completely misleading, the median tells the real story.
 
 ```r
 # Mean and median of ozone levels (skip NAs)
@@ -89,7 +89,7 @@ cat("Median:", ozone_med, "\n")
 #> Median: 31.5
 ```
 
-The mean (42.1) is about 34% higher than the median (31.5). That's a strong hint of right skew — a handful of very high ozone days are dragging the mean upward.
+The mean (42.1) is about 34% higher than the median (31.5). That's a strong hint of right skew, a handful of very high ozone days are dragging the mean upward.
 
 [WARNING]
 **R's mode() function does NOT return the statistical mode.** It returns the storage type of the object (like "numeric" or "character"). To find the most frequent value, write a small helper function.
@@ -107,7 +107,7 @@ stat_mode(c(1, 2, 2, 3, 3, 3, 4))
 #> [1] 3
 ```
 
-`tabulate(match(x, ux))` counts how often each unique value appears, then `which.max()` finds the position of the largest count. For continuous data like ozone levels, the mode is rarely useful — it's more helpful for categorical or integer data.
+`tabulate(match(x, ux))` counts how often each unique value appears, then `which.max()` finds the position of the largest count. For continuous data like ozone levels, the mode is rarely useful, it's more helpful for categorical or integer data.
 
 When should you report which measure? If mean and median are close, the data is roughly symmetric and either works. If the mean is much larger than the median, the data is right-skewed and the median is more representative.
 
@@ -119,7 +119,7 @@ cat("Ratio: Mean / Median =", round(ozone_mean / ozone_med, 2), "\n")
 #> Ratio: Mean / Median = 1.34
 ```
 
-A mean/median ratio of 1.34 confirms right skew. For ozone levels, the median (31.5 ppb) is the better summary — it tells you what a "typical" day looks like, without being distorted by extreme days.
+A mean/median ratio of 1.34 confirms right skew. For ozone levels, the median (31.5 ppb) is the better summary, it tells you what a "typical" day looks like, without being distorted by extreme days.
 
 **Try it:** Calculate the mean and median of `mtcars$hp`. Is the mean higher than the median? What does that tell you about the distribution of horsepower?
 
@@ -148,11 +148,11 @@ cat("Mean > Median:", ex_hp_mean > ex_hp_med, "\n")
 
 ## How do you measure spread with standard deviation and IQR?
 
-Knowing the centre isn't enough. Two datasets can have the same mean but wildly different spreads — exam scores clustered around 75% vs scattered from 20% to 100%. Spread statistics tell you how much the values vary.
+Knowing the centre isn't enough. Two datasets can have the same mean but wildly different spreads, exam scores clustered around 75% vs scattered from 20% to 100%. Spread statistics tell you how much the values vary.
 
 **Standard deviation (SD)** measures the average distance from the mean. **Interquartile range (IQR)** measures the width of the middle 50% of the data (Q3 minus Q1). SD is sensitive to outliers; IQR is robust against them.
 
-The formula for standard deviation captures this intuition — it's the square root of the average squared distance from the mean:
+The formula for standard deviation captures this intuition, it's the square root of the average squared distance from the mean:
 
 $$s = \sqrt{\frac{1}{n-1} \sum_{i=1}^{n} (x_i - \bar{x})^2}$$
 
@@ -162,7 +162,7 @@ Where:
 - $x_i$ = each individual value
 - $\bar{x}$ = the sample mean
 
-*If you're not interested in the math, skip ahead — the practical code below is all you need.*
+*If you're not interested in the math, skip ahead, the practical code below is all you need.*
 
 ```r
 # Four measures of spread
@@ -183,7 +183,7 @@ cat("Range:", ozone_rng[1], "to", ozone_rng[2], "\n")
 #> Range: 1 to 168
 ```
 
-The SD of 32.99 tells you that a typical ozone reading is about 33 ppb away from the mean (42.1). The IQR of 45.25 tells you the middle 50% of readings span a 45-ppb window. The range shows the full extent — from 1 ppb to 168 ppb, a massive spread.
+The SD of 32.99 tells you that a typical ozone reading is about 33 ppb away from the mean (42.1). The IQR of 45.25 tells you the middle 50% of readings span a 45-ppb window. The range shows the full extent, from 1 ppb to 168 ppb, a massive spread.
 
 Here's why the pairing matters. Let's inject an extreme outlier and see which statistic moves more:
 
@@ -198,10 +198,10 @@ cat("With outlier:  SD =", round(sd(with_outlier), 1), " IQR =", IQR(with_outlie
 #> With outlier:  SD = 170.6  IQR = 5.5
 ```
 
-Adding one value of 500 exploded the SD from 3.4 to 170.6 — a 50x increase. The IQR barely moved (4 to 5.5). That's why IQR is the go-to spread measure for skewed data or data with outliers.
+Adding one value of 500 exploded the SD from 3.4 to 170.6, a 50x increase. The IQR barely moved (4 to 5.5). That's why IQR is the go-to spread measure for skewed data or data with outliers.
 
 [KEY INSIGHT]
-**SD pairs with mean, IQR pairs with median — always report them together.** If the data is symmetric, use mean + SD. If it's skewed or has outliers, switch to median + IQR. Mixing pairs (like mean + IQR) sends a confusing signal.
+**SD pairs with mean, IQR pairs with median, always report them together.** If the data is symmetric, use mean + SD. If it's skewed or has outliers, switch to median + IQR. Mixing pairs (like mean + IQR) sends a confusing signal.
 
 **Try it:** Calculate the SD and IQR of `mtcars$wt` (car weight in thousands of pounds). Which measure gives a clearer picture of how much typical car weights vary?
 
@@ -241,7 +241,7 @@ quantile(ozone)
 #>   1.00  18.00  31.50  63.25 168.00
 ```
 
-The default output matches what `summary()` gave you — the five-number summary. But `quantile()` lets you ask for any percentile you want:
+The default output matches what `summary()` gave you, the five-number summary. But `quantile()` lets you ask for any percentile you want:
 
 ```r
 # Custom percentiles: where do 90% of the values fall?
@@ -250,7 +250,7 @@ quantile(ozone, probs = c(0.05, 0.10, 0.90, 0.95))
 #>  4.75  7.00 97.00 108.50
 ```
 
-The 5th percentile is 4.75 ppb and the 95th is 108.5 ppb — 90% of ozone readings fall within that range. The wide spread (4.75 to 108.5) confirms there's a lot of variability in this data.
+The 5th percentile is 4.75 ppb and the 95th is 108.5 ppb, 90% of ozone readings fall within that range. The wide spread (4.75 to 108.5) confirms there's a lot of variability in this data.
 
 R also has `fivenum()`, which gives a slightly different result than `quantile()`:
 
@@ -288,13 +288,13 @@ cat("90% of days fall between", ex_temp_pctiles[1], "and", ex_temp_pctiles[2], "
 #> [1] 90% of days fall between 59 and 94 °F
 ```
 
-**Explanation:** The middle 90% of days ranged from 59°F to 94°F. The full range is 56 to 97°F, so the extreme 10% only adds a few degrees at each end — temperature is less variable than ozone.
+**Explanation:** The middle 90% of days ranged from 59°F to 94°F. The full range is 56 to 97°F, so the extreme 10% only adds a few degrees at each end, temperature is less variable than ozone.
 
 </details>
 
 ## What do skewness and kurtosis tell you about shape?
 
-So far you've measured where the centre is (mean, median) and how spread out the values are (SD, IQR). The last piece of the puzzle is **shape** — is the data symmetric, or does it lean to one side?
+So far you've measured where the centre is (mean, median) and how spread out the values are (SD, IQR). The last piece of the puzzle is **shape**, is the data symmetric, or does it lean to one side?
 
 **Skewness** measures how lopsided the distribution is. Picture a seesaw: if the right tail is longer (a few very large values), skewness is positive. If the left tail is longer, it's negative. A perfectly symmetric distribution has skewness = 0.
 
@@ -311,7 +311,7 @@ describe(airquality$Ozone)
 #> X1    1 116 42.13 32.99   31.5   38.17 25.95   1 168   167 1.21     1.11 3.06
 ```
 
-Ozone has a skewness of 1.21 — that's solidly right-skewed (positive). The kurtosis of 1.11 (excess kurtosis) tells you the tails are heavier than a normal distribution, meaning extreme ozone days are more common than you'd expect from a bell curve.
+Ozone has a skewness of 1.21, that's solidly right-skewed (positive). The kurtosis of 1.11 (excess kurtosis) tells you the tails are heavier than a normal distribution, meaning extreme ozone days are more common than you'd expect from a bell curve.
 
 Here's a quick rule of thumb for interpreting skewness:
 
@@ -359,13 +359,13 @@ cat("Skewness:", round(ex_disp_desc$skew, 2), "\n")
 #> [1] Skewness: 0.38
 ```
 
-**Explanation:** The skewness is 0.38, which is below 0.5 — approximately symmetric. You can report mean + SD for displacement. Mean = 230.7, SD = 123.9.
+**Explanation:** The skewness is 0.38, which is below 0.5, approximately symmetric. You can report mean + SD for displacement. Mean = 230.7, SD = 123.9.
 
 </details>
 
 ## How do you summarise statistics by group with dplyr?
 
-Real analysis almost always involves groups. You don't just want the average ozone level — you want it by month. You don't want overall horsepower — you want it by number of cylinders. The `dplyr` package's `group_by() |> summarise()` pipeline handles this cleanly.
+Real analysis almost always involves groups. You don't just want the average ozone level, you want it by month. You don't want overall horsepower, you want it by number of cylinders. The `dplyr` package's `group_by() |> summarise()` pipeline handles this cleanly.
 
 ```r
 library(dplyr)
@@ -392,7 +392,7 @@ monthly_stats
 #> 5     9    30      76.9     8.4    31.4
 ```
 
-July and August have the highest average ozone (59–60 ppb) and temperature (84°F), while May is the coolest and cleanest. Notice that September's temperature SD (8.4) is much higher than August's (3.5) — September weather is more variable.
+July and August have the highest average ozone (59–60 ppb) and temperature (84°F), while May is the coolest and cleanest. Notice that September's temperature SD (8.4) is much higher than August's (3.5), September weather is more variable.
 
 If you need summaries for every numeric column at once, `across()` saves you from repeating the same code:
 
@@ -469,14 +469,14 @@ ex_cyl_stats
 
 You now have a toolbox full of individual statistics. But when you're writing a report or preparing data for a model, which ones do you actually include? Here's the **8-number framework** that covers every case:
 
-1. **n** — sample size
-2. **Mean** — centre (if symmetric)
-3. **SD** — spread (if symmetric)
-4. **Median** — centre (if skewed)
-5. **IQR** — spread (if skewed)
-6. **Min** — lower bound
-7. **Max** — upper bound
-8. **Skewness** — shape indicator (tells you whether to report mean+SD or median+IQR)
+1. **n**, sample size
+2. **Mean**, centre (if symmetric)
+3. **SD**, spread (if symmetric)
+4. **Median**, centre (if skewed)
+5. **IQR**, spread (if skewed)
+6. **Min**, lower bound
+7. **Max**, upper bound
+8. **Skewness**, shape indicator (tells you whether to report mean+SD or median+IQR)
 
 ![Decision flow: choose mean + SD or median + IQR based on skewness](screenshots/Descriptive-Statistics-in-R-which-stat-decision.webp)
 
@@ -564,7 +564,7 @@ cat("Skewness:", round(psych::describe(ex_wind)$skew, 2), "\n")
 #> [1] Skewness: 0.34
 ```
 
-**Explanation:** Skewness is 0.34, which is below 0.5 — approximately symmetric. Report mean (10.0) + SD (3.5). Wind speeds cluster around 10 mph with a typical variation of about 3.5 mph.
+**Explanation:** Skewness is 0.34, which is below 0.5, approximately symmetric. Report mean (10.0) + SD (3.5). Wind speeds cluster around 10 mph with a typical variation of about 3.5 mph.
 
 </details>
 
@@ -694,7 +694,7 @@ my_gear_stats
 
 ## Putting It All Together
 
-Let's walk through a complete descriptive statistics analysis of the `airquality` dataset — the kind of summary you'd include at the start of a report or paper.
+Let's walk through a complete descriptive statistics analysis of the `airquality` dataset, the kind of summary you'd include at the start of a report or paper.
 
 ```r
 # Step 1: Structure check
@@ -806,16 +806,16 @@ Here's a quick reference for the 8 statistics that tell you what your data is do
 
 ## References
 
-1. R Core Team — *An Introduction to R*, Chapter 8: Probability distributions. [Link](https://cran.r-project.org/doc/manuals/r-release/R-intro.html)
-2. Revelle, W. — psych: Procedures for Psychological, Psychometric, and Personality Research. `describe()` function reference. [Link](https://cran.r-project.org/web/packages/psych/psych.pdf)
-3. Wickham, H. & Grolemund, G. — *R for Data Science*, 2nd Edition. Chapter 3: Data transformation. [Link](https://r4ds.hadley.nz/data-transform)
-4. dplyr documentation — summarise() reference. [Link](https://dplyr.tidyverse.org/reference/summarise.html)
-5. NIST/SEMATECH — e-Handbook of Statistical Methods, Section 1.3.5: Measures of Skewness and Kurtosis. [Link](https://www.itl.nist.gov/div898/handbook/eda/section3/eda35b.htm)
-6. Joanes, D.N. & Gill, C.A. (1998) — Comparing measures of sample skewness and kurtosis. *The Statistician*, 47(1), 183–189.
-7. Bulmer, M.G. (1979) — *Principles of Statistics*. Dover Publications. Chapters on descriptive measures and distribution shape.
+1. R Core Team, *An Introduction to R*, Chapter 8: Probability distributions. [Link](https://cran.r-project.org/doc/manuals/r-release/R-intro.html)
+2. Revelle, W., psych: Procedures for Psychological, Psychometric, and Personality Research. `describe()` function reference. [Link](https://cran.r-project.org/web/packages/psych/psych.pdf)
+3. Wickham, H. & Grolemund, G., *R for Data Science*, 2nd Edition. Chapter 3: Data transformation. [Link](https://r4ds.hadley.nz/data-transform)
+4. dplyr documentation, summarise() reference. [Link](https://dplyr.tidyverse.org/reference/summarise.html)
+5. NIST/SEMATECH, e-Handbook of Statistical Methods, Section 1.3.5: Measures of Skewness and Kurtosis. [Link](https://www.itl.nist.gov/div898/handbook/eda/section3/eda35b.htm)
+6. Joanes, D.N. & Gill, C.A. (1998), Comparing measures of sample skewness and kurtosis. *The Statistician*, 47(1), 183–189.
+7. Bulmer, M.G. (1979), *Principles of Statistics*. Dover Publications. Chapters on descriptive measures and distribution shape.
 
 ## Continue Learning
 
-- [EDA in R: A 7-Step Framework That Works on Every Dataset](Exploratory-Data-Analysis-in-R.html) — The broader EDA process that these statistics feed into.
-- [ggplot2 Distribution Charts: Histograms, Density, Boxplots](ggplot2-Distribution-Charts.html) — Visualise the distributions behind these numbers.
-- [Outlier Detection in R: Four Methods and the One Question You Must Ask First](Outlier-Detection-in-R.html) — What to do when descriptive statistics flag unusual values.
+- [EDA in R: A 7-Step Framework That Works on Every Dataset](Exploratory-Data-Analysis-in-R.html), The broader EDA process that these statistics feed into.
+- [ggplot2 Distribution Charts: Histograms, Density, Boxplots](ggplot2-Distribution-Charts.html), Visualise the distributions behind these numbers.
+- [Outlier Detection in R: Four Methods and the One Question You Must Ask First](Outlier-Detection-in-R.html), What to do when descriptive statistics flag unusual values.

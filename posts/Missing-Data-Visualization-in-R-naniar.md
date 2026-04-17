@@ -19,11 +19,11 @@ difficulty: "Intermediate"
 
 # Visualise Your Missing Data in R: naniar Reveals Patterns in 3 Lines
 
-<p class="lead">naniar is an R package that turns invisible NA values into clear, publication-ready visualizations — showing you where data is missing, how much is missing, and whether the gaps follow a pattern — so you can choose the right imputation strategy instead of guessing.</p>
+<p class="lead">naniar is an R package that turns invisible NA values into clear, publication-ready visualizations, showing you where data is missing, how much is missing, and whether the gaps follow a pattern, so you can choose the right imputation strategy instead of guessing.</p>
 
 ## Introduction
 
-You cannot fix what you cannot see. Most analysts skip straight to imputation — mean filling, deletion, mice — without first looking at their missing data. That is like prescribing medicine without diagnosing the illness. The pattern of missingness determines which fix is valid, and the wrong fix biases every result downstream.
+You cannot fix what you cannot see. Most analysts skip straight to imputation, mean filling, deletion, mice, without first looking at their missing data. That is like prescribing medicine without diagnosing the illness. The pattern of missingness determines which fix is valid, and the wrong fix biases every result downstream.
 
 The naniar package, created by Nicholas Tierney, gives you a grammar of missingness built on top of ggplot2. With three or four function calls you get heatmaps of every NA, bar charts ranking the worst variables, upset plots exposing which columns go missing together, and scatter plots that make invisible NAs visible alongside your real data.
 
@@ -31,7 +31,7 @@ The naniar package, created by Nicholas Tierney, gives you a grammar of missingn
 
 *Figure 3: The missing data analysis workflow: visualize first, identify mechanism, then choose a strategy.*
 
-In this tutorial you will learn the three missing data mechanisms (MCAR, MAR, MNAR), then master six naniar visualization functions: `vis_miss()`, `gg_miss_var()`, `gg_miss_upset()`, `geom_miss_point()`, `gg_miss_case()`, and `miss_var_summary()`. Every code block runs in your browser. Click Run on the first block, then work top to bottom — variables carry over between blocks like a notebook.
+In this tutorial you will learn the three missing data mechanisms (MCAR, MAR, MNAR), then master six naniar visualization functions: `vis_miss()`, `gg_miss_var()`, `gg_miss_upset()`, `geom_miss_point()`, `gg_miss_case()`, and `miss_var_summary()`. Every code block runs in your browser. Click Run on the first block, then work top to bottom, variables carry over between blocks like a notebook.
 
 [NOTE]
 **naniar requires a compiled binary not available in browser-based R.** The naniar-specific code blocks below show expected output as inline comments. To run them interactively, install naniar in your local RStudio with `install.packages("naniar")`. Base R and ggplot2 examples run directly in your browser.
@@ -105,7 +105,7 @@ ex_incomplete_count
 
 ## How does vis_miss() reveal the big picture of your missing data?
 
-The `vis_miss()` function creates a heatmap of your entire dataset. Each cell is either black (missing) or grey (present). You see the full matrix at a glance — which variables have gaps, how the gaps are distributed across rows, and whether they cluster in specific regions.
+The `vis_miss()` function creates a heatmap of your entire dataset. Each cell is either black (missing) or grey (present). You see the full matrix at a glance, which variables have gaps, how the gaps are distributed across rows, and whether they cluster in specific regions.
 
 Think of it as an X-ray of your data frame. One plot replaces dozens of `is.na()` calls.
 
@@ -120,7 +120,7 @@ vis_miss(aq)
 #>  Legend shows 4.8% overall missingness.]
 ```
 
-The plot shows Ozone with a thick band of black marks scattered through the rows, and Solar.R with a few isolated black marks. The remaining four columns are completely grey. The percentages along the bottom confirm what `colSums(is.na())` told us, but the spatial layout reveals something new: the Ozone NAs are not evenly spread — they cluster in certain row ranges.
+The plot shows Ozone with a thick band of black marks scattered through the rows, and Solar.R with a few isolated black marks. The remaining four columns are completely grey. The percentages along the bottom confirm what `colSums(is.na())` told us, but the spatial layout reveals something new: the Ozone NAs are not evenly spread, they cluster in certain row ranges.
 
 Now let's sort and cluster the missing values to make patterns even more obvious.
 
@@ -187,7 +187,7 @@ gg_miss_var(aq, show_pct = TRUE)
 #>  Others: 0%]
 ```
 
-The real power of `gg_miss_var()` appears when you facet by a grouping variable. This lets you compare missingness across subgroups — a direct test for MAR patterns.
+The real power of `gg_miss_var()` appears when you facet by a grouping variable. This lets you compare missingness across subgroups, a direct test for MAR patterns.
 
 ```r
 # Facet by Month to compare groups
@@ -198,7 +198,7 @@ gg_miss_var(aq, facet = Month, show_pct = TRUE)
 #>  Solar.R missingness appears only in May, June, August.]
 ```
 
-The faceted plot shows that Ozone missingness varies by month — June is the worst and August is the best. If missingness were MCAR, you would expect roughly equal rates across months. The fact that it varies suggests the Ozone NAs are at least MAR (dependent on the Month variable).
+The faceted plot shows that Ozone missingness varies by month, June is the worst and August is the best. If missingness were MCAR, you would expect roughly equal rates across months. The fact that it varies suggests the Ozone NAs are at least MAR (dependent on the Month variable).
 
 [TIP]
 **Use the facet argument whenever you have a natural grouping variable.** Comparing missingness rates across groups is the fastest visual test for MAR. If rates differ dramatically, MCAR is unlikely.
@@ -231,7 +231,7 @@ ex_faceted_plot
 
 A bar chart tells you how much each variable is missing. An upset plot tells you which combinations of variables go missing together. This is crucial because co-occurring missingness often signals that the missing data mechanism is MAR or MNAR rather than MCAR.
 
-The `gg_miss_upset()` function creates an upset plot — a modern alternative to Venn diagrams that scales to many variables. The bottom grid shows which variables are involved in each combination. The bars above show how many rows match that combination.
+The `gg_miss_upset()` function creates an upset plot, a modern alternative to Venn diagrams that scales to many variables. The bottom grid shows which variables are involved in each combination. The bars above show how many rows match that combination.
 
 ```r
 # Upset plot of co-occurring missingness
@@ -256,7 +256,7 @@ gg_miss_upset(aq, nsets = 6, nintersects = 10)
 ```
 
 [KEY INSIGHT]
-**Co-occurring missingness is a red flag for non-random mechanisms.** If two variables frequently go missing in the same rows, something connects them. In a clinical trial, if both blood pressure and heart rate are missing in the same visits, the patient probably skipped the appointment entirely — that is MAR (dependent on an unrecorded "attendance" variable).
+**Co-occurring missingness is a red flag for non-random mechanisms.** If two variables frequently go missing in the same rows, something connects them. In a clinical trial, if both blood pressure and heart rate are missing in the same visits, the patient probably skipped the appointment entirely, that is MAR (dependent on an unrecorded "attendance" variable).
 
 **Try it:** The `riskfactors` dataset (bundled with naniar) has many more missing patterns. Run `gg_miss_upset(riskfactors, nsets = 5, nintersects = 5)` and note which variable combination has the most co-occurring NAs.
 
@@ -364,7 +364,7 @@ gg_miss_case(aq)
 #>  About 2 rows have 2 missing values.]
 ```
 
-Most rows are complete. About 35 rows have exactly one missing value (usually Ozone), and only 2 rows have two missing values (both Ozone and Solar.R). This is encouraging — the missingness does not concentrate in a small group of heavily-incomplete rows.
+Most rows are complete. About 35 rows have exactly one missing value (usually Ozone), and only 2 rows have two missing values (both Ozone and Solar.R). This is encouraging, the missingness does not concentrate in a small group of heavily-incomplete rows.
 
 For precise numbers, use `miss_var_summary()` and `miss_case_summary()`. Both return tidy tibbles.
 
@@ -571,7 +571,7 @@ ggplot(my_aq, aes(x = Ozone, y = Solar.R)) +
 #>  The pattern confirms month-dependent missingness.]
 ```
 
-**Explanation:** Early summer (May-June) shows noticeably more shifted Ozone points than late summer (July-September). This visual comparison confirms the MAR hypothesis — Ozone missingness depends on the time of year.
+**Explanation:** Early summer (May-June) shows noticeably more shifted Ozone points than late summer (July-September). This visual comparison confirms the MAR hypothesis, Ozone missingness depends on the time of year.
 
 </details>
 
@@ -685,7 +685,7 @@ cat("Recommendation: Impute with mice, conditioning on Month\n")
 #> Recommendation: Impute with mice, conditioning on Month
 ```
 
-This six-step workflow — counts, heatmap, ranking, group comparison, co-occurrence, relationship check — gives you a complete picture in under 10 minutes. The naniar functions do the heavy lifting, but the interpretation is yours.
+This six-step workflow, counts, heatmap, ranking, group comparison, co-occurrence, relationship check, gives you a complete picture in under 10 minutes. The naniar functions do the heavy lifting, but the interpretation is yours.
 
 ## Summary
 
@@ -731,15 +731,15 @@ Yes. naniar functions accept data.tables because they inherit from data.frame. H
 
 ## References
 
-1. Tierney, N.J. & Cook, D. — *Expanding Tidy Data Principles to Facilitate Missing Data Exploration, Visualization and Assessment of Imputations*. Journal of Statistical Software (2023). [Link](https://doi.org/10.18637/jss.v105.i07)
-2. naniar package documentation — CRAN. [Link](https://cran.r-project.org/web/packages/naniar/index.html)
-3. Tierney, N.J. — *Gallery of Missing Data Visualisations*. naniar vignette. [Link](https://naniar.njtierney.com/articles/naniar-visualisation.html)
-4. Little, R.J.A. & Rubin, D.B. — *Statistical Analysis with Missing Data*, 3rd Edition. Wiley (2019).
-5. Rubin, D.B. — *Multiple Imputation for Nonresponse in Surveys*. Wiley (1987).
-6. Wickham, H. & Grolemund, G. — *R for Data Science*, 2nd Edition. O'Reilly (2023). Chapter 18: Missing Values. [Link](https://r4ds.hadley.nz/missing-values)
-7. Tierney, N.J. — *The Missing Book: Exploring Missing Data*. [Link](https://tmb.njtierney.com/)
+1. Tierney, N.J. & Cook, D., *Expanding Tidy Data Principles to Facilitate Missing Data Exploration, Visualization and Assessment of Imputations*. Journal of Statistical Software (2023). [Link](https://doi.org/10.18637/jss.v105.i07)
+2. naniar package documentation, CRAN. [Link](https://cran.r-project.org/web/packages/naniar/index.html)
+3. Tierney, N.J., *Gallery of Missing Data Visualisations*. naniar vignette. [Link](https://naniar.njtierney.com/articles/naniar-visualisation.html)
+4. Little, R.J.A. & Rubin, D.B., *Statistical Analysis with Missing Data*, 3rd Edition. Wiley (2019).
+5. Rubin, D.B., *Multiple Imputation for Nonresponse in Surveys*. Wiley (1987).
+6. Wickham, H. & Grolemund, G., *R for Data Science*, 2nd Edition. O'Reilly (2023). Chapter 18: Missing Values. [Link](https://r4ds.hadley.nz/missing-values)
+7. Tierney, N.J., *The Missing Book: Exploring Missing Data*. [Link](https://tmb.njtierney.com/)
 
 ## Continue Learning
 
-- **[Missing Values in R: Detect, Count, Remove, and Impute NA](Missing-Values-in-R-Detect-Count-Remove-Impute-NA.html)** — Once you know the pattern, this tutorial covers the full toolkit: `is.na()`, `complete.cases()`, `na.omit()`, and mice imputation.
-- **[Statistical Tests in R](Statistical-Tests-in-R.html)** — Many statistical tests handle missing data differently. Learn which tests are robust to NAs and which require complete cases.
+- **[Missing Values in R: Detect, Count, Remove, and Impute NA](Missing-Values-in-R-Detect-Count-Remove-Impute-NA.html)**, Once you know the pattern, this tutorial covers the full toolkit: `is.na()`, `complete.cases()`, `na.omit()`, and mice imputation.
+- **[Statistical Tests in R](Statistical-Tests-in-R.html)**, Many statistical tests handle missing data differently. Learn which tests are robust to NAs and which require complete cases.

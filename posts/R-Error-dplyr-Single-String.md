@@ -1,5 +1,5 @@
 ---
-title: "dplyr group_by Error: 'must return a single string' — The .data[[]] Fix"
+title: "dplyr group_by Error: 'must return a single string', The .data[[]] Fix"
 slug: "R-Error-dplyr-Single-String"
 description: "The dplyr 'must return a single string' error appears when you pass a column name programmatically to group_by(). Fix it with .data[[col]] or {{ col }}."
 keywords: "dplyr group_by error, must return a single string, dplyr tidy evaluation, .data pronoun, embrace operator, dplyr programming, dplyr column variable"
@@ -14,13 +14,13 @@ fr_parent: "R-Common-Errors.html"
 difficulty: "Intermediate"
 ---
 
-# dplyr group_by Error: 'must return a single string' — The .data[[]] Fix
+# dplyr group_by Error: 'must return a single string', The .data[[]] Fix
 
-<p class="lead">The dplyr "must return a single string" error fires when you hand <code>group_by()</code> a column name stored in a variable. dplyr's tidy evaluation reads bare names as columns and strings as literal values — to group by a stored column name, wrap the variable in <code>.data[[col]]</code> (for strings) or <code>{{ col }}</code> (for bare names inside functions).</p>
+<p class="lead">The dplyr "must return a single string" error fires when you hand <code>group_by()</code> a column name stored in a variable. dplyr's tidy evaluation reads bare names as columns and strings as literal values, to group by a stored column name, wrap the variable in <code>.data[[col]]</code> (for strings) or <code>{{ col }}</code> (for bare names inside functions).</p>
 
 ## What does 'must return a single string' mean in dplyr?
 
-You hit this error the moment you try to be clever about grouping. Instead of writing `group_by(cyl)`, you store the column name in a variable and pass it in — and dplyr complains with a message about strings, lengths, or missing columns. Below is the smallest reproduction. Run it once, then we'll unpack why dplyr disagrees with what you meant.
+You hit this error the moment you try to be clever about grouping. Instead of writing `group_by(cyl)`, you store the column name in a variable and pass it in, and dplyr complains with a message about strings, lengths, or missing columns. Below is the smallest reproduction. Run it once, then we'll unpack why dplyr disagrees with what you meant.
 
 ```r
 library(dplyr)
@@ -32,10 +32,10 @@ mtcars |> group_by(my_col) |> summarise(n = n())
 #> ✖ Column `my_col` is not found.
 ```
 
-Notice what dplyr is really saying: *"I looked for a column literally named `my_col` in your data frame, and there isn't one."* It never peeked at the *value* held by `my_col` (the string `"cyl"`) — it took the expression you typed at face value. In older dplyr versions the same mistake can surface as "must return a single string" or "must be a length-one character vector," but the cause is identical.
+Notice what dplyr is really saying: *"I looked for a column literally named `my_col` in your data frame, and there isn't one."* It never peeked at the *value* held by `my_col` (the string `"cyl"`), it took the expression you typed at face value. In older dplyr versions the same mistake can surface as "must return a single string" or "must be a length-one character vector," but the cause is identical.
 
 [NOTE]
-**Exact error wording varies by dplyr version.** dplyr 1.1+ says "Column not found"; pre-1.0 versions phrase the same fault as "must return a single string." The root cause — passing a string where dplyr expects a bare column symbol — is the same, and so is the fix below.
+**Exact error wording varies by dplyr version.** dplyr 1.1+ says "Column not found"; pre-1.0 versions phrase the same fault as "must return a single string." The root cause, passing a string where dplyr expects a bare column symbol, is the same, and so is the fix below.
 
 **Try it:** Store `"gear"` in `ex_col` and reproduce the same error by passing `ex_col` to `group_by()`.
 
@@ -56,13 +56,13 @@ mtcars |> group_by(ex_col) |> summarise(n = n())
 #> ✖ Column `ex_col` is not found.
 ```
 
-**Explanation:** Same pattern, same failure — dplyr treats `ex_col` as a literal column name, not as a reference to the string `"gear"`.
+**Explanation:** Same pattern, same failure, dplyr treats `ex_col` as a literal column name, not as a reference to the string `"gear"`.
 
 </details>
 
 ## Why does dplyr treat my variable as a column name?
 
-dplyr uses **tidy evaluation** — a system that captures the expression you type, not the value it evaluates to. When you write `group_by(cyl)`, dplyr wants to see the symbol `cyl` so it can look up a column by that exact name. When you write `group_by(my_col)`, it sees the symbol `my_col` and looks for that column — never dereferencing the variable to discover it holds `"cyl"`.
+dplyr uses **tidy evaluation**, a system that captures the expression you type, not the value it evaluates to. When you write `group_by(cyl)`, dplyr wants to see the symbol `cyl` so it can look up a column by that exact name. When you write `group_by(my_col)`, it sees the symbol `my_col` and looks for that column, never dereferencing the variable to discover it holds `"cyl"`.
 
 The same trap appears with vectors of column names.
 
@@ -74,10 +74,10 @@ mtcars |> group_by(cols) |> tally()
 #> ✖ Column `cols` is not found.
 ```
 
-dplyr isn't being stubborn — it's protecting you from ambiguity. If it silently dereferenced variables, a typo or shadowed name would group your data by the wrong column and hide the bug. The explicit error is the safer choice.
+dplyr isn't being stubborn, it's protecting you from ambiguity. If it silently dereferenced variables, a typo or shadowed name would group your data by the wrong column and hide the bug. The explicit error is the safer choice.
 
 [KEY INSIGHT]
-**dplyr reads what you typed, not what your variable points to.** Bare names are column references; strings are just strings. To bridge the gap, you need an explicit unquoting tool — either `.data[[col]]` or the embrace operator `{{ col }}`. Everything else in this post is applying that one idea.
+**dplyr reads what you typed, not what your variable points to.** Bare names are column references; strings are just strings. To bridge the gap, you need an explicit unquoting tool, either `.data[[col]]` or the embrace operator `{{ col }}`. Everything else in this post is applying that one idea.
 
 **Try it:** Predict what happens if you assign `ex_valid <- "mpg"` and run `group_by(ex_valid)`. Does the error mention `mpg` or `ex_valid`?
 
@@ -97,7 +97,7 @@ mtcars |> group_by(ex_valid) |> tally()
 #> ✖ Column `ex_valid` is not found.
 ```
 
-**Explanation:** The error names `ex_valid`, not `mpg`. That confirms dplyr is looking at the literal symbol you passed — it never checks the variable's value. Even when the value would have been a real column, the lookup fails because dplyr looked for the wrong name.
+**Explanation:** The error names `ex_valid`, not `mpg`. That confirms dplyr is looking at the literal symbol you passed, it never checks the variable's value. Even when the value would have been a real column, the lookup fails because dplyr looked for the wrong name.
 
 </details>
 
@@ -119,7 +119,7 @@ mtcars |>
 #> 3     8     15.1
 ```
 
-dplyr evaluated `my_col` (getting `"cyl"`), handed the string to `.data[[ ]]`, and looked up the `cyl` column. The resulting tibble has one row per engine-cylinder group and the mean mpg for each. No magic — just an explicit string lookup where dplyr expected a bare symbol.
+dplyr evaluated `my_col` (getting `"cyl"`), handed the string to `.data[[ ]]`, and looked up the `cyl` column. The resulting tibble has one row per engine-cylinder group and the mean mpg for each. No magic, just an explicit string lookup where dplyr expected a bare symbol.
 
 [TIP]
 **Prefer .data[[col]] over !!sym(col).** Both work, but `.data[[ ]]` is clearer, avoids the `!!` (bang-bang) unquoting operator, and is the pattern the tidyverse team recommends in the dplyr programming vignette. Reserve `!!sym()` for meta-programming cases where you're assembling expressions dynamically.
@@ -176,10 +176,10 @@ group_summary(mtcars, cyl)
 #> 3     8     15.1
 ```
 
-The caller writes `cyl` with no quotes — exactly the ergonomics of built-in dplyr verbs. Inside `group_summary()`, `{{ group_col }}` unwraps that expression and hands it to `group_by()` as a bare name. If you called `group_summary(mtcars, "cyl")` instead, the embrace would forward the string and you'd be back to the original error.
+The caller writes `cyl` with no quotes, exactly the ergonomics of built-in dplyr verbs. Inside `group_summary()`, `{{ group_col }}` unwraps that expression and hands it to `group_by()` as a bare name. If you called `group_summary(mtcars, "cyl")` instead, the embrace would forward the string and you'd be back to the original error.
 
 [NOTE]
-**`{{ }}` needs a bare name; `.data[[ ]]` needs a string.** That's the whole decision. Your function's signature dictates which one you reach for. Mixing them in the same function is fine — support both by letting one argument be a bare column and another be a string of column names.
+**`{{ }}` needs a bare name; `.data[[ ]]` needs a string.** That's the whole decision. Your function's signature dictates which one you reach for. Mixing them in the same function is fine, support both by letting one argument be a bare column and another be a string of column names.
 
 **Try it:** Write `ex_median_summary(df, group_col)` that groups by a bare column and returns the **median** of `mpg` per group. Test it on `mtcars` with `cyl`.
 
@@ -285,7 +285,7 @@ mtcars |>
 
 ## What other dplyr verbs need .data[[]]?
 
-The same pattern applies everywhere in dplyr, not just `group_by()`. Any verb that takes a column reference — `filter()`, `arrange()`, `mutate()`, `summarise()`, `select()`, `pull()` — accepts `.data[[col]]` when you're holding the column name as a string.
+The same pattern applies everywhere in dplyr, not just `group_by()`. Any verb that takes a column reference, `filter()`, `arrange()`, `mutate()`, `summarise()`, `select()`, `pull()`, accepts `.data[[col]]` when you're holding the column name as a string.
 
 ```r
 my_col <- "hp"
@@ -309,10 +309,10 @@ mtcars |>
 #> Datsun 710               186
 ```
 
-Three things to notice. First, the `.data[[my_col]]` idiom is identical across all three verbs — one pattern to learn, everywhere it applies. Second, in `mutate()` the *output* column name also comes from `my_col`, built with the walrus operator `:=` and glue-style string interpolation (`"double_{my_col}"`). Third, nothing stops you from mixing `.data[[]]` with bare column names in the same expression — `filter()` and `mutate()` happily accept both.
+Three things to notice. First, the `.data[[my_col]]` idiom is identical across all three verbs, one pattern to learn, everywhere it applies. Second, in `mutate()` the *output* column name also comes from `my_col`, built with the walrus operator `:=` and glue-style string interpolation (`"double_{my_col}"`). Third, nothing stops you from mixing `.data[[]]` with bare column names in the same expression, `filter()` and `mutate()` happily accept both.
 
 [WARNING]
-**Don't write `my_col` and `.data[[my_col]]` in the same expression by accident.** If you forget the wrapper on one of several references, dplyr will look for a literal `my_col` column and throw the original error again — but only on the unwrapped reference, which makes the failure harder to spot in a long pipeline. Wrap every reference, or wrap none.
+**Don't write `my_col` and `.data[[my_col]]` in the same expression by accident.** If you forget the wrapper on one of several references, dplyr will look for a literal `my_col` column and throw the original error again, but only on the unwrapped reference, which makes the failure harder to spot in a long pipeline. Wrap every reference, or wrap none.
 
 **Try it:** Using `ex_col <- "wt"`, filter `mtcars` to rows where `wt > 3`, then arrange by descending `wt`. Use `.data[[ex_col]]` throughout.
 
@@ -337,7 +337,7 @@ mtcars |>
 #> Cadillac Fleetwood   10.4   8 472.0 205 2.93 5.250 17.98  0  0    3    4
 ```
 
-**Explanation:** The same `.data[[ex_col]]` wrapper works in both `filter()` and `arrange()`. Every reference to the variable column needs the wrapper — mixing bare `ex_col` with `.data[[ex_col]]` would break the pipeline.
+**Explanation:** The same `.data[[ex_col]]` wrapper works in both `filter()` and `arrange()`. Every reference to the variable column needs the wrapper, mixing bare `ex_col` with `.data[[ex_col]]` would break the pipeline.
 
 </details>
 
@@ -443,7 +443,7 @@ flex_group_summary(mtcars, "cyl")
 
 ## Complete Example
 
-Putting everything together: a config-driven summary function that reads a vector of grouping columns and a single metric column — all as strings — and returns the grouped mean. This is the shape real pipelines take when column choices come from a YAML config, a Shiny input, or a loop over many metrics.
+Putting everything together: a config-driven summary function that reads a vector of grouping columns and a single metric column, all as strings, and returns the grouped mean. This is the shape real pipelines take when column choices come from a YAML config, a Shiny input, or a loop over many metrics.
 
 ```r
 config_cols <- c("cyl", "am")
@@ -470,7 +470,7 @@ print(final_summary)
 #> 6     8     1     2        15.4     0.566
 ```
 
-Two idioms do the work. `across(all_of(config_cols))` expands the string vector into real grouping columns, and `.data[[metric_col]]` lets the summary expressions reach for the metric column by string. Swap `config_cols` for any other vector of column names and the pipeline keeps working — that's the payoff of learning these two patterns.
+Two idioms do the work. `across(all_of(config_cols))` expands the string vector into real grouping columns, and `.data[[metric_col]]` lets the summary expressions reach for the metric column by string. Swap `config_cols` for any other vector of column names and the pipeline keeps working, that's the payoff of learning these two patterns.
 
 ## Summary
 
@@ -482,18 +482,18 @@ Two idioms do the work. `across(all_of(config_cols))` expands the string vector 
 | Same pattern in other verbs | Works in `filter`, `arrange`, `mutate`, `summarise`, `select`, `pull` | `filter(.data[[col]] > 0)` |
 | Output column name from a string | `"{var}" := value` | `mutate("mean_{col}" := mean(.data[[col]]))` |
 
-Any dplyr error that mentions "must return a single string," "Column not found," or "must be a length-one character vector" when you passed a column-name variable is the same problem with a different shirt on — and the patterns above are the fix.
+Any dplyr error that mentions "must return a single string," "Column not found," or "must be a length-one character vector" when you passed a column-name variable is the same problem with a different shirt on, and the patterns above are the fix.
 
 ## References
 
-1. dplyr — *Programming with dplyr* vignette. [Link](https://dplyr.tidyverse.org/articles/programming.html)
-2. rlang — `.data` pronoun reference. [Link](https://rlang.r-lib.org/reference/dot-data.html)
-3. tidyselect — `all_of()` and `any_of()` reference. [Link](https://tidyselect.r-lib.org/reference/all_of.html)
-4. Wickham, H. — *Advanced R*, 2nd Edition, Chapter 19: Quasiquotation. [Link](https://adv-r.hadley.nz/quasiquotation.html)
-5. tidyverse blog — "dplyr 0.7.0" (introduction of tidy evaluation). [Link](https://www.tidyverse.org/blog/2017/06/dplyr-0-7-0/)
+1. dplyr, *Programming with dplyr* vignette. [Link](https://dplyr.tidyverse.org/articles/programming.html)
+2. rlang, `.data` pronoun reference. [Link](https://rlang.r-lib.org/reference/dot-data.html)
+3. tidyselect, `all_of()` and `any_of()` reference. [Link](https://tidyselect.r-lib.org/reference/all_of.html)
+4. Wickham, H., *Advanced R*, 2nd Edition, Chapter 19: Quasiquotation. [Link](https://adv-r.hadley.nz/quasiquotation.html)
+5. tidyverse blog, "dplyr 0.7.0" (introduction of tidy evaluation). [Link](https://www.tidyverse.org/blog/2017/06/dplyr-0-7-0/)
 
 ## Continue Learning
 
-1. **[50 R Errors Decoded: Plain-English Explanations and Exact Fixes](R-Common-Errors.html)** — the parent index of every common R error, with one-line diagnoses and links to focused fixes like this one.
-2. **[dplyr Basics: group_by and summarise](dplyr-group-by-summarise.html)** — the everyday, non-programmatic use of grouping before you need the `.data[[]]` pattern.
-3. **[Writing Functions in R](R-Functions.html)** — how argument passing, environments, and lazy evaluation shape R function design, including the ideas that make `{{ }}` possible.
+1. **[50 R Errors Decoded: Plain-English Explanations and Exact Fixes](R-Common-Errors.html)**, the parent index of every common R error, with one-line diagnoses and links to focused fixes like this one.
+2. **[dplyr Basics: group_by and summarise](dplyr-group-by-summarise.html)**, the everyday, non-programmatic use of grouping before you need the `.data[[]]` pattern.
+3. **[Writing Functions in R](R-Functions.html)**, how argument passing, environments, and lazy evaluation shape R function design, including the ideas that make `{{ }}` possible.

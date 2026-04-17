@@ -22,7 +22,7 @@ difficulty: "Intermediate"
 
 ## What is tidy data and why does it matter?
 
-The same facts can be stored in dozens of different table shapes. Most are awkward to work with. "Tidy data" is the specific shape Hadley Wickham proposed in his 2014 JSS paper that makes analysis predictable. The payoff is immediate — the same plot takes one line instead of a struggle. Let's see it on a small made-up dataset of sales by quarter and store.
+The same facts can be stored in dozens of different table shapes. Most are awkward to work with. "Tidy data" is the specific shape Hadley Wickham proposed in his 2014 JSS paper that makes analysis predictable. The payoff is immediate, the same plot takes one line instead of a struggle. Let's see it on a small made-up dataset of sales by quarter and store.
 
 ```r
 library(tidyr); library(dplyr); library(ggplot2)
@@ -76,7 +76,7 @@ The messy version cannot be plotted without reshaping. That is the core problem 
 ![The three rules of tidy data](screenshots/Tidy-Data-in-R-three-rules.webp)
 *Figure 1: Three rules, one purpose. Every tidyverse function expects this shape and rewards you when you provide it.*
 
-> **[KEY INSIGHT]** Untidy data is not "wrong" — it is often what humans produce because it is compact. But analysis tools prefer the tidy shape, so you spend roughly the first 30% of every project moving data toward it.
+> **[KEY INSIGHT]** Untidy data is not "wrong", it is often what humans produce because it is compact. But analysis tools prefer the tidy shape, so you spend roughly the first 30% of every project moving data toward it.
 
 **Try it:** Which of the three tables below is tidy?
 
@@ -104,7 +104,7 @@ b
 #> 4 Bilal science    79
 ```
 
-Table `b` is tidy: each row is one student-subject observation, each column is one variable (`name`, `subject`, `grade`). Table `a` hides the `subject` variable in column headers, and table `c` hides the `student` variable in headers — both would need a `pivot_longer()` before dplyr or ggplot would cooperate.
+Table `b` is tidy: each row is one student-subject observation, each column is one variable (`name`, `subject`, `grade`). Table `a` hides the `subject` variable in column headers, and table `c` hides the `student` variable in headers, both would need a `pivot_longer()` before dplyr or ggplot would cooperate.
 </details>
 
 ## What are the three rules of tidy data?
@@ -115,7 +115,7 @@ Wickham's original paper states them in one sentence each:
 2. **Each observation forms a row.** An observation is a single instance of the thing you are studying.
 3. **Each type of observational unit forms a table.** Don't mix two kinds of things (say, people and purchases) into one table.
 
-The first two do most of the work. The third one matters mainly when your dataset has several levels — customers who place orders, teachers who teach classes, countries that report population by year. Mixing levels in one table leads to duplicated data and update anomalies.
+The first two do most of the work. The third one matters mainly when your dataset has several levels, customers who place orders, teachers who teach classes, countries that report population by year. Mixing levels in one table leads to duplicated data and update anomalies.
 
 ```r
 library(tibble)
@@ -135,9 +135,9 @@ grades
 #> ...
 ```
 
-Each row is one observation (a student's score in one subject). Each column is one variable (student, subject, score). The table contains only grades — no teacher info, no school info, no class schedule.
+Each row is one observation (a student's score in one subject). Each column is one variable (student, subject, score). The table contains only grades, no teacher info, no school info, no class schedule.
 
-When you need to add more variables — say, the teacher for each subject — the tidy answer is a **second** table:
+When you need to add more variables, say, the teacher for each subject, the tidy answer is a **second** table:
 
 ```r
 teachers <- tibble(
@@ -157,7 +157,7 @@ grades |> left_join(teachers, by = "subject")
 
 Two small tables with a join is the tidy alternative to one big redundant table. It avoids the "if Mr. Singh changes name I need to update 50 rows" problem.
 
-> **[NOTE]** In database terms, rules 1 and 2 match first normal form (1NF), and rule 3 matches third normal form (3NF). Tidy data is not new theory — it is relational design wearing a friendlier name.
+> **[NOTE]** In database terms, rules 1 and 2 match first normal form (1NF), and rule 3 matches third normal form (3NF). Tidy data is not new theory, it is relational design wearing a friendlier name.
 
 **Try it:** Name the variables and observation types in this dataset. What would the tidy version look like?
 
@@ -199,12 +199,12 @@ raw |>
 #> 3 Mr. Singh math    cleo       95
 ```
 
-The hidden variables are `student` (buried in column names like `asha_score`) and `score`. Two observation types are also mixed — teachers-for-subjects and students-for-subjects — so a fully tidy version would split into a `teachers` table (subject, teacher) and a `grades` table (student, subject, score) joined on `subject`.
+The hidden variables are `student` (buried in column names like `asha_score`) and `score`. Two observation types are also mixed, teachers-for-subjects and students-for-subjects, so a fully tidy version would split into a `teachers` table (subject, teacher) and a `grades` table (student, subject, score) joined on `subject`.
 </details>
 
 ## How do you spot values hiding in column headers?
 
-This is the most common untidy pattern. Column names should be **variable names**, not **variable values**. If your columns are named `2020`, `2021`, `2022`, then "year" is a variable and those numbers are its values — they should be rows, not headers.
+This is the most common untidy pattern. Column names should be **variable names**, not **variable values**. If your columns are named `2020`, `2021`, `2022`, then "year" is a variable and those numbers are its values, they should be rows, not headers.
 
 ```r
 library(tidyr); library(tibble)
@@ -279,12 +279,12 @@ expenses |>
 #> ...
 ```
 
-`cols = -category` tells `pivot_longer()` to gather every column except `category`, turning `Jan`, `Feb`, `Mar` into values of a new `month` column. One observation — "one category in one month" — now lives on one row, so `group_by(month)` and `ggplot(aes(month, amount))` become one-liners.
+`cols = -category` tells `pivot_longer()` to gather every column except `category`, turning `Jan`, `Feb`, `Mar` into values of a new `month` column. One observation, "one category in one month", now lives on one row, so `group_by(month)` and `ggplot(aes(month, amount))` become one-liners.
 </details>
 
 ## What about multiple variables crammed into one column?
 
-Sometimes a single column carries two variables glued together. `male_2020`, `female_2020`, `male_2021`, `female_2021` — the column name encodes both sex and year. The fix is to pivot and split at the same time.
+Sometimes a single column carries two variables glued together. `male_2020`, `female_2020`, `male_2021`, `female_2021`, the column name encodes both sex and year. The fix is to pivot and split at the same time.
 
 ```r
 library(tidyr); library(tibble)
@@ -318,7 +318,7 @@ cases |>
 Giving `names_to` a vector of two names and providing `names_sep` splits the header into two columns during the pivot. No second step needed.
 
 ![Common untidy data problems and the fix for each](screenshots/Tidy-Data-in-R-common-problems.webp)
-*Figure 2: The four most common untidy patterns and the tidyr function that fixes each. Memorize this table — it covers 95% of real cleanup jobs.*
+*Figure 2: The four most common untidy patterns and the tidyr function that fixes each. Memorize this table, it covers 95% of real cleanup jobs.*
 
 The other side of the same problem is a value column that mashes two things together. Think a `name` column with entries like `"Asha (Math)"` or a `range` column with `"18-24"`. The fix is `separate` (or `tidyr::extract` with a regex):
 
@@ -366,7 +366,7 @@ tbl |>
 #> 3  2025 A           15
 ```
 
-`separate()` splits on the first `-` and drops the two resulting pieces into the named columns — `year` starts out as character because the source was character, so the `mutate()` upgrades it to integer. In modern tidyr (≥ 1.3) `separate_wider_delim(code, delim = "-", names = c("year","category"))` does the same job with a more explicit name.
+`separate()` splits on the first `-` and drops the two resulting pieces into the named columns, `year` starts out as character because the source was character, so the `mutate()` upgrades it to integer. In modern tidyr (≥ 1.3) `separate_wider_delim(code, delim = "-", names = c("year","category"))` does the same job with a more explicit name.
 </details>
 
 ## How do you handle variables split across columns?
@@ -400,7 +400,7 @@ temps |>
 #> 2 Berlin    -4    28
 ```
 
-Wait — did we just go from long to wide? Is that not the opposite of tidy? Here is the subtle point. In the long version, every row holds **half** of an observation (just min, or just max). A single "temperature profile of a city" observation is split across two rows. The tidy shape is one row per city with min and max as separate columns — because `min` and `max` are **two different variables**, not two values of the same variable.
+Wait, did we just go from long to wide? Is that not the opposite of tidy? Here is the subtle point. In the long version, every row holds **half** of an observation (just min, or just max). A single "temperature profile of a city" observation is split across two rows. The tidy shape is one row per city with min and max as separate columns, because `min` and `max` are **two different variables**, not two values of the same variable.
 
 > **[KEY INSIGHT]** Wide is not always messy, and long is not always tidy. The question is: "what counts as one observation?" If min and max describe different things, they belong in separate columns. If they are two values of the same quantity (like Q1, Q2 sales), they belong in rows.
 
@@ -439,7 +439,7 @@ Not tidy: a single patient's measurements are spread across two rows, so "one ro
 
 ## When should one table become two (or more)?
 
-Rule 3 — one observation type per table — is the one most people skip. Consider a table that lists orders but also repeats the customer's name, email, and address on every row. If a customer has 10 orders, their name appears 10 times. Update one, forget the others, and your data is inconsistent.
+Rule 3, one observation type per table, is the one most people skip. Consider a table that lists orders but also repeats the customer's name, email, and address on every row. If a customer has 10 orders, their name appears 10 times. Update one, forget the others, and your data is inconsistent.
 
 The tidy answer is **two tables**: one for customers, one for orders, linked by an ID.
 
@@ -490,11 +490,11 @@ orders
 #> 4      104           3     60
 ```
 
-Now changing a customer's email means editing one row in one table. When you need the combined view for a report, join them on `customer_id`. This is exactly how relational databases store data — and for the same reasons.
+Now changing a customer's email means editing one row in one table. When you need the combined view for a report, join them on `customer_id`. This is exactly how relational databases store data, and for the same reasons.
 
 > **[NOTE]** In a small ad-hoc script you can get away with the one-big-table form. In a pipeline that will run for a year, split the tables. The cost is two minutes of refactoring; the benefit is never debugging an email-update bug.
 
-**Try it:** Split this mixed table into two tidy tables — products and sales.
+**Try it:** Split this mixed table into two tidy tables, products and sales.
 
 ```r
 library(tibble)
@@ -537,7 +537,7 @@ sales
 #> 4       4 Tablet     3
 ```
 
-`distinct(product, price)` pulls the unique product/price pairs into the products table, and `select()` drops the redundant `price` column from sales. Change a price later and you update one row in `products` instead of hunting down every sale — join on `product` when you need the combined view.
+`distinct(product, price)` pulls the unique product/price pairs into the products table, and `select()` drops the redundant `price` column from sales. Change a price later and you update one row in `products` instead of hunting down every sale, join on `product` when you need the combined view.
 </details>
 
 ## How does tidy data make dplyr and ggplot "just work"?
@@ -617,7 +617,7 @@ grades |>
 #> 4 Daan     65
 ```
 
-`group_by(student)` tags each row with its group, `summarise()` collapses each group to a single row with the mean, and `arrange(desc(avg))` sorts by the computed column. This pipeline reads left-to-right exactly like English because the data is tidy — each student already has their own set of rows to aggregate.
+`group_by(student)` tags each row with its group, `summarise()` collapses each group to a single row with the mean, and `arrange(desc(avg))` sorts by the computed column. This pipeline reads left-to-right exactly like English because the data is tidy, each student already has their own set of rows to aggregate.
 </details>
 
 ## Practice Exercises
@@ -764,14 +764,14 @@ Four practical takeaways:
 
 ## References
 
-- [Hadley Wickham, *Tidy Data*, JSS 2014](https://www.jstatsoft.org/article/view/v059i10) — the original paper.
-- [R for Data Science, 2e — Data Tidying chapter](https://r4ds.hadley.nz/data-tidy.html)
+- [Hadley Wickham, *Tidy Data*, JSS 2014](https://www.jstatsoft.org/article/view/v059i10), the original paper.
+- [R for Data Science, 2e, Data Tidying chapter](https://r4ds.hadley.nz/data-tidy.html)
 - [tidyr package reference](https://tidyr.tidyverse.org/)
 - [Vignette: Tidy Data](https://cran.r-project.org/web/packages/tidyr/vignettes/tidy-data.html)
 - [tidyverse design principles](https://design.tidyverse.org/)
 
 ## Continue Learning
 
-- [pivot_longer() and pivot_wider()](pivot_longer-pivot_wider-Reshape-Data-in-R.html) — the two functions that fix 90% of untidy data.
-- [dplyr filter() and select()](dplyr-filter-select.html) — the row/column basics that reward tidy input.
-- [R Joins With Visual Diagrams](R-Joins.html) — join the tables that rule 3 forced you to split.
+- [pivot_longer() and pivot_wider()](pivot_longer-pivot_wider-Reshape-Data-in-R.html), the two functions that fix 90% of untidy data.
+- [dplyr filter() and select()](dplyr-filter-select.html), the row/column basics that reward tidy input.
+- [R Joins With Visual Diagrams](R-Joins.html), join the tables that rule 3 forced you to split.

@@ -20,7 +20,7 @@ difficulty: "Intermediate"
 
 ## Why does "Proficient in R" fail to get you interviews?
 
-Applicant tracking systems match resumes to job descriptions on exact strings. "Proficient in R" is a string almost no posting contains — postings ask for `dplyr`, `ggplot2`, `Shiny`, `tidymodels`. Hiring managers do the same on the human side: vague claims get skimmed, specific ones get questioned in interviews. The fix is a single-line rewrite. Run the block below to see the before-and-after on a real resume line.
+Applicant tracking systems match resumes to job descriptions on exact strings. "Proficient in R" is a string almost no posting contains, postings ask for `dplyr`, `ggplot2`, `Shiny`, `tidymodels`. Hiring managers do the same on the human side: vague claims get skimmed, specific ones get questioned in interviews. The fix is a single-line rewrite. Run the block below to see the before-and-after on a real resume line.
 
 ```r
 # A vague R skills line vs a specific, ATS-friendly one
@@ -104,7 +104,7 @@ skills_df
 #> 5 Reporting & apps quarto, rmarkdown, shiny, plumber      Reproducible reporting (Quarto, Shiny)
 ```
 
-Each row carries three things you need on the resume: a category label a recruiter recognizes, the specific package keywords an ATS will match, and a ready-made `resume_phrase` that combines both. The `resume_phrase` column is what you actually paste into your skills section — short enough to scan, dense enough to score against a job description.
+Each row carries three things you need on the resume: a category label a recruiter recognizes, the specific package keywords an ATS will match, and a ready-made `resume_phrase` that combines both. The `resume_phrase` column is what you actually paste into your skills section, short enough to scan, dense enough to score against a job description.
 
 [TIP]
 **Pick 2-3 categories that match the target role and cap total packages at 12.** Listing five categories with three packages each gives 15 keywords, which is the upper bound recruiters can mentally hold. More than that and the entire section reads as noise.
@@ -141,7 +141,7 @@ ex_keep
 
 ## How do you prove each R skill claim?
 
-A claim with no proof is treated like no claim at all. Every R skill on your resume should be backed by an artifact a hiring manager can click — a GitHub repo, a deployed app, a published package, a blog post. The figure below shows how a specific claim becomes an interview only when it carries a proof artifact.
+A claim with no proof is treated like no claim at all. Every R skill on your resume should be backed by an artifact a hiring manager can click, a GitHub repo, a deployed app, a published package, a blog post. The figure below shows how a specific claim becomes an interview only when it carries a proof artifact.
 
 ![A specific skill claim only becomes an interview when it carries a proof artifact.](screenshots/R-Resume-Skills-claim-proof-flow.webp)
 *Figure 2: A specific skill claim only becomes an interview when it carries a proof artifact.*
@@ -174,10 +174,10 @@ proof_df |>
 #> 7 Certification               Low        Medium
 ```
 
-The arrangement reveals an obvious sweet spot. A GitHub repo of 3-5 polished projects sits at medium time cost and high impact — the best return on the hour you have. A CRAN package is the highest possible signal but takes weeks of work; a certification is the easiest win but the weakest signal on its own. Stack two or three medium-cost proofs and you outperform a single low-cost certification by a large margin.
+The arrangement reveals an obvious sweet spot. A GitHub repo of 3-5 polished projects sits at medium time cost and high impact, the best return on the hour you have. A CRAN package is the highest possible signal but takes weeks of work; a certification is the easiest win but the weakest signal on its own. Stack two or three medium-cost proofs and you outperform a single low-cost certification by a large margin.
 
 [KEY INSIGHT]
-**One deployed Shiny app or CRAN package outweighs ten line items of vague claims.** Hiring managers use proofs as a forcing function — they assume you can do whatever your portfolio actually demonstrates and discount everything else. Build one undeniable artifact before you polish your skill list.
+**One deployed Shiny app or CRAN package outweighs ten line items of vague claims.** Hiring managers use proofs as a forcing function, they assume you can do whatever your portfolio actually demonstrates and discount everything else. Build one undeniable artifact before you polish your skill list.
 
 **Try it:** Filter `proof_df` to just the rows where `time_cost == "Medium"`.
 
@@ -212,7 +212,7 @@ ex_medium
 
 ## Which R skills should you emphasize for each role?
 
-The same R toolkit looks different on a Data Analyst resume than on an R Engineer resume. Tailoring matters because ATS filters are configured per posting — a single resume sent to four different roles will fail four different keyword tests. Encode the must-have map once and you can generate four tailored versions in seconds.
+The same R toolkit looks different on a Data Analyst resume than on an R Engineer resume. Tailoring matters because ATS filters are configured per posting, a single resume sent to four different roles will fail four different keyword tests. Encode the must-have map once and you can generate four tailored versions in seconds.
 
 ```r
 roles_df <- tribble(
@@ -229,7 +229,7 @@ roles_df |>
 #> [1] "lme4, survival, pharmaverse (admiral, rtables)"
 ```
 
-The single string returned by `pull()` is exactly what you'd paste into the skills section of a biostatistics-targeted resume. The same operation on `"R engineer"` returns a completely different package list — and that's the point. One source of truth, four output strings, zero copy-paste errors.
+The single string returned by `pull()` is exactly what you'd paste into the skills section of a biostatistics-targeted resume. The same operation on `"R engineer"` returns a completely different package list, and that's the point. One source of truth, four output strings, zero copy-paste errors.
 
 [WARNING]
 **Listing every R package you've ever touched signals padding, not breadth.** Senior reviewers know nobody is genuinely fluent in 30 packages. A list of 30 says you can't tell which 10 actually matter for the job, which is itself a disqualifying signal.
@@ -264,7 +264,7 @@ ex_da
 
 ## Which R resume mistakes silently kill applications?
 
-Some mistakes lose you the interview without anyone telling you why — the resume just disappears. Knowing the top mistakes and their fixes is cheaper than figuring them out across six rejections. Encode them as a ranked table.
+Some mistakes lose you the interview without anyone telling you why, the resume just disappears. Knowing the top mistakes and their fixes is cheaper than figuring them out across six rejections. Encode them as a ranked table.
 
 ```r
 mistakes_df <- tribble(
@@ -323,7 +323,7 @@ ex_counts
 #> 3 Low          1
 ```
 
-**Explanation:** Half the most common mistakes are High severity — a reminder that the small mistakes are not what's killing applications. The vague-skills problem is.
+**Explanation:** Half the most common mistakes are High severity, a reminder that the small mistakes are not what's killing applications. The vague-skills problem is.
 
 </details>
 
@@ -373,7 +373,7 @@ ds_line
 
 ### Exercise 2: Build a complete TECHNICAL SKILLS block from input vectors
 
-Use `glue()` (or `paste()`) to build a four-line `TECHNICAL SKILLS` block from these inputs: `languages = c("R (4 yrs)", "Python (2 yrs)", "SQL (3 yrs)")`, `r_packages = c("tidyverse", "ggplot2", "Shiny", "tidymodels", "data.table")`, `tools = c("RStudio", "Git", "Docker", "PostgreSQL")`, `methods = c("regression", "mixed models", "A/B testing")`. Output should look like the format below — each line aligned by label.
+Use `glue()` (or `paste()`) to build a four-line `TECHNICAL SKILLS` block from these inputs: `languages = c("R (4 yrs)", "Python (2 yrs)", "SQL (3 yrs)")`, `r_packages = c("tidyverse", "ggplot2", "Shiny", "tidymodels", "data.table")`, `tools = c("RStudio", "Git", "Docker", "PostgreSQL")`, `methods = c("regression", "mixed models", "A/B testing")`. Output should look like the format below, each line aligned by label.
 
 ```r
 # Exercise 2: build a 4-line TECHNICAL SKILLS block
@@ -469,13 +469,13 @@ score
 #> [1] 44.4
 ```
 
-**Explanation:** Weighting by impact lets a single CRAN package contribute more than three certifications. The score gives you a one-number signal of where to invest your next portfolio hour — anything under 50 means start with a GitHub repo or a deployed Shiny app.
+**Explanation:** Weighting by impact lets a single CRAN package contribute more than three certifications. The score gives you a one-number signal of where to invest your next portfolio hour, anything under 50 means start with a GitHub repo or a deployed Shiny app.
 
 </details>
 
 ## Complete Example: Building a tailored R skills section in code
 
-Tying it all together: take your personal skill inventory, filter to the must-haves for one target role, format with `glue()`, and emit a complete resume-ready block. The same pipeline produces a different output for any role — change one line and rebuild.
+Tying it all together: take your personal skill inventory, filter to the must-haves for one target role, format with `glue()`, and emit a complete resume-ready block. The same pipeline produces a different output for any role, change one line and rebuild.
 
 ```r
 library(glue)
@@ -508,30 +508,30 @@ cat("R PROGRAMMING\n", final_block, "\n", sep = "")
 That output drops straight into a resume's R Programming subsection. To re-target the same source data for an R Engineer role, swap `ds_categories` for a different vector and re-run. The skill list stays in one tibble; the formatted output regenerates from data each time, so a typo fix touches one cell instead of three resume files.
 
 [TIP]
-**Generate the resume block from data, then paste — that way edits stay one-file changes.** Most "I have three slightly different resumes" pain comes from copy-pasted text drifting out of sync. A short R script kills the drift problem permanently.
+**Generate the resume block from data, then paste, that way edits stay one-file changes.** Most "I have three slightly different resumes" pain comes from copy-pasted text drifting out of sync. A short R script kills the drift problem permanently.
 
 ## Summary
 
 - **Specificity beats fluency claims.** ATS filters and human reviewers both want package names, not "proficient in R".
 - **Five categories, twelve packages.** Wrangling, Visualization, Statistics, Machine learning, and Reporting & apps cover ~95% of postings. Cap total packages at 12.
 - **Every claim needs a proof artifact.** GitHub repos sit at the medium-cost / high-impact sweet spot; one deployed Shiny app outweighs ten certifications.
-- **Tailor per role.** Data Analyst, Biostatistician, Data Scientist, and R Engineer postings filter on different keyword sets — encode the role map once and regenerate.
+- **Tailor per role.** Data Analyst, Biostatistician, Data Scientist, and R Engineer postings filter on different keyword sets, encode the role map once and regenerate.
 - **The three high-severity mistakes are all specificity failures.** Listing only "R", claims without proof, and skills that don't match the JD are the silent killers.
 - **Generate from data, not templates.** A 20-line R script produces a tailored skills block per role with zero copy-paste drift.
 
 ## References
 
-1. Wickham, H. & Çetinkaya-Rundel, M. — *R for Data Science*, 2nd ed. (2023). [Link](https://r4ds.hadley.nz/)
-2. CRAN Task Views — curated package categories by topic. [Link](https://cran.r-project.org/web/views/)
-3. Posit (RStudio) — R in industry resources. [Link](https://posit.co/)
-4. Resume Worded — Data Scientist resume examples (2026). [Link](https://resumeworded.com/data-scientist-resume-examples)
-5. Enhancv — Data Scientist resume examples and guide (2026). [Link](https://enhancv.com/resume-examples/data-scientist/)
-6. BeamJobs — Data Scientist resume guide (2026). [Link](https://www.beamjobs.com/resumes/data-science-resume-example-guide)
-7. ResumeAdapter — Data Scientist resume keywords (2026). [Link](https://www.resumeadapter.com/blog/data-scientist-resume-keywords)
-8. VisualCV — How to list R on a resume. [Link](https://www.visualcv.com/r-on-resume/)
+1. Wickham, H. & Çetinkaya-Rundel, M., *R for Data Science*, 2nd ed. (2023). [Link](https://r4ds.hadley.nz/)
+2. CRAN Task Views, curated package categories by topic. [Link](https://cran.r-project.org/web/views/)
+3. Posit (RStudio), R in industry resources. [Link](https://posit.co/)
+4. Resume Worded, Data Scientist resume examples (2026). [Link](https://resumeworded.com/data-scientist-resume-examples)
+5. Enhancv, Data Scientist resume examples and guide (2026). [Link](https://enhancv.com/resume-examples/data-scientist/)
+6. BeamJobs, Data Scientist resume guide (2026). [Link](https://www.beamjobs.com/resumes/data-science-resume-example-guide)
+7. ResumeAdapter, Data Scientist resume keywords (2026). [Link](https://www.resumeadapter.com/blog/data-scientist-resume-keywords)
+8. VisualCV, How to list R on a resume. [Link](https://www.visualcv.com/r-on-resume/)
 
 ## Continue Learning
 
-- [R Interview Questions](/R-Interview-Questions.html) — 50 questions to prepare for R interviews
-- [R Data Scientist Career](/R-Data-Scientist-Career.html) — Roles, salaries, and career progression
-- [R Certifications Guide](/R-Certifications-Guide.html) — Which R certifications carry the most weight
+- [R Interview Questions](/R-Interview-Questions.html), 50 questions to prepare for R interviews
+- [R Data Scientist Career](/R-Data-Scientist-Career.html), Roles, salaries, and career progression
+- [R Certifications Guide](/R-Certifications-Guide.html), Which R certifications carry the most weight

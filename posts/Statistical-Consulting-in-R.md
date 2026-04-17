@@ -29,7 +29,7 @@ Statistical consulting is not the same as running a t-test or fitting a regressi
 
 Every consulting engagement follows a predictable arc. The client has a question. You translate that question into something testable. You check whether the data can answer it. You run the analysis. Then you write a report that changes a decision. Miss any step, and you waste time or deliver the wrong answer.
 
-This tutorial teaches a five-step framework called PPDAC that keeps every consulting project on track. You will build R functions that structure each step, from translating vague questions into testable hypotheses to generating report skeletons your clients can actually read. Every code block runs in your browser. Click Run on the first block, then work top to bottom — variables carry over between blocks like a notebook.
+This tutorial teaches a five-step framework called PPDAC that keeps every consulting project on track. You will build R functions that structure each step, from translating vague questions into testable hypotheses to generating report skeletons your clients can actually read. Every code block runs in your browser. Click Run on the first block, then work top to bottom, variables carry over between blocks like a notebook.
 
 We use base R throughout. No external packages are needed.
 
@@ -40,8 +40,8 @@ PPDAC stands for Problem, Plan, Data, Analysis, and Conclusion. It was introduce
 
 The key insight is that PPDAC is a cycle, not a checklist. You will revisit earlier stages as you learn more. A data quality issue discovered during Analysis sends you back to Data. A surprising result in Conclusion sends you back to Problem to ask whether you framed the question correctly.
 
-![The PPDAC cycle: Problem, Plan, Data, Analysis, Conclusion — and back again.](screenshots/Statistical-Consulting-in-R-ppdac-cycle.webp)
-*Figure 1: The PPDAC cycle: Problem, Plan, Data, Analysis, Conclusion — and back again.*
+![The PPDAC cycle: Problem, Plan, Data, Analysis, Conclusion, and back again.](screenshots/Statistical-Consulting-in-R-ppdac-cycle.webp)
+*Figure 1: The PPDAC cycle: Problem, Plan, Data, Analysis, Conclusion, and back again.*
 
 Let's build a structured PPDAC template in R. This function creates a consulting project as a named list, so every project you take on follows the same format.
 
@@ -323,7 +323,7 @@ The "out of scope" field is the most important line. It sets a boundary. When th
 *Figure 2: Six steps to scope a consulting project before writing any code.*
 
 [WARNING]
-**Scope creep is the number one killer of consulting projects.** It happens gradually — one extra analysis here, one additional variable there. Always document what is out of scope, and treat any addition as a scope change that requires a new agreement.
+**Scope creep is the number one killer of consulting projects.** It happens gradually, one extra analysis here, one additional variable there. Always document what is out of scope, and treat any addition as a scope change that requires a new agreement.
 
 **Try it:** Add a "risks" field to the scope template by modifying `scope_analysis()`. Include at least two risks for the employee satisfaction project.
 
@@ -467,7 +467,7 @@ expectation_summary(
 #>   Control for temperature and season before drawing conclusions.
 ```
 
-This function forces you to communicate both sides of every result. The client sees what the data shows and what it cannot prove. This is not hedging — it is honest consulting. The "cannot tell us" section protects you and educates the client at the same time.
+This function forces you to communicate both sides of every result. The client sees what the data shows and what it cannot prove. This is not hedging, it is honest consulting. The "cannot tell us" section protects you and educates the client at the same time.
 
 [KEY INSIGHT]
 **Always present what the data says AND what it cannot say.** Clients remember the limitations you warned them about. They forget the ones you skipped. A consultant who says "The correlation is significant, but it disappears when we control for temperature" builds more trust than one who says "It's significant."
@@ -964,7 +964,7 @@ This complete example shows the full pipeline. Every stage references the previo
 | Analysis | Fit model and interpret with caveats | `lm()`, `cor()`, `t.test()` |
 | Conclusion | Generate plain-English report with limitations | `generate_report_skeleton()` |
 
-The PPDAC cycle ensures you answer the right question, with the right data, using the right method, and communicate the result so it changes a decision. Every consulting project — from a one-hour favour to a six-month contract — benefits from this structure.
+The PPDAC cycle ensures you answer the right question, with the right data, using the right method, and communicate the result so it changes a decision. Every consulting project, from a one-hour favour to a six-month contract, benefits from this structure.
 
 
 ## FAQ
@@ -992,17 +992,17 @@ Most consultants charge hourly (typically 100-300 USD/hour depending on experien
 
 ## References
 
-1. MacKay, R.J. & Oldford, R.W. — "Scientific Method, Statistical Method, and the Speed of Light." Statistical Science, 15(3), 2000. [Link](https://projecteuclid.org/journals/statistical-science/volume-15/issue-3/Scientific-Method-Statistical-Method-and-the-Speed-of-Light/10.1214/ss/1009212817.full)
-2. Spiegelhalter, D. — *The Art of Statistics: Learning from Data*. Pelican Books (2019). Chapter 1: The PPDAC Cycle.
-3. Peterson, R. et al. — "Reaping what you SOW: Guidelines and strategies for writing scopes of work for statistical consulting." Stat, 11(1), 2022. [Link](https://onlinelibrary.wiley.com/doi/10.1002/sta4.496)
-4. ASA Section on Statistical Consulting — "What to Expect When Consulting a Statistician." [Link](https://community.amstat.org/cnsl/forclients/expect-content)
-5. Wild, C.J. & Pfannkuch, M. — "Statistical Thinking in Empirical Enquiry." International Statistical Review, 67(3), 1999. [Link](https://doi.org/10.1111/j.1751-5823.1999.tb00442.x)
-6. R Core Team — "An Introduction to R." [Link](https://cran.r-project.org/doc/manuals/r-release/R-intro.html)
-7. Derr, J. — *Statistical Consulting: A Guide to Effective Communication*. Duxbury Press (2000).
+1. MacKay, R.J. & Oldford, R.W., "Scientific Method, Statistical Method, and the Speed of Light." Statistical Science, 15(3), 2000. [Link](https://projecteuclid.org/journals/statistical-science/volume-15/issue-3/Scientific-Method-Statistical-Method-and-the-Speed-of-Light/10.1214/ss/1009212817.full)
+2. Spiegelhalter, D., *The Art of Statistics: Learning from Data*. Pelican Books (2019). Chapter 1: The PPDAC Cycle.
+3. Peterson, R. et al., "Reaping what you SOW: Guidelines and strategies for writing scopes of work for statistical consulting." Stat, 11(1), 2022. [Link](https://onlinelibrary.wiley.com/doi/10.1002/sta4.496)
+4. ASA Section on Statistical Consulting, "What to Expect When Consulting a Statistician." [Link](https://community.amstat.org/cnsl/forclients/expect-content)
+5. Wild, C.J. & Pfannkuch, M., "Statistical Thinking in Empirical Enquiry." International Statistical Review, 67(3), 1999. [Link](https://doi.org/10.1111/j.1751-5823.1999.tb00442.x)
+6. R Core Team, "An Introduction to R." [Link](https://cran.r-project.org/doc/manuals/r-release/R-intro.html)
+7. Derr, J., *Statistical Consulting: A Guide to Effective Communication*. Duxbury Press (2000).
 
 
 ## Continue Learning
 
-- [Statistical Tests in R](Statistical-Tests-in-R.html) — learn which test to use for each data type and question structure
-- [Linear Regression](Linear-Regression.html) — the most common analysis you will deliver in consulting engagements
-- [Communicating Uncertainty](Communicating-Uncertainty.html) — build visualisations and language that help clients understand what the data can and cannot say
+- [Statistical Tests in R](Statistical-Tests-in-R.html), learn which test to use for each data type and question structure
+- [Linear Regression](Linear-Regression.html), the most common analysis you will deliver in consulting engagements
+- [Communicating Uncertainty](Communicating-Uncertainty.html), build visualisations and language that help clients understand what the data can and cannot say

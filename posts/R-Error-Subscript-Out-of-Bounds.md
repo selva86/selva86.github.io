@@ -1,5 +1,5 @@
 ---
-title: "R Error: 'subscript out of bounds' — Find Which Index Is Wrong Instantly"
+title: "R Error: 'subscript out of bounds', Find Which Index Is Wrong Instantly"
 slug: "R-Error-Subscript-Out-of-Bounds"
 description: "Fix R's 'subscript out of bounds' error fast. Learn to identify which index is wrong, add bounds checks, and use seq_along() to prevent off-by-one bugs."
 keywords: "R subscript out of bounds, R out of bounds error, R index error, R off by one error, seq_along R, R bounds checking, R indexing errors"
@@ -14,13 +14,13 @@ fr_parent: "R-Common-Errors.html"
 difficulty: "Intermediate"
 ---
 
-# R Error: 'subscript out of bounds' — Find Which Index Is Wrong Instantly
+# R Error: 'subscript out of bounds', Find Which Index Is Wrong Instantly
 
-<p class="lead"><code>Error in x[[i]] : subscript out of bounds</code> means R tried to reach an element at a position that does not exist — the index is larger than the object's length, or the row or column is past a matrix's dimensions. This guide shows how to find the bad index in ten seconds and stop it from coming back.</p>
+<p class="lead"><code>Error in x[[i]] : subscript out of bounds</code> means R tried to reach an element at a position that does not exist, the index is larger than the object's length, or the row or column is past a matrix's dimensions. This guide shows how to find the bad index in ten seconds and stop it from coming back.</p>
 
 ## What does 'subscript out of bounds' actually mean?
 
-The error fires when `[[` or a matrix subscript asks for an index that is not there. R raises an error instead of silently returning `NA`, so you know something is wrong — but the message does not tell you *which* index is the culprit. The fastest way to learn the pattern is to trigger the error on purpose and read the size of the object that rejected you.
+The error fires when `[[` or a matrix subscript asks for an index that is not there. R raises an error instead of silently returning `NA`, so you know something is wrong, but the message does not tell you *which* index is the culprit. The fastest way to learn the pattern is to trigger the error on purpose and read the size of the object that rejected you.
 
 ```r
 # A vector of three exam scores
@@ -36,7 +36,7 @@ tryCatch(
 #> Error: subscript out of bounds
 ```
 
-The vector has 3 elements, so slot 5 does not exist. `[[` is designed to extract exactly one element, and there is no meaningful "single NA element" for R to return — so it throws instead. That is the entire mental model: *the slot is empty, and the operator refuses to invent a value for it.*
+The vector has 3 elements, so slot 5 does not exist. `[[` is designed to extract exactly one element, and there is no meaningful "single NA element" for R to return, so it throws instead. That is the entire mental model: *the slot is empty, and the operator refuses to invent a value for it.*
 
 [KEY INSIGHT]
 **Single brackets forgive, double brackets do not.** Single-bracket `[` indexing happily returns `NA` for out-of-range positions. Double-bracket `[[` indexing and matrix subscripts treat the same request as an error because they promise a single concrete value.
@@ -93,12 +93,12 @@ tryCatch(df[[10, 1]], error = function(e) message("df[[,]]: ", conditionMessage(
 #> df[[,]]: subscript out of bounds
 ```
 
-Each block asks for a slot that does not exist, and each one raises the same error. The operators differ, but the reason is identical — R is being asked to extract a single value from a position that has no value.
+Each block asks for a slot that does not exist, and each one raises the same error. The operators differ, but the reason is identical, R is being asked to extract a single value from a position that has no value.
 
 Notice what single-bracket indexing would do in the vector case: `nums[4]` returns `NA` with no warning at all. That quietness is why off-by-one bugs can survive in production code for months.
 
 [WARNING]
-**Single-bracket on a vector returns NA; double-bracket throws.** If you are used to Python or JavaScript, `x[10]` probably feels like "index error territory" — but in R, `x[10]` on a short vector is silent. If you need the crash as a safety net, reach for `[[` instead.
+**Single-bracket on a vector returns NA; double-bracket throws.** If you are used to Python or JavaScript, `x[10]` probably feels like "index error territory", but in R, `x[10]` on a short vector is silent. If you need the crash as a safety net, reach for `[[` instead.
 
 **Try it:** Build a 2x2 matrix and trigger the error by asking for row 3. Save the error message to `ex_mat_err`.
 
@@ -127,13 +127,13 @@ ex_mat_err
 #> [1] "subscript out of bounds"
 ```
 
-**Explanation:** The matrix has 2 rows, so asking for row 3 fails. Matrix subscripts are strict in the same way `[[` is — they must point to a real cell.
+**Explanation:** The matrix has 2 rows, so asking for row 3 fails. Matrix subscripts are strict in the same way `[[` is, they must point to a real cell.
 
 </details>
 
 ## How do you find which subscript is wrong instantly?
 
-The error message in R is famously uninformative — it never tells you which index is the bad one. You find it with a two-step recipe: look up the object's size, then compare the size to the index you used. Ten seconds of `length()` or `dim()` beats five minutes of guessing.
+The error message in R is famously uninformative, it never tells you which index is the bad one. You find it with a two-step recipe: look up the object's size, then compare the size to the index you used. Ten seconds of `length()` or `dim()` beats five minutes of guessing.
 
 ![Three checks that reveal the bad subscript](screenshots/R-Error-Subscript-Out-of-Bounds-debug-flow.webp)
 
@@ -165,7 +165,7 @@ diagnose_subscript(mat, c(5, 1))
 #> Row over by 3.
 ```
 
-Read the output line by line. The vector has length 3, you asked for 5 — you are over by 2. The matrix has 2 rows, you asked for row 5 — you are over by 3. Those numbers are exactly the arithmetic you need to fix the offending loop or off-by-one slip.
+Read the output line by line. The vector has length 3, you asked for 5, you are over by 2. The matrix has 2 rows, you asked for row 5, you are over by 3. Those numbers are exactly the arithmetic you need to fix the offending loop or off-by-one slip.
 
 [TIP]
 **Reach for str() as a one-line debug swiss army knife.** When you are staring at a crashed script, `str(x)` prints the class, length, dimensions, and the first few values of any object. It is faster than calling `length()`, `dim()`, and `class()` separately, and it works on nested lists.
@@ -197,7 +197,7 @@ cat("length=", length(ex_v2), " index=", ex_i, "\n", sep = "")
 
 ## Why does `1:length(x)` cause off-by-one bugs?
 
-The single most common trigger in real R code is a loop that writes `1:length(x)`. It looks correct for a non-empty vector, but the moment `length(x)` is zero, `1:0` expands to `c(1, 0)` — two iterations on an empty object, and the first `x[[1]]` crashes. `seq_along(x)` solves it in one word.
+The single most common trigger in real R code is a loop that writes `1:length(x)`. It looks correct for a non-empty vector, but the moment `length(x)` is zero, `1:0` expands to `c(1, 0)`, two iterations on an empty object, and the first `x[[1]]` crashes. `seq_along(x)` solves it in one word.
 
 ```r
 # The trap: 1:length(x) when x is empty
@@ -228,7 +228,7 @@ safe_sum(c(3, 4, 5))
 #> [1] 12
 ```
 
-`1:length(empty)` produced `c(1, 0)`, so the loop iterated twice on an empty vector and crashed on the first `x[[1]]`. `seq_along(empty)` returns `integer(0)`, and the for loop runs zero times, which is exactly what you want. This is the classic unit-test-passes-but-production-fails pattern — your tests use a non-empty vector, production hands you an empty one, and the crash ships.
+`1:length(empty)` produced `c(1, 0)`, so the loop iterated twice on an empty vector and crashed on the first `x[[1]]`. `seq_along(empty)` returns `integer(0)`, and the for loop runs zero times, which is exactly what you want. This is the classic unit-test-passes-but-production-fails pattern, your tests use a non-empty vector, production hands you an empty one, and the crash ships.
 
 [TIP]
 **Replace every 1:length(x) with seq_along(x).** Use `seq_along(x)` or `seq_len(n)` wherever you would have written `1:length(x)`. Both produce an empty iterator on empty input rather than the infamous `c(1, 0)`, and your future self will stop getting paged for this.
@@ -292,7 +292,7 @@ safe_get(scores, 8, default = -1)
 #> [1] -1
 ```
 
-`safe_get()` guards three failure modes at once: an `NA` index, an index below 1, and an index past `length(x)`. If any of them are true, it returns the default — otherwise it uses `[[` to extract the real element. Notice how the `is.na(i)` check comes first: the short-circuit `||` means the later comparisons never run on an `NA`, which would otherwise return `NA` instead of `TRUE` and sneak a crash through.
+`safe_get()` guards three failure modes at once: an `NA` index, an index below 1, and an index past `length(x)`. If any of them are true, it returns the default, otherwise it uses `[[` to extract the real element. Notice how the `is.na(i)` check comes first: the short-circuit `||` means the later comparisons never run on an `NA`, which would otherwise return `NA` instead of `TRUE` and sneak a crash through.
 
 The design rule is *crash at the edges, trust the middle*: validate indices at the points where user input, file data, or loop math enters your function, and then trust the core loop to do its work without checks at every access.
 
@@ -330,7 +330,7 @@ ex_get(c("a", "b", "c"), NA)
 #> [1] "bad index"
 ```
 
-**Explanation:** The guard is the same three checks as `safe_get()`: NA, below 1, above length. Ordering `is.na(i)` first matters — it short-circuits before the numeric comparisons, which would return `NA` and break the `if`.
+**Explanation:** The guard is the same three checks as `safe_get()`: NA, below 1, above length. Ordering `is.na(i)` first matters, it short-circuits before the numeric comparisons, which would return `NA` and break the `if`.
 
 </details>
 
@@ -389,7 +389,7 @@ length(find_pairs(integer(0), 10))
 #> [1] 0
 ```
 
-**Explanation:** Two bugs had to be fixed together. First, `1:length(x)` expands to `c(1, 0)` on empty input — the `if (n < 2) return()` guard short-circuits both the empty and single-element cases. Second, `(i + 1):length(x)` becomes `2:1 = c(2, 1)` on a length-1 vector, so even if you got past the empty case, it would crash — `seq.int(i + 1, n)` together with the early return handles both. Variables use the `my_` prefix so the exercise does not clobber anything in the tutorial state.
+**Explanation:** Two bugs had to be fixed together. First, `1:length(x)` expands to `c(1, 0)` on empty input, the `if (n < 2) return()` guard short-circuits both the empty and single-element cases. Second, `(i + 1):length(x)` becomes `2:1 = c(2, 1)` on a length-1 vector, so even if you got past the empty case, it would crash, `seq.int(i + 1, n)` together with the early return handles both. Variables use the `my_` prefix so the exercise does not clobber anything in the tutorial state.
 
 </details>
 
@@ -472,7 +472,7 @@ safe_row(people, NA)
 #> 1 <NA>  NA     NA
 ```
 
-`safe_row()` pre-builds an NA template once (`na_row`) so the fallback keeps the original data.frame's column types — important for downstream code that expects `age` to be numeric and `name` to be character. The three checks — `is.na`, below 1, above `nrow(df)` — are exactly the same three from `safe_get()`, just using `nrow` instead of `length`. The pattern scales to any rectangular object.
+`safe_row()` pre-builds an NA template once (`na_row`) so the fallback keeps the original data.frame's column types, important for downstream code that expects `age` to be numeric and `name` to be character. The three checks, `is.na`, below 1, above `nrow(df)`, are exactly the same three from `safe_get()`, just using `nrow` instead of `length`. The pattern scales to any rectangular object.
 
 ## Summary
 
@@ -486,15 +486,15 @@ safe_row(people, NA)
 
 ## References
 
-1. Wickham, H. — *Advanced R*, Chapter 4: Subsetting. [Link](https://adv-r.hadley.nz/subsetting.html)
-2. R Core Team — *An Introduction to R*, Section 6: Lists and data frames. [Link](https://cran.r-project.org/doc/manuals/r-release/R-intro.html)
+1. Wickham, H., *Advanced R*, Chapter 4: Subsetting. [Link](https://adv-r.hadley.nz/subsetting.html)
+2. R Core Team, *An Introduction to R*, Section 6: Lists and data frames. [Link](https://cran.r-project.org/doc/manuals/r-release/R-intro.html)
 3. Base R help page: `?"[["`
-4. purrr documentation — `pluck()` reference. [Link](https://purrr.tidyverse.org/reference/pluck.html)
-5. R source code — `src/main/subscript.c` (where the error is raised).
+4. purrr documentation, `pluck()` reference. [Link](https://purrr.tidyverse.org/reference/pluck.html)
+5. R source code, `src/main/subscript.c` (where the error is raised).
 6. Stack Overflow canonical: "What does 'subscript out of bounds' mean in R?" [Link](https://stackoverflow.com/questions/6929596)
 
 ## Continue Learning
 
-1. **R Common Errors** — the full reference covering the other 50 errors R throws at you.
-2. **R Error: undefined columns selected** — the data.frame cousin of this error, triggered by bad column names.
-3. **R Error: replacement has length zero** — the NA assignment bug that shows up in the same debugging sessions.
+1. **R Common Errors**, the full reference covering the other 50 errors R throws at you.
+2. **R Error: undefined columns selected**, the data.frame cousin of this error, triggered by bad column names.
+3. **R Error: replacement has length zero**, the NA assignment bug that shows up in the same debugging sessions.

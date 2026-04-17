@@ -1,7 +1,7 @@
 ---
 title: "Probability Axioms in R: Prove the Rules of Probability via Monte Carlo Simulation"
 slug: "Sample-Spaces-Events-and-Probability-Axioms-in-R-With-Monte-Carlo-Proof"
-description: "The three Kolmogorov axioms underpin all of probability. Verify each one via Monte Carlo simulation in R — counting outcomes, complements, and additivity."
+description: "The three Kolmogorov axioms underpin all of probability. Verify each one via Monte Carlo simulation in R, counting outcomes, complements, and additivity."
 keywords: "probability axioms R, Kolmogorov axioms R, sample space R, Monte Carlo simulation probability, probability rules R, complement rule R, addition rule probability, simulate probability R, sample function R"
 auto_link_terms: "probability axioms|Kolmogorov axioms|sample space|probability rules|complement rule|addition rule|Monte Carlo simulation|P(A ∪ B)"
 auto_link_case_sensitive: false
@@ -18,11 +18,11 @@ difficulty: "Beginner"
 
 # Probability Axioms in R: Prove the Rules of Probability via Monte Carlo Simulation
 
-<p class="lead">The three Kolmogorov axioms — non-negativity, normalization, and additivity — are the foundation every probability calculation rests on. In this tutorial you will state each axiom, then prove it holds by running Monte Carlo simulations in R with <code>sample()</code>.</p>
+<p class="lead">The three Kolmogorov axioms, non-negativity, normalization, and additivity, are the foundation every probability calculation rests on. In this tutorial you will state each axiom, then prove it holds by running Monte Carlo simulations in R with <code>sample()</code>.</p>
 
 ## What Is a Sample Space and Why Does It Matter?
 
-When you flip a coin, the sample space is {Heads, Tails}. When you roll a die, it is {1, 2, 3, 4, 5, 6}. A sample space is the complete list of every possible outcome of an experiment. Events are subsets of that space — "roll an even number" is the event {2, 4, 6}.
+When you flip a coin, the sample space is {Heads, Tails}. When you roll a die, it is {1, 2, 3, 4, 5, 6}. A sample space is the complete list of every possible outcome of an experiment. Events are subsets of that space, "roll an even number" is the event {2, 4, 6}.
 
 Let's build both concepts in R and compute probabilities from them.
 
@@ -65,7 +65,7 @@ cat("Simulated P(>4)   =", p_gt4_sim, " (theory:", p_gt4, ")\n")
 #> Simulated P(>4)   = 0.33384  (theory: 0.3333333 )
 ```
 
-With 100,000 simulated rolls, the estimated probabilities land within a whisker of the theoretical values. That's the core idea behind Monte Carlo simulation — repeat an experiment many times and let the proportions converge to the true probability.
+With 100,000 simulated rolls, the estimated probabilities land within a whisker of the theoretical values. That's the core idea behind Monte Carlo simulation, repeat an experiment many times and let the proportions converge to the true probability.
 
 [KEY INSIGHT]
 **A sample space must be exhaustive and mutually exclusive.** Every possible outcome appears exactly once. If you accidentally list {1, 2, 3, 4, 5} (missing 6) or {1, 2, 2, 3, 4, 5, 6} (duplicate 2), your probability calculations will be wrong.
@@ -100,17 +100,17 @@ cat("P(at least one head) =", ex_p, "\n")
 
 ## What Are the Three Kolmogorov Axioms?
 
-In 1933, the mathematician Andrey Kolmogorov formalised probability with just three rules. Everything in probability — from coin flips to machine learning models — follows from these three axioms.
+In 1933, the mathematician Andrey Kolmogorov formalised probability with just three rules. Everything in probability, from coin flips to machine learning models, follows from these three axioms.
 
-**Axiom 1 — Non-negativity:** The probability of any event is zero or positive. No event can have a negative probability.
+**Axiom 1, Non-negativity:** The probability of any event is zero or positive. No event can have a negative probability.
 
 $$P(A) \geq 0 \quad \text{for every event } A$$
 
-**Axiom 2 — Normalization:** The probability of the entire sample space is exactly 1. Something must happen.
+**Axiom 2, Normalization:** The probability of the entire sample space is exactly 1. Something must happen.
 
 $$P(S) = 1$$
 
-**Axiom 3 — Additivity:** If two events cannot happen at the same time (they are disjoint), the probability of either one happening equals the sum of their individual probabilities.
+**Axiom 3, Additivity:** If two events cannot happen at the same time (they are disjoint), the probability of either one happening equals the sum of their individual probabilities.
 
 $$\text{If } A \cap B = \emptyset, \quad P(A \cup B) = P(A) + P(B)$$
 
@@ -153,7 +153,7 @@ All three axioms check out. The individual face probabilities are positive (axio
 *Figure 1: Sample space, events, and set operations.*
 
 [NOTE]
-**These three simple rules generate all of probability.** Every formula you'll encounter later — the complement rule, Bayes' theorem, the law of total probability — can be derived from just these three axioms.
+**These three simple rules generate all of probability.** Every formula you'll encounter later, the complement rule, Bayes' theorem, the law of total probability, can be derived from just these three axioms.
 
 **Try it:** A bag contains 5 red, 3 blue, and 2 green marbles (10 total). Simulate 50,000 draws and verify all three axioms: every colour probability is ≥ 0, probabilities sum to 1, and P(red or green) = P(red) + P(green) since they are disjoint.
 
@@ -222,7 +222,7 @@ for (i in seq_along(ns)) {
 #>    100000 |   0.50054 | +0.00054
 ```
 
-At 10 flips, the estimate is off by 0.10. At 100,000 flips, the error shrinks to just 0.0005. That's convergence in action — more trials mean a more precise estimate.
+At 10 flips, the estimate is off by 0.10. At 100,000 flips, the error shrinks to just 0.0005. That's convergence in action, more trials mean a more precise estimate.
 
 ![The Monte Carlo verification workflow](screenshots/Sample-Spaces-Events-and-Probability-Axioms-in-R-With-Monte-Carlo-Proof-monte-carlo-process.webp)
 
@@ -267,11 +267,11 @@ cat("Theoretical P(sum=7) =", 6/36, "\n")
 
 ## How Do You Verify Axiom 1 (Non-Negativity) in R?
 
-Axiom 1 says every event has a probability of zero or more — no negative probabilities exist. This sounds obvious, but it's the mathematical guarantee that anchors the rest of probability. Without it, the complement rule and addition rule would collapse.
+Axiom 1 says every event has a probability of zero or more, no negative probabilities exist. This sounds obvious, but it's the mathematical guarantee that anchors the rest of probability. Without it, the complement rule and addition rule would collapse.
 
 $$P(A) \geq 0 \quad \text{for every event } A$$
 
-Let's check it exhaustively. We'll simulate 100,000 die rolls and compute the probability for every event we can think of — including an impossible one.
+Let's check it exhaustively. We'll simulate 100,000 die rolls and compute the probability for every event we can think of, including an impossible one.
 
 ```r
 # Verify Axiom 1: every event probability >= 0
@@ -312,7 +312,7 @@ for (name in names(event_list)) {
 Every single probability is at least zero. The impossible event "roll a 7" gets P = 0 (zero is still non-negative), and every other event gets a positive proportion. Axiom 1 holds across the board.
 
 [KEY INSIGHT]
-**P(A) = 0 means the event is impossible in this experiment.** Rolling a 7 on a standard die can never happen, so its probability is zero. But zero is still non-negative — axiom 1 is satisfied.
+**P(A) = 0 means the event is impossible in this experiment.** Rolling a 7 on a standard die can never happen, so its probability is zero. But zero is still non-negative, axiom 1 is satisfied.
 
 **Try it:** Simulate drawing from a standard deck of 52 cards (represented as numbers 1 through 52). Verify that P(draw card 53) = 0 and P(draw any card from 1 to 52) > 0.
 
@@ -357,7 +357,7 @@ Axiom 2 says the probability of the entire sample space is exactly 1. In plain l
 
 $$P(S) = 1$$
 
-This axiom ties probability to certainty. It's the reason we can say "there's a 30% chance of rain" and implicitly know there's a 70% chance of no rain — because the total must be 100%.
+This axiom ties probability to certainty. It's the reason we can say "there's a 30% chance of rain" and implicitly know there's a 70% chance of no rain, because the total must be 100%.
 
 ```r
 # Verify Axiom 2: P(S) = 1
@@ -384,10 +384,10 @@ cat("P(outcome in S)  =", p_in_S, "\n")
 #> P(outcome in S)  = 1
 ```
 
-Both checks confirm axiom 2. The six individual face probabilities sum to exactly 1 (no rounding error here because the counts must add to N). And every single roll falls within the sample space — the direct check returns 1.0.
+Both checks confirm axiom 2. The six individual face probabilities sum to exactly 1 (no rounding error here because the counts must add to N). And every single roll falls within the sample space, the direct check returns 1.0.
 
 [WARNING]
-**In some simulations, P(S) might appear as 0.99998 instead of exactly 1.** This happens when you compute probabilities as proportions of subsets that might overlap or miss an outcome due to a coding bug. It doesn't mean the axiom is violated — it means your code has an issue. With correct, exhaustive event definitions, P(S) from simulation is always exactly 1.
+**In some simulations, P(S) might appear as 0.99998 instead of exactly 1.** This happens when you compute probabilities as proportions of subsets that might overlap or miss an outcome due to a coding bug. It doesn't mean the axiom is violated, it means your code has an issue. With correct, exhaustive event definitions, P(S) from simulation is always exactly 1.
 
 **Try it:** Flip 3 coins (8 possible outcomes: HHH, HHT, HTH, HTT, THH, THT, TTH, TTT). Simulate 50,000 trials and verify that the probabilities of all 8 outcomes sum to 1.
 
@@ -430,7 +430,7 @@ Axiom 3 is the powerhouse. It says: if two events cannot happen at the same time
 
 $$\text{If } A \cap B = \emptyset, \quad P(A \cup B) = P(A) + P(B)$$
 
-Two events are disjoint (mutually exclusive) when they share no outcomes. "Roll a 1 or 2" and "roll a 5 or 6" can't both happen on the same roll — they're disjoint.
+Two events are disjoint (mutually exclusive) when they share no outcomes. "Roll a 1 or 2" and "roll a 5 or 6" can't both happen on the same roll, they're disjoint.
 
 ```r
 # Verify Axiom 3: additivity for disjoint events
@@ -458,7 +458,7 @@ cat("Match?", abs((p_A + p_B) - p_AuB) < 1e-10, "\n")
 #> Match? TRUE
 ```
 
-The sum P(A) + P(B) equals P(A ∪ B) exactly (to floating-point precision). That's axiom 3 in action — since {1,2} and {5,6} share no outcomes, their probabilities add cleanly.
+The sum P(A) + P(B) equals P(A ∪ B) exactly (to floating-point precision). That's axiom 3 in action, since {1,2} and {5,6} share no outcomes, their probabilities add cleanly.
 
 Axiom 3 extends to any number of mutually exclusive events. Let's verify it with three disjoint sets.
 
@@ -479,7 +479,7 @@ cat("Match?", abs((p_A + p_B + p_C) - p_AuBuC) < 1e-10, "\n")
 Three disjoint events, same result. The additivity axiom scales to any number of non-overlapping events.
 
 [WARNING]
-**Additivity only works for disjoint events.** If events overlap — say A = {1,2,3} and B = {3,4,5} — then P(A ∪ B) ≠ P(A) + P(B) because you'd double-count outcome 3. For overlapping events, you need the inclusion-exclusion formula (covered in the next section).
+**Additivity only works for disjoint events.** If events overlap, say A = {1,2,3} and B = {3,4,5}, then P(A ∪ B) ≠ P(A) + P(B) because you'd double-count outcome 3. For overlapping events, you need the inclusion-exclusion formula (covered in the next section).
 
 **Try it:** Define event A = rolling an even number {2,4,6} and event B = rolling a 5. Confirm these are disjoint (no shared outcomes), then verify axiom 3 using the `rolls_ax3` simulation.
 
@@ -551,7 +551,7 @@ P(even) + P(odd) = 1 exactly, confirming the complement rule. This rule is deriv
 
 ### The Inclusion-Exclusion Rule
 
-When events overlap, you can't just add their probabilities — you'd double-count the overlap. The inclusion-exclusion formula corrects for that:
+When events overlap, you can't just add their probabilities, you'd double-count the overlap. The inclusion-exclusion formula corrects for that:
 
 $$P(A \cup B) = P(A) + P(B) - P(A \cap B)$$
 
@@ -649,7 +649,7 @@ cat("Theoretical: 1-(5/6)^4 =", round(1 - (5/6)^4, 5), "\n")
 #> Theoretical: 1-(5/6)^4 = 0.51775
 ```
 
-**Explanation:** Both methods give the same answer. The complement approach is often easier to code — just check that none of the 4 rolls equal 6, then subtract from 1.
+**Explanation:** Both methods give the same answer. The complement approach is often easier to code, just check that none of the 4 rolls equal 6, then subtract from 1.
 
 </details>
 
@@ -890,7 +890,7 @@ cat(sprintf("%-20s %-12s %-10s\n", "Complement rule",
 #> Complement rule      0.39936      PASS
 ```
 
-Every check passes. Even with a biased coin, the three axioms hold perfectly. The bias changes the probabilities (0.6 vs 0.5 for heads), but the fundamental rules — non-negativity, normalization, additivity — are unchanged. That's the beauty of axioms: they work for any probability assignment, fair or biased.
+Every check passes. Even with a biased coin, the three axioms hold perfectly. The bias changes the probabilities (0.6 vs 0.5 for heads), but the fundamental rules, non-negativity, normalization, additivity, are unchanged. That's the beauty of axioms: they work for any probability assignment, fair or biased.
 
 ## Summary
 
@@ -914,16 +914,16 @@ The three Kolmogorov axioms are deceptively simple, but they generate the entire
 
 ## References
 
-1. Kolmogorov, A.N. — *Foundations of the Theory of Probability* (1933, English translation 1950). Chelsea Publishing. The original axiomatisation of probability.
-2. R Core Team — `sample()` function documentation. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/sample.html)
-3. Blitzstein, J. & Hwang, J. — *Introduction to Probability*, 2nd Edition. CRC Press (2019). Chapters 1-2 cover axioms and counting.
-4. Ross, S. — *A First Course in Probability*, 10th Edition. Pearson (2019). Chapter 2: Axioms of Probability.
-5. R Core Team — `set.seed()` and random number generation. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/Random.html)
-6. Wickham, H. & Grolemund, G. — *R for Data Science*, 2nd Edition. O'Reilly (2023). [Link](https://r4ds.hadley.nz/)
-7. Wikipedia — Probability axioms. [Link](https://en.wikipedia.org/wiki/Probability_axioms)
+1. Kolmogorov, A.N., *Foundations of the Theory of Probability* (1933, English translation 1950). Chelsea Publishing. The original axiomatisation of probability.
+2. R Core Team, `sample()` function documentation. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/sample.html)
+3. Blitzstein, J. & Hwang, J., *Introduction to Probability*, 2nd Edition. CRC Press (2019). Chapters 1-2 cover axioms and counting.
+4. Ross, S., *A First Course in Probability*, 10th Edition. Pearson (2019). Chapter 2: Axioms of Probability.
+5. R Core Team, `set.seed()` and random number generation. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/Random.html)
+6. Wickham, H. & Grolemund, G., *R for Data Science*, 2nd Edition. O'Reilly (2023). [Link](https://r4ds.hadley.nz/)
+7. Wikipedia, Probability axioms. [Link](https://en.wikipedia.org/wiki/Probability_axioms)
 
 ## Continue Learning
 
-1. [R Vectors](R-Vectors.html) — Master the data structure used throughout this tutorial to define sample spaces and events.
-2. [R Functions](R-Functions.html) — Learn to write reusable functions like the `verify_axioms()` function built in Exercise 3.
-3. [R Control Flow](R-Control-Flow.html) — Understand the if/else and loop patterns that power simulation code.
+1. [R Vectors](R-Vectors.html), Master the data structure used throughout this tutorial to define sample spaces and events.
+2. [R Functions](R-Functions.html), Learn to write reusable functions like the `verify_axioms()` function built in Exercise 3.
+3. [R Control Flow](R-Control-Flow.html), Understand the if/else and loop patterns that power simulation code.

@@ -16,11 +16,11 @@ difficulty: "Intermediate"
 
 # The Exponential Distribution in R: Memoryless Property & Survival Link
 
-<p class="lead">The **exponential distribution** in R models the time between random events that happen at a constant average rate — customer arrivals, machine failures, radioactive decays. You use four base-R functions: `dexp()` for the density, `pexp()` for the CDF, `qexp()` for quantiles, and `rexp()` to draw random samples. Its defining trick is the **memoryless property**: the distribution of what's still to come doesn't depend on how long you've already been waiting.</p>
+<p class="lead">The **exponential distribution** in R models the time between random events that happen at a constant average rate, customer arrivals, machine failures, radioactive decays. You use four base-R functions: `dexp()` for the density, `pexp()` for the CDF, `qexp()` for quantiles, and `rexp()` to draw random samples. Its defining trick is the **memoryless property**: the distribution of what's still to come doesn't depend on how long you've already been waiting.</p>
 
 ## Why do I keep waiting the same 10 minutes no matter how long I've already waited?
 
-Picture a bus stop where buses arrive at a constant average rate, one every 10 minutes, but at random times. You arrive and wait. Ten minutes pass — no bus. A stranger walks up. How much longer should each of you expect to wait?
+Picture a bus stop where buses arrive at a constant average rate, one every 10 minutes, but at random times. You arrive and wait. Ten minutes pass, no bus. A stranger walks up. How much longer should each of you expect to wait?
 
 Intuition screams that *you* should wait less; you've already paid ten minutes. But under the exponential distribution, you and the stranger face the same expected wait. The past doesn't shorten your future. Let's show it in three lines of R.
 
@@ -37,7 +37,7 @@ mean(remaining)
 #> [1] 9.96
 ```
 
-Both means hug 10. The people who've already waited past 10 minutes face, on average, *another* 10 minutes of waiting — the same expectation as someone who just arrived. That's the memoryless property, not as a theorem but as a number you just computed.
+Both means hug 10. The people who've already waited past 10 minutes face, on average, *another* 10 minutes of waiting, the same expectation as someone who just arrived. That's the memoryless property, not as a theorem but as a number you just computed.
 
 [KEY INSIGHT]
 **Memoryless means the distribution forgets its own age.** For any already-elapsed wait `s`, the additional time is distributed identically to a fresh wait from zero. Among continuous distributions on the positive real line, only the exponential has this property.
@@ -62,7 +62,7 @@ ex_remaining
 #> [1] 9.88
 ```
 
-**Explanation:** Filter to draws past 20, subtract 20 to get the *remaining* time, take the mean. Same answer as at t=10 — the distribution's memory resets at every point.
+**Explanation:** Filter to draws past 20, subtract 20 to get the *remaining* time, take the mean. Same answer as at t=10, the distribution's memory resets at every point.
 
 </details>
 
@@ -91,7 +91,7 @@ rexp(3, rate = 0.1)
 #> [1]  8.27 17.93  2.86
 ```
 
-Read the outputs as a story about waits: the density at 5 minutes is 0.06 (useful as a relative height, not a probability); there's a 78% chance your bus shows up within 15 minutes; 90% of bus waits are shorter than 23 minutes; and three simulated rides would have taken 8.3, 17.9, and 2.9 minutes. The same four-function pattern applies to every distribution in base R — normal (`dnorm/pnorm/...`), Poisson, Binomial — so once this clicks for exponential, the others come free.
+Read the outputs as a story about waits: the density at 5 minutes is 0.06 (useful as a relative height, not a probability); there's a 78% chance your bus shows up within 15 minutes; 90% of bus waits are shorter than 23 minutes; and three simulated rides would have taken 8.3, 17.9, and 2.9 minutes. The same four-function pattern applies to every distribution in base R, normal (`dnorm/pnorm/...`), Poisson, Binomial, so once this clicks for exponential, the others come free.
 
 ![The four exponential functions in R and what each returns](screenshots/The-Exponential-Distribution-in-R-four-functions.webp)
 
@@ -122,13 +122,13 @@ ex_prob
 
 </details>
 
-## Is rate the same as mean? (No — and this trips people up)
+## Is rate the same as mean? (No, and this trips people up)
 
 The exponential has exactly one parameter, but people disagree about what to call it. R calls it `rate`. Some textbooks parameterize by `scale` or `mean`. They are reciprocals:
 
 $$\text{rate} = \frac{1}{\text{mean}}$$
 
-If average wait is 30 minutes, rate is 1/30 ≈ 0.033. Passing 30 as the rate to `rexp()` produces waits with a mean of 1/30 — hundredths of a minute, not half-hour buses. It's a silent bug; the function returns numbers, they just mean something else.
+If average wait is 30 minutes, rate is 1/30 ≈ 0.033. Passing 30 as the rate to `rexp()` produces waits with a mean of 1/30, hundredths of a minute, not half-hour buses. It's a silent bug; the function returns numbers, they just mean something else.
 
 ```r
 set.seed(1)
@@ -143,7 +143,7 @@ round(good, 1)
 #> [1] 18.6  0.9 22.1 57.7  4.9
 ```
 
-The `bad` vector has values in hundredths of a minute. The `good` vector scatters around 30, as it should. Whenever a problem gives you a mean, your first line should be `rate <- 1 / mean` — not `rate <- mean`.
+The `bad` vector has values in hundredths of a minute. The `good` vector scatters around 30, as it should. Whenever a problem gives you a mean, your first line should be `rate <- 1 / mean`, not `rate <- mean`.
 
 [WARNING]
 **Passing the mean as `rate` silently returns the wrong distribution.** R won't warn you. Values still look like waits, just scaled by a factor of mean squared. Always compute `rate = 1 / mean` before calling any `*exp()` function when the problem is stated in mean form.
@@ -204,10 +204,10 @@ rhs
 #> [1] 0.6069
 ```
 
-Both sides agree to two decimal places. The conditional probability of waiting another 5 minutes given you've already waited 10 is identical to the probability a fresh arrival waits at least 5 minutes. Draw more samples and the gap shrinks — it's not luck, it's the distribution's structure.
+Both sides agree to two decimal places. The conditional probability of waiting another 5 minutes given you've already waited 10 is identical to the probability a fresh arrival waits at least 5 minutes. Draw more samples and the gap shrinks, it's not luck, it's the distribution's structure.
 
 [NOTE]
-**Only the exponential is continuous-memoryless.** In discrete time the equivalent is the geometric distribution (`rgeom()`). Every other positive-support distribution — normal-truncated, gamma (unless shape=1), Weibull, log-normal — has memory: its conditional distribution depends on how long you've already waited.
+**Only the exponential is continuous-memoryless.** In discrete time the equivalent is the geometric distribution (`rgeom()`). Every other positive-support distribution, normal-truncated, gamma (unless shape=1), Weibull, log-normal, has memory: its conditional distribution depends on how long you've already waited.
 
 **Try it:** Check the memoryless property at `s = 15` and `t = 10` on the same `waits` vector. Store LHS and RHS.
 
@@ -238,7 +238,7 @@ c(ex_lhs, ex_rhs)
 
 ## How does the exponential link to survival analysis?
 
-Survival analysis studies time-to-event: time to failure, time to death, time to churn. Its central object is the **hazard function** `h(t)` — the instantaneous failure rate at time `t` given survival up to `t`. For the exponential, something striking happens:
+Survival analysis studies time-to-event: time to failure, time to death, time to churn. Its central object is the **hazard function** `h(t)`, the instantaneous failure rate at time `t` given survival up to `t`. For the exponential, something striking happens:
 
 $$h(t) = \lambda \quad \text{(constant in } t \text{)}$$
 
@@ -270,12 +270,12 @@ ggplot(hazard_df, aes(t, h)) +
   theme_minimal()
 ```
 
-The solid line is the empirical hazard; the red dashed line is the true rate (0.1). The empirical curve dances around 0.1 and shows no trend up or down — that's what "constant hazard" looks like when you squint at noisy data. If the curve had climbed, you'd be looking at a Weibull with shape > 1 (aging parts). If it had fallen, shape < 1 (infant mortality). Flat means exponential.
+The solid line is the empirical hazard; the red dashed line is the true rate (0.1). The empirical curve dances around 0.1 and shows no trend up or down, that's what "constant hazard" looks like when you squint at noisy data. If the curve had climbed, you'd be looking at a Weibull with shape > 1 (aging parts). If it had fallen, shape < 1 (infant mortality). Flat means exponential.
 
 [KEY INSIGHT]
-**Constant hazard *is* the memoryless property, just translated into survival language.** Anywhere you read "exponential assumes constant failure rate", substitute "exponential has no memory" — same claim, same consequences. Before fitting an exponential survival model to data, plot the empirical hazard. Not flat? Pick a different distribution.
+**Constant hazard *is* the memoryless property, just translated into survival language.** Anywhere you read "exponential assumes constant failure rate", substitute "exponential has no memory", same claim, same consequences. Before fitting an exponential survival model to data, plot the empirical hazard. Not flat? Pick a different distribution.
 
-**Try it:** Compute the probability a failure hasn't happened by `t = 20` in two ways — theoretically with `pexp()` and empirically from `fail_times`. Store both.
+**Try it:** Compute the probability a failure hasn't happened by `t = 20` in two ways, theoretically with `pexp()` and empirically from `fail_times`. Store both.
 
 ```r
 # Try it: survival at t = 20, theoretical and empirical
@@ -332,7 +332,7 @@ rate_hat_num
 #> [1] 0.2517
 ```
 
-Both methods land on the same estimate, 0.2517, satisfyingly close to the true 0.25. With 500 observations we recover the rate to two decimal places; with 50 the estimate would be noisier. For quick-and-dirty fits on confirmed-exponential data, skip `optim()` entirely — `1 / mean(x)` is the answer.
+Both methods land on the same estimate, 0.2517, satisfyingly close to the true 0.25. With 500 observations we recover the rate to two decimal places; with 50 the estimate would be noisier. For quick-and-dirty fits on confirmed-exponential data, skip `optim()` entirely, `1 / mean(x)` is the answer.
 
 [TIP]
 **Plot the empirical hazard before you fit.** A flat hazard is your license to use exponential; a sloped hazard tells you to reach for Weibull (`dweibull`) or lognormal (`dlnorm`) instead. Fitting exponential to data with an increasing hazard gives you a rate that's "correct on average" and wrong everywhere else.
@@ -433,7 +433,7 @@ c(my_rate = my_rate, pi_low = pi_low, pi_high = pi_high)
 #>  0.17142037  0.14767527 21.51648780
 ```
 
-**Explanation:** The rate estimate from 50 observations (0.171) is noisier than the true 0.15 — expected with a small sample. The predictive interval uses those quantiles of the *fitted* exponential; the lower bound is small because the exponential piles mass near zero.
+**Explanation:** The rate estimate from 50 observations (0.171) is noisier than the true 0.15, expected with a small sample. The predictive interval uses those quantiles of the *fitted* exponential; the lower bound is small because the exponential piles mass near zero.
 
 </details>
 
@@ -469,7 +469,7 @@ ggplot(data.frame(x = orders), aes(x)) +
   theme_minimal()
 ```
 
-The fitted rate (0.199) is essentially the truth (0.2). About 33% of inter-order gaps are shorter than 2 minutes, so an operations team planning capacity should expect roughly one in three gaps to be that short. The histogram with the fitted density overlaid shows the exponential pulling most of its mass toward zero — a reminder that short waits are common and long waits are rare, but not impossibly so.
+The fitted rate (0.199) is essentially the truth (0.2). About 33% of inter-order gaps are shorter than 2 minutes, so an operations team planning capacity should expect roughly one in three gaps to be that short. The histogram with the fitted density overlaid shows the exponential pulling most of its mass toward zero, a reminder that short waits are common and long waits are rare, but not impossibly so.
 
 ## Summary
 
@@ -477,7 +477,7 @@ The exponential distribution is the go-to model for **time between random events
 
 1. **Memoryless.** The remaining wait doesn't shrink with how long you've already waited. Prove it empirically with `mean(waits[waits > s] - s) == mean(waits)`.
 2. **rate = 1/mean.** The single parameter is rate, not mean. Always compute `rate <- 1 / mean` before using any `*exp()` function.
-3. **Constant hazard.** The failure rate `h(t) = rate` doesn't change with age. This is memoryless in survival language. Plot the empirical hazard — if it's not flat, use Weibull instead.
+3. **Constant hazard.** The failure rate `h(t) = rate` doesn't change with age. This is memoryless in survival language. Plot the empirical hazard, if it's not flat, use Weibull instead.
 
 | Function | Input | Returns |
 |---|---|---|
@@ -490,22 +490,22 @@ And one big-picture fact worth remembering:
 
 ![Poisson counts and exponential gaps describe the same process](screenshots/The-Exponential-Distribution-in-R-poisson-link.webp)
 
-*Figure 2: The Poisson and exponential distributions describe the same process from two angles — counts of events per interval versus gaps between events.*
+*Figure 2: The Poisson and exponential distributions describe the same process from two angles, counts of events per interval versus gaps between events.*
 
 If events arrive as a Poisson process with rate λ, the number of events per unit time is Poisson(λ) and the gaps between events are Exponential(λ). Same λ, two different questions.
 
 ## References
 
-1. R Core Team — *Exponential Distribution (stats package reference)*. [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/Exponential.html)
-2. Wickham, H. & Grolemund, G. — *R for Data Science*, 2nd ed. O'Reilly, 2023. [Link](https://r4ds.hadley.nz/)
-3. James, G., Witten, D., Hastie, T., Tibshirani, R. — *An Introduction to Statistical Learning*, 2nd ed. Ch. 2. [Link](https://www.statlearning.com/)
-4. Ross, S. — *Introduction to Probability Models*, 12th ed. Ch. 5 (Exponential Distribution and Poisson Process). Academic Press, 2019.
-5. Klein, J.P. & Moeschberger, M.L. — *Survival Analysis: Techniques for Censored and Truncated Data*, 2nd ed. Springer, 2003. Ch. 2 (Basic Quantities and Models).
-6. NIST/SEMATECH — *e-Handbook of Statistical Methods*, section 1.3.6.6.7 Exponential distribution. [Link](https://www.itl.nist.gov/div898/handbook/eda/section3/eda3667.htm)
-7. Therneau, T. — *survival* package reference, CRAN. [Link](https://cran.r-project.org/package=survival)
+1. R Core Team, *Exponential Distribution (stats package reference)*. [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/Exponential.html)
+2. Wickham, H. & Grolemund, G., *R for Data Science*, 2nd ed. O'Reilly, 2023. [Link](https://r4ds.hadley.nz/)
+3. James, G., Witten, D., Hastie, T., Tibshirani, R., *An Introduction to Statistical Learning*, 2nd ed. Ch. 2. [Link](https://www.statlearning.com/)
+4. Ross, S., *Introduction to Probability Models*, 12th ed. Ch. 5 (Exponential Distribution and Poisson Process). Academic Press, 2019.
+5. Klein, J.P. & Moeschberger, M.L., *Survival Analysis: Techniques for Censored and Truncated Data*, 2nd ed. Springer, 2003. Ch. 2 (Basic Quantities and Models).
+6. NIST/SEMATECH, *e-Handbook of Statistical Methods*, section 1.3.6.6.7 Exponential distribution. [Link](https://www.itl.nist.gov/div898/handbook/eda/section3/eda3667.htm)
+7. Therneau, T., *survival* package reference, CRAN. [Link](https://cran.r-project.org/package=survival)
 
 ## Continue Learning
 
-- [Binomial and Poisson Distributions in R](Binomial-and-Poisson-Distributions-in-R.html) — the discrete counterparts; Poisson counts are the other face of the exponential-gaps coin.
-- [Fitting Distributions to Data in R](Fitting-Distributions-to-Data-in-R.html) — broader toolbox (`fitdistrplus`, goodness-of-fit tests) for when exponential isn't the right choice.
-- [Sampling Distributions in R](Sampling-Distributions-in-R.html) — what happens when you take repeated samples from *any* distribution, including the exponential.
+- [Binomial and Poisson Distributions in R](Binomial-and-Poisson-Distributions-in-R.html), the discrete counterparts; Poisson counts are the other face of the exponential-gaps coin.
+- [Fitting Distributions to Data in R](Fitting-Distributions-to-Data-in-R.html), broader toolbox (`fitdistrplus`, goodness-of-fit tests) for when exponential isn't the right choice.
+- [Sampling Distributions in R](Sampling-Distributions-in-R.html), what happens when you take repeated samples from *any* distribution, including the exponential.

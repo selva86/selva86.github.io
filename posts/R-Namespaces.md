@@ -24,8 +24,8 @@ Without namespaces, every function from every loaded package would compete in on
 
 Every package has two environments:
 
-1. **Package environment** — contains exported functions (what users see)
-2. **Namespace environment** — contains *all* functions (exported + internal)
+1. **Package environment**, contains exported functions (what users see)
+2. **Namespace environment**, contains *all* functions (exported + internal)
 
 ```r
 # The package environment (exported functions)
@@ -96,7 +96,7 @@ cat("\nstats imports from", length(imports), "packages\n")
 cat("Packages:", paste(names(imports), collapse = ", "), "\n")
 ```
 
-The import mechanism is why packages work reliably: when `ggplot2` calls a function internally, it finds the imported version in its namespace — not whatever version happens to be loaded in the user's session.
+The import mechanism is why packages work reliably: when `ggplot2` calls a function internally, it finds the imported version in its namespace, not whatever version happens to be loaded in the user's session.
 
 ## Namespace Resolution in Action
 
@@ -168,10 +168,10 @@ Functions accessed via `:::` are not part of the package's public API. The packa
 
 ### How do I resolve conflicts when two packages export the same function name?
 
-Three options: (1) Use `package::function()` to be explicit. (2) Load the package you want to use last — it masks the earlier one. (3) Use `conflicted::conflict_prefer("filter", "dplyr")` to declare your preference.
+Three options: (1) Use `package::function()` to be explicit. (2) Load the package you want to use last, it masks the earlier one. (3) Use `conflicted::conflict_prefer("filter", "dplyr")` to declare your preference.
 
 ## Continue Learning
 
-1. **R Environments** — the foundation namespaces are built on
-2. **R Internal Functions** — .Internal(), .Call(), and R's C interface
-3. **Lexical Scoping** — how R uses environment chains for variable lookup
+1. **R Environments**, the foundation namespaces are built on
+2. **R Internal Functions**, .Internal(), .Call(), and R's C interface
+3. **Lexical Scoping**, how R uses environment chains for variable lookup

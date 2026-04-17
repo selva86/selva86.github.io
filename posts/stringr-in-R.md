@@ -18,7 +18,7 @@ difficulty: "Intermediate"
 
 # stringr in R: 15 Functions That Handle Every String Task You'll Actually Encounter
 
-<p class="lead">stringr is the tidyverse string toolkit. Every function starts with <code>str_</code>, takes the string as the first argument, and returns a vector the same length as its input. That consistency — missing from base R — is why it has become the default for cleaning, extracting, and reshaping text in R.</p>
+<p class="lead">stringr is the tidyverse string toolkit. Every function starts with <code>str_</code>, takes the string as the first argument, and returns a vector the same length as its input. That consistency, missing from base R, is why it has become the default for cleaning, extracting, and reshaping text in R.</p>
 
 ## Why use stringr instead of base R string functions?
 
@@ -37,7 +37,7 @@ str_detect(str_trim(names), "\\d")
 One line. `str_trim` strips whitespace, `str_detect` returns TRUE/FALSE for each element, NAs propagate cleanly. In base R you would write `grepl("\\d", trimws(names))` and silently lose the NA behavior because `grepl` returns FALSE for NA input. That asymmetry is exactly the kind of bug stringr prevents.
 
 ![stringr function families](screenshots/stringr-in-R-function-families.webp)
-*Figure 1: The seven families of stringr functions. Pick a family based on what you want to do — detect, extract, replace, split, measure, modify, or format.*
+*Figure 1: The seven families of stringr functions. Pick a family based on what you want to do, detect, extract, replace, split, measure, modify, or format.*
 
 stringr organizes its ~40 functions into seven families. You rarely need more than 15 of them in daily work, and this post covers every one of those 15.
 
@@ -61,12 +61,12 @@ str_detect(animals, "fox")
 #> [1]  TRUE FALSE  TRUE FALSE
 ```
 
-`str_detect()` returns one logical value per input element — TRUE where the pattern `"fox"` appears anywhere in the string and FALSE otherwise. The two fox entries match, while "brown bear" and "deer" do not.
+`str_detect()` returns one logical value per input element, TRUE where the pattern `"fox"` appears anywhere in the string and FALSE otherwise. The two fox entries match, while "brown bear" and "deer" do not.
 </details>
 
 ## How do you test if a string contains something with str_detect()?
 
-`str_detect(string, pattern)` returns a logical vector — TRUE where the pattern matches, FALSE where it does not. It is the workhorse of every filter step that touches text.
+`str_detect(string, pattern)` returns a logical vector, TRUE where the pattern matches, FALSE where it does not. It is the workhorse of every filter step that touches text.
 
 ```r
 library(stringr)
@@ -143,7 +143,7 @@ Wrapping the pattern in `regex(..., ignore_case = TRUE)` tells stringr to match 
 
 ## How do str_extract() and str_match() pull out parts of a string?
 
-When you need the matched text itself — not just TRUE/FALSE — use `str_extract` for a simple capture and `str_match` when you need named groups.
+When you need the matched text itself, not just TRUE/FALSE, use `str_extract` for a simple capture and `str_match` when you need named groups.
 
 ```r
 library(stringr)
@@ -168,7 +168,7 @@ str_extract_all(logs, "\\d+")
 #> [1] "2026" "04" "02" "99"
 ```
 
-`str_extract` returns one match per string (the first). `str_extract_all` returns a list — one vector per string, possibly of different lengths. The list shape is annoying but honest: you cannot fit variable-length results into a plain vector.
+`str_extract` returns one match per string (the first). `str_extract_all` returns a list, one vector per string, possibly of different lengths. The list shape is annoying but honest: you cannot fit variable-length results into a plain vector.
 
 For structured extraction, use capture groups with `str_match`:
 
@@ -185,7 +185,7 @@ Column 1 is the full match; columns 2+ are the capture groups in order. You can 
 ![regex anatomy for stringr](screenshots/stringr-in-R-regex-anatomy.webp)
 *Figure 2: Anatomy of a regex pattern. Every stringr function uses these same pieces.*
 
-> **[WARNING]** `str_match` returns a character matrix, not a list or tibble. If your strings have no match, that row is all NAs — check with `anyNA()` before assuming success.
+> **[WARNING]** `str_match` returns a character matrix, not a list or tibble. If your strings have no match, that row is all NAs, check with `anyNA()` before assuming success.
 
 **Try it:** Extract the phone number (10 digits, possibly with dashes) from each string below.
 
@@ -205,7 +205,7 @@ str_extract(contacts, "\\d{3}-?\\d{3}-?\\d{4}")
 #> [1] "555-123-4567" "9876543210"   NA
 ```
 
-The pattern `\\d{3}-?\\d{3}-?\\d{4}` asks for three digits, an optional dash, three more digits, an optional dash, then four digits — so it matches both the dashed and undashed forms. The third string has no run of 10 digits, so `str_extract()` returns `NA` for it.
+The pattern `\\d{3}-?\\d{3}-?\\d{4}` asks for three digits, an optional dash, three more digits, an optional dash, then four digits, so it matches both the dashed and undashed forms. The third string has no run of 10 digits, so `str_extract()` returns `NA` for it.
 </details>
 
 ## How does str_replace() change text inside strings?
@@ -239,7 +239,7 @@ str_replace(dates_us, "(\\d{2})/(\\d{2})/(\\d{4})", "\\3-\\1-\\2")
 
 `\\1`, `\\2`, `\\3` correspond to the three parenthesized groups in the pattern. This is vastly simpler than a nested `substr()` + `paste0()` dance.
 
-For non-regex replacement — when your pattern contains special characters you do not want interpreted — wrap the pattern in `fixed()`:
+For non-regex replacement, when your pattern contains special characters you do not want interpreted, wrap the pattern in `fixed()`:
 
 ```r
 # Literal replacement of a dotted string
@@ -249,7 +249,7 @@ str_replace("version 1.2.3", fixed("1.2.3"), "2.0.0")
 
 Without `fixed()`, the dots would match any character and you might accidentally replace `"1X2Y3"`. Use `fixed()` whenever the pattern is a known literal.
 
-> **[TIP]** stringr also ships `str_remove()` and `str_remove_all()` — sugar for `str_replace(..., "")`. Both are clearer at the call site when you just want to delete text.
+> **[TIP]** stringr also ships `str_remove()` and `str_remove_all()`, sugar for `str_replace(..., "")`. Both are clearer at the call site when you just want to delete text.
 
 **Try it:** Normalize these filenames to lowercase kebab-case (lowercase, dashes not spaces).
 
@@ -296,7 +296,7 @@ parts
 #> [3,] "42 Oak Rd"   "Berlin" "10115"
 ```
 
-`simplify = TRUE` promotes the list result to a character matrix when every input has the same number of parts. When that is not guaranteed, leave it as the default list and `purrr::map_chr` through it. `str_split_fixed(x, pattern, n)` is another option — it pads short rows with empty strings so you always get `n` columns.
+`simplify = TRUE` promotes the list result to a character matrix when every input has the same number of parts. When that is not guaranteed, leave it as the default list and `purrr::map_chr` through it. `str_split_fixed(x, pattern, n)` is another option, it pads short rows with empty strings so you always get `n` columns.
 
 Going the other way:
 
@@ -312,14 +312,14 @@ str_c(first, collapse = ", ")
 #> [1] "Asha, Bilal, Cleo"
 ```
 
-`sep` concatenates element-wise; `collapse` concatenates the whole vector into a single string. The two arguments compose — you can use both in one call when combining vectors and then flattening.
+`sep` concatenates element-wise; `collapse` concatenates the whole vector into a single string. The two arguments compose, you can use both in one call when combining vectors and then flattening.
 
 ```r
 str_c(first, last, sep = " ", collapse = "; ")
 #> [1] "Asha Rao; Bilal Khan; Cleo Patel"
 ```
 
-> **[NOTE]** `str_c` treats NA like NA — any element with an NA becomes NA. Use `paste` or `coalesce(x, "")` if you want NAs to be silently treated as empty strings.
+> **[NOTE]** `str_c` treats NA like NA, any element with an NA becomes NA. Use `paste` or `coalesce(x, "")` if you want NAs to be silently treated as empty strings.
 
 **Try it:** Split each string on the colon, then build a named vector from the result.
 
@@ -342,7 +342,7 @@ named
 #> "Asha"   "30" "Pune"
 ```
 
-`simplify = TRUE` turns the split list into a 3x2 character matrix — keys in column 1, values in column 2. `setNames()` then attaches the key column as names on the value column, producing a named character vector ready for lookup.
+`simplify = TRUE` turns the split list into a 3x2 character matrix, keys in column 1, values in column 2. `setNames()` then attaches the key column as names on the value column, producing a named character vector ready for lookup.
 </details>
 
 ## How do you clean whitespace, case, and padding?
@@ -367,7 +367,7 @@ str_to_title(str_squish(messy))
 #> [1] "Asha"  "Bilal" "Cleo"  "Daan"  "Edu"
 ```
 
-Pair `str_squish` with `str_to_title` as a one-stop cleanup for names. `str_squish` is stronger than `str_trim` because it also collapses any internal runs of whitespace to a single space — critical when copy-pasting from spreadsheets.
+Pair `str_squish` with `str_to_title` as a one-stop cleanup for names. `str_squish` is stronger than `str_trim` because it also collapses any internal runs of whitespace to a single space, critical when copy-pasting from spreadsheets.
 
 Padding is the opposite problem: making short strings match a target width, typically for alignment.
 
@@ -377,7 +377,7 @@ str_pad(ids, width = 5, side = "left", pad = "0")
 #> [1] "00001" "00012" "00123" "01234"
 ```
 
-Zero-padded IDs are a classic need — think invoice numbers, customer codes, file names sorted lexically. `side = "right"` and `side = "both"` are also valid.
+Zero-padded IDs are a classic need, think invoice numbers, customer codes, file names sorted lexically. `side = "right"` and `side = "both"` are also valid.
 
 `str_length` answers "how many characters in this string?". It counts by code points, not bytes, so it is safe for non-ASCII text.
 
@@ -449,7 +449,7 @@ str_match(x, "([A-Za-z]+)(\\d*)")[, -1]
 #> [5,] "Grape"  "12"
 ```
 
-Five regex tools, five concepts. Most data-cleaning regex you will ever write is just a combination of these with careful escaping. Resist the temptation to build a 200-character super-regex — split it into two or three simpler steps that are easier to debug.
+Five regex tools, five concepts. Most data-cleaning regex you will ever write is just a combination of these with careful escaping. Resist the temptation to build a 200-character super-regex, split it into two or three simpler steps that are easier to debug.
 
 When regex feels like overkill, wrap the pattern in `fixed()` for literal matching or `coll()` for locale-aware matching. When the pattern needs options like case-insensitive or dotall, use `regex(..., ignore_case = TRUE)`.
 
@@ -606,7 +606,7 @@ clean
 #> 5     5 Edu Silva       edu@gmail.com       gmail.com   +1-555-777-6666  TRUE
 ```
 
-Seven stringr calls, one clean pipeline, tidy output ready for the next step in your workflow. The lookahead regex `(?<=@).+$` extracts everything after the `@` without including the `@` itself — a clean way to get the domain.
+Seven stringr calls, one clean pipeline, tidy output ready for the next step in your workflow. The lookahead regex `(?<=@).+$` extracts everything after the `@` without including the `@` itself, a clean way to get the domain.
 
 ## Summary
 
@@ -632,19 +632,19 @@ Four rules worth internalizing:
 
 1. **Escape dots.** `\\.` matches a literal dot; `.` matches any character.
 2. **Pattern interpretation.** Plain strings are regex; `fixed()` is literal; `regex()` adds options.
-3. **Single vs all.** Most functions have a `_all` variant — pick the one that matches your question.
+3. **Single vs all.** Most functions have a `_all` variant, pick the one that matches your question.
 4. **List vs vector.** `_all` extractors return lists because match counts vary; handle that shape explicitly.
 
 ## References
 
 - [stringr official reference](https://stringr.tidyverse.org/reference/index.html)
 - [stringr regex vignette](https://stringr.tidyverse.org/articles/regular-expressions.html)
-- [R for Data Science, 2e — Strings chapter](https://r4ds.hadley.nz/strings.html)
+- [R for Data Science, 2e, Strings chapter](https://r4ds.hadley.nz/strings.html)
 - [ICU regex syntax](https://unicode-org.github.io/icu/userguide/strings/regexp.html)
-- [regex101.com](https://regex101.com/) — interactive regex testing; set flavor to "PCRE2" for a close match to stringr.
+- [regex101.com](https://regex101.com/), interactive regex testing; set flavor to "PCRE2" for a close match to stringr.
 
 ## Continue Learning
 
-- [dplyr filter() and select()](dplyr-filter-select.html) — pair `str_detect()` with `filter()` for text-based row filters.
-- [pivot_longer() and pivot_wider()](pivot_longer-pivot_wider-Reshape-Data-in-R.html) — often needed before or after string cleanup.
-- [dplyr mutate() and rename()](dplyr-mutate-rename.html) — every string transformation lives inside a mutate.
+- [dplyr filter() and select()](dplyr-filter-select.html), pair `str_detect()` with `filter()` for text-based row filters.
+- [pivot_longer() and pivot_wider()](pivot_longer-pivot_wider-Reshape-Data-in-R.html), often needed before or after string cleanup.
+- [dplyr mutate() and rename()](dplyr-mutate-rename.html), every string transformation lives inside a mutate.

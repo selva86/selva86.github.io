@@ -1,7 +1,7 @@
 ---
-title: "ggplot2 Facet Exercises: 8 facet_wrap() & facet_grid() Practice Problems — Solved Step-by-Step"
+title: "ggplot2 Facet Exercises: 8 facet_wrap() & facet_grid() Practice Problems, Solved Step-by-Step"
 slug: "ggplot2-Facet-Exercises"
-description: "Practice ggplot2 faceting — 8 facet_wrap() and facet_grid() exercises with worked solutions. Covers layout control, free scales, custom labels, background data, and margins."
+description: "Practice ggplot2 faceting, 8 facet_wrap() and facet_grid() exercises with worked solutions. Covers layout control, free scales, custom labels, background data, and margins."
 keywords: "ggplot2 facet exercises, facet_wrap exercises, facet_grid exercises, ggplot2 practice problems, facet_wrap practice R, facet_grid practice R, ggplot2 multi-panel exercises, ggplot2 faceting practice"
 auto_link_terms: "ggplot2 facet exercises|facet_wrap exercises|facet_grid exercises|ggplot2 faceting practice|facet exercises R"
 auto_link_case_sensitive: false
@@ -15,13 +15,13 @@ fr_parent: "ggplot2-Facets.html"
 difficulty: "Intermediate"
 ---
 
-# ggplot2 Facet Exercises: 8 facet_wrap() & facet_grid() Practice Problems — Solved Step-by-Step
+# ggplot2 Facet Exercises: 8 facet_wrap() & facet_grid() Practice Problems, Solved Step-by-Step
 
-<p class="lead">Faceting splits one busy chart into a panel grid that makes group comparisons effortless. These 8 exercises drill every facet skill — from basic <code>facet_wrap()</code> through <code>facet_grid()</code> margins — with runnable starter code, expected output, and step-by-step solutions.</p>
+<p class="lead">Faceting splits one busy chart into a panel grid that makes group comparisons effortless. These 8 exercises drill every facet skill, from basic <code>facet_wrap()</code> through <code>facet_grid()</code> margins, with runnable starter code, expected output, and step-by-step solutions.</p>
 
 ## What Do Facets Do and When Do You Use Them?
 
-Facets split a single plot into multiple panels — one per group — so patterns that hide behind overlapping colours become obvious. `facet_wrap()` handles one grouping variable and wraps panels into a flexible grid. `facet_grid()` maps two variables into a strict row-by-column matrix. Let's see both in action before you start the exercises.
+Facets split a single plot into multiple panels, one per group, so patterns that hide behind overlapping colours become obvious. `facet_wrap()` handles one grouping variable and wraps panels into a flexible grid. `facet_grid()` maps two variables into a strict row-by-column matrix. Let's see both in action before you start the exercises.
 
 ```r
 library(ggplot2)
@@ -207,7 +207,7 @@ ggplot(ex_dia, aes(x = carat, y = price)) +
 
 ## How Do You Control Layout and Orientation? (Exercises 3–4)
 
-Layout arguments — `ncol`, `nrow`, and `dir` — give you precise control over how panels arrange. `facet_grid()` goes further, mapping two variables into a fixed row-by-column matrix.
+Layout arguments, `ncol`, `nrow`, and `dir`, give you precise control over how panels arrange. `facet_grid()` goes further, mapping two variables into a fixed row-by-column matrix.
 
 ### Exercise 3: Force a Custom Layout with ncol and dir
 
@@ -242,7 +242,7 @@ ggplot(mpg, aes(x = displ, y = hwy)) +
 #> Vertical fill puts alphabetically adjacent classes in the same column.
 ```
 
-**Explanation:** `dir = "v"` fills panels top-to-bottom within each column, then moves to the next column — like reading a newspaper. The default `dir = "h"` fills left-to-right across rows. Use `"v"` when column proximity matters more than row proximity.
+**Explanation:** `dir = "v"` fills panels top-to-bottom within each column, then moves to the next column, like reading a newspaper. The default `dir = "h"` fills left-to-right across rows. Use `"v"` when column proximity matters more than row proximity.
 
 </details>
 
@@ -283,12 +283,12 @@ ggplot(mpg, aes(x = displ, y = hwy)) +
 #> Trend lines only appear in cells with 2+ data points.
 ```
 
-**Explanation:** `facet_grid(drv ~ cyl)` places drive types on rows and cylinder counts on columns. Every combination gets a cell — even empty ones. This fixed matrix structure lets you read across a row (compare cylinders within a drive type) or down a column (compare drive types within a cylinder count).
+**Explanation:** `facet_grid(drv ~ cyl)` places drive types on rows and cylinder counts on columns. Every combination gets a cell, even empty ones. This fixed matrix structure lets you read across a row (compare cylinders within a drive type) or down a column (compare drive types within a cylinder count).
 
 </details>
 
 [WARNING]
-**Empty cells in facet_grid() are expected, not errors.** They tell you that combination doesn't exist in the data. Don't filter them out — the gap itself is informative (e.g., no rear-wheel 4-cylinder vehicles in this dataset).
+**Empty cells in facet_grid() are expected, not errors.** They tell you that combination doesn't exist in the data. Don't filter them out, the gap itself is informative (e.g., no rear-wheel 4-cylinder vehicles in this dataset).
 
 **Try it:** Create a single-row horizontal strip with `facet_wrap(~drv, nrow = 1)` showing `displ` vs `hwy`. When does a filmstrip layout work well?
 
@@ -320,7 +320,7 @@ ggplot(mpg, aes(x = displ, y = hwy)) +
 
 ## When Should You Free the Scales? (Exercise 5)
 
-Fixed scales (the default) make cross-panel comparison easy — the same position means the same value everywhere. But when groups have wildly different ranges, some panels get squashed. The `scales` argument controls this trade-off.
+Fixed scales (the default) make cross-panel comparison easy, the same position means the same value everywhere. But when groups have wildly different ranges, some panels get squashed. The `scales` argument controls this trade-off.
 
 ### Exercise 5: Free Scales for Economic Indicators
 
@@ -371,7 +371,7 @@ ggplot(economics_long, aes(x = date, y = value)) +
 #> Unemployment spikes during the 2008 recession.
 ```
 
-**Explanation:** `scales = "free_y"` gives each panel its own y-axis range. Without it, Savings Rate (0–17%) would be an invisible flat line next to Personal Consumption (0–12,000). `ncol = 1` stacks panels vertically — the natural layout for time series where you want aligned x-axes.
+**Explanation:** `scales = "free_y"` gives each panel its own y-axis range. Without it, Savings Rate (0–17%) would be an invisible flat line next to Personal Consumption (0–12,000). `ncol = 1` stacks panels vertically, the natural layout for time series where you want aligned x-axes.
 
 </details>
 
@@ -418,7 +418,7 @@ ggplot(mpg, aes(x = hwy)) +
 
 ## How Do You Customize Strip Labels? (Exercise 6)
 
-Strip labels are the grey text bars above each panel. By default, they show raw data values — often cryptic abbreviations that force your audience to guess. Custom labellers and theme styling make panels publication-ready.
+Strip labels are the grey text bars above each panel. By default, they show raw data values, often cryptic abbreviations that force your audience to guess. Custom labellers and theme styling make panels publication-ready.
 
 ### Exercise 6: Custom Labels + Styled Strips
 
@@ -559,7 +559,7 @@ ggplot(mpg, aes(x = displ, y = hwy)) +
 #> Trend lines show the slope differs by class.
 ```
 
-**Explanation:** Removing the faceting variable (`class`) from the background data frame makes those grey points appear in every panel — ggplot2 doesn't know which panel they belong to, so it draws them in all panels. The coloured points and trend line use the original data, which still has `class`, so they only appear in their matching panel.
+**Explanation:** Removing the faceting variable (`class`) from the background data frame makes those grey points appear in every panel, ggplot2 doesn't know which panel they belong to, so it draws them in all panels. The coloured points and trend line use the original data, which still has `class`, so they only appear in their matching panel.
 
 </details>
 
@@ -622,7 +622,7 @@ ggplot(mpg, aes(x = displ, y = hwy)) +
 #> Margins act like "Total" rows/columns in a pivot table.
 ```
 
-**Explanation:** `margins = TRUE` adds an "(all)" row and column that aggregate across each dimension. The `labeller()` function maps both row and column variables — note you must include `"(all)"` in both maps since the margin panels use that level. This creates a dashboard-style view where each group panel sits next to its summary.
+**Explanation:** `margins = TRUE` adds an "(all)" row and column that aggregate across each dimension. The `labeller()` function maps both row and column variables, note you must include `"(all)"` in both maps since the margin panels use that level. This creates a dashboard-style view where each group panel sits next to its summary.
 
 </details>
 
@@ -676,24 +676,24 @@ Here's what each exercise tested and the key functions you practiced.
 
 Key takeaways:
 
-1. **Start with facet_wrap()** for single-variable faceting — it handles 80% of use cases
+1. **Start with facet_wrap()** for single-variable faceting, it handles 80% of use cases
 2. **Use facet_grid()** when the row-by-column matrix structure adds analytical value
 3. **Free scales** reveal within-panel patterns; fixed scales enable cross-panel comparison
-4. **Always relabel strips** — raw data values are cryptic to your audience
+4. **Always relabel strips**, raw data values are cryptic to your audience
 5. **Background data** is the most powerful storytelling technique for faceted plots
 6. **Margins** in facet_grid() add "Total" panels like a pivot table
 
 ## References
 
-1. Wickham, H. — *ggplot2: Elegant Graphics for Data Analysis*, 3rd Edition. Chapter 16: Faceting. [Link](https://ggplot2-book.org/facet.html)
-2. ggplot2 reference — facet_wrap() documentation. [Link](https://ggplot2.tidyverse.org/reference/facet_wrap.html)
-3. ggplot2 reference — facet_grid() documentation. [Link](https://ggplot2.tidyverse.org/reference/facet_grid.html)
-4. Wickham, H. & Grolemund, G. — *R for Data Science*, 2nd Edition. Chapter 2: Data Visualization. [Link](https://r4ds.hadley.nz/data-visualize)
-5. Wilke, C. — *Fundamentals of Data Visualization*. Chapter 21: Multi-panel Figures. [Link](https://clauswilke.com/dataviz/multi-panel-figures.html)
-6. R-Charts — Facets in ggplot2. [Link](https://r-charts.com/ggplot2/facets/)
+1. Wickham, H., *ggplot2: Elegant Graphics for Data Analysis*, 3rd Edition. Chapter 16: Faceting. [Link](https://ggplot2-book.org/facet.html)
+2. ggplot2 reference, facet_wrap() documentation. [Link](https://ggplot2.tidyverse.org/reference/facet_wrap.html)
+3. ggplot2 reference, facet_grid() documentation. [Link](https://ggplot2.tidyverse.org/reference/facet_grid.html)
+4. Wickham, H. & Grolemund, G., *R for Data Science*, 2nd Edition. Chapter 2: Data Visualization. [Link](https://r4ds.hadley.nz/data-visualize)
+5. Wilke, C., *Fundamentals of Data Visualization*. Chapter 21: Multi-panel Figures. [Link](https://clauswilke.com/dataviz/multi-panel-figures.html)
+6. R-Charts, Facets in ggplot2. [Link](https://r-charts.com/ggplot2/facets/)
 
 ## Continue Learning
 
-- [ggplot2 Facets](ggplot2-Facets.html) — Full tutorial on facet_wrap() and facet_grid() with theory, examples, and visual guides
-- [ggplot2 Customization Exercises](ggplot2-Customization-Exercises.html) — 10 theme and scale practice problems to polish your faceted plots
-- [ggplot2 Geom Exercises](ggplot2-Geom-Exercises.html) — 12 geom practice problems covering scatter, bar, line, and more
+- [ggplot2 Facets](ggplot2-Facets.html), Full tutorial on facet_wrap() and facet_grid() with theory, examples, and visual guides
+- [ggplot2 Customization Exercises](ggplot2-Customization-Exercises.html), 10 theme and scale practice problems to polish your faceted plots
+- [ggplot2 Geom Exercises](ggplot2-Geom-Exercises.html), 12 geom practice problems covering scatter, bar, line, and more

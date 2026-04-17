@@ -1,5 +1,5 @@
 ---
-title: "R Memory Error: 'cannot allocate vector' — 5 Solutions From Quick to Complete"
+title: "R Memory Error: 'cannot allocate vector', 5 Solutions From Quick to Complete"
 slug: "R-Error-Memory"
 description: "R out of memory? Fix 'cannot allocate vector of size' fast: run gc(), drop big objects, switch to data.table, or use DuckDB for out-of-memory queries."
 keywords: "R cannot allocate vector, R memory error, R out of memory, cannot allocate vector of size, R gc() garbage collect, R rm() free memory, R data.table fread, R DuckDB out of memory"
@@ -14,13 +14,13 @@ fr_parent: "R-Common-Errors.html"
 difficulty: "Intermediate"
 ---
 
-# R Memory Error: 'cannot allocate vector' — 5 Solutions From Quick to Complete
+# R Memory Error: 'cannot allocate vector', 5 Solutions From Quick to Complete
 
-<p class="lead"><code>Error: cannot allocate vector of size X Gb</code> means R tried to grow or copy an object that needs more contiguous RAM than your machine can spare in this session. The size printed in the message is exactly how much R asked for — that single number decides which of the five fixes below applies to you.</p>
+<p class="lead"><code>Error: cannot allocate vector of size X Gb</code> means R tried to grow or copy an object that needs more contiguous RAM than your machine can spare in this session. The size printed in the message is exactly how much R asked for, that single number decides which of the five fixes below applies to you.</p>
 
 ## What does "cannot allocate vector of size X Gb" actually mean?
 
-When you see this error, R hit a hard wall: it asked the operating system for a chunk of contiguous memory and the OS said no. The size in the message is the exact request — not your total memory use, not the size of everything in your session. Before touching any fix, reproduce the error and read that number carefully. It tells you whether you are 100MB short or 40GB short, and the answer points directly at the right solution.
+When you see this error, R hit a hard wall: it asked the operating system for a chunk of contiguous memory and the OS said no. The size in the message is the exact request, not your total memory use, not the size of everything in your session. Before touching any fix, reproduce the error and read that number carefully. It tells you whether you are 100MB short or 40GB short, and the answer points directly at the right solution.
 
 ```r
 # Reproduce the error on any machine by asking for an absurd allocation.
@@ -29,10 +29,10 @@ huge <- numeric(1e10)
 #> Error: cannot allocate vector of size 74.5 Gb
 ```
 
-The two parts of the message to notice: `cannot allocate vector` means the request failed at allocation time (not during computation), and `74.5 Gb` is the *exact* size that was refused. A 10-billion-element double vector needs 10e9 * 8 bytes ≈ 74.5 GiB — the number is not a mystery, it is arithmetic.
+The two parts of the message to notice: `cannot allocate vector` means the request failed at allocation time (not during computation), and `74.5 Gb` is the *exact* size that was refused. A 10-billion-element double vector needs 10e9 * 8 bytes ≈ 74.5 GiB, the number is not a mystery, it is arithmetic.
 
 [KEY INSIGHT]
-**The size in the error is the request, not total memory used.** A 500MB error means R needed 500MB of contiguous free RAM at that instant — even if your total session usage is tiny. Always read the size first; it tells you whether solution 1 (free garbage) or solution 5 (bigger machine) is realistic.
+**The size in the error is the request, not total memory used.** A 500MB error means R needed 500MB of contiguous free RAM at that instant, even if your total session usage is tiny. Always read the size first; it tells you whether solution 1 (free garbage) or solution 5 (bigger machine) is realistic.
 
 Once you have the number, estimate how big your actual objects are so you know how much headroom to recover. Base R's `object.size()` reports the exact byte count for any variable you already have in the session.
 
@@ -57,7 +57,7 @@ gc()
 #> Vcells 5784236  44.2   14282293 109.0  5784236  44.2
 ```
 
-Two numbers matter here: `Vcells used (Mb)` is how much R is holding right now for vectors (your data), and `max used` is the highest it has been during this session. If `max used` is close to your total RAM and `used` is much lower, old objects were freed and you just need to trigger a collection — that is exactly what solution 1 does.
+Two numbers matter here: `Vcells used (Mb)` is how much R is holding right now for vectors (your data), and `max used` is the highest it has been during this session. If `max used` is close to your total RAM and `used` is much lower, old objects were freed and you just need to trigger a collection, that is exactly what solution 1 does.
 
 **Try it:** Estimate how many megabytes a 10-million-element numeric vector needs. Write the expression using `object.size()` and convert to MB.
 
@@ -84,7 +84,7 @@ format(ex_bytes, units = "MB")
 
 ## Solution 1: Can gc() and rm() buy you enough headroom?
 
-This is the zero-cost first move. Every interactive R session accumulates old objects, copies from pipelines, and intermediate results that you no longer need. If the shortage is modest — say the error is for 500MB and you have 4GB free — removing leftovers and triggering garbage collection often fixes it instantly.
+This is the zero-cost first move. Every interactive R session accumulates old objects, copies from pipelines, and intermediate results that you no longer need. If the shortage is modest, say the error is for 500MB and you have 4GB free, removing leftovers and triggering garbage collection often fixes it instantly.
 
 ```r
 # Create a dummy 500MB object to simulate a long session
@@ -100,14 +100,14 @@ gc()
 #> Vcells 5784275 44.2   71351462 544.4 65784275 501.8
 ```
 
-Read the `gc()` output after `rm()`: the `used` column drops back to what is actually live, and `max used` still remembers the peak. The 500MB object is gone from `used` but not from `max used` — that is normal and tells you the OS has now released the memory. Try your failing line again: if it was a small overage, it will succeed.
+Read the `gc()` output after `rm()`: the `used` column drops back to what is actually live, and `max used` still remembers the peak. The 500MB object is gone from `used` but not from `max used`, that is normal and tells you the OS has now released the memory. Try your failing line again: if it was a small overage, it will succeed.
 
 If you are inside a long loop that builds intermediate objects, sprinkle `rm()` and `gc()` between iterations so each pass does not carry its predecessors' memory forward.
 
 [TIP]
 **Put gc() inside long loops when you build big temporary objects.** R will eventually collect garbage on its own, but explicit `gc()` at the end of each iteration guarantees the memory is released before the next iteration tries to allocate.
 
-A full session wipe is also one line — useful as a panic button at the top of a script that keeps failing.
+A full session wipe is also one line, useful as a panic button at the top of a script that keeps failing.
 
 ```r
 # Nuclear option: remove everything in the global env, then collect
@@ -118,7 +118,7 @@ gc()
 #> Vcells 5784298 44.2   71351462 544.4 65784275 501.8
 ```
 
-**When solution 1 works:** the overage is small (under ~1GB), your session has been running a while, or you just finished an expensive pipeline that left copies lying around. **When it does not:** the *single* object you need is already larger than free RAM. No amount of clean-up will help — jump to solution 2.
+**When solution 1 works:** the overage is small (under ~1GB), your session has been running a while, or you just finished an expensive pipeline that left copies lying around. **When it does not:** the *single* object you need is already larger than free RAM. No amount of clean-up will help, jump to solution 2.
 
 **Try it:** Create a 200MB numeric vector named `ex_big`, confirm its size, delete it, and verify with `gc()` that memory dropped.
 
@@ -182,7 +182,7 @@ format(object.size(df_fast), units = "MB")
 
 On the same file, `fread()` holds the data in about a third of the RAM. The win compounds with file size: a 2GB CSV that peaks at ~12GB under `read.csv()` often peaks under 4GB with `fread()`. For files that are close to your memory limit, that one swap is enough to turn a failing script into a passing one.
 
-The second win is column selection. If you only need three columns out of thirty, `fread()` can skip reading the rest entirely — memory use drops roughly proportional to the column count.
+The second win is column selection. If you only need three columns out of thirty, `fread()` can skip reading the rest entirely, memory use drops roughly proportional to the column count.
 
 ```r
 # Load only the columns you actually need
@@ -200,7 +200,7 @@ head(df_cols, 3)
 Two columns instead of four cut memory by more than half. For a real-world 30-column file where you only need 5 columns, that is a 6× reduction before any other trick.
 
 [TIP]
-**Pass select= to fread to load only the columns you need.** A 30-column file where you only need 5 shrinks peak memory by ~6× — often the difference between "fails" and "fits comfortably".
+**Pass select= to fread to load only the columns you need.** A 30-column file where you only need 5 shrinks peak memory by ~6×, often the difference between "fails" and "fits comfortably".
 
 **Try it:** Write `mtcars` to a temp CSV, then use `fread()` with `select=` to load only the `mpg`, `cyl`, and `hp` columns.
 
@@ -232,7 +232,7 @@ head(ex_mtcars, 3)
 
 ## Solution 3: How does arrow read files larger than RAM?
 
-`fread()` still loads the whole file into memory. If the file itself is larger than your RAM — a 40GB parquet file on a 16GB laptop — you need a different approach. The `arrow` package lets you *reference* an on-disk file without loading it, filter rows and columns using dplyr verbs, and only materialise the final (small) result in R's memory.
+`fread()` still loads the whole file into memory. If the file itself is larger than your RAM, a 40GB parquet file on a 16GB laptop, you need a different approach. The `arrow` package lets you *reference* an on-disk file without loading it, filter rows and columns using dplyr verbs, and only materialise the final (small) result in R's memory.
 
 [NOTE]
 **arrow is a separate package you install once with install.packages("arrow").** The examples below show the pattern you would run in a local R session. The same pattern works on parquet files, partitioned CSV directories, and Arrow IPC files.
@@ -254,9 +254,9 @@ nrow(subset_df)
 #> [1] 2145883
 ```
 
-The magic word is `collect()`. Every dplyr verb before it (`filter`, `select`, `mutate`, `group_by`, `summarise`) is recorded but not executed. `collect()` pushes the whole pipeline down to the Arrow query engine, which streams the file in chunks, applies the filter as it reads, and hands R only the rows that survived. A 40GB file filtered down to 2 million matching rows becomes a ~50MB data frame — problem solved without ever loading the full 40GB.
+The magic word is `collect()`. Every dplyr verb before it (`filter`, `select`, `mutate`, `group_by`, `summarise`) is recorded but not executed. `collect()` pushes the whole pipeline down to the Arrow query engine, which streams the file in chunks, applies the filter as it reads, and hands R only the rows that survived. A 40GB file filtered down to 2 million matching rows becomes a ~50MB data frame, problem solved without ever loading the full 40GB.
 
-This works best when three conditions hold: (1) the file is in parquet or arrow format (columnar, so column selection is cheap), (2) your filter knocks out most rows, and (3) the result you actually want is small. If the answer is still 30GB, arrow alone will not save you — but solution 4 might.
+This works best when three conditions hold: (1) the file is in parquet or arrow format (columnar, so column selection is cheap), (2) your filter knocks out most rows, and (3) the result you actually want is small. If the answer is still 30GB, arrow alone will not save you, but solution 4 might.
 
 **Try it:** Write mtcars to a temporary parquet file, open it as a dataset, and filter to rows where `mpg > 20` *without* calling `collect()` until the very end.
 
@@ -291,7 +291,7 @@ nrow(ex_filtered)
 
 ## Solution 4: How can DuckDB query data that doesn't fit in memory?
 
-DuckDB is an in-process analytical SQL engine — think SQLite, but optimised for columnar analytics. From R, you can point it at a CSV or parquet file on disk, run a SQL query (or dplyr pipeline through `dbplyr`), and only the query result comes back to R. Because DuckDB processes data in streaming chunks, the input file can be many times larger than your RAM.
+DuckDB is an in-process analytical SQL engine, think SQLite, but optimised for columnar analytics. From R, you can point it at a CSV or parquet file on disk, run a SQL query (or dplyr pipeline through `dbplyr`), and only the query result comes back to R. Because DuckDB processes data in streaming chunks, the input file can be many times larger than your RAM.
 
 [NOTE]
 **duckdb is a separate package you install once with install.packages("duckdb").** The pattern below shows how to open a connection, query a CSV directly from disk, and pull the result into an R data frame.
@@ -317,7 +317,7 @@ result_df
 dbDisconnect(con, shutdown = TRUE)
 ```
 
-Three rows came back to R. The CSV could have been 40GB; R never sees anything except those three rows plus the scalar summaries. DuckDB did all the scanning, filtering, and aggregation outside R's memory space. This is the single most important pattern for "the input is huge but my final answer is small" workloads — which covers most real analytics.
+Three rows came back to R. The CSV could have been 40GB; R never sees anything except those three rows plus the scalar summaries. DuckDB did all the scanning, filtering, and aggregation outside R's memory space. This is the single most important pattern for "the input is huge but my final answer is small" workloads, which covers most real analytics.
 
 If you prefer dplyr syntax, DuckDB also works via `dbplyr`: `tbl(con, "read_csv_auto('big-mtcars.csv')")` gives you a lazy table you can pipe through `filter`, `group_by`, `summarise`, and finally `collect()`, identically to the arrow example.
 
@@ -329,15 +329,15 @@ If you prefer dplyr syntax, DuckDB also works via `dbplyr`: `tbl(con, "read_csv_
 <details>
 <summary>Click to reveal solution</summary>
 
-**Answer:** Only the result rows — one per distinct `cyl` value. For mtcars that is 3 rows (4-cyl, 6-cyl, 8-cyl), each with the average mpg. None of the 32 original rows ever enter R's memory, and the same logic scales: a 40GB CSV with 5 distinct groups returns 5 rows to R regardless of input size. DuckDB streams the input file through its aggregation operator and emits only the final group summaries.
+**Answer:** Only the result rows, one per distinct `cyl` value. For mtcars that is 3 rows (4-cyl, 6-cyl, 8-cyl), each with the average mpg. None of the 32 original rows ever enter R's memory, and the same logic scales: a 40GB CSV with 5 distinct groups returns 5 rows to R regardless of input size. DuckDB streams the input file through its aggregation operator and emits only the final group summaries.
 
 </details>
 
 ## Solution 5: When is more RAM or cloud the right answer?
 
-Sometimes there is no clever trick. If the *single* object you need is larger than your machine can hold — say a 30GB correlation matrix, or a model that must see all training rows at once — solutions 1 through 4 cannot save you. At that point the right answer is more hardware, and it is usually cheaper than the time you would spend fighting it.
+Sometimes there is no clever trick. If the *single* object you need is larger than your machine can hold, say a 30GB correlation matrix, or a model that must see all training rows at once, solutions 1 through 4 cannot save you. At that point the right answer is more hardware, and it is usually cheaper than the time you would spend fighting it.
 
-The pragmatic order is: upgrade the laptop, rent a VM by the hour, or use a hosted R service with larger instances. Renting is almost always the first thing to try. A 128GB-RAM cloud VM costs about $1–2 per hour on EC2, GCP, or Azure — one afternoon of compute is cheaper than a new laptop and lets you finish the job today instead of next week.
+The pragmatic order is: upgrade the laptop, rent a VM by the hour, or use a hosted R service with larger instances. Renting is almost always the first thing to try. A 128GB-RAM cloud VM costs about $1–2 per hour on EC2, GCP, or Azure, one afternoon of compute is cheaper than a new laptop and lets you finish the job today instead of next week.
 
 [TIP]
 **Rent before you buy.** A 128GB-RAM cloud instance at ~$1.50/hr gets you 10× the memory of a typical laptop for less than the cost of lunch. If you only need it for one analysis, the economics are unbeatable.
@@ -345,11 +345,11 @@ The pragmatic order is: upgrade the laptop, rent a VM by the hour, or use a host
 Signals that you are in solution-5 territory:
 
 1. The error shows a size larger than your total RAM, not just free RAM.
-2. You already tried `fread`, `arrow::open_dataset`, and DuckDB — none helped because the *output* is also huge.
+2. You already tried `fread`, `arrow::open_dataset`, and DuckDB, none helped because the *output* is also huge.
 3. You need a global operation: a full pairwise distance matrix, a correlation matrix over 100k columns, or a dense model fit on all rows at once.
 4. The dataset is growing and this will not be a one-time problem.
 
-If none of those apply, you probably do not need more hardware yet — recheck whether solutions 2–4 can restructure the problem.
+If none of those apply, you probably do not need more hardware yet, recheck whether solutions 2–4 can restructure the problem.
 
 **Try it:** You have a 40GB CSV on an 8GB-RAM laptop. Which of solutions 1–5 are realistic? Which are not?
 
@@ -358,7 +358,7 @@ If none of those apply, you probably do not need more hardware yet — recheck w
 
 **Realistic:** Solution 3 (arrow with `open_dataset()` + filter/collect), solution 4 (DuckDB SQL aggregation), and solution 5 (rent a cloud VM) all handle this. Arrow and DuckDB only need the final result in memory, not the input.
 
-**Not realistic:** Solution 1 (`gc()` + `rm()`) cannot create memory you do not have. Solution 2 (`fread()`) still tries to load the whole file into RAM — a 40GB CSV will not fit in 8GB regardless of the reader. You must avoid loading the full file, which is exactly what solutions 3–5 do.
+**Not realistic:** Solution 1 (`gc()` + `rm()`) cannot create memory you do not have. Solution 2 (`fread()`) still tries to load the whole file into RAM, a 40GB CSV will not fit in 8GB regardless of the reader. You must avoid loading the full file, which is exactly what solutions 3–5 do.
 
 </details>
 
@@ -394,7 +394,7 @@ gc()
 #> Vcells 5784450 44.2   71351462 544.4 65784275 501.8
 ```
 
-**Explanation:** `sapply(ls(), ...)` computes the byte size of every object in the global environment. Sorting descending and taking the top 3 gives you the biggest memory holders — the prime candidates to `rm()` first.
+**Explanation:** `sapply(ls(), ...)` computes the byte size of every object in the global environment. Sorting descending and taking the top 3 gives you the biggest memory holders, the prime candidates to `rm()` first.
 
 </details>
 
@@ -444,7 +444,7 @@ my_summary
 
 ## Complete Example: Full Triage Script
 
-Here is the workflow you should reach for whenever a script hits the error — reproduce the failure small, apply the cheapest fixes first, then escalate only if needed. Every step is runnable as-is.
+Here is the workflow you should reach for whenever a script hits the error, reproduce the failure small, apply the cheapest fixes first, then escalate only if needed. Every step is runnable as-is.
 
 ```r
 library(data.table)
@@ -489,12 +489,12 @@ triage_after[, "used (Mb)"]
 #>    36.5    44.3
 ```
 
-Read the before/after `gc()` tables: the `used (Mb)` numbers hardly changed, because we dropped the unneeded `junk` column at load time and cleaned up with `rm()` afterwards. This is the pattern — measure, reduce at the boundary (load only what you need), compute, clean up. On a full-sized file, every step still applies; only the numbers get bigger.
+Read the before/after `gc()` tables: the `used (Mb)` numbers hardly changed, because we dropped the unneeded `junk` column at load time and cleaned up with `rm()` afterwards. This is the pattern, measure, reduce at the boundary (load only what you need), compute, clean up. On a full-sized file, every step still applies; only the numbers get bigger.
 
 ## Summary
 
 ![Five solutions ordered by cost](screenshots/R-Error-Memory-solutions-flow.webp)
-*Figure 1: Five solutions ordered from zero-cost to most-expensive — try them in order.*
+*Figure 1: Five solutions ordered from zero-cost to most-expensive, try them in order.*
 
 | # | Solution | Cost | When to use | Package |
 |---|----------|------|------------|---------|
@@ -502,22 +502,22 @@ Read the before/after `gc()` tables: the `used (Mb)` numbers hardly changed, bec
 | 2 | `fread()` + `select=` | Free | Wide CSV, many unneeded columns | data.table |
 | 3 | `open_dataset()` + filter + `collect()` | Free | File > RAM, result is small | arrow |
 | 4 | DuckDB SQL on disk files | Free | Aggregations/joins on huge inputs | duckdb |
-| 5 | Cloud VM / bigger laptop | $1–2/hr | Single object > RAM, no reduction possible | — |
+| 5 | Cloud VM / bigger laptop | $1–2/hr | Single object > RAM, no reduction possible |, |
 
 Read the error size first, then start at solution 1 and walk down the table until one of them fits. Most real-world cases stop at solution 2 or 3.
 
 ## References
 
-1. R Core Team — `?Memory-limits` help page. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/Memory-limits.html)
-2. data.table — `fread` reference. [Link](https://rdatatable.gitlab.io/data.table/reference/fread.html)
-3. Apache Arrow — R package, `open_dataset()`. [Link](https://arrow.apache.org/docs/r/reference/open_dataset.html)
-4. DuckDB — R API documentation. [Link](https://duckdb.org/docs/api/r)
-5. Wickham, H. — *Advanced R*, 2nd Edition — Names and values chapter. [Link](https://adv-r.hadley.nz/names-values.html)
-6. CRAN R FAQ — memory management. [Link](https://cran.r-project.org/doc/FAQ/R-FAQ.html#R-and-memory)
-7. CRAN — `bigmemory` package for shared-memory matrices. [Link](https://cran.r-project.org/package=bigmemory)
+1. R Core Team, `?Memory-limits` help page. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/Memory-limits.html)
+2. data.table, `fread` reference. [Link](https://rdatatable.gitlab.io/data.table/reference/fread.html)
+3. Apache Arrow, R package, `open_dataset()`. [Link](https://arrow.apache.org/docs/r/reference/open_dataset.html)
+4. DuckDB, R API documentation. [Link](https://duckdb.org/docs/api/r)
+5. Wickham, H., *Advanced R*, 2nd Edition, Names and values chapter. [Link](https://adv-r.hadley.nz/names-values.html)
+6. CRAN R FAQ, memory management. [Link](https://cran.r-project.org/doc/FAQ/R-FAQ.html#R-and-memory)
+7. CRAN, `bigmemory` package for shared-memory matrices. [Link](https://cran.r-project.org/package=bigmemory)
 
 ## Continue Learning
 
-- [50 R Errors Decoded: Plain-English Explanations and Exact Fixes](R-Common-Errors.html) — the parent index of common R errors with fast cross-references.
-- [Measuring R Memory Use with lobstr](R-Memory-lobstr.html) — precise per-object memory accounting beyond `object.size()`, useful when triaging large pipelines.
-- [data.table vs dplyr: When to Use Each](data-table-vs-dplyr.html) — side-by-side comparison of the two main data-manipulation engines, including their memory characteristics.
+- [50 R Errors Decoded: Plain-English Explanations and Exact Fixes](R-Common-Errors.html), the parent index of common R errors with fast cross-references.
+- [Measuring R Memory Use with lobstr](R-Memory-lobstr.html), precise per-object memory accounting beyond `object.size()`, useful when triaging large pipelines.
+- [data.table vs dplyr: When to Use Each](data-table-vs-dplyr.html), side-by-side comparison of the two main data-manipulation engines, including their memory characteristics.

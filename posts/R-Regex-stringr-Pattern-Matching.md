@@ -16,11 +16,11 @@ difficulty: "Intermediate"
 
 # R Regular Expressions: Pattern Matching with stringr (20 Examples)
 
-<p class="lead">Regular expressions (regex) are compact patterns that describe what text looks like — digits, letters, anchors, and repetitions — so you can match, extract, or replace it without writing loops. In R, stringr wraps the ICU regex engine in consistent, pipe-friendly functions like <code>str_detect()</code>, <code>str_extract()</code>, and <code>str_replace()</code> that behave predictably on character vectors.</p>
+<p class="lead">Regular expressions (regex) are compact patterns that describe what text looks like, digits, letters, anchors, and repetitions, so you can match, extract, or replace it without writing loops. In R, stringr wraps the ICU regex engine in consistent, pipe-friendly functions like <code>str_detect()</code>, <code>str_extract()</code>, and <code>str_replace()</code> that behave predictably on character vectors.</p>
 
 ## How do character classes target specific character types?
 
-Messy text is full of embedded values — order numbers, prices, phone fragments — and character classes are how regex tells them apart. A class like `\\d` matches any digit, `\\w` matches any word character (letters, digits, underscore), and `\\s` matches whitespace. Let's pull every run of digits out of realistic customer text and see the payoff immediately.
+Messy text is full of embedded values, order numbers, prices, phone fragments, and character classes are how regex tells them apart. A class like `\\d` matches any digit, `\\w` matches any word character (letters, digits, underscore), and `\\s` matches whitespace. Let's pull every run of digits out of realistic customer text and see the payoff immediately.
 
 ```r
 # Example 1: Extract every run of digits from messy text
@@ -49,11 +49,11 @@ digits
 Each element of the result is a character vector of every match found in that string. The fourth line has no digits, so it returns `character(0)`. The key detail is the `+` quantifier: `\\d+` matches *runs* of one or more digits, not individual digits, which is why "1234" comes back as a single token instead of four.
 
 [KEY INSIGHT]
-**Every backslash in a regex needs a second backslash in R.** The regex engine wants to see `\d`, but R's string parser consumes one backslash first — so you always write `"\\d"` in R code to mean the regex `\d`. This trips up almost every beginner.
+**Every backslash in a regex needs a second backslash in R.** The regex engine wants to see `\d`, but R's string parser consumes one backslash first, so you always write `"\\d"` in R code to mean the regex `\d`. This trips up almost every beginner.
 
 ### Example 2: Detect strings containing only letters
 
-Sometimes you need to check whether a string is "clean" — containing only alphabetic characters, nothing else. You combine a character class with anchors to lock the check to the whole string.
+Sometimes you need to check whether a string is "clean", containing only alphabetic characters, nothing else. You combine a character class with anchors to lock the check to the whole string.
 
 ```r
 # Example 2: Check for letter-only strings
@@ -73,7 +73,7 @@ The pattern `^[a-zA-Z]+$` says "from the very start to the very end, only letter
 
 ### Example 3: Replace all non-word characters
 
-Cleaning text often means stripping punctuation and special characters before further processing. The shorthand class `\\W` matches any non-word character — anything that is not a letter, digit, or underscore.
+Cleaning text often means stripping punctuation and special characters before further processing. The shorthand class `\\W` matches any non-word character, anything that is not a letter, digit, or underscore.
 
 ```r
 # Example 3: Replace non-word runs with a single space
@@ -85,7 +85,7 @@ cleaned
 #> [4] "Email user example com today"
 ```
 
-Every run of non-word characters — colons, hashes, dollar signs, parentheses, dots — gets replaced by a single space. This is a fast way to normalise text before tokenising or searching. The `+` is doing important work: without it, consecutive specials like `": $"` would each produce a separate space instead of collapsing into one.
+Every run of non-word characters, colons, hashes, dollar signs, parentheses, dots, gets replaced by a single space. This is a fast way to normalise text before tokenising or searching. The `+` is doing important work: without it, consecutive specials like `": $"` would each produce a separate space instead of collapsing into one.
 
 ### Example 4: Extract non-whitespace tokens
 
@@ -99,7 +99,7 @@ tokens
 #> [1] "Order"      "#1234"      "shipped"    "on"         "2024-03-15"
 ```
 
-Each "word" (including punctuation attached to it) becomes a separate element. The "#" stays glued to "1234" because there is no whitespace between them. For sophisticated tokenising you would reach for tidytext, but `\\S+` covers a lot of the quick cases — log lines, URLs, comma-free CSVs — without importing a new package.
+Each "word" (including punctuation attached to it) becomes a separate element. The "#" stays glued to "1234" because there is no whitespace between them. For sophisticated tokenising you would reach for tidytext, but `\\S+` covers a lot of the quick cases, log lines, URLs, comma-free CSVs, without importing a new package.
 
 **Try it:** Write code that extracts every run of lowercase vowels from the string `"Regular expressions are fun"`. Store the result in `ex_vowels`.
 
@@ -131,7 +131,7 @@ ex_vowels
 
 ## How do quantifiers control how many characters to match?
 
-Quantifiers specify how many times the preceding element should repeat. The four workhorses are `?` (zero or one), `+` (one or more), `*` (zero or more), and `{n,m}` (between n and m times). By default quantifiers are *greedy* — they match as much text as they can while still letting the rest of the pattern succeed.
+Quantifiers specify how many times the preceding element should repeat. The four workhorses are `?` (zero or one), `+` (one or more), `*` (zero or more), and `{n,m}` (between n and m times). By default quantifiers are *greedy*, they match as much text as they can while still letting the rest of the pattern succeed.
 
 ### Example 5: Extract optional area codes from phone numbers
 
@@ -165,7 +165,7 @@ short_words
 #> [1] "data" "who"  "uses" "for"
 ```
 
-The `\\b` marks a word boundary (covered in the next H2). Without those boundaries, `"scientist"` would partially match because it contains 3-to-6-letter substrings. The `{3,6}` quantifier enforces complete words in that length range — "scientist" (9 letters) and "analysis" (8 letters) are excluded, and single-letter "I" and "R" don't hit the lower bound of 3.
+The `\\b` marks a word boundary (covered in the next H2). Without those boundaries, `"scientist"` would partially match because it contains 3-to-6-letter substrings. The `{3,6}` quantifier enforces complete words in that length range, "scientist" (9 letters) and "analysis" (8 letters) are excluded, and single-letter "I" and "R" don't hit the lower bound of 3.
 
 ### Example 7: Greedy vs lazy extraction
 
@@ -186,14 +186,14 @@ lazy
 #> [1] "<span class=\"bold\">"
 ```
 
-The greedy `.*` gobbled everything from the first `<` to the final `>`. The lazy `.*?` stopped at the first `>` it could reach. When you are pulling content between repeated delimiters — HTML tags, quoted strings, bracketed sections — lazy quantifiers almost always give the answer you actually wanted.
+The greedy `.*` gobbled everything from the first `<` to the final `>`. The lazy `.*?` stopped at the first `>` it could reach. When you are pulling content between repeated delimiters, HTML tags, quoted strings, bracketed sections, lazy quantifiers almost always give the answer you actually wanted.
 
 [TIP]
 **When in doubt, try the lazy version first.** Add `?` after any quantifier to make it lazy. You can always remove it if you genuinely need the longest match.
 
 ### Example 8: Validate fixed-format codes
 
-Some codes follow an exact shape — US ZIP codes, for instance, are 5 digits, optionally followed by a dash and 4 more. The `{n}` quantifier enforces an exact count.
+Some codes follow an exact shape, US ZIP codes, for instance, are 5 digits, optionally followed by a dash and 4 more. The `{n}` quantifier enforces an exact count.
 
 ```r
 # Example 8: Validate US ZIP codes
@@ -209,7 +209,7 @@ data.frame(zip = zips, valid = valid_zip)
 #> 5      ABCDE FALSE
 ```
 
-The pattern reads as "start, exactly 5 digits, optionally a dash followed by exactly 4 digits, end." Without the anchors, `"902101234"` would sneak through because it contains 5 consecutive digits — the anchors force the *entire* string to match the shape, which is the whole point of validation.
+The pattern reads as "start, exactly 5 digits, optionally a dash followed by exactly 4 digits, end." Without the anchors, `"902101234"` would sneak through because it contains 5 consecutive digits, the anchors force the *entire* string to match the shape, which is the whole point of validation.
 
 **Try it:** Extract the content between the first pair of square brackets in the string `"[INFO] start [WARN] bad [ERROR] crash"`. Use a lazy quantifier so you only get the first bracketed word. Store the result in `ex_bracket`.
 
@@ -238,7 +238,7 @@ ex_bracket
 
 ## How do anchors and boundaries pin patterns to positions?
 
-Anchors don't match characters — they match *positions*. The caret `^` is "start of string," the dollar `$` is "end of string," and `\\b` marks a word boundary (the position between a word character and a non-word character). Anchors are essential for validation, because without them a pattern can match anywhere inside a string and you get false positives.
+Anchors don't match characters, they match *positions*. The caret `^` is "start of string," the dollar `$` is "end of string," and `\\b` marks a word boundary (the position between a word character and a non-word character). Anchors are essential for validation, because without them a pattern can match anywhere inside a string and you get false positives.
 
 ### Example 9: Detect strings starting with a capital letter
 
@@ -294,7 +294,7 @@ str_replace_all(text_boundary, "\\bcat\\b", "dog")
 Without `\\b`, the pattern `"cat"` matches inside "caterpillar" and "concatenate," producing nonsense. Adding `\\b` on each side pins the match to positions where the word actually starts and ends. Any time you do find-and-replace on English text, wrap the target in boundaries by default.
 
 [TIP]
-**Always wrap search terms in word boundaries when doing text replacement.** The pattern `\\bword\\b` prevents the "caterpillar problem" — accidentally matching inside longer words that happen to contain your target as a substring.
+**Always wrap search terms in word boundaries when doing text replacement.** The pattern `\\bword\\b` prevents the "caterpillar problem", accidentally matching inside longer words that happen to contain your target as a substring.
 
 ### Example 12: Validate email format
 
@@ -314,7 +314,7 @@ data.frame(email = emails, valid = valid_email)
 #> 4        not-an-email FALSE
 ```
 
-The pattern breaks down as: one or more allowed characters before the `@`, a domain with dots, and a top-level domain of at least 2 letters. The `^` and `$` anchors demand the *entire* string match — without them, `"alice@gmail.com extra"` would slip through. Real-world email validation is far more complex (RFC 5322 is a monster), but this catches the 80% case.
+The pattern breaks down as: one or more allowed characters before the `@`, a domain with dots, and a top-level domain of at least 2 letters. The `^` and `$` anchors demand the *entire* string match, without them, `"alice@gmail.com extra"` would slip through. Real-world email validation is far more complex (RFC 5322 is a monster), but this catches the 80% case.
 
 **Try it:** Detect which of the strings `c("running", "sing", "stop", "playing", "bring it")` end with the letters "ing". Store the logical vector in `ex_ing`.
 
@@ -337,7 +337,7 @@ ex_ing
 #> [1]  TRUE  TRUE FALSE  TRUE FALSE
 ```
 
-**Explanation:** The `$` anchor pins "ing" to the very end of the string. `"bring it"` ends in "it", not "ing", so it returns FALSE even though it contains "ing" as a substring — the anchor blocks the mid-string match.
+**Explanation:** The `$` anchor pins "ing" to the very end of the string. `"bring it"` ends in "it", not "ing", so it returns FALSE even though it contains "ing" as a substring, the anchor blocks the mid-string match.
 
 </details>
 
@@ -361,7 +361,7 @@ phone_parts
 #> [4,] "1234567890"     "123"     "456"  "7890"
 ```
 
-Each `(\\d{3})` captures exactly 3 digits. The non-capturing parts (parentheses, dashes, spaces) are matched but not stored — they shape the match without showing up as columns. This is the go-to technique whenever you have structured text and need the pieces, not just the whole.
+Each `(\\d{3})` captures exactly 3 digits. The non-capturing parts (parentheses, dashes, spaces) are matched but not stored, they shape the match without showing up as columns. This is the go-to technique whenever you have structured text and need the pieces, not just the whole.
 
 [KEY INSIGHT]
 **str_match() returns a matrix, not a vector.** Column 1 is the full match; columns 2, 3, 4 correspond to the first, second, third capturing groups. This is a key difference from `str_extract()`, which only ever returns the full match as a plain character vector.
@@ -382,7 +382,7 @@ swapped
 The pattern `(\\w+) (\\w+)` captures two words separated by a space. In the replacement `"\\2, \\1"` we put the second capture first, add a comma, then the first capture. This is a one-liner for reformatting name columns in data frames, and the pattern naturally scales to any "flip these two tokens" task.
 
 [TIP]
-**Backreferences work in str_replace() but not in str_detect().** Use `\\1`, `\\2` only in the replacement argument. Inside a pattern, a backreference means "match the same text the group just captured" — useful for detecting repeated words, but a different use case.
+**Backreferences work in str_replace() but not in str_detect().** Use `\\1`, `\\2` only in the replacement argument. Inside a pattern, a backreference means "match the same text the group just captured", useful for detecting repeated words, but a different use case.
 
 ### Example 15: Use alternation inside groups
 
@@ -406,7 +406,7 @@ data.frame(fruit = fruits, matches = citrus_or_berry)
 #> 8       lime    TRUE
 ```
 
-The group `(berry|orange|lemon|lime|grapefruit)` matches if *any* alternative appears. "strawberry" and "blueberry" match because they contain "berry" — only "grape" fails because none of the listed terms appear in it. Alternation is how you collapse several related checks into one pattern.
+The group `(berry|orange|lemon|lime|grapefruit)` matches if *any* alternative appears. "strawberry" and "blueberry" match because they contain "berry", only "grape" fails because none of the listed terms appear in it. Alternation is how you collapse several related checks into one pattern.
 
 ### Example 16: Use non-capturing groups for cleaner patterns
 
@@ -425,9 +425,9 @@ nc_result
 #> [3,] NA                    NA       NA
 ```
 
-Here `(https?)` captures "http" or "https" as a group, with the trailing `?` making the "s" optional. The result has two clean columns: protocol and domain. The FTP URL returns NA because it doesn't match the pattern. If we only needed grouping for the alternation and didn't care about capturing, we could have written `(?:https?)` instead — but here we do want the protocol back, so a capturing group is the right call.
+Here `(https?)` captures "http" or "https" as a group, with the trailing `?` making the "s" optional. The result has two clean columns: protocol and domain. The FTP URL returns NA because it doesn't match the pattern. If we only needed grouping for the alternation and didn't care about capturing, we could have written `(?:https?)` instead, but here we do want the protocol back, so a capturing group is the right call.
 
-**Try it:** Extract the file extension from `"report_final.tar.gz"` — the *last* extension only. Use a capturing group and store the captured extension (not the leading dot) in `ex_ext`.
+**Try it:** Extract the file extension from `"report_final.tar.gz"`, the *last* extension only. Use a capturing group and store the captured extension (not the leading dot) in `ex_ext`.
 
 ```r
 # Try it: extract final file extension
@@ -458,7 +458,7 @@ ex_ext
 
 Lookaround assertions check what comes before or after a position *without including it in the match*. There are four flavours: positive lookahead `(?=...)` (must be followed by), negative lookahead `(?!...)` (must NOT be followed by), positive lookbehind `(?<=...)` (must be preceded by), and negative lookbehind `(?<!...)` (must NOT be preceded by).
 
-Think of a lookaround as a security guard checking your ID at a door. The guard looks at the ID but doesn't take it from you — the match only includes what's outside the lookaround. This "check but don't consume" behaviour is what makes lookarounds so useful for context-sensitive extraction.
+Think of a lookaround as a security guard checking your ID at a door. The guard looks at the ID but doesn't take it from you, the match only includes what's outside the lookaround. This "check but don't consume" behaviour is what makes lookarounds so useful for context-sensitive extraction.
 
 ### Example 17: Extract dollar amounts using lookbehind
 
@@ -499,7 +499,7 @@ before_comma
 #> [1] "apple"  "banana" "cherry"
 ```
 
-The pattern `\\w+(?=,)` matches one or more word characters that are followed by a comma — the comma is checked but not included in the match. "date" is excluded because nothing follows it. This is the right tool for context-aware extraction: when you care about a word's neighbour but don't want that neighbour in your result.
+The pattern `\\w+(?=,)` matches one or more word characters that are followed by a comma, the comma is checked but not included in the match. "date" is excluded because nothing follows it. This is the right tool for context-aware extraction: when you care about a word's neighbour but don't want that neighbour in your result.
 
 ### Example 19: Match numbers not preceded by a minus sign
 
@@ -515,7 +515,7 @@ positive_nums
 #> [1] "42"  "100" "88"
 ```
 
-`(?<!-)\\b\\d+` says "match a run of digits at a word boundary, but only if there is no minus sign immediately before." The negative lookbehind rejects -7 and -3 while keeping 42, 100, and 88. The `\\b` is still important — without it, the engine would happily match the "7" in "-7" starting from after the minus sign.
+`(?<!-)\\b\\d+` says "match a run of digits at a word boundary, but only if there is no minus sign immediately before." The negative lookbehind rejects -7 and -3 while keeping 42, 100, and 88. The `\\b` is still important, without it, the engine would happily match the "7" in "-7" starting from after the minus sign.
 
 [NOTE]
 **R's ICU regex engine requires fixed-width lookbehinds.** You can use exact patterns like `(?<=\\$)` or `(?<!-)`, but variable-length patterns like `(?<=\\$+)` with a quantifier inside the lookbehind will error. If you need variable-length context, restructure the pattern or use multiple `str_detect()` calls.
@@ -540,7 +540,7 @@ data.frame(password = passwords, meets_requirements = strong)
 #> 5    NoDigits!              FALSE
 ```
 
-Each `(?=.*[X])` lookahead asserts "somewhere in this string, there is a character matching [X]." The final `.{8,}` requires at least 8 characters total. Because lookaheads don't consume text, all three checks fire from the same starting position — they stack without interfering. Only "Abcdef1!" satisfies every rule.
+Each `(?=.*[X])` lookahead asserts "somewhere in this string, there is a character matching [X]." The final `.{8,}` requires at least 8 characters total. Because lookaheads don't consume text, all three checks fire from the same starting position, they stack without interfering. Only "Abcdef1!" satisfies every rule.
 
 [WARNING]
 **Stacking too many lookaheads makes patterns unreadable.** For validation with 4+ conditions, split into multiple `str_detect()` calls and combine with `&`. A series of small checks is easier to read, debug, and unit-test than one giant regex.
@@ -575,7 +575,7 @@ ex_qwords
 
 ## Practice Exercises
 
-These capstone exercises combine multiple techniques from the tutorial. They're harder than the inline "Try it" prompts — expect to use 2-3 regex concepts per solution. Every exercise is solvable with only what was taught above.
+These capstone exercises combine multiple techniques from the tutorial. They're harder than the inline "Try it" prompts, expect to use 2-3 regex concepts per solution. Every exercise is solvable with only what was taught above.
 
 ### Exercise 1: Extract all 4-digit years from mixed text
 
@@ -607,7 +607,7 @@ my_years
 
 ### Exercise 2: Parse product codes into components
 
-Product codes follow the format `CAT-1234-XL` — a 2-3 letter category, dash, 4 digits, dash, 1-3 letter size. Extract all three components into separate columns using `str_match()`. Store the result in `my_parts`.
+Product codes follow the format `CAT-1234-XL`, a 2-3 letter category, dash, 4 digits, dash, 1-3 letter size. Extract all three components into separate columns using `str_match()`. Store the result in `my_parts`.
 
 ```r
 # Exercise 2: parse structured product codes
@@ -706,7 +706,7 @@ clean_df
 Every technique from the tutorial earns its keep here. Character classes extract names and email characters, quantifiers match flexible phone formats, groups and anchors validate strict phones, and a lookbehind pulls out the dollar amounts without the `$` prefix. Jane's email fails validation because "AT" isn't `@`. Bob's amount is `NA` because "Free" has no dollar sign. The pipeline does in six `mutate()` lines what would take pages of manual string handling.
 
 [KEY INSIGHT]
-**Regex shines when you combine techniques in a pipeline.** No single pattern family is that powerful alone — character classes are blunt, quantifiers are loose, anchors are strict. Together, inside a dplyr chain, they replace dozens of lines of conditional string logic with declarative field extraction.
+**Regex shines when you combine techniques in a pipeline.** No single pattern family is that powerful alone, character classes are blunt, quantifiers are loose, anchors are strict. Together, inside a dplyr chain, they replace dozens of lines of conditional string logic with declarative field extraction.
 
 ## Summary
 
@@ -722,15 +722,15 @@ The mental model: regex describes *what text looks like*, and stringr gives you 
 
 ## References
 
-1. Wickham, H. & Grolemund, G. — *R for Data Science*, 2nd Edition. Chapter 15: Regular Expressions. [Link](https://r4ds.hadley.nz/regexps)
-2. Wickham, H. — stringr: Simple, Consistent Wrappers for Common String Operations. CRAN. [Link](https://cran.r-project.org/package=stringr)
-3. stringr documentation — Regular Expressions vignette. [Link](https://stringr.tidyverse.org/articles/regular-expressions.html)
-4. R Core Team — Regular Expressions as used in R (`?regex`). [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/regex.html)
-5. Friedl, J.E.F. — *Mastering Regular Expressions*, 3rd Edition. O'Reilly (2006).
-6. Sanchez, G. — *Handling Strings with R*. Chapter 15: Boundaries and Lookarounds. [Link](https://www.gastonsanchez.com/r4strings/boundaries.html)
+1. Wickham, H. & Grolemund, G., *R for Data Science*, 2nd Edition. Chapter 15: Regular Expressions. [Link](https://r4ds.hadley.nz/regexps)
+2. Wickham, H., stringr: Simple, Consistent Wrappers for Common String Operations. CRAN. [Link](https://cran.r-project.org/package=stringr)
+3. stringr documentation, Regular Expressions vignette. [Link](https://stringr.tidyverse.org/articles/regular-expressions.html)
+4. R Core Team, Regular Expressions as used in R (`?regex`). [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/regex.html)
+5. Friedl, J.E.F., *Mastering Regular Expressions*, 3rd Edition. O'Reilly (2006).
+6. Sanchez, G., *Handling Strings with R*. Chapter 15: Boundaries and Lookarounds. [Link](https://www.gastonsanchez.com/r4strings/boundaries.html)
 7. ICU Regular Expressions Documentation. [Link](https://unicode-org.github.io/icu/userguide/strings/regexp.html)
 
 ## Continue Learning
 
-- **[stringr in R](stringr-in-R.html)** — The parent tutorial covering the 15 core stringr functions. If you want the full picture of string manipulation beyond regex, start here.
-- **[lubridate in R](lubridate-in-R.html)** — Dates are the other common "messy text" problem. Learn how lubridate parses, extracts, and computes with dates and times.
+- **[stringr in R](stringr-in-R.html)**, The parent tutorial covering the 15 core stringr functions. If you want the full picture of string manipulation beyond regex, start here.
+- **[lubridate in R](lubridate-in-R.html)**, Dates are the other common "messy text" problem. Learn how lubridate parses, extracts, and computes with dates and times.

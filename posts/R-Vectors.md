@@ -1,7 +1,7 @@
 ---
 title: "R Vectors: The Foundation of Everything in R (Master This First)"
 slug: "R-Vectors"
-description: "Master R vectors — create with c(), index with [], name elements, recycle, vectorize. The core data structure every R user must understand before anything else."
+description: "Master R vectors, create with c(), index with [], name elements, recycle, vectorize. The core data structure every R user must understand before anything else."
 keywords: "R vectors, create vector R, c() function, vector indexing R, vector recycling, vectorized operations, named vectors, negative indexing R"
 auto_link_terms: "R vectors|vectors in R|c() function|vector recycling|vectorized operations|named vectors in R|vector indexing"
 auto_link_case_sensitive: false
@@ -18,7 +18,7 @@ difficulty: "Beginner"
 
 # R Vectors: The Foundation of Everything in R (Master This First)
 
-<p class="lead">A vector in R is an ordered sequence of values of the same type — it's the atomic building block that every data frame, column, and statistical function is built on. Master vectors and the rest of R snaps into place.</p>
+<p class="lead">A vector in R is an ordered sequence of values of the same type, it's the atomic building block that every data frame, column, and statistical function is built on. Master vectors and the rest of R snaps into place.</p>
 
 ## What is an R vector and how do you create one?
 
@@ -37,7 +37,7 @@ length(prices)
 #> [1] 5
 ```
 
-The `c()` function ("combine") is how you build vectors from individual values. It's probably the function you'll type most often in your R career. Notice that `mean()`, `sum()`, and `length()` all operate on the whole vector at once — no loop needed. That's vectorization, and it's R's superpower.
+The `c()` function ("combine") is how you build vectors from individual values. It's probably the function you'll type most often in your R career. Notice that `mean()`, `sum()`, and `length()` all operate on the whole vector at once, no loop needed. That's vectorization, and it's R's superpower.
 
 > [TIP]
 > The name `c` stands for "combine" or "concatenate," not "create." You can pass it existing vectors too: `c(prices, 99.99)` appends a value and returns a new vector of length 6.
@@ -59,12 +59,12 @@ length(ex_cities)
 #> [1] 3
 ```
 
-`c()` takes any number of arguments and glues them into a vector — here, three strings, so the result is a character vector of length 3. `length()` reports element count, not character count, which is why it returns 3 and not the total number of letters.
+`c()` takes any number of arguments and glues them into a vector, here, three strings, so the result is a character vector of length 3. `length()` reports element count, not character count, which is why it returns 3 and not the total number of letters.
 </details>
 
 ## How does R decide a vector's type?
 
-A vector can only hold one type at a time — all numeric, all character, all logical, and so on. What happens if you mix types? R silently coerces every element to the most flexible type in the group. This rule trips up beginners constantly, so let's see it in action.
+A vector can only hold one type at a time, all numeric, all character, all logical, and so on. What happens if you mix types? R silently coerces every element to the most flexible type in the group. This rule trips up beginners constantly, so let's see it in action.
 
 ```r
 typeof(c(1, 2, 3))
@@ -77,7 +77,7 @@ typeof(c(TRUE, FALSE, 1))
 #> [1] "integer"
 ```
 
-Watch the third example carefully. The number `1` and `3` got converted to the strings `"1"` and `"3"` because character is the most flexible type. This is called **implicit coercion** — R does it without warning you. It's convenient, but it can silently break calculations if a stray string sneaks into a numeric column.
+Watch the third example carefully. The number `1` and `3` got converted to the strings `"1"` and `"3"` because character is the most flexible type. This is called **implicit coercion**, R does it without warning you. It's convenient, but it can silently break calculations if a stray string sneaks into a numeric column.
 
 > [WARNING]
 > If `mean()` suddenly returns `NA` with a warning about "argument is not numeric," the first thing to check is `typeof()` on the vector. A single character value will coerce the entire vector to character and break every numeric function.
@@ -103,7 +103,7 @@ The coercion hierarchy is `logical < integer < double < character`, so when a lo
 
 ## How do you index vectors with `[`?
 
-Indexing — pulling out specific elements — is where R gets powerful. R offers four different ways to index a vector, and each is useful in different situations. The diagram below shows them side by side; we'll work through each one in code.
+Indexing, pulling out specific elements, is where R gets powerful. R offers four different ways to index a vector, and each is useful in different situations. The diagram below shows them side by side; we'll work through each one in code.
 
 ![Four ways to index an R vector](screenshots/R-Vectors-indexing-modes.webp)
 *Figure 1: Positive integers select elements, negative integers exclude them, logical vectors filter by condition, and named indexing pulls by label.*
@@ -135,7 +135,7 @@ prices[prices > 20]
 #> [1] 24.5 32.0
 ```
 
-Finally, **named indexing**. If you give your vector element names, you can pull values by label — a cleaner, more self-documenting style.
+Finally, **named indexing**. If you give your vector element names, you can pull values by label, a cleaner, more self-documenting style.
 
 ```r
 scores <- c(math = 92, english = 85, science = 78)
@@ -167,12 +167,12 @@ ex_prices[ex_prices >= 15.25]
 #> [1] 19.99 24.50 32.00 15.25
 ```
 
-`ex_prices >= 15.25` evaluates to a length-5 logical vector, and using it inside `[` keeps only the positions where it's `TRUE`. Three values meet the cutoff outright and the trailing `15.25` is kept because `>=` is inclusive — swap it for `>` and you'd lose that element.
+`ex_prices >= 15.25` evaluates to a length-5 logical vector, and using it inside `[` keeps only the positions where it's `TRUE`. Three values meet the cutoff outright and the trailing `15.25` is kept because `>=` is inclusive, swap it for `>` and you'd lose that element.
 </details>
 
 ## How do vectorized operations work?
 
-In most languages, if you want to add 10 to every element of a list, you write a loop. In R, you just write `x + 10`. R applies arithmetic element-by-element across the entire vector. This isn't just shorter — it's typically 10 to 100 times faster than a loop because the work happens in compiled C code under the hood.
+In most languages, if you want to add 10 to every element of a list, you write a loop. In R, you just write `x + 10`. R applies arithmetic element-by-element across the entire vector. This isn't just shorter, it's typically 10 to 100 times faster than a loop because the work happens in compiled C code under the hood.
 
 ```r
 temps_c <- c(18, 22, 15, 27, 30)
@@ -206,12 +206,12 @@ ex_temps <- c(18, 22, 15, 27, 30)
 #> [1] 0.2000000 0.4666667 0.0000000 0.8000000 1.0000000
 ```
 
-`min(ex_temps)` is 15 and `max(ex_temps)` is 30, so the denominator is 15. Each element gets recentred to 0-based distances (`3, 7, 0, 12, 15`) and divided element-wise by 15 — min-max scaling in one vectorised line with no loop.
+`min(ex_temps)` is 15 and `max(ex_temps)` is 30, so the denominator is 15. Each element gets recentred to 0-based distances (`3, 7, 0, 12, 15`) and divided element-wise by 15, min-max scaling in one vectorised line with no loop.
 </details>
 
 ## What is recycling and when does it bite?
 
-Here's what happens when you combine two vectors of different lengths: R silently repeats ("recycles") the shorter one until it matches the longer one. This is extremely convenient — but it can also cause silent bugs when you didn't mean to recycle.
+Here's what happens when you combine two vectors of different lengths: R silently repeats ("recycles") the shorter one until it matches the longer one. This is extremely convenient, but it can also cause silent bugs when you didn't mean to recycle.
 
 ![How R recycles shorter vectors](screenshots/R-Vectors-recycling.webp)
 *Figure 2: When lengths don't match, R repeats the shorter vector from the beginning. No warning if the longer length is a multiple of the shorter.*
@@ -224,7 +224,7 @@ x + c(10, 20)
 #> [1] 11 22 13 24 15 26
 ```
 
-The shorter vector `c(10, 20)` was recycled three times to match `x`'s length of 6. No warning — because 6 is a clean multiple of 2. Now the messy case:
+The shorter vector `c(10, 20)` was recycled three times to match `x`'s length of 6. No warning, because 6 is a clean multiple of 2. Now the messy case:
 
 ```r
 x + c(10, 20, 30, 40)
@@ -234,7 +234,7 @@ x + c(10, 20, 30, 40)
 #> [1] 11 22 33 44 15 26
 ```
 
-R still gives you a result, but with a warning. It recycled `c(10, 20, 30, 40)` partially to fill the last two slots — almost certainly not what you wanted.
+R still gives you a result, but with a warning. It recycled `c(10, 20, 30, 40)` partially to fill the last two slots, almost certainly not what you wanted.
 
 > [NOTE]
 > Recycling is why `x + 1` works: the scalar `1` is a length-1 vector that gets recycled to match `x`. Every "add a constant" operation in R is really a recycled vector addition.
@@ -255,7 +255,7 @@ c(1, 2, 3, 4) * c(10, 100)
 #> [1]  10 200  30 400
 ```
 
-The length-2 vector `c(10, 100)` recycles twice to become `c(10, 100, 10, 100)` and is then multiplied element-wise against `c(1, 2, 3, 4)`. Because the longer length (4) is a clean multiple of the shorter length (2), R does the recycling silently — no warning.
+The length-2 vector `c(10, 100)` recycles twice to become `c(10, 100, 10, 100)` and is then multiplied element-wise against `c(1, 2, 3, 4)`. Because the longer length (4) is a clean multiple of the shorter length (2), R does the recycling silently, no warning.
 </details>
 
 ## How do you create sequences and repeat vectors?
@@ -282,7 +282,7 @@ rep(c("a", "b"), each = 3)
 #> [1] "a" "a" "a" "b" "b" "b"
 ```
 
-Notice the difference between `times` and `each` in `rep()` — `times` repeats the whole vector, while `each` repeats each element in place. You'll use `each` constantly when building factors for grouped analyses.
+Notice the difference between `times` and `each` in `rep()`, `times` repeats the whole vector, while `each` repeats each element in place. You'll use `each` constantly when building factors for grouped analyses.
 
 > [TIP]
 > Prefer `seq_len(n)` over `1:n` when `n` might be zero. If `n = 0`, `1:n` gives you `c(1, 0)` (a gotcha), but `seq_len(0)` correctly returns an empty integer vector.
@@ -303,12 +303,12 @@ seq(-1, 1, length.out = 7)
 #> [1] -1.0000000 -0.6666667 -0.3333333  0.0000000  0.3333333  0.6666667  1.0000000
 ```
 
-`length.out = 7` tells `seq()` how many points you want and lets it compute the spacing — here `2 / 6 ≈ 0.333`. Use `length.out` when you care about the count (plotting grids, bins), and `by =` when you care about the step size.
+`length.out = 7` tells `seq()` how many points you want and lets it compute the spacing, here `2 / 6 ≈ 0.333`. Use `length.out` when you care about the count (plotting grids, bins), and `by =` when you care about the step size.
 </details>
 
 ## How do you modify vectors in place?
 
-You can update any element — or a whole slice — by assigning into an index. The same four indexing modes from earlier all work on the left-hand side of `<-`.
+You can update any element, or a whole slice, by assigning into an index. The same four indexing modes from earlier all work on the left-hand side of `<-`.
 
 ```r
 grades <- c(72, 85, 91, 68, 77)
@@ -325,7 +325,7 @@ grades
 #> [1]  80  85  91  95  80 100
 ```
 
-Three things worth noting. First, logical-index assignment (`grades[grades < 80] <- 80`) is a one-line way to floor values — no loop needed. Second, assigning past the end of a vector automatically grows it. Third, R makes a copy under the hood on most modifications, so there's no "aliasing" issue like you'd see in Python lists.
+Three things worth noting. First, logical-index assignment (`grades[grades < 80] <- 80`) is a one-line way to floor values, no loop needed. Second, assigning past the end of a vector automatically grows it. Third, R makes a copy under the hood on most modifications, so there's no "aliasing" issue like you'd see in Python lists.
 
 **Try it:** Set all negative values in `v` to zero using logical-index assignment.
 
@@ -345,7 +345,7 @@ ex_v
 #> [1] 3 0 4 0 5
 ```
 
-Putting the logical expression on the left of `<-` targets only the positions where it's `TRUE`, and the scalar `0` is recycled into each selected slot. That's the idiomatic way to floor values — no loop, no `ifelse`, just a single assignment.
+Putting the logical expression on the left of `<-` targets only the positions where it's `TRUE`, and the scalar `0` is recycled into each selected slot. That's the idiomatic way to floor values, no loop, no `ifelse`, just a single assignment.
 </details>
 
 ## Practice Exercises
@@ -416,7 +416,7 @@ final_prices
 
 ## Putting It All Together
 
-A realistic workflow: a month of daily sales. Find which days beat the average, flag slow days, and report summary stats — all without a single loop.
+A realistic workflow: a month of daily sales. Find which days beat the average, flag slow days, and report summary stats, all without a single loop.
 
 ```r
 day <- 1:30
@@ -451,7 +451,7 @@ We named each element (`d1`, `d2`, ...), used logical indexing to filter strong 
 |---------|----------|
 | Create | `c(1, 2, 3)` combines values; scalars are length-1 vectors |
 | Type rule | All elements share one type; mixing coerces to the most flexible type |
-| Indexing | Positive, negative, logical, and named — all use `[` |
+| Indexing | Positive, negative, logical, and named, all use `[` |
 | Vectorization | Operators and functions apply element-wise, fast and loop-free |
 | Recycling | Shorter vector repeats to match the longer one; warns if not a clean multiple |
 | Sequences | `1:n`, `seq()`, and `rep()` generate structured vectors |
@@ -459,14 +459,14 @@ We named each element (`d1`, `d2`, ...), used logical indexing to filter strong 
 
 ## References
 
-1. [R Language Definition — Vectors](https://cran.r-project.org/doc/manuals/r-release/R-lang.html#Vector-objects) — official documentation on vector types and storage.
-2. [An Introduction to R — Simple manipulations](https://cran.r-project.org/doc/manuals/r-release/R-intro.html#Simple-manipulations-numbers-and-vectors) — the canonical introduction to vectors.
-3. [Advanced R — Subsetting](https://adv-r.hadley.nz/subsetting.html) by Hadley Wickham — deep dive on `[`, `[[`, and `$`.
-4. [R for Data Science](https://r4ds.hadley.nz/) — practical vector workflows for data analysis.
-5. [R Inferno — Growing objects](https://www.burns-stat.com/pages/Tutor/R_inferno.pdf) by Patrick Burns — the classic warning about growing vectors in loops.
+1. [R Language Definition, Vectors](https://cran.r-project.org/doc/manuals/r-release/R-lang.html#Vector-objects), official documentation on vector types and storage.
+2. [An Introduction to R, Simple manipulations](https://cran.r-project.org/doc/manuals/r-release/R-intro.html#Simple-manipulations-numbers-and-vectors), the canonical introduction to vectors.
+3. [Advanced R, Subsetting](https://adv-r.hadley.nz/subsetting.html) by Hadley Wickham, deep dive on `[`, `[[`, and `$`.
+4. [R for Data Science](https://r4ds.hadley.nz/), practical vector workflows for data analysis.
+5. [R Inferno, Growing objects](https://www.burns-stat.com/pages/Tutor/R_inferno.pdf) by Patrick Burns, the classic warning about growing vectors in loops.
 
 ## Continue Learning
 
-- [R Data Types: Which Type Is Your Variable?](R-Data-Types.html) — understand the six types that vectors can hold and when R coerces between them.
-- [R Operators: Arithmetic, Logical, and Comparison](R-Operators.html) — the operators that work vectorially across vectors.
-- [R Control Flow: if, else, and switch](R-Control-Flow.html) — learn when you still need explicit logic and when vectorization replaces it.
+- [R Data Types: Which Type Is Your Variable?](R-Data-Types.html), understand the six types that vectors can hold and when R coerces between them.
+- [R Operators: Arithmetic, Logical, and Comparison](R-Operators.html), the operators that work vectorially across vectors.
+- [R Control Flow: if, else, and switch](R-Control-Flow.html), learn when you still need explicit logic and when vectorization replaces it.

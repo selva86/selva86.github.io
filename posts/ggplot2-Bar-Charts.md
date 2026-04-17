@@ -18,11 +18,11 @@ difficulty: "Intermediate"
 
 # ggplot2 Bar Charts: geom_bar(), geom_col(), Stacked, Dodged and Ordered
 
-<p class="lead">Bar charts compare values across categories. In ggplot2, <code>geom_bar()</code> counts rows automatically while <code>geom_col()</code> uses a pre-computed height value — choosing the right one depends entirely on what your data looks like when it arrives.</p>
+<p class="lead">Bar charts compare values across categories. In ggplot2, <code>geom_bar()</code> counts rows automatically while <code>geom_col()</code> uses a pre-computed height value, choosing the right one depends entirely on what your data looks like when it arrives.</p>
 
 ## Introduction
 
-Bar charts are deceptively simple to create but full of small traps. The most common confusion is which function to use — `geom_bar()` or `geom_col()` — and why using the wrong one produces a chart that either errors or lies about your data. The second most common trap is leaving bars in alphabetical order when the reader needs them sorted by size to extract meaning instantly.
+Bar charts are deceptively simple to create but full of small traps. The most common confusion is which function to use, `geom_bar()` or `geom_col()`, and why using the wrong one produces a chart that either errors or lies about your data. The second most common trap is leaving bars in alphabetical order when the reader needs them sorted by size to extract meaning instantly.
 
 In this tutorial, you will learn how to:
 
@@ -32,7 +32,7 @@ In this tutorial, you will learn how to:
 - Add data labels directly on or above bars
 - Flip to horizontal bars for long category names
 
-All code blocks share a single WebR session — variables from earlier blocks carry forward.
+All code blocks share a single WebR session, variables from earlier blocks carry forward.
 
 ## What is the difference between geom_bar() and geom_col()?
 
@@ -42,9 +42,9 @@ This is the question that trips up nearly every ggplot2 beginner. Both functions
 
 *Figure 1: Decision guide: geom_bar() for raw data, geom_col() for pre-computed values.*
 
-**`geom_bar()`** takes raw, unaggregated data and counts how many rows fall into each category. You only supply `x` — no `y` needed. It runs `stat_count()` internally.
+**`geom_bar()`** takes raw, unaggregated data and counts how many rows fall into each category. You only supply `x`, no `y` needed. It runs `stat_count()` internally.
 
-**`geom_col()`** takes data where you've already computed the heights (counts, averages, totals). You supply both `x` and `y`. It uses `stat_identity()` — it leaves the data as-is.
+**`geom_col()`** takes data where you've already computed the heights (counts, averages, totals). You supply both `x` and `y`. It uses `stat_identity()`, it leaves the data as-is.
 
 Let's set up data for both scenarios:
 
@@ -62,7 +62,7 @@ mpg_avg$hwy <- round(mpg_avg$hwy, 1)
 mpg_avg
 ```
 
-Now use `geom_bar()` on the raw data — it counts how many cars fall in each class:
+Now use `geom_bar()` on the raw data, it counts how many cars fall in each class:
 
 ```r
 # geom_bar: count rows per class automatically
@@ -77,7 +77,7 @@ p_bar <- ggplot(mpg, aes(x = class)) +
 p_bar
 ```
 
-Now use `geom_col()` on the pre-computed averages — the bar height is the actual `hwy` value:
+Now use `geom_col()` on the pre-computed averages, the bar height is the actual `hwy` value:
 
 ```r
 # geom_col: use pre-computed average highway mpg per class
@@ -92,7 +92,7 @@ p_col <- ggplot(mpg_avg, aes(x = class, y = hwy)) +
 p_col
 ```
 
-> **KEY INSIGHT:** You can also use `geom_bar(stat = "identity")` as a substitute for `geom_col()`. They are equivalent. In modern ggplot2, `geom_col()` is the cleaner choice — it signals your intent clearly without the `stat = "identity"` override. But you will see both in the wild, so recognize them as the same thing.
+> **KEY INSIGHT:** You can also use `geom_bar(stat = "identity")` as a substitute for `geom_col()`. They are equivalent. In modern ggplot2, `geom_col()` is the cleaner choice, it signals your intent clearly without the `stat = "identity"` override. But you will see both in the wild, so recognize them as the same thing.
 
 **Try it:** Try adding a `y` aesthetic to `geom_bar()` without `stat = "identity"`. What error does ggplot2 produce?
 
@@ -111,7 +111,7 @@ ex_error <- tryCatch(
 #> Error: stat_count() can only have an x or y aesthetic.
 ```
 
-`geom_bar()` defaults to `stat = "count"`, which derives the y values by counting rows in each x bin — supplying your own `y` collides with that calculation. The error tells you exactly which stat is complaining. Either drop the `y` (and use `geom_bar()` for counts) or switch to `geom_col()` / `geom_bar(stat = "identity")` to use the supplied heights.
+`geom_bar()` defaults to `stat = "count"`, which derives the y values by counting rows in each x bin, supplying your own `y` collides with that calculation. The error tells you exactly which stat is complaining. Either drop the `y` (and use `geom_bar()` for counts) or switch to `geom_col()` / `geom_bar(stat = "identity")` to use the supplied heights.
 </details>
 
 ## How do you create stacked and dodged bar charts?
@@ -203,12 +203,12 @@ ex_stack_switch <- ggplot(mpg, aes(x = class, fill = drv)) +
 ex_stack_switch
 ```
 
-`position = "stack"` shows the *raw counts* per drive type, so each bar's total height tells you how many cars of that class are in the dataset — `suv` is now visibly the tallest. `position = "fill"` normalises every bar to 100%, which masks the count differences but makes the *mix* across classes directly comparable. Pick stack when totals matter, fill when proportions matter.
+`position = "stack"` shows the *raw counts* per drive type, so each bar's total height tells you how many cars of that class are in the dataset, `suv` is now visibly the tallest. `position = "fill"` normalises every bar to 100%, which masks the count differences but makes the *mix* across classes directly comparable. Pick stack when totals matter, fill when proportions matter.
 </details>
 
 ## How do you reorder bars by value?
 
-Bars in alphabetical order are almost never the right choice. A reader's eye moves from left to right — sorting by descending value puts the most important category first and makes comparisons effortless. The `fct_reorder()` function from the `forcats` package handles this.
+Bars in alphabetical order are almost never the right choice. A reader's eye moves from left to right, sorting by descending value puts the most important category first and makes comparisons effortless. The `fct_reorder()` function from the `forcats` package handles this.
 
 ```r
 # Sort vehicle classes by average highway mpg (ascending for coord_flip)
@@ -227,7 +227,7 @@ p_ordered
 
 `fct_reorder(factor, numeric)` reorders the levels of `class` by the values in `hwy`. Since bar charts read left-to-right by default, the leftmost bar is the smallest and the rightmost is the largest. When you flip to horizontal (next section), this naturally becomes top-to-bottom descending.
 
-> **TIP:** For frequency-sorted bars from raw data (using `geom_bar()`), use `fct_infreq()` instead: `aes(x = fct_infreq(class))`. It reorders the factor by count automatically — no pre-aggregation needed.
+> **TIP:** For frequency-sorted bars from raw data (using `geom_bar()`), use `fct_infreq()` instead: `aes(x = fct_infreq(class))`. It reorders the factor by count automatically, no pre-aggregation needed.
 
 **Try it:** Change `fct_reorder(mpg_avg$class, mpg_avg$hwy)` to `fct_reorder(mpg_avg$class, -mpg_avg$hwy)` (note the minus sign). How does the bar order change?
 
@@ -247,7 +247,7 @@ ex_desc <- ggplot(mpg_avg,
 ex_desc
 ```
 
-Negating the sort key (`-hwy`) reverses the ordering — bars now read left-to-right from highest to lowest mpg. This is the natural reading direction for vertical bar charts because the eye lands on the most important value first. For horizontal bars (after `coord_flip()`), the ascending version is usually better since it puts the largest bar at the *top*.
+Negating the sort key (`-hwy`) reverses the ordering, bars now read left-to-right from highest to lowest mpg. This is the natural reading direction for vertical bar charts because the eye lands on the most important value first. For horizontal bars (after `coord_flip()`), the ascending version is usually better since it puts the largest bar at the *top*.
 </details>
 
 ## How do you add labels to bar charts?
@@ -294,7 +294,7 @@ p_label_in <- ggplot(mpg_avg, aes(x = fct_reorder(class, hwy), y = hwy)) +
 p_label_in
 ```
 
-> **WARNING:** Inside labels fail for short bars — the text overflows the bar boundary and becomes unreadable. Check your data range before committing to inside placement. A safe rule: use inside labels only when all bars are at least 30% of the max bar height.
+> **WARNING:** Inside labels fail for short bars, the text overflows the bar boundary and becomes unreadable. Check your data range before committing to inside placement. A safe rule: use inside labels only when all bars are at least 30% of the max bar height.
 
 **Try it:** Change `vjust = -0.4` to `vjust = 2` in `p_label`. Does the label move inside the bar? Does it still look readable?
 
@@ -313,12 +313,12 @@ ex_label_pos <- ggplot(mpg_avg, aes(x = fct_reorder(class, hwy), y = hwy)) +
 ex_label_pos
 ```
 
-`vjust = 2` shifts the label down by two text-line heights, planting it inside the top of the bar — and switching to `color = "white"` keeps it readable against the steelblue fill. The trick only works while every bar is tall enough to contain the text; the shortest bars in this set get crowded, which is exactly the trade-off the WARNING above mentions.
+`vjust = 2` shifts the label down by two text-line heights, planting it inside the top of the bar, and switching to `color = "white"` keeps it readable against the steelblue fill. The trick only works while every bar is tall enough to contain the text; the shortest bars in this set get crowded, which is exactly the trade-off the WARNING above mentions.
 </details>
 
 ## How do you make a horizontal bar chart?
 
-Horizontal bars are easier to read when category names are long. `coord_flip()` rotates the entire chart 90 degrees — x becomes y and vice versa. Apply it to any of the charts built so far:
+Horizontal bars are easier to read when category names are long. `coord_flip()` rotates the entire chart 90 degrees, x becomes y and vice versa. Apply it to any of the charts built so far:
 
 ```r
 # Flip p_ordered to horizontal - long names are now easy to read
@@ -333,9 +333,9 @@ p_horiz <- p_ordered +
 p_horiz
 ```
 
-Because `p_ordered` was already sorted ascending by `fct_reorder()`, after flipping, the chart reads top-to-bottom from highest to lowest — the most natural reading direction for a ranked list.
+Because `p_ordered` was already sorted ascending by `fct_reorder()`, after flipping, the chart reads top-to-bottom from highest to lowest, the most natural reading direction for a ranked list.
 
-> **KEY INSIGHT:** In newer ggplot2 (3.3+), you can also achieve horizontal bars by swapping x and y in `aes()` directly — `aes(y = class, x = hwy)` — without `coord_flip()`. The advantage is that axis labels stay in their natural orientation without flipping. The disadvantage is that `fct_reorder()` with ascending order now produces top-to-bottom descending without needing to flip, which can be confusing. Both approaches work — `coord_flip()` is slightly more intuitive for beginners.
+> **KEY INSIGHT:** In newer ggplot2 (3.3+), you can also achieve horizontal bars by swapping x and y in `aes()` directly, `aes(y = class, x = hwy)`, without `coord_flip()`. The advantage is that axis labels stay in their natural orientation without flipping. The disadvantage is that `fct_reorder()` with ascending order now produces top-to-bottom descending without needing to flip, which can be confusing. Both approaches work, `coord_flip()` is slightly more intuitive for beginners.
 
 **Try it:** Apply `coord_flip()` to `p_fill` (the percent-stacked chart). Does the horizontal layout make the proportion comparison easier?
 
@@ -351,7 +351,7 @@ ex_horiz_fill <- p_fill + coord_flip()
 ex_horiz_fill
 ```
 
-After `coord_flip()` the bars run left-to-right with class names listed down the y-axis, so long names like `subcompact` no longer need to be tilted to fit. The proportion segments now read as horizontal slices, which mirrors how the eye scans rows in a table — easier than comparing vertical sub-sections at a glance.
+After `coord_flip()` the bars run left-to-right with class names listed down the y-axis, so long names like `subcompact` no longer need to be tilted to fit. The proportion segments now read as horizontal slices, which mirrors how the eye scans rows in a table, easier than comparing vertical sub-sections at a glance.
 </details>
 
 ## Common Mistakes and How to Fix Them
@@ -400,7 +400,7 @@ ggplot(mpg, aes(x = class)) + geom_bar(fill = "steelblue")
 
 ### Mistake 5: Dodged bars with unequal widths
 
-❌ `position = "dodge"` by default makes narrow bars for sparse groups — categories with fewer sub-groups get wider bars.
+❌ `position = "dodge"` by default makes narrow bars for sparse groups, categories with fewer sub-groups get wider bars.
 
 ✅ Use `position = position_dodge(preserve = "single")` to maintain consistent bar widths across all groups.
 
@@ -410,8 +410,8 @@ ggplot(mpg, aes(x = class)) + geom_bar(fill = "steelblue")
 
 Using the `diamonds` dataset, create two bar charts side-by-side (use `gridExtra::grid.arrange()` or `patchwork`):
 
-1. A bar chart of `cut` frequency using `geom_bar()` — bars sorted from highest to lowest count
-2. A bar chart of average `price` per `cut` using `geom_col()` — bars sorted by price
+1. A bar chart of `cut` frequency using `geom_bar()`, bars sorted from highest to lowest count
+2. A bar chart of average `price` per `cut` using `geom_col()`, bars sorted by price
 
 Are the highest-frequency cuts also the most expensive?
 
@@ -445,7 +445,7 @@ Using the `mpg` dataset, create a stacked and a percent-stacked bar chart of `cl
 
 ## Complete Example
 
-This final chart combines everything: pre-computed averages, sorted bars, data labels, a clean theme, and colorblind-friendly colors — ready for a report or presentation.
+This final chart combines everything: pre-computed averages, sorted bars, data labels, a clean theme, and colorblind-friendly colors, ready for a report or presentation.
 
 ```r
 # Pre-compute mean highway mpg per manufacturer (top 10 by mpg)
@@ -486,7 +486,7 @@ p_final <- ggplot(
 p_final
 ```
 
-`element_blank()` removes the horizontal grid lines — they're redundant when exact values appear as labels. The bold manufacturer names draw attention to the categories, not the bars themselves.
+`element_blank()` removes the horizontal grid lines, they're redundant when exact values appear as labels. The bold manufacturer names draw attention to the categories, not the bars themselves.
 
 ## Summary
 
@@ -506,7 +506,7 @@ p_final
 
 Key rules:
 - Use `geom_bar()` for raw data (counts automatically), `geom_col()` for pre-aggregated data
-- Sort by value with `fct_reorder()` — alphabetical order is almost never informative
+- Sort by value with `fct_reorder()`, alphabetical order is almost never informative
 - Add headroom for above-bar labels: `scale_y_continuous(expand = expansion(mult = c(0, 0.12)))`
 - Use `fill` (not `color`) to change bar fill color
 
@@ -514,7 +514,7 @@ Key rules:
 
 **Can I use geom_bar() with stat = "identity" instead of geom_col()?**
 
-Yes, they are equivalent. `geom_bar(stat = "identity")` and `geom_col()` produce identical output. `geom_col()` was added to ggplot2 to make the intent clearer — use it when you have pre-computed values.
+Yes, they are equivalent. `geom_bar(stat = "identity")` and `geom_col()` produce identical output. `geom_col()` was added to ggplot2 to make the intent clearer, use it when you have pre-computed values.
 
 **How do I change bar width?**
 
@@ -530,19 +530,19 @@ Use `geom_hline(yintercept = value)` for horizontal reference lines (or `geom_vl
 
 **Why do my bars have gaps at the x-axis baseline?**
 
-By default, ggplot2 adds padding below the x-axis. To remove it: `scale_y_continuous(expand = expansion(mult = c(0, 0.05)))` — the first value (0) removes padding at the bottom, the second (0.05) adds 5% headroom at the top.
+By default, ggplot2 adds padding below the x-axis. To remove it: `scale_y_continuous(expand = expansion(mult = c(0, 0.05)))`, the first value (0) removes padding at the bottom, the second (0.05) adds 5% headroom at the top.
 
 ## References
 
 1. Wickham, H. (2016). *ggplot2: Elegant Graphics for Data Analysis*. Springer. https://ggplot2-book.org/
-2. ggplot2 reference — `geom_bar()` and `geom_col()`. https://ggplot2.tidyverse.org/reference/geom_bar.html
-3. forcats reference — `fct_reorder()`. https://forcats.tidyverse.org/reference/fct_reorder.html
+2. ggplot2 reference, `geom_bar()` and `geom_col()`. https://ggplot2.tidyverse.org/reference/geom_bar.html
+3. forcats reference, `fct_reorder()`. https://forcats.tidyverse.org/reference/fct_reorder.html
 4. Wilke, C. O. (2019). *Fundamentals of Data Visualization*, Chapter 6: Visualizing Amounts. https://clauswilke.com/dataviz/
-5. R Graph Gallery — Bar Charts. https://r-graph-gallery.com/barplot.html
+5. R Graph Gallery, Bar Charts. https://r-graph-gallery.com/barplot.html
 6. Healy, K. (2018). *Data Visualization: A Practical Introduction*, Chapter 4. https://socviz.co/
 
 ## Continue Learning
 
-- **ggplot2 Scatter Plots** — explore relationships between two continuous variables with `geom_point()`, color mapping, and trend lines.
-- **ggplot2 Distribution Charts** — compare distributions with histograms, boxplots, and violin plots — a natural complement to bar charts when you need more than a single summary value per group.
-- **ggplot2 Line Charts** — track change over time with `geom_line()`, grouped by category and styled with linetypes.
+- **ggplot2 Scatter Plots**, explore relationships between two continuous variables with `geom_point()`, color mapping, and trend lines.
+- **ggplot2 Distribution Charts**, compare distributions with histograms, boxplots, and violin plots, a natural complement to bar charts when you need more than a single summary value per group.
+- **ggplot2 Line Charts**, track change over time with `geom_line()`, grouped by category and styled with linetypes.

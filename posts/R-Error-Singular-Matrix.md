@@ -1,5 +1,5 @@
 ---
-title: "R solve() Error: 'singular matrix' — Diagnose Multicollinearity and Fix It"
+title: "R solve() Error: 'singular matrix', Diagnose Multicollinearity and Fix It"
 slug: "R-Error-Singular-Matrix"
 description: "R's solve() fails on singular matrices when columns are linearly dependent. Diagnose with rcond(), then fix via ridge, variable removal, or MASS::ginv()."
 keywords: "R singular matrix error, system is computationally singular R, solve() error R, rcond R, multicollinearity R, ridge regression R, MASS ginv, R matrix inversion"
@@ -14,13 +14,13 @@ fr_parent: "R-Common-Errors.html"
 difficulty: "Intermediate"
 ---
 
-# R solve() Error: 'singular matrix' — Diagnose Multicollinearity and Fix It
+# R solve() Error: 'singular matrix', Diagnose Multicollinearity and Fix It
 
-<p class="lead"><code>Error in solve.default(...) : system is computationally singular</code> means R tried to invert a matrix whose columns carry duplicate information — one column can be written as a weighted sum of the others. In regression language, that is <strong>multicollinearity</strong>, and the fix is to find which columns collide and then drop, combine, or regularise them.</p>
+<p class="lead"><code>Error in solve.default(...) : system is computationally singular</code> means R tried to invert a matrix whose columns carry duplicate information, one column can be written as a weighted sum of the others. In regression language, that is <strong>multicollinearity</strong>, and the fix is to find which columns collide and then drop, combine, or regularise them.</p>
 
 ## Why does solve() complain that my matrix is 'computationally singular'?
 
-`solve()` inverts a matrix by running Gaussian elimination. If a column repeats information already carried by other columns, one elimination step ends up dividing by zero — or by a number so small that the result explodes into machine noise. R refuses to return nonsense and throws the error instead. The quickest way to see it is to feed `solve()` a 3×3 matrix whose second column is exactly twice the first, then watch R call out the zero determinant and refuse the inverse.
+`solve()` inverts a matrix by running Gaussian elimination. If a column repeats information already carried by other columns, one elimination step ends up dividing by zero, or by a number so small that the result explodes into machine noise. R refuses to return nonsense and throws the error instead. The quickest way to see it is to feed `solve()` a 3×3 matrix whose second column is exactly twice the first, then watch R call out the zero determinant and refuse the inverse.
 
 Let's build that matrix and hit the error on purpose. We'll measure how singular it is with `det()` and `rcond()`, then call `solve()` inside `tryCatch()` so the error text prints instead of stopping the page.
 
@@ -49,12 +49,12 @@ tryCatch(solve(X),
 #> [1] "Lapack routine dgesv: system is exactly singular: U[2,2] = 0"
 ```
 
-The determinant is zero because column 2 is a scalar multiple of column 1, so the three columns span only a 2D plane instead of the full 3D space. `rcond()` confirms this with a value of 0 — the reciprocal condition number is LAPACK's way of asking "how far is this matrix from singular?" on a scale where 1 is perfectly invertible and 0 is hopelessly singular. `solve()` reports the exact elimination step where the zero pivot appeared (`U[2,2] = 0`), which is LAPACK-speak for "the second diagonal entry of the upper-triangular factor was zero."
+The determinant is zero because column 2 is a scalar multiple of column 1, so the three columns span only a 2D plane instead of the full 3D space. `rcond()` confirms this with a value of 0, the reciprocal condition number is LAPACK's way of asking "how far is this matrix from singular?" on a scale where 1 is perfectly invertible and 0 is hopelessly singular. `solve()` reports the exact elimination step where the zero pivot appeared (`U[2,2] = 0`), which is LAPACK-speak for "the second diagonal entry of the upper-triangular factor was zero."
 
 [KEY INSIGHT]
 **An NA in `coef(lm_fit)` is the friendlier face of the same singular-matrix error.** When `lm()` silently drops a predictor and returns NA, R has internally detected the exact collinearity that would have crashed `solve(t(X) %*% X)` had you called it yourself. Treat the NA as a warning, not a feature.
 
-**Try it:** Compute the numerical rank of `X` using `qr(X)$rank` and store it in `ex_rank`. The rank should be less than `ncol(X)` — that's what "singular" means numerically.
+**Try it:** Compute the numerical rank of `X` using `qr(X)$rank` and store it in `ex_rank`. The rank should be less than `ncol(X)`, that's what "singular" means numerically.
 
 ```r
 # Try it: numerical rank of a singular matrix
@@ -75,13 +75,13 @@ c(rank = ex_rank, ncol = ncol(X))
 #>    2    3
 ```
 
-**Explanation:** `qr()` factors the matrix and reports its numerical rank — the count of linearly independent columns. Rank 2 on a 3-column matrix confirms one column is a combination of the others.
+**Explanation:** `qr()` factors the matrix and reports its numerical rank, the count of linearly independent columns. Rank 2 on a 3-column matrix confirms one column is a combination of the others.
 
 </details>
 
 ## What kinds of R models quietly trigger a singular matrix?
 
-The 3×3 toy above is easy to spot. Real bugs hide inside regression design matrices where a hidden collinearity only shows up a few rows deep. The situation most R users meet first is a linear model with a predictor that's a scaled copy of another — say, the same measurement in two units. `lm()` tries to mask it by dropping the redundant term and returning NA for its coefficient, but the underlying `solve(t(X) %*% X)` call still fails if you reach for it yourself.
+The 3×3 toy above is easy to spot. Real bugs hide inside regression design matrices where a hidden collinearity only shows up a few rows deep. The situation most R users meet first is a linear model with a predictor that's a scaled copy of another, say, the same measurement in two units. `lm()` tries to mask it by dropping the redundant term and returning NA for its coefficient, but the underlying `solve(t(X) %*% X)` call still fails if you reach for it yourself.
 
 Below, we simulate body-height data in both centimetres and metres. Both columns carry the same information (one is the other divided by 100), so the design matrix is guaranteed to be singular.
 
@@ -132,7 +132,7 @@ ex_alias
 
 ## How do I find the exact column causing the problem?
 
-Knowing that a design matrix is singular is only half the job — you still want the name of the guilty column. QR decomposition does both things at once: it reports the numerical rank, and its `pivot` vector orders columns so that the independent ones come first and the redundant ones trail at the end. That means you can read off both "which columns to keep" and "which column is the culprit" in two lines.
+Knowing that a design matrix is singular is only half the job, you still want the name of the guilty column. QR decomposition does both things at once: it reports the numerical rank, and its `pivot` vector orders columns so that the independent ones come first and the redundant ones trail at the end. That means you can read off both "which columns to keep" and "which column is the culprit" in two lines.
 
 We'll build a 5-column matrix where the fifth column is the sum of the first two, then ask `qr()` to locate it for us.
 
@@ -163,7 +163,7 @@ colnames(X5)[redundant_cols]
 #> [1] "redundant"
 ```
 
-The rank is 4 on a 5-column matrix, which tells us exactly one column can be removed. The pivot splits naturally: the first four pivot positions name the keepers, and whatever sits past `rank` is the redundant column we need to drop. This works for any rectangular matrix, regardless of where the collinearity sits — `qr()` will always float the redundant columns to the back.
+The rank is 4 on a 5-column matrix, which tells us exactly one column can be removed. The pivot splits naturally: the first four pivot positions name the keepers, and whatever sits past `rank` is the redundant column we need to drop. This works for any rectangular matrix, regardless of where the collinearity sits, `qr()` will always float the redundant columns to the back.
 
 [TIP]
 **`qr(X)$rank` is the fastest rank check in base R.** No package needed, and it works for matrices of any shape. If `qr(X)$rank < ncol(X)`, your matrix is singular and the pivot vector names the problem columns.
@@ -194,7 +194,7 @@ dim(solve(t(ex_X_fixed) %*% ex_X_fixed))
 
 ## When should I use ridge regularisation versus a generalised inverse?
 
-Dropping a column is the right fix when the redundancy is accidental — a duplicate, a unit-converted copy, a lagged version of the same series. It's the wrong fix when many predictors are each slightly correlated with each other, because now every column carries unique signal and you'd throw some of it away. Two alternatives keep all the columns: **ridge regression**, which adds a small penalty to the diagonal of $X^TX$ so it's always invertible, and the **Moore–Penrose pseudoinverse**, which uses the singular value decomposition to define a unique solution even when the matrix is exactly singular.
+Dropping a column is the right fix when the redundancy is accidental, a duplicate, a unit-converted copy, a lagged version of the same series. It's the wrong fix when many predictors are each slightly correlated with each other, because now every column carries unique signal and you'd throw some of it away. Two alternatives keep all the columns: **ridge regression**, which adds a small penalty to the diagonal of $X^TX$ so it's always invertible, and the **Moore–Penrose pseudoinverse**, which uses the singular value decomposition to define a unique solution even when the matrix is exactly singular.
 
 Ridge changes the normal equation from $\hat{\beta} = (X^TX)^{-1} X^T y$ to:
 
@@ -207,7 +207,7 @@ Where:
 - $\lambda$ is a small positive constant (the ridge penalty)
 - $I$ is the $p \times p$ identity matrix
 
-Adding $\lambda I$ lifts the diagonal just enough to push every eigenvalue away from zero, which is exactly what `solve()` needs. Below, we build a 60×6 matrix where columns `a` and `b` are almost identical — close enough that `rcond()` reports a value near $10^{-8}$ — then compute both fixes and compare the coefficients.
+Adding $\lambda I$ lifts the diagonal just enough to push every eigenvalue away from zero, which is exactly what `solve()` needs. Below, we build a 60×6 matrix where columns `a` and `b` are almost identical, close enough that `rcond()` reports a value near $10^{-8}$, then compute both fixes and compare the coefficients.
 
 ```r
 library(MASS)
@@ -241,10 +241,10 @@ round(drop(beta_ginv), 4)
 #>  0.7500  0.7500  0.0078 -0.0392 -0.0211  0.0147
 ```
 
-The reciprocal condition number is so small that the naive `solve()` would refuse this matrix. Ridge splits the shared signal (true coefficient 1.5) roughly evenly between the near-duplicate columns `a` and `b` — about 0.75 each — and leaves the other coefficients near zero. `MASS::ginv()` does almost the same thing via SVD with no tuning parameter to set. On this extreme near-perfect collinearity the two methods agree to four decimal places.
+The reciprocal condition number is so small that the naive `solve()` would refuse this matrix. Ridge splits the shared signal (true coefficient 1.5) roughly evenly between the near-duplicate columns `a` and `b`, about 0.75 each, and leaves the other coefficients near zero. `MASS::ginv()` does almost the same thing via SVD with no tuning parameter to set. On this extreme near-perfect collinearity the two methods agree to four decimal places.
 
 [WARNING]
-**Ridge and ginv diverge on moderate collinearity.** They look identical here because `a` and `b` are nearly perfect copies, but when correlations are moderate (0.7–0.9) the two methods produce visibly different coefficients and ridge usually generalises better out of sample. Use cross-validation to pick `lambda` on real data — don't default to 0.1.
+**Ridge and ginv diverge on moderate collinearity.** They look identical here because `a` and `b` are nearly perfect copies, but when correlations are moderate (0.7–0.9) the two methods produce visibly different coefficients and ridge usually generalises better out of sample. Use cross-validation to pick `lambda` on real data, don't default to 0.1.
 
 **Try it:** Recompute the ridge coefficients with `lambda <- 1.0` and store the result in `ex_beta_ridge_big`. Larger lambda means more shrinkage toward zero.
 
@@ -270,13 +270,13 @@ round(drop(ex_beta_ridge_big)[1:2], 4)
 #> 0.7427 0.7424
 ```
 
-**Explanation:** Increasing lambda pulls every coefficient closer to zero. The shrinkage is mild on the signal-carrying `a` and `b` but the effect grows as lambda rises — which is exactly how ridge trades a bit of bias for a lot of variance reduction.
+**Explanation:** Increasing lambda pulls every coefficient closer to zero. The shrinkage is mild on the signal-carrying `a` and `b` but the effect grows as lambda rises, which is exactly how ridge trades a bit of bias for a lot of variance reduction.
 
 </details>
 
 ## How do I avoid the dummy-variable trap with factor-heavy models?
 
-Categorical variables open a second route to singularity. If you expand a factor into one dummy column per level and also keep the intercept, the dummy columns sum to the intercept — a perfect linear dependency hiding in plain sight. R's `model.matrix()` knows this and automatically drops one level when you write `~ factor_name`, but hand-built design matrices or `~ 0 + factor_name` formulas bypass the drop and re-introduce the problem.
+Categorical variables open a second route to singularity. If you expand a factor into one dummy column per level and also keep the intercept, the dummy columns sum to the intercept, a perfect linear dependency hiding in plain sight. R's `model.matrix()` knows this and automatically drops one level when you write `~ factor_name`, but hand-built design matrices or `~ 0 + factor_name` formulas bypass the drop and re-introduce the problem.
 
 Let's build both versions on a 3-level factor and compare their ranks.
 
@@ -306,7 +306,7 @@ qr(X_good)$rank
 #> [1] 3
 ```
 
-Both matrices have rank 3, but `X_bad` has 4 columns and `X_good` has 3. The fourth column in `X_bad` is redundant — adding `groupA + groupB + groupC` gives the intercept column exactly. Writing `~ group` (without the `0 +` prefix) tells `model.matrix()` to use level A as the baseline and skip its dummy, which is the standard way to parametrise a factor with an intercept.
+Both matrices have rank 3, but `X_bad` has 4 columns and `X_good` has 3. The fourth column in `X_bad` is redundant, adding `groupA + groupB + groupC` gives the intercept column exactly. Writing `~ group` (without the `0 +` prefix) tells `model.matrix()` to use level A as the baseline and skip its dummy, which is the standard way to parametrise a factor with an intercept.
 
 [NOTE]
 **Drop the intercept if you want all K level coefficients.** `lm(y ~ 0 + group)` gives you one coefficient per level (their group means) instead of an intercept plus K-1 contrasts. The rank stays the same, and the interpretation flips from "differences from baseline" to "absolute level means."
@@ -332,7 +332,7 @@ qr(ex_X_inter)$rank
 #> [1] 6
 ```
 
-**Explanation:** `group * time_fac` expands to main effects plus the interaction. `model.matrix()` drops the baseline level for each factor, leaving six columns: intercept, two `group` contrasts, one `time_fac` contrast, and two interaction terms — all linearly independent.
+**Explanation:** `group * time_fac` expands to main effects plus the interaction. `model.matrix()` drops the baseline level for each factor, leaving six columns: intercept, two `group` contrasts, one `time_fac` contrast, and two interaction terms, all linearly independent.
 
 </details>
 
@@ -541,16 +541,16 @@ The workflow is deliberately layered. `rcond()` at step 2 flags the matrix as si
 
 ## References
 
-1. R Core Team — `?solve`, `?rcond`, `?qr`. [R documentation](https://stat.ethz.ch/R-manual/R-devel/library/base/html/solve.html)
-2. Venables, W. N. & Ripley, B. D. — *Modern Applied Statistics with S*, 4th ed. MASS package reference, especially `ginv()`. [CRAN](https://cran.r-project.org/package=MASS)
-3. Hastie, T., Tibshirani, R. & Friedman, J. — *The Elements of Statistical Learning*, 2nd ed. Chapter 3: Ridge Regression. [Free PDF](https://hastie.su.domains/ElemStatLearn/)
-4. Wickham, H. — *Advanced R*, 2nd ed. Numerical linear algebra notes. [adv-r.hadley.nz](https://adv-r.hadley.nz/)
-5. Wikipedia — Condition number of a matrix. [Link](https://en.wikipedia.org/wiki/Condition_number)
-6. Wikipedia — Moore–Penrose inverse. [Link](https://en.wikipedia.org/wiki/Moore%E2%80%93Penrose_inverse)
-7. Statistics Globe — "R Error in solve.default: system is exactly singular." [Link](https://statisticsglobe.com/r-error-in-solve-system-is-exactly-singular)
+1. R Core Team, `?solve`, `?rcond`, `?qr`. [R documentation](https://stat.ethz.ch/R-manual/R-devel/library/base/html/solve.html)
+2. Venables, W. N. & Ripley, B. D., *Modern Applied Statistics with S*, 4th ed. MASS package reference, especially `ginv()`. [CRAN](https://cran.r-project.org/package=MASS)
+3. Hastie, T., Tibshirani, R. & Friedman, J., *The Elements of Statistical Learning*, 2nd ed. Chapter 3: Ridge Regression. [Free PDF](https://hastie.su.domains/ElemStatLearn/)
+4. Wickham, H., *Advanced R*, 2nd ed. Numerical linear algebra notes. [adv-r.hadley.nz](https://adv-r.hadley.nz/)
+5. Wikipedia, Condition number of a matrix. [Link](https://en.wikipedia.org/wiki/Condition_number)
+6. Wikipedia, Moore–Penrose inverse. [Link](https://en.wikipedia.org/wiki/Moore%E2%80%93Penrose_inverse)
+7. Statistics Globe, "R Error in solve.default: system is exactly singular." [Link](https://statisticsglobe.com/r-error-in-solve-system-is-exactly-singular)
 
 ## Continue Learning
 
-1. **[R Common Errors](R-Common-Errors.html)** — the full reference of R errors, with quick fixes for the most frequent crashes.
-2. **[Linear Regression in R](Linear-Regression.html)** — the method where singular design matrices appear most often; includes diagnostic plots and assumption checks.
-3. **[Ridge and Lasso Regression in R](Ridge-Regression.html)** — a deeper treatment of regularisation, including how to tune `lambda` with cross-validation.
+1. **[R Common Errors](R-Common-Errors.html)**, the full reference of R errors, with quick fixes for the most frequent crashes.
+2. **[Linear Regression in R](Linear-Regression.html)**, the method where singular design matrices appear most often; includes diagnostic plots and assumption checks.
+3. **[Ridge and Lasso Regression in R](Ridge-Regression.html)**, a deeper treatment of regularisation, including how to tune `lambda` with cross-validation.

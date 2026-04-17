@@ -18,27 +18,27 @@ difficulty: "Intermediate"
 
 # Sample Size in R: Calculate Your N Before You Collect a Single Observation
 
-<p class="lead">Sample size planning is calculating how many observations you need to reliably detect an effect of a given size — a decision made before collecting data, using the <code>pwr</code> package in R or simulation.</p>
+<p class="lead">Sample size planning is calculating how many observations you need to reliably detect an effect of a given size, a decision made before collecting data, using the <code>pwr</code> package in R or simulation.</p>
 
 ## Introduction
 
-Most studies don't fail because of bad analysis. They fail because of bad planning. A study with too few participants can't detect a real effect even when one exists — and you won't know until your results come back non-significant and it's too late to do anything about it. This is called an underpowered study, and it's one of the most common (and avoidable) problems in empirical research.
+Most studies don't fail because of bad analysis. They fail because of bad planning. A study with too few participants can't detect a real effect even when one exists, and you won't know until your results come back non-significant and it's too late to do anything about it. This is called an underpowered study, and it's one of the most common (and avoidable) problems in empirical research.
 
-The good news is that the fix is simple: plan your sample size before you collect data. This process — called power analysis — takes the guesswork out of "how many participants do I need?" and replaces it with a principled calculation.
+The good news is that the fix is simple: plan your sample size before you collect data. This process, called power analysis, takes the guesswork out of "how many participants do I need?" and replaces it with a principled calculation.
 
-In this tutorial you'll learn how to use R's `pwr` package to calculate sample sizes for t-tests, proportions, ANOVA, and chi-squared tests. You'll also learn how to use simulation when `pwr` isn't flexible enough, and how to write the one-paragraph justification that grant reviewers and ethics boards actually want to see. All code runs interactively in your browser — no setup needed.
+In this tutorial you'll learn how to use R's `pwr` package to calculate sample sizes for t-tests, proportions, ANOVA, and chi-squared tests. You'll also learn how to use simulation when `pwr` isn't flexible enough, and how to write the one-paragraph justification that grant reviewers and ethics boards actually want to see. All code runs interactively in your browser, no setup needed.
 
 [NOTE]
 **The `pwr` package covers the most common test types.** For mixed models, survival analysis, or complex repeated-measures designs, simulation (covered in Section 4) is your best tool. The `pwrss` package also extends coverage significantly.
 
 ## What Is Statistical Power and Why Does It Matter Before You Collect Data?
 
-Before any calculation, you need to understand the four quantities that are always involved in a power analysis. They're not independent — fix any three and the fourth is determined.
+Before any calculation, you need to understand the four quantities that are always involved in a power analysis. They're not independent, fix any three and the fourth is determined.
 
-- **Effect size** — how large the true difference is (e.g., Cohen's d for means, odds ratio for proportions)
-- **Sample size (n)** — the number of observations per group
-- **Alpha (α)** — the Type I error rate, usually 0.05 (your threshold for "statistically significant")
-- **Power (1 − β)** — the probability of detecting the effect if it truly exists; the convention is 0.80
+- **Effect size**, how large the true difference is (e.g., Cohen's d for means, odds ratio for proportions)
+- **Sample size (n)**, the number of observations per group
+- **Alpha (α)**, the Type I error rate, usually 0.05 (your threshold for "statistically significant")
+- **Power (1 − β)**, the probability of detecting the effect if it truly exists; the convention is 0.80
 
 ![The four interdependent quantities in power analysis](screenshots/Sample-Size-Planning-in-R-power-tradeoffs.webp)
 *Figure 1: The four interdependent quantities in power analysis. Fix any three and solve for the fourth.*
@@ -68,10 +68,10 @@ cat("Empirical power:", round(empirical_power, 3), "\n")
 #> Empirical power: 0.698
 ```
 
-With n = 50 per group and a medium effect size (d = 0.5), we get about 70% power — below the 80% threshold. That means roughly 30% of studies with this design would fail to detect a real effect. This is why you calculate N before you start, not after.
+With n = 50 per group and a medium effect size (d = 0.5), we get about 70% power, below the 80% threshold. That means roughly 30% of studies with this design would fail to detect a real effect. This is why you calculate N before you start, not after.
 
 [KEY INSIGHT]
-**Power is not about the data you have — it's about the data you plan to collect.** Post-hoc power calculations (run after seeing non-significant results) are misleading and should never be reported. Plan prospectively.
+**Power is not about the data you have, it's about the data you plan to collect.** Post-hoc power calculations (run after seeing non-significant results) are misleading and should never be reported. Plan prospectively.
 
 **Try it:** Change `n_per_group` to 64 in the code above. What empirical power do you get? Is it closer to 80%?
 
@@ -101,15 +101,15 @@ mean(ex_p_values < 0.05)
 #> [1] 0.801
 ```
 
-**Explanation:** At n = 64 per group, a medium effect size (d = 0.5) yields approximately 80% power — right at the conventional threshold.
+**Explanation:** At n = 64 per group, a medium effect size (d = 0.5) yields approximately 80% power, right at the conventional threshold.
 
 </details>
 
 ## How Do You Calculate Sample Size for a t-Test in R?
 
-The `pwr` package makes t-test sample size calculation a one-liner. The key function is `pwr.t.test()`. You provide three of the four quantities (effect size, n, alpha, power) and leave the fourth as `NULL` — that's the one R calculates.
+The `pwr` package makes t-test sample size calculation a one-liner. The key function is `pwr.t.test()`. You provide three of the four quantities (effect size, n, alpha, power) and leave the fourth as `NULL`, that's the one R calculates.
 
-The trickiest part is specifying the effect size. Cohen's d is the standardised mean difference: the expected difference between groups divided by the pooled standard deviation. Cohen proposed d = 0.2 as "small", 0.5 as "medium", and 0.8 as "large" — but these are rough benchmarks. Always ground your effect size in prior literature or domain knowledge.
+The trickiest part is specifying the effect size. Cohen's d is the standardised mean difference: the expected difference between groups divided by the pooled standard deviation. Cohen proposed d = 0.2 as "small", 0.5 as "medium", and 0.8 as "large", but these are rough benchmarks. Always ground your effect size in prior literature or domain knowledge.
 
 ![The six-step sample size planning workflow](screenshots/Sample-Size-Planning-in-R-workflow.webp)
 *Figure 2: The six-step sample size planning workflow, from hypothesis to written justification.*
@@ -139,7 +139,7 @@ cat("You need", n_two_sample, "participants per group,", n_two_sample * 2, "tota
 #> You need 64 participants per group, 128 total.
 ```
 
-The output tells you n = 63.77 — always round up to the next whole number. The note at the bottom is critical: **n is per group**, not total. A study with two groups needs 128 participants, not 64.
+The output tells you n = 63.77, always round up to the next whole number. The note at the bottom is critical: **n is per group**, not total. A study with two groups needs 128 participants, not 64.
 
 Now compare a one-sample test (measuring against a known baseline) with a paired design (measuring the same people twice). Paired designs are far more efficient because within-person variation is removed.
 
@@ -207,7 +207,7 @@ cat("N per group:", ex_n_small)
 #> [1] N per group: 527
 ```
 
-**Explanation:** Small effects require very large samples. Detecting a d = 0.2 effect with 90% power needs over 500 participants per group — 1,054 total. This is why knowing your expected effect size before designing a study is so important.
+**Explanation:** Small effects require very large samples. Detecting a d = 0.2 effect with 90% power needs over 500 participants per group, 1,054 total. This is why knowing your expected effect size before designing a study is so important.
 
 </details>
 
@@ -275,7 +275,7 @@ cat("N per group:", ex_n_prop)
 
 `pwr` covers standard tests, but what about mixed models, non-normal data, or designs with covariates? Simulation is the answer. The idea is simple: generate fake data from your assumed model, fit the model, check whether p < 0.05, and repeat thousands of times. The proportion of significant results is your estimated power.
 
-Here's a simulation for a two-sample t-test with a slight twist — slightly skewed (non-normal) data from a gamma distribution:
+Here's a simulation for a two-sample t-test with a slight twist, slightly skewed (non-normal) data from a gamma distribution:
 
 ```r
 # Simulation-based power for non-normal data (gamma-distributed)
@@ -295,10 +295,10 @@ cat("Simulated power (Wilcoxon, gamma data, n=50):", round(sim_power, 3), "\n")
 #> Simulated power (Wilcoxon, gamma data, n=50): 0.617
 ```
 
-The Wilcoxon test (a non-parametric alternative) yields about 62% power here — below 80%. You'd increase `n_sim_per_group` until the simulated power reaches your target.
+The Wilcoxon test (a non-parametric alternative) yields about 62% power here, below 80%. You'd increase `n_sim_per_group` until the simulated power reaches your target.
 
 [TIP]
-**Use `replicate()` for clean simulation loops.** It's equivalent to a for loop but returns a vector directly — no need to pre-allocate and index. For very large simulations (10,000+), consider the `future` package for parallelisation.
+**Use `replicate()` for clean simulation loops.** It's equivalent to a for loop but returns a vector directly, no need to pre-allocate and index. For very large simulations (10,000+), consider the `future` package for parallelisation.
 
 **Try it:** Modify the simulation above to test a larger effect shift of 1.0. What power do you get? Save it to `ex_sim_power`.
 
@@ -335,10 +335,10 @@ cat("Power with shift=1.0:", round(ex_sim_power, 3))
 
 Calculating N is half the job. The other half is documenting it. Ethics boards, grant reviewers, and journal editors expect a brief but complete justification. It needs four elements:
 
-1. **The effect size and its source** — where does d = 0.5 come from?
-2. **The alpha level** — usually 0.05, sometimes 0.01
-3. **The desired power** — usually 80% or 90%
-4. **The formula or function used** — which R function, which test
+1. **The effect size and its source**, where does d = 0.5 come from?
+2. **The alpha level**, usually 0.05, sometimes 0.01
+3. **The desired power**, usually 80% or 90%
+4. **The formula or function used**, which R function, which test
 
 Here's how to generate and format that justification directly from your `pwr` output:
 
@@ -364,7 +364,7 @@ cat(justification)
 That's your methods paragraph. Copy it directly into your ethics application or grant proposal.
 
 [WARNING]
-**Never justify your sample size post-hoc.** Running power analysis after your data is collected — especially after seeing non-significant results — is circular reasoning. The only legitimate use of post-hoc power is in power planning for a future replication study.
+**Never justify your sample size post-hoc.** Running power analysis after your data is collected, especially after seeing non-significant results, is circular reasoning. The only legitimate use of post-hoc power is in power planning for a future replication study.
 
 **Try it:** Adapt the justification template above for a study comparing two proportions (40% vs 55% response rate, 15% dropout). Fill in `ex_justification`.
 
@@ -399,7 +399,7 @@ ex_justification <- paste0(
 cat(ex_justification)
 ```
 
-**Explanation:** The template works for any test — swap the function, update the effect size description, and keep the rest of the structure.
+**Explanation:** The template works for any test, swap the function, update the effect size description, and keep the rest of the structure.
 
 </details>
 
@@ -414,7 +414,7 @@ cat("Recruit", ceiling(result$n), "participants total.")
 #> Recruit 64 participants total.  # WRONG — 64 is per group!
 ```
 
-**Why it's wrong:** The `NOTE: n is number in *each* group` line in the output is easy to miss. Recruiting only 64 total gives you 32 per group and roughly 55% power — far below target.
+**Why it's wrong:** The `NOTE: n is number in *each* group` line in the output is easy to miss. Recruiting only 64 total gives you 32 per group and roughly 55% power, far below target.
 
 ✅ **Correct:**
 ```r
@@ -452,7 +452,7 @@ cat("Recruit:", n_inflated, "per group to end with", n_required)
 
 ❌ **Wrong:** Running `pwr.t.test(n = 30, d = observed_d, ...)` after seeing p = 0.12 to explain why the study wasn't significant.
 
-**Why it's wrong:** Post-hoc power is mathematically equivalent to transforming your p-value — it adds no information and is rejected by most journals. Plan power prospectively.
+**Why it's wrong:** Post-hoc power is mathematically equivalent to transforming your p-value, it adds no information and is rejected by most journals. Plan power prospectively.
 
 ### Mistake 5: Ignoring multiple comparisons
 
@@ -517,7 +517,7 @@ cat(paste0(
 #> With 20% dropout buffer: n = 72 per group.
 ```
 
-**Explanation:** Cohen's d = 8/15 ≈ 0.533. This falls between Cohen's medium (0.5) and large (0.8) benchmarks. After inflation, you need 72 participants per group — 144 total.
+**Explanation:** Cohen's d = 8/15 ≈ 0.533. This falls between Cohen's medium (0.5) and large (0.8) benchmarks. After inflation, you need 72 participants per group, 144 total.
 
 </details>
 
@@ -612,7 +612,7 @@ cat(paste0(
 ))
 ```
 
-The final recruitment target is 142 participants, giving 53 completers per arm and 80% power — with a comfortable margin because the inflated sample actually provides ~89% power if dropout is lower than expected.
+The final recruitment target is 142 participants, giving 53 completers per arm and 80% power, with a comfortable margin because the inflated sample actually provides ~89% power if dropout is lower than expected.
 
 ## Summary
 
@@ -628,7 +628,7 @@ The final recruitment target is 142 participants, giving 53 completers per arm a
 
 **Key takeaways:**
 - Fix three of {effect size, n, alpha, power} and solve for the fourth
-- `pwr` output is **per group** for multi-group tests — always multiply for total
+- `pwr` output is **per group** for multi-group tests, always multiply for total
 - Inflate calculated n for expected dropout before finalising
 - Ground your effect size in prior literature, not just Cohen's benchmarks
 - Simulation works for any design that `pwr` doesn't cover
@@ -638,11 +638,11 @@ The final recruitment target is 142 participants, giving 53 completers per arm a
 
 **What if I don't know the effect size?**
 
-You have three options: (1) run a small pilot study (n = 10-20 per group) and estimate d from the observed difference and SD; (2) use the minimum clinically/practically meaningful difference — the smallest effect that would change practice; (3) use Cohen's benchmarks as a last resort with explicit acknowledgment.
+You have three options: (1) run a small pilot study (n = 10-20 per group) and estimate d from the observed difference and SD; (2) use the minimum clinically/practically meaningful difference, the smallest effect that would change practice; (3) use Cohen's benchmarks as a last resort with explicit acknowledgment.
 
 **Can I run power analysis after data collection?**
 
-Only for planning a future study. Post-hoc power calculated from your own non-significant results is circular — it's just a transformation of your p-value and tells you nothing new. Journals reject this practice.
+Only for planning a future study. Post-hoc power calculated from your own non-significant results is circular, it's just a transformation of your p-value and tells you nothing new. Journals reject this practice.
 
 **Should I target 80% or 90% power?**
 
@@ -654,20 +654,20 @@ Apply a Bonferroni correction: divide alpha by the number of primary endpoints b
 
 **Is simulation more accurate than `pwr`?**
 
-For standard designs (t-test, ANOVA, proportions), `pwr` is exact and preferred. Simulation is more flexible but noisy — increase `n_sims` to 5,000+ for stable estimates. For complex designs with covariates or hierarchical data, simulation is the only option.
+For standard designs (t-test, ANOVA, proportions), `pwr` is exact and preferred. Simulation is more flexible but noisy, increase `n_sims` to 5,000+ for stable estimates. For complex designs with covariates or hierarchical data, simulation is the only option.
 
 ## References
 
-1. Cohen, J. — *Statistical Power Analysis for the Behavioral Sciences*, 2nd Edition. Lawrence Erlbaum (1988).
-2. Champely, S. — pwr: Basic Functions for Power Analysis. CRAN. [Link](https://cran.r-project.org/package=pwr)
-3. pwr package vignette — "pwr: Basic Functions for Power Analysis." [Link](https://cran.r-project.org/web/packages/pwr/vignettes/pwr-vignette.html)
-4. Higgins, P. — "Sample Size Calculations with {pwr}" in *Reproducible Medical Research with R*. [Link](https://bookdown.org/pdr_higgins/rmrwr/sample-size-calculations-with-pwr.html)
-5. Masur, P.K. — "What is statistical power? And how to conduct power analysis in R?" (2024). [Link](https://philippmasur.de/2024/05/28/what-is-statistical-power-and-how-can-i-conduct-power-analysis-in-r/)
-6. Lakens, D. — "Calculating and reporting effect sizes to facilitate cumulative science." *Frontiers in Psychology*, 4, 863 (2013).
-7. R Core Team — *R: A Language and Environment for Statistical Computing*. [Link](https://www.r-project.org/)
+1. Cohen, J., *Statistical Power Analysis for the Behavioral Sciences*, 2nd Edition. Lawrence Erlbaum (1988).
+2. Champely, S., pwr: Basic Functions for Power Analysis. CRAN. [Link](https://cran.r-project.org/package=pwr)
+3. pwr package vignette, "pwr: Basic Functions for Power Analysis." [Link](https://cran.r-project.org/web/packages/pwr/vignettes/pwr-vignette.html)
+4. Higgins, P., "Sample Size Calculations with {pwr}" in *Reproducible Medical Research with R*. [Link](https://bookdown.org/pdr_higgins/rmrwr/sample-size-calculations-with-pwr.html)
+5. Masur, P.K., "What is statistical power? And how to conduct power analysis in R?" (2024). [Link](https://philippmasur.de/2024/05/28/what-is-statistical-power-and-how-can-i-conduct-power-analysis-in-r/)
+6. Lakens, D., "Calculating and reporting effect sizes to facilitate cumulative science." *Frontiers in Psychology*, 4, 863 (2013).
+7. R Core Team, *R: A Language and Environment for Statistical Computing*. [Link](https://www.r-project.org/)
 
 ## Continue Learning
 
-- **[Correlation Analysis in R](Correlation-Analysis-in-R.html)** — Pearson, Spearman, and visualising relationships before you commit to a sample size estimate.
-- **[Data Quality Checking in R](Data-Quality-Checking-in-R.html)** — Validate your data before analysis so your collected N counts.
-- **[Statistical Tests in R](Which-Statistical-Test-in-R.html)** — A decision guide for choosing the right test — the necessary complement to choosing the right N.
+- **[Correlation Analysis in R](Correlation-Analysis-in-R.html)**, Pearson, Spearman, and visualising relationships before you commit to a sample size estimate.
+- **[Data Quality Checking in R](Data-Quality-Checking-in-R.html)**, Validate your data before analysis so your collected N counts.
+- **[Statistical Tests in R](Which-Statistical-Test-in-R.html)**, A decision guide for choosing the right test, the necessary complement to choosing the right N.

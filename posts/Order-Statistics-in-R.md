@@ -1,5 +1,5 @@
 ---
-title: "Order Statistics in R: Min, Max, Sample Quantiles — Theory & Simulation"
+title: "Order Statistics in R: Min, Max, Sample Quantiles, Theory & Simulation"
 slug: Order-Statistics-in-R
 description: "Understand order statistics in R: derive the distribution of the minimum, maximum, and k-th order statistic, then verify every formula through simulation."
 keywords: "order statistics in R, kth order statistic, distribution of the maximum, distribution of the minimum, sample quantile formula, order statistic simulation, beta distribution order statistics, quantile function R, extreme value R, nonparametric confidence interval quantile"
@@ -14,9 +14,9 @@ fr_parent: "Sampling-Distributions-in-R.html"
 difficulty: Advanced
 ---
 
-# Order Statistics in R: Min, Max, Sample Quantiles — Theory & Simulation
+# Order Statistics in R: Min, Max, Sample Quantiles, Theory & Simulation
 
-<p class="lead"><strong>Order statistics</strong> are the values of your sample once you sort it from smallest to largest. The minimum, the maximum, the median, and every sample quantile are all order statistics — and each one has a known probability distribution that you can derive on paper and verify by simulation in R.</p>
+<p class="lead"><strong>Order statistics</strong> are the values of your sample once you sort it from smallest to largest. The minimum, the maximum, the median, and every sample quantile are all order statistics, and each one has a known probability distribution that you can derive on paper and verify by simulation in R.</p>
 
 ## What exactly is an order statistic?
 
@@ -39,7 +39,7 @@ sort(x10)[10]   # X(10): the maximum
 #> [1] 1.5953
 ```
 
-The sorted vector *is* the vector of order statistics. The first entry is the sample minimum, the last is the sample maximum, and the middle entries are the sample quartiles, median, and every other quantile you might want. This single reframe — "sorted sample = ordered statistics" — is the whole foundation. Everything that follows is about the distribution each of these sorted values follows across many repeated samples.
+The sorted vector *is* the vector of order statistics. The first entry is the sample minimum, the last is the sample maximum, and the middle entries are the sample quartiles, median, and every other quantile you might want. This single reframe, "sorted sample = ordered statistics", is the whole foundation. Everything that follows is about the distribution each of these sorted values follows across many repeated samples.
 
 [KEY INSIGHT]
 **Order statistics are random variables with their own distributions.** $X_{(k)}$ changes every time you draw a new sample, so it has a probability distribution. The rest of this post derives those distributions and verifies them by simulation.
@@ -74,7 +74,7 @@ ex_x7
 
 ## How is the maximum distributed?
 
-The maximum is the most intuitive order statistic to tackle first. Ask: what is the probability that $X_{(n)}$ is at most $x$? That event happens exactly when *every* value in the sample is at most $x$ — if even one exceeded $x$, the max would too. Because sample points are independent, you can multiply their probabilities together.
+The maximum is the most intuitive order statistic to tackle first. Ask: what is the probability that $X_{(n)}$ is at most $x$? That event happens exactly when *every* value in the sample is at most $x$, if even one exceeded $x$, the max would too. Because sample points are independent, you can multiply their probabilities together.
 
 $$F_{X_{(n)}}(x) = P(X_{(n)} \le x) = [F(x)]^n$$
 
@@ -84,7 +84,7 @@ Where:
 - $F(x)$ = CDF of the underlying distribution each $X_i$ was drawn from
 - $n$ = sample size
 
-The CDF gets pushed to the right as $n$ grows, because the max of more draws tends to be larger. Let's verify this by simulating 10,000 samples of size 5 from a uniform distribution on $[0, 1]$ — where $F(x) = x$ — and compare the empirical CDF to the theoretical $x^5$.
+The CDF gets pushed to the right as $n$ grows, because the max of more draws tends to be larger. Let's verify this by simulating 10,000 samples of size 5 from a uniform distribution on $[0, 1]$, where $F(x) = x$, and compare the empirical CDF to the theoretical $x^5$.
 
 ```r
 # Simulate 10,000 maxima, each from a size-5 Uniform(0,1) sample
@@ -106,10 +106,10 @@ ggplot(max_df, aes(max_val)) +
   theme_minimal()
 ```
 
-The blue step function (empirical) hugs the red curve (theoretical $x^5$) across the whole $[0,1]$ range. Because $x^5$ stays near zero for most of the interval before shooting up near 1, the maximum of 5 uniform draws is heavily skewed toward 1 — exactly what intuition says. If you doubled $n$, the red curve would press even further right, and most maxima would cluster near the upper bound.
+The blue step function (empirical) hugs the red curve (theoretical $x^5$) across the whole $[0,1]$ range. Because $x^5$ stays near zero for most of the interval before shooting up near 1, the maximum of 5 uniform draws is heavily skewed toward 1, exactly what intuition says. If you doubled $n$, the red curve would press even further right, and most maxima would cluster near the upper bound.
 
 [KEY INSIGHT]
-**The sample maximum is the n-th order statistic, and its CDF is the underlying CDF raised to the power n.** For any distribution — uniform, normal, exponential — you compute $F(x)^n$ to get the distribution of the max.
+**The sample maximum is the n-th order statistic, and its CDF is the underlying CDF raised to the power n.** For any distribution, uniform, normal, exponential, you compute $F(x)^n$ to get the distribution of the max.
 
 **Try it:** Simulate the distribution of the maximum of 20 `rexp(20, rate = 1)` samples, then find the 95th percentile of those maxima.
 
@@ -136,7 +136,7 @@ ex_q95
 #> 5.2904
 ```
 
-**Explanation:** `replicate()` repeats the "draw 20 from Exp(1), take max" experiment 10,000 times. The 95th percentile of those maxima tells you the level the sample max exceeds only 5% of the time — a practical threshold for extreme-value thinking.
+**Explanation:** `replicate()` repeats the "draw 20 from Exp(1), take max" experiment 10,000 times. The 95th percentile of those maxima tells you the level the sample max exceeds only 5% of the time, a practical threshold for extreme-value thinking.
 
 </details>
 
@@ -152,7 +152,7 @@ Where:
 - $F(x)$ = CDF of the underlying distribution
 - $n$ = sample size
 
-For uniform $[0, 1]$ samples, this becomes $1 - (1-x)^n$, which you may recognise as the CDF of a $\text{Beta}(1, n)$ random variable. That connection — uniform order statistics follow beta distributions — is the key that unlocks the general case. Let's verify the minimum of a size-5 uniform sample against a $\text{Beta}(1, 5)$ density.
+For uniform $[0, 1]$ samples, this becomes $1 - (1-x)^n$, which you may recognise as the CDF of a $\text{Beta}(1, n)$ random variable. That connection, uniform order statistics follow beta distributions, is the key that unlocks the general case. Let's verify the minimum of a size-5 uniform sample against a $\text{Beta}(1, 5)$ density.
 
 ```r
 # Simulate 10,000 minima from size-5 Uniform(0,1) samples
@@ -202,7 +202,7 @@ ex_mean
 #> [1] 0.09074
 ```
 
-**Explanation:** The min of 10 uniforms has mean $1/11 \approx 0.0909$, and the simulated average confirms it. The tight agreement shows the theory is not just asymptotic — it's exact.
+**Explanation:** The min of 10 uniforms has mean $1/11 \approx 0.0909$, and the simulated average confirms it. The tight agreement shows the theory is not just asymptotic, it's exact.
 
 </details>
 
@@ -249,10 +249,10 @@ ggplot(kth_sim, aes(val)) +
   theme_minimal()
 ```
 
-Three histograms, three perfect fits. $X_{(2)}$ sits low (it's close to the min), $X_{(5)}$ centres near 0.5 (it's the near-median for $n = 10$), and $X_{(8)}$ sits high (close to the max). Each follows a $\text{Beta}(k, n-k+1)$ distribution exactly. The mean of $X_{(k)}$ is $k / (n+1)$ — for $k = 5$, $n = 10$, that's $5/11 \approx 0.455$, a slight bias toward the left because we're below the sample median point for odd-sized samples.
+Three histograms, three perfect fits. $X_{(2)}$ sits low (it's close to the min), $X_{(5)}$ centres near 0.5 (it's the near-median for $n = 10$), and $X_{(8)}$ sits high (close to the max). Each follows a $\text{Beta}(k, n-k+1)$ distribution exactly. The mean of $X_{(k)}$ is $k / (n+1)$, for $k = 5$, $n = 10$, that's $5/11 \approx 0.455$, a slight bias toward the left because we're below the sample median point for odd-sized samples.
 
 [KEY INSIGHT]
-**For any continuous distribution, you can transform to Uniform(0,1) via the CDF and the k-th order statistic falls out as a Beta variable.** This is how textbook formulas for normal, exponential, and gamma order statistics get derived — everything goes through the uniform.
+**For any continuous distribution, you can transform to Uniform(0,1) via the CDF and the k-th order statistic falls out as a Beta variable.** This is how textbook formulas for normal, exponential, and gamma order statistics get derived, everything goes through the uniform.
 
 **Try it:** For a sample of size $n = 15$ from Uniform(0,1), what Beta parameters describe $X_{(5)}$? Verify by simulation: the theoretical mean is $5/16 = 0.3125$.
 
@@ -310,7 +310,7 @@ sort(c(3, 1, 9, 7, 5))[3]          # X(3), the 3rd order statistic
 #> [1] 5
 ```
 
-The 0% and 100% quantiles are always the min and max, no matter which `type` you pass — every rule agrees at the endpoints. The median of an odd-sized sample is always $X_{((n+1)/2)}$, again regardless of type. The nine `quantile()` types only differ in between, and mainly in how they handle non-integer rank positions.
+The 0% and 100% quantiles are always the min and max, no matter which `type` you pass, every rule agrees at the endpoints. The median of an odd-sized sample is always $X_{((n+1)/2)}$, again regardless of type. The nine `quantile()` types only differ in between, and mainly in how they handle non-integer rank positions.
 
 [NOTE]
 **R has 9 quantile types** (Hyndman & Fan 1996). The default is `type = 7`, which interpolates between order statistics using $(i - 1)/(n - 1)$. `type = 4` is pure linear interpolation between order statistics, and `type = 1` is a step function picking individual order statistics. All use order statistics under the hood.
@@ -324,7 +324,7 @@ q_compare
 #>    8   8   8.4
 ```
 
-For the 60th percentile of this 10-value sample, types 1 and 4 both return 8 (the 6th order statistic, since 60% × 10 = 6). Type 7 returns 8.4 — a linear blend of the 6th and 7th order statistics. None of these is wrong; they're different conventions for the same underlying question: which order statistic, or combination of them, estimates the population's 60th percentile? If you ever compare R's quantiles to SAS or Python's NumPy, know that SAS defaults to type 3 and NumPy defaults to type 7.
+For the 60th percentile of this 10-value sample, types 1 and 4 both return 8 (the 6th order statistic, since 60% × 10 = 6). Type 7 returns 8.4, a linear blend of the 6th and 7th order statistics. None of these is wrong; they're different conventions for the same underlying question: which order statistic, or combination of them, estimates the population's 60th percentile? If you ever compare R's quantiles to SAS or Python's NumPy, know that SAS defaults to type 3 and NumPy defaults to type 7.
 
 [WARNING]
 **Different software defaults can make identical data give different quantiles.** R default is `type = 7`; SAS default is type 3; Python NumPy default is type 7 (matches R); Excel's PERCENTILE.INC matches R's type 7. If your numbers don't match across tools, check the quantile type first.
@@ -362,9 +362,9 @@ c(manual = ex_q25_manual, quantile_fn = ex_q25_fn)
 
 ## Where do order statistics show up in practice?
 
-Three places show up over and over. The first is **non-parametric confidence intervals for the median** — you don't need the population to be normal, because you can bracket the median with two order statistics and know the coverage probability from the binomial distribution. The second is **extreme value analysis**, where the maximum of a sample (annual flood height, peak wind speed) is the object of direct interest. The third is **robust statistics**, where trimmed means and ranks replace sensitive averages.
+Three places show up over and over. The first is **non-parametric confidence intervals for the median**, you don't need the population to be normal, because you can bracket the median with two order statistics and know the coverage probability from the binomial distribution. The second is **extreme value analysis**, where the maximum of a sample (annual flood height, peak wind speed) is the object of direct interest. The third is **robust statistics**, where trimmed means and ranks replace sensitive averages.
 
-Let's build the non-parametric CI for the median from scratch. If you pick order statistics $X_{(l)}$ and $X_{(u)}$, the probability that they bracket the true population median equals the probability that at least $l$ and at most $u - 1$ of your sample points fall below the median — a binomial tail probability with success probability 0.5 (since the median is defined as the 50% mark).
+Let's build the non-parametric CI for the median from scratch. If you pick order statistics $X_{(l)}$ and $X_{(u)}$, the probability that they bracket the true population median equals the probability that at least $l$ and at most $u - 1$ of your sample points fall below the median, a binomial tail probability with success probability 0.5 (since the median is defined as the 50% mark).
 
 ```r
 # Distribution-free 95% CI for the median, sample size n = 20
@@ -397,7 +397,7 @@ median(ci_sample)
 #> [1] 102.45
 ```
 
-The distribution-free 95% CI for the population median is $[X_{(6)}, X_{(15)}]$ — entirely built from two order statistics and a binomial probability. No normality assumption required. The coverage is 95.86% (slightly above 95% because we can only hit discrete levels), which is how the Wilcoxon signed-rank confidence interval is constructed in practice. Contrast this with the "mean ± 1.96 × SE" interval, which assumes the sampling distribution is approximately normal — if you can't justify that assumption, this order-statistic approach still works.
+The distribution-free 95% CI for the population median is $[X_{(6)}, X_{(15)}]$, entirely built from two order statistics and a binomial probability. No normality assumption required. The coverage is 95.86% (slightly above 95% because we can only hit discrete levels), which is how the Wilcoxon signed-rank confidence interval is constructed in practice. Contrast this with the "mean ± 1.96 × SE" interval, which assumes the sampling distribution is approximately normal, if you can't justify that assumption, this order-statistic approach still works.
 
 [TIP]
 **This is how `wilcox.test(..., conf.int = TRUE)` gets its CI for the median.** If you peek under the hood, you'll see it's working with rank and order statistics all the way down.
@@ -470,7 +470,7 @@ summary(my_x3)
 #>  -2.7834  -0.9182  -0.4928  -0.4943  -0.0687   1.5734
 ```
 
-**Explanation:** `get(paste0("r", dist))` looks up the random generator by name. The density peaks below zero because $X_{(3)}$ of 8 normals is the third-smallest of eight draws — in the left tail region. The theoretical mean is tabulated at roughly −0.49 (Arnold et al. 2008).
+**Explanation:** `get(paste0("r", dist))` looks up the random generator by name. The density peaks below zero because $X_{(3)}$ of 8 normals is the third-smallest of eight draws, in the left tail region. The theoretical mean is tabulated at roughly −0.49 (Arnold et al. 2008).
 
 </details>
 
@@ -511,7 +511,7 @@ c(empirical = my_corr, theoretical = my_theo_corr)
 #>      0.4781      0.4781
 ```
 
-**Explanation:** Order statistics from the same sample are positively correlated — if $X_{(3)}$ is high, the whole sample is shifted up and $X_{(7)}$ tends to be high too. The simulation matches theory to four decimals, which is the kind of agreement that builds deep trust in the formula.
+**Explanation:** Order statistics from the same sample are positively correlated, if $X_{(3)}$ is high, the whole sample is shifted up and $X_{(7)}$ tends to be high too. The simulation matches theory to four decimals, which is the kind of agreement that builds deep trust in the formula.
 
 </details>
 
@@ -549,7 +549,7 @@ c(estimate = my_emean, reference = 1.8675)
 
 ## Complete Example: Analysing Annual River Flood Maxima
 
-Put everything together on a realistic scenario. Suppose you have daily river flow data for 50 years. Each year, only the **annual maximum flow** matters for flood-risk planning. The sample maximum of a year's data is an order statistic, and across years you build up a sampling distribution of maxima that can be summarised — mean, quantiles, return periods — using the tools above.
+Put everything together on a realistic scenario. Suppose you have daily river flow data for 50 years. Each year, only the **annual maximum flow** matters for flood-risk planning. The sample maximum of a year's data is an order statistic, and across years you build up a sampling distribution of maxima that can be summarised, mean, quantiles, return periods, using the tools above.
 
 ```r
 # Simulate 50 years of daily river flows (365 days each, Exp-ish shape)
@@ -592,7 +592,7 @@ ggplot(flood_df, aes(max_flow)) +
   theme_minimal()
 ```
 
-The annual maxima average around 600 units, with the empirical "100-year flood" (the 99th percentile — a quantile built from order statistics) at about 845. The non-parametric 95% CI for the median annual flood is $[X_{(18)}, X_{(33)}] = [570.5, 623.4]$ — no normality assumption needed. Every statistic here — median, 99th percentile, CI bounds — is an order statistic or derived from one. The whole risk-analysis pipeline runs on order statistics.
+The annual maxima average around 600 units, with the empirical "100-year flood" (the 99th percentile, a quantile built from order statistics) at about 845. The non-parametric 95% CI for the median annual flood is $[X_{(18)}, X_{(33)}] = [570.5, 623.4]$, no normality assumption needed. Every statistic here, median, 99th percentile, CI bounds, is an order statistic or derived from one. The whole risk-analysis pipeline runs on order statistics.
 
 [TIP]
 **Extreme value theory (EVT) builds directly on the distribution of the maximum.** If you extend this analysis and fit a Generalised Extreme Value (GEV) distribution to the annual maxima, you get principled return-period estimates beyond the range of your data. The evd and extRemes packages do this well in local R (they don't currently compile for in-browser use).
@@ -612,10 +612,10 @@ The one mental model that covers all of it: **sort your sample, and every quanti
 
 ## References
 
-1. Wikipedia — Order statistic. [Link](https://en.wikipedia.org/wiki/Order_statistic)
-2. Siegrist, K. — *Probability, Mathematical Statistics, and Stochastic Processes*, Order Statistics chapter. [Link](https://www.randomservices.org/random/sample/OrderStatistics.html)
+1. Wikipedia, Order statistic. [Link](https://en.wikipedia.org/wiki/Order_statistic)
+2. Siegrist, K., *Probability, Mathematical Statistics, and Stochastic Processes*, Order Statistics chapter. [Link](https://www.randomservices.org/random/sample/OrderStatistics.html)
 3. Hyndman, R. J., & Fan, Y. (1996). "Sample quantiles in statistical packages." *The American Statistician*, 50(4), 361–365.
-4. stat.ethz.ch — `quantile()` reference. [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/quantile.html)
+4. stat.ethz.ch, `quantile()` reference. [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/quantile.html)
 5. Arnold, B. C., Balakrishnan, N., & Nagaraja, H. N. (2008). *A First Course in Order Statistics*. SIAM Classics in Applied Mathematics.
 6. David, H. A., & Nagaraja, H. N. (2003). *Order Statistics*, 3rd ed. Wiley.
 7. Casella, G., & Berger, R. L. (2002). *Statistical Inference*, 2nd ed., Chapter 5.4. Duxbury.
@@ -623,6 +623,6 @@ The one mental model that covers all of it: **sort your sample, and every quanti
 
 ## Continue Learning
 
-- [Sampling Distributions in R](Sampling-Distributions-in-R.html) — parent post; order statistics are the sampling distribution of sorted values.
-- [Central Limit Theorem in R](Central-Limit-Theorem-in-R.html) — complementary result about the sampling distribution of the *mean* (not an order statistic, but closely compared).
-- [Fitting Distributions to Data in R](Fitting-Distributions-to-Data-in-R.html) — a parametric counterpart to the non-parametric, order-statistic approach used here for quantile inference.
+- [Sampling Distributions in R](Sampling-Distributions-in-R.html), parent post; order statistics are the sampling distribution of sorted values.
+- [Central Limit Theorem in R](Central-Limit-Theorem-in-R.html), complementary result about the sampling distribution of the *mean* (not an order statistic, but closely compared).
+- [Fitting Distributions to Data in R](Fitting-Distributions-to-Data-in-R.html), a parametric counterpart to the non-parametric, order-statistic approach used here for quantile inference.

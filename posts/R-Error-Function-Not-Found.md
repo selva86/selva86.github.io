@@ -1,5 +1,5 @@
 ---
-title: "R Error: 'could not find function' — Package Not Loaded or Name Conflict?"
+title: "R Error: 'could not find function', Package Not Loaded or Name Conflict?"
 slug: "R-Error-Function-Not-Found"
 description: "Fix R's 'could not find function' error: check if the package is loaded, detect masked functions, and use package::function() to resolve namespace conflicts."
 keywords: "R could not find function, R function not found, R package not loaded, R namespace conflict, R masked function, R search path, R library error"
@@ -14,7 +14,7 @@ fr_parent: "R-Common-Errors.html"
 difficulty: "Intermediate"
 ---
 
-# R Error: 'could not find function' — Package Not Loaded or Name Conflict?
+# R Error: 'could not find function', Package Not Loaded or Name Conflict?
 
 <p class="lead"><code>Error: could not find function "X"</code> means R walked every loaded package and the global environment without finding anything named <code>X</code>. The fix is almost always one of three things: load the package that owns the function, call it explicitly as <code>package::function()</code>, or correct a typo or masking conflict that is hiding it.</p>
 
@@ -37,10 +37,10 @@ head(search(), 6)
 #> [4] "package:grDevices" "package:utils"     "package:datasets"
 ```
 
-R started at `.GlobalEnv` (your workspace), then tried each attached package in load order, then `base`. `some_made_up_fn` does not exist in any of those, so the lookup fails and R raises the error. Every "could not find function" error is just this same walk coming up empty — the question becomes *why* the name you expected isn't on the chain.
+R started at `.GlobalEnv` (your workspace), then tried each attached package in load order, then `base`. `some_made_up_fn` does not exist in any of those, so the lookup fails and R raises the error. Every "could not find function" error is just this same walk coming up empty, the question becomes *why* the name you expected isn't on the chain.
 
 [KEY INSIGHT]
-**The search path is an ordered chain, not a bag.** R stops at the first match it finds, so the order in which packages are loaded decides which version of a duplicated name wins — and which one disappears.
+**The search path is an ordered chain, not a bag.** R stops at the first match it finds, so the order in which packages are loaded decides which version of a duplicated name wins, and which one disappears.
 
 **Try it:** Use `search()` and `length()` to count how many environments are currently on the search path. Save the number to `ex_n_pkgs`.
 
@@ -66,7 +66,7 @@ ex_n_pkgs
 
 ## How do I find which package a function belongs to?
 
-Once you know the search path, the next question is: where does this function *actually* live? R has two small built-in helpers — `find()` and `getAnywhere()` — that tell you, and `apropos()` handles the case where you only remember part of the name.
+Once you know the search path, the next question is: where does this function *actually* live? R has two small built-in helpers, `find()` and `getAnywhere()`, that tell you, and `apropos()` handles the case where you only remember part of the name.
 
 ```r
 # Which attached package exports this function?
@@ -85,7 +85,7 @@ apropos("^read\\.")
 #> [1] "read.csv"   "read.csv2"  "read.delim" "read.delim2" "read.table"
 ```
 
-`find("mean")` only scans the search path, so it will return `character(0)` for a function whose package you haven't loaded. `getAnywhere("lowess")` scans installed namespaces too, which is why it finds `lowess` even when `stats` is not attached in your particular session. `apropos()` takes a regular expression and lists every matching name — invaluable when you typed `Read.csv` and can't remember whether the real function is capitalised.
+`find("mean")` only scans the search path, so it will return `character(0)` for a function whose package you haven't loaded. `getAnywhere("lowess")` scans installed namespaces too, which is why it finds `lowess` even when `stats` is not attached in your particular session. `apropos()` takes a regular expression and lists every matching name, invaluable when you typed `Read.csv` and can't remember whether the real function is capitalised.
 
 [TIP]
 **Use ?? or help.search() when you don't know the function name at all.** Running `??"linear model"` queries the help index across every installed package and returns ranked matches, so you don't need to guess a function name to start searching.
@@ -108,13 +108,13 @@ ex_sd_pkg
 #> [1] "package:stats"
 ```
 
-**Explanation:** `sd()` is exported by the `stats` package, which is attached by default in every R session — so `find()` reports it as `package:stats`.
+**Explanation:** `sd()` is exported by the `stats` package, which is attached by default in every R session, so `find()` reports it as `package:stats`.
 
 </details>
 
 ## Why does loading one package break a function from another?
 
-When two packages export a function with the same name, the later-loaded one **masks** the earlier one. Your old code that called the first version now silently runs the second version — or crashes if the signatures differ. You can reproduce the exact same mechanic in a single session without loading anything, by defining a shadow function in the global environment.
+When two packages export a function with the same name, the later-loaded one **masks** the earlier one. Your old code that called the first version now silently runs the second version, or crashes if the signatures differ. You can reproduce the exact same mechanic in a single session without loading anything, by defining a shadow function in the global environment.
 
 ```r
 # Shadow base::mean with a broken local version
@@ -134,7 +134,7 @@ mean(1:5)
 #> [1] 3
 ```
 
-The first call to `mean(1:5)` returns the string because `.GlobalEnv` sits at the front of the search path and R's walk stops there. `find("mean")` then shows *both* matches, in the order R would visit them. `base::mean(1:5)` bypasses the walk entirely and asks the `base` namespace directly, and `rm(mean)` removes the shadow so normal lookup resumes. Real package masking works exactly the same way — the only difference is that the masking function lives in `package:dplyr` or similar instead of `.GlobalEnv`.
+The first call to `mean(1:5)` returns the string because `.GlobalEnv` sits at the front of the search path and R's walk stops there. `find("mean")` then shows *both* matches, in the order R would visit them. `base::mean(1:5)` bypasses the walk entirely and asks the `base` namespace directly, and `rm(mean)` removes the shadow so normal lookup resumes. Real package masking works exactly the same way, the only difference is that the masking function lives in `package:dplyr` or similar instead of `.GlobalEnv`.
 
 [WARNING]
 **R announces masking only when the package loads, and the notice scrolls off screen.** If you started your session an hour ago you will never see the warning about `dplyr::filter` masking `stats::filter`. Check `conflicts()` whenever a familiar function suddenly behaves strangely.
@@ -192,7 +192,7 @@ err
 #> [1] "there is no package called 'nosuchpkg'"
 ```
 
-Each `::` call is resolved at the moment it runs, so it never pollutes your search path and never changes the behavior of unrelated code. The last block also shows an important debugging signal: if you see `there is no package called 'X'` instead of `could not find function "foo"`, you are looking at a different problem — the package is not installed at all, and the fix is `install.packages("X")`, not `library(X)`.
+Each `::` call is resolved at the moment it runs, so it never pollutes your search path and never changes the behavior of unrelated code. The last block also shows an important debugging signal: if you see `there is no package called 'X'` instead of `could not find function "foo"`, you are looking at a different problem, the package is not installed at all, and the fix is `install.packages("X")`, not `library(X)`.
 
 [NOTE]
 **`::` gives exported functions; `:::` reaches internal ones and is discouraged.** Internal functions are not part of a package's public contract, so they can change or disappear between versions without warning. Only use `:::` when you are debugging the package itself.
@@ -279,7 +279,7 @@ ex_has_tibble
 
 ### Exercise 1: Write a missing-function diagnoser
 
-Build a function `dx_missing(name)` that takes a function name as a string and returns a character vector. The first element is a verdict — one of `"ok"`, `"installed-but-not-loaded"`, or `"not-found"` — and any remaining elements are up to five near-miss candidates from `apropos()`. Test it on `"mean"`, `"Read.csv"`, and `"zzz_nope"` and save the last result to `my_dx`.
+Build a function `dx_missing(name)` that takes a function name as a string and returns a character vector. The first element is a verdict, one of `"ok"`, `"installed-but-not-loaded"`, or `"not-found"`, and any remaining elements are up to five near-miss candidates from `apropos()`. Test it on `"mean"`, `"Read.csv"`, and `"zzz_nope"` and save the last result to `my_dx`.
 
 ```r
 # Exercise: write dx_missing()
@@ -382,7 +382,7 @@ getAnywhere("filter")$where
 #> [1] "package:stats"    "namespace:stats"  "namespace:dplyr"
 ```
 
-Two namespaces on this machine export `filter`: `stats` (the attached one) and `dplyr` (installed but not loaded). The reader wanted dplyr's data-frame filter, not the stats time-series filter — so the right fix is `dplyr::filter`, not `stats::filter`.
+Two namespaces on this machine export `filter`: `stats` (the attached one) and `dplyr` (installed but not loaded). The reader wanted dplyr's data-frame filter, not the stats time-series filter, so the right fix is `dplyr::filter`, not `stats::filter`.
 
 ```r
 # Step 2 — call the right one explicitly, no library() needed
@@ -405,15 +405,15 @@ One `::` call resolves the whole thing: no load order to worry about, no masking
 
 ## References
 
-1. R Core Team. *An Introduction to R* — chapter on "The R environment". [cran.r-project.org/doc/manuals/r-release/R-intro.html](https://cran.r-project.org/doc/manuals/r-release/R-intro.html)
-2. Wickham, H. *Advanced R*, 2nd edition — chapter 7, "Environments". [adv-r.hadley.nz/environments.html](https://adv-r.hadley.nz/environments.html)
-3. R documentation — `?search`, `?find`, `?apropos`, `?conflicts`, `?getAnywhere`. [rdocumentation.org](https://www.rdocumentation.org/)
-4. R Core Team. *Writing R Extensions* — section 1.6, "Package namespaces". [cran.r-project.org/doc/manuals/r-release/R-exts.html](https://cran.r-project.org/doc/manuals/r-release/R-exts.html)
-5. tidyverse blog — "Loading packages and function masking". [tidyverse.org/blog](https://www.tidyverse.org/blog/)
-6. Stack Overflow canonical question — "Error: could not find function" in R. [stackoverflow.com/q/7027288](https://stackoverflow.com/q/7027288)
+1. R Core Team. *An Introduction to R*, chapter on "The R environment". [cran.r-project.org/doc/manuals/r-release/R-intro.html](https://cran.r-project.org/doc/manuals/r-release/R-intro.html)
+2. Wickham, H. *Advanced R*, 2nd edition, chapter 7, "Environments". [adv-r.hadley.nz/environments.html](https://adv-r.hadley.nz/environments.html)
+3. R documentation, `?search`, `?find`, `?apropos`, `?conflicts`, `?getAnywhere`. [rdocumentation.org](https://www.rdocumentation.org/)
+4. R Core Team. *Writing R Extensions*, section 1.6, "Package namespaces". [cran.r-project.org/doc/manuals/r-release/R-exts.html](https://cran.r-project.org/doc/manuals/r-release/R-exts.html)
+5. tidyverse blog, "Loading packages and function masking". [tidyverse.org/blog](https://www.tidyverse.org/blog/)
+6. Stack Overflow canonical question, "Error: could not find function" in R. [stackoverflow.com/q/7027288](https://stackoverflow.com/q/7027288)
 
 ## Continue Learning
 
-1. **R Common Errors** — the full reference covering every error message R throws and how to read it.
-2. **R Error: object 'x' not found** — the sibling error for *variables* rather than functions, with the same search-path intuition.
-3. **R Functions** — how R defines, stores, and resolves functions, including first-class function semantics.
+1. **R Common Errors**, the full reference covering every error message R throws and how to read it.
+2. **R Error: object 'x' not found**, the sibling error for *variables* rather than functions, with the same search-path intuition.
+3. **R Functions**, how R defines, stores, and resolves functions, including first-class function semantics.

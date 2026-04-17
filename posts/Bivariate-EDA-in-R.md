@@ -18,11 +18,11 @@ difficulty: "Intermediate"
 
 # Bivariate EDA in R: Find Relationships Between Variables Before You Model Them
 
-<p class="lead">Bivariate EDA examines how two variables move together — through scatter plots, grouped boxplots, bar charts, and correlation measures — so you can spot relationships, confounders, and surprises before building any model.</p>
+<p class="lead">Bivariate EDA examines how two variables move together, through scatter plots, grouped boxplots, bar charts, and correlation measures, so you can spot relationships, confounders, and surprises before building any model.</p>
 
 ## How Do You Explore Two Numeric Variables?
 
-Before you model anything, you need to know which variables are actually related. Bivariate EDA answers that question with the right plot paired with the right summary statistic — and the choice depends on whether each variable is numeric or categorical. Let's start with the most common scenario: two numeric variables and a scatter plot that reveals their relationship instantly.
+Before you model anything, you need to know which variables are actually related. Bivariate EDA answers that question with the right plot paired with the right summary statistic, and the choice depends on whether each variable is numeric or categorical. Let's start with the most common scenario: two numeric variables and a scatter plot that reveals their relationship instantly.
 
 ```r
 # Scatter plot: engine size vs. highway fuel economy
@@ -43,7 +43,7 @@ ggplot(mpg, aes(x = displ, y = hwy)) +
 #> while larger engines (5-7L) cluster at 12-20 mpg.
 ```
 
-The downward-sloping line tells you immediately: bigger engines burn more fuel on the highway. The grey confidence band is narrow in the middle (where most data sits) and wider at the extremes — that's your uncertainty growing where data is sparse.
+The downward-sloping line tells you immediately: bigger engines burn more fuel on the highway. The grey confidence band is narrow in the middle (where most data sits) and wider at the extremes, that's your uncertainty growing where data is sparse.
 
 Now let's put a number on that relationship. A correlation coefficient ranges from -1 (perfect negative) to +1 (perfect positive), with 0 meaning no linear relationship.
 
@@ -61,10 +61,10 @@ cat("Spearman rho:", round(cor_spearman$estimate, 3),
 #> Spearman rho: -0.833  p-value: < 2.2e-16
 ```
 
-Both Pearson and Spearman confirm a strong negative correlation. Spearman's rho is slightly stronger here (-0.833 vs -0.766) because it captures the monotonic relationship even if the curve isn't perfectly straight. The p-values are astronomically small — this relationship is not a coincidence.
+Both Pearson and Spearman confirm a strong negative correlation. Spearman's rho is slightly stronger here (-0.833 vs -0.766) because it captures the monotonic relationship even if the curve isn't perfectly straight. The p-values are astronomically small, this relationship is not a coincidence.
 
 [KEY INSIGHT]
-**Correlation measures linear strength only.** A perfect U-shaped curve can produce r = 0. Always plot first, then compute — never rely on the number alone.
+**Correlation measures linear strength only.** A perfect U-shaped curve can produce r = 0. Always plot first, then compute, never rely on the number alone.
 
 Sometimes a third variable hides inside a bivariate relationship. Colouring by `drv` (drive type) reveals subgroup trends that the overall scatter plot blurs together.
 
@@ -86,7 +86,7 @@ ggplot(mpg, aes(x = displ, y = hwy, color = drv)) +
 #> Rear-wheel (r): flatter slope, large engines only
 ```
 
-Now you can see that front-wheel drive cars dominate the small-engine, high-mpg corner, while rear-wheel drive cars cluster among large engines. The overall trend isn't wrong — but it's masking three distinct stories.
+Now you can see that front-wheel drive cars dominate the small-engine, high-mpg corner, while rear-wheel drive cars cluster among large engines. The overall trend isn't wrong, but it's masking three distinct stories.
 
 [TIP]
 **Use method = "loess" in geom_smooth() when the relationship is clearly curved.** LOESS fits a flexible local regression instead of forcing a straight line through nonlinear data.
@@ -123,7 +123,7 @@ cat("Spearman:", round(ex_spearman, 3), "\n")
 
 ## What If One Variable Is Categorical and the Other Numeric?
 
-When one variable is a group label — like vehicle class, species, or treatment arm — and the other is a measurement, you want to see how distributions shift across groups. The grouped boxplot is the workhorse here: it shows median, spread, and outliers in one compact visual.
+When one variable is a group label, like vehicle class, species, or treatment arm, and the other is a measurement, you want to see how distributions shift across groups. The grouped boxplot is the workhorse here: it shows median, spread, and outliers in one compact visual.
 
 ```r
 # Grouped boxplot: vehicle class vs highway mpg
@@ -143,12 +143,12 @@ ggplot(mpg, aes(x = fct_reorder(class, hwy, .fun = median), y = hwy)) +
 #> Subcompact and compact cars sit at the top (~28 mpg median).
 ```
 
-Ordering the categories by median (using `fct_reorder()`) makes the comparison instant — you don't have to scan alphabetically. Pickups and SUVs cluster low; compact and midsize cars sit high. The red dots are outliers — individual cars that deviate from their class's pattern.
+Ordering the categories by median (using `fct_reorder()`) makes the comparison instant, you don't have to scan alphabetically. Pickups and SUVs cluster low; compact and midsize cars sit high. The red dots are outliers, individual cars that deviate from their class's pattern.
 
 [WARNING]
 **Boxplots hide multimodal distributions.** If a group has two peaks (say, hybrid and non-hybrid subcompacts), the boxplot blends them into one box. Add a violin or jitter layer to see the full shape.
 
-Violin plots reveal the density shape that boxplots hide. Overlaying jitter points shows each individual observation — especially valuable for small samples where the density estimate gets noisy.
+Violin plots reveal the density shape that boxplots hide. Overlaying jitter points shows each individual observation, especially valuable for small samples where the density estimate gets noisy.
 
 ```r
 # Violin + jitter: iris sepal length by species
@@ -168,7 +168,7 @@ ggplot(iris, aes(x = Species, y = Sepal.Length, fill = Species)) +
 #> Virginica: widest, centered around 6.6 cm with some outliers above 7.5.
 ```
 
-The violin shape confirms that all three species have roughly unimodal distributions, but virginica has the widest spread. The jitter dots let you see that setosa's 50 observations cluster tightly — the violin isn't misleading.
+The violin shape confirms that all three species have roughly unimodal distributions, but virginica has the widest spread. The jitter dots let you see that setosa's 50 observations cluster tightly, the violin isn't misleading.
 
 Sometimes you want a cleaner summary: just the group means with error bars. The `stat_summary()` function handles this without any manual data wrangling.
 
@@ -190,10 +190,10 @@ ggplot(mpg, aes(x = fct_reorder(class, hwy, .fun = mean), y = hwy)) +
 #> SUV: ~18.1 ± 0.5 mpg
 ```
 
-Error bars that don't overlap suggest the group means are meaningfully different. The compact class clearly separates from SUVs and pickups — but midsize and compact overlap, so you'd need a formal test to distinguish them.
+Error bars that don't overlap suggest the group means are meaningfully different. The compact class clearly separates from SUVs and pickups, but midsize and compact overlap, so you'd need a formal test to distinguish them.
 
 [TIP]
-**Reorder categorical levels by the numeric summary using fct_reorder() for instant visual clarity.** Alphabetical order rarely helps — sorting by median or mean makes the pattern jump out.
+**Reorder categorical levels by the numeric summary using fct_reorder() for instant visual clarity.** Alphabetical order rarely helps, sorting by median or mean makes the pattern jump out.
 
 **Try it:** Create a grouped boxplot of `iris` Sepal.Length by Species. Which species has the highest median?
 
@@ -223,7 +223,7 @@ ggplot(iris, aes(x = Species, y = Sepal.Length, fill = Species)) +
 
 ## How Do You Compare Two Categorical Variables?
 
-When both variables are categories — like vehicle class and drive type, or treatment and outcome — you need to see how frequencies cluster across combinations. A grouped bar chart shows raw counts; a proportional stacked bar reveals compositional differences.
+When both variables are categories, like vehicle class and drive type, or treatment and outcome, you need to see how frequencies cluster across combinations. A grouped bar chart shows raw counts; a proportional stacked bar reveals compositional differences.
 
 ```r
 # Grouped bar chart: vehicle class vs drive type
@@ -243,7 +243,7 @@ ggplot(mpg, aes(x = class, fill = drv)) +
 #> 2seater: only rear-wheel drive.
 ```
 
-The pattern is striking: SUVs are overwhelmingly 4-wheel drive, compacts are almost entirely front-wheel, and 2-seaters are all rear-wheel. That's a strong association between class and drive type — not independent at all.
+The pattern is striking: SUVs are overwhelmingly 4-wheel drive, compacts are almost entirely front-wheel, and 2-seaters are all rear-wheel. That's a strong association between class and drive type, not independent at all.
 
 Let's test that association formally with a contingency table and chi-squared test. The chi-squared test asks: "Could this frequency pattern have appeared by chance if class and drive type were truly independent?"
 
@@ -270,7 +270,7 @@ cat("Chi-squared:", round(chi_result$statistic, 1),
 A chi-squared statistic of 291.6 with 12 degrees of freedom and a p-value near zero means these variables are very strongly associated. Vehicle class and drive type are far from independent.
 
 [NOTE]
-**Chi-squared test needs expected cell counts of at least 5.** For small samples or sparse tables, use `fisher.test()` instead — it computes exact probabilities without that assumption.
+**Chi-squared test needs expected cell counts of at least 5.** For small samples or sparse tables, use `fisher.test()` instead, it computes exact probabilities without that assumption.
 
 A proportional stacked bar chart normalizes each class to 100%, making it easy to compare compositions even when group sizes differ.
 
@@ -389,7 +389,7 @@ p1 + p2 + p3
 Seeing all three together reinforces the core lesson: the variable types dictate the plot, and the plot dictates which summary statistic to compute. Pick the wrong plot and you'll miss the pattern entirely.
 
 [TIP]
-**When in doubt, start with ggpairs() — it picks the right plot for each variable pair automatically.** You'll learn how in the next section.
+**When in doubt, start with ggpairs(), it picks the right plot for each variable pair automatically.** You'll learn how in the next section.
 
 **Try it:** Given a dataset with columns `region` (categorical) and `sales` (numeric), which plot would you choose and which summary statistic? Write the ggplot2 call.
 
@@ -466,10 +466,10 @@ ggpairs(
 #> Clear species clustering visible in most panels
 ```
 
-The iris matrix instantly reveals that petal dimensions (length and width) are almost perfectly correlated (r = 0.96) and provide strong species separation. Sepal width is the odd one out — weakly correlated with everything and overlapping across species.
+The iris matrix instantly reveals that petal dimensions (length and width) are almost perfectly correlated (r = 0.96) and provide strong species separation. Sepal width is the odd one out, weakly correlated with everything and overlapping across species.
 
 [WARNING]
-**ggpairs() gets slow with more than 8 variables — subset first.** Each additional variable adds a full row and column to the matrix, so going from 5 to 10 variables quadruples the rendering time. For wide datasets, pick your most promising variables or use a correlation heatmap instead.
+**ggpairs() gets slow with more than 8 variables, subset first.** Each additional variable adds a full row and column to the matrix, so going from 5 to 10 variables quadruples the rendering time. For wide datasets, pick your most promising variables or use a correlation heatmap instead.
 
 **Try it:** Run `ggpairs()` on `iris` with all 4 numeric columns, colored by Species. Which pair shows the strongest separation between species?
 
@@ -490,7 +490,7 @@ ggpairs(iris, columns = 1:4, aes(color = Species, alpha = 0.5)) +
 #> r = 0.96 overall, but each species forms its own distinct cloud
 ```
 
-**Explanation:** Petal.Length vs Petal.Width shows the strongest separation — the three species form nearly non-overlapping clusters. This makes sense because petal measurements vary most between species while sepal measurements overlap considerably.
+**Explanation:** Petal.Length vs Petal.Width shows the strongest separation, the three species form nearly non-overlapping clusters. This makes sense because petal measurements vary most between species while sepal measurements overlap considerably.
 
 </details>
 
@@ -533,10 +533,10 @@ ggplot(sim_data, aes(x, y)) +
 #> The aggregate hides the true within-group pattern.
 ```
 
-The dashed black line slopes downward — suggesting a negative relationship. But both group-level lines slope upward. The paradox happens because Group B has higher x-values but lower y-values than Group A, creating a downward illusion when you ignore the group.
+The dashed black line slopes downward, suggesting a negative relationship. But both group-level lines slope upward. The paradox happens because Group B has higher x-values but lower y-values than Group A, creating a downward illusion when you ignore the group.
 
 [KEY INSIGHT]
-**Always facet or colour by a third variable before trusting an aggregate trend.** Simpson's paradox is more common than you think — it appears in medical studies, admissions data, and economics.
+**Always facet or colour by a third variable before trusting an aggregate trend.** Simpson's paradox is more common than you think, it appears in medical studies, admissions data, and economics.
 
 ![The bivariate EDA workflow from variable identification to reporting](screenshots/Bivariate-EDA-in-R-process-flow.webp)
 
@@ -564,10 +564,10 @@ ggplot(nl_data, aes(x, y)) +
 #> A clear U-shaped parabola appears with r = -0.013
 ```
 
-The scatter plot shows an obvious quadratic pattern, but Pearson's r is essentially zero. This is exactly why "always plot first" is the golden rule. Spearman wouldn't help here either — the relationship isn't monotonic.
+The scatter plot shows an obvious quadratic pattern, but Pearson's r is essentially zero. This is exactly why "always plot first" is the golden rule. Spearman wouldn't help here either, the relationship isn't monotonic.
 
 [WARNING]
-**A correlation of zero does NOT mean no relationship — it means no LINEAR relationship.** Always inspect the scatter plot before dismissing a variable pair.
+**A correlation of zero does NOT mean no relationship, it means no LINEAR relationship.** Always inspect the scatter plot before dismissing a variable pair.
 
 **Overplotting** is the third trap. When thousands of points stack on top of each other, you can't see where the data actually concentrates. Here's how to fix it with transparency and 2D binning.
 
@@ -589,7 +589,7 @@ p_over + p_bin
 #> Right: heatmap showing most diamonds cluster under 2 carats / $10K
 ```
 
-The alpha-transparency version shows faint structure — bands at 0.5, 1.0, and 1.5 carats where diamonds are cut to round numbers. The 2D bin version makes this density pattern unmistakable with a color scale. For any dataset with more than a few thousand points, one of these two approaches (or hexbin, covered next) is essential.
+The alpha-transparency version shows faint structure, bands at 0.5, 1.0, and 1.5 carats where diamonds are cut to round numbers. The 2D bin version makes this density pattern unmistakable with a color scale. For any dataset with more than a few thousand points, one of these two approaches (or hexbin, covered next) is essential.
 
 **Try it:** Generate 200 points from y = x^2 + noise, compute `cor(x, y)`, and explain why it's near zero despite a clear pattern.
 
@@ -616,7 +616,7 @@ cat("Pearson r:", round(cor(ex_x, ex_y), 3), "\n")
 plot(ex_x, ex_y, main = "Quadratic: r ≈ 0 but clear pattern")
 ```
 
-**Explanation:** Pearson r is near zero because the parabola is symmetric around x = 0 — positive and negative x values both produce high y values. The positive relationship on the right cancels the "negative" relationship on the left. Correlation only detects linear (straight-line) patterns.
+**Explanation:** Pearson r is near zero because the parabola is symmetric around x = 0, positive and negative x values both produce high y values. The positive relationship on the right cancels the "negative" relationship on the left. Correlation only detects linear (straight-line) patterns.
 
 </details>
 
@@ -668,7 +668,7 @@ ggplot(diamonds, aes(carat, price)) +
 #> Clear positive nonlinear relationship (price accelerates with carat).
 ```
 
-The hexbin plot reveals that the relationship between carat and price is nonlinear — price accelerates as carat increases. Most diamonds cluster in the small-carat, low-price corner. A log-scale on the color fill helps distinguish density differences in the sparse upper region.
+The hexbin plot reveals that the relationship between carat and price is nonlinear, price accelerates as carat increases. Most diamonds cluster in the small-carat, low-price corner. A log-scale on the color fill helps distinguish density differences in the sparse upper region.
 
 [TIP]
 **Use a correlation heatmap as a triage tool.** Scan for the darkest cells, then investigate those pairs with proper scatter plots. This saves you from making dozens of individual plots when you have 15+ numeric variables.
@@ -697,7 +697,7 @@ cat("Strongest negative:", row_name, "vs", col_name,
 #> [1] Strongest negative: mpg vs wt r = -0.868
 ```
 
-**Explanation:** Setting the diagonal to NA excludes the trivial r = 1 self-correlations. The most negative pair is mpg vs wt (r = -0.868) — heavier cars get dramatically worse fuel economy.
+**Explanation:** Setting the diagonal to NA excludes the trivial r = 1 self-correlations. The most negative pair is mpg vs wt (r = -0.868), heavier cars get dramatically worse fuel economy.
 
 </details>
 
@@ -743,7 +743,7 @@ diamonds |>
 #>   Ideal     3458       1810
 ```
 
-**Explanation:** Ideal cut does NOT have the highest price — it has the lowest mean and median. This is Simpson's paradox in action: ideal-cut diamonds tend to be smaller (lower carat), and carat is the dominant price driver. Within the same carat range, ideal cuts are indeed more expensive. Always check for confounders.
+**Explanation:** Ideal cut does NOT have the highest price, it has the lowest mean and median. This is Simpson's paradox in action: ideal-cut diamonds tend to be smaller (lower carat), and carat is the dominant price driver. Within the same carat range, ideal cuts are indeed more expensive. Always check for confounders.
 
 </details>
 
@@ -841,7 +841,7 @@ ggplot(by_dept |> filter(Admit == "Admitted"),
 #> Departments C-F: lower rates, females often equal or higher
 ```
 
-**Explanation:** Overall, males appear to be admitted at a higher rate (~45% vs ~30%). But within departments, the gender gap shrinks or reverses. The paradox arises because women applied disproportionately to more competitive departments (C-F) with lower acceptance rates. This is the textbook example of Simpson's paradox — and a powerful reminder to always check for confounders.
+**Explanation:** Overall, males appear to be admitted at a higher rate (~45% vs ~30%). But within departments, the gender gap shrinks or reverses. The paradox arises because women applied disproportionately to more competitive departments (C-F) with lower acceptance rates. This is the textbook example of Simpson's paradox, and a powerful reminder to always check for confounders.
 
 </details>
 
@@ -896,7 +896,7 @@ cat("\nKey finding: Engine displacement is the strongest predictor of",
 #> Summary: displ drives fuel economy; drv confounds the story
 ```
 
-This six-step workflow — identify types, scatter, boxplot, bar/chi-squared, ggpairs, and summarize — gives you a complete picture of any dataset's bivariate relationships in minutes.
+This six-step workflow, identify types, scatter, boxplot, bar/chi-squared, ggpairs, and summarize, gives you a complete picture of any dataset's bivariate relationships in minutes.
 
 
 ## Summary
@@ -913,7 +913,7 @@ Here's a quick-reference table for every bivariate scenario you'll encounter.
 
 Three rules to live by:
 
-1. **Always plot first, then compute.** A correlation number without a scatter plot is dangerous — it can't detect nonlinear patterns or outlier influence.
+1. **Always plot first, then compute.** A correlation number without a scatter plot is dangerous, it can't detect nonlinear patterns or outlier influence.
 2. **Match the plot to the variable types.** The decision table above is your starting point for every analysis.
 3. **Facet by a third variable before trusting an aggregate trend.** Simpson's paradox is real and common.
 
@@ -924,18 +924,18 @@ Three rules to live by:
 
 ## References
 
-1. Wickham, H. & Grolemund, G. — *R for Data Science*, 2nd Edition. O'Reilly (2023). Chapter 10: Exploratory Data Analysis. [Link](https://r4ds.hadley.nz/EDA.html)
-2. Kabacoff, R. — *Modern Data Visualization with R*. Chapter 5: Bivariate Graphs. [Link](https://rkabacoff.github.io/datavis/Bivariate.html)
-3. ggplot2 documentation — geom_point() reference. [Link](https://ggplot2.tidyverse.org/reference/geom_point.html)
-4. ggplot2 documentation — geom_boxplot() reference. [Link](https://ggplot2.tidyverse.org/reference/geom_boxplot.html)
-5. GGally documentation — ggpairs() reference. [Link](https://ggobi.github.io/ggally/articles/ggpairs.html)
-6. R Core Team — cor.test(): Test for association/correlation between paired samples. [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/cor.test.html)
-7. Tukey, J.W. — *Exploratory Data Analysis*. Addison-Wesley (1977).
-8. Cleveland, W.S. — *Visualizing Data*. Hobart Press (1993).
+1. Wickham, H. & Grolemund, G., *R for Data Science*, 2nd Edition. O'Reilly (2023). Chapter 10: Exploratory Data Analysis. [Link](https://r4ds.hadley.nz/EDA.html)
+2. Kabacoff, R., *Modern Data Visualization with R*. Chapter 5: Bivariate Graphs. [Link](https://rkabacoff.github.io/datavis/Bivariate.html)
+3. ggplot2 documentation, geom_point() reference. [Link](https://ggplot2.tidyverse.org/reference/geom_point.html)
+4. ggplot2 documentation, geom_boxplot() reference. [Link](https://ggplot2.tidyverse.org/reference/geom_boxplot.html)
+5. GGally documentation, ggpairs() reference. [Link](https://ggobi.github.io/ggally/articles/ggpairs.html)
+6. R Core Team, cor.test(): Test for association/correlation between paired samples. [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/cor.test.html)
+7. Tukey, J.W., *Exploratory Data Analysis*. Addison-Wesley (1977).
+8. Cleveland, W.S., *Visualizing Data*. Hobart Press (1993).
 
 
 ## Continue Learning
 
-- [Univariate EDA in R](Univariate-EDA-in-R.html) — Understand single-variable distributions before comparing pairs.
-- [Exploratory Data Analysis in R (7-Step Framework)](Exploratory-Data-Analysis-in-R.html) — The complete EDA workflow from data import to actionable insight.
-- [Correlation Matrix Plot in R](Correlation-Matrix-Plot-in-R.html) — Deep dive into multi-variable correlation visualization and interpretation.
+- [Univariate EDA in R](Univariate-EDA-in-R.html), Understand single-variable distributions before comparing pairs.
+- [Exploratory Data Analysis in R (7-Step Framework)](Exploratory-Data-Analysis-in-R.html), The complete EDA workflow from data import to actionable insight.
+- [Correlation Matrix Plot in R](Correlation-Matrix-Plot-in-R.html), Deep dive into multi-variable correlation visualization and interpretation.

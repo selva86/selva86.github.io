@@ -16,9 +16,9 @@ difficulty: "Intermediate"
 
 # R vs Excel: 7 Signs Your Analysis Has Outgrown Spreadsheets
 
-<p class="lead">Excel is the world's most-used data tool, and for many tasks it's still the right one. But when your workbooks crash, your formulas break on a sort, or your results stop being reproducible, you've hit Excel's ceiling — and R is the natural upgrade. Here are seven concrete signs you've outgrown spreadsheets, each paired with runnable R code that handles the same task better.</p>
+<p class="lead">Excel is the world's most-used data tool, and for many tasks it's still the right one. But when your workbooks crash, your formulas break on a sort, or your results stop being reproducible, you've hit Excel's ceiling, and R is the natural upgrade. Here are seven concrete signs you've outgrown spreadsheets, each paired with runnable R code that handles the same task better.</p>
 
-## Sign 1 — Does your file crash when you open it?
+## Sign 1, Does your file crash when you open it?
 
 Excel's hard row ceiling is 1,048,576 rows, and in practice laptops start slogging well before that. If your workbook now takes a minute to open, or VLOOKUPs freeze the app, you've hit the size wall. R lives in memory and runs vectorised operations, so the same dataset loads in seconds and a groupwise summary runs in milliseconds. Here is what that looks like on a million-row sales table.
 
@@ -51,7 +51,7 @@ region_summary
 #> 4 West    131287744. 250134
 ```
 
-One million rows, one group-by, one summary — finished before you could even open the XLSX. The result is a real R object you can filter further, chart, or feed into a model, and no 32-bit memory error in sight.
+One million rows, one group-by, one summary, finished before you could even open the XLSX. The result is a real R object you can filter further, chart, or feed into a model, and no 32-bit memory error in sight.
 
 [KEY INSIGHT]
 **R's data lives in memory as a single object, not across cells.** That is why a one-line group-by handles a million rows in milliseconds, while Excel recalculates every dependent cell on every change.
@@ -87,9 +87,9 @@ print(ex_by_product)
 
 </details>
 
-## Sign 2 — Do your formulas break when rows move?
+## Sign 2, Do your formulas break when rows move?
 
-Every Excel power user has felt the pain: you insert a row, and suddenly `=B7*C7` points at a different cell. Sort the sheet and half the formulas return `#REF!`. The root cause is that Excel formulas reference *positions*, not *columns*. R does the opposite — you refer to columns by name, so inserts, sorts, and filters can never break the reference.
+Every Excel power user has felt the pain: you insert a row, and suddenly `=B7*C7` points at a different cell. Sort the sheet and half the formulas return `#REF!`. The root cause is that Excel formulas reference *positions*, not *columns*. R does the opposite, you refer to columns by name, so inserts, sorts, and filters can never break the reference.
 
 ```r
 # Add a 10% discount column using column names, not cell refs
@@ -109,7 +109,7 @@ head(sales_with_discount, 3)
 #> 3 East   D       Q4            17 22.0   374.0    37.40 336.60
 ```
 
-Notice that `mutate()` refers to `quantity`, `price`, and `revenue` by name. You could shuffle every row, drop half the table, or append new data — those names keep pointing at the right column. In Excel terms, your "formulas" travel *with* your columns, not with their cell addresses.
+Notice that `mutate()` refers to `quantity`, `price`, and `revenue` by name. You could shuffle every row, drop half the table, or append new data, those names keep pointing at the right column. In Excel terms, your "formulas" travel *with* your columns, not with their cell addresses.
 
 **Try it:** Add a `margin` column equal to `net - 0.6 * revenue` (a stand-in cost model) and show the first three rows.
 
@@ -140,7 +140,7 @@ head(ex_margin_df, 3)
 
 </details>
 
-## Sign 3 — Can anyone reproduce your analysis six months later?
+## Sign 3, Can anyone reproduce your analysis six months later?
 
 In a spreadsheet, the analysis *is* the click history that no one wrote down. Which filters were applied? Was that pivot manually sorted? Were the outlier rows deleted by hand? Six months later, even you cannot be sure. In R, the script *is* the analysis. Hand the same code and the same data to a colleague and they will get the same result, byte for byte.
 
@@ -163,7 +163,7 @@ reproducible_sample
 #> 5 North  B             11 70.28
 ```
 
-Run the block again — exact same five rows. `set.seed()` pins the random number generator, so every sampling, bootstrap, or simulation becomes deterministic. That is impossible to guarantee in Excel, where "delete row 27" and "sort by column C" leave no trace in the file.
+Run the block again, exact same five rows. `set.seed()` pins the random number generator, so every sampling, bootstrap, or simulation becomes deterministic. That is impossible to guarantee in Excel, where "delete row 27" and "sort by column C" leave no trace in the file.
 
 [TIP]
 **Keep a distinct seed per major example.** Using the same seed everywhere makes your output predictable but also makes bugs harder to isolate when two sections should *not* produce the same sample.
@@ -203,7 +203,7 @@ ex_seed_sample
 
 </details>
 
-## Sign 4 — Are you repeating the same steps every week?
+## Sign 4, Are you repeating the same steps every week?
 
 If you find yourself dragging the same pivot, copying the same columns, and emailing the same report every Monday, you are manually running a program you never wrote down. R lets you say "do this for every group" in a single expression, and then you rerun the whole thing next week with one click.
 
@@ -264,7 +264,7 @@ ex_product_summary
 
 </details>
 
-## Sign 5 — Are your charts stuck looking like Excel charts?
+## Sign 5, Are your charts stuck looking like Excel charts?
 
 Excel's chart wizard is great for one chart. It stops being great the moment you need four charts on the same scale, or a chart faceted by region, or any visual idiom that does not ship as a preset. R's ggplot2 is a grammar: you declare data, mapping, and layers, and the chart follows.
 
@@ -319,11 +319,11 @@ sales_df |>
   theme_minimal()
 ```
 
-**Explanation:** Only the grouping column and the facet formula change — the rest of the chart stays identical.
+**Explanation:** Only the grouping column and the facet formula change, the rest of the chart stays identical.
 
 </details>
 
-## Sign 6 — Are you copy-pasting between sheets to combine data?
+## Sign 6, Are you copy-pasting between sheets to combine data?
 
 VLOOKUP and INDEX-MATCH are how Excel pretends to do database joins. They work for one lookup on one sheet, but break the moment you have duplicate keys, missing matches, or more than a handful of columns to bring in. R has real relational joins: one function call, any number of columns, clear rules for what happens to unmatched rows.
 
@@ -348,7 +348,7 @@ head(joined_sales, 3)
 #> 3 East   D       Q4            17 22.0  Gold    Mei
 ```
 
-Every row of `sales_df` now carries its `tier` and `mgr`, matched by `region`. `left_join()` keeps every sale even if the lookup is missing — critical when you do not want to silently drop data. Swap in `inner_join()` to keep only matched rows, or `anti_join()` to find sales with no matching region.
+Every row of `sales_df` now carries its `tier` and `mgr`, matched by `region`. `left_join()` keeps every sale even if the lookup is missing, critical when you do not want to silently drop data. Swap in `inner_join()` to keep only matched rows, or `anti_join()` to find sales with no matching region.
 
 [WARNING]
 **VLOOKUP silently drops unmatched rows.** Excel users often do not realise how much data disappears this way. R's `left_join()` keeps the row and fills the lookup columns with `NA`, so the loss is visible.
@@ -377,7 +377,7 @@ nrow(ex_inner)
 
 </details>
 
-## Sign 7 — Do your analyses go beyond basic descriptive stats?
+## Sign 7, Do your analyses go beyond basic descriptive stats?
 
 Excel can do a mean, a pivot, and a trendline. The moment you need a multi-predictor regression, a hypothesis test, or anything a statistician would recognise as a "model", you are either bolting on add-ins or exporting to another tool. R treats modelling as a first-class citizen: `lm()` gives you a full regression in one line, with diagnostics, confidence intervals, and tidy extraction built in.
 
@@ -397,7 +397,7 @@ summary(sales_model)$coefficients
 #> quarterQ4       -0.0512    0.5142    -0.10     0.921
 ```
 
-The coefficient table tells you everything a spreadsheet trendline would hide: how much each tier and each quarter shifts expected revenue, how precise that estimate is, and whether it is statistically significant. In this fake dataset the effects are tiny (we randomised everything), but the *pattern* — a full regression from a pipeline — is the kind of analysis Excel cannot do without a plug-in.
+The coefficient table tells you everything a spreadsheet trendline would hide: how much each tier and each quarter shifts expected revenue, how precise that estimate is, and whether it is statistically significant. In this fake dataset the effects are tiny (we randomised everything), but the *pattern*, a full regression from a pipeline, is the kind of analysis Excel cannot do without a plug-in.
 
 [NOTE]
 **`data = _` is the placeholder for the native R pipe.** It tells `lm()` "use whatever came down the pipe as the data argument". Older code uses `%>%` with `.` instead.
@@ -466,7 +466,7 @@ my_top3
 #> 3 North     762.
 ```
 
-**Explanation:** Each verb does one thing — filter, mutate, group, summarise, arrange, slice — and the pipe chains them into one readable pipeline.
+**Explanation:** Each verb does one thing, filter, mutate, group, summarise, arrange, slice, and the pipe chains them into one readable pipeline.
 
 </details>
 
@@ -562,16 +562,16 @@ One script. One source file. Rerun it next week with fresh data and the KPIs, th
 
 ## References
 
-1. Wickham, H., Çetinkaya-Rundel, M., & Grolemund, G. — *R for Data Science*, 2nd Edition. [Link](https://r4ds.hadley.nz/)
+1. Wickham, H., Çetinkaya-Rundel, M., & Grolemund, G., *R for Data Science*, 2nd Edition. [Link](https://r4ds.hadley.nz/)
 2. dplyr reference documentation. [Link](https://dplyr.tidyverse.org/)
-3. Wickham, H. — *ggplot2: Elegant Graphics for Data Analysis*, 3rd Edition. [Link](https://ggplot2-book.org/)
-4. Microsoft — Excel specifications and limits. [Link](https://support.microsoft.com/en-us/office/excel-specifications-and-limits-1672b34d-7043-467e-8e27-269d656771c3)
-5. R Core Team — *An Introduction to R*. [Link](https://cran.r-project.org/doc/manuals/r-release/R-intro.html)
+3. Wickham, H., *ggplot2: Elegant Graphics for Data Analysis*, 3rd Edition. [Link](https://ggplot2-book.org/)
+4. Microsoft, Excel specifications and limits. [Link](https://support.microsoft.com/en-us/office/excel-specifications-and-limits-1672b34d-7043-467e-8e27-269d656771c3)
+5. R Core Team, *An Introduction to R*. [Link](https://cran.r-project.org/doc/manuals/r-release/R-intro.html)
 6. broom package reference. [Link](https://broom.tidymodels.org/)
-7. Posit — R and tidyverse cheat sheets. [Link](https://posit.co/resources/cheatsheets/)
+7. Posit, R and tidyverse cheat sheets. [Link](https://posit.co/resources/cheatsheets/)
 
 ## Continue Learning
 
-- **Is R Worth Learning in 2026?** — The full argument for investing in R, with hiring trends and use cases.
-- **R Data Types** — The foundation R uses to hold your data, and why a tibble is not a spreadsheet.
-- **dplyr filter() and select()** — The first two data-wrangling verbs every Excel migrant should master.
+- **Is R Worth Learning in 2026?**, The full argument for investing in R, with hiring trends and use cases.
+- **R Data Types**, The foundation R uses to hold your data, and why a tibble is not a spreadsheet.
+- **dplyr filter() and select()**, The first two data-wrangling verbs every Excel migrant should master.

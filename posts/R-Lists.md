@@ -1,7 +1,7 @@
 ---
 title: "R Lists: When Data Frames Aren't Flexible Enough (Complete Guide)"
 slug: "R-Lists"
-description: "R lists hold any mix of data types — vectors, data frames, even other lists. Learn to create, access with [] vs [[]], modify, and convert lists efficiently."
+description: "R lists hold any mix of data types, vectors, data frames, even other lists. Learn to create, access with [] vs [[]], modify, and convert lists efficiently."
 keywords: "R lists, list() R, list indexing, [[]] vs [] R, nested lists R, list to vector, unlist R"
 auto_link_terms: "R lists|list() in R|list indexing|nested lists in R|unlist()"
 auto_link_case_sensitive: false
@@ -18,11 +18,11 @@ difficulty: "Beginner"
 
 # R Lists: When Data Frames Aren't Flexible Enough (Complete Guide)
 
-<p class="lead">A list in R is a container that can hold elements of any type, any length, and any structure — numbers next to data frames next to other lists. It's the most flexible data structure R has, and nearly every R object you'll encounter in the wild is built on top of one.</p>
+<p class="lead">A list in R is a container that can hold elements of any type, any length, and any structure, numbers next to data frames next to other lists. It's the most flexible data structure R has, and nearly every R object you'll encounter in the wild is built on top of one.</p>
 
 ## What is an R list and when do you need one?
 
-Vectors force every element to be the same type. Data frames force every column to be the same length. Lists throw away both restrictions. Any slot can hold anything — a number, a string, a vector of 1,000 values, a linear model object, another list. That's why `lm()`, `summary()`, and virtually every statistical function returns a list.
+Vectors force every element to be the same type. Data frames force every column to be the same length. Lists throw away both restrictions. Any slot can hold anything, a number, a string, a vector of 1,000 values, a linear model object, another list. That's why `lm()`, `summary()`, and virtually every statistical function returns a list.
 
 ```r
 result <- list(
@@ -92,7 +92,7 @@ ex_me
 #> [1] TRUE
 ```
 
-Each `list()` slot takes whatever you hand it — a single character, a three-element numeric vector, and a scalar logical coexist without forcing any type coercion. That's the whole point of a list over a vector: no common type is required.
+Each `list()` slot takes whatever you hand it, a single character, a three-element numeric vector, and a scalar logical coexist without forcing any type coercion. That's the whole point of a list over a vector: no common type is required.
 </details>
 
 ## How do you access list elements with `$`, `[`, and `[[`?
@@ -128,7 +128,7 @@ class(result["coefficients"])
 ```
 
 > [WARNING]
-> `result["coefficients"] * 2` will error — you can't multiply a list. `result[["coefficients"]] * 2` works because it returns a numeric vector. This mistake is responsible for about half of all "non-numeric argument" errors in R.
+> `result["coefficients"] * 2` will error, you can't multiply a list. `result[["coefficients"]] * 2` works because it returns a numeric vector. This mistake is responsible for about half of all "non-numeric argument" errors in R.
 
 **Try it:** From `result`, extract the `residuals` as a numeric vector and compute its sum.
 
@@ -147,7 +147,7 @@ ex_sum
 #> [1] 0
 ```
 
-Double brackets pull the numeric vector straight out of the list, so `sum()` operates on `c(-0.3, 0.1, -0.2, 0.4, 0.0)` and returns a scalar. If you'd used single brackets — `result["residuals"]` — you would have handed `sum()` a length-1 *list*, which fails with the classic "non-numeric argument" error.
+Double brackets pull the numeric vector straight out of the list, so `sum()` operates on `c(-0.3, 0.1, -0.2, 0.4, 0.0)` and returns a scalar. If you'd used single brackets, `result["residuals"]`, you would have handed `sum()` a length-1 *list*, which fails with the classic "non-numeric argument" error.
 </details>
 
 ## How do you add, modify, and remove list elements?
@@ -170,7 +170,7 @@ names(result)
 #> [1] "model_name"   "coefficients" "residuals"    "r_squared"    "converged"
 ```
 
-Three edits, three different access styles — all valid. Pick whichever is clearest for the context.
+Three edits, three different access styles, all valid. Pick whichever is clearest for the context.
 
 > [TIP]
 > To *really* set an element to `NULL` (not remove it), use `result["x"] <- list(NULL)`. The `list(NULL)` wrapping is the escape hatch R provides for this edge case.
@@ -192,12 +192,12 @@ result$notes
 #> [1] "looks good"
 ```
 
-Assigning into a name the list doesn't have (`notes`) appends a new slot at the end — the same syntax that *modifies* an existing slot *creates* one when it's missing. There's no separate "add" call in base R; assignment handles both cases.
+Assigning into a name the list doesn't have (`notes`) appends a new slot at the end, the same syntax that *modifies* an existing slot *creates* one when it's missing. There's no separate "add" call in base R; assignment handles both cases.
 </details>
 
 ## How do you work with nested lists?
 
-A list element can itself be a list — and the inner list can have its own list elements, and so on. Nested lists are everywhere: JSON responses, model outputs, configuration objects. The rule for accessing them is: chain the operators.
+A list element can itself be a list, and the inner list can have its own list elements, and so on. Nested lists are everywhere: JSON responses, model outputs, configuration objects. The rule for accessing them is: chain the operators.
 
 ```r
 experiment <- list(
@@ -223,7 +223,7 @@ diff_in_means
 #> [1] 0.3
 ```
 
-That's extracting and computing in a single expression — the everyday pattern when pulling metrics out of a results object.
+That's extracting and computing in a single expression, the everyday pattern when pulling metrics out of a results object.
 
 **Try it:** Pull the standard deviation of the treatment group from `experiment`.
 
@@ -276,7 +276,7 @@ sapply(numbers, function(x) c(min = min(x), max = max(x)))
 #> max   5 15 300
 ```
 
-`sapply()` returned a named numeric vector in the first case and a matrix in the second — it picks the simplest container that fits. If you want predictability, use `vapply()` (you declare the return shape) or stick to `lapply()`.
+`sapply()` returned a named numeric vector in the first case and a matrix in the second, it picks the simplest container that fits. If you want predictability, use `vapply()` (you declare the return shape) or stick to `lapply()`.
 
 > [KEY INSIGHT]
 > `lapply()` is how you write "map" in R. Once you can express an operation as "apply this function to every list element," you've internalized functional iteration and can write clean, loopless R code.
@@ -297,12 +297,12 @@ sapply(numbers, length)
 #> 5 6 3
 ```
 
-`sapply()` walks each slot of `numbers`, calls `length()` on it, and then simplifies the three scalar results into a named numeric vector. The names come straight from the list — which is why naming your list slots pays off the moment you start iterating.
+`sapply()` walks each slot of `numbers`, calls `length()` on it, and then simplifies the three scalar results into a named numeric vector. The names come straight from the list, which is why naming your list slots pays off the moment you start iterating.
 </details>
 
 ## How do you flatten a list into a vector?
 
-Sometimes you just want all the values from a list as a single flat vector. `unlist()` does it — walking the list recursively and concatenating everything into one vector of the most flexible type.
+Sometimes you just want all the values from a list as a single flat vector. `unlist()` does it, walking the list recursively and concatenating everything into one vector of the most flexible type.
 
 ```r
 unlist(numbers)
@@ -317,7 +317,7 @@ unlist(experiment$groups$control)
 #> 500.0   3.2   0.8
 ```
 
-Notice the second example: `unlist()` still obeys the coercion hierarchy — mix a string in and everything becomes character. Notice also the first example: the names came from concatenating the list slot names with the inner element positions.
+Notice the second example: `unlist()` still obeys the coercion hierarchy, mix a string in and everything becomes character. Notice also the first example: the names came from concatenating the list slot names with the inner element positions.
 
 > [NOTE]
 > `unlist()` is destructive. You lose the list structure, and if any element was itself a complex object (like an S4 class), the result may be unexpected. Use it only when you're sure you want flat atomic values.
@@ -337,7 +337,7 @@ sum(unlist(numbers))
 #> [1] 690
 ```
 
-`unlist(numbers)` collapses the three slots — `1:5`, `10:15`, `c(100, 200, 300)` — into a single numeric vector of length 14, and `sum()` adds them: `15 + 75 + 600 = 690`. The flatten-then-reduce pattern is handy when you don't care about the slot structure.
+`unlist(numbers)` collapses the three slots, `1:5`, `10:15`, `c(100, 200, 300)`, into a single numeric vector of length 14, and `sum()` adds them: `15 + 75 + 600 = 690`. The flatten-then-reduce pattern is handy when you don't care about the slot structure.
 </details>
 
 ## How do you convert between lists and data frames?
@@ -370,7 +370,7 @@ as.list(df)
 #> [1]  TRUE  TRUE FALSE  TRUE
 ```
 
-Going the other way — a list where elements are *rows* rather than columns — needs `do.call(rbind, ...)`:
+Going the other way, a list where elements are *rows* rather than columns, needs `do.call(rbind, ...)`:
 
 ```r
 rows <- list(
@@ -401,7 +401,7 @@ dim(as.data.frame(columns))
 #> [1] 4 3
 ```
 
-All three list elements in `columns` have length 4, so `as.data.frame()` lines them up as columns of a 4-row, 3-column data frame. `dim()` returns rows first, then columns — if the list elements had unequal lengths the call would have errored instead.
+All three list elements in `columns` have length 4, so `as.data.frame()` lines them up as columns of a 4-row, 3-column data frame. `dim()` returns rows first, then columns, if the list elements had unequal lengths the call would have errored instead.
 </details>
 
 ## Practice Exercises
@@ -494,7 +494,7 @@ report
 #> disp 0.7183433 3.251454      2
 ```
 
-Six lines: fit a list of models, extract three metrics via `sapply()`, assemble into a summary table. This pattern — list of models → apply → data frame — scales to dozens of models or cross-validation folds without changing shape.
+Six lines: fit a list of models, extract three metrics via `sapply()`, assemble into a summary table. This pattern, list of models → apply → data frame, scales to dozens of models or cross-validation folds without changing shape.
 
 ## Summary
 
@@ -511,14 +511,14 @@ Six lines: fit a list of models, extract three metrics via `sapply()`, assemble 
 
 ## References
 
-1. [R Language Definition — List objects](https://cran.r-project.org/doc/manuals/r-release/R-lang.html#List-objects)
-2. [Advanced R — Lists](https://adv-r.hadley.nz/vectors-chap.html#lists) by Hadley Wickham
-3. [An Introduction to R — Lists and data frames](https://cran.r-project.org/doc/manuals/r-release/R-intro.html#Lists-and-data-frames)
-4. [R for Data Science — Iteration](https://r4ds.hadley.nz/iteration) — modern alternatives with `purrr`
-5. [R Inferno — Chapter 8: Believing it does as intended](https://www.burns-stat.com/pages/Tutor/R_inferno.pdf) by Patrick Burns — `[` vs `[[` gotchas
+1. [R Language Definition, List objects](https://cran.r-project.org/doc/manuals/r-release/R-lang.html#List-objects)
+2. [Advanced R, Lists](https://adv-r.hadley.nz/vectors-chap.html#lists) by Hadley Wickham
+3. [An Introduction to R, Lists and data frames](https://cran.r-project.org/doc/manuals/r-release/R-intro.html#Lists-and-data-frames)
+4. [R for Data Science, Iteration](https://r4ds.hadley.nz/iteration), modern alternatives with `purrr`
+5. [R Inferno, Chapter 8: Believing it does as intended](https://www.burns-stat.com/pages/Tutor/R_inferno.pdf) by Patrick Burns, `[` vs `[[` gotchas
 
 ## Continue Learning
 
-- [R Data Frames: Every Operation You'll Need](R-Data-Frames.html) — the tabular cousin of lists.
-- [R Vectors: The Foundation of Everything in R](R-Vectors.html) — the building blocks that go inside list slots.
-- [R Data Types: Which Type Is Your Variable?](R-Data-Types.html) — the types a list can hold.
+- [R Data Frames: Every Operation You'll Need](R-Data-Frames.html), the tabular cousin of lists.
+- [R Vectors: The Foundation of Everything in R](R-Vectors.html), the building blocks that go inside list slots.
+- [R Data Types: Which Type Is Your Variable?](R-Data-Types.html), the types a list can hold.

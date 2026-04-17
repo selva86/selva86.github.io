@@ -1,5 +1,5 @@
 ---
-title: "R Regex Cheat Sheet: 30 Patterns With stringr Examples — Copy and Paste"
+title: "R Regex Cheat Sheet: 30 Patterns With stringr Examples, Copy and Paste"
 slug: "R-Regex-Cheat-Sheet-stringr"
 description: "Regex quick reference for R: character classes, quantifiers, anchors, groups, lookaheads with str_detect(), str_extract(), and str_replace() examples."
 keywords: "R regex cheat sheet, R regular expressions, stringr regex, str_detect, str_extract, str_replace, R regex patterns, R pattern matching"
@@ -15,13 +15,13 @@ difficulty: "Intermediate"
 ---
 
 
-# R Regex Cheat Sheet: 30 Patterns With stringr Examples — Copy and Paste
+# R Regex Cheat Sheet: 30 Patterns With stringr Examples, Copy and Paste
 
 <p class="lead">Copy-paste regex pattern library for R: 30 patterns across six categories, each paired with a runnable stringr example and the output it produces.</p>
 
 ## How Do You Match Literal Text and Escape Metacharacters in R?
 
-Regex starts with matching what you can see — letters, digits, and punctuation. Letters and numbers match themselves, but characters like `.`, `$`, and `(` have special regex meaning and need escaping. In R strings you double the backslash: write `\\.` to match a literal period. Here are the five foundational literal-match patterns with runnable examples.
+Regex starts with matching what you can see, letters, digits, and punctuation. Letters and numbers match themselves, but characters like `.`, `$`, and `(` have special regex meaning and need escaping. In R strings you double the backslash: write `\\.` to match a literal period. Here are the five foundational literal-match patterns with runnable examples.
 
 | # | Pattern | Regex | Description |
 |---|---------|-------|-------------|
@@ -84,7 +84,7 @@ str_detect(ex_prices, "\\$")
 
 ## How Do Character Classes Group Related Characters?
 
-Character classes match one character from a defined set. Square brackets create custom sets like `[aeiou]`. Shorthand classes like `\\d` save typing for common categories — digits, word characters, whitespace.
+Character classes match one character from a defined set. Square brackets create custom sets like `[aeiou]`. Shorthand classes like `\\d` save typing for common categories, digits, word characters, whitespace.
 
 | # | Pattern | Regex | Description |
 |---|---------|-------|-------------|
@@ -121,10 +121,10 @@ str_replace_all(texts[4], "[^0-9]", "")
 #> [1] "5558675309"
 ```
 
-The `\\d+` pattern finds the first digit run in each string — "1234" in the order number, "19" before the price decimal, "555" in the phone number. The negated set `[^0-9]` in the last call strips every non-digit character, leaving a clean 10-digit phone number. This is one of the most common data-cleaning patterns in R.
+The `\\d+` pattern finds the first digit run in each string, "1234" in the order number, "19" before the price decimal, "555" in the phone number. The negated set `[^0-9]` in the last call strips every non-digit character, leaving a clean 10-digit phone number. This is one of the most common data-cleaning patterns in R.
 
 [TIP]
-**POSIX classes use double brackets.** Write `[[:digit:]]` not `[:digit:]`. The outer brackets define the character class; the inner `[:digit:]` is the POSIX name. Forgetting the outer brackets causes a subtle wrong-match bug — not an error — because regex treats `[:digit:]` as the set `{:, d, i, g, t}`.
+**POSIX classes use double brackets.** Write `[[:digit:]]` not `[:digit:]`. The outer brackets define the character class; the inner `[:digit:]` is the POSIX name. Forgetting the outer brackets causes a subtle wrong-match bug, not an error, because regex treats `[:digit:]` as the set `{:, d, i, g, t}`.
 
 **Try it:** Use a character class to extract every letter (upper or lower case) from `ex_noise`, returning them in a single vector.
 
@@ -165,7 +165,7 @@ Quantifiers tell the regex engine how many times to repeat the preceding element
 | 18 | Range | `{2,4}` | Matches between 2 and 4 repetitions |
 | 19 | Lazy one-or-more | `+?` | Matches 1 or more (as few as possible) |
 
-Let's see how quantifiers affect extraction on phone numbers and HTML — the two classic examples where greediness catches people off guard.
+Let's see how quantifiers affect extraction on phone numbers and HTML, the two classic examples where greediness catches people off guard.
 
 ```r
 phones <- c("555-867-5309", "555-12-3456", "1-800-555-0199")
@@ -188,7 +188,7 @@ str_extract(html, "<.+?>")
 #> [1] "<b>"
 ```
 
-The greedy `<.+>` swallows everything from the first `<` to the last `>` — one huge match. The lazy `<.+?>` stops at the first `>` it finds, returning just the opening `<b>` tag. This is the single most common regex surprise, and it's also why many HTML-scraping bugs exist.
+The greedy `<.+>` swallows everything from the first `<` to the last `>`, one huge match. The lazy `<.+?>` stops at the first `>` it finds, returning just the opening `<b>` tag. This is the single most common regex surprise, and it's also why many HTML-scraping bugs exist.
 
 [KEY INSIGHT]
 **Greedy grabs the longest possible match. Lazy grabs the shortest.** If your extraction returns too much text, add `?` after the quantifier. If it returns too little, remove the `?`. This one rule explains most "why is my regex returning weird results?" bugs.
@@ -251,10 +251,10 @@ str_detect(words, "^apple$")
 #> [1]  TRUE FALSE FALSE FALSE FALSE
 ```
 
-Without anchors, `"app"` would match anywhere inside a string. The word-boundary pattern `\\bapp\\b` requires "app" to be a complete word, not part of "apple" or "application" — so only the standalone "app" returns TRUE. Combining `^` and `$` creates an exact-match test, a common technique for validation.
+Without anchors, `"app"` would match anywhere inside a string. The word-boundary pattern `\\bapp\\b` requires "app" to be a complete word, not part of "apple" or "application", so only the standalone "app" returns TRUE. Combining `^` and `$` creates an exact-match test, a common technique for validation.
 
 [WARNING]
-**The caret means different things in different positions.** Outside brackets, `^` is an anchor meaning "start of string". Inside brackets, `[^abc]` means negation — any character that is NOT a, b, or c. Mixing these up produces silently wrong results, not errors.
+**The caret means different things in different positions.** Outside brackets, `^` is an anchor meaning "start of string". Inside brackets, `[^abc]` means negation, any character that is NOT a, b, or c. Mixing these up produces silently wrong results, not errors.
 
 **Try it:** Return a logical vector indicating which filenames in `ex_files` end with the `.csv` extension (escape the dot properly).
 
@@ -314,10 +314,10 @@ str_detect(typos, "\\b(\\w+) \\1\\b")
 #> [1]  TRUE FALSE  TRUE
 ```
 
-The backreference `\\1` refers to whatever the first group captured. In the typo detector, `(\\w+) \\1` matches any word followed by a space and the same word again — a lightweight duplicate-word finder. The `str_match()` call returns a matrix so you can index columns: `[, 2]` gives all years, `[, 3]` gives all months, and so on.
+The backreference `\\1` refers to whatever the first group captured. In the typo detector, `(\\w+) \\1` matches any word followed by a space and the same word again, a lightweight duplicate-word finder. The `str_match()` call returns a matrix so you can index columns: `[, 2]` gives all years, `[, 3]` gives all months, and so on.
 
 [TIP]
-**Use str_match() for groups, str_extract() for full matches.** `str_extract()` always returns only the complete match text — your capturing groups get discarded. If you need the year, month, and day from a date pattern as separate values, `str_match()` gives you each group in its own column.
+**Use str_match() for groups, str_extract() for full matches.** `str_extract()` always returns only the complete match text, your capturing groups get discarded. If you need the year, month, and day from a date pattern as separate values, `str_match()` gives you each group in its own column.
 
 **Try it:** Extract just the 3-digit area code from `ex_phone` using a capturing group and `str_match()`.
 
@@ -339,7 +339,7 @@ str_match(ex_phone, "\\((\\d{3})\\)")[, 2]
 #> [1] "415"
 ```
 
-**Explanation:** `\\(` and `\\)` match literal parentheses (both are regex metacharacters). The capturing group `(\\d{3})` captures the three digits between them. Indexing `[, 2]` pulls column 2 of the match matrix, which holds the first captured group — the area code without the parentheses.
+**Explanation:** `\\(` and `\\)` match literal parentheses (both are regex metacharacters). The capturing group `(\\d{3})` captures the three digits between them. Indexing `[, 2]` pulls column 2 of the match matrix, which holds the first captured group, the area code without the parentheses.
 
 </details>
 
@@ -353,7 +353,7 @@ Lookarounds are zero-width assertions. They check what is next to a position wit
 | 29 | Negative lookahead | `(?!...)` | Asserts what follows does NOT match |
 | 30 | Positive lookbehind | `(?<=...)` | Asserts what precedes matches |
 
-These are most useful when you want to grab text adjacent to a delimiter — like the digits after a `$` sign or the word before a colon — without pulling the delimiter into the result.
+These are most useful when you want to grab text adjacent to a delimiter, like the digits after a `$` sign or the word before a colon, without pulling the delimiter into the result.
 
 ```r
 prices <- c("Price: $19.99", "Cost: $5.50", "Tax: $2.00", "Free: $0.00")
@@ -372,7 +372,7 @@ str_extract_all("v2.1 build 42", "\\d+(?!\\.)")
 #> [1] "1"  "42"
 ```
 
-The lookbehind `(?<=\\$)` positions the match right after a dollar sign — the `$` is checked but never included in the extracted text, so the result is a clean numeric string. The lookahead `(?=:)` works the same way but on the right: it matches a word only if a colon follows immediately.
+The lookbehind `(?<=\\$)` positions the match right after a dollar sign, the `$` is checked but never included in the extracted text, so the result is a clean numeric string. The lookahead `(?=:)` works the same way but on the right: it matches a word only if a colon follows immediately.
 
 [NOTE]
 **Lookbehinds require fixed-width patterns in R's default regex engine.** You can write `(?<=\\$)` (one character) but not `(?<=\\$|USD )` (variable length). If you need variable-length lookbehinds, pass `perl = TRUE` to base R functions or use `stringr::regex()` with the `comments` and engine options.
@@ -405,7 +405,7 @@ str_extract(ex_labels, "\\w+(?==)")
 
 ### Exercise 1: Validate email addresses
 
-Given a vector of strings, return a logical vector marking which ones look like valid email addresses. A valid email has word characters, an `@`, more word characters, an escaped dot, and a 2-4 letter extension — all anchored from start to end.
+Given a vector of strings, return a logical vector marking which ones look like valid email addresses. A valid email has word characters, an `@`, more word characters, an escaped dot, and a 2-4 letter extension, all anchored from start to end.
 
 ```r
 # Capstone 1: email validation
@@ -462,7 +462,7 @@ print(my_parts)
 #> [3,] "https://cran.r-project.org/web/packages/" "https" "cran.r-project.org" "/web/packages/"
 ```
 
-**Explanation:** `(https?)` captures the scheme — the `?` makes the `s` optional. `://` matches the separator literally. `([^/]+)` captures the host by greedily matching any character that is not a forward slash. `(/.*)` captures everything from the first slash onward as the path. Each captured group appears in its own column in the matrix.
+**Explanation:** `(https?)` captures the scheme, the `?` makes the `s` optional. `://` matches the separator literally. `([^/]+)` captures the host by greedily matching any character that is not a forward slash. `(/.*)` captures everything from the first slash onward as the path. Each captured group appears in its own column in the matrix.
 
 </details>
 
@@ -590,15 +590,15 @@ Bookmark this table. The fastest way to use it is to open the page, Ctrl+F for t
 
 ## References
 
-1. Wickham, H. — *stringr: Simple, Consistent Wrappers for Common String Operations*. CRAN package documentation. [Link](https://cran.r-project.org/web/packages/stringr/)
-2. stringr documentation — Regular expressions vignette. [Link](https://stringr.tidyverse.org/articles/regular-expressions.html)
-3. RStudio — *Basic Regular Expressions in R Cheat Sheet* (PDF). [Link](https://rstudio.github.io/cheatsheets/regex.pdf)
-4. Wickham, H. & Grolemund, G. — *R for Data Science*, 2nd Edition. Chapter 15: Regular expressions. [Link](https://r4ds.hadley.nz/regexps.html)
-5. R Core Team — *R Documentation: Regular Expressions* (`?regex` help page). [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/regex.html)
-6. Posit — *Work with Strings: stringr Cheat Sheet* (HTML). [Link](https://rstudio.github.io/cheatsheets/html/strings.html)
+1. Wickham, H., *stringr: Simple, Consistent Wrappers for Common String Operations*. CRAN package documentation. [Link](https://cran.r-project.org/web/packages/stringr/)
+2. stringr documentation, Regular expressions vignette. [Link](https://stringr.tidyverse.org/articles/regular-expressions.html)
+3. RStudio, *Basic Regular Expressions in R Cheat Sheet* (PDF). [Link](https://rstudio.github.io/cheatsheets/regex.pdf)
+4. Wickham, H. & Grolemund, G., *R for Data Science*, 2nd Edition. Chapter 15: Regular expressions. [Link](https://r4ds.hadley.nz/regexps.html)
+5. R Core Team, *R Documentation: Regular Expressions* (`?regex` help page). [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/regex.html)
+6. Posit, *Work with Strings: stringr Cheat Sheet* (HTML). [Link](https://rstudio.github.io/cheatsheets/html/strings.html)
 
 ## Continue Learning
 
-- **[stringr in R: 15 Functions That Handle Every String Task](stringr-in-R.html)** — The full stringr tutorial covering `str_split()`, `str_pad()`, `str_trim()`, and 12 more functions with real data examples.
-- **[R Cheat Sheet: The Ultimate Quick Reference](R-Cheat-Sheet.html)** — 200 essential R functions organized by category, including base R string functions.
-- **[lubridate Cheat Sheet for R: Parse and Format Dates](lubridate-Cheat-Sheet-R.html)** — The date-handling companion to this regex sheet, with 20+ parsing and formatting patterns.
+- **[stringr in R: 15 Functions That Handle Every String Task](stringr-in-R.html)**, The full stringr tutorial covering `str_split()`, `str_pad()`, `str_trim()`, and 12 more functions with real data examples.
+- **[R Cheat Sheet: The Ultimate Quick Reference](R-Cheat-Sheet.html)**, 200 essential R functions organized by category, including base R string functions.
+- **[lubridate Cheat Sheet for R: Parse and Format Dates](lubridate-Cheat-Sheet-R.html)**, The date-handling companion to this regex sheet, with 20+ parsing and formatting patterns.

@@ -1,7 +1,7 @@
 ---
 title: "Apache Arrow in R: Read Parquet Files & Run Fast In-Memory Analytics"
 slug: "Apache-Arrow-in-R"
-description: "Read Parquet files, query datasets bigger than RAM, and run lightning-fast analytics in R with the arrow package — full tutorial with runnable code."
+description: "Read Parquet files, query datasets bigger than RAM, and run lightning-fast analytics in R with the arrow package, full tutorial with runnable code."
 keywords: "Apache Arrow in R, arrow package R, read_parquet R, write_parquet, open_dataset, Parquet R tutorial, columnar storage, larger than RAM R"
 auto_link_terms: "Apache Arrow in R|arrow package|read_parquet()|write_parquet()|open_dataset()|Parquet files in R"
 auto_link_case_sensitive: true
@@ -16,13 +16,13 @@ difficulty: "Intermediate"
 
 # Apache Arrow in R: Read Parquet Files & Run Fast In-Memory Analytics
 
-<p class="lead">The <code>arrow</code> package brings the Apache Arrow columnar analytics engine to R. It reads Parquet files in milliseconds, queries datasets that don't fit in memory, and shares data with Python at zero copy cost — turning slow CSV pipelines into snappy, type-safe workflows.</p>
+<p class="lead">The <code>arrow</code> package brings the Apache Arrow columnar analytics engine to R. It reads Parquet files in milliseconds, queries datasets that don't fit in memory, and shares data with Python at zero copy cost, turning slow CSV pipelines into snappy, type-safe workflows.</p>
 
 If you've ever waited two minutes for a CSV to load, only to discover that R guessed the wrong column types, this tutorial is for you. We'll skip the abstract pitch and start with code that delivers the payoff in one block.
 
 ## What does the arrow package actually do for R?
 
-The fastest way to feel why Arrow matters is to write a small data frame to Parquet and read it back. Watch what happens to the file size, the column types, and the time it takes — all in one block. We'll generate a 50,000-row tibble, save it as both Parquet and CSV, and compare.
+The fastest way to feel why Arrow matters is to write a small data frame to Parquet and read it back. Watch what happens to the file size, the column types, and the time it takes, all in one block. We'll generate a 50,000-row tibble, save it as both Parquet and CSV, and compare.
 
 ```r
 library(arrow)
@@ -60,10 +60,10 @@ read_parquet(parquet_path) |> head(3)
 #> 3     3 A         108. 2026-11-09
 ```
 
-Three things just happened. Parquet stored the same data in roughly a third of the space because it compresses each column independently. The `read_parquet()` call returned a tibble in one line — no `col_types` argument, no parsing warnings. And the `created` column came back as a real `Date`, not a character string that you'd have to fix with `as.Date()` afterwards.
+Three things just happened. Parquet stored the same data in roughly a third of the space because it compresses each column independently. The `read_parquet()` call returned a tibble in one line, no `col_types` argument, no parsing warnings. And the `created` column came back as a real `Date`, not a character string that you'd have to fix with `as.Date()` afterwards.
 
 [KEY INSIGHT]
-**Arrow is an analytics engine, not just a file format.** The `arrow` package wraps a complete columnar in-memory engine written in C++. Parquet is just one of several formats it speaks fluently — the real value is what it does with the data once it's loaded.
+**Arrow is an analytics engine, not just a file format.** The `arrow` package wraps a complete columnar in-memory engine written in C++. Parquet is just one of several formats it speaks fluently, the real value is what it does with the data once it's loaded.
 
 **Try it:** Write `arrow_demo` to a second Parquet file using snappy compression and report the file size.
 
@@ -93,7 +93,7 @@ cat("Snappy size:", file.size(ex_path), "bytes\n")
 
 ## How do you read Parquet files in R?
 
-The basic call is one line: `read_parquet(path)`. The interesting argument is `col_select`, which tells Arrow to read only the columns you ask for. For wide tables — think 200-column survey exports — this can turn a 30-second read into a 1-second read because the unread columns never leave disk.
+The basic call is one line: `read_parquet(path)`. The interesting argument is `col_select`, which tells Arrow to read only the columns you ask for. For wide tables, think 200-column survey exports, this can turn a 30-second read into a 1-second read because the unread columns never leave disk.
 
 ```r
 demo_subset <- read_parquet(parquet_path, col_select = c(id, value))
@@ -111,7 +111,7 @@ head(demo_subset, 3)
 #> 3     3  108.
 ```
 
-Notice that `category` and `created` never entered R's memory. The Parquet file's footer told Arrow exactly where the `id` and `value` columns lived on disk, and only those byte ranges were read. CSV cannot do this — it has to parse every comma to find column boundaries.
+Notice that `category` and `created` never entered R's memory. The Parquet file's footer told Arrow exactly where the `id` and `value` columns lived on disk, and only those byte ranges were read. CSV cannot do this, it has to parse every comma to find column boundaries.
 
 Type preservation is the other quiet win. Watch what happens to a tibble with four different column types:
 
@@ -138,7 +138,7 @@ str(typed_back)
 Every type round-tripped: integer stayed integer (not coerced to double), the date stayed a `Date`, and the factor kept its levels in the original order. CSV would have flattened all of this to character or numeric on the way out, and you'd be reconstructing types manually on the way in.
 
 [TIP]
-**col_select uses tidyselect helpers.** You can pass `starts_with("date_")`, `where(is.numeric)`, or any other tidyselect expression to `col_select` — not just bare column names. This makes column-level filtering as expressive as `dplyr::select()`.
+**col_select uses tidyselect helpers.** You can pass `starts_with("date_")`, `where(is.numeric)`, or any other tidyselect expression to `col_select`, not just bare column names. This makes column-level filtering as expressive as `dplyr::select()`.
 
 **Try it:** Read only the `created` column from `parquet_path` and confirm it comes back as a `Date`.
 
@@ -165,7 +165,7 @@ class(ex_dates$created)
 
 ## Why is Parquet so much faster than CSV?
 
-Three reasons stack up. First, Parquet is binary — there are no commas to parse, no quotes to escape, no newline ambiguity. Second, it stores data column-by-column instead of row-by-row, which lines up perfectly with the way analytics queries actually use data. Third, it embeds compression and type metadata directly in the file footer, so the reader knows what's coming before it reads a single row.
+Three reasons stack up. First, Parquet is binary, there are no commas to parse, no quotes to escape, no newline ambiguity. Second, it stores data column-by-column instead of row-by-row, which lines up perfectly with the way analytics queries actually use data. Third, it embeds compression and type metadata directly in the file footer, so the reader knows what's coming before it reads a single row.
 
 | Feature | CSV | Parquet |
 |---------|-----|---------|
@@ -207,7 +207,7 @@ cat("Read speedup:", round(t_csv_read["elapsed"] / t_pq_read["elapsed"], 1), "x\
 The exact numbers will vary by machine, but the ratio is what matters. A 10-15x read speedup is typical even for a modest 100k-row file. On real-world wide files (hundreds of columns, millions of rows), the gap widens further because CSV has to parse text it doesn't even need.
 
 [WARNING]
-**Parquet is binary — you cannot grep it.** Once you commit to Parquet, you give up the ability to `head` or `cat` the file at the shell. Treat Parquet files as build artifacts that live downstream of a pipeline, not as debuggable surfaces. Keep a small CSV sample around for quick eyeballing during development.
+**Parquet is binary, you cannot grep it.** Once you commit to Parquet, you give up the ability to `head` or `cat` the file at the shell. Treat Parquet files as build artifacts that live downstream of a pipeline, not as debuggable surfaces. Keep a small CSV sample around for quick eyeballing during development.
 
 **Try it:** Print only the read-time speedup ratio (Parquet vs CSV) to one decimal place.
 
@@ -227,13 +227,13 @@ cat("Parquet read is", speedup, "x faster\n")
 #> Parquet read is 14.6 x faster
 ```
 
-**Explanation:** `system.time()` returns a named vector — `["elapsed"]` is the wall-clock seconds. Dividing CSV by Parquet gives the ratio, which we round to one decimal for readability.
+**Explanation:** `system.time()` returns a named vector, `["elapsed"]` is the wall-clock seconds. Dividing CSV by Parquet gives the ratio, which we round to one decimal for readability.
 
 </details>
 
 ## How do you query datasets larger than RAM with open_dataset()?
 
-This is the feature that justifies installing Arrow even on small datasets. `open_dataset()` does not read data into memory — it returns a lazy reference to a file or a directory of files. You then write dplyr verbs against that reference, and Arrow's C++ engine executes the whole pipeline on disk when you call `collect()`. Only the *result* — typically a small summary — ever enters R's memory.
+This is the feature that justifies installing Arrow even on small datasets. `open_dataset()` does not read data into memory, it returns a lazy reference to a file or a directory of files. You then write dplyr verbs against that reference, and Arrow's C++ engine executes the whole pipeline on disk when you call `collect()`. Only the *result*, typically a small summary, ever enters R's memory.
 
 To make this concrete, let's split our `arrow_demo` tibble into four Parquet files (simulating a partitioned dataset) and run a lazy query against the directory:
 
@@ -269,10 +269,10 @@ print(lazy_result)
 #> 4 D         3094      117.
 ```
 
-The `lazy_ds` object holds zero rows in R memory — it's a pointer plus a schema. Every dplyr verb you chain against it just records the operation. The work happens at `collect()`, when Arrow scans the four Parquet files in C++, applies the filter and aggregation, and returns a 4-row tibble. The original 50,000 rows never sit in R memory at the same time.
+The `lazy_ds` object holds zero rows in R memory, it's a pointer plus a schema. Every dplyr verb you chain against it just records the operation. The work happens at `collect()`, when Arrow scans the four Parquet files in C++, applies the filter and aggregation, and returns a 4-row tibble. The original 50,000 rows never sit in R memory at the same time.
 
 [KEY INSIGHT]
-**After collect(), R memory holds the result, not the input.** This is the entire trick that makes 100 GB datasets workable on a 16 GB laptop. Push as much filtering and aggregation as possible into the lazy query — the smaller the result you `collect()`, the less RAM you need.
+**After collect(), R memory holds the result, not the input.** This is the entire trick that makes 100 GB datasets workable on a 16 GB laptop. Push as much filtering and aggregation as possible into the lazy query, the smaller the result you `collect()`, the less RAM you need.
 
 **Try it:** Run a `group_by(category) |> summarise(mean_value = mean(value))` against `lazy_ds` (without the `filter` step) and collect.
 
@@ -303,7 +303,7 @@ print(ex_summary)
 #> 4 D             100.
 ```
 
-**Explanation:** The full pipeline runs in Arrow's C++ engine. R never holds 50,000 rows at once — only the 4-row aggregated result.
+**Explanation:** The full pipeline runs in Arrow's C++ engine. R never holds 50,000 rows at once, only the 4-row aggregated result.
 
 </details>
 
@@ -330,7 +330,7 @@ list.files(part_dir2, recursive = TRUE)
 The `category=A/` folder layout is called Hive-style partitioning, and it's the standard format that Arrow, Spark, DuckDB, and Presto all understand. When you later `open_dataset(part_dir2)` and write `filter(category == "B")`, Arrow inspects the folder names and reads *only* `category=B/part-0.parquet`. Three quarters of the data never touches the disk.
 
 [TIP]
-**Partition by the columns you filter on most.** A good rule of thumb: partition by columns with a small number of distinct values (region, year, product line) that show up in `WHERE` clauses. Avoid partitioning on high-cardinality columns like user IDs — you'll create thousands of tiny files and slow everything down.
+**Partition by the columns you filter on most.** A good rule of thumb: partition by columns with a small number of distinct values (region, year, product line) that show up in `WHERE` clauses. Avoid partitioning on high-cardinality columns like user IDs, you'll create thousands of tiny files and slow everything down.
 
 **Try it:** List the files inside `part_dir2` and confirm there are four (one per category folder).
 
@@ -368,7 +368,7 @@ Arrow, data.table, and duckdb all promise speed, but they shine in different sit
 The good news is that you don't have to pick one. `arrow::to_duckdb()` hands a lazy Arrow dataset to DuckDB mid-pipeline, so you can read partitioned Parquet with Arrow and run a complex SQL query with DuckDB without copying the data between them. Similarly, you can `as_tibble()` an Arrow result and continue with `data.table` for the in-memory part of the pipeline.
 
 [NOTE]
-**Arrow and DuckDB compose via to_duckdb().** A common pattern is to use Arrow for the file layer (Parquet, partitioning, schema) and DuckDB for the query layer (SQL, joins, window functions). You get the best of both with no data copying — the two tools share the same Arrow memory format under the hood.
+**Arrow and DuckDB compose via to_duckdb().** A common pattern is to use Arrow for the file layer (Parquet, partitioning, schema) and DuckDB for the query layer (SQL, joins, window functions). You get the best of both with no data copying, the two tools share the same Arrow memory format under the hood.
 
 **Try it:** Given a 5 GB Parquet file from which you only need 3 of 50 columns, which tool would you reach for first, and why?
 
@@ -513,7 +513,7 @@ print(top_products)
 #> 4 Widget         1632877.   6216
 ```
 
-The pipeline above does three things that CSV cannot match. Partitioning by region means the `filter(region == "North")` step reads only the North folder — a quarter of the data. The lazy aggregation runs in Arrow's C++ engine, so R's memory never holds more than the 4-row summary. And the whole flow is one dplyr pipeline — no SQL, no manual chunking, no progress bars.
+The pipeline above does three things that CSV cannot match. Partitioning by region means the `filter(region == "North")` step reads only the North folder, a quarter of the data. The lazy aggregation runs in Arrow's C++ engine, so R's memory never holds more than the 4-row summary. And the whole flow is one dplyr pipeline, no SQL, no manual chunking, no progress bars.
 
 ## Summary
 
@@ -527,19 +527,19 @@ The pipeline above does three things that CSV cannot match. Partitioning by regi
 | `collect()` | Run a lazy Arrow query and return a tibble |
 | `to_duckdb()` | Hand an Arrow dataset to DuckDB for SQL queries |
 
-Three takeaways to carry forward. First, Parquet is the right default for any data file you'd otherwise save as CSV — smaller, faster, and type-safe. Second, `open_dataset()` plus dplyr verbs lets you query datasets larger than RAM with code that looks identical to in-memory dplyr. Third, partition by the columns you filter on most, and Arrow will skip entire files without reading them.
+Three takeaways to carry forward. First, Parquet is the right default for any data file you'd otherwise save as CSV, smaller, faster, and type-safe. Second, `open_dataset()` plus dplyr verbs lets you query datasets larger than RAM with code that looks identical to in-memory dplyr. Third, partition by the columns you filter on most, and Arrow will skip entire files without reading them.
 
 ## References
 
-1. Apache Arrow R Package — official documentation. [Link](https://arrow.apache.org/docs/r/)
-2. Wickham, H., Çetinkaya-Rundel, M., Grolemund, G. — *R for Data Science (2e)*, Chapter 22: Arrow. [Link](https://r4ds.hadley.nz/arrow)
-3. Apache Arrow — Working with multi-file data sets. [Link](https://arrow.apache.org/docs/r/articles/dataset.html)
-4. Apache Parquet — official format specification. [Link](https://parquet.apache.org/docs/)
-5. Posit — "Big Data in R with Arrow" workshop materials. [Link](https://posit-conf-2023.github.io/arrow/)
-6. Apache Arrow R Cookbook — recipes for common Parquet tasks. [Link](https://arrow.apache.org/cookbook/r/)
+1. Apache Arrow R Package, official documentation. [Link](https://arrow.apache.org/docs/r/)
+2. Wickham, H., Çetinkaya-Rundel, M., Grolemund, G., *R for Data Science (2e)*, Chapter 22: Arrow. [Link](https://r4ds.hadley.nz/arrow)
+3. Apache Arrow, Working with multi-file data sets. [Link](https://arrow.apache.org/docs/r/articles/dataset.html)
+4. Apache Parquet, official format specification. [Link](https://parquet.apache.org/docs/)
+5. Posit, "Big Data in R with Arrow" workshop materials. [Link](https://posit-conf-2023.github.io/arrow/)
+6. Apache Arrow R Cookbook, recipes for common Parquet tasks. [Link](https://arrow.apache.org/cookbook/r/)
 
 ## Continue Learning
 
-- [Importing Data in R](/Importing-Data-in-R.html) — the parent guide covering all import formats
-- [readr vs read.csv vs fread](/readr-vs-read-csv-vs-fread.html) — for plain CSV speed comparisons
-- [data.table in R](/datatable-in-R.html) — the in-memory speed champion that pairs well with Arrow
+- [Importing Data in R](/Importing-Data-in-R.html), the parent guide covering all import formats
+- [readr vs read.csv vs fread](/readr-vs-read-csv-vs-fread.html), for plain CSV speed comparisons
+- [data.table in R](/datatable-in-R.html), the in-memory speed champion that pairs well with Arrow

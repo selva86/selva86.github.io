@@ -1,7 +1,7 @@
 ---
 title: "ggplot2 vs matplotlib: The Definitive Data Visualization Language Comparison: Which Is Right for You?"
 slug: "ggplot2-vs-matplotlib"
-description: "Compare ggplot2 and matplotlib side by side — syntax, defaults, faceting, and extensions. Runnable R examples help you choose the right visualization library."
+description: "Compare ggplot2 and matplotlib side by side, syntax, defaults, faceting, and extensions. Runnable R examples help you choose the right visualization library."
 keywords: "ggplot2 vs matplotlib, ggplot2 vs matplotlib comparison, R vs Python visualization, grammar of graphics vs matplotlib, data visualization R Python, ggplot vs matplotlib, ggplot2 matplotlib difference"
 auto_link_terms: "ggplot2 vs matplotlib|ggplot vs matplotlib|ggplot2 versus matplotlib|matplotlib vs ggplot2|R vs Python visualization|grammar of graphics comparison"
 auto_link_case_sensitive: false
@@ -20,7 +20,7 @@ difficulty: "Intermediate"
 
 ## What makes ggplot2 and matplotlib fundamentally different?
 
-The split comes down to philosophy. ggplot2 descends from Leland Wilkinson's *Grammar of Graphics* — you declare mappings between your data and visual properties (position, colour, size), then add layers. matplotlib descends from MATLAB's procedural plotting model — you create a figure, call drawing commands one by one, and manually style each element.
+The split comes down to philosophy. ggplot2 descends from Leland Wilkinson's *Grammar of Graphics*, you declare mappings between your data and visual properties (position, colour, size), then add layers. matplotlib descends from MATLAB's procedural plotting model, you create a figure, call drawing commands one by one, and manually style each element.
 
 Let's see the difference immediately. Here's a scatter plot of fuel efficiency vs horsepower, coloured by number of cylinders:
 
@@ -57,7 +57,7 @@ Three lines of plotting code, and ggplot2 handled the axes, legend, colours, and
 The core difference is this: in ggplot2, you say "map `cyl` to colour" and the library figures out the rest. In matplotlib, you loop through groups, plot each one, and set the legend yourself.
 
 [KEY INSIGHT]
-**ggplot2 separates what to show from how to show it.** Change `geom_point()` to `geom_boxplot()` and the same aesthetic mappings produce a completely different chart — no rewriting required. In matplotlib, switching chart types usually means rewriting the entire plot.
+**ggplot2 separates what to show from how to show it.** Change `geom_point()` to `geom_boxplot()` and the same aesthetic mappings produce a completely different chart, no rewriting required. In matplotlib, switching chart types usually means rewriting the entire plot.
 
 **Try it:** Modify the scatter plot to also map `wt` (weight) to point size. Add `size = wt` inside the `aes()` call and see how ggplot2 automatically creates a size legend.
 
@@ -84,7 +84,7 @@ ggplot(mtcars, aes(x = hp, y = mpg, color = factor(cyl), size = wt)) +
 #> in the lower-right; light 4-cylinder cars are small dots in the upper-left.
 ```
 
-**Explanation:** Adding `size = wt` inside `aes()` maps the weight variable to point size. ggplot2 automatically scales the sizes and adds a legend — no extra code needed.
+**Explanation:** Adding `size = wt` inside `aes()` maps the weight variable to point size. ggplot2 automatically scales the sizes and adds a legend, no extra code needed.
 
 </details>
 
@@ -92,7 +92,7 @@ ggplot(mtcars, aes(x = hp, y = mpg, color = factor(cyl), size = wt)) +
 
 One of ggplot2's biggest advantages is consistency. Every chart follows the same pattern: `ggplot(data, aes(...)) + geom_*()`. Switching from a scatter plot to a bar chart means changing one word. In matplotlib, each chart type has its own function with different parameters.
 
-Let's walk through three common chart types — bar, histogram, and line — all using the same ggplot2 pattern.
+Let's walk through three common chart types, bar, histogram, and line, all using the same ggplot2 pattern.
 
 A bar chart counting how many cars have 4, 6, or 8 cylinders:
 
@@ -107,7 +107,7 @@ p_bar
 #> Each bar is automatically coloured by cylinder group.
 ```
 
-Notice that `geom_bar()` counts the observations for you — you don't need to pre-compute frequencies. In matplotlib, you would call `value_counts()` first, then pass the result to `plt.bar()`.
+Notice that `geom_bar()` counts the observations for you, you don't need to pre-compute frequencies. In matplotlib, you would call `value_counts()` first, then pass the result to `plt.bar()`.
 
 Now a histogram of fuel efficiency:
 
@@ -139,7 +139,7 @@ p_line
 All three charts used the exact same ggplot2 structure. The only thing that changed was the geom function.
 
 [TIP]
-**Switching chart types in ggplot2 means changing one word — the geom.** Replace `geom_histogram()` with `geom_density()` and you get a density curve. Replace `geom_bar()` with `geom_col()` for pre-computed values. In matplotlib, each chart type often means learning a different API.
+**Switching chart types in ggplot2 means changing one word, the geom.** Replace `geom_histogram()` with `geom_density()` and you get a density curve. Replace `geom_bar()` with `geom_col()` for pre-computed values. In matplotlib, each chart type often means learning a different API.
 
 **Try it:** Create a boxplot showing mpg grouped by cyl. Use `geom_boxplot()` with `x = factor(cyl)` and `y = mpg`.
 
@@ -169,7 +169,7 @@ ggplot(mtcars, aes(x = factor(cyl), y = mpg, fill = factor(cyl))) +
 
 ## How do defaults and themes compare?
 
-matplotlib's default plots are functional but plain — gray backgrounds, small fonts, and generic colour palettes. Getting a publication-ready matplotlib chart requires 10-20 lines of style configuration. ggplot2 ships with polished defaults out of the box, and its theme system lets you swap the entire look with a single function call.
+matplotlib's default plots are functional but plain, gray backgrounds, small fonts, and generic colour palettes. Getting a publication-ready matplotlib chart requires 10-20 lines of style configuration. ggplot2 ships with polished defaults out of the box, and its theme system lets you swap the entire look with a single function call.
 
 Here's the same scatter plot with three different built-in themes:
 
@@ -187,7 +187,7 @@ p2
 #> Looks publication-ready without any customisation.
 ```
 
-The theme system is composable — you start with a complete theme and layer adjustments on top. Want `theme_minimal()` but with a larger title and the legend at the bottom? One line:
+The theme system is composable, you start with a complete theme and layer adjustments on top. Want `theme_minimal()` but with a larger title and the legend at the bottom? One line:
 
 ```r
 p_custom <- base_plot +
@@ -206,7 +206,7 @@ p_custom
 In matplotlib, the equivalent requires setting `plt.rcParams` globally or calling `ax.set_*` for each property individually. There's no concept of layering style changes on top of a base theme.
 
 [KEY INSIGHT]
-**ggplot2 themes are composable — start from a base theme and override only what you need.** This means you never start from scratch. In matplotlib, style sheets exist but they're all-or-nothing: you can't easily layer `ggplot-style` + `bigger-title` + `bottom-legend` the way ggplot2 does.
+**ggplot2 themes are composable, start from a base theme and override only what you need.** This means you never start from scratch. In matplotlib, style sheets exist but they're all-or-nothing: you can't easily layer `ggplot-style` + `bigger-title` + `bottom-legend` the way ggplot2 does.
 
 **Try it:** Apply `theme_classic()` to the base plot and move the legend to `"top"` using the `theme()` function.
 
@@ -240,7 +240,7 @@ ex_themed
 
 ## Why is faceting ggplot2's killer feature?
 
-Faceting — splitting a single chart into multiple panels by a categorical variable — is where ggplot2 leaves matplotlib far behind. In ggplot2, it's one line: `facet_wrap(~variable)`. In matplotlib, you need to create a grid of subplots, loop through groups, plot each one separately, and manage shared axes. That's typically 10-15 lines of boilerplate.
+Faceting, splitting a single chart into multiple panels by a categorical variable, is where ggplot2 leaves matplotlib far behind. In ggplot2, it's one line: `facet_wrap(~variable)`. In matplotlib, you need to create a grid of subplots, loop through groups, plot each one separately, and manage shared axes. That's typically 10-15 lines of boilerplate.
 
 Here's faceting in action. Let's split our scatter plot by cylinder count:
 
@@ -256,7 +256,7 @@ ggplot(mtcars, aes(x = hp, y = mpg)) +
 #> 4-cylinder cars: low hp, high mpg. 8-cylinder: high hp, low mpg.
 ```
 
-One line — `facet_wrap(~cyl)` — created three coordinated panels with shared axes, automatic labels, and consistent styling. For a two-dimensional grid, use `facet_grid()`:
+One line, `facet_wrap(~cyl)`, created three coordinated panels with shared axes, automatic labels, and consistent styling. For a two-dimensional grid, use `facet_grid()`:
 
 ```r
 ggplot(mtcars, aes(x = hp, y = mpg)) +
@@ -270,10 +270,10 @@ ggplot(mtcars, aes(x = hp, y = mpg)) +
 #> Some panels have few or no points (e.g., 5-gear × 8-cyl).
 ```
 
-This grid layout would require creating a `fig, axes = plt.subplots(3, 3)` in matplotlib, then looping through each combination, filtering data, plotting, setting titles, and synchronising axis limits — easily 20+ lines of code.
+This grid layout would require creating a `fig, axes = plt.subplots(3, 3)` in matplotlib, then looping through each combination, filtering data, plotting, setting titles, and synchronising axis limits, easily 20+ lines of code.
 
 [WARNING]
-**In matplotlib, creating equivalent small multiples requires a manual loop over subplots with axis management — 15-20 lines vs 1 line in ggplot2.** Even with seaborn's `FacetGrid`, the syntax is more verbose and less flexible than ggplot2's `facet_wrap()`.
+**In matplotlib, creating equivalent small multiples requires a manual loop over subplots with axis management, 15-20 lines vs 1 line in ggplot2.** Even with seaborn's `FacetGrid`, the syntax is more verbose and less flexible than ggplot2's `facet_wrap()`.
 
 **Try it:** Create a faceted histogram showing the distribution of mpg, split by `gear`. Use `facet_wrap(~gear)` with `geom_histogram()`.
 
@@ -300,13 +300,13 @@ ggplot(mtcars, aes(x = mpg)) +
 #> gear=4 spread from 20-35 mpg, gear=5 are sparse but high-mpg.
 ```
 
-**Explanation:** `facet_wrap(~gear)` splits the histogram into one panel per gear value. Each panel inherits the same bins, x-axis, and styling — ggplot2 handles the coordination automatically.
+**Explanation:** `facet_wrap(~gear)` splits the histogram into one panel per gear value. Each panel inherits the same bins, x-axis, and styling, ggplot2 handles the coordination automatically.
 
 </details>
 
 ## What about extensions and the ecosystem?
 
-Both libraries have rich extension ecosystems, but they work very differently. ggplot2 extensions follow the grammar — they add new geoms, scales, or themes that compose naturally with everything else. matplotlib extensions (like seaborn) often create their own API on top.
+Both libraries have rich extension ecosystems, but they work very differently. ggplot2 extensions follow the grammar, they add new geoms, scales, or themes that compose naturally with everything else. matplotlib extensions (like seaborn) often create their own API on top.
 
 The `patchwork` package lets you combine multiple ggplot2 plots with simple arithmetic operators:
 
@@ -320,9 +320,9 @@ combined
 #> Shared title at the top.
 ```
 
-That's it — `+` places plots side by side, `/` stacks them vertically. In matplotlib, you would use `fig.add_subplot()` or `plt.subplots()` with manual positioning.
+That's it, `+` places plots side by side, `/` stacks them vertically. In matplotlib, you would use `fig.add_subplot()` or `plt.subplots()` with manual positioning.
 
-The `ggrepel` package solves another common pain point — overlapping text labels:
+The `ggrepel` package solves another common pain point, overlapping text labels:
 
 ```r
 library(ggrepel)
@@ -342,10 +342,10 @@ ggplot(mtcars, aes(x = hp, y = mpg)) +
 #> Cars like "Toyota Corolla" (high mpg) and "Maserati Bora" (high hp) stand out.
 ```
 
-`ggrepel` automatically positions labels so they don't overlap — a problem that matplotlib users solve with manual `annotate()` calls or trial-and-error offsets.
+`ggrepel` automatically positions labels so they don't overlap, a problem that matplotlib users solve with manual `annotate()` calls or trial-and-error offsets.
 
 [NOTE]
-**seaborn is Python's answer to ggplot2's defaults — it wraps matplotlib with better aesthetics and simpler syntax.** But seaborn still lacks ggplot2's composable grammar. You can't add a ggrepel-style layer or a patchwork-style composition — each feature is its own API.
+**seaborn is Python's answer to ggplot2's defaults, it wraps matplotlib with better aesthetics and simpler syntax.** But seaborn still lacks ggplot2's composable grammar. You can't add a ggrepel-style layer or a patchwork-style composition, each feature is its own API.
 
 **Try it:** Use patchwork to stack `p_bar` and `p_hist` vertically instead of side by side. Replace `+` with `/`.
 
@@ -486,7 +486,7 @@ aq_dashboard
 #> Bottom-right: boxplots showing July-August are hottest (median ~80-85°F).
 ```
 
-This entire dashboard — four chart types, consistent themes, proper labels, and a composed layout — took about 30 lines of ggplot2 code. The matplotlib equivalent would be 80-100 lines, with manual subplot management, axis formatting, and style duplication across panels.
+This entire dashboard, four chart types, consistent themes, proper labels, and a composed layout, took about 30 lines of ggplot2 code. The matplotlib equivalent would be 80-100 lines, with manual subplot management, axis formatting, and style duplication across panels.
 
 ![Declarative vs Imperative](screenshots/ggplot2-vs-matplotlib-philosophy-flow.webp)
 
@@ -498,7 +498,7 @@ Here's a head-to-head comparison of every dimension that matters when choosing b
 
 | Feature | ggplot2 (R) | matplotlib (Python) |
 |---------|-------------|---------------------|
-| Philosophy | Declarative — describe what to plot | Imperative — specify how to draw |
+| Philosophy | Declarative, describe what to plot | Imperative, specify how to draw |
 | Default aesthetics | Publication-ready out of the box | Functional but plain; needs styling |
 | Syntax consistency | Same pattern for every chart type | Different API per chart type |
 | Chart type switching | Change the geom (1 word) | Rewrite the plot call |
@@ -507,11 +507,11 @@ Here's a head-to-head comparison of every dimension that matters when choosing b
 | Theme system | Composable layers | Global rcParams or style sheets |
 | Extensions | Grammar-compatible (patchwork, ggrepel, gganimate) | Wrapper libraries (seaborn, plotly) |
 | Statistical layers | Built-in: `geom_smooth()`, `stat_summary()` | Manual: compute + plot separately |
-| Learning curve | Moderate — learn the grammar, then everything clicks | Steep — many unrelated APIs to memorize |
+| Learning curve | Moderate, learn the grammar, then everything clicks | Steep, many unrelated APIs to memorize |
 | Best for | Statistical visualization, EDA, publications | Low-level control, custom animations, ML pipelines |
 | Community size | Smaller but focused (R ecosystem) | Larger (Python ecosystem) |
 
-The bottom line: if you work in R, ggplot2 is the clear choice — it's more concise, more consistent, and produces better-looking charts with less effort. If you work in Python, matplotlib is your foundation, but consider seaborn for statistical plots. If you use both languages, ggplot2's grammar-of-graphics approach will make you a better data visualizer regardless of which language you ultimately choose.
+The bottom line: if you work in R, ggplot2 is the clear choice, it's more concise, more consistent, and produces better-looking charts with less effort. If you work in Python, matplotlib is your foundation, but consider seaborn for statistical plots. If you use both languages, ggplot2's grammar-of-graphics approach will make you a better data visualizer regardless of which language you ultimately choose.
 
 ![Decision Tree](screenshots/ggplot2-vs-matplotlib-decision-tree.webp)
 
@@ -519,17 +519,17 @@ The bottom line: if you work in R, ggplot2 is the clear choice — it's more con
 
 ## References
 
-1. Wickham, H. — *ggplot2: Elegant Graphics for Data Analysis*, 3rd Edition. Springer (2024). [Link](https://ggplot2-book.org/)
-2. Wilkinson, L. — *The Grammar of Graphics*, 2nd Edition. Springer (2005).
-3. ggplot2 documentation — Function reference. [Link](https://ggplot2.tidyverse.org/reference/)
-4. matplotlib documentation — Tutorials and API reference. [Link](https://matplotlib.org/stable/tutorials/index.html)
-5. Wickham, H. & Grolemund, G. — *R for Data Science*, 2nd Edition. O'Reilly (2023). [Link](https://r4ds.hadley.nz/)
-6. seaborn documentation — Statistical data visualization. [Link](https://seaborn.pydata.org/)
-7. Pedersen, T.L. — patchwork: The Composer of Plots. [Link](https://patchwork.data-imaginist.com/)
-8. Hunter, J.D. — "Matplotlib: A 2D Graphics Environment." *Computing in Science & Engineering* 9(3), 90-95 (2007).
+1. Wickham, H., *ggplot2: Elegant Graphics for Data Analysis*, 3rd Edition. Springer (2024). [Link](https://ggplot2-book.org/)
+2. Wilkinson, L., *The Grammar of Graphics*, 2nd Edition. Springer (2005).
+3. ggplot2 documentation, Function reference. [Link](https://ggplot2.tidyverse.org/reference/)
+4. matplotlib documentation, Tutorials and API reference. [Link](https://matplotlib.org/stable/tutorials/index.html)
+5. Wickham, H. & Grolemund, G., *R for Data Science*, 2nd Edition. O'Reilly (2023). [Link](https://r4ds.hadley.nz/)
+6. seaborn documentation, Statistical data visualization. [Link](https://seaborn.pydata.org/)
+7. Pedersen, T.L., patchwork: The Composer of Plots. [Link](https://patchwork.data-imaginist.com/)
+8. Hunter, J.D., "Matplotlib: A 2D Graphics Environment." *Computing in Science & Engineering* 9(3), 90-95 (2007).
 
 ## Continue Learning
 
-1. [ggplot2's Grammar of Graphics](ggplot2-Grammar-of-Graphics.html) — Understand the layered mental model behind every ggplot2 chart.
-2. [ggplot2 Getting Started](ggplot2-Getting-Started.html) — Build your first ggplot2 charts with hands-on runnable code.
-3. [ggplot2 Themes](ggplot2-Themes-in-R.html) — Master the theme system for publication-ready, presentation-quality plots.
+1. [ggplot2's Grammar of Graphics](ggplot2-Grammar-of-Graphics.html), Understand the layered mental model behind every ggplot2 chart.
+2. [ggplot2 Getting Started](ggplot2-Getting-Started.html), Build your first ggplot2 charts with hands-on runnable code.
+3. [ggplot2 Themes](ggplot2-Themes-in-R.html), Master the theme system for publication-ready, presentation-quality plots.

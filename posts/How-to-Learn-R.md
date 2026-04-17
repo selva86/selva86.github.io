@@ -1,7 +1,7 @@
 ---
 title: "Learn R in 12 Months: A Week-by-Week Roadmap With No Wasted Time"
 slug: "How-to-Learn-R"
-description: "A 12-month week-by-week R learning roadmap: data wrangling, stats, visualization, modeling, and packages — with milestones and projects at each stage."
+description: "A 12-month week-by-week R learning roadmap: data wrangling, stats, visualization, modeling, and packages, with milestones and projects at each stage."
 keywords: "how to learn R, learn R programming, R roadmap, R study plan, R programming for beginners, R data science path, R learning milestones"
 auto_link_terms: "how to learn R|learn R programming|R learning roadmap|R study plan|R learning path|12 month R roadmap|R programming roadmap"
 auto_link_case_sensitive: false
@@ -19,7 +19,7 @@ difficulty: "Intermediate"
 
 ## What does the 12-month R roadmap look like at a glance?
 
-Think of the next year as four three-month phases that stack on each other. Phase 1 teaches the language — syntax, objects, how R thinks. Phase 2 covers data wrangling and visualisation, which is where R stops being a toy and becomes genuinely useful. Phase 3 brings in statistics and modelling, the domain R was built for. Phase 4 is where you pick a specialisation — machine learning, Shiny, bioinformatics, or time series — and go deep. Before we dive in, here is a taste of what even raw R gives you with two lines of code.
+Think of the next year as four three-month phases that stack on each other. Phase 1 teaches the language, syntax, objects, how R thinks. Phase 2 covers data wrangling and visualisation, which is where R stops being a toy and becomes genuinely useful. Phase 3 brings in statistics and modelling, the domain R was built for. Phase 4 is where you pick a specialisation, machine learning, Shiny, bioinformatics, or time series, and go deep. Before we dive in, here is a taste of what even raw R gives you with two lines of code.
 
 ```r
 # One line of R can replace a whole spreadsheet column of formulas
@@ -60,9 +60,9 @@ ex_hp_summary
 
 ## Months 1-3: What should you learn in the foundations phase?
 
-Phase 1 is about fluency with the language itself. The goal is simple — by the end of month 3 you should be able to open RStudio, load a CSV, poke at it with base R, and produce a short written summary of what you found. No tidyverse yet, no statistics, no plots fancier than `plot()`. Foundations first.
+Phase 1 is about fluency with the language itself. The goal is simple, by the end of month 3 you should be able to open RStudio, load a CSV, poke at it with base R, and produce a short written summary of what you found. No tidyverse yet, no statistics, no plots fancier than `plot()`. Foundations first.
 
-Weeks 1-2 cover installation, the RStudio interface, arithmetic, and assignment with `<-`. Weeks 3-4 introduce the core data structures — vectors, lists, and data frames — and how to index them. Weeks 5-8 add functions, `if`/`for`, and reading small CSV files with `read.csv()`. Weeks 9-12 are your first milestone project — pick a dataset that interests you and write a base-R exploration script, end to end.
+Weeks 1-2 cover installation, the RStudio interface, arithmetic, and assignment with `<-`. Weeks 3-4 introduce the core data structures, vectors, lists, and data frames, and how to index them. Weeks 5-8 add functions, `if`/`for`, and reading small CSV files with `read.csv()`. Weeks 9-12 are your first milestone project, pick a dataset that interests you and write a base-R exploration script, end to end.
 
 Here is the kind of code a week-4 reader should be able to write without looking it up.
 
@@ -77,7 +77,7 @@ length(ages[ages > 30])
 #> [1] 5
 ```
 
-Three lines, three different patterns — an aggregate function, a summary statistic, and a logical filter used as an index. The last line is the most important idea in all of R: boolean vectors act as selectors. Once that clicks, everything else in the language becomes easier.
+Three lines, three different patterns, an aggregate function, a summary statistic, and a logical filter used as an index. The last line is the most important idea in all of R: boolean vectors act as selectors. Once that clicks, everything else in the language becomes easier.
 
 [NOTE]
 **Skip advanced topics in month 1.** Environments, S4 classes, lazy evaluation, and metaprogramming are rabbit holes that look essential in blog posts but are not. You can build a full data-analysis career without touching S4. Come back to them in Phase 4 if your specialisation needs them.
@@ -107,9 +107,9 @@ round(mean(ex_scores), 1)
 
 ## Months 4-6: How do you master data wrangling and visualisation?
 
-Phase 2 is where R becomes your daily driver instead of a toy from a textbook. The tidyverse — especially dplyr, tidyr, and ggplot2 — turns clunky multi-step analyses into short, readable pipelines. If you skipped tidyverse here to "stay pure base-R", you would spend three times as long on every real project.
+Phase 2 is where R becomes your daily driver instead of a toy from a textbook. The tidyverse, especially dplyr, tidyr, and ggplot2, turns clunky multi-step analyses into short, readable pipelines. If you skipped tidyverse here to "stay pure base-R", you would spend three times as long on every real project.
 
-Weeks 13-16 focus on the five core dplyr verbs: `filter()`, `select()`, `mutate()`, `summarise()`, and `group_by()`. Weeks 17-20 add `tidyr` reshaping, joins, and string and date handling. Weeks 21-24 are the ggplot2 grammar — layers, aesthetics, facets — and your second milestone project is a one-page exploratory-data-analysis report on a dataset you did not choose yourself.
+Weeks 13-16 focus on the five core dplyr verbs: `filter()`, `select()`, `mutate()`, `summarise()`, and `group_by()`. Weeks 17-20 add `tidyr` reshaping, joins, and string and date handling. Weeks 21-24 are the ggplot2 grammar, layers, aesthetics, facets, and your second milestone project is a one-page exploratory-data-analysis report on a dataset you did not choose yourself.
 
 Let us see the same `mtcars` question from earlier, but answered the tidyverse way.
 
@@ -128,7 +128,7 @@ mpg_by_cyl
 #> 3     8     15.1    14
 ```
 
-The pipe reads left-to-right like a sentence — "take mtcars, group by cylinder, then summarise mean mpg and count." Four-cylinder cars average 26.7 mpg, eight-cylinders just 15.1. That is the kind of answer you can extract in fifteen seconds once the pipeline is second nature.
+The pipe reads left-to-right like a sentence, "take mtcars, group by cylinder, then summarise mean mpg and count." Four-cylinder cars average 26.7 mpg, eight-cylinders just 15.1. That is the kind of answer you can extract in fifteen seconds once the pipeline is second nature.
 
 Visualising the same relationship is a one-liner with ggplot2.
 
@@ -141,7 +141,7 @@ ggplot(mtcars, aes(x = wt, y = mpg, colour = factor(cyl))) +
        x = "Weight (1000 lbs)", y = "MPG", colour = "Cylinders")
 ```
 
-Every ggplot2 plot has three ingredients — a data frame, an `aes()` mapping, and one or more `geom_*` layers. Once you internalise that pattern, every new chart type is just swapping the geom.
+Every ggplot2 plot has three ingredients, a data frame, an `aes()` mapping, and one or more `geom_*` layers. Once you internalise that pattern, every new chart type is just swapping the geom.
 
 [TIP]
 **Learn the native pipe `|>` first.** The magrittr pipe `%>%` has extra tricks but the native pipe covers 95 percent of daily use and ships with base R, so your code runs anywhere without loading magrittr.
@@ -174,9 +174,9 @@ ex_efficient_count
 
 ## Months 7-9: Which statistics and modelling topics matter most?
 
-Phase 3 is the most skipped phase in every other roadmap and the one that matters most for long-term pay-off. R was built by statisticians, and the thing that sets it apart from Python is not speed — it is a 20,000-package ecosystem of statistical methods that "just work".
+Phase 3 is the most skipped phase in every other roadmap and the one that matters most for long-term pay-off. R was built by statisticians, and the thing that sets it apart from Python is not speed, it is a 20,000-package ecosystem of statistical methods that "just work".
 
-Weeks 25-28 cover descriptive statistics, common distributions, and the classic hypothesis tests — t-tests, chi-squared, ANOVA basics. Weeks 29-32 introduce linear regression with `lm()`, diagnostic plots, and the `broom` package for tidying model output. Weeks 33-36 add generalised linear models — logistic regression for classification — and your third milestone project is a short regression report with a real research question.
+Weeks 25-28 cover descriptive statistics, common distributions, and the classic hypothesis tests, t-tests, chi-squared, ANOVA basics. Weeks 29-32 introduce linear regression with `lm()`, diagnostic plots, and the `broom` package for tidying model output. Weeks 33-36 add generalised linear models, logistic regression for classification, and your third milestone project is a short regression report with a real research question.
 
 The first regression model you will ever fit looks like this.
 
@@ -190,7 +190,7 @@ summary(fit)$coefficients
 #> cyl         -1.507795  0.4146883 -3.635972 1.064282e-03
 ```
 
-Each row is one predictor. The `Estimate` column says every extra 1000 lbs of weight costs about 3.2 mpg, holding cylinders constant. Both p-values are tiny, so the effects are not noise. This is the core loop of applied statistics in R — specify a formula, fit, interpret, check assumptions.
+Each row is one predictor. The `Estimate` column says every extra 1000 lbs of weight costs about 3.2 mpg, holding cylinders constant. Both p-values are tiny, so the effects are not noise. This is the core loop of applied statistics in R, specify a formula, fit, interpret, check assumptions.
 
 [KEY INSIGHT]
 **Statistics fluency is the R superpower.** Any data scientist can write dplyr pipelines, but picking the right test, fitting the right model, and interpreting the coefficients correctly is what turns an analyst into a senior analyst. Do not skip Phase 3.
@@ -227,9 +227,9 @@ Phase 4 is where the roadmap forks. By now you speak R fluently, so the question
 
 *Figure 2: A simple decision flow for picking a specialisation in months 10-12.*
 
-The four most common tracks are machine learning with `tidymodels`, interactive apps with `shiny`, time-series forecasting with `fable`, and a domain specialisation like bioinformatics or quantitative finance. There is no "best" track — the best one is the one that matches a problem you already find interesting.
+The four most common tracks are machine learning with `tidymodels`, interactive apps with `shiny`, time-series forecasting with `fable`, and a domain specialisation like bioinformatics or quantitative finance. There is no "best" track, the best one is the one that matches a problem you already find interesting.
 
-Here is a taste of the machine-learning track — a logistic model predicting whether a car has a manual transmission.
+Here is a taste of the machine-learning track, a logistic model predicting whether a car has a manual transmission.
 
 ```r
 # Week-38 style: binary classification with glm()
@@ -239,7 +239,7 @@ round(coef(glm_fit), 3)
 #>      25.899       0.367      -9.015
 ```
 
-A positive `mpg` coefficient and a strongly negative `wt` coefficient match intuition — lighter, more efficient cars in the `mtcars` sample tend to be manuals. That is a two-line classifier you can extend with cross-validation and ROC curves as you go deeper.
+A positive `mpg` coefficient and a strongly negative `wt` coefficient match intuition, lighter, more efficient cars in the `mtcars` sample tend to be manuals. That is a two-line classifier you can extend with cross-validation and ROC curves as you go deeper.
 
 **Try it:** Fit a logistic model of `am` on `mpg` alone and store it in `ex_glm`.
 
@@ -267,14 +267,14 @@ coef(ex_glm)
 
 ## How do you know you're ready to move to the next phase?
 
-Each phase ends with a concrete self-assessment gate. If you can complete the gate test from memory, you are ready. If not, spend another week or two consolidating before moving on — weak foundations compound into a permanent feeling of "I know R but cannot actually write anything."
+Each phase ends with a concrete self-assessment gate. If you can complete the gate test from memory, you are ready. If not, spend another week or two consolidating before moving on, weak foundations compound into a permanent feeling of "I know R but cannot actually write anything."
 
 The four gates are:
 
-1. **End of month 3** — read a CSV, filter rows with base R, compute a mean, write the result to a file.
-2. **End of month 6** — take a raw dataset, clean it with dplyr and tidyr, and make three publication-quality ggplot2 charts with captions.
-3. **End of month 9** — pose a research question, fit and diagnose a regression, and write a one-page interpretation.
-4. **End of month 12** — ship a portfolio project in your chosen specialisation that someone else could reproduce from your code.
+1. **End of month 3**, read a CSV, filter rows with base R, compute a mean, write the result to a file.
+2. **End of month 6**, take a raw dataset, clean it with dplyr and tidyr, and make three publication-quality ggplot2 charts with captions.
+3. **End of month 9**, pose a research question, fit and diagnose a regression, and write a one-page interpretation.
+4. **End of month 12**, ship a portfolio project in your chosen specialisation that someone else could reproduce from your code.
 
 Here is what a month-6 gate test looks like as a single runnable snippet.
 
@@ -347,7 +347,7 @@ mean(scores, na.rm = TRUE)
 #> [1] 87.6
 ```
 
-The first call returns `NA`, not an error — which is exactly why it is dangerous. R tells you the result is undefined because one value is missing, and expects you to tell it what to do. Forgetting `na.rm = TRUE` silently zeroes out reports every day in production codebases.
+The first call returns `NA`, not an error, which is exactly why it is dangerous. R tells you the result is undefined because one value is missing, and expects you to tell it what to do. Forgetting `na.rm = TRUE` silently zeroes out reports every day in production codebases.
 
 [WARNING]
 **NA handling silently wrecks analyses.** Always inspect your data for missing values before summarising, and make a conscious choice about how to handle them. `sum(is.na(x))` is your cheapest sanity check.
@@ -377,7 +377,7 @@ ex_mean
 
 ## Practice Exercises
 
-These two capstones combine skills from across the roadmap. They are harder than the inline drills — expect to spend 15-30 minutes each, not 30 seconds.
+These two capstones combine skills from across the roadmap. They are harder than the inline drills, expect to spend 15-30 minutes each, not 30 seconds.
 
 ### Exercise 1: Mini EDA pipeline on airquality
 
@@ -412,7 +412,7 @@ my_eda
 #> 5     5       23.6    26
 ```
 
-**Explanation:** `!is.na(Ozone)` drops missing observations before grouping. July and August run hottest, which matches real ozone data — hot months generate more ground-level ozone.
+**Explanation:** `!is.na(Ozone)` drops missing observations before grouping. July and August run hottest, which matches real ozone data, hot months generate more ground-level ozone.
 
 </details>
 
@@ -441,13 +441,13 @@ my_r2
 #> [1] 0.827
 ```
 
-**Explanation:** With both `wt` and `hp` in the model, R-squared is 0.827 — the two predictors jointly explain about 83 percent of the variance in fuel economy, up from 0.753 for `wt` alone. That jump is why multiple regression is worth learning.
+**Explanation:** With both `wt` and `hp` in the model, R-squared is 0.827, the two predictors jointly explain about 83 percent of the variance in fuel economy, up from 0.753 for `wt` alone. That jump is why multiple regression is worth learning.
 
 </details>
 
 ## Putting It All Together
 
-Here is a month-9 worked example — the full loop you should be able to run on a new dataset without a tutorial by the end of Phase 3. Load, summarise, fit, interpret.
+Here is a month-9 worked example, the full loop you should be able to run on a new dataset without a tutorial by the end of Phase 3. Load, summarise, fit, interpret.
 
 ```r
 # End-to-end: does petal length separate iris species?
@@ -471,7 +471,7 @@ round(coef(setosa_fit), 2)
 #>       62.49       -22.27
 ```
 
-The grouped summary already hints at the answer — setosa's petals average 1.46 cm while virginica's average 5.55 cm, with almost no overlap in the standard deviations. The logistic model confirms it: a huge negative slope on `Petal.Length` means longer petals push the probability of "is setosa" towards zero very sharply. That end-to-end loop — summarise, model, interpret — is the core rhythm of applied R.
+The grouped summary already hints at the answer, setosa's petals average 1.46 cm while virginica's average 5.55 cm, with almost no overlap in the standard deviations. The logistic model confirms it: a huge negative slope on `Petal.Length` means longer petals push the probability of "is setosa" towards zero very sharply. That end-to-end loop, summarise, model, interpret, is the core rhythm of applied R.
 
 ## Summary
 
@@ -486,21 +486,21 @@ The grouped summary already hints at the answer — setosa's petals average 1.46
 | 3. Stats & modelling | 7-9 | Hypothesis tests, lm(), glm(), broom | Regression write-up with interpretation |
 | 4. Specialisation | 10-12 | ML, Shiny, time series, or domain | Capstone portfolio project |
 
-The three rules underneath the table are simple — one resource per phase, one milestone project per phase, and no skipping gates. Twelve months of that rhythm beats any crash course.
+The three rules underneath the table are simple, one resource per phase, one milestone project per phase, and no skipping gates. Twelve months of that rhythm beats any crash course.
 
 ## References
 
-1. Wickham, H. & Grolemund, G. — *R for Data Science*, 2nd edition. [Link](https://r4ds.hadley.nz/)
-2. Wickham, H. — *Advanced R*, 2nd edition. CRC Press. [Link](https://adv-r.hadley.nz/)
-3. R Core Team — *An Introduction to R* (CRAN manual). [Link](https://cran.r-project.org/doc/manuals/r-release/R-intro.html)
-4. Posit — R & tidyverse cheatsheets. [Link](https://posit.co/resources/cheatsheets/)
-5. Tidyverse project — package documentation. [Link](https://www.tidyverse.org/)
-6. James, Witten, Hastie & Tibshirani — *An Introduction to Statistical Learning*. [Link](https://www.statlearning.com/)
-7. R-bloggers — aggregated R tutorials and articles. [Link](https://www.r-bloggers.com/)
-8. Stack Overflow — the `[r]` tag. [Link](https://stackoverflow.com/questions/tagged/r)
+1. Wickham, H. & Grolemund, G., *R for Data Science*, 2nd edition. [Link](https://r4ds.hadley.nz/)
+2. Wickham, H., *Advanced R*, 2nd edition. CRC Press. [Link](https://adv-r.hadley.nz/)
+3. R Core Team, *An Introduction to R* (CRAN manual). [Link](https://cran.r-project.org/doc/manuals/r-release/R-intro.html)
+4. Posit, R & tidyverse cheatsheets. [Link](https://posit.co/resources/cheatsheets/)
+5. Tidyverse project, package documentation. [Link](https://www.tidyverse.org/)
+6. James, Witten, Hastie & Tibshirani, *An Introduction to Statistical Learning*. [Link](https://www.statlearning.com/)
+7. R-bloggers, aggregated R tutorials and articles. [Link](https://www.r-bloggers.com/)
+8. Stack Overflow, the `[r]` tag. [Link](https://stackoverflow.com/questions/tagged/r)
 
 ## Continue Learning
 
-- [R Data Types](R-Data-Types.html) — the first thing to master in Phase 1.
-- [dplyr filter and select](dplyr-filter-select.html) — the opening lesson of Phase 2.
-- [ggplot2 tutorial with R](ggplot2-Tutorial-With-R.html) — the core grammar for the visualisation weeks.
+- [R Data Types](R-Data-Types.html), the first thing to master in Phase 1.
+- [dplyr filter and select](dplyr-filter-select.html), the opening lesson of Phase 2.
+- [ggplot2 tutorial with R](ggplot2-Tutorial-With-R.html), the core grammar for the visualisation weeks.

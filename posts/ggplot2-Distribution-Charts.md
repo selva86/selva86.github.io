@@ -1,7 +1,7 @@
 ---
-title: "ggplot2 Distribution Charts: Histograms, Density, Boxplots — When to Use Each"
+title: "ggplot2 Distribution Charts: Histograms, Density, Boxplots, When to Use Each"
 slug: "ggplot2-Distribution-Charts"
-description: "Master ggplot2 distribution charts: histogram, density, boxplot, and violin — with guidance on bin widths, bandwidth tuning, and when each type misleads."
+description: "Master ggplot2 distribution charts: histogram, density, boxplot, and violin, with guidance on bin widths, bandwidth tuning, and when each type misleads."
 keywords: "ggplot2 histogram, ggplot2 density plot, ggplot2 boxplot, geom_histogram, geom_density, geom_boxplot, geom_violin, distribution plot R, ggplot2 distribution"
 auto_link_terms: "ggplot2 distribution charts|geom_histogram()|geom_density()|geom_boxplot()|geom_violin()|histogram in R|density plot ggplot2"
 auto_link_case_sensitive: false
@@ -16,29 +16,29 @@ sidebar_order: 13
 difficulty: "Intermediate"
 ---
 
-# ggplot2 Distribution Charts: Histograms, Density, Boxplots — When to Use Each
+# ggplot2 Distribution Charts: Histograms, Density, Boxplots, When to Use Each
 
-<p class="lead">Distribution charts show how your data is spread — where values cluster, thin out, and whether outliers exist. ggplot2 provides four main types: <code>geom_histogram()</code>, <code>geom_density()</code>, <code>geom_boxplot()</code>, and <code>geom_violin()</code>.</p>
+<p class="lead">Distribution charts show how your data is spread, where values cluster, thin out, and whether outliers exist. ggplot2 provides four main types: <code>geom_histogram()</code>, <code>geom_density()</code>, <code>geom_boxplot()</code>, and <code>geom_violin()</code>.</p>
 
 ## Introduction
 
 Before you run a single statistical test, you should look at your data's distribution. Is it symmetric or skewed? Does it have one peak or two? Are there outliers pulling the mean away from the median? These questions all have visual answers, and ggplot2 gives you four powerful tools to find them.
 
-The tricky part is picking the right one. Each chart type reveals different aspects of a distribution — and each can mislead you if used carelessly. A histogram hides its shape behind arbitrary bin choices. A boxplot compresses everything into five numbers, missing bimodality entirely. A density plot smooths away sharp features. Understanding the trade-offs is what separates exploratory analysis done well from analysis done fast.
+The tricky part is picking the right one. Each chart type reveals different aspects of a distribution, and each can mislead you if used carelessly. A histogram hides its shape behind arbitrary bin choices. A boxplot compresses everything into five numbers, missing bimodality entirely. A density plot smooths away sharp features. Understanding the trade-offs is what separates exploratory analysis done well from analysis done fast.
 
 In this tutorial you'll work with a consistent dataset throughout, building each chart type progressively. All four charts share the same WebR session, so variables from earlier blocks are available in later ones. By the end you'll have a practical decision framework, know how to tune the key parameters, and understand exactly when each chart type can mislead you.
 
 ![Decision guide: which distribution chart fits your situation](screenshots/ggplot2-Distribution-Charts-chart-decision.webp)
-*Figure 1: Decision guide — which distribution chart fits your situation.*
+*Figure 1: Decision guide, which distribution chart fits your situation.*
 
 [NOTE]
 **This post covers single-variable distribution charts.** For comparing distributions across many groups simultaneously, see ridgeline plots (`ggridges`) in the Further Reading section. For scatter plots that reveal bivariate distributions, see the ggplot2 Scatter Plots tutorial.
 
-## What Does `geom_histogram()` Show — and How Do You Choose `binwidth`?
+## What Does `geom_histogram()` Show, and How Do You Choose `binwidth`?
 
 A histogram splits your variable into equal-width bins and counts how many observations fall into each. The height of each bar shows frequency (or density if you set `y = after_stat(density)`). It's the most direct way to see shape: unimodal vs bimodal, symmetric vs skewed, light vs heavy tails.
 
-The catch is that the shape you see depends entirely on `binwidth`. Too wide and you lose structure; too narrow and noise dominates. There's no universally correct answer — you need to try a few values.
+The catch is that the shape you see depends entirely on `binwidth`. Too wide and you lose structure; too narrow and noise dominates. There's no universally correct answer, you need to try a few values.
 
 Let's start by loading ggplot2 and creating a focused subset of the built-in `diamonds` dataset. We'll use price for most examples, and cut for grouping.
 
@@ -70,7 +70,7 @@ print(p_hist_wide)
 #> [Plot: right-skewed distribution peaking around $1000-2000, long tail to $18000]
 ```
 
-The right-skewed distribution is clear: most diamonds are priced under $3,000, with a long tail of expensive stones. The spike near $5,000 is a real feature — it shows up with binwidth = 200 too. With binwidth = 5,000 it disappears into noise.
+The right-skewed distribution is clear: most diamonds are priced under $3,000, with a long tail of expensive stones. The spike near $5,000 is a real feature, it shows up with binwidth = 200 too. With binwidth = 5,000 it disappears into noise.
 
 [TIP]
 **Start with `bins = 30` (ggplot2's default) and adjust.** If the histogram looks jagged, double the binwidth. If it looks like a single blob, halve it. The goal is to reveal structure without manufacturing noise.
@@ -105,11 +105,11 @@ ggplot(diamonds_sm, aes(x = price)) +
 
 </details>
 
-## What Does `geom_density()` Show — and What Does `adjust` Control?
+## What Does `geom_density()` Show, and What Does `adjust` Control?
 
 A density plot is a smoothed version of a histogram. Instead of counting observations in bins, it estimates the underlying probability density function using a kernel (usually Gaussian). The result is a continuous curve that shows relative likelihood at each value.
 
-The key parameter is `adjust`, which scales the automatic bandwidth. `adjust = 1` (default) is the standard Silverman bandwidth. `adjust = 0.5` gives a tighter fit; `adjust = 2` gives a smoother curve. Unlike `binwidth`, there's no "frequency" on the y-axis — values represent density, not count.
+The key parameter is `adjust`, which scales the automatic bandwidth. `adjust = 1` (default) is the standard Silverman bandwidth. `adjust = 0.5` gives a tighter fit; `adjust = 2` gives a smoother curve. Unlike `binwidth`, there's no "frequency" on the y-axis, values represent density, not count.
 
 ```r
 # Density plot with different adjust values
@@ -168,12 +168,12 @@ print(ex_density)
 
 </details>
 
-## How Do Boxplots Summarise a Distribution — and When Do They Mislead?
+## How Do Boxplots Summarise a Distribution, and When Do They Mislead?
 
 A boxplot compresses your entire distribution into five numbers: minimum (or lower whisker), first quartile (Q1), median, third quartile (Q3), and maximum (or upper whisker). Points beyond the whiskers are plotted individually as outliers.
 
-![Anatomy of a boxplot — each element and what it represents](screenshots/ggplot2-Distribution-Charts-chart-anatomy.webp)
-*Figure 2: Anatomy of a boxplot — the five summary statistics and how outliers are identified.*
+![Anatomy of a boxplot, each element and what it represents](screenshots/ggplot2-Distribution-Charts-chart-anatomy.webp)
+*Figure 2: Anatomy of a boxplot, the five summary statistics and how outliers are identified.*
 
 Boxplots excel at comparing multiple groups side by side. The box covers the interquartile range (IQR = Q3 − Q1), which contains the middle 50% of your data. The whiskers extend to 1.5× IQR. Any point beyond that is an outlier.
 
@@ -190,7 +190,7 @@ print(p_box)
 #> [Plot: 5 boxplots side by side — Fair cut has highest median price, ideal has lower median]
 ```
 
-Notice something counterintuitive: Fair cut diamonds appear to have a *higher* median price than Ideal cut. This is actually a real phenomenon driven by confounding — Fair cut diamonds tend to be larger (more carats), which drives price up. Boxplots surface this kind of puzzle quickly.
+Notice something counterintuitive: Fair cut diamonds appear to have a *higher* median price than Ideal cut. This is actually a real phenomenon driven by confounding, Fair cut diamonds tend to be larger (more carats), which drives price up. Boxplots surface this kind of puzzle quickly.
 
 [WARNING]
 **Boxplots hide multimodality completely.** A distribution with two peaks separated by a valley has the same boxplot as a unimodal distribution with the same quartiles. Always supplement boxplots with a histogram or violin plot when you suspect complex shapes.
@@ -221,7 +221,7 @@ ex_box <- ggplot(diamonds_sm, aes(x = color, y = price, fill = color)) +
 print(ex_box)
 ```
 
-**Explanation:** Color J (worst grade) tends to have the highest median price — again driven by carat size. This counterintuitive pattern illustrates why boxplots are great for surfacing anomalies that demand further investigation.
+**Explanation:** Color J (worst grade) tends to have the highest median price, again driven by carat size. This counterintuitive pattern illustrates why boxplots are great for surfacing anomalies that demand further investigation.
 
 </details>
 
@@ -246,7 +246,7 @@ print(p_violin)
 #> [Plot: 5 violins, each with embedded white boxplot — reveals bimodal shape in some groups]
 ```
 
-The violin reveals something the boxplot hides: several cut categories have a bimodal distribution — a peak of low-priced small diamonds and a peak of higher-priced larger ones. The boxplot would show the same median and IQR for a bimodal and unimodal distribution. The violin doesn't let that slide.
+The violin reveals something the boxplot hides: several cut categories have a bimodal distribution, a peak of low-priced small diamonds and a peak of higher-priced larger ones. The boxplot would show the same median and IQR for a bimodal and unimodal distribution. The violin doesn't let that slide.
 
 [KEY INSIGHT]
 **The violin is better than the boxplot almost every time you have enough data.** The only reason to prefer a boxplot is when you're comparing more than 8-10 groups (violins get cramped) or when your audience is unfamiliar with violin plots (boxplots are more widely understood in non-statistical audiences).
@@ -518,13 +518,13 @@ The two-panel progression tells a coherent story: the histogram reveals bimodali
 
 ## FAQ
 
-**Which is better — histogram or density plot?**
+**Which is better, histogram or density plot?**
 
-For small samples (n < 200), histogram is more honest — it shows exactly where data points are. For large samples, density plots reveal smooth shape better. Overlay both for the best of both worlds using `y = after_stat(density)` on the histogram.
+For small samples (n < 200), histogram is more honest, it shows exactly where data points are. For large samples, density plots reveal smooth shape better. Overlay both for the best of both worlds using `y = after_stat(density)` on the histogram.
 
 **How do I put multiple density curves on one plot?**
 
-Map a grouping variable to `fill` or `colour` and set `alpha = 0.3` so overlapping areas are visible: `geom_density(aes(fill = group), alpha = 0.3)`. More than 4-5 groups gets cluttered — consider ridgeline plots instead.
+Map a grouping variable to `fill` or `colour` and set `alpha = 0.3` so overlapping areas are visible: `geom_density(aes(fill = group), alpha = 0.3)`. More than 4-5 groups gets cluttered, consider ridgeline plots instead.
 
 **What does `trim = FALSE` do in `geom_violin()`?**
 
@@ -532,7 +532,7 @@ By default (`trim = TRUE`), violins are cut at the min and max of the data, givi
 
 **Why does my boxplot have so many outlier dots?**
 
-Outliers are points beyond 1.5× IQR from the quartiles. For skewed distributions (like price or income), the upper whisker is very short and almost everything in the tail shows as an outlier. This isn't wrong — it's telling you the distribution is heavy-tailed. Consider a log transform.
+Outliers are points beyond 1.5× IQR from the quartiles. For skewed distributions (like price or income), the upper whisker is very short and almost everything in the tail shows as an outlier. This isn't wrong, it's telling you the distribution is heavy-tailed. Consider a log transform.
 
 **Can I use `geom_boxplot()` for a single variable (no groups)?**
 
@@ -540,16 +540,16 @@ Yes: `ggplot(df, aes(y = variable)) + geom_boxplot()`. The x-axis is meaningless
 
 ## References
 
-1. Wickham, H. — *ggplot2: Elegant Graphics for Data Analysis*, 3rd Edition. Springer (2016). [Link](https://ggplot2-book.org/)
-2. ggplot2 documentation — `geom_histogram()`. [Link](https://ggplot2.tidyverse.org/reference/geom_histogram.html)
-3. ggplot2 documentation — `geom_density()`. [Link](https://ggplot2.tidyverse.org/reference/geom_density.html)
-4. ggplot2 documentation — `geom_boxplot()`. [Link](https://ggplot2.tidyverse.org/reference/geom_boxplot.html)
-5. ggplot2 documentation — `geom_violin()`. [Link](https://ggplot2.tidyverse.org/reference/geom_violin.html)
-6. R Graph Gallery — "Violin and Boxplot" section. [Link](https://r-graph-gallery.com/violin_and_boxplot_ggplot2.html)
-7. Wilke, C.O. — *Fundamentals of Data Visualization*. O'Reilly (2019). Chapter 7: Visualizing Distributions. [Link](https://clauswilke.com/dataviz/histograms-density-plots.html)
+1. Wickham, H., *ggplot2: Elegant Graphics for Data Analysis*, 3rd Edition. Springer (2016). [Link](https://ggplot2-book.org/)
+2. ggplot2 documentation, `geom_histogram()`. [Link](https://ggplot2.tidyverse.org/reference/geom_histogram.html)
+3. ggplot2 documentation, `geom_density()`. [Link](https://ggplot2.tidyverse.org/reference/geom_density.html)
+4. ggplot2 documentation, `geom_boxplot()`. [Link](https://ggplot2.tidyverse.org/reference/geom_boxplot.html)
+5. ggplot2 documentation, `geom_violin()`. [Link](https://ggplot2.tidyverse.org/reference/geom_violin.html)
+6. R Graph Gallery, "Violin and Boxplot" section. [Link](https://r-graph-gallery.com/violin_and_boxplot_ggplot2.html)
+7. Wilke, C.O., *Fundamentals of Data Visualization*. O'Reilly (2019). Chapter 7: Visualizing Distributions. [Link](https://clauswilke.com/dataviz/histograms-density-plots.html)
 
 ## Continue Learning
 
-- **[ggplot2 Scatter Plots](ggplot2-Scatter-Plots.html)** — Move from single-variable distributions to bivariate relationships with `geom_point()`.
-- **[ggplot2 Violin Plot](ggplot2-Violin-Plot.html)** — Deep dive into `geom_violin()`: embedded jitter, quantile lines, and split violins for paired data.
-- **[ggplot2 Ridgeline Plot](ggplot2-Ridgeline-Plot.html)** — Compare distributions across many groups at once with the `ggridges` package.
+- **[ggplot2 Scatter Plots](ggplot2-Scatter-Plots.html)**, Move from single-variable distributions to bivariate relationships with `geom_point()`.
+- **[ggplot2 Violin Plot](ggplot2-Violin-Plot.html)**, Deep dive into `geom_violin()`: embedded jitter, quantile lines, and split violins for paired data.
+- **[ggplot2 Ridgeline Plot](ggplot2-Ridgeline-Plot.html)**, Compare distributions across many groups at once with the `ggridges` package.

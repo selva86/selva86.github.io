@@ -1,5 +1,5 @@
 ---
-title: "ggplot2 Error: 'Aesthetics must be length 1 or same as data' — Solved"
+title: "ggplot2 Error: 'Aesthetics must be length 1 or same as data', Solved"
 slug: "R-Error-ggplot2-Aesthetics"
 description: "ggplot2 throws this when you map a vector whose length doesn't match your data's row count. Learn the 4 patterns that cause it and the exact fix for each."
 keywords: "ggplot2 aesthetics error, aesthetics must be length 1, ggplot2 length error, R ggplot2 troubleshooting, aes() mapping error, ggplot2 recycling rule"
@@ -14,13 +14,13 @@ fr_parent: "R-Common-Errors.html"
 difficulty: "Intermediate"
 ---
 
-# ggplot2 Error: 'Aesthetics must be length 1 or same as data' — Solved
+# ggplot2 Error: 'Aesthetics must be length 1 or same as data', Solved
 
 <p class="lead"><code>Error: Aesthetics must be either length 1 or the same as the data</code> fires whenever a variable you pass into <code>aes()</code> doesn't have exactly 1 value or exactly <code>nrow(data)</code> values. The fix is almost always to attach the variable to your data frame as a column first, then map the column name inside <code>aes()</code>.</p>
 
 ## What does 'Aesthetics must be length 1 or same as data' actually mean?
 
-ggplot2 builds plots row by row. Every aesthetic you map — colour, size, fill, shape — must therefore have exactly one value per row, or exactly one value total that gets recycled for every row. Anything in between is ambiguous, so ggplot2 refuses to guess and stops with this error. The message even tells you which aesthetic broke and how many rows it expected, both of which are your first debugging clues.
+ggplot2 builds plots row by row. Every aesthetic you map, colour, size, fill, shape, must therefore have exactly one value per row, or exactly one value total that gets recycled for every row. Anything in between is ambiguous, so ggplot2 refuses to guess and stops with this error. The message even tells you which aesthetic broke and how many rows it expected, both of which are your first debugging clues.
 
 Here is the smallest reproduction and its fix, side by side:
 
@@ -46,7 +46,7 @@ p <- ggplot(df, aes(x, y, colour = group)) +
 print(p)
 ```
 
-Notice the two clues hidden inside the error message: `(5)` is the row count ggplot2 expected, and `colour` is the exact aesthetic that received the wrong length. When you see this error in your own code, read those two tokens first — they tell you *which* mapping to look at and *what* length it should have been.
+Notice the two clues hidden inside the error message: `(5)` is the row count ggplot2 expected, and `colour` is the exact aesthetic that received the wrong length. When you see this error in your own code, read those two tokens first, they tell you *which* mapping to look at and *what* length it should have been.
 
 **Try it:** Map a categorical column to `size` so the plot renders without error. Use the data frame and aesthetic sizes provided.
 
@@ -77,7 +77,7 @@ ggplot(ex_df, aes(x, y, size = point_size)) +
 
 ## How do you fix a standalone vector that has the wrong length?
 
-This is the single most common trigger. You define a helper vector outside the data frame — colours, labels, flags — then pass it straight into `aes()`. The moment its length doesn't match `nrow(data)`, ggplot2 stops. The fix is mechanical: add the vector as a column to the data frame first, then map by name.
+This is the single most common trigger. You define a helper vector outside the data frame, colours, labels, flags, then pass it straight into `aes()`. The moment its length doesn't match `nrow(data)`, ggplot2 stops. The fix is mechanical: add the vector as a column to the data frame first, then map by name.
 
 ```r
 sales_df <- data.frame(
@@ -136,7 +136,7 @@ ggplot(ex_scores, aes(student, math, fill = highlight)) +
 
 ## How do you plot summary statistics next to raw data?
 
-The second common pattern: you compute a per-group mean and try to map it onto a plot of the raw data. The summary has one row per group, the raw data has many, so the lengths collide. There are two clean fixes — pick the one that matches your intent.
+The second common pattern: you compute a per-group mean and try to map it onto a plot of the raw data. The summary has one row per group, the raw data has many, so the lengths collide. There are two clean fixes, pick the one that matches your intent.
 
 ```r
 library(dplyr)
@@ -166,10 +166,10 @@ p3 <- ggplot(mt_enriched, aes(wt, mpg, colour = factor(cyl))) +
 print(p3)
 ```
 
-Fix (a) works because `mutate()` inside `group_by()` broadcasts the group mean back to every row in that group, so `mean_mpg` becomes a length-32 column that ggplot2 accepts without complaint. Fix (b), shown in the Complete Example below, uses `cars_mean` as its own layer with `data = cars_mean` — equally valid, and the right choice when you don't want the summary polluting the raw data frame.
+Fix (a) works because `mutate()` inside `group_by()` broadcasts the group mean back to every row in that group, so `mean_mpg` becomes a length-32 column that ggplot2 accepts without complaint. Fix (b), shown in the Complete Example below, uses `cars_mean` as its own layer with `data = cars_mean`, equally valid, and the right choice when you don't want the summary polluting the raw data frame.
 
 [KEY INSIGHT]
-**Each ggplot layer validates its own aesthetic lengths against its own data.** Summaries belong either broadcast into the parent frame via mutate() or passed as a separate layer's data argument — never squeezed into the parent aes directly.
+**Each ggplot layer validates its own aesthetic lengths against its own data.** Summaries belong either broadcast into the parent frame via mutate() or passed as a separate layer's data argument, never squeezed into the parent aes directly.
 
 **Try it:** Attach `mean(mpg)` per cyl group to a copy of mtcars without losing any rows.
 
@@ -266,7 +266,7 @@ ggplot(ex_pts, aes(x, y)) +
 
 ## Why do lingering factor levels still cause length errors?
 
-The fourth cause is subtler. When you filter a data frame whose grouping column is a factor, the *levels* persist even after the rows are gone. A `scale_*_manual()` call built around a 3-level palette then meets a 2-level subset — or a 4-level plot built against your expectations — and the length mismatch resurfaces. `droplevels()` on the filtered data is the clean fix.
+The fourth cause is subtler. When you filter a data frame whose grouping column is a factor, the *levels* persist even after the rows are gone. A `scale_*_manual()` call built around a 3-level palette then meets a 2-level subset, or a 4-level plot built against your expectations, and the length mismatch resurfaces. `droplevels()` on the filtered data is the clean fix.
 
 ```r
 grade_df <- data.frame(
@@ -295,7 +295,7 @@ print(p5)
 Without `droplevels()`, that `scale_fill_manual()` call with two colours would have fired the exact same length error, because the factor still carried three levels internally even though no row referenced level `C`. Any time you filter a factor column, assume you need `droplevels()` before plotting with manual scales.
 
 [NOTE]
-**`dplyr::filter()` behaves the same way — it drops rows but not levels.** If you use tidyverse-style filtering, run `droplevels()` on the result or wrap your category with `forcats::fct_drop()` for the same effect.
+**`dplyr::filter()` behaves the same way, it drops rows but not levels.** If you use tidyverse-style filtering, run `droplevels()` on the result or wrap your category with `forcats::fct_drop()` for the same effect.
 
 **Try it:** Drop unused levels from a filtered factor and confirm the level count shrinks to match the data.
 
@@ -330,7 +330,7 @@ nlevels(ex_sub$g)
 
 ### Exercise 1: Per-group mean line on a scatter plot
 
-Using `mtcars`, compute the mean mpg for each `cyl` group, attach it back to every row, and plot a scatter of `wt` vs `mpg` with a dashed horizontal line per group showing its mean. The naive version below is broken — fix it. Save the final plot to `my_p1`.
+Using `mtcars`, compute the mean mpg for each `cyl` group, attach it back to every row, and plot a scatter of `wt` vs `mpg` with a dashed horizontal line per group showing its mean. The naive version below is broken, fix it. Save the final plot to `my_p1`.
 
 ```r
 # Exercise 1: fix the broken per-group mean line plot
@@ -423,7 +423,7 @@ final_p <- ggplot(iris_m, aes(Sepal.Width, Sepal.Length, colour = Species)) +
 print(final_p)
 ```
 
-Every aesthetic in this plot either has length 150 (matching `nrow(iris_m)`) or length 1 (constants like `size = 2`). `mean_sl` is length 150 with only 3 distinct values — perfect for a per-group reference line. No error, no warnings, no `droplevels()` gymnastics.
+Every aesthetic in this plot either has length 150 (matching `nrow(iris_m)`) or length 1 (constants like `size = 2`). `mean_sl` is length 150 with only 3 distinct values, perfect for a per-group reference line. No error, no warnings, no `droplevels()` gymnastics.
 
 ## Summary
 
@@ -438,15 +438,15 @@ The one rule behind all four: every aesthetic must be length 1 or `nrow(data_in_
 
 ## References
 
-1. ggplot2 documentation — `aes()` reference. [Link](https://ggplot2.tidyverse.org/reference/aes.html)
-2. Wickham, H. (2010) — *A Layered Grammar of Graphics*. Journal of Computational and Graphical Statistics, 19(1). [Link](https://vita.had.co.nz/papers/layered-grammar.html)
-3. Wickham, H. — *ggplot2: Elegant Graphics for Data Analysis*, 3rd edition, Springer (2016). [Link](https://ggplot2-book.org/)
-4. tidyverse/ggplot2 GitHub issue #1366 — history of the length-check breaking change. [Link](https://github.com/tidyverse/ggplot2/issues/1366)
-5. dplyr documentation — `mutate()` + `group_by()` reference. [Link](https://dplyr.tidyverse.org/reference/mutate.html)
-6. Posit Community forum — "Error: Aesthetics must be either length 1 or the same as the data" discussion thread. [Link](https://forum.posit.co/t/ggplot-error-aesthetics-must-be-either-length-1-or-the-same-as-the-data/105580)
+1. ggplot2 documentation, `aes()` reference. [Link](https://ggplot2.tidyverse.org/reference/aes.html)
+2. Wickham, H. (2010), *A Layered Grammar of Graphics*. Journal of Computational and Graphical Statistics, 19(1). [Link](https://vita.had.co.nz/papers/layered-grammar.html)
+3. Wickham, H., *ggplot2: Elegant Graphics for Data Analysis*, 3rd edition, Springer (2016). [Link](https://ggplot2-book.org/)
+4. tidyverse/ggplot2 GitHub issue #1366, history of the length-check breaking change. [Link](https://github.com/tidyverse/ggplot2/issues/1366)
+5. dplyr documentation, `mutate()` + `group_by()` reference. [Link](https://dplyr.tidyverse.org/reference/mutate.html)
+6. Posit Community forum, "Error: Aesthetics must be either length 1 or the same as the data" discussion thread. [Link](https://forum.posit.co/t/ggplot-error-aesthetics-must-be-either-length-1-or-the-same-as-the-data/105580)
 
 ## Continue Learning
 
-1. **R Error in ggplot2: object 'x' not found** — aes() scoping and environment lookup issues.
-2. **R Error: replacement has N rows, data has M** — the sibling length-mismatch error on the data-wrangling side.
-3. **50 R Errors Decoded** — the master reference of the most common R error messages with plain-English fixes.
+1. **R Error in ggplot2: object 'x' not found**, aes() scoping and environment lookup issues.
+2. **R Error: replacement has N rows, data has M**, the sibling length-mismatch error on the data-wrangling side.
+3. **50 R Errors Decoded**, the master reference of the most common R error messages with plain-English fixes.

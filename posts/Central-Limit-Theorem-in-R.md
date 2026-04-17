@@ -18,11 +18,11 @@ difficulty: Intermediate
 
 # Central Limit Theorem in R: Simulate It From Skewed, Bimodal, and Uniform Distributions
 
-<p class="lead">The <strong>Central Limit Theorem (CLT)</strong> says the distribution of sample means approaches a normal distribution as the sample size grows — no matter what the parent distribution looks like. This post uses R simulations to show the CLT at work on skewed, bimodal, and uniform populations, so you can watch normality emerge with your own eyes.</p>
+<p class="lead">The <strong>Central Limit Theorem (CLT)</strong> says the distribution of sample means approaches a normal distribution as the sample size grows, no matter what the parent distribution looks like. This post uses R simulations to show the CLT at work on skewed, bimodal, and uniform populations, so you can watch normality emerge with your own eyes.</p>
 
 ## How does the Central Limit Theorem work in R?
 
-Here's the claim the CLT makes, and why it feels strange the first time: if you repeatedly draw small samples from any population and average each sample, those averages start to form a bell curve — even when the population itself looks nothing like a bell. The fastest way to believe this is to watch it happen. Let's draw 1,000 sample means from a heavily right-skewed exponential distribution and plot them.
+Here's the claim the CLT makes, and why it feels strange the first time: if you repeatedly draw small samples from any population and average each sample, those averages start to form a bell curve, even when the population itself looks nothing like a bell. The fastest way to believe this is to watch it happen. Let's draw 1,000 sample means from a heavily right-skewed exponential distribution and plot them.
 
 ```r
 library(ggplot2)
@@ -45,9 +45,9 @@ ggplot(data.frame(m = exp_means30), aes(m)) +
 The histogram is a textbook bell curve centered close to 1. The red line is the normal density the CLT predicts: mean 1, standard deviation $1/\sqrt{30} \approx 0.183$. The original exponential was strongly right-skewed, yet its *means* are nearly symmetric. That is the whole magic trick of the CLT, in one plot.
 
 ![The five-step recipe any CLT simulation follows](screenshots/Central-Limit-Theorem-in-R-simulation-flow.webp)
-*Figure 1: The five-step recipe any CLT simulation follows — draw, average, repeat, plot.*
+*Figure 1: The five-step recipe any CLT simulation follows, draw, average, repeat, plot.*
 
-To appreciate what just happened, compare the parent population to what came out. Here is the exponential itself — 10,000 raw draws, no averaging.
+To appreciate what just happened, compare the parent population to what came out. Here is the exponential itself, 10,000 raw draws, no averaging.
 
 ```r
 set.seed(1)
@@ -63,7 +63,7 @@ ggplot(data.frame(x = exp_parent), aes(x)) +
 Side by side, the transformation is obvious. The parent has a long right tail and a hard edge at zero. After averaging samples of size 30, the skew is gone and the result looks normal. The parent's shape stopped mattering once we started averaging.
 
 [KEY INSIGHT]
-**The CLT is about the sampling distribution of the mean, not the raw data.** Your data can be wildly non-normal and the CLT still guarantees near-normality for the *means* you compute from it — that's why so many everyday statistical tools (t-tests, confidence intervals, regression) still work on messy data.
+**The CLT is about the sampling distribution of the mean, not the raw data.** Your data can be wildly non-normal and the CLT still guarantees near-normality for the *means* you compute from it, that's why so many everyday statistical tools (t-tests, confidence intervals, regression) still work on messy data.
 
 Formally, if $X_1, X_2, \ldots, X_n$ are independent draws from a distribution with mean $\mu$ and finite variance $\sigma^2$, then as $n$ grows:
 
@@ -74,9 +74,9 @@ Where:
 - $\bar{X}_n$ = the mean of a sample of size $n$
 - $\mu$ = the population mean
 - $\sigma^2$ = the population variance
-- $\sigma / \sqrt{n}$ = the **standard error** — how tightly the sample means cluster around $\mu$
+- $\sigma / \sqrt{n}$ = the **standard error**, how tightly the sample means cluster around $\mu$
 
-The standard error shrinks with $\sqrt{n}$, which is why doubling your sample size doesn't halve uncertainty — you need four times the sample to cut the standard error in half.
+The standard error shrinks with $\sqrt{n}$, which is why doubling your sample size doesn't halve uncertainty, you need four times the sample to cut the standard error in half.
 
 **Try it:** Change the exponential rate from 1 to 0.5 and predict the mean and standard error of the resulting sample means at n = 30. Hint: for `Exponential(rate = r)`, $\mu = 1/r$ and $\sigma = 1/r$.
 
@@ -147,7 +147,7 @@ ggplot(df_exp, aes(m)) +
 #> Plot: left panel (n=5) is right-skewed; middle (n=30) is near-normal; right (n=100) is a tight symmetric bell.
 ```
 
-At $n = 5$ the sampling distribution still leans right — you can see the tail. At $n = 30$ it's noticeably symmetric. At $n = 100$ it's a crisp bell. This matches the standard error shrinking from $1/\sqrt{5} = 0.447$ to $1/\sqrt{100} = 0.1$. The lesson: there is no single "magic" $n$ — how fast you converge depends on how skewed the parent is.
+At $n = 5$ the sampling distribution still leans right, you can see the tail. At $n = 30$ it's noticeably symmetric. At $n = 100$ it's a crisp bell. This matches the standard error shrinking from $1/\sqrt{5} = 0.447$ to $1/\sqrt{100} = 0.1$. The lesson: there is no single "magic" $n$, how fast you converge depends on how skewed the parent is.
 
 [NOTE]
 **The "n ≥ 30" rule of thumb has nuance.** It's a rough guide for moderately skewed data. Strongly skewed parents (like Exponential or Lognormal) may need n = 50 or 100 for a convincing bell. Nearly symmetric parents pass at n = 5–10. When in doubt, simulate.
@@ -175,7 +175,7 @@ sd(ex_n50)
 #> [1] 0.1414
 ```
 
-**Explanation:** The simulated standard error (0.141) is within 1% of the theoretical $1/\sqrt{50} = 0.141$. Each time you quadruple $n$, the standard error is roughly halved — the $\sqrt{n}$ law.
+**Explanation:** The simulated standard error (0.141) is within 1% of the theoretical $1/\sqrt{50} = 0.141$. Each time you quadruple $n$, the standard error is roughly halved, the $\sqrt{n}$ law.
 
 </details>
 
@@ -204,7 +204,7 @@ ggplot(df_u, aes(m)) +
 
 Even at $n = 5$ the uniform means are approximately bell-shaped (technically a triangular distribution, which is close enough that your eye barely notices). By $n = 30$ they're indistinguishable from normal. Symmetric parents are the easy case for the CLT.
 
-Bimodal is more striking. Let's build a population that draws from one of two normal components 50/50 — a visibly double-humped shape — and then compute sample means.
+Bimodal is more striking. Let's build a population that draws from one of two normal components 50/50, a visibly double-humped shape, and then compute sample means.
 
 ```r
 # Bimodal: 50/50 mixture of N(-2, 0.5) and N(2, 0.5)
@@ -229,10 +229,10 @@ ggplot(df_b, aes(x)) +
 #> Plot: left panel shows two separate humps near -2 and +2; right panel shows a single bell near 0.
 ```
 
-The parent has two obvious modes near $-2$ and $+2$. The sampling distribution of the mean has one mode near $0$. Why? Most samples of size 30 pull roughly half their points from each hump, and the average of those pulls lands near zero. The two modes are *smoothed out by averaging* — which is exactly what the CLT predicts should happen.
+The parent has two obvious modes near $-2$ and $+2$. The sampling distribution of the mean has one mode near $0$. Why? Most samples of size 30 pull roughly half their points from each hump, and the average of those pulls lands near zero. The two modes are *smoothed out by averaging*, which is exactly what the CLT predicts should happen.
 
 [WARNING]
-**The CLT governs means, not counts or sums of rare events.** For proportions, approximations like "np and n(1-p) both at least 10" use the CLT but have extra conditions. For rare counts (small λ Poisson), the normal approximation is poor — use the actual distribution instead.
+**The CLT governs means, not counts or sums of rare events.** For proportions, approximations like "np and n(1-p) both at least 10" use the CLT but have extra conditions. For rare counts (small λ Poisson), the normal approximation is poor, use the actual distribution instead.
 
 **Try it:** Simulate 1,000 sample means of size n = 20 from `Uniform(-1, 1)` and confirm the mean of means is close to 0.
 
@@ -258,13 +258,13 @@ sd(ex_uni_sym)
 #> [1] 0.1288
 ```
 
-**Explanation:** `Uniform(-1, 1)` has mean 0 and variance $1/3$, so standard deviation $\sqrt{1/3} \approx 0.577$. The CLT predicts sample means at n = 20 have SE $= 0.577 / \sqrt{20} \approx 0.129$ — the simulation agrees.
+**Explanation:** `Uniform(-1, 1)` has mean 0 and variance $1/3$, so standard deviation $\sqrt{1/3} \approx 0.577$. The CLT predicts sample means at n = 20 have SE $= 0.577 / \sqrt{20} \approx 0.129$, the simulation agrees.
 
 </details>
 
 ## How do you confirm normality with Q-Q plots and Shapiro-Wilk?
 
-Eyeballing histograms is a start. For a sharper diagnostic, statisticians use two tools: the **Q-Q plot** (visual) and the **Shapiro-Wilk test** (numeric). A Q-Q plot compares the quantiles of your data against the quantiles a normal distribution would have — points that fall on a straight line mean the data is normal. Shapiro-Wilk returns a p-value where a high p (typically > 0.05) means you cannot reject the hypothesis that the data is normal.
+Eyeballing histograms is a start. For a sharper diagnostic, statisticians use two tools: the **Q-Q plot** (visual) and the **Shapiro-Wilk test** (numeric). A Q-Q plot compares the quantiles of your data against the quantiles a normal distribution would have, points that fall on a straight line mean the data is normal. Shapiro-Wilk returns a p-value where a high p (typically > 0.05) means you cannot reject the hypothesis that the data is normal.
 
 ```r
 # Q-Q plot for the n = 30 exponential means
@@ -276,7 +276,7 @@ ggplot(data.frame(m = exp_means30), aes(sample = m)) +
 #> Plot: points hug the red line in the middle with tiny curvature in the upper tail.
 ```
 
-The points hug the reference line across the bulk of the distribution. A slight curl in the upper-right corner is the last ghost of the exponential's skew — there is still a hint of a heavier right tail at $n = 30$. At $n = 100$ even this curl would disappear.
+The points hug the reference line across the bulk of the distribution. A slight curl in the upper-right corner is the last ghost of the exponential's skew, there is still a hint of a heavier right tail at $n = 30$. At $n = 100$ even this curl would disappear.
 
 Now the numeric test. We run Shapiro-Wilk across three sample sizes to see the p-value change.
 
@@ -297,10 +297,10 @@ sw_results
 #> 3 100  0.0512
 ```
 
-At $n = 5$ the p-value is essentially zero — the means are clearly non-normal. At $n = 30$ it's small but far from zero. At $n = 100$ it crosses the usual 0.05 threshold — you can no longer reject normality. Shapiro-Wilk puts a number on the progression our eyes saw earlier.
+At $n = 5$ the p-value is essentially zero, the means are clearly non-normal. At $n = 30$ it's small but far from zero. At $n = 100$ it crosses the usual 0.05 threshold, you can no longer reject normality. Shapiro-Wilk puts a number on the progression our eyes saw earlier.
 
 [TIP]
-**Shapiro-Wilk becomes hyper-sensitive when k is large.** If you simulate 100,000 sample means, even a tiny departure from normal will produce a near-zero p-value. Always pair Shapiro with a Q-Q plot — the eye tolerates the practical fuzz the test does not.
+**Shapiro-Wilk becomes hyper-sensitive when k is large.** If you simulate 100,000 sample means, even a tiny departure from normal will produce a near-zero p-value. Always pair Shapiro with a Q-Q plot, the eye tolerates the practical fuzz the test does not.
 
 **Try it:** Run Shapiro-Wilk on 1,000 uniform `U(0,1)` sample means at n = 5 and predict whether the p-value will be large or small.
 
@@ -332,7 +332,7 @@ shapiro.test(ex_sw_uni5)
 
 ## When does the Central Limit Theorem fail?
 
-The CLT is powerful, but it has two requirements written in fine print: (1) the population must have a **finite variance**, and (2) the samples must be **independent**. Break either one and the theorem stops working. The textbook counter-example for the variance rule is the **Cauchy distribution** — it has infinite variance, and its sample means do not converge to normal at any $n$.
+The CLT is powerful, but it has two requirements written in fine print: (1) the population must have a **finite variance**, and (2) the samples must be **independent**. Break either one and the theorem stops working. The textbook counter-example for the variance rule is the **Cauchy distribution**, it has infinite variance, and its sample means do not converge to normal at any $n$.
 
 ```r
 # Cauchy: heavy-tailed, infinite variance — CLT fails
@@ -353,12 +353,12 @@ ggplot(cauchy_means, aes(m)) +
 #> Plot: both panels show wild outliers stretching across orders of magnitude.
 ```
 
-Both panels look terrible. The spread at $n = 1000$ is not meaningfully smaller than at $n = 30$. That's because the Cauchy distribution has no population mean or variance to converge to — the tails are heavy enough that a single extreme draw can dominate any sample. Increasing $n$ doesn't help.
+Both panels look terrible. The spread at $n = 1000$ is not meaningfully smaller than at $n = 30$. That's because the Cauchy distribution has no population mean or variance to converge to, the tails are heavy enough that a single extreme draw can dominate any sample. Increasing $n$ doesn't help.
 
 [KEY INSIGHT]
-**The CLT needs finite variance.** If your data has extreme tails (stock returns, network latencies, certain physics measurements), sample means may never stabilize — you need distribution-specific methods, robust statistics, or the bootstrap instead.
+**The CLT needs finite variance.** If your data has extreme tails (stock returns, network latencies, certain physics measurements), sample means may never stabilize, you need distribution-specific methods, robust statistics, or the bootstrap instead.
 
-Independence is the second trap. Time-series data with strong autocorrelation breaks the CLT because consecutive observations carry shared information — your effective sample size is much smaller than the number of rows.
+Independence is the second trap. Time-series data with strong autocorrelation breaks the CLT because consecutive observations carry shared information, your effective sample size is much smaller than the number of rows.
 
 [WARNING]
 **The CLT assumes independent samples.** Running CLT-based tests on autocorrelated time-series data will produce standard errors that look too small and confidence intervals that are too narrow. For dependent data, use block bootstraps, HAC standard errors, or time-series-specific models.
@@ -387,13 +387,13 @@ sd(ex_c1000)
 #> [1] 23.9
 ```
 
-**Explanation:** Both standard deviations are enormous and of similar order. Compare to the exponential, where SE shrank from 0.18 (n=30) to 0.10 (n=100). For Cauchy, the $1/\sqrt{n}$ law doesn't apply because variance is undefined — a classic CLT-fails case.
+**Explanation:** Both standard deviations are enormous and of similar order. Compare to the exponential, where SE shrank from 0.18 (n=30) to 0.10 (n=100). For Cauchy, the $1/\sqrt{n}$ law doesn't apply because variance is undefined, a classic CLT-fails case.
 
 </details>
 
 ## Practice Exercises
 
-Three capstone exercises that combine multiple ideas from the post. The `simulate_means()` helper from earlier is still in scope — reuse it.
+Three capstone exercises that combine multiple ideas from the post. The `simulate_means()` helper from earlier is still in scope, reuse it.
 
 ### Exercise 1: Compare how fast lognormal vs exponential means converge
 
@@ -419,7 +419,7 @@ c(exp = my_exp, lnorm = my_lnorm)
 #>  4.52e-05   2.13e-31
 ```
 
-**Explanation:** Exponential means are closer to normal at n = 30 than lognormal means. Lognormal has a heavier right tail — its skewness is about 6 versus 2 for the exponential — so convergence needs a bigger sample.
+**Explanation:** Exponential means are closer to normal at n = 30 than lognormal means. Lognormal has a heavier right tail, its skewness is about 6 versus 2 for the exponential, so convergence needs a bigger sample.
 
 </details>
 
@@ -454,7 +454,7 @@ needed_n(function(n) rexp(n, 1))
 #> [1] 100
 ```
 
-**Explanation:** Uniform passes at the smallest n tested (5) because it's already symmetric. Exponential doesn't pass until n = 100 — the heavy skew takes work to smooth out. Simulation results carry randomness, so expect a slightly different answer if you change the seed.
+**Explanation:** Uniform passes at the smallest n tested (5) because it's already symmetric. Exponential doesn't pass until n = 100, the heavy skew takes work to smooth out. Simulation results carry randomness, so expect a slightly different answer if you change the seed.
 
 </details>
 
@@ -496,13 +496,13 @@ ggplot(df_tri, aes(x)) +
 #> Plot: left panel has three clear humps at -3, 0, 3; right panel is a single bell near 0.
 ```
 
-**Explanation:** Three humps in the parent become one hump in the mean. Samples of size 30 blend across all three components, and the result is unimodal and approximately normal — the CLT at work.
+**Explanation:** Three humps in the parent become one hump in the mean. Samples of size 30 blend across all three components, and the result is unimodal and approximately normal, the CLT at work.
 
 </details>
 
 ## Complete Example
 
-Let's bring everything together in one four-panel plot: sample means at n = 30 from each of the four populations we studied — exponential, uniform, bimodal, and Cauchy. Three of the four should look normal. One should not.
+Let's bring everything together in one four-panel plot: sample means at n = 30 from each of the four populations we studied, exponential, uniform, bimodal, and Cauchy. Three of the four should look normal. One should not.
 
 ```r
 set.seed(2024)
@@ -522,7 +522,7 @@ ggplot(all_means, aes(m)) +
 #> Plot: Cauchy shows wild outliers and no bell — CLT does not apply.
 ```
 
-Three of the four panels show neat bell curves, regardless of how wildly different their parent distributions are. The Cauchy panel is visibly broken — no bell, extreme outliers, no convergence. That single picture contains the post's entire message: **the CLT works for finite-variance distributions, and the parent's shape stops mattering once you average.**
+Three of the four panels show neat bell curves, regardless of how wildly different their parent distributions are. The Cauchy panel is visibly broken, no bell, extreme outliers, no convergence. That single picture contains the post's entire message: **the CLT works for finite-variance distributions, and the parent's shape stops mattering once you average.**
 
 ## Summary
 
@@ -533,25 +533,25 @@ The CLT turns any well-behaved population into a normal sampling distribution, g
 | Symmetric, bounded | Uniform, Normal | Very fast | 5–15 |
 | Bimodal / mixture | Two-normal mixture | Moderate | ~30 |
 | Right-skewed | Exponential, Lognormal | Slower | 30–100 |
-| Heavy-tailed | Cauchy, stable laws (α < 2) | Never | — |
+| Heavy-tailed | Cauchy, stable laws (α < 2) | Never |, |
 
 ![CLT convergence by parent shape](screenshots/Central-Limit-Theorem-in-R-convergence-by-shape.webp)
-*Figure 2: How fast sample means converge depends on the parent shape — heavy tails never converge.*
+*Figure 2: How fast sample means converge depends on the parent shape, heavy tails never converge.*
 
 The three rules to remember: (1) the CLT is about the *sampling distribution of the mean*, not the raw data; (2) the standard error is $\sigma/\sqrt{n}$, so quadrupling $n$ halves uncertainty; (3) check finite variance and independence before you trust any CLT-based inference.
 
 ## References
 
-1. Rice, J.A. — *Mathematical Statistics and Data Analysis*, 3rd Edition. Duxbury (2007). Chapter 5 covers the CLT and its proof. [Book listing](https://www.cengage.com/c/mathematical-statistics-and-data-analysis-3e-rice/9780534399429/)
-2. Casella, G. & Berger, R.L. — *Statistical Inference*, 2nd Edition. Duxbury (2002). Section 5.5 on convergence in distribution. [Book listing](https://www.cengage.com/c/statistical-inference-2e-casella/9780534243128/)
-3. Wasserman, L. — *All of Statistics*. Springer (2004). Section 5.4 on the CLT. [Publisher page](https://link.springer.com/book/10.1007/978-0-387-21736-9)
-4. Hesterberg, T. — "What Teachers Should Know About the Bootstrap". *The American Statistician* 69(4), 2015. Discusses when CLT approximations break and bootstrap alternatives. [PDF](https://arxiv.org/abs/1411.5279)
-5. R Core Team — Base R distribution functions: `?rexp`, `?runif`, `?rcauchy`, `?shapiro.test`. [R manuals](https://cran.r-project.org/manuals.html)
-6. ggplot2 documentation — `stat_function()` for overlaying theoretical densities. [Link](https://ggplot2.tidyverse.org/reference/stat_function.html)
-7. Wikipedia — Central Limit Theorem entry, useful for the formal proof and historical context. [Link](https://en.wikipedia.org/wiki/Central_limit_theorem)
+1. Rice, J.A., *Mathematical Statistics and Data Analysis*, 3rd Edition. Duxbury (2007). Chapter 5 covers the CLT and its proof. [Book listing](https://www.cengage.com/c/mathematical-statistics-and-data-analysis-3e-rice/9780534399429/)
+2. Casella, G. & Berger, R.L., *Statistical Inference*, 2nd Edition. Duxbury (2002). Section 5.5 on convergence in distribution. [Book listing](https://www.cengage.com/c/statistical-inference-2e-casella/9780534243128/)
+3. Wasserman, L., *All of Statistics*. Springer (2004). Section 5.4 on the CLT. [Publisher page](https://link.springer.com/book/10.1007/978-0-387-21736-9)
+4. Hesterberg, T., "What Teachers Should Know About the Bootstrap". *The American Statistician* 69(4), 2015. Discusses when CLT approximations break and bootstrap alternatives. [PDF](https://arxiv.org/abs/1411.5279)
+5. R Core Team, Base R distribution functions: `?rexp`, `?runif`, `?rcauchy`, `?shapiro.test`. [R manuals](https://cran.r-project.org/manuals.html)
+6. ggplot2 documentation, `stat_function()` for overlaying theoretical densities. [Link](https://ggplot2.tidyverse.org/reference/stat_function.html)
+7. Wikipedia, Central Limit Theorem entry, useful for the formal proof and historical context. [Link](https://en.wikipedia.org/wiki/Central_limit_theorem)
 
 ## Continue Learning
 
-- [**Normal, t, F, and Chi-Squared Distributions in R**](/Normal-t-F-and-Chi-Squared-Distributions-in-R.html) — the normal distribution the CLT produces, plus three close relatives used in testing.
-- [**Binomial and Poisson Distributions in R**](/Binomial-and-Poisson-Distributions-in-R.html) — discrete distributions whose normal approximations rest on the CLT.
-- [**Sample Size Planning in R**](/Sample-Size-Planning-in-R.html) — use the $\sigma/\sqrt{n}$ relationship to plan how much data you need for a target precision.
+- [**Normal, t, F, and Chi-Squared Distributions in R**](/Normal-t-F-and-Chi-Squared-Distributions-in-R.html), the normal distribution the CLT produces, plus three close relatives used in testing.
+- [**Binomial and Poisson Distributions in R**](/Binomial-and-Poisson-Distributions-in-R.html), discrete distributions whose normal approximations rest on the CLT.
+- [**Sample Size Planning in R**](/Sample-Size-Planning-in-R.html), use the $\sigma/\sqrt{n}$ relationship to plan how much data you need for a target precision.

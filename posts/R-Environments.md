@@ -1,7 +1,7 @@
 ---
 title: "R Environments: The Missing Piece That Makes Scoping, Closures & NSE Click"
 slug: "R-Environments"
-description: "R environments are named bags with parent pointers — they power scoping and closures. Learn globalenv, baseenv, execution frames, and inspect them with rlang."
+description: "R environments are named bags with parent pointers, they power scoping and closures. Learn globalenv, baseenv, execution frames, and inspect them with rlang."
 keywords: "R environments, globalenv, baseenv, emptyenv, parent environment, execution environment, R closures, R scoping chain, new.env()"
 auto_link_terms: "R environments|environment in R|globalenv()|baseenv()|emptyenv()|parent.env()|execution environment|new.env()"
 auto_link_case_sensitive: false
@@ -18,13 +18,13 @@ difficulty: "Advanced"
 
 # R Environments: The Missing Piece That Makes Scoping, Closures & NSE Click
 
-<p class="lead">An R environment is a named bag of variables plus a pointer to a parent environment. That tiny structure is how R finds every variable you use, how closures remember state, and how packages keep their functions from colliding — master it and R stops feeling magical.</p>
+<p class="lead">An R environment is a named bag of variables plus a pointer to a parent environment. That tiny structure is how R finds every variable you use, how closures remember state, and how packages keep their functions from colliding, master it and R stops feeling magical.</p>
 
 Most R users never think about environments. You type `x <- 5`, and `x` just exists. You call a function from a package, and it just works. But every one of those lookups walks a chain of environments behind the scenes. Once you can see that chain, scoping, closures, and namespaces all click into the same picture.
 
 ## What is an R environment?
 
-Think of an environment like a named list with one extra field — a parent. When R looks up a variable, it peeks at the current environment's bindings first, then follows the parent pointer, then the parent's parent, and so on. The fastest way to see that structure is to build one with `rlang` and print it.
+Think of an environment like a named list with one extra field, a parent. When R looks up a variable, it peeks at the current environment's bindings first, then follows the parent pointer, then the parent's parent, and so on. The fastest way to see that structure is to build one with `rlang` and print it.
 
 ```r
 library(rlang)
@@ -45,10 +45,10 @@ env_names(my_env)
 #> [1] "greeting" "x"        "y"
 ```
 
-`env_print()` shows the two things that define every environment — the bindings (name → value pairs) and the parent pointer. Here the parent is `emptyenv()` because we created the environment from scratch. `env_names()` returns only the names, not the values, because an environment is a set, not a sequence.
+`env_print()` shows the two things that define every environment, the bindings (name → value pairs) and the parent pointer. Here the parent is `emptyenv()` because we created the environment from scratch. `env_names()` returns only the names, not the values, because an environment is a set, not a sequence.
 
 [NOTE]
-**Why rlang instead of base.** Base R has `new.env()`, `ls()`, `get()`, and `assign()` — all fine. The rlang package wraps them with a consistent `env_*` API and a friendlier printer. We'll use both styles in this tutorial.
+**Why rlang instead of base.** Base R has `new.env()`, `ls()`, `get()`, and `assign()`, all fine. The rlang package wraps them with a consistent `env_*` API and a friendlier printer. We'll use both styles in this tutorial.
 
 **Try it:** Build an environment called `ex_env` holding `a = 1`, `b = 2`, `c = 3`, and print its names.
 
@@ -77,7 +77,7 @@ env_names(ex_env)
 
 ## How does R find a variable?
 
-When a function references a name it didn't define itself, R doesn't give up — it walks the chain of parent environments until it either finds the name or runs out of parents. That walk is called **lexical scoping**, and every R expression depends on it.
+When a function references a name it didn't define itself, R doesn't give up, it walks the chain of parent environments until it either finds the name or runs out of parents. That walk is called **lexical scoping**, and every R expression depends on it.
 
 ```r
 # Define x in the interactive workspace
@@ -100,13 +100,13 @@ head(search(), 5)
 #> [4] "package:graphics" "package:utils"
 ```
 
-When `show_x()` runs, R can't find `x` in the function's own (empty) execution environment, so it follows the parent pointer to `globalenv()`, finds `x = 100`, and prints it. `search()` shows the whole ladder of parents — your global workspace first, then each attached package, ending in `base`. Figure 1 traces that walk from your line of code all the way down.
+When `show_x()` runs, R can't find `x` in the function's own (empty) execution environment, so it follows the parent pointer to `globalenv()`, finds `x = 100`, and prints it. `search()` shows the whole ladder of parents, your global workspace first, then each attached package, ending in `base`. Figure 1 traces that walk from your line of code all the way down.
 
 ![How R resolves a variable by walking the parent chain](screenshots/R-Environments-scoping-chain.webp)
 *Figure 1: How R walks the parent chain to resolve a variable name.*
 
 [KEY INSIGHT]
-**Scoping is lookup with a fixed search order.** "Scope" isn't a property of the variable — it's a property of where R looks. If the name is in the current environment, you get it; otherwise R keeps climbing until it hits `emptyenv()` and throws `object 'x' not found`.
+**Scoping is lookup with a fixed search order.** "Scope" isn't a property of the variable, it's a property of where R looks. If the name is in the current environment, you get it; otherwise R keeps climbing until it hits `emptyenv()` and throws `object 'x' not found`.
 
 **Try it:** Call `search()` and count how many environments R would walk through before hitting `package:base`.
 
@@ -126,13 +126,13 @@ tail(search(), 1)
 #> [1] "package:base"
 ```
 
-**Explanation:** `search()` always ends in `"package:base"`. The count depends on how many packages you've loaded — WebR typically starts with a handful.
+**Explanation:** `search()` always ends in `"package:base"`. The count depends on how many packages you've loaded, WebR typically starts with a handful.
 
 </details>
 
 ## What are the four special environments?
 
-R keeps four environments that every session has by name. You'll meet them in error messages, stack traces, and namespace warnings — worth knowing them on sight.
+R keeps four environments that every session has by name. You'll meet them in error messages, stack traces, and namespace warnings, worth knowing them on sight.
 
 ```r
 # The interactive workspace — where you type
@@ -153,7 +153,7 @@ tryCatch(parent.env(emptyenv()),
 #> [1] "the empty environment has no parent"
 ```
 
-`globalenv()` is where your assignments land when you type at the console. `baseenv()` holds the base R functions — `sum()`, `c()`, `function()` itself. `emptyenv()` is the "null" of environments: every parent chain eventually reaches it, and it alone has no parent of its own. Package environments sit between `globalenv()` and `baseenv()`, one per attached package.
+`globalenv()` is where your assignments land when you type at the console. `baseenv()` holds the base R functions, `sum()`, `c()`, `function()` itself. `emptyenv()` is the "null" of environments: every parent chain eventually reaches it, and it alone has no parent of its own. Package environments sit between `globalenv()` and `baseenv()`, one per attached package.
 
 [WARNING]
 **The emptyenv has no parent.** Calling `parent.env(emptyenv())` throws. This matters when you write code that walks parent chains: your stopping condition must be `identical(e, emptyenv())`, not "until parent.env() fails".
@@ -199,7 +199,7 @@ f()
 #> parent: <environment: R_GlobalEnv>
 ```
 
-Inside `f()`, `environment()` returns the execution environment that R just built to run this call. Its parent is `globalenv()` — the environment where `f` was *defined*, not wherever `f` was *called from*. That distinction is the heart of lexical scoping: a function sees the variables that surrounded its definition, not its caller. Figure 2 shows the lifecycle.
+Inside `f()`, `environment()` returns the execution environment that R just built to run this call. Its parent is `globalenv()`, the environment where `f` was *defined*, not wherever `f` was *called from*. That distinction is the heart of lexical scoping: a function sees the variables that surrounded its definition, not its caller. Figure 2 shows the lifecycle.
 
 ![Execution environment created on call, destroyed on return](screenshots/R-Environments-function-call.webp)
 *Figure 2: A function call creates a new execution environment whose parent is the enclosing env.*
@@ -239,7 +239,7 @@ ex_show_locals()
 
 ## How do environments enable closures?
 
-A **closure** is a function that remembers the environment where it was defined. Because R ties a function's parent pointer to its birth environment, a function can carry private state with it — even after the factory that created it has finished running. This is how stateful helpers like counters, caches, and progress bars work.
+A **closure** is a function that remembers the environment where it was defined. Because R ties a function's parent pointer to its birth environment, a function can carry private state with it, even after the factory that created it has finished running. This is how stateful helpers like counters, caches, and progress bars work.
 
 ```r
 make_counter <- function() {
@@ -266,10 +266,10 @@ env_print(fn_env(tally))
 #> • count: <dbl>
 ```
 
-`make_counter()` creates a local `count` and returns an inner function. That inner function's enclosing environment is the execution environment of `make_counter()` — and because the inner function is still holding a reference to it, R doesn't garbage-collect it when `make_counter()` returns. Each call to `tally()` finds `count` in that captured environment and bumps it with `<<-`, the super-assignment operator that climbs the parent chain until it finds an existing binding.
+`make_counter()` creates a local `count` and returns an inner function. That inner function's enclosing environment is the execution environment of `make_counter()`, and because the inner function is still holding a reference to it, R doesn't garbage-collect it when `make_counter()` returns. Each call to `tally()` finds `count` in that captured environment and bumps it with `<<-`, the super-assignment operator that climbs the parent chain until it finds an existing binding.
 
 [KEY INSIGHT]
-**Super-assign walks, it does not jump to global.** `<<-` climbs the parent chain until it finds an existing binding with that name, and modifies it. It only lands in `globalenv()` if no parent has the name — which is why closures can hold local mutable state without polluting the workspace.
+**Super-assign walks, it does not jump to global.** `<<-` climbs the parent chain until it finds an existing binding with that name, and modifies it. It only lands in `globalenv()` if no parent has the name, which is why closures can hold local mutable state without polluting the workspace.
 
 **Try it:** Write `ex_make_adder(n)` that returns a function adding `n` to its input. Call it with `ex_make_adder(5)(10)`.
 
@@ -303,7 +303,7 @@ add_five(10)
 
 ## How do you inspect and manipulate environments in practice?
 
-Environments are the only R data structure with **reference semantics** — assigning one environment to another name does not copy the contents. That makes them perfect for shared mutable state (caches, counters, registries) but also a common source of bugs for readers expecting copy-on-modify.
+Environments are the only R data structure with **reference semantics**, assigning one environment to another name does not copy the contents. That makes them perfect for shared mutable state (caches, counters, registries) but also a common source of bugs for readers expecting copy-on-modify.
 
 ```r
 # Create an empty environment and use it like a mutable store
@@ -332,7 +332,7 @@ env_has(cache, "only_here")
 #>     FALSE
 ```
 
-Writing to `cache2$new_key` mutates the one shared environment, so `cache` sees it too — there's only one bag, and `cache` and `cache2` are two labels on it. `env_clone()` is the escape hatch when you actually want a fresh copy with the same bindings at the moment of cloning.
+Writing to `cache2$new_key` mutates the one shared environment, so `cache` sees it too, there's only one bag, and `cache` and `cache2` are two labels on it. `env_clone()` is the escape hatch when you actually want a fresh copy with the same bindings at the moment of cloning.
 
 [WARNING]
 **Copying an environment name does not copy the environment.** Unlike lists and data frames, environments skip R's usual copy-on-modify rule. If you hand an environment to another function that mutates it, your original will see the change. Use `env_clone()` to defend against that.
@@ -398,13 +398,13 @@ ex_env_chain(globalenv())
 #> <environment: R_EmptyEnv>
 ```
 
-**Explanation:** The `repeat`/`break` pattern handles the special case cleanly. `identical()` — not `==` — is the correct way to compare environments, because `==` isn't defined for them.
+**Explanation:** The `repeat`/`break` pattern handles the special case cleanly. `identical()`, not `==`, is the correct way to compare environments, because `==` isn't defined for them.
 
 </details>
 
 ### Exercise 2: Build a bank account with closures
 
-Write `ex_make_bank(initial)` that returns a list of three closures — `deposit(n)`, `withdraw(n)`, and `balance()` — all sharing a single private balance variable.
+Write `ex_make_bank(initial)` that returns a list of three closures, `deposit(n)`, `withdraw(n)`, and `balance()`, all sharing a single private balance variable.
 
 ```r
 # Exercise 2: three closures, one shared env
@@ -485,7 +485,7 @@ fast_square(7)   # cache hit
 #> [1] 49
 ```
 
-**Explanation:** The wrapper closes over `cache`, an environment the outside world can't see. Because environments have reference semantics, the wrapper mutates a single shared cache across all its calls — no global state needed.
+**Explanation:** The wrapper closes over `cache`, an environment the outside world can't see. Because environments have reference semantics, the wrapper mutates a single shared cache across all its calls, no global state needed.
 
 </details>
 
@@ -539,12 +539,12 @@ lg$size()   # flush reset the counter
 #> [1] 0
 ```
 
-`state` is an environment private to this logger — no other code can see it. All three closures share it by reference, so `append()` and `flush()` mutate the same state. Because environments skip copy-on-modify, `append()` can grow the line vector in place without R copying it on every call. That's the whole pattern behind most stateful helpers in R — caches, progress bars, and even R6 classes are built on this idea.
+`state` is an environment private to this logger, no other code can see it. All three closures share it by reference, so `append()` and `flush()` mutate the same state. Because environments skip copy-on-modify, `append()` can grow the line vector in place without R copying it on every call. That's the whole pattern behind most stateful helpers in R, caches, progress bars, and even R6 classes are built on this idea.
 
 ## Summary
 
 ![R environments at a glance: structure, kinds, and roles](screenshots/R-Environments-overview-mindmap.webp)
-*Figure 3: R environments at a glance — structure, kinds, and the roles they play.*
+*Figure 3: R environments at a glance, structure, kinds, and the roles they play.*
 
 | Concept | What to remember |
 |---|---|
@@ -556,19 +556,19 @@ lg$size()   # flush reset the counter
 | Closures | Inner functions keep a live reference to their enclosing execution env |
 | Inspect & mutate | `env_print()`, `env_names()`, `env_get()`, `new.env()`, `assign()`, `<<-` |
 
-Once you hold the "bag with a parent pointer" picture in your head, everything else in R's semantics — `<<-`, closures, namespaces, even non-standard evaluation — becomes a variation on the same theme.
+Once you hold the "bag with a parent pointer" picture in your head, everything else in R's semantics, `<<-`, closures, namespaces, even non-standard evaluation, becomes a variation on the same theme.
 
 ## References
 
-1. Wickham, H. — *Advanced R*, 2nd Edition. Chapter 7: Environments. [Link](https://adv-r.hadley.nz/environments.html)
-2. R Core Team — *base::environment* reference. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/environment.html)
-3. rlang package reference — the `env_*` family. [Link](https://rlang.r-lib.org/reference/env.html)
-4. Grolemund, G. — *Hands-On Programming with R*, Chapter 8: Environments. [Link](https://rstudio-education.github.io/hopr/environments.html)
-5. R Core Team — *R Language Definition*, Environment objects. [Link](https://cran.r-project.org/doc/manuals/r-release/R-lang.html#Environment-objects)
-6. Wickham, H. — *Advanced R Solutions*, Chapter 6: Environments. [Link](https://advanced-r-solutions.rbind.io/environments)
+1. Wickham, H., *Advanced R*, 2nd Edition. Chapter 7: Environments. [Link](https://adv-r.hadley.nz/environments.html)
+2. R Core Team, *base::environment* reference. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/environment.html)
+3. rlang package reference, the `env_*` family. [Link](https://rlang.r-lib.org/reference/env.html)
+4. Grolemund, G., *Hands-On Programming with R*, Chapter 8: Environments. [Link](https://rstudio-education.github.io/hopr/environments.html)
+5. R Core Team, *R Language Definition*, Environment objects. [Link](https://cran.r-project.org/doc/manuals/r-release/R-lang.html#Environment-objects)
+6. Wickham, H., *Advanced R Solutions*, Chapter 6: Environments. [Link](https://advanced-r-solutions.rbind.io/environments)
 
 ## Continue Learning
 
-- **R Lexical Scoping** — the rules that govern which parent chain R actually walks, with side-by-side examples of lexical vs dynamic scoping.
-- **R Closures** — deeper patterns for using captured environments: partial application, function factories, and gotchas around loops.
-- **R Names and Values** — the reference-semantics story end-to-end, including why data frames copy but environments don't.
+- **R Lexical Scoping**, the rules that govern which parent chain R actually walks, with side-by-side examples of lexical vs dynamic scoping.
+- **R Closures**, deeper patterns for using captured environments: partial application, function factories, and gotchas around loops.
+- **R Names and Values**, the reference-semantics story end-to-end, including why data frames copy but environments don't.

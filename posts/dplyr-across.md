@@ -16,11 +16,11 @@ difficulty: "Intermediate"
 
 # dplyr across() in R: Apply the Same Function to Multiple Columns at Once
 
-<p class="lead"><code>across()</code> lets you apply the same function — or several functions — to many columns at once inside <code>mutate()</code>, <code>summarise()</code>, and (via <code>if_any()</code>/<code>if_all()</code>) <code>filter()</code>. It replaces the old <code>_at</code>, <code>_if</code>, and <code>_all</code> scoped verbs with one unified, tidyselect-aware tool.</p>
+<p class="lead"><code>across()</code> lets you apply the same function, or several functions, to many columns at once inside <code>mutate()</code>, <code>summarise()</code>, and (via <code>if_any()</code>/<code>if_all()</code>) <code>filter()</code>. It replaces the old <code>_at</code>, <code>_if</code>, and <code>_all</code> scoped verbs with one unified, tidyselect-aware tool.</p>
 
 ## How does across() round or scale many columns in one line?
 
-The fastest way to feel why `across()` exists is to round every numeric column of a data frame in one line — instead of typing each column name. The block below loads `dplyr`, then rounds the four numeric `iris` columns to one decimal in a single `mutate(across(...))` call. The first three rows print so you can see the result.
+The fastest way to feel why `across()` exists is to round every numeric column of a data frame in one line, instead of typing each column name. The block below loads `dplyr`, then rounds the four numeric `iris` columns to one decimal in a single `mutate(across(...))` call. The first three rows print so you can see the result.
 
 ```r
 library(dplyr)
@@ -34,12 +34,12 @@ iris |>
 #> 3          4.7         3.2          1.3         0.2  setosa
 ```
 
-All four numeric columns were rounded in a single call. The `Species` column was left untouched because `where(is.numeric)` skipped it — it is a factor, not a number. That is the whole idea behind `across()`: pick the columns with one expression, apply the function with another.
+All four numeric columns were rounded in a single call. The `Species` column was left untouched because `where(is.numeric)` skipped it, it is a factor, not a number. That is the whole idea behind `across()`: pick the columns with one expression, apply the function with another.
 
-The two arguments you care about are `.cols` (which columns) and `.fns` (what function). `.cols` accepts the same selectors `select()` understands — names, helpers like `starts_with()`, or predicates like `where(is.numeric)`. `.fns` accepts a function (`mean`), an anonymous function (`\(x) round(x, 1)`), or a named list of functions for multi-output summaries.
+The two arguments you care about are `.cols` (which columns) and `.fns` (what function). `.cols` accepts the same selectors `select()` understands, names, helpers like `starts_with()`, or predicates like `where(is.numeric)`. `.fns` accepts a function (`mean`), an anonymous function (`\(x) round(x, 1)`), or a named list of functions for multi-output summaries.
 
 [KEY INSIGHT]
-**One verb, one selector, one function — that is the whole mental model.** Once you internalise this trio, every `across()` example in the wild becomes a variation on the same shape, no matter how baroque it looks.
+**One verb, one selector, one function, that is the whole mental model.** Once you internalise this trio, every `across()` example in the wild becomes a variation on the same shape, no matter how baroque it looks.
 
 **Try it:** Use `across()` to double every numeric column of `mtcars`, then show the first three rows. Save the result to `ex_doubled`.
 
@@ -97,7 +97,7 @@ mtcars |> summarise(across(-c(cyl, vs, am, gear, carb), mean))
 #> 1 20.09062 230.7219 146.6875 3.596563 3.21725 17.84875
 ```
 
-Four selectors, four different column sets — same `summarise()` shell. `c(mpg, hp, wt)` is fine for an ad-hoc one-off. `where(is.numeric)` is the workhorse: it adapts when columns are added, removed, or renamed. Prefix helpers (`starts_with`, `ends_with`, `contains`, `matches`) are best when your columns share a naming convention. Exclusion (`-c(...)`) is the inverse.
+Four selectors, four different column sets, same `summarise()` shell. `c(mpg, hp, wt)` is fine for an ad-hoc one-off. `where(is.numeric)` is the workhorse: it adapts when columns are added, removed, or renamed. Prefix helpers (`starts_with`, `ends_with`, `contains`, `matches`) are best when your columns share a naming convention. Exclusion (`-c(...)`) is the inverse.
 
 [TIP]
 **Prefer `where(is.numeric)` over hard-coded names.** A pipeline that selects by type silently picks up new numeric columns the day they appear; one that lists names breaks loudly when a column gets renamed.
@@ -124,13 +124,13 @@ ex_petal
 #> 1        3.758    1.199333
 ```
 
-**Explanation:** `starts_with("Petal")` matches `Petal.Length` and `Petal.Width` — the two iris columns whose names begin with that prefix.
+**Explanation:** `starts_with("Petal")` matches `Petal.Length` and `Petal.Width`, the two iris columns whose names begin with that prefix.
 
 </details>
 
 ## How do you apply several functions and name the output columns?
 
-Often you want more than one summary per column — a mean *and* a standard deviation, or min, max, and median together. Pass a **named list** of functions to `.fns` and `across()` produces one output column per (input column, function) pair. Use `.names` to control how those output columns are named.
+Often you want more than one summary per column, a mean *and* a standard deviation, or min, max, and median together. Pass a **named list** of functions to `.fns` and `across()` produces one output column per (input column, function) pair. Use `.names` to control how those output columns are named.
 
 ```r
 mtcars |>
@@ -149,7 +149,7 @@ mtcars |>
 #> 3     8    15.1   2.56  209.   51.0
 ```
 
-Two input columns (`mpg`, `hp`) times two functions (`avg`, `sd`) yields four output columns: `mpg_avg`, `mpg_sd`, `hp_avg`, `hp_sd`. The glue spec `"{.col}_{.fn}"` joins each column name with each function name. Flip it to `"{.fn}_{.col}"` and you get `avg_mpg`, `sd_mpg`, etc. — the same numbers, different shape.
+Two input columns (`mpg`, `hp`) times two functions (`avg`, `sd`) yields four output columns: `mpg_avg`, `mpg_sd`, `hp_avg`, `hp_sd`. The glue spec `"{.col}_{.fn}"` joins each column name with each function name. Flip it to `"{.fn}_{.col}"` and you get `avg_mpg`, `sd_mpg`, etc., the same numbers, different shape.
 
 [NOTE]
 **You only need `.names` when you want a different shape.** With a single function, the default name is just the column name. With many functions, the default is `"{.col}_{.fn}"`. Set `.names` only when those defaults do not match what you want.
@@ -186,7 +186,7 @@ ex_minmax
 
 ## How do you use across() inside mutate() to make new columns?
 
-Inside `mutate()`, `across()` *replaces* the matched columns by default — the originals are gone. To keep both the original and the transformed values, pass a `.names` template that produces new column names. This is the standard feature-engineering pattern.
+Inside `mutate()`, `across()` *replaces* the matched columns by default, the originals are gone. To keep both the original and the transformed values, pass a `.names` template that produces new column names. This is the standard feature-engineering pattern.
 
 ```r
 mt_z <- mtcars |>
@@ -203,7 +203,7 @@ head(mt_z, 4)
 #> Hornet 4 Drive    21.4  0.22 110 -0.54 3.215 -0.00
 ```
 
-The originals (`mpg`, `hp`, `wt`) sit next to their z-scored siblings (`mpg_z`, `hp_z`, `wt_z`). The lambda runs once per column — `mean(x)` and `sd(x)` use that column's own values, not a global mean. This is the most common shape you will reach for in real pipelines: take a few columns, transform them, keep both old and new.
+The originals (`mpg`, `hp`, `wt`) sit next to their z-scored siblings (`mpg_z`, `hp_z`, `wt_z`). The lambda runs once per column, `mean(x)` and `sd(x)` use that column's own values, not a global mean. This is the most common shape you will reach for in real pipelines: take a few columns, transform them, keep both old and new.
 
 [WARNING]
 **Without `.names`, `across()` overwrites the originals.** If you write `mutate(across(c(mpg, hp, wt), scale))` the old `mpg`, `hp`, `wt` columns are *gone*. Set `.names = "{.col}_something"` whenever you want both versions side-by-side.
@@ -238,9 +238,9 @@ head(ex_log[, c("mpg", "mpg_log", "hp", "hp_log")], 3)
 
 </details>
 
-## How do you filter rows with across() — using if_any() and if_all()?
+## How do you filter rows with across(), using if_any() and if_all()?
 
-`across()` itself does **not** work directly inside `filter()` — `filter()` expects a single logical vector per row, but `across()` returns one per column. The companions `if_any()` and `if_all()` collapse those per-column logicals into one row-wise verdict.
+`across()` itself does **not** work directly inside `filter()`, `filter()` expects a single logical vector per row, but `across()` returns one per column. The companions `if_any()` and `if_all()` collapse those per-column logicals into one row-wise verdict.
 
 ```r
 # Keep rows where ANY Petal column is greater than 6
@@ -262,10 +262,10 @@ iris |>
 #> 3          5.8         4.0          1.2         0.2  setosa
 ```
 
-`if_any` keeps a row when the condition fires in *at least one* selected column — useful for "anything weird?" checks like `if_any(everything(), is.na)`. `if_all` is the strict cousin: every selected column must satisfy the predicate. Same selectors, same lambdas, opposite logic.
+`if_any` keeps a row when the condition fires in *at least one* selected column, useful for "anything weird?" checks like `if_any(everything(), is.na)`. `if_all` is the strict cousin: every selected column must satisfy the predicate. Same selectors, same lambdas, opposite logic.
 
 [KEY INSIGHT]
-**`if_any` is OR across columns, `if_all` is AND across columns.** Once you read the names that way, every filter you write with them becomes self-documenting — no need to remember which is which.
+**`if_any` is OR across columns, `if_all` is AND across columns.** Once you read the names that way, every filter you write with them becomes self-documenting, no need to remember which is which.
 
 **Try it:** Keep `mtcars` rows where **all three** of `disp`, `hp`, and `wt` are above their own column means. Save to `ex_strong` and show the first three rows.
 
@@ -293,7 +293,7 @@ head(ex_strong[, c("disp", "hp", "wt")], 3)
 #> Merc 450SE        275.8 180 4.070
 ```
 
-**Explanation:** The shared predicate `\(x) x > mean(x)` runs against each of the three columns. `if_all()` keeps a row only when every column's value beats its own mean — this is the kind of uniform predicate `if_all()` is built for.
+**Explanation:** The shared predicate `\(x) x > mean(x)` runs against each of the three columns. `if_all()` keeps a row only when every column's value beats its own mean, this is the kind of uniform predicate `if_all()` is built for.
 
 </details>
 
@@ -329,7 +329,7 @@ my_aq_summary
 #> 1   42.12931      31.5     185.9315         205  9.957516      9.7  77.88235       79          7         7 15.80392      16
 ```
 
-**Explanation:** The named list `list(mean = ..., med = ...)` produces two outputs per column. The `na.rm = TRUE` lives inside the lambda because `across()` cannot pass extra arguments through `...` anymore — the lambda is the modern way.
+**Explanation:** The named list `list(mean = ..., med = ...)` produces two outputs per column. The `na.rm = TRUE` lives inside the lambda because `across()` cannot pass extra arguments through `...` anymore, the lambda is the modern way.
 
 </details>
 
@@ -392,7 +392,7 @@ head(sw_summary, 5)
 #> 5 Clawdite    168    55        NaN
 ```
 
-Three `across()`-family calls cooperate. `select(-films, ...)` strips the list-columns that would break numeric summaries. `summarise(across(where(is.numeric), ...))` aggregates every remaining numeric column with one shared lambda. `filter(if_any(where(is.numeric), \(x) !is.nan(x)))` drops species rows that are entirely `NaN` — using `if_any` to mean *"keep me if any column has a real value"*.
+Three `across()`-family calls cooperate. `select(-films, ...)` strips the list-columns that would break numeric summaries. `summarise(across(where(is.numeric), ...))` aggregates every remaining numeric column with one shared lambda. `filter(if_any(where(is.numeric), \(x) !is.nan(x)))` drops species rows that are entirely `NaN`, using `if_any` to mean *"keep me if any column has a real value"*.
 
 ## Summary
 
@@ -403,22 +403,22 @@ Three `across()`-family calls cooperate. `select(-films, ...)` strips the list-c
 | By prefix or suffix | `across(starts_with("x"), fn)` |
 | Many functions, custom names | `across(cols, list(avg = mean, sd = sd), .names = "{.col}_{.fn}")` |
 | New columns, keep originals | `mutate(across(cols, fn, .names = "{.col}_new"))` |
-| Filter — match ANY column | `filter(if_any(cols, \(x) x > 0))` |
-| Filter — match ALL columns | `filter(if_all(cols, \(x) x > 0))` |
+| Filter, match ANY column | `filter(if_any(cols, \(x) x > 0))` |
+| Filter, match ALL columns | `filter(if_all(cols, \(x) x > 0))` |
 | Replace deprecated scoped verbs | `mutate_if(is.numeric, fn)` → `mutate(across(where(is.numeric), fn))` |
 
 Three things to remember: `across()` is a *selector + function* pair; `.names` controls whether you keep or replace the originals; `if_any` and `if_all` are the only way to use it inside `filter()`.
 
 ## References
 
-1. dplyr — `across()` reference. <https://dplyr.tidyverse.org/reference/across.html>
-2. dplyr — Column-wise operations vignette. <https://dplyr.tidyverse.org/articles/colwise.html>
-3. Wickham, H. & Grolemund, G. — *R for Data Science*, 2nd Edition, Chapter 28: Iteration. <https://r4ds.hadley.nz/iteration.html>
-4. tidyverse blog — dplyr 1.0.0 release notes (introduces `across()`). <https://www.tidyverse.org/blog/2020/04/dplyr-1-0-0/>
-5. tidyselect — selection language reference. <https://tidyselect.r-lib.org/reference/language.html>
+1. dplyr, `across()` reference. <https://dplyr.tidyverse.org/reference/across.html>
+2. dplyr, Column-wise operations vignette. <https://dplyr.tidyverse.org/articles/colwise.html>
+3. Wickham, H. & Grolemund, G., *R for Data Science*, 2nd Edition, Chapter 28: Iteration. <https://r4ds.hadley.nz/iteration.html>
+4. tidyverse blog, dplyr 1.0.0 release notes (introduces `across()`). <https://www.tidyverse.org/blog/2020/04/dplyr-1-0-0/>
+5. tidyselect, selection language reference. <https://tidyselect.r-lib.org/reference/language.html>
 
 ## Continue Learning
 
-- [dplyr mutate() and rename()](/dplyr-mutate-rename.html) — the parent tutorial where `across()` is most often used for feature engineering.
-- [dplyr group_by() and summarise()](/dplyr-group-by-summarise.html) — how `across()` slots into grouped aggregation.
-- [dplyr filter() and select()](/dplyr-filter-select.html) — where `if_any()` and `if_all()` shine for row filtering.
+- [dplyr mutate() and rename()](/dplyr-mutate-rename.html), the parent tutorial where `across()` is most often used for feature engineering.
+- [dplyr group_by() and summarise()](/dplyr-group-by-summarise.html), how `across()` slots into grouped aggregation.
+- [dplyr filter() and select()](/dplyr-filter-select.html), where `if_any()` and `if_all()` shine for row filtering.

@@ -18,13 +18,13 @@ difficulty: "Beginner"
 
 # Bias in Data and Models: Find It With R Before Your Results Mislead Anyone
 
-<p class="lead">Bias is a systematic error that pushes your numbers — and the decisions made from them — in a wrong direction. This guide shows how to detect bias across three layers: the sample you collected, the way it was measured, and the model you trained on it. All examples run on base R plus dplyr and ggplot2, so you can audit any analysis without installing specialised fairness packages.</p>
+<p class="lead">Bias is a systematic error that pushes your numbers, and the decisions made from them, in a wrong direction. This guide shows how to detect bias across three layers: the sample you collected, the way it was measured, and the model you trained on it. All examples run on base R plus dplyr and ggplot2, so you can audit any analysis without installing specialised fairness packages.</p>
 
 ## What does bias actually mean in data analysis?
 
 Most bias bugs hide in plain sight. A model that looks accurate overall while quietly failing one group. A survey whose results don't match the population it claims to describe. A metric that means slightly different things for different people. Before defining the three flavours of bias, look at what biased data actually does to a result you might be tempted to trust.
 
-The block below builds a tiny synthetic loan dataset where two groups — call them A and B — have the same true creditworthiness on average. Watch what happens to the observed approval rates anyway.
+The block below builds a tiny synthetic loan dataset where two groups, call them A and B, have the same true creditworthiness on average. Watch what happens to the observed approval rates anyway.
 
 ```r
 library(dplyr)
@@ -53,16 +53,16 @@ loans |>
 #> 2 B       502      650.4         44.6
 ```
 
-The two groups have nearly identical mean scores — 650.6 versus 650.4 — yet group A is approved 70% of the time and group B only 45%. A 25-point gap from a process that, on the underlying number, should be the same. That is what bias looks like in a single table: a measurable distance between what you reported and what should be true.
+The two groups have nearly identical mean scores, 650.6 versus 650.4, yet group A is approved 70% of the time and group B only 45%. A 25-point gap from a process that, on the underlying number, should be the same. That is what bias looks like in a single table: a measurable distance between what you reported and what should be true.
 
 Three different culprits can produce a gap like this. We'll meet each in turn:
 
-- **Sampling bias** — the wrong people ended up in your dataset
-- **Measurement bias** — the right people ended up in your dataset, but their values were recorded differently
-- **Algorithmic bias** — the people and the values are fine, but a model learned to treat them differently
+- **Sampling bias**, the wrong people ended up in your dataset
+- **Measurement bias**, the right people ended up in your dataset, but their values were recorded differently
+- **Algorithmic bias**, the people and the values are fine, but a model learned to treat them differently
 
 [KEY INSIGHT]
-**Bias is not a moral verdict — it is a measurable distance.** Once you can put a number on the gap between what your data says and what is actually true, you can debug it the same way you debug any other software bug.
+**Bias is not a moral verdict, it is a measurable distance.** Once you can put a number on the gap between what your data says and what is actually true, you can debug it the same way you debug any other software bug.
 
 **Try it:** Re-run the loan generator with `set.seed(99)` and confirm the approval gap stays roughly the same size. The point is to show that the gap is a property of the *process*, not a quirk of one random draw.
 
@@ -105,7 +105,7 @@ Sampling bias means some members of the target population were more likely to en
 ![Bias audit workflow](screenshots/Bias-in-Data-and-Models-audit-workflow.webp)
 *Figure 1: A bias audit moves left-to-right through three checks before the model ever ships.*
 
-The simplest detection trick is to compare your sample's group proportions to a known reference — the true population, a census, or a prior wave of the same survey. If the gap is bigger than chance, the chi-squared test will flag it.
+The simplest detection trick is to compare your sample's group proportions to a known reference, the true population, a census, or a prior wave of the same survey. If the gap is bigger than chance, the chi-squared test will flag it.
 
 ```r
 # Known true population: 50% group A, 50% group B
@@ -134,7 +134,7 @@ chisq.test(x = observed, p = population_share)
 #> X-squared = 72.25, df = 1, p-value < 2.2e-16
 ```
 
-A p-value below 0.05 means the gap between your sample and the population is too big to blame on luck. Here it is essentially zero — group A is wildly over-represented. In a real audit, you would now ask *why*: maybe the recruitment ad ran on a platform group A uses more, or the consent form was only translated into one language. The chi-squared test does not tell you the cause; it tells you to stop and look.
+A p-value below 0.05 means the gap between your sample and the population is too big to blame on luck. Here it is essentially zero, group A is wildly over-represented. In a real audit, you would now ask *why*: maybe the recruitment ad ran on a platform group A uses more, or the consent form was only translated into one language. The chi-squared test does not tell you the cause; it tells you to stop and look.
 
 Statistical significance is one lens. The next is the *80% rule* (also called the four-fifths rule), borrowed from US employment law: any group whose representation ratio falls below 0.8 is considered substantially under-represented.
 
@@ -156,10 +156,10 @@ rep_table
 #> 2 B            0.288              0.5      0.58 TRUE
 ```
 
-Group B's representation ratio is 0.58, well below the 0.8 threshold — it is substantially under-sampled. This per-group view is more actionable than a single p-value because it points directly at the group you need to recruit more of.
+Group B's representation ratio is 0.58, well below the 0.8 threshold, it is substantially under-sampled. This per-group view is more actionable than a single p-value because it points directly at the group you need to recruit more of.
 
 [TIP]
-**When you don't know the true population, use a prior wave or an authoritative reference.** Census tables, voter rolls, prior survey waves, and administrative records all give you something to compare against. Without a reference, "sampling bias" is not measurable — it is just a worry.
+**When you don't know the true population, use a prior wave or an authoritative reference.** Census tables, voter rolls, prior survey waves, and administrative records all give you something to compare against. Without a reference, "sampling bias" is not measurable, it is just a worry.
 
 **Try it:** Write a small function that takes a vector of group labels and a named vector of expected population shares, then returns the chi-squared p-value. This is the audit primitive you'll reach for whenever a fresh dataset arrives.
 
@@ -193,7 +193,7 @@ ex_chi_test(sample_draw, c(A = 0.5, B = 0.5))
 
 ## How do you spot measurement bias in your data?
 
-Measurement bias is sneakier than sampling bias because the right people *are* in the dataset — but the *instrument* records different values for the same underlying truth across groups. A self-reported height is on average a couple of centimetres taller than a calibrated one. A self-reported income skews lower for high earners and higher for low earners. A pulse oximeter calibrated on light skin reads systematically wrong on dark skin. The summary statistics look healthy; the *meaning* of each number is not.
+Measurement bias is sneakier than sampling bias because the right people *are* in the dataset, but the *instrument* records different values for the same underlying truth across groups. A self-reported height is on average a couple of centimetres taller than a calibrated one. A self-reported income skews lower for high earners and higher for low earners. A pulse oximeter calibrated on light skin reads systematically wrong on dark skin. The summary statistics look healthy; the *meaning* of each number is not.
 
 The block below simulates a realistic case: group A is measured by a calibrated tape (no error), group B by self-report (a 3 cm upward bias plus more noise). The true heights are identical between the two groups by construction.
 
@@ -226,7 +226,7 @@ heights |>
 #> 2 B          170.07        173.05  2.98
 ```
 
-Group B's measured mean is about 3 cm higher than its true mean — exactly the bias we built in. Crucially, if you only had the `measured` column (which is the realistic case in a real dataset), you would conclude that group B is taller than group A and never know that the conclusion is an instrument artefact.
+Group B's measured mean is about 3 cm higher than its true mean, exactly the bias we built in. Crucially, if you only had the `measured` column (which is the realistic case in a real dataset), you would conclude that group B is taller than group A and never know that the conclusion is an instrument artefact.
 
 The fix needs a *gold-standard subsample*: a small set of cases where both the cheap and the expensive measurements exist. From that subsample you estimate the bias, then subtract it from the rest of group B.
 
@@ -284,7 +284,7 @@ ex_err
 #> 2 B           2.98
 ```
 
-**Explanation:** Subtracting `true_height` from `measured` gives the per-row error. Averaging by group reveals the systematic bias — group A is unbiased, group B carries a +3 cm shift.
+**Explanation:** Subtracting `true_height` from `measured` gives the per-row error. Averaging by group reveals the systematic bias, group A is unbiased, group B carries a +3 cm shift.
 
 </details>
 
@@ -315,7 +315,7 @@ loans2 |>
 #> 2 B             0.582
 ```
 
-The model is *score-only*, so its raw positive rate is the same in both groups — a useful sanity check. The bias only shows up when you compare predictions against the actual approval outcomes, which is what a confusion matrix does.
+The model is *score-only*, so its raw positive rate is the same in both groups, a useful sanity check. The bias only shows up when you compare predictions against the actual approval outcomes, which is what a confusion matrix does.
 
 ```r
 cm <- loans2 |>
@@ -334,7 +334,7 @@ cm
 #> 2 B       138   154    86   124
 ```
 
-Three fairness metrics fall out of these four numbers per group. Each one captures a different definition of "fair," and they all conflict with each other when base rates differ — so you must pick the one that matches the harm you are trying to prevent.
+Three fairness metrics fall out of these four numbers per group. Each one captures a different definition of "fair," and they all conflict with each other when base rates differ, so you must pick the one that matches the harm you are trying to prevent.
 
 **Demographic parity** asks whether the model's positive rate is the same across groups:
 
@@ -348,7 +348,7 @@ $$\text{EO}_g = \frac{TP_g}{TP_g + FN_g}$$
 
 $$\text{PE}_g = \frac{FP_g}{FP_g + TN_g}$$
 
-Where, in each formula, $g$ indexes the protected group and the four counts come from that group's confusion matrix. *If formulas aren't your preferred way to learn — skip to the code, the table at the end of this section says the same thing.*
+Where, in each formula, $g$ indexes the protected group and the four counts come from that group's confusion matrix. *If formulas aren't your preferred way to learn, skip to the code, the table at the end of this section says the same thing.*
 
 ```r
 fair <- cm |>
@@ -365,7 +365,7 @@ fair
 #> 2 B       138   154    86   124       0.582         0.616       0.554
 ```
 
-Demographic parity is roughly equal at 0.58, and equal opportunity is roughly equal at 0.61 — the score-only model treats both groups the same when you measure it through those lenses. Predictive equality is the one that diverges: group B has a 5-point higher false positive rate, meaning the model wrongly approves more unqualified group B applicants. That is a real harm to the applicants whose loans go bad.
+Demographic parity is roughly equal at 0.58, and equal opportunity is roughly equal at 0.61, the score-only model treats both groups the same when you measure it through those lenses. Predictive equality is the one that diverges: group B has a 5-point higher false positive rate, meaning the model wrongly approves more unqualified group B applicants. That is a real harm to the applicants whose loans go bad.
 
 A picture makes the comparison faster:
 
@@ -387,7 +387,7 @@ ggplot(fair_long, aes(x = metric, y = value, fill = group)) +
 ```
 
 [KEY INSIGHT]
-**No single model can satisfy all fairness metrics at once when base rates differ between groups.** This is a mathematical impossibility, not an engineering failure. Pick the metric that matches the harm — equal opportunity when missing a qualified person is the worst outcome, predictive equality when wrongly accepting someone is.
+**No single model can satisfy all fairness metrics at once when base rates differ between groups.** This is a mathematical impossibility, not an engineering failure. Pick the metric that matches the harm, equal opportunity when missing a qualified person is the worst outcome, predictive equality when wrongly accepting someone is.
 
 **Try it:** Change the classification threshold from 0.5 to 0.6 and re-compute the demographic parity. Predict the direction of the change *before* you run the code.
 
@@ -414,13 +414,13 @@ ex_thresh |>
 #> 2 B          0.402
 ```
 
-**Explanation:** Raising the threshold from 0.5 to 0.6 makes the model stricter, so the positive rate drops in both groups by roughly the same amount. Demographic parity stays balanced because the model uses the same threshold for everyone — but, as you'll see in the next section, that uniform rule is exactly what creates downstream unfairness when groups have different score distributions.
+**Explanation:** Raising the threshold from 0.5 to 0.6 makes the model stricter, so the positive rate drops in both groups by roughly the same amount. Demographic parity stays balanced because the model uses the same threshold for everyone, but, as you'll see in the next section, that uniform rule is exactly what creates downstream unfairness when groups have different score distributions.
 
 </details>
 
 ## What can you do once you find bias?
 
-Detection without mitigation is just a status report. Once you know which layer carries the bias — sampling, measurement, or algorithm — there are three practical levers that work without rebuilding your entire pipeline.
+Detection without mitigation is just a status report. Once you know which layer carries the bias, sampling, measurement, or algorithm, there are three practical levers that work without rebuilding your entire pipeline.
 
 The first lever is **reweighting**: assign higher importance to under-represented samples when fitting the model. In `glm()` this is the `weights` argument. The second is **threshold adjustment**: pick group-specific decision thresholds that equalise a chosen fairness metric. The third is **feature surgery**: drop or transform variables that act as proxies for the protected attribute, even if the protected attribute itself is not in the model.
 
@@ -449,12 +449,12 @@ loans3 |>
 #> 2 B     0.493 0.580
 ```
 
-Group B's false positive rate is now 0.493 — slightly below group A's 0.510. The gap is closed, but at a cost: group B's true positive rate also dropped from 0.616 to 0.580, meaning a few more *qualified* group-B applicants get rejected. This is the central trade-off in fairness work — every mitigation moves something somewhere.
+Group B's false positive rate is now 0.493, slightly below group A's 0.510. The gap is closed, but at a cost: group B's true positive rate also dropped from 0.616 to 0.580, meaning a few more *qualified* group-B applicants get rejected. This is the central trade-off in fairness work, every mitigation moves something somewhere.
 
 [NOTE]
 **Mitigation always trades something away.** Document which fairness metric you optimised for, which one you sacrificed, and who bears the cost. A bias audit that buries the trade-off is just a different kind of bias.
 
-**Try it:** Fit the loan model with reweighting — give group B observations twice the weight of group A — and compute the new demographic parity ratio.
+**Try it:** Fit the loan model with reweighting, give group B observations twice the weight of group A, and compute the new demographic parity ratio.
 
 ```r
 # Try it: refit with weights
@@ -482,7 +482,7 @@ ex_weighted |>
 #> 2 B             0.582
 ```
 
-**Explanation:** Because the model only uses `score`, reweighting on group does not change the score-to-prediction mapping. Reweighting moves the needle when there are *features* whose relationships differ across groups — try adding a noisy second predictor and watch the result change.
+**Explanation:** Because the model only uses `score`, reweighting on group does not change the score-to-prediction mapping. Reweighting moves the needle when there are *features* whose relationships differ across groups, try adding a noisy second predictor and watch the result change.
 
 </details>
 
@@ -547,13 +547,13 @@ hire_data |>
 #> 2     B      0.318
 ```
 
-**Explanation:** Sampling is fine (rep ratios near 1). Measurement is biased — group B's noisy scores are about 3 points lower than the clean truth. The model, trained on the clean column, still produces a 25-point demographic-parity gap because the *outcome* it was trained on is biased. Fixing the model alone would not be enough.
+**Explanation:** Sampling is fine (rep ratios near 1). Measurement is biased, group B's noisy scores are about 3 points lower than the clean truth. The model, trained on the clean column, still produces a 25-point demographic-parity gap because the *outcome* it was trained on is biased. Fixing the model alone would not be enough.
 
 </details>
 
 ### Exercise 2: Pick the right fairness metric for the harm
 
-You are auditing a loan-default model where a false positive (wrongly approving someone who defaults) ruins an applicant's credit history for years, while a false negative (wrongly rejecting someone who would have repaid) means they have to apply elsewhere. Write a short R chunk that prints which fairness metric — demographic parity, equal opportunity, or predictive equality — best matches this harm pattern, with a one-line comment justifying the choice.
+You are auditing a loan-default model where a false positive (wrongly approving someone who defaults) ruins an applicant's credit history for years, while a false negative (wrongly rejecting someone who would have repaid) means they have to apply elsewhere. Write a short R chunk that prints which fairness metric, demographic parity, equal opportunity, or predictive equality, best matches this harm pattern, with a one-line comment justifying the choice.
 
 ```r
 # Exercise 2: choose the right metric
@@ -620,7 +620,7 @@ c(reweighting = round(gap_w, 3), threshold = round(gap_t, 3))
 
 ## Complete Example: An end-to-end salary audit
 
-This pipeline ties everything together — sampling, measurement, model, mitigation — on a fresh synthetic dataset.
+This pipeline ties everything together, sampling, measurement, model, mitigation, on a fresh synthetic dataset.
 
 ```r
 set.seed(2027)
@@ -678,7 +678,7 @@ salaries |>
 #> 2     B 0.341
 ```
 
-The audit caught bias at every layer. Sampling: a chi-squared p of 0.001 says the 55/45 split is significantly different from the assumed 50/50 reference. Measurement: the gold-standard subsample reveals reported salaries under-state group B by about $2,000. Algorithm: the single-feature model has identical positive rates per group on paper, but the per-group true positive rate is 0.345 for A and 0.249 for B — qualified group B candidates are missed at a higher rate. Lowering the group-B threshold to 0.42 closes the equal-opportunity gap to less than half a percentage point, at the cost of a slightly higher group-B false positive rate. Every fix gets logged in the same audit report so reviewers can see exactly what was done and why.
+The audit caught bias at every layer. Sampling: a chi-squared p of 0.001 says the 55/45 split is significantly different from the assumed 50/50 reference. Measurement: the gold-standard subsample reveals reported salaries under-state group B by about $2,000. Algorithm: the single-feature model has identical positive rates per group on paper, but the per-group true positive rate is 0.345 for A and 0.249 for B, qualified group B candidates are missed at a higher rate. Lowering the group-B threshold to 0.42 closes the equal-opportunity gap to less than half a percentage point, at the cost of a slightly higher group-B false positive rate. Every fix gets logged in the same audit report so reviewers can see exactly what was done and why.
 
 ## Summary
 
@@ -695,17 +695,17 @@ The most important rule is also the easiest to forget: fairness metrics conflict
 
 ## References
 
-1. Wickham, H. & Grolemund, G. — *R for Data Science* (2nd ed.). [Link](https://r4ds.hadley.nz/)
-2. Mehrabi, N. et al. — A Survey on Bias and Fairness in Machine Learning. ACM Computing Surveys (2021). [Link](https://arxiv.org/abs/1908.09635)
-3. Kozodoi, N. & Varga, T. — fairness R package vignette. [Link](https://cran.r-project.org/web/packages/fairness/vignettes/fairness.html)
-4. Hardt, M., Price, E., & Srebro, N. — Equality of Opportunity in Supervised Learning. NeurIPS (2016). [Link](https://arxiv.org/abs/1610.02413)
-5. Barocas, S., Hardt, M., Narayanan, A. — *Fairness and Machine Learning*. [Link](https://fairmlbook.org/)
-6. Wiśniewski, J. & Biecek, P. — fairmodels: A Flexible Tool for Bias Detection. R Journal (2022). [Link](https://journal.r-project.org/articles/RJ-2022-019/)
-7. Angwin, J. et al. — Machine Bias (COMPAS investigation), ProPublica. [Link](https://www.propublica.org/article/machine-bias-risk-assessments-in-criminal-sentencing)
-8. US Equal Employment Opportunity Commission — The Four-Fifths (80%) Rule. [Link](https://www.eeoc.gov/)
+1. Wickham, H. & Grolemund, G., *R for Data Science* (2nd ed.). [Link](https://r4ds.hadley.nz/)
+2. Mehrabi, N. et al., A Survey on Bias and Fairness in Machine Learning. ACM Computing Surveys (2021). [Link](https://arxiv.org/abs/1908.09635)
+3. Kozodoi, N. & Varga, T., fairness R package vignette. [Link](https://cran.r-project.org/web/packages/fairness/vignettes/fairness.html)
+4. Hardt, M., Price, E., & Srebro, N., Equality of Opportunity in Supervised Learning. NeurIPS (2016). [Link](https://arxiv.org/abs/1610.02413)
+5. Barocas, S., Hardt, M., Narayanan, A., *Fairness and Machine Learning*. [Link](https://fairmlbook.org/)
+6. Wiśniewski, J. & Biecek, P., fairmodels: A Flexible Tool for Bias Detection. R Journal (2022). [Link](https://journal.r-project.org/articles/RJ-2022-019/)
+7. Angwin, J. et al., Machine Bias (COMPAS investigation), ProPublica. [Link](https://www.propublica.org/article/machine-bias-risk-assessments-in-criminal-sentencing)
+8. US Equal Employment Opportunity Commission, The Four-Fifths (80%) Rule. [Link](https://www.eeoc.gov/)
 
 ## Continue Learning
 
-1. [Data Ethics in R](Data-Ethics-in-R.html) — the questions to ask *before* you run any of the audits in this guide.
-2. [R and the Reproducibility Crisis](Reproducibility-Crisis.html) — once your analysis is unbiased, make sure someone else can re-run it.
-3. [Communicating Uncertainty in R](Communicating-Uncertainty.html) — show your audited results without overstating their certainty.
+1. [Data Ethics in R](Data-Ethics-in-R.html), the questions to ask *before* you run any of the audits in this guide.
+2. [R and the Reproducibility Crisis](Reproducibility-Crisis.html), once your analysis is unbiased, make sure someone else can re-run it.
+3. [Communicating Uncertainty in R](Communicating-Uncertainty.html), show your audited results without overstating their certainty.

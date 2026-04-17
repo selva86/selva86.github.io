@@ -1,7 +1,7 @@
 ---
-title: "R Data Import Exercises: 10 read_csv(), read_excel() Practice Problems — Solved Step-by-Step"
+title: "R Data Import Exercises: 10 read_csv(), read_excel() Practice Problems, Solved Step-by-Step"
 slug: "R-Data-Import-Exercises"
-description: "Ten hands-on R data import exercises: read_csv(), read_delim(), column types, NA handling, skipping metadata, multi-file reads — with full worked solutions."
+description: "Ten hands-on R data import exercises: read_csv(), read_delim(), column types, NA handling, skipping metadata, multi-file reads, with full worked solutions."
 keywords: "R data import exercises, read_csv exercises, readr practice, read_delim exercises, col_types exercises, import practice problems R, readxl exercises, R csv parsing practice"
 mathjax: false
 webr: true
@@ -18,19 +18,19 @@ difficulty: "Intermediate"
 
 # R Data Import Exercises: 10 read_csv(), read_excel() Practice Problems
 
-<p class="lead">Ten practical exercises drill <code>read_csv()</code>, <code>read_delim()</code>, column types, missing values, and multi-file imports in R — each with a runnable solution and inline output you can verify in your browser.</p>
+<p class="lead">Ten practical exercises drill <code>read_csv()</code>, <code>read_delim()</code>, column types, missing values, and multi-file imports in R, each with a runnable solution and inline output you can verify in your browser.</p>
 
 ## Introduction
 
 Reading the `readr` reference page is one thing. Applying it to a file with stray metadata rows, leading-zero zip codes, and three different spellings of "missing" is another. These ten problems close that gap. Each one targets a specific import skill that trips real analysts on their first messy CSV.
 
-You will start with straight CSV reads, then move to column-type control and NA handling, and finish by combining multiple files with mismatched columns. All solutions run in one shared R session, so use `ans1`, `ans2`, ... in your own attempts to avoid overwriting the setup datasets. One exercise uses `readxl` for Excel files — its code and expected output are shown inline.
+You will start with straight CSV reads, then move to column-type control and NA handling, and finish by combining multiple files with mismatched columns. All solutions run in one shared R session, so use `ans1`, `ans2`, ... in your own attempts to avoid overwriting the setup datasets. One exercise uses `readxl` for Excel files, its code and expected output are shown inline.
 
 If `read_csv()` and `col_types` are new to you, skim the parent [Importing Data in R](Importing-Data-in-R.html) tutorial first. Otherwise, run the Setup block and begin.
 
 ## Setup: The CSV Snippets We Will Use
 
-Instead of scattering raw CSV strings across every exercise, we define them once here. These are tiny on purpose — a few rows each — so you can eyeball the expected output and catch mistakes without scrolling. Run the block below once; every exercise after it reuses these objects.
+Instead of scattering raw CSV strings across every exercise, we define them once here. These are tiny on purpose, a few rows each, so you can eyeball the expected output and catch mistakes without scrolling. Run the block below once; every exercise after it reuses these objects.
 
 ```r
 # Setup: load libraries and define CSV snippets for every exercise
@@ -102,7 +102,7 @@ cat("Setup complete. CSV snippets ready.\n")
 #> Setup complete. CSV snippets ready.
 ```
 
-Take a quick look at the shape of each snippet. `csv_basic` has 3 rows and 4 columns. `csv_na` contains five rows with missing values expressed as blank, `N/A`, `-`, and `-999` — a deliberate mess. `csv_big` is the only snippet with real volume (1,000 rows), and it only exists so Exercise 8 can demonstrate `n_max`.
+Take a quick look at the shape of each snippet. `csv_basic` has 3 rows and 4 columns. `csv_na` contains five rows with missing values expressed as blank, `N/A`, `-`, and `-999`, a deliberate mess. `csv_big` is the only snippet with real volume (1,000 rows), and it only exists so Exercise 8 can demonstrate `n_max`.
 
 [TIP]
 **Run Setup once per session.** All ten exercises share these objects. If you refresh the browser or reset the R session, re-run the Setup block before trying the next exercise.
@@ -137,7 +137,7 @@ ans1
 #> 3 Keyboard   74.5     0 FALSE
 ```
 
-**Explanation:** `read_csv()` reads comma-separated text (here, a string passed directly instead of a file path) and infers each column's type from the first 1,000 rows. `price` becomes `<dbl>` because it has decimals, `qty` also becomes `<dbl>` because `readr` uses double as its default numeric type, and `in_stock` becomes `<lgl>` because its values are all `TRUE`/`FALSE`. `show_col_types = FALSE` hides the auto-spec message — useful in tutorials, but keep it on when debugging real data.
+**Explanation:** `read_csv()` reads comma-separated text (here, a string passed directly instead of a file path) and infers each column's type from the first 1,000 rows. `price` becomes `<dbl>` because it has decimals, `qty` also becomes `<dbl>` because `readr` uses double as its default numeric type, and `in_stock` becomes `<lgl>` because its values are all `TRUE`/`FALSE`. `show_col_types = FALSE` hides the auto-spec message, useful in tutorials, but keep it on when debugging real data.
 
 </details>
 
@@ -167,7 +167,7 @@ ans2
 #> 3 Carol Sales        68000
 ```
 
-**Explanation:** `read_delim()` is the general-purpose reader — you tell it the delimiter and it handles everything else the same way `read_csv()` does. Pipes (`|`) are common in database exports because commas appear inside free-text fields, so switching the delimiter avoids the need for quoting. The readr shortcuts `read_csv()`, `read_tsv()`, and `read_csv2()` (semicolon, European convention) are just `read_delim()` with the delimiter pre-set.
+**Explanation:** `read_delim()` is the general-purpose reader, you tell it the delimiter and it handles everything else the same way `read_csv()` does. Pipes (`|`) are common in database exports because commas appear inside free-text fields, so switching the delimiter avoids the need for quoting. The readr shortcuts `read_csv()`, `read_tsv()`, and `read_csv2()` (semicolon, European convention) are just `read_delim()` with the delimiter pre-set.
 
 </details>
 
@@ -199,12 +199,12 @@ ans3
 #> 3 Carol 07008   5553344556
 ```
 
-**Explanation:** The `col_types` argument lets you override `read_csv()`'s type guesses on a per-column basis. `col_character()` forces the column to stay as text, so leading zeros survive. You only need to declare the columns you want to override — the rest keep their inferred types. The shorthand `col_types = "ccc"` (three characters: one letter per column) does the same thing when every column is the same type.
+**Explanation:** The `col_types` argument lets you override `read_csv()`'s type guesses on a per-column basis. `col_character()` forces the column to stay as text, so leading zeros survive. You only need to declare the columns you want to override, the rest keep their inferred types. The shorthand `col_types = "ccc"` (three characters: one letter per column) does the same thing when every column is the same type.
 
 </details>
 
 [KEY INSIGHT]
-**Type inference is fast but lossy.** `read_csv()` looks at the top of the file to guess types. That guess is wrong whenever a column looks numeric but is actually an identifier — zip codes, SKUs, phone numbers, product codes with leading zeros. Always declare `col_types` for identifier columns, even when the first few rows look clean.
+**Type inference is fast but lossy.** `read_csv()` looks at the top of the file to guess types. That guess is wrong whenever a column looks numeric but is actually an identifier, zip codes, SKUs, phone numbers, product codes with leading zeros. Always declare `col_types` for identifier columns, even when the first few rows look clean.
 
 ## Core Challenges: Column Types and Missing Data (Exercises 4-6)
 
@@ -212,7 +212,7 @@ Real CSV files rarely come clean. These three exercises fix the three most commo
 
 ### Exercise 4: Handle multiple NA representations in one file
 
-`csv_na` uses four different conventions for missing values — blank, `N/A`, `-`, and `-999`. Read it so that all four become `NA` in R. Save to `ans4` and confirm the total NA count equals 4.
+`csv_na` uses four different conventions for missing values, blank, `N/A`, `-`, and `-999`. Read it so that all four become `NA` in R. Save to `ans4` and confirm the total NA count equals 4.
 
 ```r
 # Exercise 4: normalise all missing value conventions
@@ -243,7 +243,7 @@ sum(is.na(ans4))
 #> [1] 4
 ```
 
-**Explanation:** `read_csv()` treats `""` and `"NA"` as missing by default. Anything else — `N/A`, `-`, `-999`, or a custom sentinel — has to be declared through the `na` argument. Pass a character vector of every spelling you want converted, and `readr` applies them before type inference runs. That matters: if you forget `"-999"`, the `score` column would be read as numeric with an outlier, and imputing the mean would quietly poison your analysis.
+**Explanation:** `read_csv()` treats `""` and `"NA"` as missing by default. Anything else, `N/A`, `-`, `-999`, or a custom sentinel, has to be declared through the `na` argument. Pass a character vector of every spelling you want converted, and `readr` applies them before type inference runs. That matters: if you forget `"-999"`, the `score` column would be read as numeric with an outlier, and imputing the mean would quietly poison your analysis.
 
 </details>
 
@@ -277,7 +277,7 @@ class(ans5$date)
 #> [1] "Date"
 ```
 
-**Explanation:** `col_date()` turns a character column into a true `Date` at read time, using the `strptime` format codes (`%Y` year, `%m` month, `%d` day). Parsing dates up front is worth the extra keystrokes — once the column is a `Date` you get sort, filter, and arithmetic for free. The alternative, parsing later with `lubridate::mdy()`, works but means your column is wrong until you remember to fix it.
+**Explanation:** `col_date()` turns a character column into a true `Date` at read time, using the `strptime` format codes (`%Y` year, `%m` month, `%d` day). Parsing dates up front is worth the extra keystrokes, once the column is a `Date` you get sort, filter, and arithmetic for free. The alternative, parsing later with `lubridate::mdy()`, works but means your column is wrong until you remember to fix it.
 
 </details>
 
@@ -306,7 +306,7 @@ ans6
 #> 2 Mouse     450   500
 ```
 
-**Explanation:** `skip = N` tells `readr` to ignore the first `N` lines entirely — they never enter the parser, so the next line becomes the header. This works for any fixed-length preamble. For variable-length metadata (for example, "skip until you hit a blank line"), use `comment = "#"` or read the whole file with `read_lines()` and filter before parsing. Pair `skip` with `col_names` when the file has no header at all.
+**Explanation:** `skip = N` tells `readr` to ignore the first `N` lines entirely, they never enter the parser, so the next line becomes the header. This works for any fixed-length preamble. For variable-length metadata (for example, "skip until you hit a blank line"), use `comment = "#"` or read the whole file with `read_lines()` and filter before parsing. Pair `skip` with `col_names` when the file has no header at all.
 
 </details>
 
@@ -347,13 +347,13 @@ head(ans7, 3)
 #> 3     3
 ```
 
-**Explanation:** `col_select` supports the full `tidyselect` vocabulary, the same DSL `dplyr::select()` uses. You can pass bare names (`col_select = x`), helpers (`col_select = starts_with("value_")`), or negation (`col_select = !c(notes, metadata)`). Columns you drop are never parsed, so on wide files the performance gain is real — not just a post-read convenience.
+**Explanation:** `col_select` supports the full `tidyselect` vocabulary, the same DSL `dplyr::select()` uses. You can pass bare names (`col_select = x`), helpers (`col_select = starts_with("value_")`), or negation (`col_select = !c(notes, metadata)`). Columns you drop are never parsed, so on wide files the performance gain is real, not just a post-read convenience.
 
 </details>
 
 ### Exercise 8: Read only the first few rows
 
-When you want a fast preview of a file — schema, first few values, rough shape — you do not need to read the whole thing. Use `n_max` to read the first 5 rows of `csv_big` and save to `ans8`.
+When you want a fast preview of a file, schema, first few values, rough shape, you do not need to read the whole thing. Use `n_max` to read the first 5 rows of `csv_big` and save to `ans8`.
 
 ```r
 # Exercise 8: read the first 5 rows of csv_big
@@ -379,7 +379,7 @@ ans8
 #> 5     5 0.202
 ```
 
-**Explanation:** `n_max` caps the number of data rows read — not counting the header. Pair it with `col_types = cols(.default = col_character())` when you just want to look at raw text and do not care about type inference yet. For really large files, `n_max` is much faster than reading everything and then calling `head()`, because `read_csv()` stops parsing the moment it hits the row limit.
+**Explanation:** `n_max` caps the number of data rows read, not counting the header. Pair it with `col_types = cols(.default = col_character())` when you just want to look at raw text and do not care about type inference yet. For really large files, `n_max` is much faster than reading everything and then calling `head()`, because `read_csv()` stops parsing the moment it hits the row limit.
 
 </details>
 
@@ -416,7 +416,7 @@ ans9
 #> 4 2026-02-02    130 Feb
 ```
 
-**Explanation:** `bind_rows()` stacks data frames vertically and aligns columns by name, not position — missing columns become `NA`, which saves you from silent misalignment bugs. Tagging each piece with its source (`month = "Jan"`) before binding is the key habit: once rows are mixed, you cannot tell them apart. For many files, wrap this pattern in `purrr::map_dfr(files, ~read_csv(.x) |> mutate(source = .x))` to read and tag in one pass.
+**Explanation:** `bind_rows()` stacks data frames vertically and aligns columns by name, not position, missing columns become `NA`, which saves you from silent misalignment bugs. Tagging each piece with its source (`month = "Jan"`) before binding is the key habit: once rows are mixed, you cannot tell them apart. For many files, wrap this pattern in `purrr::map_dfr(files, ~read_csv(.x) |> mutate(source = .x))` to read and tag in one pass.
 
 </details>
 
@@ -458,7 +458,7 @@ ans10
 </details>
 
 [KEY INSIGHT]
-**`readr` and `readxl` share one mental model: you describe the file, R parses it.** Whether the source is CSV, TSV, pipe-delimited, or Excel, the workflow is the same — point at the file, declare the column types you care about, and let the parser handle the rest. Learning one package teaches you most of the other.
+**`readr` and `readxl` share one mental model: you describe the file, R parses it.** Whether the source is CSV, TSV, pipe-delimited, or Excel, the workflow is the same, point at the file, declare the column types you care about, and let the parser handle the rest. Learning one package teaches you most of the other.
 
 ## Common Mistakes and How to Fix Them
 
@@ -555,7 +555,7 @@ Use the `col_types` argument with `cols()`: `read_csv("file.csv", col_types = co
 
 ### What NA strings does read_csv() treat as missing by default?
 
-Only two: an empty string (`""`) and the literal text `"NA"`. Everything else — `N/A`, `-`, `-999`, `NULL`, `None`, `#N/A` — is read as a normal value. Pass the full set to the `na` argument whenever you import data from a new source.
+Only two: an empty string (`""`) and the literal text `"NA"`. Everything else, `N/A`, `-`, `-999`, `NULL`, `None`, `#N/A`, is read as a normal value. Pass the full set to the `na` argument whenever you import data from a new source.
 
 ### How do I read a very large CSV efficiently in R?
 
@@ -563,19 +563,19 @@ For files over a few hundred megabytes, `data.table::fread()` is usually the fas
 
 ## References
 
-1. readr documentation — `read_csv()` reference. [Link](https://readr.tidyverse.org/reference/read_delim.html)
-2. readr documentation — `cols()` and column specification. [Link](https://readr.tidyverse.org/reference/cols.html)
-3. Wickham, H. & Grolemund, G. — *R for Data Science*, 2nd Edition. Chapter 7: Data Import. [Link](https://r4ds.hadley.nz/data-import.html)
-4. Tidyverse blog — readr 2.0.0 release notes. [Link](https://www.tidyverse.org/blog/2021/07/readr-2-0-0/)
-5. readxl documentation — `read_excel()` reference. [Link](https://readxl.tidyverse.org/reference/read_excel.html)
-6. R Core Team — *R Data Import/Export* manual. [Link](https://cran.r-project.org/doc/manuals/r-release/R-data.html)
-7. data.table documentation — `fread()` reference. [Link](https://rdatatable.gitlab.io/data.table/reference/fread.html)
-8. vroom package — fast delimited file reading. [Link](https://vroom.r-lib.org/)
+1. readr documentation, `read_csv()` reference. [Link](https://readr.tidyverse.org/reference/read_delim.html)
+2. readr documentation, `cols()` and column specification. [Link](https://readr.tidyverse.org/reference/cols.html)
+3. Wickham, H. & Grolemund, G., *R for Data Science*, 2nd Edition. Chapter 7: Data Import. [Link](https://r4ds.hadley.nz/data-import.html)
+4. Tidyverse blog, readr 2.0.0 release notes. [Link](https://www.tidyverse.org/blog/2021/07/readr-2-0-0/)
+5. readxl documentation, `read_excel()` reference. [Link](https://readxl.tidyverse.org/reference/read_excel.html)
+6. R Core Team, *R Data Import/Export* manual. [Link](https://cran.r-project.org/doc/manuals/r-release/R-data.html)
+7. data.table documentation, `fread()` reference. [Link](https://rdatatable.gitlab.io/data.table/reference/fread.html)
+8. vroom package, fast delimited file reading. [Link](https://vroom.r-lib.org/)
 
 ## Continue Learning
 
 Now that you can import CSVs, handle column types, and combine files, build on these foundations:
 
-- [Importing Data in R](Importing-Data-in-R.html) — review the parent tutorial if any exercise stumped you
-- [Tidy Data in R](Tidy-Data-in-R.html) — reshape imported data into long or wide form for analysis
-- [dplyr Exercises](dplyr-Exercises.html) — practise the filter, select, and summarise verbs you will reach for right after an import
+- [Importing Data in R](Importing-Data-in-R.html), review the parent tutorial if any exercise stumped you
+- [Tidy Data in R](Tidy-Data-in-R.html), reshape imported data into long or wide form for analysis
+- [dplyr Exercises](dplyr-Exercises.html), practise the filter, select, and summarise verbs you will reach for right after an import

@@ -18,13 +18,13 @@ difficulty: "Intermediate"
 
 # ggplot2 Line Charts: Connect Points, Group by Variable, and Style Lines
 
-<p class="lead">A line chart connects observations in sequence to show change over an ordered variable — most often time. In ggplot2, <code>geom_line()</code> draws the connecting lines, while the <code>group</code> aesthetic controls how many lines appear when your data has multiple categories.</p>
+<p class="lead">A line chart connects observations in sequence to show change over an ordered variable, most often time. In ggplot2, <code>geom_line()</code> draws the connecting lines, while the <code>group</code> aesthetic controls how many lines appear when your data has multiple categories.</p>
 
 ## Introduction
 
 Line charts are the natural choice when change over time matters more than individual values. If you want to show how unemployment evolved over 40 years, how three tree species grew month by month, or how a stock price moved across a trading day, a line chart tells that story at a glance.
 
-The ggplot2 implementation is clean: `geom_line()` connects your data points in order of the x variable. But there is one subtlety that trips up nearly every new ggplot2 user — the `group` aesthetic. Without it, a dataset with multiple categories produces a zigzag mess instead of separate smooth lines. Once you understand that, everything else falls into place.
+The ggplot2 implementation is clean: `geom_line()` connects your data points in order of the x variable. But there is one subtlety that trips up nearly every new ggplot2 user, the `group` aesthetic. Without it, a dataset with multiple categories produces a zigzag mess instead of separate smooth lines. Once you understand that, everything else falls into place.
 
 In this tutorial, you will learn how to:
 
@@ -35,7 +35,7 @@ In this tutorial, you will learn how to:
 - Plot dates on the x-axis for time series data
 - Choose between `geom_line()`, `geom_step()`, and `geom_path()`
 
-All code blocks share a single WebR session — variables from earlier blocks are available in later ones.
+All code blocks share a single WebR session, variables from earlier blocks are available in later ones.
 
 ## How does geom_line() connect data points?
 
@@ -53,7 +53,7 @@ econ_sm <- subset(economics, date >= as.Date("1995-01-01"))
 head(econ_sm[, c("date", "unemploy", "uempmed")])
 ```
 
-Now draw the simplest possible line chart — unemployment count over time:
+Now draw the simplest possible line chart, unemployment count over time:
 
 ```r
 p_basic <- ggplot(econ_sm, aes(x = date, y = unemploy)) +
@@ -86,12 +86,12 @@ ex_median <- ggplot(econ_sm, aes(x = date, y = uempmed)) +
 ex_median
 ```
 
-`uempmed` is the *median duration* of unemployment, not the total count, so the line spikes much higher during the 2008-2010 recession and decays slowly afterwards — duration stays elevated even once the count starts falling. Only the `y` aesthetic needs to change; the rest of the chart is identical.
+`uempmed` is the *median duration* of unemployment, not the total count, so the line spikes much higher during the 2008-2010 recession and decays slowly afterwards, duration stays elevated even once the count starts falling. Only the `y` aesthetic needs to change; the rest of the chart is identical.
 </details>
 
 ## How do you add point markers to a line chart?
 
-Adding `geom_point()` on top of `geom_line()` marks each individual observation clearly — useful when your data is sparse or you want to emphasize every data point:
+Adding `geom_point()` on top of `geom_line()` marks each individual observation clearly, useful when your data is sparse or you want to emphasize every data point:
 
 ```r
 # Subset to just 2010-2015 to make points visible
@@ -110,9 +110,9 @@ p_points <- ggplot(econ_2010, aes(x = date, y = uempmed)) +
 p_points
 ```
 
-`shape = 21` gives a filled circle with a separate border. Setting `fill = "white"` and `stroke = 1.2` creates the clean "open circle with colored rim" look — easy to see against both light and dark backgrounds.
+`shape = 21` gives a filled circle with a separate border. Setting `fill = "white"` and `stroke = 1.2` creates the clean "open circle with colored rim" look, easy to see against both light and dark backgrounds.
 
-> **TIP:** For dense time series (monthly data over 20+ years), skip the point markers — they clutter the line. Use points only when you have fewer than ~50 observations per line.
+> **TIP:** For dense time series (monthly data over 20+ years), skip the point markers, they clutter the line. Use points only when you have fewer than ~50 observations per line.
 
 **Try it:** Replace `shape = 21, fill = "white"` with `shape = 16` (solid filled circle). Which looks cleaner at this data density?
 
@@ -131,12 +131,12 @@ ex_solid_pts <- ggplot(econ_2010, aes(x = date, y = uempmed)) +
 ex_solid_pts
 ```
 
-`shape = 16` is a solid, filled-through circle that doesn't need `fill` or `stroke`, so the call gets shorter. At this density (about 60 monthly points) both forms look fine — solid circles feel more compact, while the open rim from shape 21 pops more against a dark line when you want each point to really stand out.
+`shape = 16` is a solid, filled-through circle that doesn't need `fill` or `stroke`, so the call gets shorter. At this density (about 60 monthly points) both forms look fine, solid circles feel more compact, while the open rim from shape 21 pops more against a dark line when you want each point to really stand out.
 </details>
 
 ## How do you draw multiple lines by group?
 
-This is the most common stumbling block with `geom_line()`. Suppose your data has one column for the x variable, one for y, and one identifying which group each row belongs to. Without telling ggplot2 about the grouping, it tries to draw one single line through all rows — and since it jumps between groups, you get the dreaded zigzag.
+This is the most common stumbling block with `geom_line()`. Suppose your data has one column for the x variable, one for y, and one identifying which group each row belongs to. Without telling ggplot2 about the grouping, it tries to draw one single line through all rows, and since it jumps between groups, you get the dreaded zigzag.
 
 ![How the group aesthetic controls one-line-per-category behavior.](screenshots/ggplot2-Line-Charts-group-aesthetic.webp)
 
@@ -177,7 +177,7 @@ p_multi
 
 Now each tree gets its own line and color, with a legend generated automatically.
 
-> **KEY INSIGHT:** When you map a variable to `color` in `aes()`, ggplot2 automatically groups by that variable — so `group = Tree` is technically redundant here. You need the explicit `group` aesthetic only when you want multiple lines with the *same* color. For example, `geom_line(aes(group = Tree), color = "grey50")` draws all 5 trees in grey without a legend.
+> **KEY INSIGHT:** When you map a variable to `color` in `aes()`, ggplot2 automatically groups by that variable, so `group = Tree` is technically redundant here. You need the explicit `group` aesthetic only when you want multiple lines with the *same* color. For example, `geom_line(aes(group = Tree), color = "grey50")` draws all 5 trees in grey without a legend.
 
 **Try it:** Remove `color = Tree` from `aes()` and instead set `color = "grey50"` directly in `geom_line()`. How does the chart look without per-tree colors?
 
@@ -195,12 +195,12 @@ ex_grey <- ggplot(Orange, aes(x = age, y = circumference, group = Tree)) +
 ex_grey
 ```
 
-`color = "grey50"` lives outside `aes()`, so it applies to *every* line as a fixed setting — no legend, no colour mapping. You still need `group = Tree` inside `aes()` because without a grouping variable ggplot2 would fall back to one zigzag line across all trees. This style is useful as a background layer to highlight one or two trees on top in a brighter colour.
+`color = "grey50"` lives outside `aes()`, so it applies to *every* line as a fixed setting, no legend, no colour mapping. You still need `group = Tree` inside `aes()` because without a grouping variable ggplot2 would fall back to one zigzag line across all trees. This style is useful as a background layer to highlight one or two trees on top in a brighter colour.
 </details>
 
 ## How do you style lines with color, linetype, and linewidth?
 
-Line styling gives a chart personality — and it's essential for accessibility when color alone can't distinguish groups (e.g., in print or for colorblind readers).
+Line styling gives a chart personality, and it's essential for accessibility when color alone can't distinguish groups (e.g., in print or for colorblind readers).
 
 ```r
 p_style <- ggplot(Orange, aes(
@@ -233,14 +233,14 @@ p_style
 
 | Code | Name | Use when |
 |---|---|---|
-| `"solid"` | —— | Primary series, most important line |
+| `"solid"` |, , | Primary series, most important line |
 | `"dashed"` | - - - | Secondary comparison line |
 | `"dotted"` | ···· | Reference or baseline |
 | `"dotdash"` | -·-· | Fourth category |
-| `"longdash"` | —— - | Fifth category |
+| `"longdash"` |, , - | Fifth category |
 | `"twodash"` | ==- | Rarely needed; use sparingly |
 
-> **TIP:** Map `linetype` alongside `color` for the same grouping variable. This "dual encoding" means readers can distinguish lines both by color and by line pattern — essential for print, photocopies, and colorblind readers. A chart that only uses color will fail for ~8% of male readers.
+> **TIP:** Map `linetype` alongside `color` for the same grouping variable. This "dual encoding" means readers can distinguish lines both by color and by line pattern, essential for print, photocopies, and colorblind readers. A chart that only uses color will fail for ~8% of male readers.
 
 **Try it:** Remove `scale_linetype_manual()` and instead use ggplot2's default linetype scale. Does it still pick a sensible linetype for each tree?
 
@@ -261,7 +261,7 @@ ex_auto_lt <- ggplot(Orange, aes(
 ex_auto_lt
 ```
 
-When you map `linetype = Tree` without a manual scale, ggplot2 picks from its default discrete linetype palette (solid, dashed, dotted, dotdash, longdash) and merges it with the colour legend into one combined key. Note that `scale_linetype_brewer()` doesn't exist — ColorBrewer is colour-only — so the default scale is the right choice when you're happy with the automatic linetype order.
+When you map `linetype = Tree` without a manual scale, ggplot2 picks from its default discrete linetype palette (solid, dashed, dotted, dotdash, longdash) and merges it with the colour legend into one combined key. Note that `scale_linetype_brewer()` doesn't exist, ColorBrewer is colour-only, so the default scale is the right choice when you're happy with the automatic linetype order.
 </details>
 
 ## How do you plot dates and time series on the x-axis?
@@ -288,7 +288,7 @@ p_dates <- ggplot(econ_sm, aes(x = date, y = unemploy)) +
 p_dates
 ```
 
-`geom_area()` adds the shaded fill below the line — a useful visual trick that emphasizes cumulative volume or magnitude. `date_breaks = "3 years"` and `date_labels = "%Y"` control the tick spacing and format.
+`geom_area()` adds the shaded fill below the line, a useful visual trick that emphasizes cumulative volume or magnitude. `date_breaks = "3 years"` and `date_labels = "%Y"` control the tick spacing and format.
 
 **`date_labels` format codes:**
 
@@ -319,18 +319,18 @@ ex_dates <- ggplot(econ_sm, aes(x = date, y = unemploy)) +
 ex_dates
 ```
 
-`date_breaks = "2 years"` puts a tick every two years instead of every three, so you get roughly 11 ticks across the 20-year window. `date_labels = "%b %Y"` formats each tick as "Jan 1995", "Jan 1997", etc., which is more precise than the bare year but also wider — on a narrow plot the labels may start to overlap and you'd need `theme(axis.text.x = element_text(angle = 45, hjust = 1))` to tilt them.
+`date_breaks = "2 years"` puts a tick every two years instead of every three, so you get roughly 11 ticks across the 20-year window. `date_labels = "%b %Y"` formats each tick as "Jan 1995", "Jan 1997", etc., which is more precise than the bare year but also wider, on a narrow plot the labels may start to overlap and you'd need `theme(axis.text.x = element_text(angle = 45, hjust = 1))` to tilt them.
 </details>
 
 ## When should you use geom_step() or geom_path() instead?
 
-Most line charts use `geom_line()` — but ggplot2 offers two close relatives for specific situations.
+Most line charts use `geom_line()`, but ggplot2 offers two close relatives for specific situations.
 
 ![Decision guide: geom_line(), geom_path(), or geom_step()?](screenshots/ggplot2-Line-Charts-geom-choice.webp)
 
 *Figure 1: Decision guide: geom_line(), geom_path(), or geom_step().*
 
-**`geom_step()`** creates a staircase line — horizontal then vertical segments — instead of diagonal connections. Use it when the value is truly constant between observations (step functions): pricing tiers, stock bid/ask updates, inventory levels.
+**`geom_step()`** creates a staircase line, horizontal then vertical segments, instead of diagonal connections. Use it when the value is truly constant between observations (step functions): pricing tiers, stock bid/ask updates, inventory levels.
 
 ```r
 # geom_step vs geom_line on the same data
@@ -356,7 +356,7 @@ p_step <- ggplot(
 p_step
 ```
 
-**`geom_path()`** connects points in *row order* instead of x-sorted order. It's used for trajectory plots where the sequence of observations matters but isn't tied to a sorted x-axis — for example, a scatterplot of longitude vs latitude traced over time.
+**`geom_path()`** connects points in *row order* instead of x-sorted order. It's used for trajectory plots where the sequence of observations matters but isn't tied to a sorted x-axis, for example, a scatterplot of longitude vs latitude traced over time.
 
 > **TIP:** For 99% of time series charts, `geom_line()` is correct. Reach for `geom_step()` only when your value is a step function (holds constant until it jumps). Use `geom_path()` only for trajectory plots where row order is meaningful.
 
@@ -379,7 +379,7 @@ ex_path <- ggplot(
 ex_path
 ```
 
-`geom_path()` connects observations in *row order* with diagonal segments — no staircase. Because `economics` is already sorted by date, the visual result here is identical to `geom_line()`. The difference would only show up if you shuffled the rows: `geom_line()` would re-sort by x, while `geom_path()` would draw in whatever order the rows happened to sit.
+`geom_path()` connects observations in *row order* with diagonal segments, no staircase. Because `economics` is already sorted by date, the visual result here is identical to `geom_line()`. The difference would only show up if you shuffled the rows: `geom_line()` would re-sort by x, while `geom_path()` would draw in whatever order the rows happened to sit.
 </details>
 
 ## Common Mistakes and How to Fix Them
@@ -434,7 +434,7 @@ ggplot(df, aes(x = date, y = value)) + geom_line()
 
 ### Mistake 4: Connecting lines across missing values (NAs)
 
-❌ If your time series has missing months, `geom_line()` silently skips them — the line jumps over the gap without any visual indication.
+❌ If your time series has missing months, `geom_line()` silently skips them, the line jumps over the gap without any visual indication.
 
 ✅ Insert an explicit `NA` row for the missing period. When ggplot2 encounters `NA` in y, it breaks the line at that point, creating a visible gap:
 
@@ -444,7 +444,7 @@ df[nrow(df) + 1, ] <- list(as.Date("2020-06-01"), NA)
 
 ### Mistake 5: Using too many lines without a strategy
 
-❌ Plotting 10+ lines on the same chart creates spaghetti — no one line is distinguishable.
+❌ Plotting 10+ lines on the same chart creates spaghetti, no one line is distinguishable.
 
 ✅ Use `facet_wrap()` to give each group its own panel, or highlight just 1-2 key lines and grey out the rest. Less is more.
 
@@ -485,7 +485,7 @@ econ_05 <- subset(economics, date >= as.Date("2005-01-01"))
 
 ## Complete Example
 
-This final chart uses faceting to show four economic indicators side-by-side, with individual trend lines per facet — a clean way to compare multiple time series without overloading a single panel.
+This final chart uses faceting to show four economic indicators side-by-side, with individual trend lines per facet, a clean way to compare multiple time series without overloading a single panel.
 
 ```r
 library(tidyr)
@@ -528,7 +528,7 @@ p_final <- ggplot(econ_long, aes(x = date, y = value)) +
 p_final
 ```
 
-`scales = "free_y"` lets each panel use its own y-axis range — critical when your metrics have very different magnitudes (thousands vs percentages vs billions).
+`scales = "free_y"` lets each panel use its own y-axis range, critical when your metrics have very different magnitudes (thousands vs percentages vs billions).
 
 ## Summary
 
@@ -546,7 +546,7 @@ p_final
 | Compare metrics | `facet_wrap(~ metric, scales = "free_y")` |
 
 Key rules:
-- Map grouping variable to `color`, `linetype`, or `group` — without grouping, multi-category data produces a zigzag
+- Map grouping variable to `color`, `linetype`, or `group`, without grouping, multi-category data produces a zigzag
 - Use `linewidth` (not `size`) to control line thickness in ggplot2 3.4+
 - Convert date columns to `Date` class before plotting for correct time axis behavior
 - Dual-encode with both `color` and `linetype` for colorblind accessibility
@@ -559,7 +559,7 @@ You have a multi-category dataset but haven't told ggplot2 about the grouping. A
 
 **What is the difference between geom_line() and geom_path()?**
 
-`geom_line()` connects points sorted by x-axis value. `geom_path()` connects points in their original row order — regardless of x value. For most time series, `geom_line()` is correct. Use `geom_path()` for trajectory plots where row sequence (not x order) defines the path.
+`geom_line()` connects points sorted by x-axis value. `geom_path()` connects points in their original row order, regardless of x value. For most time series, `geom_line()` is correct. Use `geom_path()` for trajectory plots where row sequence (not x order) defines the path.
 
 **How do I control the order lines appear in the legend?**
 
@@ -569,21 +569,21 @@ Convert your grouping variable to a factor with levels in the desired order befo
 
 Use `geom_hline(yintercept = 0, linetype = "dashed", color = "grey50")`. For a vertical reference line, use `geom_vline(xintercept = as.Date("2008-09-01"))`.
 
-**My line disappears at certain x values — what is happening?**
+**My line disappears at certain x values, what is happening?**
 
-Your data likely has `NA` values in the y column at those positions. `geom_line()` breaks the line at `NA` points and restarts on the other side, which creates visible gaps. If you want the line to connect through missing values (not recommended, as it's misleading), use `na.rm = TRUE` — but inserting explicit `NA` rows to mark the gap is the honest approach.
+Your data likely has `NA` values in the y column at those positions. `geom_line()` breaks the line at `NA` points and restarts on the other side, which creates visible gaps. If you want the line to connect through missing values (not recommended, as it's misleading), use `na.rm = TRUE`, but inserting explicit `NA` rows to mark the gap is the honest approach.
 
 ## References
 
 1. Wickham, H. (2016). *ggplot2: Elegant Graphics for Data Analysis*. Springer. https://ggplot2-book.org/
-2. ggplot2 reference — `geom_line()`. https://ggplot2.tidyverse.org/reference/geom_path.html
-3. ggplot2 reference — `scale_x_date()`. https://ggplot2.tidyverse.org/reference/scale_date.html
+2. ggplot2 reference, `geom_line()`. https://ggplot2.tidyverse.org/reference/geom_path.html
+3. ggplot2 reference, `scale_x_date()`. https://ggplot2.tidyverse.org/reference/scale_date.html
 4. Wilke, C. O. (2019). *Fundamentals of Data Visualization*, Chapter 13: Visualizing Time Series. https://clauswilke.com/dataviz/
-5. R Graph Gallery — Line Charts. https://r-graph-gallery.com/line-chart-ggplot2.html
+5. R Graph Gallery, Line Charts. https://r-graph-gallery.com/line-chart-ggplot2.html
 6. Healy, K. (2018). *Data Visualization: A Practical Introduction*. Princeton University Press. https://socviz.co/
 
 ## Continue Learning
 
-- **ggplot2 Bar Charts** — compare counts and values across categories with `geom_bar()` and `geom_col()`, including stacked and dodged variants.
-- **ggplot2 Distribution Charts** — understand data spread with histograms, density plots, boxplots, and violin plots.
-- **ggplot2 Scatter Plots** — explore relationships between two continuous variables with `geom_point()`, color mapping, and trend lines.
+- **ggplot2 Bar Charts**, compare counts and values across categories with `geom_bar()` and `geom_col()`, including stacked and dodged variants.
+- **ggplot2 Distribution Charts**, understand data spread with histograms, density plots, boxplots, and violin plots.
+- **ggplot2 Scatter Plots**, explore relationships between two continuous variables with `geom_point()`, color mapping, and trend lines.

@@ -18,11 +18,11 @@ difficulty: "Beginner"
 
 # R Function Operators: Transform Existing Functions Without Rewriting Them
 
-<p class="lead">A function operator in R takes one or more functions as input and returns a new, transformed function. Unlike function factories that take settings, operators take functions themselves — letting you compose, negate, freeze arguments, or cache results without touching the original code.</p>
+<p class="lead">A function operator in R takes one or more functions as input and returns a new, transformed function. Unlike function factories that take settings, operators take functions themselves, letting you compose, negate, freeze arguments, or cache results without touching the original code.</p>
 
 ## What Is a Function Operator, and When Would You Need One?
 
-Picture the classic "is positive" predicate. You already have `is_positive()`; now you need its opposite. The lazy route is to copy-paste a second function and change the comparison — and now you have two bodies to maintain. Base R's `Negate()` gives you the flip in one line, without touching the original.
+Picture the classic "is positive" predicate. You already have `is_positive()`; now you need its opposite. The lazy route is to copy-paste a second function and change the comparison, and now you have two bodies to maintain. Base R's `Negate()` gives you the flip in one line, without touching the original.
 
 ```r
 # Negate() takes a function, returns its logical opposite
@@ -36,12 +36,12 @@ is_not_positive(nums)
 #> [1]  TRUE  TRUE  TRUE FALSE FALSE  TRUE
 ```
 
-Notice what did *not* happen. We never defined a new function body. `Negate(is_positive)` is the new function — and if tomorrow we change the definition of `is_positive`, the negated version follows automatically. That decoupling is what makes operators valuable: one edit, two aligned behaviours.
+Notice what did *not* happen. We never defined a new function body. `Negate(is_positive)` is the new function, and if tomorrow we change the definition of `is_positive`, the negated version follows automatically. That decoupling is what makes operators valuable: one edit, two aligned behaviours.
 
 [KEY INSIGHT]
 **Function in, function out.** A function *factory* takes settings and returns a function. A function *operator* takes a function and returns a function. Once you recognise that shape, you can wrap any function with new behaviour without rewriting it.
 
-You are not restricted to the operators R ships with. Any function that accepts `f` and returns a new function that calls `f` inside is an operator. Here is the smallest possible example — it applies `f` to its own output, so `twice(sqrt)(16)` becomes `sqrt(sqrt(16))`.
+You are not restricted to the operators R ships with. Any function that accepts `f` and returns a new function that calls `f` inside is an operator. Here is the smallest possible example, it applies `f` to its own output, so `twice(sqrt)(16)` becomes `sqrt(sqrt(16))`.
 
 ```r
 twice <- function(f) {
@@ -57,7 +57,7 @@ twice(sqrt)(16)       # sqrt(sqrt(16)) = sqrt(4) = 2
 #> [1] 2
 ```
 
-The outer `twice` captures `f` in its environment, and the inner anonymous function uses that captured `f` every time the returned function is called. This closure mechanism is the beating heart of every operator in the rest of the post — keep it in mind as we move on.
+The outer `twice` captures `f` in its environment, and the inner anonymous function uses that captured `f` every time the returned function is called. This closure mechanism is the beating heart of every operator in the rest of the post, keep it in mind as we move on.
 
 **Try it:** Write a function operator `ex_thrice(f)` that applies `f` three times in a row. Test it by wrapping `add1` and calling the result on `10`.
 
@@ -91,7 +91,7 @@ ex_add3(10)
 
 ## How Does compose() Chain Functions Into a Single Pipeline?
 
-Composition is how you glue small functions into one bigger function. Mathematically, composing `f` and `g` means "run `g`, then feed the result to `f`". In R, the `purrr` package provides `compose()` to do exactly that — turn a list of functions into one callable unit you can pass around like any other.
+Composition is how you glue small functions into one bigger function. Mathematically, composing `f` and `g` means "run `g`, then feed the result to `f`". In R, the `purrr` package provides `compose()` to do exactly that, turn a list of functions into one callable unit you can pass around like any other.
 
 Here is a classic use: you want the average magnitude of a vector of signed numbers. That is `mean` after `abs`. Without an operator, you would write a wrapper function; with `compose()`, you get the same result in a single line.
 
@@ -104,13 +104,13 @@ abs_mean(vals)
 #> [1] 6.5
 ```
 
-Reading `compose(mean, abs)` feels backwards at first, and that is intentional — by default it matches mathematical notation, where the rightmost function runs first. So `abs_mean(vals)` computes `abs(vals)` first, producing `c(3, 5, 10, 8)`, then passes that to `mean`, which returns `6.5`. The resulting `abs_mean` behaves like any other function: you can reuse it, pass it to `map()`, or compose it further.
+Reading `compose(mean, abs)` feels backwards at first, and that is intentional, by default it matches mathematical notation, where the rightmost function runs first. So `abs_mean(vals)` computes `abs(vals)` first, producing `c(3, 5, 10, 8)`, then passes that to `mean`, which returns `6.5`. The resulting `abs_mean` behaves like any other function: you can reuse it, pass it to `map()`, or compose it further.
 
 ![Composition flow showing data moving through g then f into one function](screenshots/R-Function-Operators-compose-flow.webp)
 
 *Figure 1: How compose(f, g) threads input through g and then f into a single function.*
 
-If that right-to-left order trips you up, tell `compose()` to flip the direction with `.dir = "forward"`. That way the functions execute left to right in the order you list them — more natural when you are already thinking in pipe terms. Here we build a label cleaner that trims whitespace, then lowercases, then removes spaces.
+If that right-to-left order trips you up, tell `compose()` to flip the direction with `.dir = "forward"`. That way the functions execute left to right in the order you list them, more natural when you are already thinking in pipe terms. Here we build a label cleaner that trims whitespace, then lowercases, then removes spaces.
 
 ```r
 clean_label <- compose(trimws, tolower, \(s) gsub(" ", "_", s), .dir = "forward")
@@ -123,10 +123,10 @@ gsub(" ", "_", tolower(trimws(s)))
 #> [1] "hello_world"
 ```
 
-Both versions produce the same answer, but the `compose()` version is a single named object you can reuse on any label. The three-step version is only usable once, in this spot — reuse means copying it. Composition trades one line of definition for indefinite reuse.
+Both versions produce the same answer, but the `compose()` version is a single named object you can reuse on any label. The three-step version is only usable once, in this spot, reuse means copying it. Composition trades one line of definition for indefinite reuse.
 
 [TIP]
-**compose() reads right-to-left by default, left-to-right with .dir="forward".** Stick with the default when you think mathematically (`f(g(x))`), and switch to forward when you are building a pipeline that reads like dplyr or magrittr. The behaviour is identical — only the listing order changes.
+**compose() reads right-to-left by default, left-to-right with .dir="forward".** Stick with the default when you think mathematically (`f(g(x))`), and switch to forward when you are building a pipeline that reads like dplyr or magrittr. The behaviour is identical, only the listing order changes.
 
 **Try it:** Use `compose()` to build `ex_count_unique`, a function that takes a vector and returns the count of distinct values (i.e., `length` of `unique`). Test it on `c(1, 2, 2, 3, 3, 3)`.
 
@@ -153,7 +153,7 @@ ex_count_unique(c(1, 2, 2, 3, 3, 3))
 
 ## How Does partial() Freeze Arguments to Create Specialised Versions?
 
-If `compose()` chains functions, `partial()` specialises them. Partial application means fixing some of a function's arguments in advance and leaving the rest to be filled in later. The result is a new function with a shorter argument list — perfect when you keep calling the same function with the same options.
+If `compose()` chains functions, `partial()` specialises them. Partial application means fixing some of a function's arguments in advance and leaving the rest to be filled in later. The result is a new function with a shorter argument list, perfect when you keep calling the same function with the same options.
 
 The most common case: you are tired of typing `mean(x, na.rm = TRUE)` everywhere. Freeze `na.rm = TRUE` once with `partial()`, and you get an `na.rm`-safe mean that behaves like `mean` minus the missing-value trap.
 
@@ -167,9 +167,9 @@ mean_safe(x_na)
 #> [1] 4
 ```
 
-The original `mean` is untouched — `mean(x_na)` still returns `NA` because we did not set `na.rm`. Our new `mean_safe` is a separate, narrower function that already knows what we want. Pass it to `sapply()` over a list of vectors with missing values and you avoid the `na.rm = TRUE` repetition entirely.
+The original `mean` is untouched, `mean(x_na)` still returns `NA` because we did not set `na.rm`. Our new `mean_safe` is a separate, narrower function that already knows what we want. Pass it to `sapply()` over a list of vectors with missing values and you avoid the `na.rm = TRUE` repetition entirely.
 
-Another favourite: base `log()` takes an optional `base` argument. Freeze that argument and you have a specialised `log2`-style function for any base you want — no new body required.
+Another favourite: base `log()` takes an optional `base` argument. Freeze that argument and you have a specialised `log2`-style function for any base you want, no new body required.
 
 ```r
 log_base2 <- partial(log, base = 2)
@@ -183,10 +183,10 @@ log_base10(c(1, 10, 100, 1000))
 #> [1] 0 1 2 3
 ```
 
-Both `log_base2` and `log_base10` are one-argument functions now — you feed them a number and they return the logarithm. This is how you build a small family of related tools from a single general-purpose function in a couple of lines.
+Both `log_base2` and `log_base10` are one-argument functions now, you feed them a number and they return the logarithm. This is how you build a small family of related tools from a single general-purpose function in a couple of lines.
 
 [WARNING]
-**partial() does not work with NSE functions like dplyr::filter or subset.** Functions that capture their arguments unevaluated — via `substitute()` or tidy evaluation — need the expressions themselves, not pre-filled values. For those, use a regular wrapper function or the `rlang::exec` family instead.
+**partial() does not work with NSE functions like dplyr::filter or subset.** Functions that capture their arguments unevaluated, via `substitute()` or tidy evaluation, need the expressions themselves, not pre-filled values. For those, use a regular wrapper function or the `rlang::exec` family instead.
 
 **Try it:** Use `partial()` to build `ex_round2`, a function that rounds a number to 2 decimal places. Test it on `pi` and on `c(1.2345, 6.789)`.
 
@@ -217,7 +217,7 @@ ex_round2(c(1.2345, 6.789))
 
 ## How Can You Cache Slow Functions to Speed Up Repeat Calls?
 
-Some functions are expensive — a network call, a database query, a simulation that chews through CPU. If you call them twice with the same input, the second call should be free. That is caching, and you can build a function operator that adds caching to any function without touching its source.
+Some functions are expensive, a network call, a database query, a simulation that chews through CPU. If you call them twice with the same input, the second call should be free. That is caching, and you can build a function operator that adds caching to any function without touching its source.
 
 The mechanism is a closure. The operator defines a local list, returns an inner function that (a) checks whether the input has been seen, (b) returns the cached answer if yes, (c) runs the real function and stores the result if no. Because the list lives in the operator's environment, it survives between calls.
 
@@ -236,7 +236,7 @@ cache_fn <- function(f) {
 }
 ```
 
-Two things to notice. The `cache` list is defined *inside* `cache_fn` and captured by the inner function, so every wrapped function gets its own private cache. The `<<-` assignment updates that captured list each time a new input arrives — without it, the update would vanish when the inner function returned.
+Two things to notice. The `cache` list is defined *inside* `cache_fn` and captured by the inner function, so every wrapped function gets its own private cache. The `<<-` assignment updates that captured list each time a new input arrives, without it, the update would vanish when the inner function returned.
 
 ![Cached function flow showing cold path running the function and warm path returning cached value](screenshots/R-Function-Operators-cache-flow.webp)
 
@@ -263,12 +263,12 @@ t2["elapsed"]
 #>    0.00
 ```
 
-Half a second on the first call, zero on the second. The slow computation ran once; every subsequent call with `x = 10` returns the stored value without waking up `slow_double`. For pure functions — where the same input always produces the same output — this is free speed.
+Half a second on the first call, zero on the second. The slow computation ran once; every subsequent call with `x = 10` returns the stored value without waking up `slow_double`. For pure functions, where the same input always produces the same output, this is free speed.
 
 [NOTE]
 **The memoise package provides a production-grade version with hash-based keys.** Install it locally with `install.packages("memoise")` and use `memoise::memoise(f)` to wrap any function, including ones with multi-argument inputs. Our `cache_fn` works for single-argument functions and illustrates the mechanism; switch to `memoise` when you need multi-arg support or invalidation controls.
 
-**Try it:** Wrap a function that returns `Sys.time()` in `cache_fn()` and call it twice with input `"now"`. Both calls should return the same timestamp — because the cache locks in the first one.
+**Try it:** Wrap a function that returns `Sys.time()` in `cache_fn()` and call it twice with input `"now"`. Both calls should return the same timestamp, because the cache locks in the first one.
 
 ```r
 # Try it: cache a function that returns the current time
@@ -291,7 +291,7 @@ identical(first, second)
 #> [1] TRUE
 ```
 
-**Explanation:** The first call stores `Sys.time()` in the closure's cache under key `"now"`. The second call finds the entry and returns it, so the timestamp is frozen — a clear signal the cache is working.
+**Explanation:** The first call stores `Sys.time()` in the closure's cache under key `"now"`. The second call finds the entry and returns it, so the timestamp is frozen, a clear signal the cache is working.
 
 </details>
 
@@ -323,7 +323,7 @@ log_calls <- function(f) {
 }
 ```
 
-The `...` lets the inner function accept whatever `f` accepts — one argument, three arguments, named arguments — without us hard-coding a signature. We print the inputs, run `f(...)`, print the result, and return it unchanged so callers see the same value they would have seen from `f` alone.
+The `...` lets the inner function accept whatever `f` accepts, one argument, three arguments, named arguments, without us hard-coding a signature. We print the inputs, run `f(...)`, print the result, and return it unchanged so callers see the same value they would have seen from `f` alone.
 
 ```r
 noisy_sqrt <- log_calls(sqrt)
@@ -340,7 +340,7 @@ noisy_sqrt(81)
 #> [1] 9
 ```
 
-Every call now logs itself to the console. The original `sqrt` is untouched; `noisy_sqrt` is the wrapped version. Drop this into a long pipeline and you can trace exactly which function saw which value — a debugging superpower that adds zero lines to the functions themselves.
+Every call now logs itself to the console. The original `sqrt` is untouched; `noisy_sqrt` is the wrapped version. Drop this into a long pipeline and you can trace exactly which function saw which value, a debugging superpower that adds zero lines to the functions themselves.
 
 [KEY INSIGHT]
 **Every function operator follows the pattern `function(f) function(...) { ...; f(...); ... }`.** Once you memorise that skeleton, the only question is what to put in the `...` slots: logging, timing, retries, rate limiting, caching, input validation. Each is a one-page operator you can reuse across every function in your project.
@@ -380,7 +380,7 @@ ex_loud_sum(c(1, 2, 3))
 
 ## Practice Exercises
 
-These are harder than the inline exercises — they combine multiple operators or ask you to invent a new one. The variables use distinct names (`my_*`) so your solutions do not collide with the tutorial code above.
+These are harder than the inline exercises, they combine multiple operators or ask you to invent a new one. The variables use distinct names (`my_*`) so your solutions do not collide with the tutorial code above.
 
 ### Exercise 1: clean_mean with compose() and partial()
 
@@ -458,7 +458,7 @@ traced_sum$get_log()
 #> ...
 ```
 
-**Explanation:** Both `wrapped` and `get_log` close over the same `log` variable, so `get_log()` can read what `wrapped` writes. The `<<-` is essential — without it, `log` would reset to an empty list on every call. Returning both functions as a list is how you give the caller read access to the operator's internal state.
+**Explanation:** Both `wrapped` and `get_log` close over the same `log` variable, so `get_log()` can read what `wrapped` writes. The `<<-` is essential, without it, `log` would reset to an empty list on every call. Returning both functions as a list is how you give the caller read access to the operator's internal state.
 
 </details>
 
@@ -516,7 +516,7 @@ safe_flaky(7)
 
 ## Complete Example: A Safer, Faster Summariser
 
-Let us tie it all together. Imagine a costly group-summary routine — in real life it might query a database, fit a model, or read a large file. We simulate the cost with `Sys.sleep(1)`. We will cache it so repeat calls are free, then use `partial()` to specialise it to a specific grouping column so callers do not have to remember the arg name.
+Let us tie it all together. Imagine a costly group-summary routine, in real life it might query a database, fit a model, or read a large file. We simulate the cost with `Sys.sleep(1)`. We will cache it so repeat calls are free, then use `partial()` to specialise it to a specific grouping column so callers do not have to remember the arg name.
 
 ```r
 slow_group_mean <- function(df, group_col, value_col) {
@@ -549,11 +549,11 @@ identical(r1, r2)
 #> [1] TRUE
 ```
 
-The first call pays the simulated one-second cost and computes the group means for `cyl` on `mtcars`. The second call returns the exact same data frame in zero time, because the cache key `"mtcars_cyl_mpg"` is already stored. We combined two operators — `cache_fn` for speed and a closure for the fixed inputs — to turn an expensive routine into a snappy lookup. No change to `slow_group_mean` itself.
+The first call pays the simulated one-second cost and computes the group means for `cyl` on `mtcars`. The second call returns the exact same data frame in zero time, because the cache key `"mtcars_cyl_mpg"` is already stored. We combined two operators, `cache_fn` for speed and a closure for the fixed inputs, to turn an expensive routine into a snappy lookup. No change to `slow_group_mean` itself.
 
 ## Summary
 
-Function operators give you a tiny vocabulary for transforming functions you already have, instead of writing new ones. The four patterns below cover most day-to-day needs, and the fifth — building your own — covers everything else.
+Function operators give you a tiny vocabulary for transforming functions you already have, instead of writing new ones. The four patterns below cover most day-to-day needs, and the fifth, building your own, covers everything else.
 
 ![Mindmap of the four function operators: compose, negate, partial, cache](screenshots/R-Function-Operators-mindmap.webp)
 
@@ -569,22 +569,22 @@ Function operators give you a tiny vocabulary for transforming functions you alr
 Key takeaways:
 
 - Function operators share the shape `function(f) function(...) { ...; f(...); ... }`. Memorise it and you can write any wrapper you need.
-- Closures are the mechanism that makes operators possible — the inner function remembers `f` and any state from the outer call.
+- Closures are the mechanism that makes operators possible, the inner function remembers `f` and any state from the outer call.
 - Compose and partial remove duplicated code; negate flips predicates; caching buys speed on pure functions.
 - `purrr::compose()`, `purrr::negate()`, and `purrr::partial()` are the community-standard implementations; `memoise::memoise()` is the production-grade cache.
 
 ## References
 
-1. Wickham, H. — *Advanced R*, 2nd Edition. CRC Press (2019). Chapter 11: Function operators. [Link](https://adv-r.hadley.nz/function-operators.html)
-2. purrr documentation — `compose()` reference. [Link](https://purrr.tidyverse.org/reference/compose.html)
-3. purrr documentation — `negate()` reference. [Link](https://purrr.tidyverse.org/reference/negate.html)
-4. purrr documentation — `partial()` reference. [Link](https://purrr.tidyverse.org/reference/partial.html)
-5. memoise package — official docs. [Link](https://memoise.r-lib.org/)
-6. R base documentation — `Negate()` and friends. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/funprog.html)
-7. Wickham, H. — *Advanced R*, 2nd Edition. Chapter 10: Function factories (the companion concept). [Link](https://adv-r.hadley.nz/function-factories.html)
+1. Wickham, H., *Advanced R*, 2nd Edition. CRC Press (2019). Chapter 11: Function operators. [Link](https://adv-r.hadley.nz/function-operators.html)
+2. purrr documentation, `compose()` reference. [Link](https://purrr.tidyverse.org/reference/compose.html)
+3. purrr documentation, `negate()` reference. [Link](https://purrr.tidyverse.org/reference/negate.html)
+4. purrr documentation, `partial()` reference. [Link](https://purrr.tidyverse.org/reference/partial.html)
+5. memoise package, official docs. [Link](https://memoise.r-lib.org/)
+6. R base documentation, `Negate()` and friends. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/funprog.html)
+7. Wickham, H., *Advanced R*, 2nd Edition. Chapter 10: Function factories (the companion concept). [Link](https://adv-r.hadley.nz/function-factories.html)
 
 ## Continue Learning
 
-- [Writing R Functions](R-Functions.html) — the foundation every operator is built on, including argument handling and return values.
-- [R Function Factories](R-Function-Factories.html) — the sibling pattern: settings in, function out. Read this next to see how factories and operators differ.
-- [R Closures](R-Closures.html) — the mechanism that lets operators remember `f`, cached values, and call logs between calls.
+- [Writing R Functions](R-Functions.html), the foundation every operator is built on, including argument handling and return values.
+- [R Function Factories](R-Function-Factories.html), the sibling pattern: settings in, function out. Read this next to see how factories and operators differ.
+- [R Closures](R-Closures.html), the mechanism that lets operators remember `f`, cached values, and call logs between calls.

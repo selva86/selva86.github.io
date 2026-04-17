@@ -1,7 +1,7 @@
 ---
 title: "Outlier Detection in R: Four Methods and the One Question You Must Ask First"
 slug: "Outlier-Detection-in-R"
-description: "Outliers are extreme, erroneous, or interesting — the approach depends on which. Learn IQR fences, Z-scores, Mahalanobis distance, and when to remove."
+description: "Outliers are extreme, erroneous, or interesting, the approach depends on which. Learn IQR fences, Z-scores, Mahalanobis distance, and when to remove."
 keywords: "outlier detection in R, IQR outlier method R, Z-score outlier R, Mahalanobis distance R, remove outliers R, boxplot outliers, outlier treatment, detect outliers R"
 auto_link_terms: "outlier detection in R|IQR outlier method|Z-score outlier|Mahalanobis distance|outlier treatment|detect outliers|boxplot.stats()|mahalanobis()"
 auto_link_case_sensitive: false
@@ -19,7 +19,7 @@ difficulty: "Intermediate"
 
 # Outlier Detection in R: Four Methods and the One Question You Must Ask First
 
-<p class="lead">An outlier is a data point that falls far outside the expected range of values. Whether you remove it depends on whether it is erroneous, extreme, or genuinely interesting — and R gives you four methods to find it: boxplots, IQR fences, Z-scores, and Mahalanobis distance.</p>
+<p class="lead">An outlier is a data point that falls far outside the expected range of values. Whether you remove it depends on whether it is erroneous, extreme, or genuinely interesting, and R gives you four methods to find it: boxplots, IQR fences, Z-scores, and Mahalanobis distance.</p>
 
 A single outlier can double your regression slope or halve your p-value. Before you touch it, you need to answer one question: is this value wrong, extreme, or interesting? The answer changes everything about what you do next.
 
@@ -30,9 +30,9 @@ Outliers appear in almost every real dataset. A sensor spikes, a respondent type
 The mistake most analysts make is jumping straight to removal. They run a boxplot, see dots outside the whiskers, and delete them. That is backwards. Detection comes first, then diagnosis, then a documented decision. This tutorial teaches all three steps.
 
 ![Decision flowchart: should you remove, keep, or report both?](screenshots/Outlier-Detection-in-R-decision-flowchart.webp)
-*Figure 1: Decision flowchart — should you remove, keep, or report both?*
+*Figure 1: Decision flowchart, should you remove, keep, or report both?*
 
-You will learn four detection methods, from the simplest visual check to multivariate Mahalanobis distance. Every code block runs in your browser. Click Run on the first block, then work top to bottom — variables carry over between blocks like a notebook.
+You will learn four detection methods, from the simplest visual check to multivariate Mahalanobis distance. Every code block runs in your browser. Click Run on the first block, then work top to bottom, variables carry over between blocks like a notebook.
 
 We use base R throughout. No external packages are needed for any of the four core methods.
 
@@ -54,7 +54,7 @@ median(scores)
 #> [1] 88
 ```
 
-The mean jumps to 99 — higher than 8 of the 9 students — because the single value of 210 drags it up. The median stays at 88, unbothered. This is why outlier detection matters: if you compute a mean without checking, that one suspicious score misrepresents the entire class.
+The mean jumps to 99, higher than 8 of the 9 students, because the single value of 210 drags it up. The median stays at 88, unbothered. This is why outlier detection matters: if you compute a mean without checking, that one suspicious score misrepresents the entire class.
 
 Outliers fall into three categories, and each demands a different response:
 
@@ -62,7 +62,7 @@ Outliers fall into three categories, and each demands a different response:
 |---|---|---|
 | **Error** | Typo: 210 instead of 21 | Fix or remove |
 | **Extreme but real** | CEO salary in a company dataset | Keep, but consider robust methods |
-| **Interesting** | Patient with unusually fast recovery | Investigate — this may be the finding |
+| **Interesting** | Patient with unusually fast recovery | Investigate, this may be the finding |
 
 [KEY INSIGHT]
 **Outliers affect the mean but leave the median alone.** This is why robust statistics exist. Before removing any outlier, ask: is it wrong, extreme, or the most interesting point in my data?
@@ -98,7 +98,7 @@ median(ex_temps)
 
 ## How do you spot outliers visually with boxplots?
 
-A boxplot is the fastest way to see outliers. The box shows the middle 50% of data (from Q1 to Q3), and the whiskers extend to the most extreme point within 1.5 times the IQR. Anything beyond the whiskers appears as a dot — those dots are your candidate outliers.
+A boxplot is the fastest way to see outliers. The box shows the middle 50% of data (from Q1 to Q3), and the whiskers extend to the most extreme point within 1.5 times the IQR. Anything beyond the whiskers appears as a dot, those dots are your candidate outliers.
 
 Let's use the built-in `airquality` dataset. The `Ozone` column has real outliers from New York air monitoring in 1973.
 
@@ -110,7 +110,7 @@ boxplot(airquality$Ozone,
         col = "lightblue")
 ```
 
-The dots above the upper whisker are observations with unusually high ozone concentrations. But a boxplot only shows you that outliers exist — it does not tell you their values. For that, use `boxplot.stats()`.
+The dots above the upper whisker are observations with unusually high ozone concentrations. But a boxplot only shows you that outliers exist, it does not tell you their values. For that, use `boxplot.stats()`.
 
 ```r
 # Extract outlier values programmatically
@@ -123,10 +123,10 @@ length(ozone_outliers)
 #> [1] 3
 ```
 
-The `$out` element returns the actual outlier values. Here, three ozone readings exceeded the upper fence: 115, 135, and 168 ppb. These are not automatically wrong — ozone can spike during heat waves — but they deserve investigation.
+The `$out` element returns the actual outlier values. Here, three ozone readings exceeded the upper fence: 115, 135, and 168 ppb. These are not automatically wrong, ozone can spike during heat waves, but they deserve investigation.
 
 ![IQR fence method: values beyond Q1 - 1.5*IQR or Q3 + 1.5*IQR are flagged as outliers.](screenshots/Outlier-Detection-in-R-iqr-fence.webp)
-*Figure 2: IQR fence method — values beyond Q1 - 1.5*IQR or Q3 + 1.5*IQR are flagged.*
+*Figure 2: IQR fence method, values beyond Q1 - 1.5*IQR or Q3 + 1.5*IQR are flagged.*
 
 [TIP]
 **Use boxplot.stats()$out to grab outlier values directly.** You do not need to compute IQR fences by hand unless you want custom thresholds. This function uses the standard 1.5 * IQR rule internally.
@@ -158,7 +158,7 @@ ex_wind_out
 
 ## How does the IQR fence method detect outliers?
 
-The IQR fence method formalises what the boxplot does. IQR stands for Interquartile Range — the distance between the 25th percentile (Q1) and the 75th percentile (Q3). Any point below Q1 - 1.5 * IQR or above Q3 + 1.5 * IQR is flagged as an outlier.
+The IQR fence method formalises what the boxplot does. IQR stands for Interquartile Range, the distance between the 25th percentile (Q1) and the 75th percentile (Q3). Any point below Q1 - 1.5 * IQR or above Q3 + 1.5 * IQR is flagged as an outlier.
 
 The formula is straightforward:
 
@@ -170,7 +170,7 @@ Where:
 - $Q_3$ = 75th percentile (third quartile)
 - $IQR = Q_3 - Q_1$
 
-*If you are not interested in the math, skip to the code below — the practical implementation is all you need.*
+*If you are not interested in the math, skip to the code below, the practical implementation is all you need.*
 
 Let's compute the fences by hand for the `Ozone` column.
 
@@ -267,7 +267,7 @@ Where:
 
 *If you prefer to skip the math, the code below handles everything.*
 
-Use Z-scores when your data is roughly bell-shaped (normal). If the data is heavily skewed — like income, house prices, or page views — the mean and standard deviation are themselves distorted by outliers, and the IQR method is safer.
+Use Z-scores when your data is roughly bell-shaped (normal). If the data is heavily skewed, like income, house prices, or page views, the mean and standard deviation are themselves distorted by outliers, and the IQR method is safer.
 
 ```r
 # Z-score outlier detection
@@ -299,7 +299,7 @@ cat("Z-score outliers (|z|>2):", z_outliers_2, "\n")
 #> Z-score outliers (|z|>2): 115 135 168
 ```
 
-With a threshold of 2, Z-scores flag three values — more than IQR. With a threshold of 3, they flag only one. The IQR method sits in between. Neither is "correct." The choice depends on your data's shape and your tolerance for false positives.
+With a threshold of 2, Z-scores flag three values, more than IQR. With a threshold of 3, they flag only one. The IQR method sits in between. Neither is "correct." The choice depends on your data's shape and your tolerance for false positives.
 
 ![Which outlier detection method to use based on data shape and variable count.](screenshots/Outlier-Detection-in-R-method-picker.webp)
 *Figure 3: Which outlier detection method to use based on data shape and variable count.*
@@ -385,7 +385,7 @@ aq_complete[maha_outliers, ]
 #> 30    NA      NA   NA   NA
 ```
 
-The exact rows will show combinations where values are jointly extreme — high ozone with low wind and high temperature, for example. These are the points that univariate methods would miss.
+The exact rows will show combinations where values are jointly extreme, high ozone with low wind and high temperature, for example. These are the points that univariate methods would miss.
 
 [KEY INSIGHT]
 **A point can be normal on every variable individually but extreme in combination.** Mahalanobis distance accounts for correlations between variables. Use it whenever your analysis involves two or more numeric columns.
@@ -624,7 +624,7 @@ my_results <- lapply(names(my_species), function(sp) {
 #> virginica - outliers: 0
 ```
 
-**Explanation:** We split the data by species, compute Mahalanobis distance within each group, and flag points beyond the chi-squared threshold. Versicolor has one multivariate outlier — a flower whose combination of measurements is unusual relative to its own species.
+**Explanation:** We split the data by species, compute Mahalanobis distance within each group, and flag points beyond the chi-squared threshold. Versicolor has one multivariate outlier, a flower whose combination of measurements is unusual relative to its own species.
 
 </details>
 
@@ -666,7 +666,7 @@ cat("\n--- Multivariate outlier rows ---\n")
 print(aq_clean[multi_out, ])
 ```
 
-The univariate method flags 2 rows (high ozone). The multivariate method flags 3 rows (unusual combinations). Only 1 row is flagged by both. This overlap is typical — each method sees a different aspect of "extreme."
+The univariate method flags 2 rows (high ozone). The multivariate method flags 3 rows (unusual combinations). Only 1 row is flagged by both. This overlap is typical, each method sees a different aspect of "extreme."
 
 The decision: these are real air quality measurements, not typos. Report your analysis with and without them. Document why you kept or removed each one.
 
@@ -700,7 +700,7 @@ No. Removal is appropriate for errors and physically impossible values. For real
 
 **What is the difference between 1.5 * IQR and 3 * IQR fences?**
 
-The standard 1.5 * IQR fence catches moderate outliers. A 3 * IQR fence catches only extreme outliers (sometimes called "far outliers"). The `boxplot()` function in R shows 1.5 * IQR whiskers by default. You can use either — just document which threshold you chose.
+The standard 1.5 * IQR fence catches moderate outliers. A 3 * IQR fence catches only extreme outliers (sometimes called "far outliers"). The `boxplot()` function in R shows 1.5 * IQR whiskers by default. You can use either, just document which threshold you chose.
 
 **Can I use Mahalanobis distance with categorical variables?**
 
@@ -708,7 +708,7 @@ Not directly. Mahalanobis distance requires numeric inputs because it uses the c
 
 **How do outliers affect linear regression specifically?**
 
-Outliers in the predictor (X) create leverage — they pull the regression line toward themselves. Outliers in the response (Y) inflate residuals and can flip the slope direction. Cook's distance measures the combined influence of each point on the fitted model.
+Outliers in the predictor (X) create leverage, they pull the regression line toward themselves. Outliers in the response (Y) inflate residuals and can flip the slope direction. Cook's distance measures the combined influence of each point on the fitted model.
 
 **Is there an R package that automates outlier detection?**
 
@@ -717,9 +717,9 @@ Yes. The `performance` package from easystats provides `check_outliers()`, which
 
 ## References
 
-1. R Core Team — `boxplot.stats()` documentation. [Link](https://stat.ethz.ch/R-manual/R-devel/library/grDevices/html/boxplot.stats.html)
-2. R Core Team — `mahalanobis()` documentation. [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/mahalanobis.html)
-3. NIST Engineering Statistics Handbook — Detection of Outliers. [Link](https://www.itl.nist.gov/div898/handbook/eda/section3/eda35h.htm)
+1. R Core Team, `boxplot.stats()` documentation. [Link](https://stat.ethz.ch/R-manual/R-devel/library/grDevices/html/boxplot.stats.html)
+2. R Core Team, `mahalanobis()` documentation. [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/mahalanobis.html)
+3. NIST Engineering Statistics Handbook, Detection of Outliers. [Link](https://www.itl.nist.gov/div898/handbook/eda/section3/eda35h.htm)
 4. Leys, C., Ley, C., Klein, O., Bernard, P., & Licata, L. (2013). Detecting outliers: Do not use standard deviation around the mean, use absolute deviation around the median. *Journal of Experimental Social Psychology*, 49(4), 764-766. [Link](https://doi.org/10.1016/j.jesp.2013.03.013)
 5. Rousseeuw, P.J. & van Zomeren, B.C. (1990). Unmasking Multivariate Outliers and Leverage Points. *Journal of the American Statistical Association*, 85(411), 633-639. [Link](https://doi.org/10.1080/01621459.1990.10474920)
 6. Aggarwal, C.C. (2017). *Outlier Analysis*, 2nd Edition. Springer. [Link](https://doi.org/10.1007/978-3-319-47578-3)
@@ -728,6 +728,6 @@ Yes. The `performance` package from easystats provides `check_outliers()`, which
 
 ## Continue Learning
 
-- **[Missing Values in R](Missing-Values-in-R-Detect-Count-Remove-Impute-NA.html)** — After removing outliers, you often create NAs. Learn how to detect, count, and impute missing values.
-- **[Linear Regression](Linear-Regression.html)** — See how outliers influence regression slopes, R-squared, and prediction accuracy.
-- **[Statistical Tests in R](Statistical-Tests-in-R.html)** — Understand the normality and homoscedasticity assumptions that outliers can violate.
+- **[Missing Values in R](Missing-Values-in-R-Detect-Count-Remove-Impute-NA.html)**, After removing outliers, you often create NAs. Learn how to detect, count, and impute missing values.
+- **[Linear Regression](Linear-Regression.html)**, See how outliers influence regression slopes, R-squared, and prediction accuracy.
+- **[Statistical Tests in R](Statistical-Tests-in-R.html)**, Understand the normality and homoscedasticity assumptions that outliers can violate.

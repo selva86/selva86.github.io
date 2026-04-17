@@ -1,7 +1,7 @@
 ---
 title: "ggplot2 Cheat Sheet: Quick Reference for Geoms, Scales, Themes and More"
 slug: "ggplot2-Cheat-Sheet"
-description: "Complete ggplot2 cheat sheet covering geoms, aesthetics, scales, coordinate systems, themes, and facets — with runnable code examples for every section."
+description: "Complete ggplot2 cheat sheet covering geoms, aesthetics, scales, coordinate systems, themes, and facets, with runnable code examples for every section."
 keywords: "ggplot2 cheat sheet, ggplot2 quick reference, ggplot2 functions, ggplot2 geoms list, ggplot2 scales reference, ggplot2 themes, ggplot2 aesthetics"
 auto_link_terms: "ggplot2 cheat sheet|ggplot2 quick reference|ggplot2 functions list|ggplot2 geoms|ggplot2 themes reference"
 auto_link_case_sensitive: false
@@ -16,7 +16,7 @@ difficulty: "Intermediate"
 
 # ggplot2 Cheat Sheet: Quick Reference for Geoms, Scales, Themes and More
 
-<p class="lead">This cheat sheet is your one-page reference for ggplot2 — covering the layer grammar, every major geom, aesthetic mappings, scale functions, facets, and theme customization, each with a minimal working example you can run and modify.</p>
+<p class="lead">This cheat sheet is your one-page reference for ggplot2, covering the layer grammar, every major geom, aesthetic mappings, scale functions, facets, and theme customization, each with a minimal working example you can run and modify.</p>
 
 ## Introduction
 
@@ -38,7 +38,7 @@ p_base <- ggplot(mtcars, aes(x = wt, y = mpg)) +
 p_base
 ```
 
-Each section below shows the key functions in that category with quick examples. All code shares a single session — `mtcars` and `mpg` are always available.
+Each section below shows the key functions in that category with quick examples. All code shares a single session, `mtcars` and `mpg` are always available.
 
 ## What Are the Essential Geoms in ggplot2?
 
@@ -112,7 +112,7 @@ ex_violin <- ggplot(mpg, aes(x = drv, y = hwy, fill = drv)) +
 ex_violin
 ```
 
-A violin plot replaces the box's five-number summary with a mirrored density curve, so you can see *where* values cluster — not just the median and quartiles. For `mpg` you'll notice the front-wheel drive distribution is bimodal (compact econoboxes vs midsize sedans), a detail the boxplot completely hides. Trade-off: violins use more ink and require enough data per group to look stable.
+A violin plot replaces the box's five-number summary with a mirrored density curve, so you can see *where* values cluster, not just the median and quartiles. For `mpg` you'll notice the front-wheel drive distribution is bimodal (compact econoboxes vs midsize sedans), a detail the boxplot completely hides. Trade-off: violins use more ink and require enough data per group to look stable.
 </details>
 
 ## How Do Aesthetics and aes() Work?
@@ -155,7 +155,7 @@ p_aes <- ggplot(mpg, aes(
 p_aes
 ```
 
-> **KEY INSIGHT:** `color = "blue"` (outside `aes()`) sets all points to blue. `aes(color = drv)` maps the `drv` column to color — one color per unique value. Putting a column name outside `aes()` (e.g., `color = drv`) is a common error that maps the literal string, not the column.
+> **KEY INSIGHT:** `color = "blue"` (outside `aes()`) sets all points to blue. `aes(color = drv)` maps the `drv` column to color, one color per unique value. Putting a column name outside `aes()` (e.g., `color = drv`) is a common error that maps the literal string, not the column.
 
 **Try it:** Move `size = cyl` from inside `aes()` to outside as `size = 3`. How does the chart change?
 
@@ -174,13 +174,13 @@ ex_fixed_size <- ggplot(mpg, aes(x = displ, y = hwy, color = drv)) +
 ex_fixed_size
 ```
 
-Moving `size` outside `aes()` turns it from a data-driven *mapping* into a fixed *setting* — every point is the same size regardless of `cyl`. The cylinder information disappears from the chart, but the points become uniform and easier to read when you don't need that extra dimension. Anything inside `aes()` is tied to a column; anything outside is a constant applied to every observation.
+Moving `size` outside `aes()` turns it from a data-driven *mapping* into a fixed *setting*, every point is the same size regardless of `cyl`. The cylinder information disappears from the chart, but the points become uniform and easier to read when you don't need that extra dimension. Anything inside `aes()` is tied to a column; anything outside is a constant applied to every observation.
 </details>
 
 
 ## How Do You Customize Scales for Axes and Colors?
 
-Scale functions control how data values map to visual properties — axis range, breaks, labels, color palettes, size ranges. Every aesthetic has a corresponding `scale_*()` family.
+Scale functions control how data values map to visual properties, axis range, breaks, labels, color palettes, size ranges. Every aesthetic has a corresponding `scale_*()` family.
 
 **Axis scales:**
 
@@ -190,7 +190,7 @@ Scale functions control how data values map to visual properties — axis range,
 | `scale_y_continuous()` | Continuous y-axis | `limits`, `breaks`, `labels`, `expand` |
 | `scale_x_discrete()` | Categorical x-axis | `limits` (reorder), `labels` |
 | `scale_x_date()` | Date x-axis | `date_breaks`, `date_labels` |
-| `scale_x_log10()` | Log10 x-axis | — |
+| `scale_x_log10()` | Log10 x-axis |, |
 
 **Color/fill scales:**
 
@@ -258,15 +258,15 @@ Log scales spread out the dense low-value region and compress the long tail, so 
 
 ## How Do You Use Facets to Create Multi-Panel Charts?
 
-Facets split your data by a variable and draw one panel per group — all with the same axes and geoms, making comparison effortless.
+Facets split your data by a variable and draw one panel per group, all with the same axes and geoms, making comparison effortless.
 
 | Function | What it Does | Key Args |
 |---|---|---|
 | `facet_wrap(~ var)` | Wrap panels into rows and columns automatically | `nrow`, `ncol`, `scales`, `labeller` |
 | `facet_wrap(~ var1 + var2)` | Facet by two variables, wrapped | Same |
 | `facet_grid(rows ~ cols)` | Grid layout: one variable per axis | `scales`, `space`, `labeller` |
-| `facet_grid(. ~ cols)` | Facet columns only | — |
-| `facet_grid(rows ~ .)` | Facet rows only | — |
+| `facet_grid(. ~ cols)` | Facet columns only |, |
+| `facet_grid(rows ~ .)` | Facet rows only |, |
 
 ```r
 # facet_wrap: one panel per drive type
@@ -319,7 +319,7 @@ ex_free_scales <- ggplot(mpg, aes(x = displ, y = hwy)) +
 ex_free_scales
 ```
 
-With `scales = "free"` each panel fits its own x and y range, so every facet uses its full plotting area even when groups differ in magnitude. The trade-off is that cross-panel comparison becomes harder — a point that looks "high" in the rear-wheel panel may actually sit at the same hwy MPG as a "low" point in the front-wheel panel. Use free scales to reveal within-group structure, fixed scales to compare across groups.
+With `scales = "free"` each panel fits its own x and y range, so every facet uses its full plotting area even when groups differ in magnitude. The trade-off is that cross-panel comparison becomes harder, a point that looks "high" in the rear-wheel panel may actually sit at the same hwy MPG as a "low" point in the front-wheel panel. Use free scales to reveal within-group structure, fixed scales to compare across groups.
 </details>
 
 
@@ -331,12 +331,12 @@ Themes control all non-data visual elements: background, grid lines, axis text, 
 
 | Theme | Style |
 |---|---|
-| `theme_gray()` | Default — grey background, white grid |
+| `theme_gray()` | Default, grey background, white grid |
 | `theme_bw()` | White background, black grid frame |
 | `theme_minimal()` | White background, light grey grid, no border |
 | `theme_classic()` | White background, no grid, clean axes |
-| `theme_void()` | No axes, no background — for maps and diagrams |
-| `theme_dark()` | Dark background — good for viridis color scales |
+| `theme_void()` | No axes, no background, for maps and diagrams |
+| `theme_dark()` | Dark background, good for viridis color scales |
 | `theme_light()` | Light grey lines, white background |
 
 **Customizing with `theme()`:**
@@ -415,7 +415,7 @@ ex_classic <- ggplot(mpg, aes(x = class, fill = drv)) +
 ex_classic
 ```
 
-`theme_classic()` drops the grid lines entirely and draws solid black axis lines on the left and bottom — the look of a traditional scientific publication. Compared to `theme_minimal()` (white background, faint grey grid, no axis lines) the chart feels more formal and print-ready, but you lose the grid which was helping readers estimate bar heights. Pick classic for camera-ready figures, minimal for screens and dashboards.
+`theme_classic()` drops the grid lines entirely and draws solid black axis lines on the left and bottom, the look of a traditional scientific publication. Compared to `theme_minimal()` (white background, faint grey grid, no axis lines) the chart feels more formal and print-ready, but you lose the grid which was helping readers estimate bar heights. Pick classic for camera-ready figures, minimal for screens and dashboards.
 </details>
 
 
@@ -444,7 +444,7 @@ ggplot(mpg, aes(x = displ, y = hwy, color = drv)) + geom_point()
 
 ### Mistake 3: Scales applied after geoms that ignore them
 
-❌ `scale_x_log10()` applied to a histogram changes the axis labels but not the bin boundaries — the histogram was already computed on the original scale.
+❌ `scale_x_log10()` applied to a histogram changes the axis labels but not the bin boundaries, the histogram was already computed on the original scale.
 
 ✅ Log-transform the variable before plotting, or use `scale_x_continuous(trans = "log10")` which correctly affects `stat_bin()`.
 
@@ -454,7 +454,7 @@ ggplot(mpg, aes(x = displ, y = hwy, color = drv)) + geom_point()
 
 ✅ `library(patchwork)` before use. Extensions like `ggrepel`, `patchwork`, and `ggridges` must be explicitly loaded even when ggplot2 is already loaded.
 
-### Mistake 5: theme() overriding theme_*() — order matters
+### Mistake 5: theme() overriding theme_*(), order matters
 
 ❌ Placing `theme_minimal()` after `theme()` resets all the custom `theme()` changes:
 
@@ -510,7 +510,7 @@ mfr_top <- head(mfr_avg[order(-mfr_avg$hwy), ], 10)
 
 ## Complete Example
 
-This end-to-end example assembles all five sections — geoms, aesthetics, scales, facets, and themes — into a single publication-quality chart:
+This end-to-end example assembles all five sections, geoms, aesthetics, scales, facets, and themes, into a single publication-quality chart:
 
 ```r
 # Complete example: ggplot2 grammar in one chart
@@ -585,7 +585,7 @@ p_final
 
 **What is the difference between color and fill in ggplot2?**
 
-`color` controls the outline or stroke color — of points, lines, and text. `fill` controls the interior fill of shapes — bars, polygons, and filled circles (shape 21+). For `geom_point()` with solid shapes (the default shape 16), only `color` applies. For `geom_col()` and `geom_histogram()`, only `fill` applies to the bar interior.
+`color` controls the outline or stroke color, of points, lines, and text. `fill` controls the interior fill of shapes, bars, polygons, and filled circles (shape 21+). For `geom_point()` with solid shapes (the default shape 16), only `color` applies. For `geom_col()` and `geom_histogram()`, only `fill` applies to the bar interior.
 
 **How do I save a ggplot2 chart to a file?**
 
@@ -597,7 +597,7 @@ Use the `patchwork` package: `p1 + p2` places charts side-by-side; `p1 / p2` sta
 
 **How do I add a second y-axis in ggplot2?**
 
-ggplot2 discourages dual y-axes for good design reasons (they are easily misleading). The supported approach uses `scale_y_continuous(sec.axis = sec_axis(~ . / 100, name = "Percent"))`. The secondary axis must be a mathematical transformation of the primary — you cannot independently scale two different variables.
+ggplot2 discourages dual y-axes for good design reasons (they are easily misleading). The supported approach uses `scale_y_continuous(sec.axis = sec_axis(~ . / 100, name = "Percent"))`. The secondary axis must be a mathematical transformation of the primary, you cannot independently scale two different variables.
 
 **How do I reorder a categorical axis?**
 
@@ -613,6 +613,6 @@ Convert the variable to a factor with levels in the desired order before plottin
 
 ## Continue Learning
 
-- **ggplot2 Getting Started** — the full introductory tutorial covering the grammar of graphics from scratch with step-by-step examples.
-- **ggplot2 Scatter Plots** — deep dive into `geom_point()` with color, size, and shape mappings and overplotting solutions.
-- **ggplot2 Themes in R** — comprehensive coverage of `theme()` customization to produce publication-quality charts.
+- **ggplot2 Getting Started**, the full introductory tutorial covering the grammar of graphics from scratch with step-by-step examples.
+- **ggplot2 Scatter Plots**, deep dive into `geom_point()` with color, size, and shape mappings and overplotting solutions.
+- **ggplot2 Themes in R**, comprehensive coverage of `theme()` customization to produce publication-quality charts.

@@ -1,7 +1,7 @@
 ---
-title: "R Functions Exercises: 10 Problems — Write, Debug & Optimize Functions — Solved Step-by-Step"
+title: "R Functions Exercises: 10 Problems, Write, Debug & Optimize Functions, Solved Step-by-Step"
 slug: "R-Functions-Exercises"
-description: "10 interactive R function exercises — write, test, default arguments, lazy evaluation, variadic ..., closures, debug and benchmark. Every problem runs in the page."
+description: "10 interactive R function exercises, write, test, default arguments, lazy evaluation, variadic ..., closures, debug and benchmark. Every problem runs in the page."
 keywords: "R functions exercises, R function practice, R default arguments, R closures exercises, R debug function"
 mathjax: false
 webr: true
@@ -16,13 +16,13 @@ fr_parent: "R-Functions.html"
 difficulty: "Intermediate"
 ---
 
-# R Functions Exercises: 10 Problems — Write, Debug & Optimize Functions — Solved Step-by-Step
+# R Functions Exercises: 10 Problems, Write, Debug & Optimize Functions, Solved Step-by-Step
 
-<p class="lead">Ten exercises that take you from writing your first function to debugging, benchmarking and closures. Every problem is runnable here in the page, with an expandable worked solution. Work through in order — each one builds on the previous.</p>
+<p class="lead">Ten exercises that take you from writing your first function to debugging, benchmarking and closures. Every problem is runnable here in the page, with an expandable worked solution. Work through in order, each one builds on the previous.</p>
 
-Functions are R's main unit of reuse. Every tidyverse verb is a function. Every statistical model fit is a function call. The surprising thing is how few programmers use the more advanced features — default arguments, `...`, closures, early `return()` — even after years of R. These exercises fix that.
+Functions are R's main unit of reuse. Every tidyverse verb is a function. Every statistical model fit is a function call. The surprising thing is how few programmers use the more advanced features, default arguments, `...`, closures, early `return()`, even after years of R. These exercises fix that.
 
-## Section 1 — Writing functions
+## Section 1, Writing functions
 
 ### Exercise 1. Your first function
 
@@ -44,7 +44,7 @@ bmi <- function(weight_kg, height_m) {
 bmi(70, 1.75)  # 22.86
 ```
 
-A function is created with `function(args) body`. The last expression in the body is the return value — no explicit `return()` needed.
+A function is created with `function(args) body`. The last expression in the body is the return value, no explicit `return()` needed.
 
 </details>
 
@@ -69,7 +69,7 @@ bmi(70)        # 24.22
 bmi(70, 1.80)  # 21.60
 ```
 
-Default values can reference other arguments or be computed expressions. They are evaluated lazily — only when the argument is actually used.
+Default values can reference other arguments or be computed expressions. They are evaluated lazily, only when the argument is actually used.
 
 </details>
 
@@ -108,7 +108,7 @@ R functions return exactly one object. To "return multiple values", return a lis
 
 </details>
 
-## Section 2 — Arguments and matching
+## Section 2, Arguments and matching
 
 ### Exercise 4. Partial matching and named args
 
@@ -132,7 +132,7 @@ greet("Ada", greeting = "Hi", punctuation = ".")   # "Hi, Ada."
 greet("Ada", punc = "?")                      # "Hello, Ada?"  (partial match)
 ```
 
-R allows partial argument matching — `punc` resolves to `punctuation` because no other argument starts with those letters. For production code, avoid partial matching: it is fragile if you add another argument later.
+R allows partial argument matching, `punc` resolves to `punctuation` because no other argument starts with those letters. For production code, avoid partial matching: it is fragile if you add another argument later.
 
 </details>
 
@@ -161,7 +161,7 @@ paste_upper("big ", "red ", "box")       # "BIG RED BOX"
 
 </details>
 
-## Section 3 — Environments and closures
+## Section 3, Environments and closures
 
 ### Exercise 6. A counter closure
 
@@ -230,11 +230,11 @@ system.time(fast_square(5))  # ~0.1s first call
 system.time(fast_square(5))  # ~0s on the second call
 ```
 
-The cache lives in the enclosing environment of the returned function. It persists across calls but is invisible to outside code — exactly what you want for a cache.
+The cache lives in the enclosing environment of the returned function. It persists across calls but is invisible to outside code, exactly what you want for a cache.
 
 </details>
 
-## Section 4 — Debugging and safety
+## Section 4, Debugging and safety
 
 ### Exercise 8. Input validation with stop()
 
@@ -270,7 +270,7 @@ The pattern is: validate at the top, fail fast with a clear message, then do the
 
 ### Exercise 9. Early return with tryCatch
 
-Write `safe_log(x)` that returns `log(x)` when `x > 0`, `NA_real_` when `x <= 0` or `NA`, and `NA_real_` if anything else goes wrong — all without letting an error propagate.
+Write `safe_log(x)` that returns `log(x)` when `x > 0`, `NA_real_` when `x <= 0` or `NA`, and `NA_real_` if anything else goes wrong, all without letting an error propagate.
 
 ```r
 # Your attempt here
@@ -298,11 +298,11 @@ safe_log(NA)   # NA
 safe_log("a")  # NA — the arithmetic would error; tryCatch handles it
 ```
 
-`tryCatch()` lets you convert errors and warnings into values. Use it sparingly — it can hide real bugs. Here it is the right choice because the caller explicitly wants a total function.
+`tryCatch()` lets you convert errors and warnings into values. Use it sparingly, it can hide real bugs. Here it is the right choice because the caller explicitly wants a total function.
 
 </details>
 
-## Section 5 — Benchmarking
+## Section 5, Benchmarking
 
 ### Exercise 10. Measure two implementations
 
@@ -331,7 +331,7 @@ system.time(sq_vec(n))
 # The vectorised version is typically 50-200x faster.
 ```
 
-The vectorised version dispatches to compiled C code in one call. The loop runs the R interpreter once per iteration. Always reach for vectorised first — use loops only when each step genuinely needs the previous result.
+The vectorised version dispatches to compiled C code in one call. The loop runs the R interpreter once per iteration. Always reach for vectorised first, use loops only when each step genuinely needs the previous result.
 
 </details>
 
@@ -339,15 +339,15 @@ The vectorised version dispatches to compiled C code in one call. The loop runs 
 
 - Functions are created with `function(args) body`. The last expression is returned.
 - Use defaults (`x = 1`) for optional arguments and `...` for variadic forwarding.
-- Closures capture the enclosing environment — the basis for counters, memoization, and `$` accessors in Shiny.
+- Closures capture the enclosing environment, the basis for counters, memoization, and `$` accessors in Shiny.
 - Validate inputs with `stop()` or `stopifnot()`. Wrap risky code in `tryCatch()` only when errors are expected.
 - Benchmark before optimising. Vectorised code usually beats explicit loops by orders of magnitude.
 
 ## References
 
-- [Advanced R — Functions](https://adv-r.hadley.nz/functions.html)
-- [R for Data Science (2e) — Functions](https://r4ds.hadley.nz/functions.html)
-- [R Language Definition — Function calls](https://cran.r-project.org/doc/manuals/r-release/R-lang.html#Function-calls)
+- [Advanced R, Functions](https://adv-r.hadley.nz/functions.html)
+- [R for Data Science (2e), Functions](https://r4ds.hadley.nz/functions.html)
+- [R Language Definition, Function calls](https://cran.r-project.org/doc/manuals/r-release/R-lang.html#Function-calls)
 
 ## Continue Learning
 

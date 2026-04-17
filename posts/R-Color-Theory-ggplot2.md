@@ -16,13 +16,13 @@ difficulty: "Intermediate"
 
 # R Color Theory: Choose Palettes, Use ColorBrewer, and Design for Colorblind Readers
 
-<p class="lead">Color in data visualization is not decoration — it encodes information. The right palette makes patterns visible instantly; the wrong one obscures them or misleads. In ggplot2, three palette families handle three fundamentally different data situations: sequential, diverging, and qualitative.</p>
+<p class="lead">Color in data visualization is not decoration, it encodes information. The right palette makes patterns visible instantly; the wrong one obscures them or misleads. In ggplot2, three palette families handle three fundamentally different data situations: sequential, diverging, and qualitative.</p>
 
 ## Introduction
 
 Choosing colors for a chart feels like an aesthetic decision, but it is actually a data decision. When you color a heatmap by temperature, a continuous gradient from blue to red communicates direction and magnitude simultaneously. When you color countries on a choropleth by political party, you need distinct, unordered colors that don't imply any ranking between parties. When you mark values that deviate above and below a neutral midpoint (like growth vs. decline), you need two opposing colors that meet at a meaningful zero.
 
-Each of those situations requires a different palette type. Using the wrong one — for example, a qualitative palette on continuous data — forces readers to mentally convert discrete color steps into a continuous quantity, adding cognitive load and risking misinterpretation.
+Each of those situations requires a different palette type. Using the wrong one, for example, a qualitative palette on continuous data, forces readers to mentally convert discrete color steps into a continuous quantity, adding cognitive load and risking misinterpretation.
 
 In this tutorial you will learn:
 
@@ -36,11 +36,11 @@ In this tutorial you will learn:
 
 Every color scale used in data visualization falls into one of three categories. Understanding which type your data needs is the most important color decision you will make.
 
-**Sequential palettes** encode magnitude with a gradient from light (low) to dark (high). Use them for continuous data with a natural ordering and no meaningful midpoint — population density, temperature, price.
+**Sequential palettes** encode magnitude with a gradient from light (low) to dark (high). Use them for continuous data with a natural ordering and no meaningful midpoint, population density, temperature, price.
 
-**Diverging palettes** encode deviation from a midpoint. Two contrasting hue families (e.g., blue and red) meet at a neutral center (white or beige). Use them when values can be meaningfully positive or negative, or above/below some reference — correlation coefficients, budget surplus/deficit, political lean.
+**Diverging palettes** encode deviation from a midpoint. Two contrasting hue families (e.g., blue and red) meet at a neutral center (white or beige). Use them when values can be meaningfully positive or negative, or above/below some reference, correlation coefficients, budget surplus/deficit, political lean.
 
-**Qualitative palettes** use distinct, unordered hues to encode categorical membership. No hue should appear "more" or "less" than another. Use them for nominal categories — country, species, product type.
+**Qualitative palettes** use distinct, unordered hues to encode categorical membership. No hue should appear "more" or "less" than another. Use them for nominal categories, country, species, product type.
 
 ```r
 library(ggplot2)
@@ -77,15 +77,15 @@ ex_blues
 scales::show_col(ex_blues)
 ```
 
-`brewer.pal()` returns hex codes — `"Blues"` is a sequential ramp from very pale blue at the low end to deep navy at the high end, while `"RdYlGn"` is a diverging palette (red → yellow → green) suitable for above/below-zero data. `scales::show_col()` lays them out as a swatch grid so you can preview the contrast before wiring them into a chart.
+`brewer.pal()` returns hex codes, `"Blues"` is a sequential ramp from very pale blue at the low end to deep navy at the high end, while `"RdYlGn"` is a diverging palette (red → yellow → green) suitable for above/below-zero data. `scales::show_col()` lays them out as a swatch grid so you can preview the contrast before wiring them into a chart.
 </details>
 
 ## How Do You Apply ColorBrewer Palettes in ggplot2?
 
 ColorBrewer palettes are built into ggplot2 via two scale functions:
 
-- `scale_color_brewer()` / `scale_fill_brewer()` — for **discrete** (categorical) variables
-- `scale_color_distiller()` / `scale_fill_distiller()` — for **continuous** variables (interpolates between palette colors)
+- `scale_color_brewer()` / `scale_fill_brewer()`, for **discrete** (categorical) variables
+- `scale_color_distiller()` / `scale_fill_distiller()`, for **continuous** variables (interpolates between palette colors)
 
 **Sequential palette on a heatmap:**
 
@@ -106,7 +106,7 @@ p_seq <- ggplot(cor_df, aes(x = Var1, y = Var2, fill = Corr)) +
 p_seq
 ```
 
-**Diverging palette — correlations that go both positive and negative:**
+**Diverging palette, correlations that go both positive and negative:**
 
 ```r
 # Diverging palette centers at 0 - perfect for correlation
@@ -125,7 +125,7 @@ p_div <- ggplot(cor_df, aes(x = Var1, y = Var2, fill = Corr)) +
 p_div
 ```
 
-Notice how the diverging palette immediately shows that variables positively correlated (red) vs. negatively correlated (blue) with others — information the sequential palette obscures.
+Notice how the diverging palette immediately shows that variables positively correlated (red) vs. negatively correlated (blue) with others, information the sequential palette obscures.
 
 **Qualitative palette for categorical groups:**
 
@@ -147,7 +147,7 @@ p_qual <- ggplot(mpg, aes(x = displ, y = hwy, color = drv)) +
 p_qual
 ```
 
-> **TIP:** ColorBrewer's most colorblind-friendly qualitative palette is `"Set2"`. `"Dark2"` is also good for print. Avoid `"Set1"` when a colorblind reader matters — its red-green combination is problematic for the most common form of color blindness.
+> **TIP:** ColorBrewer's most colorblind-friendly qualitative palette is `"Set2"`. `"Dark2"` is also good for print. Avoid `"Set1"` when a colorblind reader matters, its red-green combination is problematic for the most common form of color blindness.
 
 **Try it:** Change `palette = "Set2"` to `palette = "Paired"` in `p_qual`. How does the chart's readability change?
 
@@ -167,12 +167,12 @@ ex_paired <- ggplot(mpg, aes(x = displ, y = hwy, color = drv)) +
 ex_paired
 ```
 
-`"Paired"` is a 12-colour qualitative palette designed for showing related pairs (light/dark blue, light/dark green, etc.). With only 3 drive categories you end up using the first three slots — light blue, dark blue, light green — which feel less visually balanced than `"Set2"`'s muted, evenly-spaced hues. Save `"Paired"` for cases where you genuinely have paired categories like "before/after" or "predicted/observed".
+`"Paired"` is a 12-colour qualitative palette designed for showing related pairs (light/dark blue, light/dark green, etc.). With only 3 drive categories you end up using the first three slots, light blue, dark blue, light green, which feel less visually balanced than `"Set2"`'s muted, evenly-spaced hues. Save `"Paired"` for cases where you genuinely have paired categories like "before/after" or "predicted/observed".
 </details>
 
 ## How Does the Viridis Palette Family Work?
 
-Viridis is a family of perceptually uniform color scales — meaning equal steps in data value correspond to equal perceived steps in color, across the full range. This is a property most palettes (including many ColorBrewer ones) don't have.
+Viridis is a family of perceptually uniform color scales, meaning equal steps in data value correspond to equal perceived steps in color, across the full range. This is a property most palettes (including many ColorBrewer ones) don't have.
 
 Viridis was also designed from the start to be:
 - Readable in grayscale (for black-and-white printing)
@@ -217,7 +217,7 @@ p_vir_d <- ggplot(mpg, aes(x = displ, y = hwy, color = class)) +
 p_vir_d
 ```
 
-> **KEY INSIGHT:** `viridis` is the safest default for continuous color scales in published work. It looks good on screen, prints in grayscale without losing information, and is accessible to colorblind readers — properties that most visually appealing palettes (like rainbow) fail on all three counts.
+> **KEY INSIGHT:** `viridis` is the safest default for continuous color scales in published work. It looks good on screen, prints in grayscale without losing information, and is accessible to colorblind readers, properties that most visually appealing palettes (like rainbow) fail on all three counts.
 
 **Try it:** Change `option = "plasma"` to `option = "magma"` in `p_vir`. Then try `option = "cividis"`. Which looks best for the diamond density data?
 
@@ -237,7 +237,7 @@ ex_magma <- ggplot(diamonds, aes(x = carat, y = price)) +
 ex_magma
 ```
 
-`magma` (black → red → cream) gives a warmer, more cinematic look than `plasma` and reads especially well on a dark background — high-density bins glow against the panel. `cividis` is the most colorblind-safe of the family but its blue-yellow range is narrower, so subtle density differences are harder to spot. For exploratory work `plasma`/`magma` win on contrast; for publication where deuteranopia matters, `cividis` is the safer pick.
+`magma` (black → red → cream) gives a warmer, more cinematic look than `plasma` and reads especially well on a dark background, high-density bins glow against the panel. `cividis` is the most colorblind-safe of the family but its blue-yellow range is narrower, so subtle density differences are harder to spot. For exploratory work `plasma`/`magma` win on contrast; for publication where deuteranopia matters, `cividis` is the safer pick.
 </details>
 
 ## How Do You Specify Custom Colors?
@@ -267,7 +267,7 @@ p_manual <- ggplot(mpg, aes(x = class, fill = drv)) +
 p_manual
 ```
 
-R accepts colors as hex codes (`"#2166ac"`), named colors (`"steelblue"`, `"tomato"`), or RGB values via `rgb(0.1, 0.5, 0.8)`. To see all named colors available in R, run `colors()` — there are 657 of them.
+R accepts colors as hex codes (`"#2166ac"`), named colors (`"steelblue"`, `"tomato"`), or RGB values via `rgb(0.1, 0.5, 0.8)`. To see all named colors available in R, run `colors()`, there are 657 of them.
 
 > **TIP:** When picking custom colors, check them at https://colorbrewer2.org or use the `prismatic` package's `check_color_blindness()` function to simulate how your palette appears under different types of color vision deficiency.
 
@@ -288,7 +288,7 @@ ex_named <- ggplot(mpg, aes(x = class, fill = drv)) +
 ex_named
 ```
 
-R's named colours (`"navy"`, `"coral"`, `"forestgreen"`) are convenient shortcuts for hex codes, and these three remain visually distinct because they sit far apart in hue space — deep blue, warm orange-pink, and dark green. The trade-off is precision: you can't fine-tune the exact shade, so for brand work hex codes are better; for quick exploratory plots named colours are perfectly readable.
+R's named colours (`"navy"`, `"coral"`, `"forestgreen"`) are convenient shortcuts for hex codes, and these three remain visually distinct because they sit far apart in hue space, deep blue, warm orange-pink, and dark green. The trade-off is precision: you can't fine-tune the exact shade, so for brand work hex codes are better; for quick exploratory plots named colours are perfectly readable.
 </details>
 
 ## How Do You Design Charts for Colorblind Readers?
@@ -299,7 +299,7 @@ Three practical strategies:
 
 **Strategy 1: Use colorblind-safe palettes.** Viridis, ColorBrewer's `"Set2"`, `"Dark2"`, and `"Okabe-Ito"` are safe by design.
 
-**Strategy 2: Dual-encode with shape or linetype.** Map the same variable to both color and shape — even in grayscale or with color blindness, the shapes are distinguishable.
+**Strategy 2: Dual-encode with shape or linetype.** Map the same variable to both color and shape, even in grayscale or with color blindness, the shapes are distinguishable.
 
 ```r
 # Dual encoding: color + shape for the same variable
@@ -327,13 +327,13 @@ p_cb <- ggplot(mpg, aes(x = displ, y = hwy,
 p_cb
 ```
 
-The three hex colors above (`#0072B2`, `#E69F00`, `#009E73`) are from the Okabe-Ito palette — specifically designed for colorblind accessibility by statistician Masataka Okabe and color scientist Kei Ito.
+The three hex colors above (`#0072B2`, `#E69F00`, `#009E73`) are from the Okabe-Ito palette, specifically designed for colorblind accessibility by statistician Masataka Okabe and color scientist Kei Ito.
 
 **Strategy 3: Simulate colorblind vision.** The `colorspace` package includes `deutan()`, `protan()`, and `tritan()` functions to simulate how your color choices appear under different deficiencies.
 
 > **WARNING:** Never rely on red vs. green as the only differentiator in a chart. This combination fails for deuteranopia (the most common form of color blindness) and also looks poor in grayscale printing. If you must use red and green, ensure they also differ in lightness or saturation.
 
-**Try it:** Change the `scale_color_manual` colors in `p_cb` to use red (`"#CC0000"`) and green (`"#009900"`) for the `f` and `r` groups. Can you tell them apart if you squint — simulating a colorblind reader?
+**Try it:** Change the `scale_color_manual` colors in `p_cb` to use red (`"#CC0000"`) and green (`"#009900"`) for the `f` and `r` groups. Can you tell them apart if you squint, simulating a colorblind reader?
 
 ```r
 # Your code here — try the red/green combo and inspect the result
@@ -350,14 +350,14 @@ ex_redgreen <- ggplot(mpg, aes(x = displ, y = hwy, color = drv)) +
 ex_redgreen
 ```
 
-For ~8% of male readers (deuteranopia/protanopia), the red and green points collapse into nearly identical muddy yellow-brown dots. Squinting roughly approximates the loss because both the red and the green sit at similar perceived brightness — and that's the trap. The fix is to either pick colours that differ in *lightness* as well as hue, or to dual-encode with `shape` so the chart still parses without colour at all.
+For ~8% of male readers (deuteranopia/protanopia), the red and green points collapse into nearly identical muddy yellow-brown dots. Squinting roughly approximates the loss because both the red and the green sit at similar perceived brightness, and that's the trap. The fix is to either pick colours that differ in *lightness* as well as hue, or to dual-encode with `shape` so the chart still parses without colour at all.
 </details>
 
 ## Common Mistakes and How to Fix Them
 
 ### Mistake 1: Using rainbow or jet palettes for continuous data
 
-❌ The `rainbow()` palette has no perceptual uniformity — regions of similar data values appear very different in color, and some regions (yellow-green) look similar despite very different values.
+❌ The `rainbow()` palette has no perceptual uniformity, regions of similar data values appear very different in color, and some regions (yellow-green) look similar despite very different values.
 
 ✅ Use `scale_fill_viridis_c()` for continuous data. Viridis is perceptually uniform and colorblind-safe by design.
 
@@ -369,13 +369,13 @@ For ~8% of male readers (deuteranopia/protanopia), the red and green points coll
 
 ### Mistake 3: Applying a diverging palette without centering at zero
 
-❌ Using `scale_fill_distiller(palette = "RdBu")` without setting `limits = c(-max, max)` causes the midpoint (white) to appear at the data mean, not at zero — misrepresenting the zero crossing.
+❌ Using `scale_fill_distiller(palette = "RdBu")` without setting `limits = c(-max, max)` causes the midpoint (white) to appear at the data mean, not at zero, misrepresenting the zero crossing.
 
 ✅ Always set symmetric limits around zero for diverging scales: `limits = c(-1, 1)` for correlations, `limits = c(-max_abs, max_abs)` for other data.
 
 ### Mistake 4: Using color as the only channel for critical information
 
-❌ Differentiating two groups only by red vs. green — invisible to colorblind readers and lost in grayscale.
+❌ Differentiating two groups only by red vs. green, invisible to colorblind readers and lost in grayscale.
 
 ✅ Dual-encode: map the same variable to both `color` and `shape` (for scatter plots) or both `color` and `linetype` (for line charts).
 
@@ -391,9 +391,9 @@ For ~8% of male readers (deuteranopia/protanopia), the red and green points coll
 
 The `airquality` dataset has daily temperature (`Temp`) and ozone (`Ozone`) measurements. Create three charts:
 
-1. A scatter plot of `Wind` vs `Temp` colored by `Month` (categorical) — choose an appropriate qualitative palette
-2. A scatter plot of `Wind` vs `Temp` colored by `Ozone` (continuous, one direction) — choose a sequential palette
-3. Create a new column `Ozone_diff = Ozone - mean(Ozone, na.rm=TRUE)` and color by it — choose a diverging palette
+1. A scatter plot of `Wind` vs `Temp` colored by `Month` (categorical), choose an appropriate qualitative palette
+2. A scatter plot of `Wind` vs `Temp` colored by `Ozone` (continuous, one direction), choose a sequential palette
+3. Create a new column `Ozone_diff = Ozone - mean(Ozone, na.rm=TRUE)` and color by it, choose a diverging palette
 
 ```r
 # Starter code
@@ -488,14 +488,14 @@ p_final
 | Continuous, one direction | Sequential | `scale_fill_distiller(type="seq")` or `scale_fill_viridis_c()` | `"Blues"`, `"YlOrRd"`, `"viridis"`, `"plasma"` |
 | Continuous, above/below zero | Diverging | `scale_fill_distiller(type="div")` | `"RdBu"`, `"RdYlGn"`, `"BrBG"` |
 | Categorical, unordered | Qualitative | `scale_color_brewer(type="qual")` | `"Set2"`, `"Dark2"`, `"Okabe-Ito"` |
-| Any — colorblind-safe | Any | `scale_*_viridis_*()` | `"viridis"`, `"cividis"`, `"plasma"` |
+| Any, colorblind-safe | Any | `scale_*_viridis_*()` | `"viridis"`, `"cividis"`, `"plasma"` |
 | Custom colors | Any | `scale_*_manual(values = ...)` | Hex codes or R named colors |
 
 Key rules:
-- Match palette type to data type — this is the most important decision
-- Use viridis as your default for continuous scales — it's safe for colorblind, grayscale, and screen
+- Match palette type to data type, this is the most important decision
+- Use viridis as your default for continuous scales, it's safe for colorblind, grayscale, and screen
 - For diverging scales, always center the midpoint at zero with symmetric limits
-- Dual-encode critical information with shape or linetype — never rely on color alone
+- Dual-encode critical information with shape or linetype, never rely on color alone
 
 ## FAQ
 
@@ -522,15 +522,15 @@ Almost never in scientific or analytical contexts. Rainbow has no perceptual uni
 ## References
 
 1. Wickham, H. (2016). *ggplot2: Elegant Graphics for Data Analysis*, Chapter 11: Colour Scales. Springer. https://ggplot2-book.org/scale-colour
-2. ColorBrewer — Cynthia Brewer, Mark Harrower. https://colorbrewer2.org/
+2. ColorBrewer, Cynthia Brewer, Mark Harrower. https://colorbrewer2.org/
 3. Smith, N. & van der Walt, S. (2015). A Better Default Colormap for Matplotlib (viridis). SciPy 2015.
 4. Okabe, M. & Ito, K. (2008). Color Universal Design. https://jfly.uni-koeln.de/color/
 5. Wilke, C. O. (2019). *Fundamentals of Data Visualization*, Chapter 4: Color Scales. https://clauswilke.com/dataviz/color-basics.html
-6. ggplot2 reference — `scale_color_brewer()`. https://ggplot2.tidyverse.org/reference/scale_brewer.html
-7. ggplot2 reference — `scale_color_viridis_*()`. https://ggplot2.tidyverse.org/reference/scale_viridis.html
+6. ggplot2 reference, `scale_color_brewer()`. https://ggplot2.tidyverse.org/reference/scale_brewer.html
+7. ggplot2 reference, `scale_color_viridis_*()`. https://ggplot2.tidyverse.org/reference/scale_viridis.html
 
 ## Continue Learning
 
-- **ggplot2 Scales** — control axis formatting, breaks, labels, and color scales with the full `scale_*()` system.
-- **ggplot2 Distribution Charts** — choose histograms, density plots, boxplots, and violin plots with colorblind-safe palettes applied throughout.
-- **ggplot2 Scatter Plots** — apply the color mapping strategies from this tutorial to real exploratory analysis.
+- **ggplot2 Scales**, control axis formatting, breaks, labels, and color scales with the full `scale_*()` system.
+- **ggplot2 Distribution Charts**, choose histograms, density plots, boxplots, and violin plots with colorblind-safe palettes applied throughout.
+- **ggplot2 Scatter Plots**, apply the color mapping strategies from this tutorial to real exploratory analysis.

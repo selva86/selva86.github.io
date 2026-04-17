@@ -16,7 +16,7 @@ difficulty: "Intermediate"
 
 # Counting Principles in R: Permutations, Combinations & Birthday Problem
 
-<p class="lead">Counting principles in R let you count outcomes without listing them one by one. Use <code>factorial()</code> for orderings, <code>choose()</code> for unordered selections, and <code>combn()</code> to enumerate every subset — three tools that power permutations, combinations, and classic puzzles like the birthday problem.</p>
+<p class="lead">Counting principles in R let you count outcomes without listing them one by one. Use <code>factorial()</code> for orderings, <code>choose()</code> for unordered selections, and <code>combn()</code> to enumerate every subset, three tools that power permutations, combinations, and classic puzzles like the birthday problem.</p>
 
 Every probability starts with a count. This post walks you through the three counting tools every R user needs, then uses them to crack the birthday problem from first principles. We stick to base R throughout.
 
@@ -42,13 +42,13 @@ head(dice_outcomes, 4)
 #> [1] 36
 ```
 
-`expand.grid()` builds every combination of the input vectors, one row per outcome. Counting the rows (36) matches `6 * 6` exactly — that is the multiplication rule in action. For small spaces, enumerating outcomes is fine. For larger ones, multiplication is the only practical path.
+`expand.grid()` builds every combination of the input vectors, one row per outcome. Counting the rows (36) matches `6 * 6` exactly, that is the multiplication rule in action. For small spaces, enumerating outcomes is fine. For larger ones, multiplication is the only practical path.
 
 The rule generalises to any number of independent steps. For *k* steps with option counts $a_1, a_2, \ldots, a_k$, the total is:
 
 $$N = a_1 \times a_2 \times \cdots \times a_k$$
 
-Consider a 4-character password drawn from 26 letters plus 10 digits — 36 options per slot, four independent slots.
+Consider a 4-character password drawn from 26 letters plus 10 digits, 36 options per slot, four independent slots.
 
 ```r
 # How many 4-char alphanumeric passwords?
@@ -60,7 +60,7 @@ n_passwords
 Over 1.6 million combinations for a weak four-character password. The count grows as an exponent of the alphabet size, which is why one extra character massively expands the search space for a brute-force attacker.
 
 [KEY INSIGHT]
-**Every counting rule is a disguised multiplication rule.** Permutations, combinations, and even the birthday problem all reduce to multiplying the number of choices at each step — with adjustments for whether order matters and whether repetition is allowed.
+**Every counting rule is a disguised multiplication rule.** Permutations, combinations, and even the birthday problem all reduce to multiplying the number of choices at each step, with adjustments for whether order matters and whether repetition is allowed.
 
 **Try it:** How many outcomes are there when you roll one die and flip one coin? Save the result to `ex_outcomes`.
 
@@ -81,7 +81,7 @@ ex_outcomes
 #> [1] 12
 ```
 
-**Explanation:** Six die faces times two coin sides gives 12 outcomes — the multiplication rule with two independent steps.
+**Explanation:** Six die faces times two coin sides gives 12 outcomes, the multiplication rule with two independent steps.
 
 </details>
 
@@ -99,7 +99,7 @@ factorial(5)
 #> [1] 120
 ```
 
-Think of it as filling five slots. The first slot can hold any of five books, the second any of the remaining four, and so on — the multiplication rule, applied down to 1.
+Think of it as filling five slots. The first slot can hold any of five books, the second any of the remaining four, and so on, the multiplication rule, applied down to 1.
 
 Often we only fill *k* slots out of *n*. The count of ordered arrangements of *n* items taken *k* at a time is the **permutation formula**:
 
@@ -111,7 +111,7 @@ Where:
 - $k$ = slots to fill
 - $P(n, k)$ = number of ordered arrangements
 
-The intuition: you fill *k* slots, with *n*, *n−1*, *n−2*, … options at each step — stopping after *k* multiplications. The formula is a shortcut for that product.
+The intuition: you fill *k* slots, with *n*, *n−1*, *n−2*, … options at each step, stopping after *k* multiplications. The formula is a shortcut for that product.
 
 ```r
 # 5 people, 3 chairs — how many seating orders?
@@ -125,7 +125,7 @@ p_5_3_b
 #> [1] 60
 ```
 
-Both routes give 60. The first uses the permutation formula directly. The second says: pick the three people (unordered), then count the 3! ways to sit them in the chairs. That identity — "permutation = combination × k!" — shows up again in the birthday problem.
+Both routes give 60. The first uses the permutation formula directly. The second says: pick the three people (unordered), then count the 3! ways to sit them in the chairs. That identity, "permutation = combination × k!", shows up again in the birthday problem.
 
 To see every permutation explicitly, we can filter `expand.grid()` for rows with no duplicates. This is the base-R trick when you do not want to reach for a package.
 
@@ -146,12 +146,12 @@ perm_abc
 #> 6    C    B    A
 ```
 
-Six rows, matching `factorial(3) = 6`. For small *n* this is fine, but it scales terribly — `factorial(10)` is already 3.6 million orderings, so enumeration is rarely the right tool.
+Six rows, matching `factorial(3) = 6`. For small *n* this is fine, but it scales terribly, `factorial(10)` is already 3.6 million orderings, so enumeration is rarely the right tool.
 
 [NOTE]
 **The gtools package has a convenient permutations() function.** It works in a regular R console but is not pre-compiled for the browser runtime powering the code blocks on this page, so we keep everything in base R. Installing gtools locally is worth it if you enumerate permutations often.
 
-**Try it:** Use `factorial()` to compute P(10, 3) — the number of ways to award gold, silver, and bronze medals to 10 athletes. Save as `ex_p`.
+**Try it:** Use `factorial()` to compute P(10, 3), the number of ways to award gold, silver, and bronze medals to 10 athletes. Save as `ex_p`.
 
 ```r
 # Try it: permutation formula
@@ -170,13 +170,13 @@ ex_p
 #> [1] 720
 ```
 
-**Explanation:** Ten athletes for gold, nine remaining for silver, eight for bronze — 10 × 9 × 8 = 720, which is `10! / 7!`.
+**Explanation:** Ten athletes for gold, nine remaining for silver, eight for bronze, 10 × 9 × 8 = 720, which is `10! / 7!`.
 
 </details>
 
 ## How do you compute combinations in R?
 
-A **combination** is an unordered selection. The team {Alice, Bob} is the same as {Bob, Alice} — only who is in matters. The count of *k*-element subsets of an *n*-element set is the **binomial coefficient**, written "n choose k":
+A **combination** is an unordered selection. The team {Alice, Bob} is the same as {Bob, Alice}, only who is in matters. The count of *k*-element subsets of an *n*-element set is the **binomial coefficient**, written "n choose k":
 
 $$C(n, k) = \binom{n}{k} = \frac{n!}{k!\,(n - k)!}$$
 
@@ -217,10 +217,10 @@ t(teams)
 #> [10,] "Cy"  "Di"  "Ev"
 ```
 
-Ten rows match `choose(5, 3)`. Order inside a row does not matter — `combn()` always emits combinations in lexicographic order.
+Ten rows match `choose(5, 3)`. Order inside a row does not matter, `combn()` always emits combinations in lexicographic order.
 
 [TIP]
-**combn() can apply a function to every combination.** Pass a function as the third argument — `combn(1:5, 3, sum)` returns the sum of every 3-subset. This turns `combn()` into a one-liner for exhaustive search over small subsets.
+**combn() can apply a function to every combination.** Pass a function as the third argument, `combn(1:5, 3, sum)` returns the sum of every 3-subset. This turns `combn()` into a one-liner for exhaustive search over small subsets.
 
 **Try it:** How many 5-card hands can be dealt from a standard 52-card deck? Save to `ex_hands`.
 
@@ -241,13 +241,13 @@ ex_hands
 #> [1] 2598960
 ```
 
-**Explanation:** Poker deals five cards from 52 without regard to order, so this is `choose(52, 5)` — roughly 2.6 million distinct hands.
+**Explanation:** Poker deals five cards from 52 without regard to order, so this is `choose(52, 5)`, roughly 2.6 million distinct hands.
 
 </details>
 
 ## When do you use permutations vs combinations?
 
-The entire decision comes down to one question: **does order matter?** If yes, use permutations. If no, use combinations. Phrased differently — if swapping two items in the arrangement produces a different outcome for your problem, order matters.
+The entire decision comes down to one question: **does order matter?** If yes, use permutations. If no, use combinations. Phrased differently, if swapping two items in the arrangement produces a different outcome for your problem, order matters.
 
 ```r
 # 3-digit PIN from 5 unique digits — order MATTERS (731 != 137)
@@ -295,7 +295,7 @@ ex_arrange
 #> [1] 210
 ```
 
-**Explanation:** Left-to-right arrangement means order matters, so this is `P(7, 3)`. Seven books for the first slot, six for the second, five for the third — 7 × 6 × 5 = 210.
+**Explanation:** Left-to-right arrangement means order matters, so this is `P(7, 3)`. Seven books for the first slot, six for the second, five for the third, 7 × 6 × 5 = 210.
 
 </details>
 
@@ -303,9 +303,9 @@ ex_arrange
 
 The birthday problem asks: in a room of *n* people, what is the probability that at least two share a birthday? The counterintuitive answer is that with just 23 people, the probability is already above 50%. Most readers guess closer to 100 or 200.
 
-The direct way — "count every way at least one pair matches" — is awkward. The trick is the **complement**: compute the probability that *everyone is different*, then subtract from 1.
+The direct way, "count every way at least one pair matches", is awkward. The trick is the **complement**: compute the probability that *everyone is different*, then subtract from 1.
 
-Assume 365 equally likely birthdays and independence. For *n* people, there are $365^n$ possible birthday sequences. For all *n* to be different, the first person has 365 options, the second 364, the third 363, and so on — a permutation count, $P(365, n)$. So:
+Assume 365 equally likely birthdays and independence. For *n* people, there are $365^n$ possible birthday sequences. For all *n* to be different, the first person has 365 options, the second 364, the third 363, and so on, a permutation count, $P(365, n)$. So:
 
 $$P(\text{shared}) = 1 - \frac{P(365, n)}{365^n} = 1 - \frac{365!}{(365 - n)! \cdot 365^n}$$
 
@@ -314,7 +314,7 @@ Where:
 - $n$ = number of people
 - $P(\text{shared})$ = probability at least two share a birthday
 
-Factorials of 365 overflow `factorial()` in R. The fix is `lfactorial()` — the logarithm of the factorial — and exponentiating at the end.
+Factorials of 365 overflow `factorial()` in R. The fix is `lfactorial()`, the logarithm of the factorial, and exponentiating at the end.
 
 ```r
 # Probability at least two out of n share a birthday
@@ -328,7 +328,7 @@ round(p23, 4)
 #> [1] 0.5073
 ```
 
-With 23 people, the probability is 0.5073 — just over 50%. The function stays numerically stable up to n = 365 because all arithmetic is in log space before a single `exp()` at the end.
+With 23 people, the probability is 0.5073, just over 50%. The function stays numerically stable up to n = 365 because all arithmetic is in log space before a single `exp()` at the end.
 
 Next, sweep *n* from 1 to 60 and find the first *n* where the probability crosses 0.5.
 
@@ -345,7 +345,7 @@ round(probs_1_60[c(10, 23, 30, 50)], 3)
 #> [1] 0.117 0.507 0.706 0.970
 ```
 
-Crossover happens at exactly 23 people. By 30 there is a 70% chance, and by 50 it is 97% — the curve climbs fast once the number of pairs grows large.
+Crossover happens at exactly 23 people. By 30 there is a 70% chance, and by 50 it is 97%, the curve climbs fast once the number of pairs grows large.
 
 The simulation route skips the formula entirely: sample birthdays, check for duplicates, and repeat thousands of times.
 
@@ -360,7 +360,7 @@ sim_p23
 #> [1] 0.5063
 ```
 
-The simulation lands at 0.5063, within 0.001 of the analytic 0.5073 — a strong validation that the formula is correct. `replicate()` runs the expression 10,000 times, `sample()` draws 23 birthdays with replacement, and `duplicated()` flags any repeat.
+The simulation lands at 0.5063, within 0.001 of the analytic 0.5073, a strong validation that the formula is correct. `replicate()` runs the expression 10,000 times, `sample()` draws 23 birthdays with replacement, and `duplicated()` flags any repeat.
 
 Finally, visualise the full curve with both methods overlaid. The base-R plot runs directly in the browser.
 
@@ -384,10 +384,10 @@ legend("bottomright", legend = c("Formula", "Simulation"),
        col = c("steelblue", "tomato"), lty = c(1, NA), pch = c(NA, 20))
 ```
 
-The simulated points sit almost exactly on the analytic curve. Dashed guides mark the 50% line and n = 23 — the famous crossover point.
+The simulated points sit almost exactly on the analytic curve. Dashed guides mark the 50% line and n = 23, the famous crossover point.
 
 [KEY INSIGHT]
-**The magic of n = 23 comes from counting pairs, not people.** With 23 people there are `choose(23, 2) = 253` distinct pairs. Each pair has a 1/365 chance of matching, so the expected number of matches is about 0.69 — big enough that at least one match becomes likely. The probability grows with pairs, which grow quadratically in *n*.
+**The magic of n = 23 comes from counting pairs, not people.** With 23 people there are `choose(23, 2) = 253` distinct pairs. Each pair has a 1/365 chance of matching, so the expected number of matches is about 0.69, big enough that at least one match becomes likely. The probability grows with pairs, which grow quadratically in *n*.
 
 **Try it:** Modify `bday_prob()` so the year length is an argument `days` (default 365). Use it to find the crossover `n` for a leap year (`days = 366`). Save as `ex_crossover`.
 
@@ -416,7 +416,7 @@ ex_crossover
 #> [1] 23
 ```
 
-**Explanation:** Adding one day (Feb 29) barely shifts the probabilities — crossover is still at 23. The birthday problem is robust to small changes in the denominator because it is driven by the number of pairs.
+**Explanation:** Adding one day (Feb 29) barely shifts the probabilities, crossover is still at 23. The birthday problem is robust to small changes in the denominator because it is driven by the number of pairs.
 
 </details>
 
@@ -426,7 +426,7 @@ These capstones combine several ideas from the tutorial. Use variable names pref
 
 ### Exercise 1: Probability of a flush in poker
 
-Compute the probability that a random 5-card hand from a standard 52-card deck is a flush — all five cards of the same suit. Combine `choose()` with the multiplication rule: pick a suit, then pick 5 cards from that suit. Save to `my_flush_prob`.
+Compute the probability that a random 5-card hand from a standard 52-card deck is a flush, all five cards of the same suit. Combine `choose()` with the multiplication rule: pick a suit, then pick 5 cards from that suit. Save to `my_flush_prob`.
 
 ```r
 # Exercise 1: probability of a flush
@@ -445,7 +445,7 @@ round(my_flush_prob, 5)
 #> [1] 0.00198
 ```
 
-**Explanation:** Four suits times `choose(13, 5)` same-suit hands gives the flush count; dividing by `choose(52, 5)` gives roughly 0.2% — about 1 in 505 hands. (Poker convention excludes straight flushes from this count, but the formula above matches the general "all same suit" question.)
+**Explanation:** Four suits times `choose(13, 5)` same-suit hands gives the flush count; dividing by `choose(52, 5)` gives roughly 0.2%, about 1 in 505 hands. (Poker convention excludes straight flushes from this count, but the formula above matches the general "all same suit" question.)
 
 </details>
 
@@ -474,7 +474,7 @@ round(my_triple_prob, 4)
 #> [1] 0.0287
 ```
 
-**Explanation:** `tabulate()` counts occurrences of each integer, and `max() >= 3` asks whether any birthday appears at least three times. Around 2.9% — much rarer than the pair version, but still non-trivial in a standard classroom.
+**Explanation:** `tabulate()` counts occurrences of each integer, and `max() >= 3` asks whether any birthday appears at least three times. Around 2.9%, much rarer than the pair version, but still non-trivial in a standard classroom.
 
 </details>
 
@@ -505,7 +505,7 @@ my_with7
 #> [1] 2016
 ```
 
-**Explanation:** Using the complement is cleaner than enumeration. Total permutations `P(10, 4) = 5040`, PINs with no 7 are `P(9, 4) = 3024`, so 2016 PINs contain at least one 7 — about 40%.
+**Explanation:** Using the complement is cleaner than enumeration. Total permutations `P(10, 4) = 5040`, PINs with no 7 are `P(9, 4) = 3024`, so 2016 PINs contain at least one 7, about 40%.
 
 </details>
 
@@ -534,7 +534,7 @@ cat("Distinct pairs:      ", n_pairs, "\n")
 #> Distinct pairs:       378
 ```
 
-A 28-person cohort has a 65% shared-birthday probability, backed by 378 distinct pairs — any of which could collide. Analytic and simulated probabilities agree to within 0.001. The same three-step pattern — formula, simulation, pair count — answers almost every intro-probability counting question that comes up in practice.
+A 28-person cohort has a 65% shared-birthday probability, backed by 378 distinct pairs, any of which could collide. Analytic and simulated probabilities agree to within 0.001. The same three-step pattern, formula, simulation, pair count, answers almost every intro-probability counting question that comes up in practice.
 
 ## Summary
 
@@ -547,27 +547,27 @@ The three tools in this tutorial cover almost every counting problem in introduc
 | Permutations | `factorial(n) / factorial(n - k)` | Yes | 5 people, 3 chairs → 60 |
 | Combinations (count) | `choose(n, k)` | No | 3-person team from 5 → 10 |
 | Combinations (enumerate) | `combn(x, k)` | No | List every team |
-| Large-n formulas | `lfactorial()` | — | Birthday problem |
+| Large-n formulas | `lfactorial()` |, | Birthday problem |
 
 Key takeaways:
 
 - The multiplication rule is the foundation: everything else adjusts for order and repetition.
 - If order matters use permutations, otherwise combinations. Writing the rule in a sentence prevents the most common probability bug.
-- `choose()` gives the count, `combn()` gives the actual subsets — both are base R.
+- `choose()` gives the count, `combn()` gives the actual subsets, both are base R.
 - For probabilities of rare events over large spaces, `lfactorial()` keeps arithmetic stable; simulation via `replicate()` is a sanity check that rarely disagrees.
-- The birthday problem's surprise is quadratic pair growth — `choose(n, 2)` climbs fast, which is why 23 people already give you a 50% chance of a match.
+- The birthday problem's surprise is quadratic pair growth, `choose(n, 2)` climbs fast, which is why 23 people already give you a 50% chance of a match.
 
 ## References
 
-1. Grinstead, C. M. & Snell, J. L. — *Introduction to Probability*, Chapter 3: Combinatorics. Hosted on LibreTexts. [Link](https://stats.libretexts.org/Bookshelves/Probability_Theory/Introductory_Probability_(Grinstead_and_Snell)/03:_Combinatorics)
-2. Wikipedia — *Birthday problem*. [Link](https://en.wikipedia.org/wiki/Birthday_problem)
-3. R Core Team — `choose`, `factorial`, and `combn` reference (base package). [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/Special.html)
-4. Robinson, D. — *The birthday paradox puzzle: tidy simulation in R*. Variance Explained. [Link](http://varianceexplained.org/r/birthday-problem/)
-5. Heiss, A. — *Calculating birthday probabilities with R instead of math*. [Link](https://www.andrewheiss.com/blog/2024/05/03/birthday-spans-simulation-sans-math/)
-6. Wickham, H. — *Advanced R*, 2nd Edition. CRC Press (2019). [Link](https://adv-r.hadley.nz/)
+1. Grinstead, C. M. & Snell, J. L., *Introduction to Probability*, Chapter 3: Combinatorics. Hosted on LibreTexts. [Link](https://stats.libretexts.org/Bookshelves/Probability_Theory/Introductory_Probability_(Grinstead_and_Snell)/03:_Combinatorics)
+2. Wikipedia, *Birthday problem*. [Link](https://en.wikipedia.org/wiki/Birthday_problem)
+3. R Core Team, `choose`, `factorial`, and `combn` reference (base package). [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/Special.html)
+4. Robinson, D., *The birthday paradox puzzle: tidy simulation in R*. Variance Explained. [Link](http://varianceexplained.org/r/birthday-problem/)
+5. Heiss, A., *Calculating birthday probabilities with R instead of math*. [Link](https://www.andrewheiss.com/blog/2024/05/03/birthday-spans-simulation-sans-math/)
+6. Wickham, H., *Advanced R*, 2nd Edition. CRC Press (2019). [Link](https://adv-r.hadley.nz/)
 
 ## Continue Learning
 
-- [Sample Spaces, Events and Probability Axioms in R](Sample-Spaces-Events-and-Probability-Axioms-in-R-With-Monte-Carlo-Proof.html) — the parent post, where every counting principle here becomes a probability via the axioms.
-- [Conditional Probability in R](Conditional-Probability-in-R.html) — builds on counting to update beliefs when new information arrives.
-- [Central Limit Theorem in R](Central-Limit-Theorem-in-R.html) — another Monte Carlo showcase, using `replicate()` to validate a theoretical result.
+- [Sample Spaces, Events and Probability Axioms in R](Sample-Spaces-Events-and-Probability-Axioms-in-R-With-Monte-Carlo-Proof.html), the parent post, where every counting principle here becomes a probability via the axioms.
+- [Conditional Probability in R](Conditional-Probability-in-R.html), builds on counting to update beliefs when new information arrives.
+- [Central Limit Theorem in R](Central-Limit-Theorem-in-R.html), another Monte Carlo showcase, using `replicate()` to validate a theoretical result.

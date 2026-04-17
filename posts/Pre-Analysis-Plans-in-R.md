@@ -16,13 +16,13 @@ difficulty: "Intermediate"
 
 # Pre-Analysis Plans in R: Commit Before You Analyze
 
-<p class="lead">A pre-analysis plan (PAP) is a public, time-stamped commitment to your hypotheses, design, and exact analysis code — written before you ever look at the real data. It is the single cheapest defence against p-hacking and HARKing that science has invented.</p>
+<p class="lead">A pre-analysis plan (PAP) is a public, time-stamped commitment to your hypotheses, design, and exact analysis code, written before you ever look at the real data. It is the single cheapest defence against p-hacking and HARKing that science has invented.</p>
 
 The poker analogy is the one that sticks: an unregistered analysis is a player who gets to see every card before placing the bet. A pre-analysis plan forces you to bet first, then play the hand. This tutorial builds a real PAP in R, freezes the analysis function with a hash so it cannot be silently rewritten, and shows the deviation log that turns a credibility-killing edit into a footnote.
 
 ## What does a pre-analysis plan actually contain?
 
-A PAP is short, structured, and almost boring on purpose. The point is not literary flourish — it is to leave no room for "we found this so we'll test that" rewriting after the fact. Before we talk packages or templates, let's see what the bones of a usable PAP actually look like in R, as a plain data structure you can print, save, and share.
+A PAP is short, structured, and almost boring on purpose. The point is not literary flourish, it is to leave no room for "we found this so we'll test that" rewriting after the fact. Before we talk packages or templates, let's see what the bones of a usable PAP actually look like in R, as a plain data structure you can print, save, and share.
 
 The six standard components fit comfortably in a named list. We'll wrap that list in a tibble so the structure prints cleanly in the console.
 
@@ -50,10 +50,10 @@ enframe(pap, name = "Component", value = "Specification")
 #> 6 secondary        <chr [1]>
 ```
 
-That is a complete pre-analysis plan, in fewer lines than most people's data-loading code. Every component answers a question a future critic might ask: *what were you testing, on whom, with what test, and what counts as supporting evidence?* Notice that the secondary analysis is labelled secondary — that label is doing real work, because it tells readers which results are confirmatory and which are exploratory.
+That is a complete pre-analysis plan, in fewer lines than most people's data-loading code. Every component answers a question a future critic might ask: *what were you testing, on whom, with what test, and what counts as supporting evidence?* Notice that the secondary analysis is labelled secondary, that label is doing real work, because it tells readers which results are confirmatory and which are exploratory.
 
 [KEY INSIGHT]
-**The PAP is a contract between you-now and you-after-seeing-the-data.** Both versions of you are biased — one by ambition, the other by motivated reasoning. The document is the referee neither can argue with after the fact.
+**The PAP is a contract between you-now and you-after-seeing-the-data.** Both versions of you are biased, one by ambition, the other by motivated reasoning. The document is the referee neither can argue with after the fact.
 
 **Try it:** Add a seventh component called `sample_size_justification` with a short note like `"Power=0.80 to detect d=0.5, alpha=0.05, t-test"`, then re-render the tibble.
 
@@ -90,7 +90,7 @@ enframe(ex_pap, name = "Component", value = "Specification")
 #> # A tibble: 7 × 2
 ```
 
-**Explanation:** Adding a named slot to the list and re-running `enframe()` is all it takes — the tibble grows by one row.
+**Explanation:** Adding a named slot to the list and re-running `enframe()` is all it takes, the tibble grows by one row.
 
 </details>
 
@@ -98,7 +98,7 @@ enframe(ex_pap, name = "Component", value = "Specification")
 
 A vague hypothesis like "caffeine affects performance" is useless. After you see the data, *anything* counts as confirmation: faster, slower, more variable, less variable. A locked hypothesis names the direction, the test, the alpha threshold, and the decision rule that turns a number into a verdict.
 
-The trick is to encode each hypothesis as a structured list — not prose. Lists force you to fill in the missing fields.
+The trick is to encode each hypothesis as a structured list, not prose. Lists force you to fill in the missing fields.
 
 ```r
 h1 <- list(
@@ -124,7 +124,7 @@ length(hypotheses)
 #> [1] 2
 ```
 
-There are no escape hatches in those specs. `direction = "less"` means a faster placebo group cannot be spun as "interesting in the other direction." `decision` reads like a unit test you could run on the model output — and that's exactly what it should be.
+There are no escape hatches in those specs. `direction = "less"` means a faster placebo group cannot be spun as "interesting in the other direction." `decision` reads like a unit test you could run on the model output, and that's exactly what it should be.
 
 [TIP]
 **One-tailed tests are honest only when pre-registered.** A one-tailed test halves the p-value, which is fine if you committed to the direction in advance and a disaster if you picked the direction after seeing the data. The PAP is what makes the difference.
@@ -152,7 +152,7 @@ verdict
 #> [1] "supported"
 ```
 
-The output is the whole point: a verdict that came out of a function you wrote *before* the real data existed. When real reaction times arrive, you swap `fake_fit` for an actual `t.test()` result and the same line of code gives you the same kind of answer — no spinning, no rewriting.
+The output is the whole point: a verdict that came out of a function you wrote *before* the real data existed. When real reaction times arrive, you swap `fake_fit` for an actual `t.test()` result and the same line of code gives you the same kind of answer, no spinning, no rewriting.
 
 **Try it:** Add a third hypothesis `ex_h3` claiming caffeine *increases* reaction time (`direction = "greater"`), wrap it in a list, and call `check_hypothesis(ex_h3, fake_fit)`. Confirm the verdict flips to `"not supported"` because the same data can't support both directions.
 
@@ -214,7 +214,7 @@ head(sim_data, 3)
 #> 3 caffeine 296.2104
 ```
 
-Now write the planned analysis as a function whose inputs and outputs are explicit. Every number you intend to report goes into the return value — nothing is computed ad-hoc later.
+Now write the planned analysis as a function whose inputs and outputs are explicit. Every number you intend to report goes into the return value, nothing is computed ad-hoc later.
 
 ```r
 planned_analysis <- function(data) {
@@ -254,7 +254,7 @@ pap$analysis_code_hash |> substr(1, 16)
 #> [1] "f4d2a1b9c0e8a3f7"
 ```
 
-The hash now lives inside the PAP itself. If anyone — including future-you — modifies a single character of `planned_analysis()` and re-saves, the hash changes and the divergence is provable. The actual MD5 string you see when you run this in the browser will differ from the one above (because `deparse()` formats a closure with its environment), and that's fine — what matters is that the *same* function always produces the *same* hash.
+The hash now lives inside the PAP itself. If anyone, including future-you, modifies a single character of `planned_analysis()` and re-saves, the hash changes and the divergence is provable. The actual MD5 string you see when you run this in the browser will differ from the one above (because `deparse()` formats a closure with its environment), and that's fine, what matters is that the *same* function always produces the *same* hash.
 
 **Try it:** Modify `planned_analysis()` so it also returns the median reaction time per group (call it `ex_planned_analysis`). Recompute the hash. Confirm the new hash is different from `code_hash`.
 
@@ -331,7 +331,7 @@ cat(substr(pap_json, 1, 380))
 That string is the whole artifact. Save it to a file, upload it to OSF, copy the resulting DOI back into your manuscript, and you have a defensible pre-registration. The hash from the previous section sits inside the JSON, so any later change to your analysis code is detectable.
 
 [NOTE]
-**For richer templates, use the `preregr` and `prereg` CRAN packages in your local RStudio.** Both packages render full PAP documents (HTML or Word) from R Markdown templates that mirror the official AsPredicted, OSF Prereg v1, and Secondary Data Analysis forms. They depend on system libraries that aren't pre-compiled for the in-browser R that powers the runnable blocks on this page, so they aren't loaded here — but `install.packages(c("preregr", "prereg"))` is all you need locally.
+**For richer templates, use the `preregr` and `prereg` CRAN packages in your local RStudio.** Both packages render full PAP documents (HTML or Word) from R Markdown templates that mirror the official AsPredicted, OSF Prereg v1, and Secondary Data Analysis forms. They depend on system libraries that aren't pre-compiled for the in-browser R that powers the runnable blocks on this page, so they aren't loaded here, but `install.packages(c("preregr", "prereg"))` is all you need locally.
 
 **Try it:** Add an `osf_link` field to the PAP with the placeholder URL `"https://osf.io/PLACEHOLDER"` and re-serialize. Confirm the new field appears in the JSON.
 
@@ -365,7 +365,7 @@ cat(toJSON(ex_pap_json, pretty = TRUE, auto_unbox = TRUE))
 
 ## When can I deviate from the plan, and how do I record it?
 
-Deviations are normal. Reviewers ask for an extra robustness check; a covariate turns out to be unbalanced; a measurement instrument breaks. The credibility hit is not from the deviation itself — it's from hiding it. A deviation log turns a fatal credibility problem into a footnote.
+Deviations are normal. Reviewers ask for an extra robustness check; a covariate turns out to be unbalanced; a measurement instrument breaks. The credibility hit is not from the deviation itself, it's from hiding it. A deviation log turns a fatal credibility problem into a footnote.
 
 Build the log as a small data frame with four columns: when, what, why, and how it affects the inference.
 
@@ -489,10 +489,10 @@ cat(pap_to_markdown(hypotheses))
 
 Write `pap_audit(pap, deviations, code_file)` that returns a small audit tibble with one row per check and columns `item` and `status`. The audit should report:
 
-1. `hypotheses_count` — number of hypotheses (from `pap$hypotheses` or a list-of-lists)
-2. `code_hash_match` — `"yes"` or `"no"` depending on whether `tools::md5sum(code_file)` matches `pap$analysis_code_hash`
-3. `deviations_count` — `nrow(deviations)`
-4. `registered` — `"yes"` if `pap$osf_link` is non-NULL and non-empty, else `"no"`
+1. `hypotheses_count`, number of hypotheses (from `pap$hypotheses` or a list-of-lists)
+2. `code_hash_match`, `"yes"` or `"no"` depending on whether `tools::md5sum(code_file)` matches `pap$analysis_code_hash`
+3. `deviations_count`, `nrow(deviations)`
+4. `registered`, `"yes"` if `pap$osf_link` is non-NULL and non-empty, else `"no"`
 
 Use the PAP we built earlier and the `deviations` data frame as inputs.
 
@@ -553,7 +553,7 @@ pap_audit(pap, deviations, audit_path)
 
 ## Complete Example
 
-Here is the whole pipeline for a fictional study — *Does standing-desk usage reduce afternoon fatigue?* — from PAP to deviation log, in one self-contained script. Distinct variable names (`study_*`) keep it isolated from the tutorial state above.
+Here is the whole pipeline for a fictional study, *Does standing-desk usage reduce afternoon fatigue?*, from PAP to deviation log, in one self-contained script. Distinct variable names (`study_*`) keep it isolated from the tutorial state above.
 
 ```r
 # 1. Build the PAP
@@ -628,20 +628,20 @@ In about forty lines the study has a structured PAP, a runnable analysis functio
 | **JSON serialization** | Uploadable artifact for OSF / AsPredicted / AEA | `jsonlite::toJSON()` |
 | **Deviation log** | Turns post-hoc edits from fraud into footnotes | `data.frame` of dated entries |
 
-Five things, none of them hard. The discipline they enforce — *commit before you analyze* — is the only reliable defence against the garden of forking paths.
+Five things, none of them hard. The discipline they enforce, *commit before you analyze*, is the only reliable defence against the garden of forking paths.
 
 ## References
 
-1. Lakens, D. — *Improving Your Statistical Inferences*, Chapter 13: Preregistration. [Link](https://lakens.github.io/statistical_inferences/13-prereg.html)
-2. Peters, G.-J. Y. — `preregr` package on CRAN. [Link](https://cran.r-project.org/package=preregr)
-3. Aust, F. — `prereg` R Markdown templates. [Link](https://github.com/crsh/prereg)
-4. Nosek, B. A., et al. — *The preregistration revolution*. PNAS, 115(11), 2600-2606 (2018). [Link](https://www.pnas.org/doi/10.1073/pnas.1708274114)
-5. J-PAL — Pre-analysis plans resource guide. [Link](https://www.povertyactionlab.org/resource/pre-analysis-plans)
-6. Simmons, J., Nelson, L., & Simonsohn, U. — *Data Colada [64]: How To Properly Preregister A Study*. [Link](https://datacolada.org/64)
-7. Center for Open Science — Preregistration overview. [Link](https://www.cos.io/initiatives/prereg)
+1. Lakens, D., *Improving Your Statistical Inferences*, Chapter 13: Preregistration. [Link](https://lakens.github.io/statistical_inferences/13-prereg.html)
+2. Peters, G.-J. Y., `preregr` package on CRAN. [Link](https://cran.r-project.org/package=preregr)
+3. Aust, F., `prereg` R Markdown templates. [Link](https://github.com/crsh/prereg)
+4. Nosek, B. A., et al., *The preregistration revolution*. PNAS, 115(11), 2600-2606 (2018). [Link](https://www.pnas.org/doi/10.1073/pnas.1708274114)
+5. J-PAL, Pre-analysis plans resource guide. [Link](https://www.povertyactionlab.org/resource/pre-analysis-plans)
+6. Simmons, J., Nelson, L., & Simonsohn, U., *Data Colada [64]: How To Properly Preregister A Study*. [Link](https://datacolada.org/64)
+7. Center for Open Science, Preregistration overview. [Link](https://www.cos.io/initiatives/prereg)
 
 ## Continue Learning
 
-- [R and the Reproducibility Crisis: 5 Habits That Make Your Research Replicable](Reproducibility-Crisis.html) — the parent article that frames why pre-registration matters.
-- [Open Science with R: OSF Integration, Preprints & Sharing Code](Open-Science-with-R.html) — the practical guide to actually uploading your PAP and code to OSF.
-- [Synthetic Data Generation in R](Synthetic-Data-in-R.html) — generate the simulated datasets you'll use to write your analysis function before the real data arrives.
+- [R and the Reproducibility Crisis: 5 Habits That Make Your Research Replicable](Reproducibility-Crisis.html), the parent article that frames why pre-registration matters.
+- [Open Science with R: OSF Integration, Preprints & Sharing Code](Open-Science-with-R.html), the practical guide to actually uploading your PAP and code to OSF.
+- [Synthetic Data Generation in R](Synthetic-Data-in-R.html), generate the simulated datasets you'll use to write your analysis function before the real data arrives.

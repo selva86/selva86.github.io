@@ -16,11 +16,11 @@ difficulty: "Intermediate"
 
 # Pre-Registration for R Analysis: OSF, AsPredicted & Analysis Plans
 
-<p class="lead">Pre-registration is a time-stamped, public commitment to your hypotheses, methods, and analysis plan — filed before you see the data, so your results cannot influence the analysis you report.</p>
+<p class="lead">Pre-registration is a time-stamped, public commitment to your hypotheses, methods, and analysis plan, filed before you see the data, so your results cannot influence the analysis you report.</p>
 
 ## Introduction
 
-Imagine you finish collecting data, run a dozen statistical tests, and one comes back significant at p = 0.03. Was that your original hypothesis, or did you stumble across it while exploring? Your readers will never know — unless you pre-registered.
+Imagine you finish collecting data, run a dozen statistical tests, and one comes back significant at p = 0.03. Was that your original hypothesis, or did you stumble across it while exploring? Your readers will never know, unless you pre-registered.
 
 Pre-registration solves this problem by locking in your plan before the data arrives. You write down your hypotheses, specify the exact statistical test, define exclusion criteria, and file the document on a public platform like OSF or AsPredicted. Anyone can later compare what you planned with what you reported.
 
@@ -34,9 +34,9 @@ This matters more than ever. Journals increasingly require pre-registration for 
 
 Pre-registration draws a clear line between two types of analysis. Confirmatory analysis tests a hypothesis you stated before seeing the data. Exploratory analysis discovers patterns after the data is in hand. Both are valuable, but only confirmatory analysis provides a severe test of a prediction.
 
-Without pre-registration, the distinction is invisible. A researcher can run many tests, pick the one that "worked," and present it as though it were planned all along. This is called HARKing — Hypothesizing After Results are Known. Pre-registration makes HARKing impossible because the timestamp proves what was planned.
+Without pre-registration, the distinction is invisible. A researcher can run many tests, pick the one that "worked," and present it as though it were planned all along. This is called HARKing, Hypothesizing After Results are Known. Pre-registration makes HARKing impossible because the timestamp proves what was planned.
 
-The impact is dramatic. Before the ClinicalTrials.gov registry required pre-registration for cardiovascular trials, 57% of studies reported significant results. After the requirement, that number dropped to 8%. The effect sizes did not change — the reporting honesty did.
+The impact is dramatic. Before the ClinicalTrials.gov registry required pre-registration for cardiovascular trials, 57% of studies reported significant results. After the requirement, that number dropped to 8%. The effect sizes did not change, the reporting honesty did.
 
 Let's see how easy it is to get a "significant" result from pure noise. The code below runs 20 t-tests on completely random data and counts how many cross the p < 0.05 threshold.
 
@@ -97,7 +97,7 @@ cat("False positives:", ex_false_pos)
 
 ## What Should an Analysis Plan Include?
 
-A strong analysis plan answers six questions before you touch the data. Think of it as a contract with your future self — specific enough that someone else could run the analysis without asking you a single question.
+A strong analysis plan answers six questions before you touch the data. Think of it as a contract with your future self, specific enough that someone else could run the analysis without asking you a single question.
 
 | Component | What to specify | Example |
 |-----------|----------------|---------|
@@ -194,7 +194,7 @@ Once your plan is written, you file it on a public registry. The two most popula
 | Feature | OSF | AsPredicted |
 |---------|-----|-------------|
 | **Questions** | 25 detailed items across 6 sections | 9 focused questions |
-| **Guidance** | Extensive prompts and examples | Minimal — brevity enforced |
+| **Guidance** | Extensive prompts and examples | Minimal, brevity enforced |
 | **Default visibility** | Public after 4-year embargo max | Private until you choose to share |
 | **File attachments** | Yes (scripts, stimuli, data dictionaries) | No |
 | **Templates** | 11+ (general, qualitative, secondary data) | 1 standard template |
@@ -285,7 +285,7 @@ cat(ex_hypothesis)
 
 ## How Do You Write Reproducible Analysis Code for a Pre-Registration?
 
-The strongest pre-registrations include actual analysis code, not just verbal descriptions. When you write your R script before seeing the data, you eliminate ambiguity about every decision — which test, which transformation, which exclusion filter.
+The strongest pre-registrations include actual analysis code, not just verbal descriptions. When you write your R script before seeing the data, you eliminate ambiguity about every decision, which test, which transformation, which exclusion filter.
 
 Start with a power analysis to justify your sample size. Then write the full analysis pipeline: data loading, exclusion filters, transformations, the statistical test, and the decision criterion. Here is a complete pre-registered analysis script for a two-group experiment.
 
@@ -380,7 +380,7 @@ cat("N per group:", ceiling(ex_power$n))
 
 ## How Should You Handle Deviations from Your Pre-Registration?
 
-Reality rarely matches the plan perfectly. Participants drop out, distributions violate assumptions, and measurement instruments break. The key insight is that pre-registration is a plan, not a prison. Deviations are acceptable — and sometimes necessary — as long as you disclose them transparently.
+Reality rarely matches the plan perfectly. Participants drop out, distributions violate assumptions, and measurement instruments break. The key insight is that pre-registration is a plan, not a prison. Deviations are acceptable, and sometimes necessary, as long as you disclose them transparently.
 
 There are five justifiable reasons to deviate from your pre-registration.
 
@@ -437,7 +437,7 @@ print(deviation_log)
 This log becomes part of your final report. Readers can see exactly what changed and judge for themselves whether the deviations were reasonable. Transparency is what separates a legitimate deviation from a hidden degree of freedom.
 
 [KEY INSIGHT]
-**Deviations are acceptable when disclosed; undisclosed deviations destroy trust.** The value of pre-registration is not that you follow the plan perfectly — it is that everyone can see what you planned and what you actually did.
+**Deviations are acceptable when disclosed; undisclosed deviations destroy trust.** The value of pre-registration is not that you follow the plan perfectly, it is that everyone can see what you planned and what you actually did.
 
 **Try it:** Add a third entry to `deviation_log` where the planned analysis was "no covariates" but you actually included age as a covariate because the groups differed significantly in age. Store the updated log in `ex_deviation`.
 
@@ -554,7 +554,7 @@ Both extremes are wrong. Pre-registration is a transparency tool, not a prison. 
 
 ### Mistake 5: Pre-registering after data collection
 
-This defeats the entire purpose. A post-data pre-registration is not a pre-registration — it is a document you wrote after you already knew what the data looked like. If you are analyzing existing data, use the "Preregistration for Secondary Data Analysis" template on OSF and be explicit about what you already know.
+This defeats the entire purpose. A post-data pre-registration is not a pre-registration, it is a document you wrote after you already knew what the data looked like. If you are analyzing existing data, use the "Preregistration for Secondary Data Analysis" template on OSF and be explicit about what you already know.
 
 ## Practice Exercises
 
@@ -765,9 +765,9 @@ This is what a transparent analysis looks like. The plan was specific, the analy
 | **Why** | Prevents p-hacking, HARKing, and selective reporting |
 | **Where** | OSF (comprehensive, 25 questions) or AsPredicted (streamlined, 9 questions) |
 | **How** | Write specific hypotheses, exact tests, concrete exclusion rules, and deviation plans |
-| **Code** | Write your analysis script in R before data collection — it becomes part of the registration |
-| **Deviations** | Expected and acceptable — disclose them in a deviation log |
-| **Key principle** | Pre-registration is a plan, not a prison — transparency is the goal |
+| **Code** | Write your analysis script in R before data collection, it becomes part of the registration |
+| **Deviations** | Expected and acceptable, disclose them in a deviation log |
+| **Key principle** | Pre-registration is a plan, not a prison, transparency is the goal |
 
 ## FAQ
 
@@ -785,24 +785,24 @@ No. Pre-registration is most valuable for confirmatory hypothesis testing. Explo
 
 ### Can I do exploratory analysis after pre-registering?
 
-Absolutely. Pre-registration does not ban exploration — it labels it. Run your pre-registered confirmatory analyses first, then explore freely. In the manuscript, clearly separate the "pre-registered" and "exploratory" sections so readers know which findings were predicted and which were discovered.
+Absolutely. Pre-registration does not ban exploration, it labels it. Run your pre-registered confirmatory analyses first, then explore freely. In the manuscript, clearly separate the "pre-registered" and "exploratory" sections so readers know which findings were predicted and which were discovered.
 
 ### What are Registered Reports?
 
-A Registered Report is a journal submission format where you submit your introduction and methods (including the pre-registration) for peer review before collecting data. If reviewers approve the design, the journal gives you an "in-principle acceptance" — meaning they will publish the paper regardless of the results. This eliminates publication bias entirely.
+A Registered Report is a journal submission format where you submit your introduction and methods (including the pre-registration) for peer review before collecting data. If reviewers approve the design, the journal gives you an "in-principle acceptance", meaning they will publish the paper regardless of the results. This eliminates publication bias entirely.
 
 ## References
 
-1. Lakens, D. — *Improving Your Statistical Inferences*, Chapter 13: Preregistration and Transparency. [Link](https://lakens.github.io/statistical_inferences/13-prereg.html)
-2. Simmons, J.P., Nelson, L.D., & Simonsohn, U. — "How To Properly Preregister A Study," Data Colada [64]. [Link](https://datacolada.org/64)
-3. Center for Open Science — Preregistration Initiative. [Link](https://www.cos.io/initiatives/prereg)
-4. OSF Support — Welcome to Registrations & Preregistrations. [Link](https://help.osf.io/article/330-welcome-to-registrations)
-5. preregr R package — CRAN documentation. [Link](https://cran.r-project.org/web/packages/preregr/)
+1. Lakens, D., *Improving Your Statistical Inferences*, Chapter 13: Preregistration and Transparency. [Link](https://lakens.github.io/statistical_inferences/13-prereg.html)
+2. Simmons, J.P., Nelson, L.D., & Simonsohn, U., "How To Properly Preregister A Study," Data Colada [64]. [Link](https://datacolada.org/64)
+3. Center for Open Science, Preregistration Initiative. [Link](https://www.cos.io/initiatives/prereg)
+4. OSF Support, Welcome to Registrations & Preregistrations. [Link](https://help.osf.io/article/330-welcome-to-registrations)
+5. preregr R package, CRAN documentation. [Link](https://cran.r-project.org/web/packages/preregr/)
 6. Nosek, B.A., et al. (2018). "The preregistration revolution." *Proceedings of the National Academy of Sciences*, 115(11), 2600-2606.
-7. van 't Veer, A.E. & Giner-Sorolla, R. (2016). "Pre-registration in social psychology — A discussion and suggested template." *Journal of Experimental Social Psychology*, 67, 2-12.
+7. van 't Veer, A.E. & Giner-Sorolla, R. (2016). "Pre-registration in social psychology, A discussion and suggested template." *Journal of Experimental Social Psychology*, 67, 2-12.
 8. Chambers, C.D. (2013). "Registered Reports: A new publishing initiative at Cortex." *Cortex*, 49(3), 609-610.
 
 ## Continue Learning
 
-- [Open Science with R](/Open-Science-with-R.html) — Learn how to share your data, code, and preprints using OSF integration, Zenodo, and FAIR principles.
-- Statistical Consulting in R — The parent guide on approaching any client's data problem with a structured framework (coming soon).
+- [Open Science with R](/Open-Science-with-R.html), Learn how to share your data, code, and preprints using OSF integration, Zenodo, and FAIR principles.
+- Statistical Consulting in R, The parent guide on approaching any client's data problem with a structured framework (coming soon).

@@ -22,7 +22,7 @@ difficulty: Intermediate
 
 ## What does maximum likelihood actually mean?
 
-Suppose you have 200 exam scores and you believe they come from a normal distribution, but you don't know the mean or standard deviation. MLE asks a simple question: of all possible (μ, σ) pairs, which one makes this exact dataset the most probable outcome? The answer is the MLE. Below, we simulate data from a known normal and recover the parameters with `optim()` — so you can see the recipe produce the right answer.
+Suppose you have 200 exam scores and you believe they come from a normal distribution, but you don't know the mean or standard deviation. MLE asks a simple question: of all possible (μ, σ) pairs, which one makes this exact dataset the most probable outcome? The answer is the MLE. Below, we simulate data from a known normal and recover the parameters with `optim()`, so you can see the recipe produce the right answer.
 
 The function below computes the negative log-likelihood of the normal distribution given a candidate parameter vector. `optim()` then searches for the vector that minimizes it. Because minimizing the negative is the same as maximizing the positive, the result is the MLE.
 
@@ -45,7 +45,7 @@ fit_norm$par
 #> 65.147823 11.803341
 ```
 
-The optimizer started at (50, 5) — far from the truth — and climbed the likelihood surface until it landed at (65.15, 11.80). That is extremely close to the true (65, 12) used to generate the data. The leftover gap is sampling noise, not a flaw in the method. Increase `n` to 10,000 and the estimates will crawl even closer.
+The optimizer started at (50, 5), far from the truth, and climbed the likelihood surface until it landed at (65.15, 11.80). That is extremely close to the true (65, 12) used to generate the data. The leftover gap is sampling noise, not a flaw in the method. Increase `n` to 10,000 and the estimates will crawl even closer.
 
 Now let's sanity-check. For a normal distribution, the MLE has a closed-form solution: the sample mean for μ and the sample standard deviation (with division by n, not n−1) for σ. The optimizer should match that closed form.
 
@@ -56,10 +56,10 @@ c(mean_est = mean(norm_data),
 #> 65.14787 11.80334
 ```
 
-The numbers match `fit_norm$par` to four decimals. That's not a coincidence — it's a proof that the MLE recipe, when applied to the normal, recovers exactly the formula you already knew. The optimizer reached the same point that calculus gives you on paper, but it works even when calculus doesn't.
+The numbers match `fit_norm$par` to four decimals. That's not a coincidence, it's a proof that the MLE recipe, when applied to the normal, recovers exactly the formula you already knew. The optimizer reached the same point that calculus gives you on paper, but it works even when calculus doesn't.
 
 [KEY INSIGHT]
-**Likelihood is not the probability of parameters — it is the probability of data, viewed as a function of parameters.** We hold the observed data fixed and ask "which θ would have generated this with highest probability?" That's a subtle but critical flip in perspective compared to Bayesian thinking.
+**Likelihood is not the probability of parameters, it is the probability of data, viewed as a function of parameters.** We hold the observed data fixed and ask "which θ would have generated this with highest probability?" That's a subtle but critical flip in perspective compared to Bayesian thinking.
 
 **Try it:** Fit a normal distribution to R's built-in `precip` dataset (annual rainfall for 70 US cities) using `optim()`. Report the estimated mean and sd.
 
@@ -86,7 +86,7 @@ ex_fit$par
 #> [1] 34.88567 13.61770
 ```
 
-**Explanation:** The recipe is identical to the simulated-data case — swap `norm_data` for `precip`. The estimated mean matches `mean(precip)` and the estimated sd matches the population-formula sd.
+**Explanation:** The recipe is identical to the simulated-data case, swap `norm_data` for `precip`. The estimated mean matches `mean(precip)` and the estimated sd matches the population-formula sd.
 
 </details>
 
@@ -96,7 +96,7 @@ The likelihood of a sample is the product of each point's density:
 
 $$L(\theta \mid x) = \prod_{i=1}^{n} f(x_i \mid \theta)$$
 
-With even a few hundred observations, that product becomes astronomically small — often smaller than the smallest number your computer can represent. The fix is to maximize the sum of log densities instead, which is mathematically equivalent (log is monotonic) but numerically stable:
+With even a few hundred observations, that product becomes astronomically small, often smaller than the smallest number your computer can represent. The fix is to maximize the sum of log densities instead, which is mathematically equivalent (log is monotonic) but numerically stable:
 
 $$\ell(\theta \mid x) = \sum_{i=1}^{n} \log f(x_i \mid \theta)$$
 
@@ -110,7 +110,7 @@ c(raw = raw_likelihood, log_lik = log_likelihood)
 #>  0.000000e+00 -7.858133e+02
 ```
 
-The raw product underflowed to exactly zero. Every numeric optimizer you try will be stuck — it cannot tell a "good" θ from a "bad" θ when both give zero. The log-likelihood, by contrast, is a finite `-785.8` and changes smoothly as parameters move, which is exactly what an optimizer needs.
+The raw product underflowed to exactly zero. Every numeric optimizer you try will be stuck, it cannot tell a "good" θ from a "bad" θ when both give zero. The log-likelihood, by contrast, is a finite `-785.8` and changes smoothly as parameters move, which is exactly what an optimizer needs.
 
 Because optimizers like `optim()` minimize by default, we always write the *negative* log-likelihood and minimize it. To visualize what the optimizer is climbing, let's compute the log-likelihood on a grid of μ values (holding σ fixed at its estimate) and plot the curve.
 
@@ -127,7 +127,7 @@ ggplot(data.frame(mu = mu_grid, ll = ll_vals), aes(mu, ll)) +
 #> (plot: smooth concave curve peaking near mu = 65.15)
 ```
 
-The curve is smoothly concave, peaking at the MLE. The dashed vertical line marks where `optim()` landed. That smoothness is the whole reason MLE works in practice — an optimizer needs a gradient to follow, and log-likelihoods almost always deliver one.
+The curve is smoothly concave, peaking at the MLE. The dashed vertical line marks where `optim()` landed. That smoothness is the whole reason MLE works in practice, an optimizer needs a gradient to follow, and log-likelihoods almost always deliver one.
 
 [TIP]
 **Always minimize the negative log-likelihood, not the raw likelihood.** `optim()` and `nlm()` are minimizers; `dnorm()`, `dpois()`, `dgamma()`, and all `dxxx()` functions accept `log = TRUE` which gives you the log density without manually wrapping in `log()`.
@@ -173,7 +173,7 @@ fit_pois$par
 #> [1] 4.316
 ```
 
-We switched to `L-BFGS-B` because λ must stay positive — that method lets you declare `lower = 1e-6` so the optimizer never wanders into negative territory. Starting from λ = 1, `optim()` climbed to λ = 4.316. The true value was 4.3, and the Poisson's analytical MLE is the sample mean, so let's confirm.
+We switched to `L-BFGS-B` because λ must stay positive, that method lets you declare `lower = 1e-6` so the optimizer never wanders into negative territory. Starting from λ = 1, `optim()` climbed to λ = 4.316. The true value was 4.3, and the Poisson's analytical MLE is the sample mean, so let's confirm.
 
 ```r
 mean(pois_data)
@@ -251,7 +251,7 @@ summary(fit_pois_mle)
 #> -2 log L: 2156.437
 ```
 
-`summary()` shows the estimate plus its standard error — the typical spread of the estimator under resampling. For a 95% profile-likelihood confidence interval (usually more accurate than the Wald SE interval), call `confint()`:
+`summary()` shows the estimate plus its standard error, the typical spread of the estimator under resampling. For a 95% profile-likelihood confidence interval (usually more accurate than the Wald SE interval), call `confint()`:
 
 ```r
 confint(fit_pois_mle)
@@ -259,7 +259,7 @@ confint(fit_pois_mle)
 #> 4.135868 4.500024
 ```
 
-The true λ = 4.3 lies comfortably inside [4.14, 4.50]. You did not have to compute the Hessian, invert it, or take square roots — `mle()` did it all.
+The true λ = 4.3 lies comfortably inside [4.14, 4.50]. You did not have to compute the Hessian, invert it, or take square roots, `mle()` did it all.
 
 If you prefer to stay with `optim()`, you can recover the same SE manually by asking for the Hessian and inverting it. The Hessian of the *negative* log-likelihood is the observed Fisher information, and its inverse is the estimator's covariance matrix.
 
@@ -273,10 +273,10 @@ c(estimate = fit_pois_h$par, se = se_lambda)
 #> 4.316000 0.092908
 ```
 
-Same SE as `mle()` returned. Use whichever interface you prefer — `mle()` is cleaner for reports, `optim() + hessian` is more flexible when your likelihood doesn't fit into `mle()`'s argument convention.
+Same SE as `mle()` returned. Use whichever interface you prefer, `mle()` is cleaner for reports, `optim() + hessian` is more flexible when your likelihood doesn't fit into `mle()`'s argument convention.
 
 [NOTE]
-**mle() requires named function arguments with defaults that match the start list.** Writing `function(params)` and indexing `params[1]` — which is fine for `optim()` — will fail with `mle()`. Either refactor to `function(lambda = 1)` or stick with `optim(..., hessian = TRUE)`.
+**mle() requires named function arguments with defaults that match the start list.** Writing `function(params)` and indexing `params[1]`, which is fine for `optim()`, will fail with `mle()`. Either refactor to `function(lambda = 1)` or stick with `optim(..., hessian = TRUE)`.
 
 **Try it:** Using `fit_pois_mle`, call `confint(fit_pois_mle, level = 0.90)` for a 90% interval. Explain in one sentence why it is narrower than the 95% interval.
 
@@ -298,13 +298,13 @@ ex_ci
 #>  4.164721 4.470310
 ```
 
-**Explanation:** A 90% CI requires less certainty than 95%, so we shave probability from both tails — the interval contracts.
+**Explanation:** A 90% CI requires less certainty than 95%, so we shave probability from both tails, the interval contracts.
 
 </details>
 
 ## How do you write a custom likelihood function?
 
-When no built-in density quite matches your model — Weibull for failure times, a mixture for bimodal data, a truncated distribution — you write the likelihood yourself. As long as you can evaluate the density (or probability mass) of each observation, MLE works.
+When no built-in density quite matches your model, Weibull for failure times, a mixture for bimodal data, a truncated distribution, you write the likelihood yourself. As long as you can evaluate the density (or probability mass) of each observation, MLE works.
 
 Let's fit a Weibull to simulated failure times. The Weibull has two parameters, `shape` and `scale`, both positive. We will overlay the fitted density on a histogram to visually confirm the fit.
 
@@ -342,10 +342,10 @@ ggplot() +
 #> (plot: histogram overlaid with the fitted Weibull density curve)
 ```
 
-The fitted curve hugs the histogram's shape — unimodal, right-skewed, tapering to zero past 250. That visual agreement is a practical model-check: if the curve misses the data's shape, your distributional assumption is wrong, no matter how well the numerical fit converged.
+The fitted curve hugs the histogram's shape, unimodal, right-skewed, tapering to zero past 250. That visual agreement is a practical model-check: if the curve misses the data's shape, your distributional assumption is wrong, no matter how well the numerical fit converged.
 
 [KEY INSIGHT]
-**Any probabilistic model you can evaluate is MLE-ready.** The recipe — write the (negative) sum of log densities, pass it to `optim()` or `mle()` — does not care whether the model is a standard distribution, a mixture, a regression, or a bespoke density you invented for your domain.
+**Any probabilistic model you can evaluate is MLE-ready.** The recipe, write the (negative) sum of log densities, pass it to `optim()` or `mle()`, does not care whether the model is a standard distribution, a mixture, a regression, or a bespoke density you invented for your domain.
 
 **Try it:** Re-fit `wb_data` as if it were Gamma-distributed (using `dgamma` with `shape` and `rate`). Inspect the resulting fit.
 
@@ -374,7 +374,7 @@ ex_fit_gamma$par
 #> [1] 2.60108 0.02944
 ```
 
-**Explanation:** MLE always returns *something* — even when the distributional assumption is wrong. That's why visual fit checks (histogram overlay) matter: they flag misspecification that the likelihood number alone can't.
+**Explanation:** MLE always returns *something*, even when the distributional assumption is wrong. That's why visual fit checks (histogram overlay) matter: they flag misspecification that the likelihood number alone can't.
 
 </details>
 
@@ -411,7 +411,7 @@ my_nb_fit$par
 #> [1] 3.0814 8.0460
 ```
 
-**Explanation:** The recipe is identical — swap in `dnbinom()`. The negative binomial has two parameters, so `par` is a length-2 vector and `lower` has two entries.
+**Explanation:** The recipe is identical, swap in `dnbinom()`. The negative binomial has two parameters, so `par` is a length-2 vector and `lower` has two entries.
 
 </details>
 
@@ -452,7 +452,7 @@ my_mix_fit$par
 #> [1]  0.604 -2.014  0.991  2.988  1.443
 ```
 
-**Explanation:** The mixture density is a weighted sum, so you cannot use `log = TRUE` inside the individual `dnorm()` calls — take the log of the whole sum instead. The weight `w` needed explicit [0.01, 0.99] bounds; the means got wide bounds; the sds stayed strictly positive. The recovered estimates are close to the true (0.6, -2, 1, 3, 1.5).
+**Explanation:** The mixture density is a weighted sum, so you cannot use `log = TRUE` inside the individual `dnorm()` calls, take the log of the whole sum instead. The weight `w` needed explicit [0.01, 0.99] bounds; the means got wide bounds; the sds stayed strictly positive. The recovered estimates are close to the true (0.6, -2, 1, 3, 1.5).
 
 </details>
 
@@ -468,7 +468,7 @@ summary(claims)
 #>    35.7  1744.4  3276.4  3754.0  5231.7 17935.5
 ```
 
-The data spans roughly 0 to 18,000 with a median around 3,300 — right-skewed, as claims typically are. Now the Gamma MLE. Gamma has two positive parameters, and `dgamma()` takes `shape` and `rate` (rate = 1 / scale), so we fit on the rate parameterization.
+The data spans roughly 0 to 18,000 with a median around 3,300, right-skewed, as claims typically are. Now the Gamma MLE. Gamma has two positive parameters, and `dgamma()` takes `shape` and `rate` (rate = 1 / scale), so we fit on the rate parameterization.
 
 ```r
 neg_ll_gamma <- function(shape = 1, rate = 0.001) {
@@ -489,7 +489,7 @@ summary(fit_claims)
 #> -2 log L: 17489.72
 ```
 
-The true parameters were shape = 2.5 and rate = 1/1500 ≈ 0.000667 — both are recovered within one standard error. Profile-likelihood CIs for both:
+The true parameters were shape = 2.5 and rate = 1/1500 ≈ 0.000667, both are recovered within one standard error. Profile-likelihood CIs for both:
 
 ```r
 confint(fit_claims)
@@ -515,7 +515,7 @@ ggplot() +
 #> (plot: right-skewed histogram with a fitted Gamma curve tracing its peak)
 ```
 
-The curve follows the histogram's peak near 2,000 and tails off gradually past 10,000 — the defining behavior of a Gamma. If your real claim data deviated (heavy extreme tails, extra bump at zero), the curve would miss those features and you'd reach for a heavier-tailed or zero-inflated alternative.
+The curve follows the histogram's peak near 2,000 and tails off gradually past 10,000, the defining behavior of a Gamma. If your real claim data deviated (heavy extreme tails, extra bump at zero), the curve would miss those features and you'd reach for a heavier-tailed or zero-inflated alternative.
 
 ## Summary
 
@@ -525,16 +525,16 @@ The curve follows the histogram's peak near 2,000 and tails off gradually past 1
 
 - MLE picks the parameters that make your observed data most probable under an assumed distribution.
 - Always work with the negative log-likelihood; `optim()` minimizes it by default and avoids numerical underflow.
-- Use `dxxx(..., log = TRUE)` instead of `log(dxxx(...))` — it's faster and more stable.
+- Use `dxxx(..., log = TRUE)` instead of `log(dxxx(...))`, it's faster and more stable.
 - `stats4::mle()` wraps `optim()` and gives you `summary()` (SEs, p-values) and `confint()` (profile CIs) for free.
 - For constrained parameters (positive rate, positive scale, probability in [0,1]), switch to `method = "L-BFGS-B"` and set `lower` / `upper`.
-- Any density you can write in R is MLE-ready — mixtures, truncated distributions, bespoke regression likelihoods all follow the same recipe.
+- Any density you can write in R is MLE-ready, mixtures, truncated distributions, bespoke regression likelihoods all follow the same recipe.
 
 ## References
 
 1. Myung, I. J. (2003). *Tutorial on maximum likelihood estimation*. Journal of Mathematical Psychology, 47(1), 90-100. [Link](https://doi.org/10.1016/S0022-2496\(02\)00028-7)
-2. R Core Team — `stats4::mle()` reference. [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats4/html/mle.html)
-3. R Core Team — `optim()` reference. [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/optim.html)
+2. R Core Team, `stats4::mle()` reference. [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats4/html/mle.html)
+3. R Core Team, `optim()` reference. [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/optim.html)
 4. Wasserman, L. (2004). *All of Statistics*. Springer. Chapter 9: Parametric Inference.
 5. Pawitan, Y. (2001). *In All Likelihood: Statistical Modelling and Inference Using Likelihood*. Oxford University Press.
 6. Venables, W. N. & Ripley, B. D. (2002). *Modern Applied Statistics with S*, 4th ed. Springer. Chapter 16: Optimization and Maximum Likelihood Estimation.
@@ -543,6 +543,6 @@ The curve follows the histogram's peak near 2,000 and tails off gradually past 1
 
 ## Continue Learning
 
-- [Linear Regression](/Linear-Regression.html) — how MLE under normal errors reduces to ordinary least squares.
-- [Logistic Regression With R](/Logistic-Regression-With-R.html) — MLE applied to binary outcomes via the Bernoulli log-likelihood.
-- [Generalized Linear Models](/Generalized-Linear-Models-GLM-in-R.html) — the GLM framework that wraps MLE for a broad family of exponential-family distributions.
+- [Linear Regression](/Linear-Regression.html), how MLE under normal errors reduces to ordinary least squares.
+- [Logistic Regression With R](/Logistic-Regression-With-R.html), MLE applied to binary outcomes via the Bernoulli log-likelihood.
+- [Generalized Linear Models](/Generalized-Linear-Models-GLM-in-R.html), the GLM framework that wraps MLE for a broad family of exponential-family distributions.

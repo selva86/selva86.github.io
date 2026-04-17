@@ -19,13 +19,13 @@ difficulty: "Intermediate"
 
 # REST APIs in R with httr2: GET, POST, OAuth, and Paginated Results
 
-<p class="lead">httr2 is the modern R package for calling REST APIs — it lets you build HTTP requests with a pipe chain, handle authentication, parse JSON responses, and paginate through results automatically.</p>
+<p class="lead">httr2 is the modern R package for calling REST APIs, it lets you build HTTP requests with a pipe chain, handle authentication, parse JSON responses, and paginate through results automatically.</p>
 
 ## Introduction
 
 Most interesting data does not come in a CSV file. It lives behind an API. Whether you need live weather forecasts, financial quotes, social media metrics, or government statistics, you will call a REST API to get it. R makes this straightforward with the httr2 package.
 
-httr2 is the successor to the original httr package, redesigned from scratch by Hadley Wickham. Instead of separate `GET()` and `POST()` functions, httr2 uses a single `request()` object that you build up with pipe-friendly `req_*()` functions. This design makes complex requests — with authentication, rate limiting, and pagination — just as easy to write as simple ones.
+httr2 is the successor to the original httr package, redesigned from scratch by Hadley Wickham. Instead of separate `GET()` and `POST()` functions, httr2 uses a single `request()` object that you build up with pipe-friendly `req_*()` functions. This design makes complex requests, with authentication, rate limiting, and pagination, just as easy to write as simple ones.
 
 In this tutorial, you will learn how to make GET and POST requests, parse JSON responses, authenticate with API keys, Bearer tokens, and OAuth 2.0, handle errors and retries, apply rate limiting, and paginate through multi-page results. By the end, you will have a complete toolkit for pulling data from any REST API into R.
 
@@ -34,7 +34,7 @@ In this tutorial, you will learn how to make GET and POST requests, parse JSON r
 
 ## What is a REST API and how does R talk to one?
 
-A REST API is a web service that accepts HTTP requests and returns structured data — usually JSON. REST stands for Representational State Transfer, but the name matters less than the mechanics. You send a request with a verb (GET, POST, PUT, DELETE), a URL, optional headers, and an optional body. The server processes it and returns a response with a status code, headers, and a body.
+A REST API is a web service that accepts HTTP requests and returns structured data, usually JSON. REST stands for Representational State Transfer, but the name matters less than the mechanics. You send a request with a verb (GET, POST, PUT, DELETE), a URL, optional headers, and an optional body. The server processes it and returns a response with a status code, headers, and a body.
 
 Think of it like ordering at a restaurant. You (the client) tell the waiter (HTTP) what you want (the request). The kitchen (the server) prepares it and sends back your meal (the response). The menu (the API documentation) tells you what you can order and how to ask for it.
 
@@ -45,7 +45,7 @@ Think of it like ordering at a restaurant. You (the client) tell the waiter (HTT
 The four most common HTTP verbs map to familiar database operations. GET retrieves data (like a SELECT query). POST creates new data (like an INSERT). PUT updates existing data (like an UPDATE). DELETE removes data. Most data-fetching work in R uses GET requests, but you will also use POST when sending data to an API.
 
 [KEY INSIGHT]
-**REST is stateless — every request must carry all the information the server needs.** The server does not remember your previous requests. If an endpoint requires authentication, you must include your credentials in every single request, not just the first one.
+**REST is stateless, every request must carry all the information the server needs.** The server does not remember your previous requests. If an endpoint requires authentication, you must include your credentials in every single request, not just the first one.
 
 ## How do you install httr2 and make your first GET request?
 
@@ -103,14 +103,14 @@ dog_data$status
 #> [1] "success"
 ```
 
-The response is a list with two elements: `message` (the image URL) and `status`. This is the typical pattern — call `resp_body_json()` to get a list, then extract the fields you need.
+The response is a list with two elements: `message` (the image URL) and `status`. This is the typical pattern, call `resp_body_json()` to get a list, then extract the fields you need.
 
 [TIP]
 **Use req_dry_run() to inspect what httr2 will send without actually sending it.** This is invaluable for debugging. Just replace `req_perform()` with `req_dry_run()` in your pipe chain to see the exact HTTP request that would be sent.
 
 ## How do you add query parameters and custom headers?
 
-Many APIs require query parameters — the `?key=value` pairs at the end of a URL. Instead of manually constructing URLs, use `req_url_query()` to add them cleanly. For custom headers, use `req_headers()`.
+Many APIs require query parameters, the `?key=value` pairs at the end of a URL. Instead of manually constructing URLs, use `req_url_query()` to add them cleanly. For custom headers, use `req_headers()`.
 
 Let's fetch weather data from the Open-Meteo API, which provides free weather forecasts without authentication. It requires latitude, longitude, and the variables you want as query parameters.
 
@@ -157,7 +157,7 @@ The backticks around `User-Agent` are needed because the header name contains a 
 
 ## How do you send data with POST, PUT, and DELETE?
 
-GET requests retrieve data. POST requests send data to the server — for creating records, submitting forms, or triggering actions. httr2 provides three body-encoding functions: `req_body_json()` for JSON, `req_body_form()` for form data, and `req_body_multipart()` for file uploads.
+GET requests retrieve data. POST requests send data to the server, for creating records, submitting forms, or triggering actions. httr2 provides three body-encoding functions: `req_body_json()` for JSON, `req_body_form()` for form data, and `req_body_multipart()` for file uploads.
 
 Let's POST a JSON payload to httpbin.org, which echoes it back so you can verify what was sent.
 
@@ -184,7 +184,7 @@ post_data$json$packages
 #> [1] "ggplot2"
 ```
 
-Notice that you did not need to call `req_method("POST")`. When you add a body with `req_body_json()`, httr2 automatically switches the method to POST. The R list is serialized to JSON — nested lists become JSON arrays, named lists become JSON objects.
+Notice that you did not need to call `req_method("POST")`. When you add a body with `req_body_json()`, httr2 automatically switches the method to POST. The R list is serialized to JSON, nested lists become JSON arrays, named lists become JSON objects.
 
 For APIs that expect form-encoded data (like HTML forms), use `req_body_form()` instead.
 
@@ -227,7 +227,7 @@ Most production APIs require authentication. The three most common methods are A
 
 *Figure 3: Choosing an authentication method: no auth, API key, Bearer token, or OAuth 2.0.*
 
-**API keys** are the simplest. The API gives you a string, and you include it in every request — either as a query parameter or a header. Here is the query parameter approach.
+**API keys** are the simplest. The API gives you a string, and you include it in every request, either as a query parameter or a header. Here is the query parameter approach.
 
 ```r
 # API key as a query parameter
@@ -319,7 +319,7 @@ throttled_resp <- request("https://httpbin.org/get") |>
   req_perform()
 ```
 
-The rate applies across all requests to the same host, even if you create separate request objects. This is global rate limiting — httr2 tracks it automatically.
+The rate applies across all requests to the same host, even if you create separate request objects. This is global rate limiting, httr2 tracks it automatically.
 
 [TIP]
 **Combine req_throttle() and req_retry() in every production script.** Throttle prevents you from hitting the rate limit. Retry recovers when transient errors happen anyway. Together, they make your API calls robust without extra code.
@@ -402,7 +402,7 @@ The `iterate_with_offset()` helper increments the offset parameter by 20 each ti
 
 ### Mistake 1: Forgetting to call req_perform()
 
-The `request()` function and all `req_*()` functions return a request object — they do not send anything. The request sits idle until you call `req_perform()`.
+The `request()` function and all `req_*()` functions return a request object, they do not send anything. The request sits idle until you call `req_perform()`.
 
 ```r
 # Wrong: this creates a request object but never sends it
@@ -492,7 +492,7 @@ resp <- request("https://api.example.com/data") |>
 data <- resp_body_json(resp)  # might parse an error message as "data"
 ```
 
-**Why it is wrong:** If you suppress automatic error checking with `req_error(is_error = ~ FALSE)`, a 404 or 500 response still returns a body — but it contains an error message, not your data. Your downstream code processes garbage.
+**Why it is wrong:** If you suppress automatic error checking with `req_error(is_error = ~ FALSE)`, a 404 or 500 response still returns a body, but it contains an error message, not your data. Your downstream code processes garbage.
 
 ```r
 # Correct: check status before parsing
@@ -768,19 +768,19 @@ httr2 does not have a built-in XML parser, but you can extract the body as text 
 
 ## References
 
-1. Wickham, H. — httr2: Perform HTTP Requests and Process the Responses. Official documentation. [Link](https://httr2.r-lib.org/)
-2. Wickham, H. — "Wrapping APIs" vignette for httr2. [Link](https://httr2.r-lib.org/articles/wrapping-apis.html)
-3. Wickham, H. — httr2 introduction vignette. [Link](https://httr2.r-lib.org/articles/httr2.html)
-4. httr2 CRAN page — Package reference manual (v1.1.0). [Link](https://cran.r-project.org/web/packages/httr2/index.html)
-5. Chamberlin, S. & Salmon, M. — *HTTP Testing in R*, Chapter 2: HTTP in R 101. rOpenSci. [Link](https://books.ropensci.org/http-testing/http-in-r-101.html)
-6. Rapp, A. — "The Ultimate Guide to Get Data Through APIs With httr2 and R." [Link](https://albert-rapp.de/posts/web_dev/07_httr2_ultimate_guide/07_httr2)
-7. Mozilla Developer Network — HTTP request methods. [Link](https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods)
-8. R Core Team — Sys.getenv() documentation. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/Sys.getenv.html)
+1. Wickham, H., httr2: Perform HTTP Requests and Process the Responses. Official documentation. [Link](https://httr2.r-lib.org/)
+2. Wickham, H., "Wrapping APIs" vignette for httr2. [Link](https://httr2.r-lib.org/articles/wrapping-apis.html)
+3. Wickham, H., httr2 introduction vignette. [Link](https://httr2.r-lib.org/articles/httr2.html)
+4. httr2 CRAN page, Package reference manual (v1.1.0). [Link](https://cran.r-project.org/web/packages/httr2/index.html)
+5. Chamberlin, S. & Salmon, M., *HTTP Testing in R*, Chapter 2: HTTP in R 101. rOpenSci. [Link](https://books.ropensci.org/http-testing/http-in-r-101.html)
+6. Rapp, A., "The Ultimate Guide to Get Data Through APIs With httr2 and R." [Link](https://albert-rapp.de/posts/web_dev/07_httr2_ultimate_guide/07_httr2)
+7. Mozilla Developer Network, HTTP request methods. [Link](https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods)
+8. R Core Team, Sys.getenv() documentation. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/Sys.getenv.html)
 
 ## Continue Learning
 
 Now that you can pull data from APIs, explore these related tutorials:
 
-- **[Web Scraping in R with rvest](Web-Scraping-in-R-with-rvest.html)** — When a website has no API, scrape the HTML directly to extract tables and text.
-- **[DBI in R: Connect to Any Database](DBI-in-R.html)** — Connect R to SQL databases like SQLite, PostgreSQL, and MySQL with a unified interface.
-- **[Importing Data in R](Importing-Data-in-R.html)** — Read CSV, Excel, JSON, and other file formats into R data frames.
+- **[Web Scraping in R with rvest](Web-Scraping-in-R-with-rvest.html)**, When a website has no API, scrape the HTML directly to extract tables and text.
+- **[DBI in R: Connect to Any Database](DBI-in-R.html)**, Connect R to SQL databases like SQLite, PostgreSQL, and MySQL with a unified interface.
+- **[Importing Data in R](Importing-Data-in-R.html)**, Read CSV, Excel, JSON, and other file formats into R data frames.

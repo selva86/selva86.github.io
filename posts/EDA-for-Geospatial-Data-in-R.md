@@ -16,11 +16,11 @@ fr_parent: "Univariate-EDA-in-R.html"
 
 # EDA for Geospatial Data in R: Spatial Distribution & Clustering
 
-<p class="lead">Geospatial EDA reveals <em>where</em> your data concentrates, spreads, and clusters — patterns you'd completely miss in a regular summary table. This tutorial walks you through spatial distribution mapping, K-means clustering, spatial autocorrelation testing, and density heatmaps using R's built-in <code>quakes</code> dataset.</p>
+<p class="lead">Geospatial EDA reveals <em>where</em> your data concentrates, spreads, and clusters, patterns you'd completely miss in a regular summary table. This tutorial walks you through spatial distribution mapping, K-means clustering, spatial autocorrelation testing, and density heatmaps using R's built-in <code>quakes</code> dataset.</p>
 
 ## What makes geospatial data different from regular tabular data?
 
-Every row in geospatial data carries a location — a latitude and longitude that anchors it to a real place on Earth. That spatial context means nearby observations aren't independent. An earthquake at one location makes nearby earthquakes more likely. A high-crime neighbourhood sits next to other high-crime neighbourhoods. Regular summary statistics ignore this structure entirely.
+Every row in geospatial data carries a location, a latitude and longitude that anchors it to a real place on Earth. That spatial context means nearby observations aren't independent. An earthquake at one location makes nearby earthquakes more likely. A high-crime neighbourhood sits next to other high-crime neighbourhoods. Regular summary statistics ignore this structure entirely.
 
 Let's load R's built-in `quakes` dataset and plot 1,000 earthquakes near Fiji to see this spatial structure immediately.
 
@@ -40,7 +40,7 @@ ggplot(quakes, aes(x = long, y = lat, color = mag)) +
 #> Stronger magnitudes (brighter colors) aren't randomly scattered.
 ```
 
-The plot reveals something a `summary()` call never could: earthquakes form a distinct arc tracing a tectonic plate boundary. Stronger quakes concentrate in specific zones along this arc. This is spatial structure — and the entire point of geospatial EDA.
+The plot reveals something a `summary()` call never could: earthquakes form a distinct arc tracing a tectonic plate boundary. Stronger quakes concentrate in specific zones along this arc. This is spatial structure, and the entire point of geospatial EDA.
 
 The `quakes` dataset contains 1,000 seismic events near Fiji since 1964 with five columns: `lat`, `long`, `depth` (km), `mag` (Richter), and `stations` (number of reporting stations).
 
@@ -99,7 +99,7 @@ ggplot(quakes, aes(x = long, y = lat, color = depth)) +
 #> as it subducts westward under the Pacific plate.
 ```
 
-**Explanation:** The depth gradient runs roughly east to west — shallow quakes near the trench (east) and deep quakes where the plate has subducted further (west). This spatial pattern in depth is geologically meaningful.
+**Explanation:** The depth gradient runs roughly east to west, shallow quakes near the trench (east) and deep quakes where the plate has subducted further (west). This spatial pattern in depth is geologically meaningful.
 
 </details>
 
@@ -122,7 +122,7 @@ ggplot(quakes, aes(x = long, y = lat)) +
 #> lat -20, long 180-182.
 ```
 
-The bubble map immediately shows two things: where earthquakes are densest (the central section of the arc) and where the strongest quakes occur. Transparency is essential here — without `alpha = 0.3`, the central cluster would be an opaque blob hiding hundreds of overlapping points.
+The bubble map immediately shows two things: where earthquakes are densest (the central section of the arc) and where the strongest quakes occur. Transparency is essential here, without `alpha = 0.3`, the central cluster would be an opaque blob hiding hundreds of overlapping points.
 
 Now let's split the data by magnitude category to see if weak, moderate, and strong earthquakes have different spatial footprints.
 
@@ -148,7 +148,7 @@ ggplot(quakes_cat, aes(x = long, y = lat)) +
 #> points concentrated in specific zones.
 ```
 
-Faceting reveals that low-magnitude quakes fill the entire arc, while the strongest quakes concentrate in specific "hotspot" segments. This difference in spatial spread across categories is a classic geospatial EDA finding — and one you'd miss entirely in a frequency table.
+Faceting reveals that low-magnitude quakes fill the entire arc, while the strongest quakes concentrate in specific "hotspot" segments. This difference in spatial spread across categories is a classic geospatial EDA finding, and one you'd miss entirely in a frequency table.
 
 Adding rug plots to the margins shows the marginal distributions along each axis. This helps you see whether the data clusters more strongly along latitude or longitude.
 
@@ -167,7 +167,7 @@ ggplot(quakes, aes(x = long, y = lat)) +
 The rug marks are densest around longitude 178-184 and latitude -22 to -18, confirming that most seismic activity concentrates in this region. The combined point map + rug plot is a quick diagnostic for identifying the spatial "centre of mass."
 
 [TIP]
-**Use alpha (transparency) when plotting dense point data.** Without it, overlapping points hide the true density — 50 earthquakes in one spot look identical to 5. Start with `alpha = 0.3` and adjust from there.
+**Use alpha (transparency) when plotting dense point data.** Without it, overlapping points hide the true density, 50 earthquakes in one spot look identical to 5. Start with `alpha = 0.3` and adjust from there.
 
 **Try it:** Create a bubble map where point size maps to `stations` (number of reporting stations) and color maps to `mag_cat`. Does the number of reporting stations relate to spatial location?
 
@@ -201,13 +201,13 @@ ggplot(quakes_cat, aes(x = long, y = lat, color = mag_cat)) +
 #> Spatially, the densest monitoring appears in the central arc.
 ```
 
-**Explanation:** More stations report a quake when it's stronger (higher mag). The spatial distribution of `stations` partly mirrors magnitude because detection is physics-driven — bigger quakes travel farther.
+**Explanation:** More stations report a quake when it's stronger (higher mag). The spatial distribution of `stations` partly mirrors magnitude because detection is physics-driven, bigger quakes travel farther.
 
 </details>
 
 ## How do you find spatial clusters with K-means?
 
-Looking at a point map, you might think you see clusters — but are they real, or just visual noise? K-means clustering gives you an objective answer. The algorithm groups nearby points into k clusters by repeatedly assigning each point to the nearest cluster centre and recalculating centres until they stabilize.
+Looking at a point map, you might think you see clusters, but are they real, or just visual noise? K-means clustering gives you an objective answer. The algorithm groups nearby points into k clusters by repeatedly assigning each point to the nearest cluster centre and recalculating centres until they stabilize.
 
 Let's run K-means with k=4 clusters on the earthquake coordinates.
 
@@ -233,9 +233,9 @@ ggplot(quakes_km, aes(x = long, y = lat, color = cluster)) +
 #> divide the arc into geographic segments.
 ```
 
-K-means splits the earthquake arc into four geographic segments. Each cluster captures a stretch of the tectonic boundary. The black X marks show cluster centres — the "average location" of all earthquakes in that group. Setting `nstart = 25` runs the algorithm 25 times with different random starts and keeps the best result, which avoids poor solutions from unlucky initialization.
+K-means splits the earthquake arc into four geographic segments. Each cluster captures a stretch of the tectonic boundary. The black X marks show cluster centres, the "average location" of all earthquakes in that group. Setting `nstart = 25` runs the algorithm 25 times with different random starts and keeps the best result, which avoids poor solutions from unlucky initialization.
 
-But how do you know k=4 is the right choice? The elbow method plots total within-cluster variance for different values of k. The "elbow" — where adding more clusters stops reducing variance significantly — suggests the natural number of groups.
+But how do you know k=4 is the right choice? The elbow method plots total within-cluster variance for different values of k. The "elbow", where adding more clusters stops reducing variance significantly, suggests the natural number of groups.
 
 ```r
 # Elbow method: find optimal k
@@ -287,7 +287,7 @@ With k=5, the algorithm captures the southern tail, the central dense zone, a tr
 **K-means on raw lat/long treats degrees as equal distances, but 1 degree of longitude varies with latitude.** At the equator, 1 degree of longitude is about 111 km. At latitude 40 degrees, it's about 85 km. For regional data (like the Fiji region), this approximation is acceptable. For global-scale data, convert to a projected coordinate system first.
 
 [NOTE]
-**For production geospatial clustering, packages like sf and dbscan offer more sophisticated methods.** DBSCAN finds irregularly-shaped clusters without requiring you to specify k. HDBSCAN handles varying densities. These require local R installation — the concepts taught here transfer directly.
+**For production geospatial clustering, packages like sf and dbscan offer more sophisticated methods.** DBSCAN finds irregularly-shaped clusters without requiring you to specify k. HDBSCAN handles varying densities. These require local R installation, the concepts taught here transfer directly.
 
 **Try it:** Run K-means with k=3 on only earthquakes with `mag >= 5.0`. How do the cluster centres differ from the full-data clustering?
 
@@ -331,7 +331,7 @@ ggplot(ex_strong, aes(x = long, y = lat, color = cluster)) +
 
 ## How do you measure whether spatial patterns are random or real?
 
-Visual clustering might be coincidence. You need a statistical test to determine whether nearby locations have more similar values than expected by chance. Moran's I is the standard measure of spatial autocorrelation. It ranges from -1 (perfectly dispersed — high values always next to low values) through 0 (random) to +1 (perfectly clustered — similar values next to each other).
+Visual clustering might be coincidence. You need a statistical test to determine whether nearby locations have more similar values than expected by chance. Moran's I is the standard measure of spatial autocorrelation. It ranges from -1 (perfectly dispersed, high values always next to low values) through 0 (random) to +1 (perfectly clustered, similar values next to each other).
 
 Think of it this way: if your neighbour's house price is always similar to yours, house prices are positively spatially autocorrelated. If every expensive house is surrounded by cheap ones, that's negative spatial autocorrelation. If there's no pattern, Moran's I is near zero.
 
@@ -346,7 +346,7 @@ Where:
 - $x_i$ = the value at location $i$ (e.g., earthquake magnitude)
 - $\bar{x}$ = the mean value across all locations
 
-*If you're not interested in the math, skip to the code below — the practical implementation is all you need.*
+*If you're not interested in the math, skip to the code below, the practical implementation is all you need.*
 
 Let's compute Moran's I for earthquake magnitude. We'll define "neighbours" as the k=5 nearest points (by geographic distance) for each earthquake.
 
@@ -381,7 +381,7 @@ cat("Moran's I for magnitude:", round(morans_i, 4), "\n")
 #> Moran's I for magnitude: 0.0812
 ```
 
-A Moran's I of about 0.08 is positive but small. This suggests a slight tendency for nearby earthquakes to have similar magnitudes — but is this statistically significant, or could random chance produce a value this large? A permutation test answers that question.
+A Moran's I of about 0.08 is positive but small. This suggests a slight tendency for nearby earthquakes to have similar magnitudes, but is this statistically significant, or could random chance produce a value this large? A permutation test answers that question.
 
 We'll shuffle the magnitude values randomly 999 times (keeping locations fixed) and compute Moran's I for each shuffle. This builds a "null distribution" of what Moran's I looks like when magnitude has no spatial pattern. If our observed value falls in the extreme tail, the spatial pattern is real.
 
@@ -423,10 +423,10 @@ ggplot(hist_data, aes(x = I)) +
 #> confirming the spatial pattern is statistically significant.
 ```
 
-With a p-value around 0.006, we can confidently say that earthquake magnitude is spatially autocorrelated — nearby earthquakes tend to have more similar magnitudes than chance would predict. The histogram makes this visual: our observed Moran's I sits well to the right of the null distribution.
+With a p-value around 0.006, we can confidently say that earthquake magnitude is spatially autocorrelated, nearby earthquakes tend to have more similar magnitudes than chance would predict. The histogram makes this visual: our observed Moran's I sits well to the right of the null distribution.
 
 [KEY INSIGHT]
-**A positive Moran's I means high-magnitude earthquakes tend to cluster near other high-magnitude earthquakes.** This isn't guaranteed by the visual clustering of locations — the points could cluster spatially yet have randomly distributed magnitudes. Moran's I tests whether the variable values, not just the point locations, show spatial pattern.
+**A positive Moran's I means high-magnitude earthquakes tend to cluster near other high-magnitude earthquakes.** This isn't guaranteed by the visual clustering of locations, the points could cluster spatially yet have randomly distributed magnitudes. Moran's I tests whether the variable values, not just the point locations, show spatial pattern.
 
 **Try it:** Compute Moran's I for `depth` instead of `mag` using the same 300-point sample and k=5 neighbours. Is earthquake depth also spatially autocorrelated? Is the I higher or lower than for magnitude?
 
@@ -454,13 +454,13 @@ cat("Moran's I for depth:", round(ex_morans_depth, 4), "\n")
 #> Moran's I for depth: 0.6523
 ```
 
-**Explanation:** Depth shows much stronger spatial autocorrelation (I ≈ 0.65) than magnitude (I ≈ 0.08). This makes geological sense — depth changes systematically along the subduction zone (shallow in the east, deep in the west), creating a strong spatial gradient. Magnitude, by contrast, is more stochastic.
+**Explanation:** Depth shows much stronger spatial autocorrelation (I ≈ 0.65) than magnitude (I ≈ 0.08). This makes geological sense, depth changes systematically along the subduction zone (shallow in the east, deep in the west), creating a strong spatial gradient. Magnitude, by contrast, is more stochastic.
 
 </details>
 
 ## How do you build density heatmaps to find hotspots?
 
-Point maps show individual locations, but when hundreds of points overlap, the true concentration pattern gets lost. Density heatmaps solve this by smoothing points into a continuous surface — areas with many nearby points become peaks (hotspots), sparse areas become valleys.
+Point maps show individual locations, but when hundreds of points overlap, the true concentration pattern gets lost. Density heatmaps solve this by smoothing points into a continuous surface, areas with many nearby points become peaks (hotspots), sparse areas become valleys.
 
 The technique is called kernel density estimation (KDE). Imagine placing a small, smooth "bump" (a kernel function) at each point's location and then adding all the bumps together. Where bumps pile up, the density is high.
 
@@ -481,9 +481,9 @@ ggplot(quakes, aes(x = long, y = lat)) +
 #> as an elongated density ridge.
 ```
 
-The hottest zone (brightest colors) sits around latitude -20, longitude 180-182 — the densest concentration of seismic activity. The elongated shape follows the tectonic arc. The faint white dots show individual earthquakes layered underneath for reference.
+The hottest zone (brightest colors) sits around latitude -20, longitude 180-182, the densest concentration of seismic activity. The elongated shape follows the tectonic arc. The faint white dots show individual earthquakes layered underneath for reference.
 
-An alternative approach is a gridded heatmap — divide the map into rectangular bins and count earthquakes per bin. This is cruder than KDE but can reveal local concentrations that smooth density misses.
+An alternative approach is a gridded heatmap, divide the map into rectangular bins and count earthquakes per bin. This is cruder than KDE but can reveal local concentrations that smooth density misses.
 
 ```r
 # Gridded heatmap with geom_bin2d
@@ -498,7 +498,7 @@ ggplot(quakes, aes(x = long, y = lat)) +
 #> Many cells are empty (no quakes in that region).
 ```
 
-The gridded heatmap shows the raw counts per cell — some cells contain 30+ earthquakes while most of the map is empty. This gives a more granular view than KDE, but the pattern depends heavily on bin size. Smaller bins show more local detail; larger bins show broader trends.
+The gridded heatmap shows the raw counts per cell, some cells contain 30+ earthquakes while most of the map is empty. This gives a more granular view than KDE, but the pattern depends heavily on bin size. Smaller bins show more local detail; larger bins show broader trends.
 
 The smoothness of the KDE depends on the bandwidth parameter (`h`). Smaller bandwidth captures local detail but is noisier; larger bandwidth reveals broad patterns but may wash out local hotspots. Let's compare two bandwidth settings side by side.
 
@@ -528,7 +528,7 @@ gridExtra::grid.arrange(p1_data, p2_data, ncol = 2)
 #> the overall concentration zone is clear.
 ```
 
-The narrow bandwidth (h=1) reveals multiple distinct hotspots along the arc, while the wide bandwidth (h=3) smears everything into one broad peak. For exploratory analysis, try both — narrow bandwidths help identify specific hotspots, wide bandwidths confirm the general trend.
+The narrow bandwidth (h=1) reveals multiple distinct hotspots along the arc, while the wide bandwidth (h=3) smears everything into one broad peak. For exploratory analysis, try both, narrow bandwidths help identify specific hotspots, wide bandwidths confirm the general trend.
 
 [TIP]
 **The h parameter in stat_density_2d controls the bandwidth (smoothing amount).** Smaller h gives more detail but more noise. Larger h gives smoother results but loses local hotspots. Start with the default (automatic bandwidth selection) and then experiment with `h = c(value, value)` to tune the resolution.
@@ -611,7 +611,7 @@ print(my_summary)
 #> 5       4   208     4.56   0.46        269
 ```
 
-**Explanation:** The clusters differ in mean magnitude, depth, and count. The cluster with the highest mean magnitude also tends to have shallower earthquakes, which aligns with the geology of subduction zones — shallow earthquakes near the trench are often stronger.
+**Explanation:** The clusters differ in mean magnitude, depth, and count. The cluster with the highest mean magnitude also tends to have shallower earthquakes, which aligns with the geology of subduction zones, shallow earthquakes near the trench are often stronger.
 
 </details>
 
@@ -718,13 +718,13 @@ gridExtra::grid.arrange(p1, p2, p3, p4, ncol = 2)
 #> spatial clustering.
 ```
 
-**Explanation:** The dashboard ties together all the techniques from this tutorial. Panel (d) is especially revealing — it shows that spatial clusters correspond to different depth ranges, connecting the geographic clustering back to the underlying geological structure.
+**Explanation:** The dashboard ties together all the techniques from this tutorial. Panel (d) is especially revealing, it shows that spatial clusters correspond to different depth ranges, connecting the geographic clustering back to the underlying geological structure.
 
 </details>
 
 ## Putting It All Together
 
-Let's run through a complete geospatial EDA pipeline from start to finish. We'll load the data, visualize the spatial distribution, cluster the locations, test for spatial autocorrelation, and identify density hotspots — all in one cohesive workflow.
+Let's run through a complete geospatial EDA pipeline from start to finish. We'll load the data, visualize the spatial distribution, cluster the locations, test for spatial autocorrelation, and identify density hotspots, all in one cohesive workflow.
 
 ```r
 # === Complete Geospatial EDA Pipeline ===
@@ -865,17 +865,17 @@ The most important takeaway: always check for spatial structure before applying 
 
 ## References
 
-1. Bivand, R.S., Pebesma, E., Gómez-Rubio, V. — *Applied Spatial Data Analysis with R*, 2nd Ed. Springer (2013). [Link](https://asdar-book.org/)
-2. Moran, P.A.P. — "Notes on continuous stochastic phenomena." *Biometrika* 37(1-2), 17-23 (1950). [Link](https://doi.org/10.1093/biomet/37.1-2.17)
-3. Tobler, W. — "A Computer Movie Simulating Urban Growth in the Detroit Region." *Economic Geography* 46(sup1), 234-240 (1970). [Link](https://doi.org/10.2307/143141)
-4. Anselin, L. — "Local Indicators of Spatial Association—LISA." *Geographical Analysis* 27(2), 93-115 (1995). [Link](https://doi.org/10.1111/j.1538-4632.1995.tb00338.x)
-5. Wickham, H. — *ggplot2: Elegant Graphics for Data Analysis*, 3rd Ed. Springer (2024). [Link](https://ggplot2-book.org/)
-6. R Core Team — quakes dataset documentation. [Link](https://stat.ethz.ch/R-manual/R-devel/library/datasets/html/quakes.html)
-7. rspatial.org — Introduction to Spatial Analysis in R. [Link](https://rspatial.org/analysis/)
-8. Pebesma, E. — "Simple Features for R: Standardized Support for Spatial Vector Data." *The R Journal* 10(1), 439-446 (2018). [Link](https://doi.org/10.32614/RJ-2018-009)
+1. Bivand, R.S., Pebesma, E., Gómez-Rubio, V., *Applied Spatial Data Analysis with R*, 2nd Ed. Springer (2013). [Link](https://asdar-book.org/)
+2. Moran, P.A.P., "Notes on continuous stochastic phenomena." *Biometrika* 37(1-2), 17-23 (1950). [Link](https://doi.org/10.1093/biomet/37.1-2.17)
+3. Tobler, W., "A Computer Movie Simulating Urban Growth in the Detroit Region." *Economic Geography* 46(sup1), 234-240 (1970). [Link](https://doi.org/10.2307/143141)
+4. Anselin, L., "Local Indicators of Spatial Association, LISA." *Geographical Analysis* 27(2), 93-115 (1995). [Link](https://doi.org/10.1111/j.1538-4632.1995.tb00338.x)
+5. Wickham, H., *ggplot2: Elegant Graphics for Data Analysis*, 3rd Ed. Springer (2024). [Link](https://ggplot2-book.org/)
+6. R Core Team, quakes dataset documentation. [Link](https://stat.ethz.ch/R-manual/R-devel/library/datasets/html/quakes.html)
+7. rspatial.org, Introduction to Spatial Analysis in R. [Link](https://rspatial.org/analysis/)
+8. Pebesma, E., "Simple Features for R: Standardized Support for Spatial Vector Data." *The R Journal* 10(1), 439-446 (2018). [Link](https://doi.org/10.32614/RJ-2018-009)
 
 ## Continue Learning
 
-1. [Univariate EDA in R](/Univariate-EDA-in-R.html) — Master the fundamentals of single-variable EDA before layering on spatial analysis.
-2. [Choropleth Maps in R](/Choropleth-Maps-in-R.html) — Learn how to create region-shaded maps with sf and ggplot2 for polygon-based spatial data.
-3. [Bivariate EDA in R](/Bivariate-EDA-in-R.html) — Explore relationships between two variables — the non-spatial companion to this spatial tutorial.
+1. [Univariate EDA in R](/Univariate-EDA-in-R.html), Master the fundamentals of single-variable EDA before layering on spatial analysis.
+2. [Choropleth Maps in R](/Choropleth-Maps-in-R.html), Learn how to create region-shaded maps with sf and ggplot2 for polygon-based spatial data.
+3. [Bivariate EDA in R](/Bivariate-EDA-in-R.html), Explore relationships between two variables, the non-spatial companion to this spatial tutorial.

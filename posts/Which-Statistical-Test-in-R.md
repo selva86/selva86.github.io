@@ -265,7 +265,7 @@ shapiro.test(skewed_data)
 #> W = 0.85, p-value = 0.001
 ```
 
-The normal data passes the test (p = 0.55 — no evidence against normality). The skewed data fails (p = 0.001 — clearly non-normal). For the skewed data, you would switch from a parametric test (like the t-test) to its non-parametric counterpart (like the Mann-Whitney U test).
+The normal data passes the test (p = 0.55, no evidence against normality). The skewed data fails (p = 0.001, clearly non-normal). For the skewed data, you would switch from a parametric test (like the t-test) to its non-parametric counterpart (like the Mann-Whitney U test).
 
 A QQ plot gives you a visual sanity check alongside the formal test.
 
@@ -282,7 +282,7 @@ qqline(skewed_data, col = "red", lwd = 2)
 par(mfrow = c(1, 1))
 ```
 
-In the QQ plot, points that follow the diagonal line indicate normality. The normal data hugs the line closely. The skewed data curves away, especially in the upper tail — a clear visual signal of non-normality.
+In the QQ plot, points that follow the diagonal line indicate normality. The normal data hugs the line closely. The skewed data curves away, especially in the upper tail, a clear visual signal of non-normality.
 
 ![Parametric vs non-parametric pairs](screenshots/Which-Statistical-Test-in-R-parametric-nonparametric.webp)
 *Figure 2: Every parametric test has a non-parametric counterpart.*
@@ -333,9 +333,9 @@ cat("Decision:", ex_decision)
 
 </details>
 
-## What Is the Correct Test — And How Do You Measure Its Effect?
+## What Is the Correct Test, And How Do You Measure Its Effect?
 
-You have now answered four questions: outcome type, number of groups, paired or independent, and normality. The fifth and final question brings everything together — and adds a crucial dimension that most guides skip: effect size.
+You have now answered four questions: outcome type, number of groups, paired or independent, and normality. The fifth and final question brings everything together, and adds a crucial dimension that most guides skip: effect size.
 
 A p-value tells you whether an effect exists. An effect size tells you how big that effect is. A drug that lowers blood pressure by 0.5 mmHg might be statistically significant with a large enough sample, but it is practically meaningless. Always report both.
 
@@ -384,7 +384,7 @@ cat("  Medium: 0.5\n")
 cat("  Large:  0.8\n")
 ```
 
-A Cohen's d of around 1.0 means the two groups differ by a full standard deviation — that is a large, clinically meaningful effect.
+A Cohen's d of around 1.0 means the two groups differ by a full standard deviation, that is a large, clinically meaningful effect.
 
 **Eta-squared** measures the proportion of total variance explained by the grouping variable. It ranges from 0 to 1, where higher values mean the groups explain more of the variation.
 
@@ -445,7 +445,7 @@ cat("Effect size:", ex_size)
 #> Effect size: medium
 ```
 
-**Explanation:** A Cohen's d of 0.417 falls between the small (0.2) and medium (0.5) benchmarks. It rounds to a medium effect — the groups differ by about four-tenths of a standard deviation.
+**Explanation:** A Cohen's d of 0.417 falls between the small (0.2) and medium (0.5) benchmarks. It rounds to a medium effect, the groups differ by about four-tenths of a standard deviation.
 
 </details>
 
@@ -712,7 +712,7 @@ cat("\n--- Tukey's HSD ---\n")
 TukeyHSD(fuel_aov)
 ```
 
-All three pairwise comparisons are significant. Four-cylinder cars get the best mileage (mean 26.7 mpg), followed by six-cylinder (19.7 mpg), then eight-cylinder (15.1 mpg). The effect is large, and the pattern makes physical sense — more cylinders burn more fuel.
+All three pairwise comparisons are significant. Four-cylinder cars get the best mileage (mean 26.7 mpg), followed by six-cylinder (19.7 mpg), then eight-cylinder (15.1 mpg). The effect is large, and the pattern makes physical sense, more cylinders burn more fuel.
 
 ## Summary
 
@@ -765,21 +765,21 @@ Yes. The American Statistical Association's 2016 statement on p-values recommend
 
 **What if I have more than one outcome variable?**
 
-When you have multiple outcome variables measured on the same subjects, consider MANOVA (for continuous outcomes across groups) or multivariate regression. These tests account for correlations between outcomes. In R, use `manova()` for MANOVA. These are beyond this guide's scope — consult a multivariate statistics resource.
+When you have multiple outcome variables measured on the same subjects, consider MANOVA (for continuous outcomes across groups) or multivariate regression. These tests account for correlations between outcomes. In R, use `manova()` for MANOVA. These are beyond this guide's scope, consult a multivariate statistics resource.
 
 ## References
 
-1. R Core Team — t.test() documentation. [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/t.test.html)
-2. R Core Team — aov() documentation. [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/aov.html)
-3. R Core Team — shapiro.test() documentation. [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/shapiro.test.html)
-4. Cohen, J. — *Statistical Power Analysis for the Behavioral Sciences*, 2nd Edition. Lawrence Erlbaum Associates (1988).
-5. Field, A., Miles, J. & Field, Z. — *Discovering Statistics Using R*. SAGE Publications (2012). Chapters 9-12.
-6. UCLA OARC — Choosing the Correct Statistical Test in SAS, Stata, SPSS and R. [Link](https://stats.oarc.ucla.edu/other/mult-pkg/whatstat/)
-7. Wasserstein, R. & Lazar, N. — The ASA Statement on p-Values: Context, Process, and Purpose. *The American Statistician* 70(2), 129-133 (2016). [Link](https://doi.org/10.1080/00031305.2016.1154108)
-8. Stats and R — What Statistical Test Should I Do? [Link](https://statsandr.com/blog/what-statistical-test-should-i-do/)
+1. R Core Team, t.test() documentation. [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/t.test.html)
+2. R Core Team, aov() documentation. [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/aov.html)
+3. R Core Team, shapiro.test() documentation. [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/shapiro.test.html)
+4. Cohen, J., *Statistical Power Analysis for the Behavioral Sciences*, 2nd Edition. Lawrence Erlbaum Associates (1988).
+5. Field, A., Miles, J. & Field, Z., *Discovering Statistics Using R*. SAGE Publications (2012). Chapters 9-12.
+6. UCLA OARC, Choosing the Correct Statistical Test in SAS, Stata, SPSS and R. [Link](https://stats.oarc.ucla.edu/other/mult-pkg/whatstat/)
+7. Wasserstein, R. & Lazar, N., The ASA Statement on p-Values: Context, Process, and Purpose. *The American Statistician* 70(2), 129-133 (2016). [Link](https://doi.org/10.1080/00031305.2016.1154108)
+8. Stats and R, What Statistical Test Should I Do? [Link](https://statsandr.com/blog/what-statistical-test-should-i-do/)
 
 ## Continue Learning
 
-- **Hypothesis Testing Fundamentals** — For a deeper dive into p-values, confidence intervals, and Type I/II errors, the hypothesis testing foundations tutorial covers the theory behind every test in this guide.
-- **Regression Decision Guide** — When your question is about predicting an outcome rather than comparing groups, the regression model selection guide walks you through choosing between linear, logistic, Poisson, and other regression models.
-- **ANOVA Deep Dive** — For a thorough treatment of one-way, factorial, and repeated-measures ANOVA with full R code and post-hoc comparisons, see the ANOVA tutorial.
+- **Hypothesis Testing Fundamentals**, For a deeper dive into p-values, confidence intervals, and Type I/II errors, the hypothesis testing foundations tutorial covers the theory behind every test in this guide.
+- **Regression Decision Guide**, When your question is about predicting an outcome rather than comparing groups, the regression model selection guide walks you through choosing between linear, logistic, Poisson, and other regression models.
+- **ANOVA Deep Dive**, For a thorough treatment of one-way, factorial, and repeated-measures ANOVA with full R code and post-hoc comparisons, see the ANOVA tutorial.

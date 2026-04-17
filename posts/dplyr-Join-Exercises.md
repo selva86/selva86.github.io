@@ -1,5 +1,5 @@
 ---
-title: "dplyr join() Exercises: 10 Left, Right, Inner & Full Join Problems — Solved Step-by-Step)"
+title: "dplyr join() Exercises: 10 Left, Right, Inner & Full Join Problems, Solved Step-by-Step)"
 slug: "dplyr-Join-Exercises"
 description: "Practise dplyr joins with 10 left, right, inner & full join problems and worked solutions. Build real R skills through hands-on exercises, beginner to advanced."
 keywords: "dplyr join exercises, R join practice, left_join exercises, inner_join exercises, full_join exercises, right_join R, dplyr practice problems, R data wrangling exercises"
@@ -22,7 +22,7 @@ difficulty: "Intermediate"
 
 ## What datasets will you use for these exercises?
 
-Every problem on this page reuses four tiny hand-built tables: `employees`, `departments`, `salaries`, and `projects`. They are deliberately small so you can eyeball every row and spot join bugs by hand. The keys are picked to expose the situations that trip learners up — employees with no department, departments with no employees, and a table that uses a different column name for its foreign key. Run the setup block once, then work through the problems in order.
+Every problem on this page reuses four tiny hand-built tables: `employees`, `departments`, `salaries`, and `projects`. They are deliberately small so you can eyeball every row and spot join bugs by hand. The keys are picked to expose the situations that trip learners up, employees with no department, departments with no employees, and a table that uses a different column name for its foreign key. Run the setup block once, then work through the problems in order.
 
 ```r
 # Setup: load dplyr and build four small tables
@@ -74,7 +74,7 @@ Look closely at the keys before you touch any join. The `employees$dept_id` colu
 [TIP]
 **Run the setup block first, once.** Every exercise reuses `employees`, `departments`, `salaries`, and `projects`. If your WebR session resets, come back and re-run Setup before continuing.
 
-## Warm-Up — Your First Joins (Exercises 1–3)
+## Warm-Up, Your First Joins (Exercises 1–3)
 
 These three exercises use one join each. If you get them right, you understand the core mechanics. Match the expected row counts exactly.
 
@@ -137,7 +137,7 @@ ans2
 #> 5      5 Evi        20 Engineering
 ```
 
-**Explanation:** `left_join()` keeps every row from the left table (`employees`). When the right table has no match, the new columns fill with `NA`. This is the single most common join — use it whenever you want to enrich a primary table without losing rows.
+**Explanation:** `left_join()` keeps every row from the left table (`employees`). When the right table has no match, the new columns fill with `NA`. This is the single most common join, use it whenever you want to enrich a primary table without losing rows.
 
 </details>
 
@@ -168,11 +168,11 @@ ans3
 #> 4      30 NA               60000
 ```
 
-**Explanation:** `full_join()` returns the union of keys from both tables. Legal (dept 40) has no salary record, so `avg_salary` is `NA`. Dept 30 has a salary but no department name. Full join is the join you reach for when you need to audit data — it shows gaps on both sides.
+**Explanation:** `full_join()` returns the union of keys from both tables. Legal (dept 40) has no salary record, so `avg_salary` is `NA`. Dept 30 has a salary but no department name. Full join is the join you reach for when you need to audit data, it shows gaps on both sides.
 
 </details>
 
-## Core Problems — Join Types That Feel Alike (Exercises 4–7)
+## Core Problems, Join Types That Feel Alike (Exercises 4–7)
 
 Warm-up done. These four exercises mix join types, chain joins together, and handle keys whose column names do not match.
 
@@ -217,7 +217,7 @@ ans4b
 #> 5      40 Legal           NA NA
 ```
 
-**Explanation:** `right_join(A, B)` and `left_join(B, A)` return the same rows — only the column order differs. Most R style guides recommend `left_join()` because it reads naturally: "start with this table, attach extras." Reach for `right_join()` only when pipe order makes the intent clearer.
+**Explanation:** `right_join(A, B)` and `left_join(B, A)` return the same rows, only the column order differs. Most R style guides recommend `left_join()` because it reads naturally: "start with this table, attach extras." Reach for `right_join()` only when pipe order makes the intent clearer.
 
 </details>
 
@@ -285,7 +285,7 @@ ans6
 #> 6      5 Evi        20 NA         NA
 ```
 
-**Explanation:** The `by = c("left_col" = "right_col")` syntax maps differently named keys. The result keeps the left table's column name (`emp_id`). Asha appears twice because she has two projects — this row expansion is expected for one-to-many joins, not a bug.
+**Explanation:** The `by = c("left_col" = "right_col")` syntax maps differently named keys. The result keeps the left table's column name (`emp_id`). Asha appears twice because she has two projects, this row expansion is expected for one-to-many joins, not a bug.
 
 </details>
 
@@ -334,7 +334,7 @@ ans7
 
 </details>
 
-## Advanced Challenges — Filter Joins and Debugging (Exercises 8–10)
+## Advanced Challenges, Filter Joins and Debugging (Exercises 8–10)
 
 The last three exercises move past basic joining. You will filter rows by membership in another table, and debug joins that silently produce wrong answers.
 
@@ -374,7 +374,7 @@ ans8b
 #> 3      5 Evi        20
 ```
 
-**Explanation:** `semi_join()` and `anti_join()` are **filtering joins**. They return rows from the left table only — no columns from the right table are added. `semi_join()` keeps rows that have a match; `anti_join()` keeps rows that do not. Reach for them when you want to subset one table by membership in another without altering its columns.
+**Explanation:** `semi_join()` and `anti_join()` are **filtering joins**. They return rows from the left table only, no columns from the right table are added. `semi_join()` keeps rows that have a match; `anti_join()` keeps rows that do not. Reach for them when you want to subset one table by membership in another without altering its columns.
 
 </details>
 
@@ -383,7 +383,7 @@ ans8b
 
 ### Exercise 9: Spot the row explosion
 
-The `coupons` table below has **duplicated keys** — the same `customer_id` appears several times. Left-join `customers` to `coupons` on `customer_id` and examine how many rows come back. Save to `ans9`. Expected: **5 rows**, not 3, because customer 1 has three coupons.
+The `coupons` table below has **duplicated keys**, the same `customer_id` appears several times. Left-join `customers` to `coupons` on `customer_id` and examine how many rows come back. Save to `ans9`. Expected: **5 rows**, not 3, because customer 1 has three coupons.
 
 Then ask yourself: is this a bug or expected behaviour?
 
@@ -427,7 +427,7 @@ ans9
 
 ### Exercise 10: Detect and fix an unintended many-to-many join
 
-Two new tables below share the key `product_id`. Both sides have duplicates — `orders` has two rows for product 101, and `prices` has two rows for product 101 (two price tiers). A naive left join multiplies them into a 4-row cross product for that one product.
+Two new tables below share the key `product_id`. Both sides have duplicates, `orders` has two rows for product 101, and `prices` has two rows for product 101 (two price tiers). A naive left join multiplies them into a 4-row cross product for that one product.
 
 Do the naive join first and observe the row count. Then fix it by deduplicating `prices` to keep only the latest price per product, and join again. Save the fixed result to `ans10`. Expected after the fix: **3 rows**, one per order.
 
@@ -477,12 +477,12 @@ ans10
 #> 3 O3              102     3 2026-02-01  4.50
 ```
 
-**Explanation:** The naive join has 4 rows because product 101 has 2 orders and 2 prices, so the join creates 2 × 2 = 4 rows for that product. Real order tables expect one price per order, not two. The fix reduces the right side to one row per key before joining — `slice_max(price_date, n = 1)` keeps the most recent price per product. Since dplyr 1.1.0, an uncontrolled many-to-many join also emits a warning; that warning is a red flag, not noise.
+**Explanation:** The naive join has 4 rows because product 101 has 2 orders and 2 prices, so the join creates 2 × 2 = 4 rows for that product. Real order tables expect one price per order, not two. The fix reduces the right side to one row per key before joining, `slice_max(price_date, n = 1)` keeps the most recent price per product. Since dplyr 1.1.0, an uncontrolled many-to-many join also emits a warning; that warning is a red flag, not noise.
 
 </details>
 
 [WARNING]
-**Since dplyr 1.1, a many-to-many match triggers a warning by default.** If you see `Detected an unexpected many-to-many relationship`, stop and inspect — the join is almost certainly producing wrong row counts. Silence the warning only after you have verified the duplication is intentional by setting `relationship = "many-to-many"`.
+**Since dplyr 1.1, a many-to-many match triggers a warning by default.** If you see `Detected an unexpected many-to-many relationship`, stop and inspect, the join is almost certainly producing wrong row counts. Silence the warning only after you have verified the duplication is intentional by setting `relationship = "many-to-many"`.
 
 ## How can you avoid the most common join bugs?
 
@@ -505,7 +505,7 @@ Always name the key. It is one extra argument, and it stops silent bugs.
 
 ### Mistake 2: Ignoring the many-to-many warning
 
-Since dplyr 1.1.0, `left_join()` warns when the right side has duplicate keys and the match is not one-to-one. Many learners ignore it. If the row count jumps, that warning was pointing at a real bug — fix the right side before the join.
+Since dplyr 1.1.0, `left_join()` warns when the right side has duplicate keys and the match is not one-to-one. Many learners ignore it. If the row count jumps, that warning was pointing at a real bug, fix the right side before the join.
 
 ### Mistake 3: Type mismatch on keys drops every match
 
@@ -522,7 +522,7 @@ If they differ, coerce one side with `as.character()` or `as.integer()`.
 
 ### Mistake 4: Using `inner_join()` when you meant `left_join()`
 
-`inner_join()` drops left-table rows that have no match. If you joined a primary table to a lookup and the row count fell, you probably wanted `left_join()`. Default to `left_join()` when enriching a primary table — use `inner_join()` only when missing matches truly mean "exclude this row."
+`inner_join()` drops left-table rows that have no match. If you joined a primary table to a lookup and the row count fell, you probably wanted `left_join()`. Default to `left_join()` when enriching a primary table, use `inner_join()` only when missing matches truly mean "exclude this row."
 
 [WARNING]
 **Row count is your primary sanity check.** After every join, compare `nrow(result)` to the left table's row count. If the counts differ and you did not expect them to, stop and inspect before continuing.
@@ -558,7 +558,7 @@ full_report
 #> 5      5 Evi   Engineering      85000 —
 ```
 
-This pipeline leans on every idea from the exercises above. The two `left_join()` calls keep every employee regardless of missing lookups. The inline `group_by() |> summarise()` collapses multiple projects per employee into a single string **before** joining — this is the defensive version of Exercise 10, preventing a row explosion up front. The `coalesce()` calls replace `NA` with `"—"` for display. The final result has exactly 5 rows, one per employee, with every piece of information needed for a management report.
+This pipeline leans on every idea from the exercises above. The two `left_join()` calls keep every employee regardless of missing lookups. The inline `group_by() |> summarise()` collapses multiple projects per employee into a single string **before** joining, this is the defensive version of Exercise 10, preventing a row explosion up front. The `coalesce()` calls replace `NA` with `"—"` for display. The final result has exactly 5 rows, one per employee, with every piece of information needed for a management report.
 
 ## Summary
 
@@ -566,7 +566,7 @@ Commit the row-keeping rules to memory. The join type is the answer to one quest
 
 | Join | Keeps from Left | Keeps from Right | Typical Use |
 |---|---|---|---|
-| `inner_join()` | matches only | matches only | Strict — both sides required |
+| `inner_join()` | matches only | matches only | Strict, both sides required |
 | `left_join()` | all rows | matches only | Enrich the primary table |
 | `right_join()` | matches only | all rows | Rarely used; prefer left_join |
 | `full_join()` | all rows | all rows | Audit gaps on both sides |
@@ -574,18 +574,18 @@ Commit the row-keeping rules to memory. The join type is the answer to one quest
 | `anti_join()` | non-matches only | none (filter) | "Keep rows missing over there" |
 
 [KEY INSIGHT]
-**A join is a question about row-keeping, not table-merging.** Pick the join by asking "which rows must survive?" — left only? right only? both? intersection? The answer names the join.
+**A join is a question about row-keeping, not table-merging.** Pick the join by asking "which rows must survive?", left only? right only? both? intersection? The answer names the join.
 
 ## References
 
 1. dplyr mutating joins documentation. [Link](https://dplyr.tidyverse.org/reference/mutate-joins.html)
 2. dplyr filtering joins documentation. [Link](https://dplyr.tidyverse.org/reference/filter-joins.html)
-3. Wickham, H., Cetinkaya-Rundel, M., & Grolemund, G. — *R for Data Science (2e)*, Chapter 19: Joins. [Link](https://r4ds.hadley.nz/joins.html)
-4. Posit — dplyr 1.1.0 Joins announcement (introduces `join_by()` and the many-to-many warning). [Link](https://www.tidyverse.org/blog/2023/01/dplyr-1-1-0-joins/)
-5. STAT 545 — Join cheatsheet. [Link](https://stat545.com/join-cheatsheet.html)
+3. Wickham, H., Cetinkaya-Rundel, M., & Grolemund, G., *R for Data Science (2e)*, Chapter 19: Joins. [Link](https://r4ds.hadley.nz/joins.html)
+4. Posit, dplyr 1.1.0 Joins announcement (introduces `join_by()` and the many-to-many warning). [Link](https://www.tidyverse.org/blog/2023/01/dplyr-1-1-0-joins/)
+5. STAT 545, Join cheatsheet. [Link](https://stat545.com/join-cheatsheet.html)
 
 ## Continue Learning
 
-- [R Joins: left, right, inner, full](R-Joins.html) — the parent tutorial that walks through each mutating join with diagrams.
-- [dplyr group_by() & summarise() Exercises](dplyr-group-by-summarise-Exercises.html) — ten more problems covering aggregation and per-group slicing.
-- [dplyr filter() and select()](dplyr-Filter-Select.html) — upstream verbs you often use before joining.
+- [R Joins: left, right, inner, full](R-Joins.html), the parent tutorial that walks through each mutating join with diagrams.
+- [dplyr group_by() & summarise() Exercises](dplyr-group-by-summarise-Exercises.html), ten more problems covering aggregation and per-group slicing.
+- [dplyr filter() and select()](dplyr-Filter-Select.html), upstream verbs you often use before joining.

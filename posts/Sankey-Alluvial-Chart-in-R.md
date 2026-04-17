@@ -16,17 +16,17 @@ difficulty: "Intermediate"
 
 # Sankey and Alluvial Charts in R with ggalluvial
 
-<p class="lead">Alluvial and Sankey charts visualize how observations flow between categorical states — like customers moving between subscription tiers, patients through treatment stages, or votes shifting between parties. In R, <code>ggalluvial</code> builds them inside ggplot2 with <code>geom_alluvium()</code> and <code>geom_stratum()</code>.</p>
+<p class="lead">Alluvial and Sankey charts visualize how observations flow between categorical states, like customers moving between subscription tiers, patients through treatment stages, or votes shifting between parties. In R, <code>ggalluvial</code> builds them inside ggplot2 with <code>geom_alluvium()</code> and <code>geom_stratum()</code>.</p>
 
 ## Introduction
 
 A bar chart shows you where things *are*. A Sankey or alluvial chart shows you where things *came from and went to*.
 
-The classic use case: a customer journey analysis. At Month 1, you have 1,000 customers split among three tiers (Free, Basic, Pro). By Month 3, how many upgraded? How many churned? A bar chart per month shows counts — but it can't show the *movement*. An alluvial chart shows the flows, making conversions and churn immediately visible.
+The classic use case: a customer journey analysis. At Month 1, you have 1,000 customers split among three tiers (Free, Basic, Pro). By Month 3, how many upgraded? How many churned? A bar chart per month shows counts, but it can't show the *movement*. An alluvial chart shows the flows, making conversions and churn immediately visible.
 
 The two chart types are closely related:
-- **Alluvial chart** — flows between multiple categorical axes (time points or variables). The data is long-format or frequency table.
-- **Sankey diagram** — a generalized flow diagram where node widths and flow widths encode magnitude. Often used for energy/material flow systems.
+- **Alluvial chart**, flows between multiple categorical axes (time points or variables). The data is long-format or frequency table.
+- **Sankey diagram**, a generalized flow diagram where node widths and flow widths encode magnitude. Often used for energy/material flow systems.
 
 The `ggalluvial` package handles both inside ggplot2's grammar, giving you full access to themes, scales, and annotations.
 
@@ -107,7 +107,7 @@ Now you can follow the blue ribbon (Free tier customers) and see how many stayed
 
 ## How do you color flows by destination?
 
-Coloring by the final stage (`month3`) gives you a retention/conversion view — all customers ending in "Pro" are green, all churned customers are red.
+Coloring by the final stage (`month3`) gives you a retention/conversion view, all customers ending in "Pro" are green, all churned customers are red.
 
 ```r
 # Color by final destination (Month 3 outcome)
@@ -142,9 +142,9 @@ p_dest <- ggplot(sub_df,
 p_dest
 ```
 
-The red ribbons (Churned) immediately stand out — you can see which starting tiers contributed most to churn.
+The red ribbons (Churned) immediately stand out, you can see which starting tiers contributed most to churn.
 
-**Try it:** Add `geom_flow(alpha = 0.3)` between `geom_alluvium()` and `geom_stratum()` — this draws short connecting ribbons between adjacent strata instead of full spanning ribbons. It's a subtly different visual style that's cleaner for many stages.
+**Try it:** Add `geom_flow(alpha = 0.3)` between `geom_alluvium()` and `geom_stratum()`, this draws short connecting ribbons between adjacent strata instead of full spanning ribbons. It's a subtly different visual style that's cleaner for many stages.
 
 ## How do you use wide-format data with ggalluvial?
 
@@ -182,7 +182,7 @@ p_wide <- ggplot(wide_df,
 p_wide
 ```
 
-**Try it:** Swap the axis order — change `axis1 = Department, axis2 = Gender, axis3 = Level` — to explore how the visual story changes when you reorder the stages.
+**Try it:** Swap the axis order, change `axis1 = Department, axis2 = Gender, axis3 = Level`, to explore how the visual story changes when you reorder the stages.
 
 ## Complete Example: Polished Alluvial Chart
 
@@ -259,7 +259,7 @@ When many categories have similar proportions, the strata look like equal-width 
 
 ### Mistake 4: Choosing Sankey for time series data
 
-Sankey diagrams show static flows between nodes — not trends over time. For change over time, a line chart or bump chart is more appropriate.
+Sankey diagrams show static flows between nodes, not trends over time. For change over time, a line chart or bump chart is more appropriate.
 
 ### Mistake 5: Incorrect frequency format
 
@@ -347,8 +347,8 @@ ggplot(df, aes(axis1 = Hair, axis2 = Eye, axis3 = Sex,
 | `fill` | Color of ribbons (by origin, destination, or another variable) |
 
 **Sankey vs alluvial:**
-- **Alluvial** — multiple ordinal or time-ordered axes; data is a frequency table
-- **Sankey** — arbitrary flow networks (energy, materials, processes); data is a directed edge list
+- **Alluvial**, multiple ordinal or time-ordered axes; data is a frequency table
+- **Sankey**, arbitrary flow networks (energy, materials, processes); data is a directed edge list
 - In R, `ggalluvial` handles alluvial charts; `networkD3::sankeyNetwork()` handles true Sankey networks
 
 ## FAQ
@@ -357,13 +357,13 @@ ggplot(df, aes(axis1 = Hair, axis2 = Eye, axis3 = Sex,
 `geom_alluvium()` draws ribbons spanning the entire chart from the first to the last axis. `geom_flow()` draws only the ribbons between adjacent axes. For many stages, `geom_flow()` is less tangled.
 
 **Can I make an interactive Sankey diagram in R?**
-Yes — the `networkD3` package creates interactive Sankey diagrams using D3.js. The `sankeyNetwork()` function takes a node and link data frame.
+Yes, the `networkD3` package creates interactive Sankey diagrams using D3.js. The `sankeyNetwork()` function takes a node and link data frame.
 
 **How do I handle data that's already long format (one row per individual)?**
 Aggregate first: `df |> count(stage1, stage2, stage3, name = "freq")`. Then use `freq` as the `y` aesthetic.
 
 **Can I control the vertical order of strata?**
-Yes — factor level order controls stratum order. Use `factor(var, levels = c("A", "B", "C"))` to set the order before plotting.
+Yes, factor level order controls stratum order. Use `factor(var, levels = c("A", "B", "C"))` to set the order before plotting.
 
 **Why do my labels overlap the stratum boxes?**
 Increase the `expand` parameter in `scale_x_discrete()` to give more horizontal space at the chart edges: `expand = c(0.2, 0.15)`.
@@ -371,12 +371,12 @@ Increase the `expand` parameter in `scale_x_discrete()` to give more horizontal 
 ## References
 
 - ggalluvial CRAN vignette: cran.r-project.org/web/packages/ggalluvial
-- R Graph Gallery — Sankey diagram: r-graph-gallery.com/sankey-diagram.html
+- R Graph Gallery, Sankey diagram: r-graph-gallery.com/sankey-diagram.html
 - Rosvall M. & Bergstrom C.T. (2010). Mapping Change in Large Networks. *PLoS ONE*.
-- Wilke C. (2019). *Fundamentals of Data Visualization* — Chapter 12: Visualizing associations
+- Wilke C. (2019). *Fundamentals of Data Visualization*, Chapter 12: Visualizing associations
 
 ## Continue Learning
 
-- **ggplot2 Line Charts** — the go-to for trends over continuous time
-- **R UpSet Plot** — visualize intersections across many sets
-- **Treemap in R** — show proportions hierarchically in a single compact chart
+- **ggplot2 Line Charts**, the go-to for trends over continuous time
+- **R UpSet Plot**, visualize intersections across many sets
+- **Treemap in R**, show proportions hierarchically in a single compact chart

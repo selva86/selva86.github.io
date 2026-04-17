@@ -18,7 +18,7 @@ difficulty: "Beginner"
 
 # Stuck in R? 6 Ways to Get Unstuck Without Wasting Hours
 
-<p class="lead">When you're stuck in R, you don't need Google — you need `?function_name`. R ships with a help system that covers every function, and between `help()`, `example()`, `vignette()`, `apropos()`, and a clean **reprex**, most problems are 60 seconds away from being solved without ever leaving your R session.</p>
+<p class="lead">When you're stuck in R, you don't need Google, you need `?function_name`. R ships with a help system that covers every function, and between `help()`, `example()`, `vignette()`, `apropos()`, and a clean **reprex**, most problems are 60 seconds away from being solved without ever leaving your R session.</p>
 
 ## What's the fastest way to look up a function you already know?
 
@@ -29,13 +29,13 @@ A single question mark in front of a function name opens its help page instantly
 # opens the help page for mean() — arguments, return value, examples
 ```
 
-The help page follows a consistent structure: **Description** (one-line summary), **Usage** (the signature with defaults), **Arguments** (what each parameter does), **Details** (gotchas and edge cases), **Value** (what gets returned), **Examples** (runnable code). Learn to jump straight to Arguments and Examples — that's 90% of what you need.
+The help page follows a consistent structure: **Description** (one-line summary), **Usage** (the signature with defaults), **Arguments** (what each parameter does), **Details** (gotchas and edge cases), **Value** (what gets returned), **Examples** (runnable code). Learn to jump straight to Arguments and Examples, that's 90% of what you need.
 
-![Flowchart showing where to look for R help — help(), apropos(), vignette(), reprex](screenshots/Getting-Help-in-R-help-sources.webp)
+![Flowchart showing where to look for R help, help(), apropos(), vignette(), reprex](screenshots/Getting-Help-in-R-help-sources.webp)
 
 *Figure 1: R's help system handles most questions before you ever open a browser. Use `?` first, `vignette()` for tutorials, reprex only when asking humans.*
 
-`?mean` is shorthand for `help("mean")`. They're identical — use whichever feels faster. For operators and reserved words you need quotes: `` ?`+` `` or `help("if")`.
+`?mean` is shorthand for `help("mean")`. They're identical, use whichever feels faster. For operators and reserved words you need quotes: `` ?`+` `` or `help("if")`.
 
 ```r
 ?`+`
@@ -66,12 +66,12 @@ args(round)
 #> function (x, digits = 0)
 ```
 
-`round()` takes two arguments and `digits` defaults to `0`, which is why `round(3.7)` returns `4` — no decimals kept. You can read this straight off the **Usage** line of the help page, which is always the fastest way to answer "what arguments does this take and what do they default to?"
+`round()` takes two arguments and `digits` defaults to `0`, which is why `round(3.7)` returns `4`, no decimals kept. You can read this straight off the **Usage** line of the help page, which is always the fastest way to answer "what arguments does this take and what do they default to?"
 </details>
 
 ## How do you find a function when you only remember what it does?
 
-This is the harder case — you want to reshape a data frame but can't remember if it's `pivot_longer`, `melt`, `reshape`, or something else. Two tools cover it: `apropos()` for partial name matching and `help.search()` (shortcut `??`) for full-text search across help pages.
+This is the harder case, you want to reshape a data frame but can't remember if it's `pivot_longer`, `melt`, `reshape`, or something else. Two tools cover it: `apropos()` for partial name matching and `help.search()` (shortcut `??`) for full-text search across help pages.
 
 ```r
 apropos("mean")
@@ -87,7 +87,7 @@ apropos("mean")
 # opens a search results page across all installed packages
 ```
 
-`??` (help.search) scans help-page text, so it finds functions by *description* not just name. Searching for `"linear model"` surfaces `lm`, `glm`, `lm.fit`, and regression diagnostics — even if none of those names contain the word "linear."
+`??` (help.search) scans help-page text, so it finds functions by *description* not just name. Searching for `"linear model"` surfaces `lm`, `glm`, `lm.fit`, and regression diagnostics, even if none of those names contain the word "linear."
 
 [KEY INSIGHT]
 `apropos()` searches **names**. `??` searches **descriptions**. When you know roughly what the function is called, use `apropos()`. When you know what it *does*, use `??`.
@@ -97,7 +97,7 @@ apropos("^cor")      # functions whose name starts with "cor"
 #> [1] "cor"        "cor.test"   "corrcoeff"  "corrplot"   "correlation"
 ```
 
-The `^` anchor is a regex — `apropos()` accepts regular expressions, so you can narrow results when a common prefix produces too many hits.
+The `^` anchor is a regex, `apropos()` accepts regular expressions, so you can narrow results when a common prefix produces too many hits.
 
 **Try it:** Use `apropos()` to find everything in base R with "lm" in its name. Then use `??"logistic regression"` to find functions for logistic regression.
 
@@ -120,7 +120,7 @@ apropos("lm")
 # stats::predict.glm, and MASS::polr for ordered logistic regression
 ```
 
-`apropos("lm")` matches any loaded object whose name contains "lm" as a substring — so you get `lm` itself plus its helpers (`lm.fit`, `summary.lm`, `predict.lm`) and also unrelated hits like `colMeans`. The `??` search is description-based: it finds `glm` because its help page *describes* logistic regression, even though the word "logistic" doesn't appear in the name.
+`apropos("lm")` matches any loaded object whose name contains "lm" as a substring, so you get `lm` itself plus its helpers (`lm.fit`, `summary.lm`, `predict.lm`) and also unrelated hits like `colMeans`. The `??` search is description-based: it finds `glm` because its help page *describes* logistic regression, even though the word "logistic" doesn't appear in the name.
 </details>
 
 ## Why is example() the most underused help command?
@@ -135,14 +135,14 @@ example(mean)
 #> [1] 8.75 5.50
 ```
 
-That's the entire `?mean` examples section running live — including the `trim` argument demonstration that most beginners never notice. It's the fastest way to go from "I read the help page" to "I actually understand how this behaves on real data."
+That's the entire `?mean` examples section running live, including the `trim` argument demonstration that most beginners never notice. It's the fastest way to go from "I read the help page" to "I actually understand how this behaves on real data."
 
 ```r
 example(lm)
 # runs every lm() example from the help page, plots included
 ```
 
-For functions with plotting examples (like `lm`, `ggplot`, `hist`), `example()` draws every plot — you get a visual tour of the function's capabilities in one call.
+For functions with plotting examples (like `lm`, `ggplot`, `hist`), `example()` draws every plot, you get a visual tour of the function's capabilities in one call.
 
 **Try it:** Run `example(plot)` and watch what comes up. Then try `example(strsplit)` to see string-splitting in action.
 
@@ -165,7 +165,7 @@ example(strsplit)
 #> strsplit> strsplit(x, "e")
 ```
 
-`example(plot)` runs every snippet from the `?plot` help page live, including the plotting ones — so you get a free visual tour of what `type = "l"`, `"b"`, `"s"` and friends look like without copy-pasting anything. `example(strsplit)` is great for text functions: it shows the `split = NULL` trick for splitting into individual characters, which is rarely mentioned in tutorials but documented right there in the examples.
+`example(plot)` runs every snippet from the `?plot` help page live, including the plotting ones, so you get a free visual tour of what `type = "l"`, `"b"`, `"s"` and friends look like without copy-pasting anything. `example(strsplit)` is great for text functions: it shows the `split = NULL` trick for splitting into individual characters, which is rarely mentioned in tutorials but documented right there in the examples.
 </details>
 
 ## When should you read a vignette instead of a help page?
@@ -178,7 +178,7 @@ vignette(package = "dplyr")   # vignettes in one specific package
 vignette("dplyr")             # open the main dplyr vignette
 ```
 
-Vignettes are the difference between understanding a package as a pile of functions versus understanding it as a coherent tool. Any time you're learning a new package, check its vignettes before searching online — the author wrote them specifically to save you that search.
+Vignettes are the difference between understanding a package as a pile of functions versus understanding it as a coherent tool. Any time you're learning a new package, check its vignettes before searching online, the author wrote them specifically to save you that search.
 
 [NOTE]
 Not every package ships vignettes, and which ones are available depends on how you installed the package. `install.packages("pkg")` by default includes vignettes; Bioconductor-style installs do too.
@@ -209,12 +209,12 @@ vignette(package = "dplyr")
 #>   window-functions  Window functions
 ```
 
-The `stats` package — home to `lm()`, `glm()`, `t.test()` and the rest of base R's statistics — ships with zero vignettes because base R packages predate the vignette system. That's why R's core statistical functions are documented function-by-function via `?lm` etc., and why books like *Modern Applied Statistics with S* fill the tutorial gap. Contrast with `dplyr`, where the package authors wrote eight long-form tutorials specifically to stop users from having to Google.
+The `stats` package, home to `lm()`, `glm()`, `t.test()` and the rest of base R's statistics, ships with zero vignettes because base R packages predate the vignette system. That's why R's core statistical functions are documented function-by-function via `?lm` etc., and why books like *Modern Applied Statistics with S* fill the tutorial gap. Contrast with `dplyr`, where the package authors wrote eight long-form tutorials specifically to stop users from having to Google.
 </details>
 
 ## How do you read an R error message without panicking?
 
-An R error is not a wall of nonsense — it's a structured report with three layers you should read in reverse. The **last** line is usually the useful one; the rest is the call stack that led there.
+An R error is not a wall of nonsense, it's a structured report with three layers you should read in reverse. The **last** line is usually the useful one; the rest is the call stack that led there.
 
 ```r
 mean("hello")
@@ -223,7 +223,7 @@ mean("hello")
 #>   argument is not numeric or logical: returning NA
 ```
 
-R is telling you the exact problem: `"hello"` isn't numeric, so `mean.default` (the method it dispatched to) can't compute a mean. The fix is obvious once you read it — pass a number. But the first instinct of most beginners is to panic at the word "default" and paste the whole message into Google.
+R is telling you the exact problem: `"hello"` isn't numeric, so `mean.default` (the method it dispatched to) can't compute a mean. The fix is obvious once you read it, pass a number. But the first instinct of most beginners is to panic at the word "default" and paste the whole message into Google.
 
 ```r
 # A more complex one
@@ -231,10 +231,10 @@ lm(y ~ x, data = data.frame(x = 1:5))
 #> Error in eval(predvars, data, env) : object 'y' not found
 ```
 
-Two pieces of info: the error happened inside `eval(predvars, data, env)` (internals of `lm`), and the root cause is `object 'y' not found` — you referenced a column `y` that doesn't exist in the data frame. Ignore the internals, focus on the last clause.
+Two pieces of info: the error happened inside `eval(predvars, data, env)` (internals of `lm`), and the root cause is `object 'y' not found`, you referenced a column `y` that doesn't exist in the data frame. Ignore the internals, focus on the last clause.
 
 [TIP]
-When an error mentions a function you don't recognize, ignore it — it's almost always internal machinery, not the function you called. Focus on the quoted name, missing object, or type mismatch in the last sentence.
+When an error mentions a function you don't recognize, ignore it, it's almost always internal machinery, not the function you called. Focus on the quoted name, missing object, or type mismatch in the last sentence.
 
 Use `traceback()` right after an error to see the full call chain if the error happened deep in someone else's code. It shows which of your lines led to which internal call.
 
@@ -245,7 +245,7 @@ Use `traceback()` right after an error to see the full call chain if the error h
 
 ## How do you ask a good Stack Overflow question (and get an answer in minutes)?
 
-Some problems genuinely need human help — a weird edge case, a bug in a package, a design question. When you get there, the single biggest factor in getting a fast answer is the **reprex**: a minimal, self-contained example that someone else can copy-paste and run.
+Some problems genuinely need human help, a weird edge case, a bug in a package, a design question. When you get there, the single biggest factor in getting a fast answer is the **reprex**: a minimal, self-contained example that someone else can copy-paste and run.
 
 ![Debug loop: read error, isolate, check types, build reprex if needed](screenshots/Getting-Help-in-R-debug-loop.webp)
 
@@ -321,7 +321,7 @@ help.search("correlation")
 
 Open `?lm` and answer these three questions just from the help page:
 1. What does the `subset` argument do?
-2. What does the function return — a vector, a list, or a custom object?
+2. What does the function return, a vector, a list, or a custom object?
 3. What does `na.action` default to?
 
 <details>
@@ -368,7 +368,7 @@ colMeans(df)
 #>   'x' must be numeric
 ```
 
-`colMeans` needs all numeric columns; the `name` character column triggers the error. Six lines, completely self-contained, uses built-ins — anyone can run it.
+`colMeans` needs all numeric columns; the `name` character column triggers the error. Six lines, completely self-contained, uses built-ins, anyone can run it.
 </details>
 
 ## Complete Example: Diagnosing a Mystery Function
@@ -422,14 +422,14 @@ Three habits that separate fast R users from stuck ones:
 
 ## References
 
-1. R Core Team. *An Introduction to R* — Getting help with functions and features. <https://cran.r-project.org/doc/manuals/r-release/R-intro.html#Getting-help>
+1. R Core Team. *An Introduction to R*, Getting help with functions and features. <https://cran.r-project.org/doc/manuals/r-release/R-intro.html#Getting-help>
 2. `reprex` package documentation. <https://reprex.tidyverse.org/>
-3. Wickham, H. *Advanced R*, 2nd ed. — Debugging chapter. <https://adv-r.hadley.nz/debugging.html>
-4. Stack Overflow — How to make a great R reproducible example. <https://stackoverflow.com/q/5963269>
+3. Wickham, H. *Advanced R*, 2nd ed., Debugging chapter. <https://adv-r.hadley.nz/debugging.html>
+4. Stack Overflow, How to make a great R reproducible example. <https://stackoverflow.com/q/5963269>
 5. R Documentation: `?help`, `?apropos`, `?example`, `?vignette`, `?traceback`. Run in any R session.
 
 ## Continue Learning
 
-- [Write Better R Functions](R-Functions.html) — once you've mastered help(), you'll want to write functions others can `?` into.
-- [R's Four Special Values](R-Special-Values.html) — the most common source of mystery errors: NA poisoning a computation.
-- [Control Flow in R](Control-Flow-in-R.html) — understanding `if` and `for` makes tracebacks much easier to read.
+- [Write Better R Functions](R-Functions.html), once you've mastered help(), you'll want to write functions others can `?` into.
+- [R's Four Special Values](R-Special-Values.html), the most common source of mystery errors: NA poisoning a computation.
+- [Control Flow in R](Control-Flow-in-R.html), understanding `if` and `for` makes tracebacks much easier to read.

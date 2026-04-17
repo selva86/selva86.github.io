@@ -1,7 +1,7 @@
 ---
-title: "R Error: 'object not found' — 7 Different Causes, 7 Different Fixes"
+title: "R Error: 'object not found', 7 Different Causes, 7 Different Fixes"
 slug: "R-Error-Object-Not-Found"
-description: "R can't find a variable you referenced. Learn 7 distinct causes — typos, unloaded packages, wrong scope, cleared environment — and the exact fix for each."
+description: "R can't find a variable you referenced. Learn 7 distinct causes, typos, unloaded packages, wrong scope, cleared environment, and the exact fix for each."
 keywords: "R object not found, R error object not found, object 'x' not found R, R variable not found, R debugging, R scope error, R package not loaded, R session restart"
 auto_link_terms: "object not found|object 'x' not found|not found error"
 auto_link_case_sensitive: false
@@ -14,13 +14,13 @@ fr_parent: "R-Common-Errors.html"
 difficulty: "Intermediate"
 ---
 
-# R Error: 'object not found' — 7 Different Causes, 7 Different Fixes
+# R Error: 'object not found', 7 Different Causes, 7 Different Fixes
 
 <p class="lead"><code>Error: object 'x' not found</code> means R searched every loaded package and the current environment but no variable, function, or dataset with that name exists. Either the object was never created, the name is misspelled, it lives in a different scope, or it was wiped when the session restarted.</p>
 
 ## What triggers R's "object not found" error?
 
-Every time you type a bare name like `my_df`, R walks a short lookup chain — the current environment first, then any parents it can see, then every attached package. If no match turns up anywhere on that chain, R stops and reports the exact name in quotes. That name in quotes is your single most useful clue: it is *exactly* what R tried to look up, down to the last character.
+Every time you type a bare name like `my_df`, R walks a short lookup chain, the current environment first, then any parents it can see, then every attached package. If no match turns up anywhere on that chain, R stops and reports the exact name in quotes. That name in quotes is your single most useful clue: it is *exactly* what R tried to look up, down to the last character.
 
 ```r
 # Reproduce the error against a variable you never created
@@ -36,10 +36,10 @@ ls()
 #> character(0)
 ```
 
-The first line gives you the error message. The next two lines — `exists()` and `ls()` — tell you whether R truly has no such object (as here) or whether a similarly-named object exists that you typoed. Always run these two checks before guessing at the cause.
+The first line gives you the error message. The next two lines, `exists()` and `ls()`, tell you whether R truly has no such object (as here) or whether a similarly-named object exists that you typoed. Always run these two checks before guessing at the cause.
 
 [KEY INSIGHT]
-**The quoted name in the error is exactly what R looked up.** If the message says `object 'Sales_Data' not found`, then R searched for the name `Sales_Data` — not `sales_data`, not `sales.data`. Your fix begins by matching the lookup name character-for-character.
+**The quoted name in the error is exactly what R looked up.** If the message says `object 'Sales_Data' not found`, then R searched for the name `Sales_Data`, not `sales_data`, not `sales.data`. Your fix begins by matching the lookup name character-for-character.
 
 **Try it:** Reproduce the error for a variable called `ex_missing` and confirm with `exists()`.
 
@@ -65,9 +65,9 @@ exists("ex_missing")
 
 </details>
 
-## Cause 1 — Typo or case mismatch: why can't R find the name you typed?
+## Cause 1, Typo or case mismatch: why can't R find the name you typed?
 
-R is case-sensitive and treats `sales_data`, `sales_Data`, and `Sales_Data` as three completely different identifiers. A single wrong character is enough to break the lookup. This is the most common source of the error — often hiding as a capitalised first letter, an underscore swapped for a dot, or a plural tacked on.
+R is case-sensitive and treats `sales_data`, `sales_Data`, and `Sales_Data` as three completely different identifiers. A single wrong character is enough to break the lookup. This is the most common source of the error, often hiding as a capitalised first letter, an underscore swapped for a dot, or a plural tacked on.
 
 ```r
 # Object defined correctly
@@ -84,7 +84,7 @@ sales_data
 #> 2      S      95
 ```
 
-The fix costs nothing once you spot the mismatch — the real win is catching typos before running the line. Use Tab completion inside RStudio or VS Code to let the IDE fill the name for you, and you will never mistype a variable that already exists in the environment.
+The fix costs nothing once you spot the mismatch, the real win is catching typos before running the line. Use Tab completion inside RStudio or VS Code to let the IDE fill the name for you, and you will never mistype a variable that already exists in the environment.
 
 [TIP]
 **Let Tab completion type your variable names.** Start typing the first 2-3 letters of a variable, press Tab, and RStudio will complete the name or show a dropdown of matches. This eliminates case-mismatch typos entirely.
@@ -112,9 +112,9 @@ ex_price
 
 </details>
 
-## Cause 2 — Forgot to assign with `<-`: where did my data go?
+## Cause 2, Forgot to assign with `<-`: where did my data go?
 
-Any R expression with no assignment prints its result and throws it away. This catches readers of every experience level because the output *looks* like the data was stored — but nothing was captured in the environment. The tell is always the same: you "see" the data, then try to use it by name on the next line, and R reports it missing.
+Any R expression with no assignment prints its result and throws it away. This catches readers of every experience level because the output *looks* like the data was stored, but nothing was captured in the environment. The tell is always the same: you "see" the data, then try to use it by name on the next line, and R reports it missing.
 
 ```r
 # Wrong: the expression runs, prints, and discards
@@ -165,9 +165,9 @@ mean(ex_scores)
 
 </details>
 
-## Cause 3 — Package not loaded: how do I know where a function or dataset lives?
+## Cause 3, Package not loaded: how do I know where a function or dataset lives?
 
-Datasets and functions shipped inside a package are invisible until you either attach the package with `library()` or reach in with the qualified `pkg::name` syntax. This cause often looks identical to Cause 1 because you have never seen the name in your script — you just remember that "someone used `starwars` in a tutorial" and typed it.
+Datasets and functions shipped inside a package are invisible until you either attach the package with `library()` or reach in with the qualified `pkg::name` syntax. This cause often looks identical to Cause 1 because you have never seen the name in your script, you just remember that "someone used `starwars` in a tutorial" and typed it.
 
 ```r
 # starwars lives in dplyr, which isn't attached by default.
@@ -218,9 +218,9 @@ head(datasets::mtcars, 2)
 
 </details>
 
-## Cause 4 — Running code out of order: why does a line that worked yesterday fail today?
+## Cause 4, Running code out of order: why does a line that worked yesterday fail today?
 
-RStudio's Run button, Ctrl+Enter, and "Run Selection" all encourage piecemeal execution. The result is a notebook that works when run top-to-bottom but breaks the moment you jump around. You run line 18 — which depends on line 3 — without first running line 3. R has no memory of what you *meant* to run; it only knows what you actually executed.
+RStudio's Run button, Ctrl+Enter, and "Run Selection" all encourage piecemeal execution. The result is a notebook that works when run top-to-bottom but breaks the moment you jump around. You run line 18, which depends on line 3, without first running line 3. R has no memory of what you *meant* to run; it only knows what you actually executed.
 
 ```r
 # These two lines must run top-to-bottom in this order:
@@ -234,7 +234,7 @@ my_result
 #>     3.0     5.0     7.0     7.8    11.0    13.0
 ```
 
-The fix is structural: run scripts from the top whenever you come back to them. Better still, organise work into a script you can rerun with `source("analysis.R")` or a Quarto / R Markdown document you can re-knit — both force a clean top-to-bottom execution every time.
+The fix is structural: run scripts from the top whenever you come back to them. Better still, organise work into a script you can rerun with `source("analysis.R")` or a Quarto / R Markdown document you can re-knit, both force a clean top-to-bottom execution every time.
 
 [TIP]
 **Ctrl+Alt+B in RStudio runs from the top of the script to the current line.** When you come back to a half-finished script and want to rebuild the environment up to where you left off, this shortcut does it in one keystroke.
@@ -265,7 +265,7 @@ ex_summary
 
 </details>
 
-## Cause 5 — Different scope: why can't I see a variable defined inside a function?
+## Cause 5, Different scope: why can't I see a variable defined inside a function?
 
 Variables created inside a function body live in that function's local environment and vanish as soon as the function returns. From the caller's perspective, they never existed. This trips up readers who assume R behaves like a notebook where every name is global.
 
@@ -294,7 +294,7 @@ stats$sd
 #> [1] 3.02765
 ```
 
-The fix is always to *return* what the caller needs. R functions return the value of their last expression — or whatever you pass to `return()` — and that value lives in the caller's environment once you assign it. Avoid the temptation to use `<<-` to push variables to the global environment; it makes code hard to reason about.
+The fix is always to *return* what the caller needs. R functions return the value of their last expression, or whatever you pass to `return()`, and that value lives in the caller's environment once you assign it. Avoid the temptation to use `<<-` to push variables to the global environment; it makes code hard to reason about.
 
 [KEY INSIGHT]
 **Functions see the environment where they were defined, not where they're called.** This is called lexical scoping. A variable you assign inside a function body is local to that call and disappears on return. If the caller needs it, the function must hand it back explicitly.
@@ -330,9 +330,9 @@ ex_rescale(c(10, 20, 30))
 
 </details>
 
-## Cause 6 — Column name doesn't exist inside dplyr verbs: why is it an "object" error and not a column error?
+## Cause 6, Column name doesn't exist inside dplyr verbs: why is it an "object" error and not a column error?
 
-Inside `dplyr::filter()`, `mutate()`, `arrange()`, and friends, bare column names are resolved by a mechanism called non-standard evaluation (NSE). dplyr first looks for the name in the data frame, and if it can't find it there, it falls back to looking in the calling environment. When neither lookup succeeds, you see the familiar "object not found" error — even though the real problem is a missing column.
+Inside `dplyr::filter()`, `mutate()`, `arrange()`, and friends, bare column names are resolved by a mechanism called non-standard evaluation (NSE). dplyr first looks for the name in the data frame, and if it can't find it there, it falls back to looking in the calling environment. When neither lookup succeeds, you see the familiar "object not found" error, even though the real problem is a missing column.
 
 ```r
 library(dplyr)
@@ -352,10 +352,10 @@ mtcars |> filter(mpg > 20) |> head(3)
 #> Merc 230       22.8   4 140.8 95 3.92 2.840 22.90  1  1    4    2
 ```
 
-Always check your column names with `names(df)` or `colnames(df)` before using them inside a dplyr verb. The error's wording is confusing the first time you see it — the phrase "object not found" makes you hunt for a missing variable when the real culprit is a typo in a column name.
+Always check your column names with `names(df)` or `colnames(df)` before using them inside a dplyr verb. The error's wording is confusing the first time you see it, the phrase "object not found" makes you hunt for a missing variable when the real culprit is a typo in a column name.
 
 [WARNING]
-**Inside dplyr verbs, unknown columns surface as "object not found", not "column not found".** If you see this error inside a `filter()`, `mutate()`, or `arrange()` call, your first guess should be a column-name typo — not a missing variable.
+**Inside dplyr verbs, unknown columns surface as "object not found", not "column not found".** If you see this error inside a `filter()`, `mutate()`, or `arrange()` call, your first guess should be a column-name typo, not a missing variable.
 
 **Try it:** Fix the `mutate()` call below so it adds a new column `hp_per_cyl` equal to `hp / cyl`.
 
@@ -384,7 +384,7 @@ mtcars |>
 
 </details>
 
-## Cause 7 — Environment cleared or session restarted: where did all my variables go?
+## Cause 7, Environment cleared or session restarted: where did all my variables go?
 
 Running `rm(list = ls())` wipes everything in the global environment. So does clicking the broom icon in RStudio's Environment pane, or choosing Session → Restart R. After any of these, every name you previously created is gone and referencing it gives "object not found". The only cure is to re-run the script that created those names.
 
@@ -437,7 +437,7 @@ ex_counter
 #> [1] 5
 ```
 
-**Explanation:** `rm()` removed the binding; you rebuild it with another `<-` assignment. There's no "restore" — you just re-create.
+**Explanation:** `rm()` removed the binding; you rebuild it with another `<-` assignment. There's no "restore", you just re-create.
 
 </details>
 
@@ -514,7 +514,7 @@ diagnose_missing("Example_var")
 #> Likely Cause 1 (typo/case). Did you mean: example_var
 ```
 
-**Explanation:** The helper walks the three most common diagnoses in order — existence check, case-insensitive match in `ls()`, and package namespace scan — then falls through to the remaining causes.
+**Explanation:** The helper walks the three most common diagnoses in order, existence check, case-insensitive match in `ls()`, and package namespace scan, then falls through to the remaining causes.
 
 </details>
 
@@ -595,7 +595,7 @@ pipeline_result
 #> 1 85.57143
 ```
 
-Walking through the checks in this order — existence, case-insensitive match in `ls()`, column-name match — pins down the cause in under a minute for almost every real-world occurrence. The lowercase `mpg` fix is obvious once Step 4 reveals the mismatch.
+Walking through the checks in this order, existence, case-insensitive match in `ls()`, column-name match, pins down the cause in under a minute for almost every real-world occurrence. The lowercase `mpg` fix is obvious once Step 4 reveals the mismatch.
 
 ## Summary
 
@@ -614,20 +614,20 @@ The seven causes of `Error: object 'x' not found`, with the quickest fix for eac
 | 6 | dplyr column doesn't exist | Error inside `filter()` / `mutate()`, name is a column | Check `names(df)` and match case |
 | 7 | Environment cleared / session restart | `ls()` is empty or sparse | Re-run the script or `source("analysis.R")` |
 
-Keep `exists("name")`, `ls()`, and `names(df)` in your head as the three-step diagnosis — they rule out five of the seven causes in about ten seconds.
+Keep `exists("name")`, `ls()`, and `names(df)` in your head as the three-step diagnosis, they rule out five of the seven causes in about ten seconds.
 
 ## References
 
-1. R Core Team — *An Introduction to R*, Section 2.1: Lexical scope and environments. [Link](https://cran.r-project.org/doc/manuals/r-release/R-intro.html)
-2. Wickham, H. — *Advanced R*, 2nd Edition. Chapter 7: Environments. [Link](https://adv-r.hadley.nz/environments.html)
-3. Wickham, H. — *Advanced R*, 2nd Edition. Chapter 6: Functions and lexical scoping. [Link](https://adv-r.hadley.nz/functions.html)
-4. dplyr documentation — Programming with dplyr (non-standard evaluation). [Link](https://dplyr.tidyverse.org/articles/programming.html)
-5. R FAQ — *Why doesn't R find my object?* [Link](https://cran.r-project.org/doc/FAQ/R-FAQ.html)
-6. tidyverse style guide — assignment and naming conventions. [Link](https://style.tidyverse.org/syntax.html)
-7. Posit (RStudio) — debugging with traceback() and debug(). [Link](https://support.posit.co/hc/en-us/articles/205612627-Debugging-with-the-RStudio-IDE)
+1. R Core Team, *An Introduction to R*, Section 2.1: Lexical scope and environments. [Link](https://cran.r-project.org/doc/manuals/r-release/R-intro.html)
+2. Wickham, H., *Advanced R*, 2nd Edition. Chapter 7: Environments. [Link](https://adv-r.hadley.nz/environments.html)
+3. Wickham, H., *Advanced R*, 2nd Edition. Chapter 6: Functions and lexical scoping. [Link](https://adv-r.hadley.nz/functions.html)
+4. dplyr documentation, Programming with dplyr (non-standard evaluation). [Link](https://dplyr.tidyverse.org/articles/programming.html)
+5. R FAQ, *Why doesn't R find my object?* [Link](https://cran.r-project.org/doc/FAQ/R-FAQ.html)
+6. tidyverse style guide, assignment and naming conventions. [Link](https://style.tidyverse.org/syntax.html)
+7. Posit (RStudio), debugging with traceback() and debug(). [Link](https://support.posit.co/hc/en-us/articles/205612627-Debugging-with-the-RStudio-IDE)
 
 ## Continue Learning
 
-- [50 R Errors Decoded: Plain-English Explanations and Exact Fixes](R-Common-Errors.html) — the parent reference covering all 50 most-common R error messages.
-- [R Error: could not find function 'X' — Namespace & Package Conflicts](R-Error-Function-Not-Found.html) — the sibling error for *functions* not found, with namespace and masking details.
-- [R Environments and Scoping](R-Environments.html) — the deeper explanation of how R's lookup chain actually works, which makes Causes 5 and 7 click.
+- [50 R Errors Decoded: Plain-English Explanations and Exact Fixes](R-Common-Errors.html), the parent reference covering all 50 most-common R error messages.
+- [R Error: could not find function 'X', Namespace & Package Conflicts](R-Error-Function-Not-Found.html), the sibling error for *functions* not found, with namespace and masking details.
+- [R Environments and Scoping](R-Environments.html), the deeper explanation of how R's lookup chain actually works, which makes Causes 5 and 7 click.

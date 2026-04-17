@@ -21,7 +21,7 @@ difficulty: Intermediate
 
 ## What quick R one-liners solve binomial problems?
 
-The binomial distribution answers one question: *given n trials with success probability p, how likely is each count of successes?* R gives you four functions — `dbinom()`, `pbinom()`, `qbinom()`, `rbinom()` — that cover exact probability, cumulative probability, quantiles, and random samples. Before the 10 problems, a single runnable block shows the two most common cases side by side so you can spot which function fits a new question at a glance.
+The binomial distribution answers one question: *given n trials with success probability p, how likely is each count of successes?* R gives you four functions, `dbinom()`, `pbinom()`, `qbinom()`, `rbinom()`, that cover exact probability, cumulative probability, quantiles, and random samples. Before the 10 problems, a single runnable block shows the two most common cases side by side so you can spot which function fits a new question at a glance.
 
 ```r
 # Fair coin, 10 flips — two classic questions
@@ -32,14 +32,14 @@ pbinom(5, size = 10, prob = 0.5)   # P(at most 5 heads)
 #> [1] 0.6230469
 ```
 
-The first call asks "what is the probability of landing on exactly 5 heads?" and the second asks "what is the probability of 5 or fewer?" Both share the same parameters — `size = 10` trials, `prob = 0.5` success rate — and differ only in the function name. That two-function pairing handles most questions you will meet.
+The first call asks "what is the probability of landing on exactly 5 heads?" and the second asks "what is the probability of 5 or fewer?" Both share the same parameters, `size = 10` trials, `prob = 0.5` success rate, and differ only in the function name. That two-function pairing handles most questions you will meet.
 
 ![Decision tree: the four binomial functions.](screenshots/Binomial-Distribution-Exercises-in-R-function-picker.webp)
 
-*Figure 1: The four binomial functions — pick one by what the question asks for.*
+*Figure 1: The four binomial functions, pick one by what the question asks for.*
 
 [KEY INSIGHT]
-**R's d/p/q/r prefix pattern is universal.** The same four-letter scheme — `d` for density/mass, `p` for cumulative, `q` for quantile, `r` for random — works for every distribution in base R (`dnorm`, `ppois`, `qexp`, `rt`). Learn it once for binomial, reuse it forever.
+**R's d/p/q/r prefix pattern is universal.** The same four-letter scheme, `d` for density/mass, `p` for cumulative, `q` for quantile, `r` for random, works for every distribution in base R (`dnorm`, `ppois`, `qexp`, `rt`). Learn it once for binomial, reuse it forever.
 
 **Try it:** Compute the probability of exactly 3 successes in 8 trials with success probability 0.4.
 
@@ -75,7 +75,7 @@ Where:
 - $p$ = probability of success on each trial
 - $\binom{n}{k}$ = the number of ways to choose which trials succeed
 
-For a single k, a single `dbinom()` call is enough. For a range of counts — say "between 3 and 5 successes" — pass a vector of k values and sum the result.
+For a single k, a single `dbinom()` call is enough. For a range of counts, say "between 3 and 5 successes", pass a vector of k values and sum the result.
 
 ```r
 # Fair coin, 10 flips
@@ -89,7 +89,7 @@ p_range
 #> [1] 0.568359375
 ```
 
-`p_seven` tells you that landing on exactly 7 heads happens about 12% of the time — not rare, but not the modal outcome either. The range call sums the PMF at k = 3, 4, 5. Passing the vector `3:5` vectorizes automatically, and `sum()` collapses the three probabilities into one number (roughly 0.57).
+`p_seven` tells you that landing on exactly 7 heads happens about 12% of the time, not rare, but not the modal outcome either. The range call sums the PMF at k = 3, 4, 5. Passing the vector `3:5` vectorizes automatically, and `sum()` collapses the three probabilities into one number (roughly 0.57).
 
 [TIP]
 **Vectorize dbinom for ranges instead of calling it in a loop.** `sum(dbinom(3:5, 10, 0.5))` is faster and more readable than three separate calls, and it scales cleanly when the range gets wider (e.g., `sum(dbinom(30:60, 100, 0.5))`).
@@ -118,7 +118,7 @@ ex_p4
 
 ## How do you compute cumulative probabilities with pbinom()?
 
-`pbinom(q, size = n, prob = p)` returns $P(X \le q)$ — the cumulative probability up to and including q. "At least" questions flip the direction, and there are two equivalent ways to compute them: the explicit complement `1 - pbinom(...)` or the `lower.tail = FALSE` argument.
+`pbinom(q, size = n, prob = p)` returns $P(X \le q)$, the cumulative probability up to and including q. "At least" questions flip the direction, and there are two equivalent ways to compute them: the explicit complement `1 - pbinom(...)` or the `lower.tail = FALSE` argument.
 
 ```r
 # n = 10, p = 0.3
@@ -139,7 +139,7 @@ p_geq7b
 `p_leq3` says that in 10 trials with p = 0.3, three or fewer successes happen about 65% of the time. The two "at least 7" calls return the same ~1% probability: `1 - pbinom(6, ...)` subtracts everything up to 6 from 1, while `lower.tail = FALSE` does the same arithmetic internally. Use whichever reads better in your code; the `lower.tail` form avoids a potential rounding issue when the tail is extremely small.
 
 [WARNING]
-**pbinom(q) is P(X ≤ q), not P(X < q).** A common off-by-one mistake is to write `pbinom(7, ...)` when you really want "strictly less than 7" — the correct call is `pbinom(6, ...)`. Always ask yourself whether the boundary is included before picking q.
+**pbinom(q) is P(X ≤ q), not P(X < q).** A common off-by-one mistake is to write `pbinom(7, ...)` when you really want "strictly less than 7", the correct call is `pbinom(6, ...)`. Always ask yourself whether the boundary is included before picking q.
 
 **Try it:** For n = 5 and p = 0.2, find the probability of at least 2 successes.
 
@@ -169,7 +169,7 @@ pbinom(1, size = 5, prob = 0.2, lower.tail = FALSE)
 
 ## How do you find quantiles and simulate with qbinom() and rbinom()?
 
-`qbinom()` inverts `pbinom()`: given a cumulative probability, it returns the smallest count whose cumulative probability reaches that threshold. `rbinom()` draws random binomial counts — useful for simulation, Monte Carlo checks, and bootstrapping. The first argument of `rbinom()` is the number of random draws to make, not the trial count; the trial count is `size`.
+`qbinom()` inverts `pbinom()`: given a cumulative probability, it returns the smallest count whose cumulative probability reaches that threshold. `rbinom()` draws random binomial counts, useful for simulation, Monte Carlo checks, and bootstrapping. The first argument of `rbinom()` is the number of random draws to make, not the trial count; the trial count is `size`.
 
 ```r
 # n = 100 trials, p = 0.4 — 95th percentile of the success count
@@ -187,7 +187,7 @@ sim5
 `q95 = 48` tells you that in 95% of experiments you should see 48 or fewer successes, so 48 is a reasonable "worst-case-except-for-5%" threshold. The `rbinom()` call generates 5 independent samples from Binomial(100, 0.4); each number is one simulated experiment's success count, and they cluster around the mean $np = 40$. `set.seed()` ensures your results match when you rerun the code.
 
 [NOTE]
-**rbinom's first argument is the number of draws, not the trial count.** `rbinom(5, 100, 0.4)` means "give me 5 independent counts, each from Binomial(100, 0.4)" — not "5 trials with 100 draws each." Swapping the two is the most common bug with this function.
+**rbinom's first argument is the number of draws, not the trial count.** `rbinom(5, 100, 0.4)` means "give me 5 independent counts, each from Binomial(100, 0.4)", not "5 trials with 100 draws each." Swapping the two is the most common bug with this function.
 
 **Try it:** Simulate 10 draws from Binomial(20, 0.6) with `set.seed(7)` and compute the mean of the draws.
 
@@ -211,7 +211,7 @@ mean(ex_sim)
 #> [1] 12.7
 ```
 
-**Explanation:** With only 10 draws, the sample mean (12.7) wanders a bit around the theoretical mean `np = 12`. Increase the number of draws to tighten the estimate — try 10,000 and compare.
+**Explanation:** With only 10 draws, the sample mean (12.7) wanders a bit around the theoretical mean `np = 12`. Increase the number of draws to tighten the estimate, try 10,000 and compare.
 
 </details>
 
@@ -350,7 +350,7 @@ pbinom(17, size = 200, prob = 0.05)
 #> [1] 0.9838987
 ```
 
-**Explanation:** `qbinom(0.99, ...)` returns 18 — the smallest stock level whose cumulative probability first reaches 99%. Stocking 17 would only cover ~98.4%, so `qbinom()` gives you the right safety margin with a single call.
+**Explanation:** `qbinom(0.99, ...)` returns 18, the smallest stock level whose cumulative probability first reaches 99%. Stocking 17 would only cover ~98.4%, so `qbinom()` gives you the right safety margin with a single call.
 
 </details>
 
@@ -385,7 +385,7 @@ c(np = n * p, sqrt_npq = sqrt(n * p * (1 - p)))
 #> 8.333333 2.635231
 ```
 
-**Explanation:** Ten thousand draws get the sample mean within 0.02 of $np$ and the sample SD within 0.003 of $\sqrt{np(1-p)}$. This is why Monte Carlo checks are a reliable sanity test for any binomial calculation — the simulation converges fast.
+**Explanation:** Ten thousand draws get the sample mean within 0.02 of $np$ and the sample SD within 0.003 of $\sqrt{np(1-p)}$. This is why Monte Carlo checks are a reliable sanity test for any binomial calculation, the simulation converges fast.
 
 </details>
 
@@ -420,7 +420,7 @@ c(sim_mean = mean(sim7), sim_var = var(sim7))
 #> 21.02120  6.36147
 ```
 
-**Explanation:** Theory gives mean = 21 and variance = 6.3. The 10k simulated sample reproduces both to two decimal places. For any Binomial(n, p), the mean is always $np$ and the variance is always $np(1-p)$ — these two formulas are worth memorizing.
+**Explanation:** Theory gives mean = 21 and variance = 6.3. The 10k simulated sample reproduces both to two decimal places. For any Binomial(n, p), the mean is always $np$ and the variance is always $np(1-p)$, these two formulas are worth memorizing.
 
 </details>
 
@@ -488,7 +488,7 @@ test9
 #>                   0.58
 ```
 
-**Explanation:** The p-value of 0.133 sits above the usual 0.05 threshold, so 58/100 is consistent with a true rate of 0.5. The 95% CI of [0.477, 0.678] also contains 0.5 — both signals agree that the observed lift is not statistically significant at this sample size.
+**Explanation:** The p-value of 0.133 sits above the usual 0.05 threshold, so 58/100 is consistent with a true rate of 0.5. The 95% CI of [0.477, 0.678] also contains 0.5, both signals agree that the observed lift is not statistically significant at this sample size.
 
 </details>
 
@@ -517,7 +517,7 @@ ans10b
 #> [1] 0.8043866
 ```
 
-**Explanation:** At 110 tickets, the airline faces a ~35% chance of having to bump passengers — already uncomfortable. Selling 115 tickets pushes that risk to ~80%, which almost guarantees a daily overbooking incident. Use `qbinom()` to pick a safer ticket count for a target risk level.
+**Explanation:** At 110 tickets, the airline faces a ~35% chance of having to bump passengers, already uncomfortable. Selling 115 tickets pushes that risk to ~80%, which almost guarantees a daily overbooking incident. Use `qbinom()` to pick a safer ticket count for a target risk level.
 
 </details>
 
@@ -560,7 +560,7 @@ qc_test$p.value
 #> [1] 0.1390315
 ```
 
-The batch averages 10 defects with SD ~3.1, so 14 defects is one-plus standard deviation above the mean — noticeable but not alarming. `pbinom()` and the simulated tail both give about 5% for P(defects > 15); the simulation (4.94%) matches the analytic value (4.91%) within Monte Carlo error. `qbinom()` pins the 95th percentile at 15 defects. The one-sided `binom.test()` returns p = 0.139, confirming that 14/500 is not strong evidence of an elevated defect rate. This is the full analyst loop — point estimate, tail risk, quantile, simulation, formal test — in a dozen lines of R.
+The batch averages 10 defects with SD ~3.1, so 14 defects is one-plus standard deviation above the mean, noticeable but not alarming. `pbinom()` and the simulated tail both give about 5% for P(defects > 15); the simulation (4.94%) matches the analytic value (4.91%) within Monte Carlo error. `qbinom()` pins the 95th percentile at 15 defects. The one-sided `binom.test()` returns p = 0.139, confirming that 14/500 is not strong evidence of an elevated defect rate. This is the full analyst loop, point estimate, tail risk, quantile, simulation, formal test, in a dozen lines of R.
 
 ## Summary
 
@@ -578,17 +578,17 @@ The mean of Binomial(n, p) is always $np$ and the variance is always $np(1-p)$. 
 
 ## References
 
-1. R Core Team — `?Binomial` reference manual. [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/Binomial.html)
-2. Wickham, H. & Grolemund, G. — *R for Data Science*, 2nd ed. [Link](https://r4ds.hadley.nz/)
-3. Dalgaard, P. — *Introductory Statistics with R*, 2nd ed. Springer (2008).
-4. Donovan, T., Coggins, L. & Hines, J. — *Binomial Distribution in R*. UVM (2020). [Link](https://blog.uvm.edu/tdonovan-vtcfwru/files/2020/07/binomial.pdf)
+1. R Core Team, `?Binomial` reference manual. [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/Binomial.html)
+2. Wickham, H. & Grolemund, G., *R for Data Science*, 2nd ed. [Link](https://r4ds.hadley.nz/)
+3. Dalgaard, P., *Introductory Statistics with R*, 2nd ed. Springer (2008).
+4. Donovan, T., Coggins, L. & Hines, J., *Binomial Distribution in R*. UVM (2020). [Link](https://blog.uvm.edu/tdonovan-vtcfwru/files/2020/07/binomial.pdf)
 5. CRAN Task View: Distributions. [Link](https://cran.r-project.org/web/views/Distributions.html)
-6. Rice, J. A. — *Mathematical Statistics and Data Analysis*, 3rd ed. Duxbury (2006).
-7. Diez, D., Çetinkaya-Rundel, M. & Barr, C. — *OpenIntro Statistics*, 4th ed. [Link](https://www.openintro.org/book/os/)
-8. Butler, G. — *Tutorial 4: The Binomial Distribution*, ECON 41 Labs. [Link](https://bookdown.org/gabriel_butler/ECON41Labs/tutorial-4-the-binomial-distribution.html)
+6. Rice, J. A., *Mathematical Statistics and Data Analysis*, 3rd ed. Duxbury (2006).
+7. Diez, D., Çetinkaya-Rundel, M. & Barr, C., *OpenIntro Statistics*, 4th ed. [Link](https://www.openintro.org/book/os/)
+8. Butler, G., *Tutorial 4: The Binomial Distribution*, ECON 41 Labs. [Link](https://bookdown.org/gabriel_butler/ECON41Labs/tutorial-4-the-binomial-distribution.html)
 
 ## Continue Learning
 
-1. [Binomial vs Poisson in R: Understand When Each Distribution Fits Your Counts](Binomial-and-Poisson-Distributions-in-R.html) — the core tutorial these exercises extend.
-2. [Normal Distribution in R](Normal-Distribution-in-R.html) — the continuous cousin, also the large-n approximation for the binomial.
-3. [Probability Distributions in R](Probability-Distributions-in-R.html) — the bigger picture of the d/p/q/r family across distributions.
+1. [Binomial vs Poisson in R: Understand When Each Distribution Fits Your Counts](Binomial-and-Poisson-Distributions-in-R.html), the core tutorial these exercises extend.
+2. [Normal Distribution in R](Normal-Distribution-in-R.html), the continuous cousin, also the large-n approximation for the binomial.
+3. [Probability Distributions in R](Probability-Distributions-in-R.html), the bigger picture of the d/p/q/r family across distributions.

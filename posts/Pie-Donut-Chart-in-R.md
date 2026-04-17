@@ -18,15 +18,15 @@ difficulty: "Intermediate"
 
 # Pie Chart and Donut Chart in R with ggplot2
 
-<p class="lead">A pie chart in ggplot2 is a bar chart flipped into polar coordinates — <code>geom_bar()</code> plus <code>coord_polar(theta = "y")</code>. A donut chart adds a hole in the center by adjusting the x-axis limits.</p>
+<p class="lead">A pie chart in ggplot2 is a bar chart flipped into polar coordinates, <code>geom_bar()</code> plus <code>coord_polar(theta = "y")</code>. A donut chart adds a hole in the center by adjusting the x-axis limits.</p>
 
 ## Introduction
 
-Pie charts have a reputation. Data visualization experts often recommend against them — and for good reason. Human perception is poor at comparing slice angles. We can instantly see that one bar is twice as tall as another, but we struggle to tell whether a 38% slice is bigger than a 34% slice when they sit next to each other.
+Pie charts have a reputation. Data visualization experts often recommend against them, and for good reason. Human perception is poor at comparing slice angles. We can instantly see that one bar is twice as tall as another, but we struggle to tell whether a 38% slice is bigger than a 34% slice when they sit next to each other.
 
-That said, pie charts aren't universally wrong. They communicate part-to-whole relationships clearly when you have 3-5 slices with meaningful differences. Donut charts have become popular as a cleaner variation — the center hole removes the misleading focal point and gives you space for a total or key metric.
+That said, pie charts aren't universally wrong. They communicate part-to-whole relationships clearly when you have 3-5 slices with meaningful differences. Donut charts have become popular as a cleaner variation, the center hole removes the misleading focal point and gives you space for a total or key metric.
 
-This post shows you how to build both in ggplot2, add proper labels, customize colors, and — importantly — when to reach for a bar chart instead.
+This post shows you how to build both in ggplot2, add proper labels, customize colors, and, importantly, when to reach for a bar chart instead.
 
 ## How do you create a basic pie chart in R?
 
@@ -52,9 +52,9 @@ p_pie
 ```
 
 Three things happening here:
-1. `x = ""` makes a single stacked bar — one vertical column.
+1. `x = ""` makes a single stacked bar, one vertical column.
 2. `coord_polar(theta = "y")` wraps the y-axis (the stacked heights) around into a circle.
-3. `theme_void()` removes axes, gridlines, and background — all of which are meaningless in a pie chart.
+3. `theme_void()` removes axes, gridlines, and background, all of which are meaningless in a pie chart.
 
 **Try it:** Change `theme_void()` to `theme_minimal()` and see the naked axis labels that `theme_void()` hides. This is why we use `theme_void()` for pie charts.
 
@@ -82,7 +82,7 @@ p_labels <- ggplot(fruit_df, aes(x = "", y = share, fill = category)) +
 p_labels
 ```
 
-`position_stack(vjust = 0.5)` places each label at the vertical midpoint of its stacked segment — which becomes the angular midpoint of each slice after polar transformation.
+`position_stack(vjust = 0.5)` places each label at the vertical midpoint of its stacked segment, which becomes the angular midpoint of each slice after polar transformation.
 
 The `color = "white"` on `geom_bar()` draws white dividing lines between slices, making the chart easier to read when slices share similar hues.
 
@@ -150,7 +150,7 @@ The donut hole size is controlled by `xlim()`. A wider range on the lower end (e
 
 ## How do you add a center label to a donut chart?
 
-The empty center of a donut chart is prime real estate for a summary statistic — a total, a percentage, or a key metric.
+The empty center of a donut chart is prime real estate for a summary statistic, a total, a percentage, or a key metric.
 
 ```r
 # Donut with center annotation
@@ -190,7 +190,7 @@ p_final <- ggplot(fruit_df, aes(x = 2, y = share, fill = category)) +
 p_final
 ```
 
-The `annotate()` call places text at coordinates `(0, 0)` — the center of the polar plot. The `xlim` lower bound is extended to `-0.5` to give the center text enough room.
+The `annotate()` call places text at coordinates `(0, 0)`, the center of the polar plot. The `xlim` lower bound is extended to `-0.5` to give the center text enough room.
 
 **Try it:** Replace `total_label` with `"100%"` for a cleaner center label. Or add a secondary metric like `"5 Categories"`.
 
@@ -209,7 +209,7 @@ data.frame(cat = LETTERS[1:8], pct = c(13,12,14,11,13,12,14,11))
 
 ### Mistake 2: Forgetting theta = "y"
 
-❌ Using `theta = "x"` wraps the x-axis around — creating a compass rose, not a pie.
+❌ Using `theta = "x"` wraps the x-axis around, creating a compass rose, not a pie.
 
 ```r
 # Wrong: wraps x-axis, gives wrong chart type
@@ -225,15 +225,15 @@ coord_polar(theta = "y")
 
 ### Mistake 3: Labels outside slices with no connector lines
 
-Small slices have tiny arcs — labels placed inside them are unreadable. For slices under ~8%, place labels outside with connector lines using `ggrepel` or manual `geom_segment()` + `geom_text()`.
+Small slices have tiny arcs, labels placed inside them are unreadable. For slices under ~8%, place labels outside with connector lines using `ggrepel` or manual `geom_segment()` + `geom_text()`.
 
 ### Mistake 4: Using 3D pie charts
 
-3D perspective distorts the apparent size of slices — front slices look larger than back slices at the same percentage. Avoid 3D pie charts entirely.
+3D perspective distorts the apparent size of slices, front slices look larger than back slices at the same percentage. Avoid 3D pie charts entirely.
 
 ### Mistake 5: Too many categories
 
-❌ A pie chart with 10+ categories is unreadable — slices become slivers, colors become indistinguishable.
+❌ A pie chart with 10+ categories is unreadable, slices become slivers, colors become indistinguishable.
 
 ✅ Collapse small categories into "Other". A pie chart should have at most 5-6 segments.
 
@@ -347,7 +347,7 @@ ggplot2's grammar treats a pie chart as a special coordinate system, not a speci
 Reorder the factor levels: `fruit_df$category <- reorder(fruit_df$category, fruit_df$share)`. Combined with `position_stack()`, this sorts slices by size.
 
 **Can I use coord_radial() instead of coord_polar()?**
-Yes — `coord_radial()` was added in ggplot2 3.5.0 as a modernized alternative. For donut charts, it accepts an `inner.radius` argument (0 to 1) to control hole size directly, without the `xlim()` trick.
+Yes, `coord_radial()` was added in ggplot2 3.5.0 as a modernized alternative. For donut charts, it accepts an `inner.radius` argument (0 to 1) to control hole size directly, without the `xlim()` trick.
 
 **Why do my labels disappear on small slices?**
 Small slices have tiny text areas. Use `ifelse(share >= 8, label, "")` to suppress labels on slices under 8%, then add a legend for reference.
@@ -358,13 +358,13 @@ Yes: treemaps (for hierarchical data), waffle charts (for counts), stacked bar c
 ## References
 
 - Wickham H. (2016). *ggplot2: Elegant Graphics for Data Analysis*. Springer.
-- R Graph Gallery — Pie chart with ggplot2: r-graph-gallery.com/piechart-ggplot2.html
-- Wilke C. (2019). *Fundamentals of Data Visualization* — Chapter 10: Visualizing proportions
-- Cairo A. (2016). *The Truthful Art* — Chapter 9: The perils of pie charts
-- ggplot2 3.5.0 release notes — coord_radial()
+- R Graph Gallery, Pie chart with ggplot2: r-graph-gallery.com/piechart-ggplot2.html
+- Wilke C. (2019). *Fundamentals of Data Visualization*, Chapter 10: Visualizing proportions
+- Cairo A. (2016). *The Truthful Art*, Chapter 9: The perils of pie charts
+- ggplot2 3.5.0 release notes, coord_radial()
 
 ## Continue Learning
 
-- **ggplot2 Bar Charts** — the more reliable alternative to pie charts for comparing categories
-- **R Treemap** — visualize hierarchical part-to-whole data with nested rectangles
-- **R Waffle Chart** — display proportions as a grid of squares for easy counting
+- **ggplot2 Bar Charts**, the more reliable alternative to pie charts for comparing categories
+- **R Treemap**, visualize hierarchical part-to-whole data with nested rectangles
+- **R Waffle Chart**, display proportions as a grid of squares for easy counting

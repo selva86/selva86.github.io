@@ -1,7 +1,7 @@
 ---
-title: "ggplot2 Customization Exercises: 10 Theme & Scale Practice Problems — Solved Step-by-Step"
+title: "ggplot2 Customization Exercises: 10 Theme & Scale Practice Problems, Solved Step-by-Step"
 slug: "ggplot2-Customization-Exercises"
-description: "Practice ggplot2 customization with 10 theme and scale exercises. Covers theme(), element_text(), scale_color_brewer(), custom themes — all with runnable solutions."
+description: "Practice ggplot2 customization with 10 theme and scale exercises. Covers theme(), element_text(), scale_color_brewer(), custom themes, all with runnable solutions."
 keywords: "ggplot2 customization exercises, ggplot2 theme exercises, ggplot2 scale exercises, theme() practice problems, ggplot2 exercises with solutions, ggplot2 theme practice, scale_color_brewer exercises, custom ggplot2 theme practice"
 auto_link_terms: "ggplot2 customization exercises|ggplot2 theme exercises|ggplot2 scale exercises|theme exercises R|ggplot2 customization practice|ggplot2 theme practice problems"
 auto_link_case_sensitive: false
@@ -16,13 +16,13 @@ difficulty: "Intermediate"
 ---
 
 
-# ggplot2 Customization Exercises: 10 Theme & Scale Practice Problems — Solved Step-by-Step
+# ggplot2 Customization Exercises: 10 Theme & Scale Practice Problems, Solved Step-by-Step
 
-<p class="lead">Themes control how a ggplot2 chart looks — fonts, backgrounds, grid lines, legend placement — and scales control how data maps to colours, axis limits, and labels. These 10 exercises build your customization skills from basic theme swaps to a full reusable house style, each with runnable starter code and a step-by-step solution.</p>
+<p class="lead">Themes control how a ggplot2 chart looks, fonts, backgrounds, grid lines, legend placement, and scales control how data maps to colours, axis limits, and labels. These 10 exercises build your customization skills from basic theme swaps to a full reusable house style, each with runnable starter code and a step-by-step solution.</p>
 
 ## What Do Themes and Scales Control?
 
-Themes and scales are the two customization layers in ggplot2. A theme changes the non-data elements — everything around your data points, bars, or lines. A scale changes how data values translate into visual properties like position, colour, and size.
+Themes and scales are the two customization layers in ggplot2. A theme changes the non-data elements, everything around your data points, bars, or lines. A scale changes how data values translate into visual properties like position, colour, and size.
 
 Here's how a single plot transforms when you add one theme and one scale function. Run the code to see the before-and-after.
 
@@ -50,7 +50,7 @@ p_styled
 #> Same data, but clean background and vibrant categorical colours
 ```
 
-The data didn't change — only the presentation did. `theme_minimal()` stripped the grey background and border, and `scale_colour_brewer()` replaced the default hue cycle with a ColorBrewer palette designed for readability.
+The data didn't change, only the presentation did. `theme_minimal()` stripped the grey background and border, and `scale_colour_brewer()` replaced the default hue cycle with a ColorBrewer palette designed for readability.
 
 Here's a quick reference for the functions you'll practice in these exercises.
 
@@ -67,7 +67,7 @@ Here's a quick reference for the functions you'll practice in these exercises.
 | Axis formatting | `scale_y_continuous(labels, limits, breaks)` | Numeric axis display |
 
 [KEY INSIGHT]
-**Themes change the stage, scales change the translation.** A theme is like redecorating the room your chart lives in. A scale is like changing the language your data speaks — a number becomes a dollar amount, a category becomes a specific colour.
+**Themes change the stage, scales change the translation.** A theme is like redecorating the room your chart lives in. A scale is like changing the language your data speaks, a number becomes a dollar amount, a category becomes a specific colour.
 
 **Try it:** Take `p_base` and apply `theme_classic()` with `scale_colour_brewer(palette = "Set2")`. How does the look change from the styled version above?
 
@@ -92,7 +92,7 @@ ex_swap
 #> Scatter with axis lines only, no grid, pastel Set2 palette
 ```
 
-**Explanation:** `theme_classic()` removes grid lines and the background box, leaving only axis lines — a common journal style. `"Set2"` uses softer pastel tones compared to the bolder `"Set1"`.
+**Explanation:** `theme_classic()` removes grid lines and the background box, leaving only axis lines, a common journal style. `"Set2"` uses softer pastel tones compared to the bolder `"Set1"`.
 
 </details>
 
@@ -133,7 +133,7 @@ p1
 #> pickups and SUVs lowest (~17). Light grey grid, white background.
 ```
 
-**Explanation:** `theme_light()` gives a clean white background with subtle grey grid lines — less stark than `theme_bw()`, more structured than `theme_minimal()`. The `fill` argument colours the boxes, making group boundaries easier to see.
+**Explanation:** `theme_light()` gives a clean white background with subtle grey grid lines, less stark than `theme_bw()`, more structured than `theme_minimal()`. The `fill` argument colours the boxes, making group boundaries easier to see.
 
 </details>
 
@@ -178,7 +178,7 @@ p2
 #> thick black border. Heavier cars cluster at lower MPG.
 ```
 
-**Explanation:** `element_blank()` removes an element completely — no line, no space. `element_line()` controls line properties: `linetype = "dashed"` draws dashes instead of solid lines, and `colour = "grey85"` makes them subtle. `element_rect()` styles rectangles like the panel border.
+**Explanation:** `element_blank()` removes an element completely, no line, no space. `element_line()` controls line properties: `linetype = "dashed"` draws dashes instead of solid lines, and `colour = "grey85"` makes them subtle. `element_rect()` styles rectangles like the panel border.
 
 </details>
 
@@ -230,7 +230,7 @@ p3
 #> X-axis labels angled at 45°, large bold title, bold axis titles.
 ```
 
-**Explanation:** `axis.text.x` controls only x-axis tick labels. `angle = 45` rotates them, and `hjust = 1` right-aligns so they don't overlap the ticks. `plot.title` and `axis.title` each accept `element_text()` — `face = "bold"` makes text bold, `size` sets the point size.
+**Explanation:** `axis.text.x` controls only x-axis tick labels. `angle = 45` rotates them, and `hjust = 1` right-aligns so they don't overlap the ticks. `plot.title` and `axis.title` each accept `element_text()`, `face = "bold"` makes text bold, `size` sets the point size.
 
 </details>
 
@@ -239,7 +239,7 @@ p3
 
 ## How Do You Control Colours with Scales? (Exercises 4–6)
 
-Scales control the mapping between data values and visual properties. These exercises focus on colour and axis scales — the two you'll use most often when customizing real charts.
+Scales control the mapping between data values and visual properties. These exercises focus on colour and axis scales, the two you'll use most often when customizing real charts.
 
 ### Exercise 4: Apply a ColorBrewer Palette
 
@@ -276,7 +276,7 @@ p4
 #> Dark2 palette: teal, orange, purple — high contrast, colourblind-safe.
 ```
 
-**Explanation:** `scale_colour_brewer()` picks a palette from the ColorBrewer project, designed by cartographers for visual clarity. `"Dark2"` is a qualitative palette — distinct, saturated colours for categorical data. The `colour` argument inside `labs()` renames the legend title.
+**Explanation:** `scale_colour_brewer()` picks a palette from the ColorBrewer project, designed by cartographers for visual clarity. `"Dark2"` is a qualitative palette, distinct, saturated colours for categorical data. The `colour` argument inside `labs()` renames the legend title.
 
 </details>
 
@@ -326,7 +326,7 @@ p5
 #> No legend — colour + x-axis labels tell the story.
 ```
 
-**Explanation:** `scale_fill_manual()` accepts a named vector — each name matches a level of the fill variable, each value is a colour. Using named values ensures the right colour always maps to the right group, even if the data order changes. `legend.position = "none"` hides the legend when it's redundant.
+**Explanation:** `scale_fill_manual()` accepts a named vector, each name matches a level of the fill variable, each value is a colour. Using named values ensures the right colour always maps to the right group, even if the data order changes. `legend.position = "none"` hides the legend when it's redundant.
 
 </details>
 
@@ -371,7 +371,7 @@ p6
 #> Y-axis shows $0, $5,000, $10,000, $15,000. X-axis runs 0 to 3.
 ```
 
-**Explanation:** `scales::dollar` is a label formatter from the `scales` package — it adds a `$` prefix and comma separators. `limits = c(0, 3)` restricts the x-axis range and drops points outside that window. Any `scales::` formatter (percent, comma, scientific) works the same way inside `labels`.
+**Explanation:** `scales::dollar` is a label formatter from the `scales` package, it adds a `$` prefix and comma separators. `limits = c(0, 3)` restricts the x-axis range and drops points outside that window. Any `scales::` formatter (percent, comma, scientific) works the same way inside `labels`.
 
 </details>
 
@@ -380,7 +380,7 @@ p6
 
 ## How Do You Customize Legends, Backgrounds, and Strips? (Exercises 7–8)
 
-Legends, panel backgrounds, and facet strips are all theme elements controlled by `element_rect()` and `element_text()`. These two exercises practise the elements most people struggle with — positioning and styling the decorations around the data.
+Legends, panel backgrounds, and facet strips are all theme elements controlled by `element_rect()` and `element_text()`. These two exercises practise the elements most people struggle with, positioning and styling the decorations around the data.
 
 ### Exercise 7: Move and Style the Legend
 
@@ -430,7 +430,7 @@ p7
 #> Legend sits below the plot in a subtle grey box.
 ```
 
-**Explanation:** `legend.position = "bottom"` moves the legend below the plot area. `legend.background` takes `element_rect()` — `fill` sets the background colour, `colour` the border, and `linewidth` the border thickness. `legend.text` controls the category labels inside the legend.
+**Explanation:** `legend.position = "bottom"` moves the legend below the plot area. `legend.background` takes `element_rect()`, `fill` sets the background colour, `colour` the border, and `linewidth` the border thickness. `legend.text` controls the category labels inside the legend.
 
 </details>
 
@@ -554,14 +554,14 @@ p9
 #> bold axis titles, grey caption at bottom-right.
 ```
 
-**Explanation:** A custom theme function wraps `theme_minimal()` and layers your `theme()` tweaks on top. Because it's a function, you call `theme_report()` on any plot — no copy-pasting. The `+` operator inside the function merges the base theme with your overrides.
+**Explanation:** A custom theme function wraps `theme_minimal()` and layers your `theme()` tweaks on top. Because it's a function, you call `theme_report()` on any plot, no copy-pasting. The `+` operator inside the function merges the base theme with your overrides.
 
 </details>
 
 [KEY INSIGHT]
 **A custom theme function is the single most time-saving ggplot2 trick for professionals.** Once you define `theme_report()`, every chart in your project gets consistent styling with one line of code. Update the function once, and every plot updates automatically.
 
-### Exercise 10: Publication-Ready Plot — Theme + Scale Combined
+### Exercise 10: Publication-Ready Plot, Theme + Scale Combined
 
 **Dataset:** `airquality` (built-in, May through September temperatures)
 
@@ -572,7 +572,7 @@ p9
 4. Use `scale_colour_brewer(palette = "YlOrRd")` (yellow-orange-red for temperature)
 5. Label the x-axis with month names using `scale_x_continuous(breaks = 5:9, labels = month.abb[5:9])`
 6. Add title "Average Temperature by Month", subtitle "New York, May–September 1973", and caption "Source: airquality dataset"
-7. Remove the legend — colour is redundant with the x-axis labels
+7. Remove the legend, colour is redundant with the x-axis labels
 
 ```r
 # Exercise 10: publication-ready plot
@@ -611,7 +611,7 @@ p10
 #> Points coloured yellow (May) through red (Sep). Clean, print-ready layout.
 ```
 
-**Explanation:** The line connects months in grey (a neutral connector), while the points carry the colour encoding. `scale_colour_brewer("YlOrRd")` is a sequential palette — light yellow for cooler months, deep red for the hottest. `month.abb[5:9]` converts numeric months to abbreviations. Removing the legend avoids redundancy since the x-axis already shows month names.
+**Explanation:** The line connects months in grey (a neutral connector), while the points carry the colour encoding. `scale_colour_brewer("YlOrRd")` is a sequential palette, light yellow for cooler months, deep red for the hottest. `month.abb[5:9]` converts numeric months to abbreviations. Removing the legend avoids redundancy since the x-axis already shows month names.
 
 </details>
 
@@ -649,7 +649,7 @@ p_complete
 #> Navy strip headers, dollar y-axis, rotated x-labels, no legend (redundant with facets).
 ```
 
-This chart reveals a counterintuitive pattern: lower-quality cuts can have higher average prices because cut quality and carat weight are negatively correlated. The customization layers — theme, scales, facets, strip styling — work together to make this insight immediately visible.
+This chart reveals a counterintuitive pattern: lower-quality cuts can have higher average prices because cut quality and carat weight are negatively correlated. The customization layers, theme, scales, facets, strip styling, work together to make this insight immediately visible.
 
 ## Summary
 
@@ -670,15 +670,15 @@ The customization pattern in every exercise is the same: start with a complete t
 
 ## References
 
-1. Wickham, H. — *ggplot2: Elegant Graphics for Data Analysis*, 3rd Edition. Chapter 17: Themes. [Link](https://ggplot2-book.org/themes.html)
-2. ggplot2 documentation — theme() reference. [Link](https://ggplot2.tidyverse.org/reference/theme.html)
-3. ggplot2 documentation — Scales reference. [Link](https://ggplot2.tidyverse.org/reference/index.html#scales)
-4. ggplot2 documentation — Complete themes. [Link](https://ggplot2.tidyverse.org/reference/ggtheme.html)
-5. ColorBrewer 2.0 — Colour palettes for cartography and data visualization. [Link](https://colorbrewer2.org/)
-6. Scherer, C. — *A ggplot2 Tutorial for Beautiful Plotting in R* (2019). [Link](https://www.cedricscherer.com/2019/08/05/a-ggplot2-tutorial-for-beautiful-plotting-in-r/)
+1. Wickham, H., *ggplot2: Elegant Graphics for Data Analysis*, 3rd Edition. Chapter 17: Themes. [Link](https://ggplot2-book.org/themes.html)
+2. ggplot2 documentation, theme() reference. [Link](https://ggplot2.tidyverse.org/reference/theme.html)
+3. ggplot2 documentation, Scales reference. [Link](https://ggplot2.tidyverse.org/reference/index.html#scales)
+4. ggplot2 documentation, Complete themes. [Link](https://ggplot2.tidyverse.org/reference/ggtheme.html)
+5. ColorBrewer 2.0, Colour palettes for cartography and data visualization. [Link](https://colorbrewer2.org/)
+6. Scherer, C., *A ggplot2 Tutorial for Beautiful Plotting in R* (2019). [Link](https://www.cedricscherer.com/2019/08/05/a-ggplot2-tutorial-for-beautiful-plotting-in-r/)
 
 ## Continue Learning
 
-1. [ggplot2 Themes](ggplot2-Themes-in-R.html) — Deep dive into the theme() system, all 8 built-in themes, the element inheritance tree, and building custom house styles from scratch.
-2. [ggplot2 Scales](ggplot2-Scales.html) — Full reference for every scale function: position, colour, fill, size, alpha, plus breaks, labels, limits, and transformations.
-3. [Publication-Ready Figures](Publication-Quality-Figures-in-R.html) — Export polished charts for papers and presentations with the right DPI, dimensions, and file format.
+1. [ggplot2 Themes](ggplot2-Themes-in-R.html), Deep dive into the theme() system, all 8 built-in themes, the element inheritance tree, and building custom house styles from scratch.
+2. [ggplot2 Scales](ggplot2-Scales.html), Full reference for every scale function: position, colour, fill, size, alpha, plus breaks, labels, limits, and transformations.
+3. [Publication-Ready Figures](Publication-Quality-Figures-in-R.html), Export polished charts for papers and presentations with the right DPI, dimensions, and file format.

@@ -16,7 +16,7 @@ difficulty: "Intermediate"
 
 # dbplyr in R: Write dplyr Code That Runs on Any SQL Database
 
-<p class="lead">dbplyr is a dplyr backend that translates your filter(), mutate(), and summarise() calls into SQL and runs them on a database — so you query millions of rows without loading them into R or writing a single line of SQL.</p>
+<p class="lead">dbplyr is a dplyr backend that translates your filter(), mutate(), and summarise() calls into SQL and runs them on a database, so you query millions of rows without loading them into R or writing a single line of SQL.</p>
 
 ## Introduction
 
@@ -28,7 +28,7 @@ All code in this tutorial uses RSQLite, an in-process database that runs directl
 
 ## How does dbplyr connect dplyr to a database?
 
-The entry point is `tbl()`. You give it a DBI connection and a table name, and it returns a **lazy table reference** — an object that looks like a data frame but lives on the database.
+The entry point is `tbl()`. You give it a DBI connection and a table name, and it returns a **lazy table reference**, an object that looks like a data frame but lives on the database.
 
 Let's set up an in-memory SQLite database, copy `mtcars` into it, and create a lazy reference.
 
@@ -56,7 +56,7 @@ print(mtcars_db)
 #> # ... with more rows
 ```
 
-Notice the header says `Source: table<mtcars>` and `Database: sqlite`. This is not an R data frame — it is a promise to query the database when you need the data. The `[?? x 11]` means dbplyr does not even know how many rows the table has, because it has not counted them yet.
+Notice the header says `Source: table<mtcars>` and `Database: sqlite`. This is not an R data frame, it is a promise to query the database when you need the data. The `[?? x 11]` means dbplyr does not even know how many rows the table has, because it has not counted them yet.
 
 [KEY INSIGHT]
 **`tbl()` never loads data into R.** It creates a lightweight reference. Even printing it only fetches the first few rows for display. The full table stays on the database until you call `collect()`.
@@ -110,7 +110,7 @@ show_query(query1)
 #> WHERE (`mpg` > 25.0)
 ```
 
-dbplyr translated `filter(mpg > 25)` into `WHERE (mpg > 25.0)` and `select(mpg, cyl, hp, wt)` into the `SELECT` clause. The pipeline has not executed — `query1` is still a lazy reference.
+dbplyr translated `filter(mpg > 25)` into `WHERE (mpg > 25.0)` and `select(mpg, cyl, hp, wt)` into the `SELECT` clause. The pipeline has not executed, `query1` is still a lazy reference.
 
 Now try a grouped aggregation:
 
@@ -171,9 +171,9 @@ show_query(ex_query)
 
 dbplyr is lazy by design. Nothing runs until you force it. There are three ways to force execution:
 
-1. **`collect()`** — pulls all results into an R data frame
-2. **Printing** — fetches the first few rows for display
-3. **`compute()`** — executes the query but stores the result as a temporary table on the database (not in R)
+1. **`collect()`**, pulls all results into an R data frame
+2. **Printing**, fetches the first few rows for display
+3. **`compute()`**, executes the query but stores the result as a temporary table on the database (not in R)
 
 The most common pattern is: build a lazy pipeline, verify with `show_query()`, then `collect()` the final result.
 
@@ -227,7 +227,7 @@ nrow(ex_collected)
 #> [1] 11
 ```
 
-**Explanation:** `select()` and `filter()` run on the database. `collect()` pulls only the 11 matching rows into R. The order of `select()` and `filter()` does not matter — dbplyr optimises the SQL either way.
+**Explanation:** `select()` and `filter()` run on the database. `collect()` pulls only the 11 matching rows into R. The order of `select()` and `filter()` does not matter, dbplyr optimises the SQL either way.
 
 </details>
 
@@ -310,7 +310,7 @@ print(collect(ex_joined))
 
 ## How do you mix dbplyr with raw SQL?
 
-Sometimes you need SQL that dbplyr cannot generate — window functions, CTEs, or database-specific syntax. You can pass raw SQL through `tbl()` using the `sql()` helper.
+Sometimes you need SQL that dbplyr cannot generate, window functions, CTEs, or database-specific syntax. You can pass raw SQL through `tbl()` using the `sql()` helper.
 
 ```r
 # Pass raw SQL through tbl()
@@ -333,7 +333,7 @@ collect(raw_result)
 #> 3     8     15.1   209.    14
 ```
 
-The `HAVING` clause filters groups after aggregation — something dplyr does not directly support. By wrapping raw SQL in `tbl(con, sql(...))`, the result is still a lazy dbplyr reference that you can chain more dplyr verbs onto.
+The `HAVING` clause filters groups after aggregation, something dplyr does not directly support. By wrapping raw SQL in `tbl(con, sql(...))`, the result is still a lazy dbplyr reference that you can chain more dplyr verbs onto.
 
 [TIP]
 **You can chain dplyr verbs after raw SQL.** `tbl(con, sql("SELECT ...")) |> filter(...) |> collect()` works. dbplyr wraps your SQL as a subquery and adds the filter on top. This lets you combine hand-tuned SQL with dplyr convenience.
@@ -470,7 +470,7 @@ print(collect(my_result))
 dbDisconnect(my_con)
 ```
 
-**Explanation:** The pipeline stays lazy until `collect()`. The database filters to July, groups by day, and computes the average temperature — all in one SQL statement.
+**Explanation:** The pipeline stays lazy until `collect()`. The database filters to July, groups by day, and computes the average temperature, all in one SQL statement.
 
 </details>
 
@@ -527,7 +527,7 @@ dbDisconnect(con2)
 
 | Concept | How it works |
 |---|---|
-| `tbl(con, "table")` | Creates a lazy reference — no data loaded |
+| `tbl(con, "table")` | Creates a lazy reference, no data loaded |
 | `show_query()` | Reveals the SQL that dbplyr generated |
 | `collect()` | Executes the query and pulls results into R |
 | `compute()` | Executes the query and stores results as a temp table on the database |
@@ -541,25 +541,25 @@ dbDisconnect(con2)
 
 ### Does dbplyr work with PostgreSQL, MySQL, and other databases?
 
-Yes. dbplyr works with any database that has a DBI-compatible driver. The SQL it generates adapts to the backend — SQLite, PostgreSQL, MySQL, SQL Server, BigQuery, and others each get dialect-appropriate SQL. Install the relevant driver package (RPostgres, RMySQL, odbc) and `tbl()` works the same way.
+Yes. dbplyr works with any database that has a DBI-compatible driver. The SQL it generates adapts to the backend, SQLite, PostgreSQL, MySQL, SQL Server, BigQuery, and others each get dialect-appropriate SQL. Install the relevant driver package (RPostgres, RMySQL, odbc) and `tbl()` works the same way.
 
 ### How do I know which functions dbplyr can translate?
 
-Call `show_query()` on your pipeline before `collect()`. If dbplyr cannot translate a function, it raises an error immediately — it will not silently give wrong results. The dbplyr documentation lists all supported translations at `dbplyr.tidyverse.org/articles/translation-function.html`.
+Call `show_query()` on your pipeline before `collect()`. If dbplyr cannot translate a function, it raises an error immediately, it will not silently give wrong results. The dbplyr documentation lists all supported translations at `dbplyr.tidyverse.org/articles/translation-function.html`.
 
 ### Should I use dbplyr or write SQL directly?
 
-Use dbplyr when your analysis fits naturally into dplyr verbs — filter, group, summarise, join. Switch to raw SQL (via `tbl(con, sql(...))`) for window functions, CTEs, recursive queries, or database-specific syntax. You can mix both in the same script.
+Use dbplyr when your analysis fits naturally into dplyr verbs, filter, group, summarise, join. Switch to raw SQL (via `tbl(con, sql(...))`) for window functions, CTEs, recursive queries, or database-specific syntax. You can mix both in the same script.
 
 ## References
 
-1. dbplyr documentation — official tidyverse site. [dbplyr.tidyverse.org](https://dbplyr.tidyverse.org/)
+1. dbplyr documentation, official tidyverse site. [dbplyr.tidyverse.org](https://dbplyr.tidyverse.org/)
 2. dbplyr function translation reference. [dbplyr.tidyverse.org/articles/translation-function.html](https://dbplyr.tidyverse.org/articles/translation-function.html)
-3. Wickham, H. — *R for Data Science*, 2nd ed., Ch 21 Databases. [r4ds.hadley.nz/databases.html](https://r4ds.hadley.nz/databases.html)
+3. Wickham, H., *R for Data Science*, 2nd ed., Ch 21 Databases. [r4ds.hadley.nz/databases.html](https://r4ds.hadley.nz/databases.html)
 4. DBI package documentation. [dbi.r-dbi.org](https://dbi.r-dbi.org/)
 5. RSQLite package. [rsqlite.r-dbi.org](https://rsqlite.r-dbi.org/)
 
 ## Continue Learning
 
-- **[Connect R to Any Database: DBI](DBI-in-R.html)** — The parent tutorial covering dbConnect(), dbGetQuery(), parameterised queries, and the DBI interface that dbplyr builds on.
-- **[DuckDB in R](DuckDB-in-R.html)** — An alternative analytical engine that also speaks dplyr (via duckplyr) and excels at querying Parquet and CSV files directly.
+- **[Connect R to Any Database: DBI](DBI-in-R.html)**, The parent tutorial covering dbConnect(), dbGetQuery(), parameterised queries, and the DBI interface that dbplyr builds on.
+- **[DuckDB in R](DuckDB-in-R.html)**, An alternative analytical engine that also speaks dplyr (via duckplyr) and excels at querying Parquet and CSV files directly.

@@ -33,13 +33,13 @@ In this tutorial, you will learn three R packages that auto-generate data profil
 
 ## What Does Each Package Do at a Glance?
 
-Before diving into code, let's understand the philosophy behind each package. They solve the same problem — "tell me about my data" — but in different ways.
+Before diving into code, let's understand the philosophy behind each package. They solve the same problem, "tell me about my data", but in different ways.
 
-**skimr** is built for speed. It prints a compact, type-aware summary directly to your console. No files generated, no HTML — just the numbers you need to decide what to do next.
+**skimr** is built for speed. It prints a compact, type-aware summary directly to your console. No files generated, no HTML, just the numbers you need to decide what to do next.
 
 **DataExplorer** is built for completeness. It generates an entire HTML report with histograms, bar charts, correlation heatmaps, missing-value profiles, and principal component plots. One function call gives you a shareable document.
 
-**SmartEDA** is built for customization. It offers granular control over which statistics to compute, supports grouped analysis, and can export charts to PDF — useful for formal reports.
+**SmartEDA** is built for customization. It offers granular control over which statistics to compute, supports grouped analysis, and can export charts to PDF, useful for formal reports.
 
 Here is a feature comparison:
 
@@ -76,7 +76,7 @@ str(aq)
 #>  $ Day    : int  1 2 3 4 5 6 7 8 9 10 ...
 ```
 
-The airquality dataset has 153 observations and 6 numeric variables. Notice that Ozone and Solar.R have NA values — perfect for testing how each package handles missing data.
+The airquality dataset has 153 observations and 6 numeric variables. Notice that Ozone and Solar.R have NA values, perfect for testing how each package handles missing data.
 
 **Try it:** Load the `mtcars` dataset into a variable called `ex_mt`. Use `dim()` and `names()` to check its shape and column names. How many rows and columns does it have?
 
@@ -107,7 +107,7 @@ names(ex_mt)
 
 ## How Does skimr Summarize Your Data in One Line?
 
-The `skim()` function is the heart of skimr. It groups variables by type and returns a rich summary with completeness rates, central tendency, spread, and even inline histograms — all in your console.
+The `skim()` function is the heart of skimr. It groups variables by type and returns a rich summary with completeness rates, central tendency, spread, and even inline histograms, all in your console.
 
 Let's run it on our airquality data.
 
@@ -170,7 +170,7 @@ aq |>
 #> 10     9 Temp                  0         1      76.9  8.36 63 71    76   83    93
 ```
 
-Now you can spot trends immediately. Ozone peaks in July and August (means of 59 and 60), then drops in September. June has the worst completeness at only 30% — a red flag for any analysis using that month's Ozone data.
+Now you can spot trends immediately. Ozone peaks in July and August (means of 59 and 60), then drops in September. June has the worst completeness at only 30%, a red flag for any analysis using that month's Ozone data.
 
 [TIP]
 **Use skim() with select helpers for large datasets.** If your data has 50+ columns, pipe into `skim(starts_with("sales_"))` or `skim(where(is.numeric))` to focus on the columns you care about.
@@ -220,13 +220,13 @@ ex_iris_skim |>
 #> 4 Sepal.Length        0.828
 ```
 
-**Explanation:** Sorting by `numeric.sd` reveals that Sepal.Width actually has the smallest standard deviation (0.436), not Petal.Width. Always check — intuition can mislead.
+**Explanation:** Sorting by `numeric.sd` reveals that Sepal.Width actually has the smallest standard deviation (0.436), not Petal.Width. Always check, intuition can mislead.
 
 </details>
 
 ## How Does DataExplorer Profile an Entire Dataset?
 
-DataExplorer takes a different approach than skimr. Instead of a console summary, it generates full visualizations — histograms, bar charts, correlation heatmaps, and missing-value profiles. The `create_report()` function bundles all of these into a single HTML document.
+DataExplorer takes a different approach than skimr. Instead of a console summary, it generates full visualizations, histograms, bar charts, correlation heatmaps, and missing-value profiles. The `create_report()` function bundles all of these into a single HTML document.
 
 [NOTE]
 **DataExplorer requires system graphics capabilities.** The plotting functions below work fully in RStudio. In the browser runtime, you will see the data output but plots may not render. Try these examples in your local R installation for the full visual experience.
@@ -270,7 +270,7 @@ plot_histogram(aq)
 #> Month/Day: uniform-ish (calendar variables)
 ```
 
-From these histograms, you can see that Ozone is heavily right-skewed — most days have low ozone, but some days spike. Wind looks roughly normal. Temp is slightly left-skewed (more hot days than cold in this summer dataset).
+From these histograms, you can see that Ozone is heavily right-skewed, most days have low ozone, but some days spike. Wind looks roughly normal. Temp is slightly left-skewed (more hot days than cold in this summer dataset).
 
 The correlation heatmap shows which variables move together.
 
@@ -283,7 +283,7 @@ plot_correlation(aq, type = "continuous")
 #> Weak: Solar.R has low correlation with everything
 ```
 
-The Ozone-Temp correlation of 0.70 makes physical sense — hotter days produce more ground-level ozone. The negative Ozone-Wind correlation (-0.60) also makes sense — wind disperses ozone. These are the kinds of insights that take 10 minutes manually but seconds with DataExplorer.
+The Ozone-Temp correlation of 0.70 makes physical sense, hotter days produce more ground-level ozone. The negative Ozone-Wind correlation (-0.60) also makes sense, wind disperses ozone. These are the kinds of insights that take 10 minutes manually but seconds with DataExplorer.
 
 [WARNING]
 **Never run create_report() on datasets with millions of rows without sampling first.** The report generates dozens of plots, and each one processes every row. On a 5-million-row dataset, this can take 30+ minutes or crash your R session. Sample first: `create_report(dplyr::slice_sample(big_data, n = 10000))`.
@@ -315,7 +315,7 @@ introduce(mtcars)
 
 ## How Does SmartEDA Generate Custom Reports?
 
-SmartEDA sits between skimr's simplicity and DataExplorer's visual richness. Its strength is granular control — you can specify exactly which statistics to compute, group by target variables, and export to PDF.
+SmartEDA sits between skimr's simplicity and DataExplorer's visual richness. Its strength is granular control, you can specify exactly which statistics to compute, group by target variables, and export to PDF.
 
 [NOTE]
 **SmartEDA requires system graphics for plots.** The statistical functions below produce data frames that work everywhere. Chart functions may not render in the browser runtime. Try them in RStudio for full output.
@@ -598,7 +598,7 @@ swiss_stats[, c("Vname", "mean", "SD", "CV", "nOutliers")]
 #> 6 Infant.Mortality 19.94  2.91 0.146         1
 ```
 
-**Explanation:** Catholic has the highest CV (1.01), meaning its standard deviation exceeds its mean — it is extremely variable. Education has 3 outliers despite moderate CV. Infant.Mortality has 1 outlier. The pipeline from skim (quick) to ExpNumStat (detailed) builds a complete picture.
+**Explanation:** Catholic has the highest CV (1.01), meaning its standard deviation exceeds its mean, it is extremely variable. Education has 3 outliers despite moderate CV. Infant.Mortality has 1 outlier. The pipeline from skim (quick) to ExpNumStat (detailed) builds a complete picture.
 
 </details>
 
@@ -715,11 +715,11 @@ This complete workflow takes under 30 seconds to run and gives you a comprehensi
 
 Key takeaways:
 
-- **Start every analysis with `skim()`** — it takes 2 seconds and catches the big issues (missing data, unexpected types, extreme values).
-- **Use DataExplorer when you need visuals** — histograms, correlation heatmaps, and missing-data plots in one HTML report.
-- **Use SmartEDA when you need detail** — outlier counts, grouped statistics, and PDF-ready reports.
-- **All three packages work on the same data frame** — combine them in a pipeline for the most thorough EDA.
-- **Always sample large datasets first** — `create_report()` and `ExpReport()` can be slow or crash on millions of rows.
+- **Start every analysis with `skim()`**, it takes 2 seconds and catches the big issues (missing data, unexpected types, extreme values).
+- **Use DataExplorer when you need visuals**, histograms, correlation heatmaps, and missing-data plots in one HTML report.
+- **Use SmartEDA when you need detail**, outlier counts, grouped statistics, and PDF-ready reports.
+- **All three packages work on the same data frame**, combine them in a pipeline for the most thorough EDA.
+- **Always sample large datasets first**, `create_report()` and `ExpReport()` can be slow or crash on millions of rows.
 
 ## FAQ
 
@@ -729,7 +729,7 @@ skimr handles large datasets well because it computes summary statistics without
 
 ### Do these packages work with tibbles and data.tables?
 
-Yes. All three packages accept tibbles (from tidyverse) and standard data frames. skimr and DataExplorer also handle data.table objects. SmartEDA works best with standard data frames — convert with `as.data.frame()` if you encounter issues with data.table input.
+Yes. All three packages accept tibbles (from tidyverse) and standard data frames. skimr and DataExplorer also handle data.table objects. SmartEDA works best with standard data frames, convert with `as.data.frame()` if you encounter issues with data.table input.
 
 ### Which package handles factor variables best?
 
@@ -741,15 +741,15 @@ Yes, but with limits. You can specify a response variable with `y = "target_colu
 
 ## References
 
-1. McNamara, A., Arino de la Rubia, E., Zhu, H., Ellis, S., & Quinn, M. — *skimr: Compact and Flexible Summaries of Data*. CRAN. [Link](https://cran.r-project.org/package=skimr)
-2. Cui, B. — *DataExplorer: Automate Data Exploration and Treatment*. CRAN. [Link](https://cran.r-project.org/package=DataExplorer)
-3. Putatunda, S., Rama, K., Ubrangala, D., & Kondapalli, R. — *SmartEDA: An R Package for Automated Exploratory Data Analysis*. arXiv:1903.04754 (2019). [Link](https://arxiv.org/abs/1903.04754)
-4. Staniak, M. & Biecek, P. — *The Landscape of R Packages for Automated Exploratory Data Analysis*. The R Journal, 11(2), 347-369 (2019). [Link](https://journal.r-project.org/archive/2019/RJ-2019-033/)
-5. Wickham, H. & Grolemund, G. — *R for Data Science*, 2nd Edition. O'Reilly (2023). Chapter 11: Exploratory Data Analysis. [Link](https://r4ds.hadley.nz/eda)
-6. DataExplorer documentation — Official package site. [Link](https://boxuancui.github.io/DataExplorer/)
-7. SmartEDA vignette — CRAN. [Link](https://cran.r-project.org/web/packages/SmartEDA/vignettes/SmartEDA.html)
+1. McNamara, A., Arino de la Rubia, E., Zhu, H., Ellis, S., & Quinn, M., *skimr: Compact and Flexible Summaries of Data*. CRAN. [Link](https://cran.r-project.org/package=skimr)
+2. Cui, B., *DataExplorer: Automate Data Exploration and Treatment*. CRAN. [Link](https://cran.r-project.org/package=DataExplorer)
+3. Putatunda, S., Rama, K., Ubrangala, D., & Kondapalli, R., *SmartEDA: An R Package for Automated Exploratory Data Analysis*. arXiv:1903.04754 (2019). [Link](https://arxiv.org/abs/1903.04754)
+4. Staniak, M. & Biecek, P., *The Landscape of R Packages for Automated Exploratory Data Analysis*. The R Journal, 11(2), 347-369 (2019). [Link](https://journal.r-project.org/archive/2019/RJ-2019-033/)
+5. Wickham, H. & Grolemund, G., *R for Data Science*, 2nd Edition. O'Reilly (2023). Chapter 11: Exploratory Data Analysis. [Link](https://r4ds.hadley.nz/eda)
+6. DataExplorer documentation, Official package site. [Link](https://boxuancui.github.io/DataExplorer/)
+7. SmartEDA vignette, CRAN. [Link](https://cran.r-project.org/web/packages/SmartEDA/vignettes/SmartEDA.html)
 
 ## Continue Learning
 
-- **[Missing Values in R: Detect, Count, Remove, and Impute NA](Missing-Values-in-R-Detect-Count-Remove-Impute-NA.html)** — After EDA reveals missing data, learn the full toolkit for handling it: detection patterns, removal strategies, and imputation methods.
-- **[Importing Data in R](Importing-Data-in-R.html)** — Before you can profile data, you need to load it. This guide covers CSV, Excel, databases, and web APIs.
+- **[Missing Values in R: Detect, Count, Remove, and Impute NA](Missing-Values-in-R-Detect-Count-Remove-Impute-NA.html)**, After EDA reveals missing data, learn the full toolkit for handling it: detection patterns, removal strategies, and imputation methods.
+- **[Importing Data in R](Importing-Data-in-R.html)**, Before you can profile data, you need to load it. This guide covers CSV, Excel, databases, and web APIs.

@@ -16,9 +16,9 @@ difficulty: "Intermediate"
 
 # Algorithmic Fairness in R: fairml & aif360 for Bias Auditing
 
-<p class="lead">Algorithmic fairness ensures that machine learning models don't systematically discriminate against protected groups. This guide teaches you to measure, audit, and improve fairness using R tools — because a model that's accurate on average can still be unfair to specific groups.</p>
+<p class="lead">Algorithmic fairness ensures that machine learning models don't systematically discriminate against protected groups. This guide teaches you to measure, audit, and improve fairness using R tools, because a model that's accurate on average can still be unfair to specific groups.</p>
 
-A hiring model that rejects 80% of female applicants but only 30% of male applicants is unfair — even if its overall accuracy is high. A credit scoring model that gives higher rates to minorities with the same creditworthiness as non-minorities is unfair. These aren't hypothetical: they've happened in real deployments. This guide gives you the tools to catch and fix these problems.
+A hiring model that rejects 80% of female applicants but only 30% of male applicants is unfair, even if its overall accuracy is high. A credit scoring model that gives higher rates to minorities with the same creditworthiness as non-minorities is unfair. These aren't hypothetical: they've happened in real deployments. This guide gives you the tools to catch and fix these problems.
 
 ## Fairness Definitions
 
@@ -290,7 +290,7 @@ cat("  Group B threshold:", round(thresh_b, 3), "-> rate:",
 ## FAQ
 
 **Which fairness metric should I use?**
-It depends on context. For hiring: demographic parity or disparate impact. For criminal risk: equalized odds (equal TPR and FPR). For medical diagnostics: equal opportunity (equal sensitivity). Discuss with stakeholders and domain experts — this is not a purely technical decision.
+It depends on context. For hiring: demographic parity or disparate impact. For criminal risk: equalized odds (equal TPR and FPR). For medical diagnostics: equal opportunity (equal sensitivity). Discuss with stakeholders and domain experts, this is not a purely technical decision.
 
 **Can I just remove the protected attribute from the model?**
 No. This is "fairness through unawareness" and it doesn't work because other features (zip code, name patterns, school attended) can serve as proxies. You need to test outcomes by protected group regardless.
@@ -299,6 +299,6 @@ No. This is "fairness through unawareness" and it doesn't work because other fea
 Increasingly, yes. The EU AI Act classifies hiring and credit models as "high-risk" requiring bias audits. US agencies (EEOC, CFPB) use disparate impact analysis. Several US states have enacted algorithmic accountability laws. The legal landscape is evolving rapidly.
 
 ## Continue Learning
-- [Data Ethics in R](Data-Ethics-in-R.html) — The broader ethical framework
-- [Bias in Data & Models](Bias-in-Data-and-Models.html) — Detecting bias at the data level
-- [Synthetic Data in R](Synthetic-Data-in-R.html) — Generate unbiased synthetic datasets
+- [Data Ethics in R](Data-Ethics-in-R.html), The broader ethical framework
+- [Bias in Data & Models](Bias-in-Data-and-Models.html), Detecting bias at the data level
+- [Synthetic Data in R](Synthetic-Data-in-R.html), Generate unbiased synthetic datasets

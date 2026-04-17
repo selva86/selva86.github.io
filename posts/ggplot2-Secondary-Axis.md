@@ -18,7 +18,7 @@ difficulty: "Intermediate"
 
 # ggplot2 Secondary Axis in R: Add a Second Y-Axis the Right Way
 
-<p class="lead"><code>sec_axis()</code> adds a secondary y-axis (or x-axis) to a ggplot2 plot by applying a mathematical transformation to the primary axis — it does not create an independent axis.</p>
+<p class="lead"><code>sec_axis()</code> adds a secondary y-axis (or x-axis) to a ggplot2 plot by applying a mathematical transformation to the primary axis, it does not create an independent axis.</p>
 
 ## Introduction
 
@@ -26,13 +26,13 @@ You have temperature in Celsius on one axis and rainfall in millimetres on the o
 
 ggplot2 solves this with `sec_axis()`, a function that creates a secondary axis by transforming the primary axis's scale. The key insight is that ggplot2 does not support two truly independent y-axes. Instead, you rescale one variable to fit the primary axis, then label the secondary axis with the inverse transformation so readers see the original units.
 
-In this tutorial, you will learn how `sec_axis()` works under the hood and how to compute the transformation coefficient from your data. You will also learn how to style dual-axis plots for readability — and when to avoid dual axes altogether. All code runs directly in your browser.
+In this tutorial, you will learn how `sec_axis()` works under the hood and how to compute the transformation coefficient from your data. You will also learn how to style dual-axis plots for readability, and when to avoid dual axes altogether. All code runs directly in your browser.
 
 ## How does sec_axis() work?
 
 The `sec_axis()` function lives inside `scale_y_continuous()` (or `scale_x_continuous()`). It takes a transformation formula and applies it to the primary axis tick values to produce the secondary axis labels.
 
-The transformation must be strictly monotonic — every input maps to exactly one output with no reversals. Linear transformations like `~ . * 1.8 + 32` (Celsius to Fahrenheit) are the most common.
+The transformation must be strictly monotonic, every input maps to exactly one output with no reversals. Linear transformations like `~ . * 1.8 + 32` (Celsius to Fahrenheit) are the most common.
 
 Let's start with the simplest case: a single variable plotted with a unit-conversion secondary axis.
 
@@ -59,7 +59,7 @@ print(p_basic)
 #> A line plot with Celsius on the left axis and Fahrenheit on the right axis
 ```
 
-The left axis shows Celsius. The right axis shows the same data converted to Fahrenheit using the formula `F = C * 1.8 + 32`. Both axes represent the same variable in different units — this is the cleanest use case for `sec_axis()`.
+The left axis shows Celsius. The right axis shows the same data converted to Fahrenheit using the formula `F = C * 1.8 + 32`. Both axes represent the same variable in different units, this is the cleanest use case for `sec_axis()`.
 
 [KEY INSIGHT]
 **sec_axis() does not create an independent axis.** It relabels the primary axis using a formula. The right-side tick marks are computed from the left-side tick marks, not from a separate variable.
@@ -106,7 +106,7 @@ print(ex_p1)
 
 ## How do you compute the transformation coefficient?
 
-Unit conversions are straightforward because the formula is known. The harder case is plotting two different variables on the same chart — say, unemployment count and personal savings rate from R's built-in `economics` dataset.
+Unit conversions are straightforward because the formula is known. The harder case is plotting two different variables on the same chart, say, unemployment count and personal savings rate from R's built-in `economics` dataset.
 
 The trick is a two-step process. First, rescale the second variable so it fits within the primary axis range. Second, use the inverse of that rescaling as the `sec_axis()` transformation so the right axis shows the original values.
 
@@ -211,7 +211,7 @@ print(p_styled)
 #> Dual-axis plot with blue left axis (unemployment) and red right axis (savings)
 ```
 
-Now each axis visually matches its line. The blue title "Unemployed (thousands)" pairs with the blue line; the red title "Savings Rate (%)" pairs with the red line. This is not optional decoration — it is a readability requirement.
+Now each axis visually matches its line. The blue title "Unemployed (thousands)" pairs with the blue line; the red title "Savings Rate (%)" pairs with the red line. This is not optional decoration, it is a readability requirement.
 
 [WARNING]
 **Without colour-coding, readers cannot determine which line maps to which axis.** A dual-axis plot missing this step is worse than two separate plots because it actively confuses.
@@ -269,7 +269,7 @@ print(ex_styled)
 
 ## When should you use a secondary axis (and when should you avoid it)?
 
-Dual-axis plots have a bad reputation in the data visualization community, and much of that reputation is earned. The problem is that the visual relationship between two lines depends entirely on the scaling factor you choose — and that choice is arbitrary.
+Dual-axis plots have a bad reputation in the data visualization community, and much of that reputation is earned. The problem is that the visual relationship between two lines depends entirely on the scaling factor you choose, and that choice is arbitrary.
 
 Watch what happens when we change the coefficient. The exact same data tells a completely different story.
 
@@ -295,7 +295,7 @@ print(p_mislead)
 #> The savings-rate line appears flattened, visually "tracking" unemployment
 ```
 
-By shrinking the coefficient, the savings-rate line looks nearly flat and appears to follow unemployment. A different coefficient could make them look inversely related. The data has not changed — only the visual framing has.
+By shrinking the coefficient, the savings-rate line looks nearly flat and appears to follow unemployment. A different coefficient could make them look inversely related. The data has not changed, only the visual framing has.
 
 **When dual axes are appropriate:**
 
@@ -360,7 +360,7 @@ print(ex_facet)
 
 ## What are dup_axis() and secondary x-axes?
 
-Beyond `sec_axis()`, ggplot2 provides `dup_axis()` — a shorthand that mirrors the primary axis on the opposite side without any transformation.
+Beyond `sec_axis()`, ggplot2 provides `dup_axis()`, a shorthand that mirrors the primary axis on the opposite side without any transformation.
 
 ```r
 # dup_axis: mirror the y-axis on the right
@@ -485,7 +485,7 @@ print(p_fix1)
 # sec_axis(~ sin(.), name = "Sine") — non-monotonic!
 ```
 
-**Why it is wrong:** `sin()` is periodic — the same output maps to multiple inputs. ggplot2 cannot invert the transformation to produce correct labels.
+**Why it is wrong:** `sin()` is periodic, the same output maps to multiple inputs. ggplot2 cannot invert the transformation to produce correct labels.
 
 ✅ **Correct:** Stick to linear transformations (`~ . * a + b`) or strictly monotonic functions like `log()`, `sqrt()`, or `exp()`.
 
@@ -670,10 +670,10 @@ This plot uses `scales::comma` for readable left-axis labels, date breaks for a 
 
 **Key takeaways:**
 
-- `sec_axis()` transforms the primary axis — it does not create an independent second axis
+- `sec_axis()` transforms the primary axis, it does not create an independent second axis
 - The transformation must be strictly monotonic
 - Always compute the coefficient from your data ranges, never guess
-- Colour-code axes to match their lines — this is not optional
+- Colour-code axes to match their lines, this is not optional
 - Dual axes are best for unit conversions; for unrelated variables, prefer facets
 
 ## FAQ
@@ -696,14 +696,14 @@ Yes. Use `sec.axis` inside both `scale_x_continuous()` and `scale_y_continuous()
 
 ## References
 
-1. ggplot2 documentation — sec_axis() reference. [Link](https://ggplot2.tidyverse.org/reference/sec_axis.html)
-2. R Graph Gallery — Dual Y axis with R and ggplot2. [Link](https://r-graph-gallery.com/line-chart-dual-Y-axis-ggplot2.html)
-3. Wickham, H. — *ggplot2: Elegant Graphics for Data Analysis*, 3rd Edition. Springer (2024). Chapter 10: Scales. [Link](https://ggplot2-book.org/scales-position)
-4. Healy, K. — *Data Visualization: A Practical Introduction*. Princeton University Press (2018). Section on dual axes. [Link](https://socviz.co/)
-5. Few, S. — "Dual-Scaled Axes in Graphs: Are They Ever the Best Solution?" Visual Business Intelligence Newsletter (2008). [Link](https://www.perceptualedge.com/articles/visual_business_intelligence/dual-scaled_axes.pdf)
-6. ggplot2 source code — axis-secondary.R. [Link](https://github.com/tidyverse/ggplot2/blob/main/R/axis-secondary.R)
+1. ggplot2 documentation, sec_axis() reference. [Link](https://ggplot2.tidyverse.org/reference/sec_axis.html)
+2. R Graph Gallery, Dual Y axis with R and ggplot2. [Link](https://r-graph-gallery.com/line-chart-dual-Y-axis-ggplot2.html)
+3. Wickham, H., *ggplot2: Elegant Graphics for Data Analysis*, 3rd Edition. Springer (2024). Chapter 10: Scales. [Link](https://ggplot2-book.org/scales-position)
+4. Healy, K., *Data Visualization: A Practical Introduction*. Princeton University Press (2018). Section on dual axes. [Link](https://socviz.co/)
+5. Few, S., "Dual-Scaled Axes in Graphs: Are They Ever the Best Solution?" Visual Business Intelligence Newsletter (2008). [Link](https://www.perceptualedge.com/articles/visual_business_intelligence/dual-scaled_axes.pdf)
+6. ggplot2 source code, axis-secondary.R. [Link](https://github.com/tidyverse/ggplot2/blob/main/R/axis-secondary.R)
 
 ## Continue Learning
 
-- **[ggplot2 Scales](ggplot2-Scales.html)** — The full guide to controlling axes, colours, sizes, and all scale functions in ggplot2.
-- **[ggplot2 Themes](ggplot2-Themes.html)** — Customise fonts, grid lines, backgrounds, and build a reusable house style.
+- **[ggplot2 Scales](ggplot2-Scales.html)**, The full guide to controlling axes, colours, sizes, and all scale functions in ggplot2.
+- **[ggplot2 Themes](ggplot2-Themes.html)**, Customise fonts, grid lines, backgrounds, and build a reusable house style.

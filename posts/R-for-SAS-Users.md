@@ -16,11 +16,11 @@ difficulty: "Intermediate"
 
 # R for SAS Users: MAP Every SAS Procedure to Its R Equivalent
 
-<p class="lead">If you've spent years writing DATA steps and PROC calls, switching to R can feel like learning to write left-handed. This guide gives you a direct, runnable translation for every common SAS construct — DATA steps, PROCs, macros, merges, and formats — so you can read R code as fluently as you read SAS today.</p>
+<p class="lead">If you've spent years writing DATA steps and PROC calls, switching to R can feel like learning to write left-handed. This guide gives you a direct, runnable translation for every common SAS construct, DATA steps, PROCs, macros, merges, and formats, so you can read R code as fluently as you read SAS today.</p>
 
 ## What's the fastest way to reproduce PROC MEANS in R?
 
-Most SAS-to-R guides start with philosophy. We'll start with the procedure you run a hundred times a week. Here's `PROC MEANS DATA=mtcars; CLASS cyl; VAR mpg; RUN;` rewritten in R using base R's `aggregate()` — same grouping, same statistics, same output shape. Run it. If the result looks like the PROC MEANS output you'd see in SAS, you already know more R than you think.
+Most SAS-to-R guides start with philosophy. We'll start with the procedure you run a hundred times a week. Here's `PROC MEANS DATA=mtcars; CLASS cyl; VAR mpg; RUN;` rewritten in R using base R's `aggregate()`, same grouping, same statistics, same output shape. Run it. If the result looks like the PROC MEANS output you'd see in SAS, you already know more R than you think.
 
 ```r
 # SAS:  PROC MEANS DATA=mtcars MEAN STD N; CLASS cyl; VAR mpg; RUN;
@@ -36,10 +36,10 @@ proc_means
 #> 3   8 14.00    15.10   2.56
 ```
 
-Three lines of R reproduced an entire PROC MEANS call. `aggregate()` takes a formula (`outcome ~ grouping`), the data frame, and a function applied per group. The function returns a named numeric vector and `aggregate()` stitches the results into a tidy table. Read this as: *for each level of `cyl`, compute N, Mean, and SD of `mpg`* — exactly what `CLASS cyl; VAR mpg;` says in SAS.
+Three lines of R reproduced an entire PROC MEANS call. `aggregate()` takes a formula (`outcome ~ grouping`), the data frame, and a function applied per group. The function returns a named numeric vector and `aggregate()` stitches the results into a tidy table. Read this as: *for each level of `cyl`, compute N, Mean, and SD of `mpg`*, exactly what `CLASS cyl; VAR mpg;` says in SAS.
 
 [TIP]
-**Tidyverse fans can write the same thing as a top-to-bottom pipeline.** The dplyr equivalent — `mtcars |> group_by(cyl) |> summarise(...)` — produces the same table and is the dialect most modern R books teach. Pick whichever reads better to you.
+**Tidyverse fans can write the same thing as a top-to-bottom pipeline.** The dplyr equivalent, `mtcars |> group_by(cyl) |> summarise(...)`, produces the same table and is the dialect most modern R books teach. Pick whichever reads better to you.
 
 ```r
 # Same result, dplyr style
@@ -56,7 +56,7 @@ proc_means_dplyr
 #> 3     8    14  15.1  2.56
 ```
 
-Same numbers, two dialects. Pick whichever reads better to you — most teams settle on dplyr for new code and keep `aggregate()` for one-liners in scripts.
+Same numbers, two dialects. Pick whichever reads better to you, most teams settle on dplyr for new code and keep `aggregate()` for one-liners in scripts.
 
 **Try it:** Reproduce `PROC MEANS DATA=mtcars; CLASS am; VAR hp; RUN;` in R. Save the result to `ex_means`.
 
@@ -84,20 +84,20 @@ ex_means
 #> 2  1 13.0  126.85 84.06
 ```
 
-**Explanation:** Swap `mpg ~ cyl` for `hp ~ am`. The formula is the only thing that changes — the rest of the call is boilerplate you'll reuse for every PROC MEANS translation.
+**Explanation:** Swap `mpg ~ cyl` for `hp ~ am`. The formula is the only thing that changes, the rest of the call is boilerplate you'll reuse for every PROC MEANS translation.
 
 </details>
 
 ## How does the SAS DATA step map to R?
 
-The DATA step is the heart of SAS — it reads a row, modifies it, writes a row, repeats. R doesn't think in rows; it thinks in columns. Once you internalise that one swap, every DATA step starts looking like a sequence of column assignments.
+The DATA step is the heart of SAS, it reads a row, modifies it, writes a row, repeats. R doesn't think in rows; it thinks in columns. Once you internalise that one swap, every DATA step starts looking like a sequence of column assignments.
 
 | SAS DATA step | R equivalent |
 |---|---|
 | `data new; set old; run;` | `new <- old` |
 | `x = a + b;` | `df$x <- df$a + df$b` |
 | `if age >= 18 then adult = "Y"; else adult = "N";` | `df$adult <- ifelse(df$age >= 18, "Y", "N")` |
-| `length name $50;` | (auto — character columns size themselves) |
+| `length name $50;` | (auto, character columns size themselves) |
 | `drop var1 var2;` | `df$var1 <- NULL; df$var2 <- NULL` |
 | `keep var1 var2;` | `df <- df[, c("var1", "var2")]` |
 | `rename old=new;` | `names(df)[names(df) == "old"] <- "new"` |
@@ -132,7 +132,7 @@ students
 #> 5   Eve  28    82     Y     B
 ```
 
-Two assignments built two new columns across the entire data frame at once. `ifelse()` is the binary case (`IF/ELSE`); `case_when()` is the SAS `IF/ELSE IF/ELSE IF` chain, written from most to least specific. The trailing `TRUE ~ "D"` is the catch-all branch — the `ELSE` that runs when nothing above matched.
+Two assignments built two new columns across the entire data frame at once. `ifelse()` is the binary case (`IF/ELSE`); `case_when()` is the SAS `IF/ELSE IF/ELSE IF` chain, written from most to least specific. The trailing `TRUE ~ "D"` is the catch-all branch, the `ELSE` that runs when nothing above matched.
 
 Now the housekeeping verbs: drop, keep, rename. In SAS these are statements inside the DATA step; in R they're plain assignments to the data frame.
 
@@ -154,7 +154,7 @@ students2
 Three statements, three column edits. Setting a column to `NULL` deletes it; subsetting with a vector of names keeps only those columns; reassigning into `names()` renames in place. None of this requires looping over rows.
 
 [NOTE]
-**SAS processes one row at a time; R processes whole columns at once.** That's why R loops feel slower than vectorised expressions — every time you write `df$x <- df$a + df$b`, R hands the work to compiled C code that walks the column without leaving its inner loop.
+**SAS processes one row at a time; R processes whole columns at once.** That's why R loops feel slower than vectorised expressions, every time you write `df$x <- df$a + df$b`, R hands the work to compiled C code that walks the column without leaving its inner loop.
 
 **Try it:** Add a `bonus` column equal to 10% of `score` to `students`, then keep only the rows where `score > 80`. Save the result to `ex_filter`.
 
@@ -187,7 +187,7 @@ ex_filter
 
 ## Which R functions replace PROC FREQ, PROC SORT, and PROC TRANSPOSE?
 
-Three of the most common PROCs after PROC MEANS — and all three have one-line replacements in R.
+Three of the most common PROCs after PROC MEANS, and all three have one-line replacements in R.
 
 | SAS | R |
 |---|---|
@@ -197,7 +197,7 @@ Three of the most common PROCs after PROC MEANS — and all three have one-line 
 | `proc sort; by descending x;` | `df[order(-df$x), ]` or `arrange(df, desc(x))` |
 | `proc transpose; by id; var v; id key;` | `reshape()` or `tidyr::pivot_wider()` |
 
-Let's run all three. Start with PROC FREQ — a one-way frequency table, then a cross-tab with a chi-square test.
+Let's run all three. Start with PROC FREQ, a one-way frequency table, then a cross-tab with a chi-square test.
 
 ```r
 # PROC FREQ DATA=mtcars; TABLES cyl; RUN;
@@ -237,7 +237,7 @@ head(sorted_df, 6)
 
 `order()` accepts multiple columns; prefix a column with `-` to reverse its direction. Three keys deep, this still works, and the result is a logical translation of `BY cyl DESCENDING mpg`.
 
-Now PROC TRANSPOSE. Long-to-wide reshaping is the one place where SAS's syntax is famously confusing — and R's tidyr makes the same operation almost trivial.
+Now PROC TRANSPOSE. Long-to-wide reshaping is the one place where SAS's syntax is famously confusing, and R's tidyr makes the same operation almost trivial.
 
 ```r
 # PROC TRANSPOSE DATA=long OUT=wide; BY id; ID measure; VAR value; RUN;
@@ -279,7 +279,7 @@ ex_freq
 #> [1] 0.0007115422
 ```
 
-**Explanation:** Nest `table()` inside `chisq.test()`, then pull out `$p.value`. R's chi-square will warn about small expected counts on `mtcars` — that's the same warning PROC FREQ would issue.
+**Explanation:** Nest `table()` inside `chisq.test()`, then pull out `$p.value`. R's chi-square will warn about small expected counts on `mtcars`, that's the same warning PROC FREQ would issue.
 
 </details>
 
@@ -287,7 +287,7 @@ ex_freq
 
 Every linear model in R uses the same formula interface: `outcome ~ predictor1 + predictor2 + ...`. Once you've seen one, you've seen them all. PROC REG, PROC LOGISTIC, PROC GLM, and PROC MIXED collapse into `lm()`, `glm()`, `aov()`, and `lme4::lmer()` respectively.
 
-PROC REG first — ordinary least squares regression.
+PROC REG first, ordinary least squares regression.
 
 ```r
 # PROC REG DATA=mtcars; MODEL mpg = wt hp qsec; RUN;
@@ -337,10 +337,10 @@ summary(aov_model)
 #> Residuals   29  301.3    10.4
 ```
 
-Wrapping `cyl` in `factor()` is the equivalent of declaring it on a `CLASS` statement — it tells R to treat it as categorical instead of numeric. The F-statistic and p-value match the PROC GLM output exactly.
+Wrapping `cyl` in `factor()` is the equivalent of declaring it on a `CLASS` statement, it tells R to treat it as categorical instead of numeric. The F-statistic and p-value match the PROC GLM output exactly.
 
 [KEY INSIGHT]
-**The SAS MODEL statement and the R formula are the same idea written two ways.** `MODEL y = x1 x2;` in SAS becomes `y ~ x1 + x2` in R — same predictors, same outcome, swap `=` for `~` and join predictors with `+`. Once you spot that, every R modelling function reads as PROC syntax with the keywords stripped: `lm()`, `glm()`, `aov()`, `coxph()`, `lmer()`, even `randomForest()` all use it.
+**The SAS MODEL statement and the R formula are the same idea written two ways.** `MODEL y = x1 x2;` in SAS becomes `y ~ x1 + x2` in R, same predictors, same outcome, swap `=` for `~` and join predictors with `+`. Once you spot that, every R modelling function reads as PROC syntax with the keywords stripped: `lm()`, `glm()`, `aov()`, `coxph()`, `lmer()`, even `randomForest()` all use it.
 
 **Try it:** Fit `lm(mpg ~ wt + cyl)` on `mtcars` and pull the coefficient on `wt` into `ex_lm`.
 
@@ -395,7 +395,7 @@ joined_left
 #> 5  4  Dave    300
 ```
 
-Five rows, because Bob has two orders and Carol has none. `all.x = TRUE` is the flag that says "keep every row from the left side even if there's no match on the right" — that's the `IF a;` line you'd write in a SAS MERGE.
+Five rows, because Bob has two orders and Carol has none. `all.x = TRUE` is the flag that says "keep every row from the left side even if there's no match on the right", that's the `IF a;` line you'd write in a SAS MERGE.
 
 The dplyr version reads the same way, just with the join verb in front of the data frames.
 
@@ -410,7 +410,7 @@ joined_inner
 #> 4  4  Dave    300
 ```
 
-Carol is gone — `inner_join()` keeps only the rows where `id` exists in both tables. Same result you'd get from `merge a (in=x) b (in=y); by id; if x and y;` in SAS, in eight characters.
+Carol is gone, `inner_join()` keeps only the rows where `id` exists in both tables. Same result you'd get from `merge a (in=x) b (in=y); by id; if x and y;` in SAS, in eight characters.
 
 [TIP]
 **SAS demands sorted input for MERGE; R does not.** Both `merge()` and dplyr joins handle unsorted keys natively, so you can drop the `PROC SORT` step entirely. One fewer thing to remember when you're translating a SAS program over.
@@ -436,13 +436,13 @@ ex_join
 #> 2  4 Dave    300
 ```
 
-**Explanation:** Pipe the join into `filter()`. This is the canonical dplyr pattern — chain verbs left-to-right with `|>` and read each step as one English sentence.
+**Explanation:** Pipe the join into `filter()`. This is the canonical dplyr pattern, chain verbs left-to-right with `|>` and read each step as one English sentence.
 
 </details>
 
 ## How do SAS macros become R functions?
 
-SAS macros are text generators — they paste code together at compile time, with `&var` references swapped for actual symbols before the SAS compiler ever sees the program. R doesn't need any of that. Functions in R take inputs, return outputs, and live in the same namespace as everything else. Most SAS macros become *shorter* once translated.
+SAS macros are text generators, they paste code together at compile time, with `&var` references swapped for actual symbols before the SAS compiler ever sees the program. R doesn't need any of that. Functions in R take inputs, return outputs, and live in the same namespace as everything else. Most SAS macros become *shorter* once translated.
 
 | SAS macro | R function |
 |---|---|
@@ -479,10 +479,10 @@ summarize_proc(mtcars, "mpg", "cyl")
 #> 3   8    14     15.1    2.6
 ```
 
-The R version is shorter, easier to debug, and gives you a real return value you can pipe into the next step. `as.formula(paste(...))` is how you build a formula from string inputs — that's the only piece that looks unusual at first, and you'll use the same pattern every time you turn a macro into a function.
+The R version is shorter, easier to debug, and gives you a real return value you can pipe into the next step. `as.formula(paste(...))` is how you build a formula from string inputs, that's the only piece that looks unusual at first, and you'll use the same pattern every time you turn a macro into a function.
 
 [KEY INSIGHT]
-**A SAS macro is a code-text generator; an R function is a value.** That's why most SAS macros shrink when translated — there's no quoting, no `&var.` resolution, no `%let`/`%put` plumbing. You write what you want to compute, R computes it, and the result is just another object you can store, pass around, or print.
+**A SAS macro is a code-text generator; an R function is a value.** That's why most SAS macros shrink when translated, there's no quoting, no `&var.` resolution, no `%let`/`%put` plumbing. You write what you want to compute, R computes it, and the result is just another object you can store, pass around, or print.
 
 **Try it:** Write a function `ex_func(df, col, n)` that returns the top `n` rows of `df` ordered by descending `col`. Test it on `mtcars`, `"mpg"`, `3`.
 
@@ -511,7 +511,7 @@ ex_func(mtcars, "mpg", 3)
 #> Honda Civic    30.4   4  75.7 52 4.93 1.615 18.5  1  1    4    2
 ```
 
-**Explanation:** `df[[col]]` extracts the column by name (note the double brackets — single brackets would return a one-column data frame, not a vector). The `-` reverses the sort, and `[1:n, ]` keeps the top n rows.
+**Explanation:** `df[[col]]` extracts the column by name (note the double brackets, single brackets would return a one-column data frame, not a vector). The `-` reverses the sort, and `[1:n, ]` keeps the top n rows.
 
 </details>
 
@@ -546,9 +546,9 @@ Bookmark this section. It covers the 20 procedures that account for most of the 
 | PROC SURVEYSELECT | `sample()`, `dplyr::slice_sample()` | base, dplyr |
 
 [NOTE]
-**SAS Viya 2026.03 added a built-in PROC for running R code from inside SAS.** If you can't migrate everything in one go, you don't have to — the new `PROC R` lets you call R for the pieces that already work in R while keeping the surrounding SAS program intact. It's the official escape hatch announced earlier this year on the SAS Procedures Guide.
+**SAS Viya 2026.03 added a built-in PROC for running R code from inside SAS.** If you can't migrate everything in one go, you don't have to, the new `PROC R` lets you call R for the pieces that already work in R while keeping the surrounding SAS program intact. It's the official escape hatch announced earlier this year on the SAS Procedures Guide.
 
-**Try it:** Pick any unfamiliar PROC from the table above, look up its R equivalent, and run it on `iris`. Save whatever you compute to `ex_proc`. (No fixed answer — this one is for muscle memory.)
+**Try it:** Pick any unfamiliar PROC from the table above, look up its R equivalent, and run it on `iris`. Save whatever you compute to `ex_proc`. (No fixed answer, this one is for muscle memory.)
 
 ```r
 # Try it: pick a PROC and translate it
@@ -570,7 +570,7 @@ summary(ex_proc)
 #> Cumulative Proportion  0.7296 0.9581 0.99482 1.00000
 ```
 
-**Explanation:** `prcomp()` is base R's principal-components routine — feed it the numeric columns, set `scale. = TRUE` to standardise, and it returns rotation, scores, and variance explained. Same job as PROC PRINCOMP, no extra package required.
+**Explanation:** `prcomp()` is base R's principal-components routine, feed it the numeric columns, set `scale. = TRUE` to standardise, and it returns rotation, scores, and variance explained. Same job as PROC PRINCOMP, no extra package required.
 
 </details>
 
@@ -606,7 +606,7 @@ my_summary
 #> 1   23.61538 22.22445 26
 ```
 
-**Explanation:** `filter()` is the WHERE clause; `summarise()` is the PROC MEANS body. `na.rm = TRUE` does what SAS does silently — skip missings rather than propagate them.
+**Explanation:** `filter()` is the WHERE clause; `summarise()` is the PROC MEANS body. `na.rm = TRUE` does what SAS does silently, skip missings rather than propagate them.
 
 </details>
 
@@ -681,7 +681,7 @@ coef(my_model)
 #>   37.285126   -5.344472
 ```
 
-**Explanation:** `as.formula(paste(dv, "~", iv))` is the equivalent of SAS's `&dv` and `&iv` substitution — except it happens at runtime, with real R values, and you get a real formula object back. `lm()` does the rest.
+**Explanation:** `as.formula(paste(dv, "~", iv))` is the equivalent of SAS's `&dv` and `&iv` substitution, except it happens at runtime, with real R values, and you get a real formula object back. `lm()` does the rest.
 
 </details>
 
@@ -752,7 +752,7 @@ round(coef(sales_model), 2)
 #>     -242.16       16.45       11.39
 ```
 
-Two things worth noticing. First, the entire DATA step shrank to a `filter()` + `mutate()` chain — no `IF` statement, no `RUN;`, no semicolons. Second, the three SAS steps you'd run sequentially in a SAS session became three R objects (`sales_clean`, `sales_summary`, `sales_model`) you can pass around, save, or feed into a report. Each step's output is a real value, not just printed text.
+Two things worth noticing. First, the entire DATA step shrank to a `filter()` + `mutate()` chain, no `IF` statement, no `RUN;`, no semicolons. Second, the three SAS steps you'd run sequentially in a SAS session became three R objects (`sales_clean`, `sales_summary`, `sales_model`) you can pass around, save, or feed into a report. Each step's output is a real value, not just printed text.
 
 ## Summary
 
@@ -773,18 +773,18 @@ The biggest mental shift is row-at-a-time → column-at-a-time. Once that clicks
 
 ## References
 
-1. Muenchen, R.A. — *R for SAS and SPSS Users*, 2nd ed., Springer (2011). The definitive book-length translation reference. [Link](https://link.springer.com/book/10.1007/978-1-4614-0685-3)
-2. r4stats.com — Comparison of SAS, SPSS, and R, with add-on package mappings. [Link](https://r4stats.com/articles/add-ons/)
-3. Appsilon — *Transitioning from SAS to R: How to Import, Process, and Export*. [Link](https://www.appsilon.com/post/transitioning-from-sas-to-r)
-4. R Core Team — *An Introduction to R*. The official R manual. [Link](https://cran.r-project.org/doc/manuals/r-release/R-intro.html)
-5. dplyr documentation — `summarise()`, `group_by()`, `mutate()`, joins. [Link](https://dplyr.tidyverse.org/reference/index.html)
-6. tidyr documentation — `pivot_wider()` and `pivot_longer()`. [Link](https://tidyr.tidyverse.org/reference/pivot_wider.html)
-7. haven package — read and write SAS, SPSS, and Stata files. [Link](https://haven.tidyverse.org/)
-8. R Validation Hub (pharmaR) — validating R for FDA-regulated work. [Link](https://www.pharmar.org/)
-9. Clinical Standards Hub — *PROC R: SAS Viya 2026.03 announcement*. [Link](https://www.clinstandards.org/blog/proc-r-a-new-era-for-sas-r-interoperability-in-clinical-statistical-programming-1775575901979)
+1. Muenchen, R.A., *R for SAS and SPSS Users*, 2nd ed., Springer (2011). The definitive book-length translation reference. [Link](https://link.springer.com/book/10.1007/978-1-4614-0685-3)
+2. r4stats.com, Comparison of SAS, SPSS, and R, with add-on package mappings. [Link](https://r4stats.com/articles/add-ons/)
+3. Appsilon, *Transitioning from SAS to R: How to Import, Process, and Export*. [Link](https://www.appsilon.com/post/transitioning-from-sas-to-r)
+4. R Core Team, *An Introduction to R*. The official R manual. [Link](https://cran.r-project.org/doc/manuals/r-release/R-intro.html)
+5. dplyr documentation, `summarise()`, `group_by()`, `mutate()`, joins. [Link](https://dplyr.tidyverse.org/reference/index.html)
+6. tidyr documentation, `pivot_wider()` and `pivot_longer()`. [Link](https://tidyr.tidyverse.org/reference/pivot_wider.html)
+7. haven package, read and write SAS, SPSS, and Stata files. [Link](https://haven.tidyverse.org/)
+8. R Validation Hub (pharmaR), validating R for FDA-regulated work. [Link](https://www.pharmar.org/)
+9. Clinical Standards Hub, *PROC R: SAS Viya 2026.03 announcement*. [Link](https://www.clinstandards.org/blog/proc-r-a-new-era-for-sas-r-interoperability-in-clinical-statistical-programming-1775575901979)
 
 ## Continue Learning
 
-- [Is R Worth Learning in 2026?](Is-R-Worth-Learning-in-2026.html) — The full case for picking up R if you already know SAS.
-- [R for Stata Users](R-for-Stata-Users.html) — Sister guide for Stata migrants, with the same PROC-equivalent treatment for Stata commands.
-- [R for SPSS Users](R-for-SPSS-Users.html) — Sister guide for SPSS users covering syntax and data manipulation.
+- [Is R Worth Learning in 2026?](Is-R-Worth-Learning-in-2026.html), The full case for picking up R if you already know SAS.
+- [R for Stata Users](R-for-Stata-Users.html), Sister guide for Stata migrants, with the same PROC-equivalent treatment for Stata commands.
+- [R for SPSS Users](R-for-SPSS-Users.html), Sister guide for SPSS users covering syntax and data manipulation.

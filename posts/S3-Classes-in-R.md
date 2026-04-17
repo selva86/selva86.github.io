@@ -1,7 +1,7 @@
 ---
 title: "S3 Classes in R: Build a Custom Object System in Under 20 Lines of Code"
 slug: "S3-Classes-in-R"
-description: "S3 is R's simplest OOP system — conventions, not declarations. Learn to create S3 classes, write generic methods, and implement inheritance with clear examples."
+description: "S3 is R's simplest OOP system, conventions, not declarations. Learn to create S3 classes, write generic methods, and implement inheritance with clear examples."
 keywords: "S3 classes in R, S3 object system R, UseMethod R, R class function, S3 method dispatch, R OOP S3, create S3 class R, S3 inheritance R, structure R, generic functions R"
 auto_link_terms: "S3 classes|S3 class|S3 objects|S3 object system|S3 method dispatch|S3 inheritance"
 auto_link_case_sensitive: false
@@ -18,7 +18,7 @@ difficulty: "Advanced"
 
 # S3 Classes in R: Build a Custom Object System in Under 20 Lines of Code
 
-<p class="lead">S3 is R's original object system — the one that powers <code>print()</code>, <code>summary()</code>, and <code>plot()</code> on every object you touch. It has no formal class declarations, no schema, no boilerplate. You build a class by setting one attribute on a list, and you teach R new tricks by naming a function the right way.</p>
+<p class="lead">S3 is R's original object system, the one that powers <code>print()</code>, <code>summary()</code>, and <code>plot()</code> on every object you touch. It has no formal class declarations, no schema, no boilerplate. You build a class by setting one attribute on a list, and you teach R new tricks by naming a function the right way.</p>
 
 ## What is S3 and how does it work?
 
@@ -54,10 +54,10 @@ my_pet
 
 That's the entire S3 class creation process. You made a list, stamped a class name on it with `class()`, and R now treats it differently. There's no `class` keyword, no `define`, no registration step. The class attribute *is* the class.
 
-The `inherits()` function is the safest way to check whether an object belongs to a class. You'll see `is.data.frame()`, `is.factor()`, and similar functions throughout R — they all use `inherits()` under the hood.
+The `inherits()` function is the safest way to check whether an object belongs to a class. You'll see `is.data.frame()`, `is.factor()`, and similar functions throughout R, they all use `inherits()` under the hood.
 
 [KEY INSIGHT]
-**S3 has no enforcement — the convention IS the system.** R doesn't check whether your "pet" object actually contains a name or species field. Any list can be stamped with any class. This flexibility is S3's greatest strength and biggest risk, which is why constructors matter (covered in the next section).
+**S3 has no enforcement, the convention IS the system.** R doesn't check whether your "pet" object actually contains a name or species field. Any list can be stamped with any class. This flexibility is S3's greatest strength and biggest risk, which is why constructors matter (covered in the next section).
 
 **Try it:** Create a "book" S3 object with fields `title = "R in Action"`, `author = "Robert Kabacoff"`, and `pages = 608`. Assign the class `"book"` and verify it with `class()` and `inherits()`.
 
@@ -94,7 +94,7 @@ inherits(ex_book, "book")
 
 Manually setting `class()` works, but it's fragile. What if someone forgets to include the `species` field, or passes a character string where a number should go? A constructor function wraps the creation logic so every object comes out consistent.
 
-The convention is to name your constructor `new_classname()`. The `structure()` function is the cleanest way to build the object — it creates a list and sets the class attribute in one call.
+The convention is to name your constructor `new_classname()`. The `structure()` function is the cleanest way to build the object, it creates a list and sets the class attribute in one call.
 
 ```r
 # Constructor function for the "pet" class
@@ -125,7 +125,7 @@ rex
 
 The constructor guarantees that every pet object has exactly three fields in the same order. Compare that to the raw approach where anyone can create a broken object.
 
-Let's see what happens without a constructor — someone creates a "pet" with no species field, and everything looks fine until code downstream tries to use it.
+Let's see what happens without a constructor, someone creates a "pet" with no species field, and everything looks fine until code downstream tries to use it.
 
 ```r
 # Without a constructor, anything goes
@@ -138,10 +138,10 @@ bad_pet$age
 #> NULL
 ```
 
-The missing fields don't cause an immediate error — they silently return `NULL`. That's the kind of bug that surfaces three functions deep, far from where the mistake was made. Constructors prevent this by requiring all fields upfront.
+The missing fields don't cause an immediate error, they silently return `NULL`. That's the kind of bug that surfaces three functions deep, far from where the mistake was made. Constructors prevent this by requiring all fields upfront.
 
 [TIP]
-**Name constructors new_classname() by convention.** This pattern (from Hadley Wickham's *Advanced R*) makes your code instantly recognizable to other R programmers. The `new_` prefix signals "this is a low-level constructor — it assumes valid input."
+**Name constructors new_classname() by convention.** This pattern (from Hadley Wickham's *Advanced R*) makes your code instantly recognizable to other R programmers. The `new_` prefix signals "this is a low-level constructor, it assumes valid input."
 
 **Try it:** Write a `new_book()` constructor that takes `title`, `author`, and `pages` arguments and returns a "book" S3 object. Test it by creating a book.
 
@@ -176,7 +176,7 @@ ex_my_book$author
 #> [1] "Hadley Wickham"
 ```
 
-**Explanation:** `structure()` creates a list and assigns the class in one step — cleaner than setting `class()` separately.
+**Explanation:** `structure()` creates a list and assigns the class in one step, cleaner than setting `class()` separately.
 
 </details>
 
@@ -216,7 +216,7 @@ summary(rex)
 #>   Age:     5 (adult)
 ```
 
-Notice the naming pattern: `print.pet()`, `summary.pet()`. The dot between the generic name and the class name is how R connects them. When you call `print(rex)`, R sees that `rex` has class `"pet"`, so it looks for `print.pet()` — and finds it.
+Notice the naming pattern: `print.pet()`, `summary.pet()`. The dot between the generic name and the class name is how R connects them. When you call `print(rex)`, R sees that `rex` has class `"pet"`, so it looks for `print.pet()`, and finds it.
 
 You can discover all methods registered for a generic with `methods()`.
 
@@ -239,13 +239,13 @@ methods(class = "pet")
 #> [1] print.pet   summary.pet
 ```
 
-R ships with hundreds of `print.*` methods — one for data frames, one for linear models, one for dates. Every time a package author defines a new class, they add their own `print.classname()`. That's why `print()` "just works" on everything.
+R ships with hundreds of `print.*` methods, one for data frames, one for linear models, one for dates. Every time a package author defines a new class, they add their own `print.classname()`. That's why `print()` "just works" on everything.
 
 ![How R dispatches a generic function call to the correct S3 method.](screenshots/S3-Classes-in-R-method-dispatch.webp)
 *Figure 1: How R dispatches a generic function call to the correct S3 method.*
 
 [WARNING]
-**The dot in print.pet is not a namespace separator.** It's tempting to think `print.pet` means "print inside the pet module," but the dot is just S3's dispatch convention. This is why you should avoid dots in class names — a class called `my.pet` would create a method named `print.my.pet`, and R might confuse it with a `print.my` method for a class called `pet`. Use underscores instead: `my_pet`.
+**The dot in print.pet is not a namespace separator.** It's tempting to think `print.pet` means "print inside the pet module," but the dot is just S3's dispatch convention. This is why you should avoid dots in class names, a class called `my.pet` would create a method named `print.my.pet`, and R might confuse it with a `print.my` method for a class called `pet`. Use underscores instead: `my_pet`.
 
 **Try it:** Write a `format.book()` method that returns a formatted citation string like `"Advanced R by Hadley Wickham (604 pages)"`. Then call `format()` on the book you created earlier.
 
@@ -277,7 +277,7 @@ format(ex_my_book)
 
 ## How do you write your own generic function?
 
-Most of the time, you'll add methods to existing generics like `print()`, `summary()`, and `format()`. But sometimes your domain needs its own verb — something like `speak()` for animals or `deposit()` for bank accounts. Creating a custom generic takes just one line.
+Most of the time, you'll add methods to existing generics like `print()`, `summary()`, and `format()`. But sometimes your domain needs its own verb, something like `speak()` for animals or `deposit()` for bank accounts. Creating a custom generic takes just one line.
 
 A generic function is a function that calls `UseMethod("name")`. That's the entire definition. Then you write `name.class()` methods for each class that should respond to it.
 
@@ -305,12 +305,12 @@ speak(42)
 #> This object can't speak.
 ```
 
-The generic `speak()` does nothing itself — it just calls `UseMethod("speak")`, which triggers dispatch. R looks at the class of `x`, finds `speak.pet()` for pet objects, and falls back to `speak.default()` for anything else.
+The generic `speak()` does nothing itself, it just calls `UseMethod("speak")`, which triggers dispatch. R looks at the class of `x`, finds `speak.pet()` for pet objects, and falls back to `speak.default()` for anything else.
 
 The `default` method is your safety net. Without it, calling `speak()` on a non-pet object would throw an error. Whether you want that error or a graceful fallback depends on your design.
 
 [NOTE]
-**You rarely need custom generics.** The built-in generics — `print()`, `summary()`, `format()`, `plot()`, `as.data.frame()`, `c()`, `[`, `+` — cover most use cases. Before creating a new generic, check if an existing one fits. Custom generics make sense when you're modeling domain-specific actions (like `deposit()`, `train()`, or `predict()`).
+**You rarely need custom generics.** The built-in generics, `print()`, `summary()`, `format()`, `plot()`, `as.data.frame()`, `c()`, `[`, `+`, cover most use cases. Before creating a new generic, check if an existing one fits. Custom generics make sense when you're modeling domain-specific actions (like `deposit()`, `train()`, or `predict()`).
 
 **Try it:** Write a `describe()` generic function and a `describe.book()` method that prints the book's title and page count in a sentence. Test it on `ex_my_book`.
 
@@ -410,9 +410,9 @@ print(buddy)
 #> Age: 3 years
 ```
 
-Notice the last line: `print(buddy)` calls `print.pet()` automatically. R tries `print.dog()` first (doesn't exist), then `print.pet()` (found it). That's inheritance — subclasses get parent methods for free.
+Notice the last line: `print(buddy)` calls `print.pet()` automatically. R tries `print.dog()` first (doesn't exist), then `print.pet()` (found it). That's inheritance, subclasses get parent methods for free.
 
-Sometimes you want to *extend* the parent's behavior rather than replace it entirely. That's what `NextMethod()` does — it calls the next method in the class chain.
+Sometimes you want to *extend* the parent's behavior rather than replace it entirely. That's what `NextMethod()` does, it calls the next method in the class chain.
 
 ```r
 # Extend print for dogs — add breed info, then delegate to print.pet()
@@ -433,7 +433,7 @@ print(buddy)
 *Figure 2: R walks the class vector left-to-right until it finds a matching method.*
 
 [KEY INSIGHT]
-**Inheritance in S3 is just the order of names in the class vector.** There's no "extends" keyword, no formal parent link. `c("dog", "pet")` means "try dog methods first, then pet methods." You can even add or remove classes at runtime — the system is completely dynamic.
+**Inheritance in S3 is just the order of names in the class vector.** There's no "extends" keyword, no formal parent link. `c("dog", "pet")` means "try dog methods first, then pet methods." You can even add or remove classes at runtime, the system is completely dynamic.
 
 **Try it:** Create a `new_textbook()` constructor that builds a "textbook" subclass of "book". It should add an `edition` field. The class vector should be `c("textbook", "book")`. Test that `format()` still works (falling back to `format.book()`).
 
@@ -479,9 +479,9 @@ For quick scripts, a bare constructor like `new_pet()` is enough. But if you're 
 
 Here's how the three layers work:
 
-1. **Constructor** (`new_pet`) — builds the object. Assumes input is already correct. Fast, no checks.
-2. **Validator** (`validate_pet`) — checks that the object's data makes sense. Called separately so you can skip it when performance matters.
-3. **Helper** (`pet`) — the user-facing function. Coerces input types, calls the validator, then calls the constructor.
+1. **Constructor** (`new_pet`), builds the object. Assumes input is already correct. Fast, no checks.
+2. **Validator** (`validate_pet`), checks that the object's data makes sense. Called separately so you can skip it when performance matters.
+3. **Helper** (`pet`), the user-facing function. Coerces input types, calls the validator, then calls the constructor.
 
 ```r
 # 1. Constructor — fast, no validation
@@ -536,13 +536,13 @@ try(pet("", "cat", 2))
 #> Error: 'name' must be a non-empty string
 ```
 
-Each error message tells the user exactly what went wrong and what they should fix. Compare that to the silent `NULL` we got earlier when fields were missing — these errors are a feature, not a bug.
+Each error message tells the user exactly what went wrong and what they should fix. Compare that to the silent `NULL` we got earlier when fields were missing, these errors are a feature, not a bug.
 
 ![The constructor-validator-helper pattern for robust S3 classes.](screenshots/S3-Classes-in-R-constructor-pattern.webp)
 *Figure 3: The constructor-validator-helper pattern for robust S3 classes.*
 
 [TIP]
-**Validate in the helper, not the constructor.** The constructor assumes correct input so it stays fast — useful when you're creating thousands of objects internally. The helper is the public API where users pass messy input that needs checking.
+**Validate in the helper, not the constructor.** The constructor assumes correct input so it stays fast, useful when you're creating thousands of objects internally. The helper is the public API where users pass messy input that needs checking.
 
 **Try it:** Write a `validate_book()` function that checks `pages > 0` and `title` is a non-empty string. It should return the object if valid, or `stop()` with a clear message if not.
 
@@ -741,13 +741,13 @@ print(pets_df)
 #> 4 Whiskers    cat   7
 ```
 
-**Explanation:** `as.data.frame()` is a base R generic. By defining `as.data.frame.pet()`, any code that calls `as.data.frame()` on a pet — including tidyverse functions — works automatically. The helper `pets_to_df()` uses `lapply()` + `do.call(rbind, ...)` to stack multiple one-row frames.
+**Explanation:** `as.data.frame()` is a base R generic. By defining `as.data.frame.pet()`, any code that calls `as.data.frame()` on a pet, including tidyverse functions, works automatically. The helper `pets_to_df()` uses `lapply()` + `do.call(rbind, ...)` to stack multiple one-row frames.
 
 </details>
 
 ## Putting It All Together
 
-Let's build a complete mini project management system from scratch — constructor, validator, helper, methods, a custom generic, and inheritance. This pulls together every S3 concept from the tutorial into one cohesive system.
+Let's build a complete mini project management system from scratch, constructor, validator, helper, methods, a custom generic, and inheritance. This pulls together every S3 concept from the tutorial into one cohesive system.
 
 ```r
 # === Task Management System ===
@@ -865,7 +865,7 @@ try(task("", priority = "ultra"))
 #> Error: 'title' must be a non-empty string
 ```
 
-This entire system — three classes, five methods, one custom generic, inheritance with `NextMethod()`, and input validation — uses nothing beyond base R. No package imports, no registration, no boilerplate. That's the power of S3.
+This entire system, three classes, five methods, one custom generic, inheritance with `NextMethod()`, and input validation, uses nothing beyond base R. No package imports, no registration, no boilerplate. That's the power of S3.
 
 ## Summary
 
@@ -881,20 +881,20 @@ This entire system — three classes, five methods, one custom generic, inherita
 | Helper | User-facing, coerces input, calls validator + constructor | `classname()` convention |
 | Introspection | List methods for a generic or class | `methods()`, `class()`, `inherits()` |
 
-S3 is intentionally minimal. It gives you just enough structure to build polymorphic systems without the ceremony of formal OOP. Most of R's ecosystem — including the tidyverse — is built on top of it. When you need more guardrails (formal slots, multiple dispatch, mutable state), look at S4 or R6. But for the vast majority of R programming, S3 is all you need.
+S3 is intentionally minimal. It gives you just enough structure to build polymorphic systems without the ceremony of formal OOP. Most of R's ecosystem, including the tidyverse, is built on top of it. When you need more guardrails (formal slots, multiple dispatch, mutable state), look at S4 or R6. But for the vast majority of R programming, S3 is all you need.
 
 ## References
 
-1. Wickham, H. — *Advanced R*, 2nd Edition. Chapter 13: S3. [Link](https://adv-r.hadley.nz/s3.html)
-2. R Core Team — *R Language Definition*, Section 5: Object-Oriented Programming. [Link](https://cran.r-project.org/doc/manuals/r-release/R-lang.html#Object_002doriented-programming)
-3. Chambers, J.M. — *Software for Data Analysis: Programming with R*. Springer (2008).
-4. Wickham, H. — *R Packages*, 2nd Edition. [Link](https://r-pkgs.org/)
-5. R Documentation — UseMethod(). [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/UseMethod.html)
-6. R Documentation — class(). [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/class.html)
-7. R Documentation — structure(). [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/structure.html)
+1. Wickham, H., *Advanced R*, 2nd Edition. Chapter 13: S3. [Link](https://adv-r.hadley.nz/s3.html)
+2. R Core Team, *R Language Definition*, Section 5: Object-Oriented Programming. [Link](https://cran.r-project.org/doc/manuals/r-release/R-lang.html#Object_002doriented-programming)
+3. Chambers, J.M., *Software for Data Analysis: Programming with R*. Springer (2008).
+4. Wickham, H., *R Packages*, 2nd Edition. [Link](https://r-pkgs.org/)
+5. R Documentation, UseMethod(). [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/UseMethod.html)
+6. R Documentation, class(). [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/class.html)
+7. R Documentation, structure(). [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/structure.html)
 
 ## Continue Learning
 
-- [S3 Method Dispatch in R](S3-Method-Dispatch-in-R.html) — Deep dive into how R resolves which method to call, including edge cases with multiple inheritance and group generics.
-- [OOP in R: S3, S4, and R6](OOP-in-R.html) — Compare all three object systems side-by-side to decide which one fits your project.
-- [Writing R Functions](R-Functions.html) — Master function fundamentals — default arguments, scoping, and the `...` mechanism that S3 methods rely on.
+- [S3 Method Dispatch in R](S3-Method-Dispatch-in-R.html), Deep dive into how R resolves which method to call, including edge cases with multiple inheritance and group generics.
+- [OOP in R: S3, S4, and R6](OOP-in-R.html), Compare all three object systems side-by-side to decide which one fits your project.
+- [Writing R Functions](R-Functions.html), Master function fundamentals, default arguments, scoping, and the `...` mechanism that S3 methods rely on.

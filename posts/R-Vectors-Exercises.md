@@ -24,7 +24,7 @@ The single most important thing to understand in R is that almost everything is 
 
 Work through the exercises in order. The code blocks share state across the whole page, so variables you create in Exercise 1 are still available in Exercise 12.
 
-## Section 1 — Creating and inspecting vectors
+## Section 1, Creating and inspecting vectors
 
 ### Exercise 1. Four ways to create a vector
 
@@ -107,7 +107,7 @@ tail(x, 3) # 90 95 100
 
 </details>
 
-## Section 2 — Indexing
+## Section 2, Indexing
 
 ### Exercise 4. Positive and range indexing
 
@@ -211,7 +211,7 @@ Note the last one: you apply the logical index to `names(pop)`, not to `pop` its
 
 </details>
 
-## Section 3 — Arithmetic, recycling, and summaries
+## Section 3, Arithmetic, recycling, and summaries
 
 ### Exercise 8. Vectorised arithmetic
 
@@ -239,7 +239,7 @@ R has no special dot-product operator (unlike NumPy). `sum(a * b)` is idiomatic 
 
 </details>
 
-### Exercise 9. Recycling — the safe case and the trap
+### Exercise 9. Recycling, the safe case and the trap
 
 Predict the output of each of these. Run them and read the warning on the second one.
 
@@ -266,7 +266,7 @@ c(1, 2, 3, 4, 5) * c(10, 100)
 # 10 200 30 400 50
 ```
 
-R recycles the shorter vector to match the longer. When lengths divide cleanly, no warning. When they do not, R still recycles but warns — and that is almost always a bug in your code. Treat the warning as an error until you have investigated.
+R recycles the shorter vector to match the longer. When lengths divide cleanly, no warning. When they do not, R still recycles but warns, and that is almost always a bug in your code. Treat the warning as an error until you have investigated.
 
 </details>
 
@@ -295,7 +295,7 @@ names(pop)[which.min(pop)]  # "Brazil"
 
 </details>
 
-## Section 4 — Missing values and reordering
+## Section 4, Missing values and reordering
 
 ### Exercise 11. NAs and counting
 
@@ -345,7 +345,7 @@ pop[order(pop)]
 # Brazil 215, Nigeria 223, USA 331, China 1412, India 1417
 ```
 
-`sort()` reorders the *values* and keeps the names alongside. `order()` returns the *indices* that would produce the sorted order — use it when you need to reorder several parallel vectors (or a data frame) by one of them.
+`sort()` reorders the *values* and keeps the names alongside. `order()` returns the *indices* that would produce the sorted order, use it when you need to reorder several parallel vectors (or a data frame) by one of them.
 
 </details>
 
@@ -354,14 +354,14 @@ pop[order(pop)]
 - Vectors are R's fundamental data structure. Scalars are just length-one vectors.
 - `c()` promotes types upward: logical → integer → double → character.
 - Index with positive integers, negative integers, logicals, or names. Logical indexing is the most common in real analysis.
-- Arithmetic is vectorised element-wise. Recycling happens when lengths differ — silent when clean, warned otherwise.
+- Arithmetic is vectorised element-wise. Recycling happens when lengths differ, silent when clean, warned otherwise.
 - Handle NAs with `na.rm = TRUE` or by masking with `is.na()`.
 - Use `sort()` to reorder a single vector, `order()` to produce indices for reordering multiple parallel vectors.
 
 ## References
 
-- [R Language Definition — Vectors](https://cran.r-project.org/doc/manuals/r-release/R-lang.html#Vector-objects)
-- [Advanced R — Vectors chapter](https://adv-r.hadley.nz/vectors-chap.html)
+- [R Language Definition, Vectors](https://cran.r-project.org/doc/manuals/r-release/R-lang.html#Vector-objects)
+- [Advanced R, Vectors chapter](https://adv-r.hadley.nz/vectors-chap.html)
 - [R for Data Science (2e)](https://r4ds.hadley.nz/)
 
 ## Continue Learning

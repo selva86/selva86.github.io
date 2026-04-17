@@ -1,7 +1,7 @@
 ---
 title: "DuckDB + duckplyr in R: Query 100M Rows Faster Than pandas on a Laptop"
 slug: "DuckDB-duckplyr-in-R"
-description: "DuckDB executes analytical SQL directly on files — no server needed. duckplyr lets you query DuckDB with dplyr syntax. Learn to query Parquet, CSV, and Arrow files from R with benchmarks."
+description: "DuckDB executes analytical SQL directly on files, no server needed. duckplyr lets you query DuckDB with dplyr syntax. Learn to query Parquet, CSV, and Arrow files from R with benchmarks."
 keywords: "duckplyr, duckplyr R, DuckDB dplyr, duckplyr tutorial, query parquet R, large data R, duckplyr vs dplyr"
 auto_link_terms: "duckplyr|duckplyr in R|DuckDB dplyr|duckplyr package|df_from_parquet|df_from_csv"
 auto_link_case_sensitive: true
@@ -16,11 +16,11 @@ difficulty: "Intermediate"
 
 # DuckDB + duckplyr in R: Query 100M Rows Faster Than pandas on a Laptop
 
-<p class="lead">duckplyr is a drop-in replacement for dplyr that runs your existing dplyr code on DuckDB's columnar engine — no SQL needed, no data loaded into memory until you ask for it.</p>
+<p class="lead">duckplyr is a drop-in replacement for dplyr that runs your existing dplyr code on DuckDB's columnar engine, no SQL needed, no data loaded into memory until you ask for it.</p>
 
 ## Introduction
 
-You already know dplyr. You can filter, mutate, group, and summarise in your sleep. The problem appears when your data outgrows RAM — a 2 GB CSV that crashes `read.csv()`, a Parquet file with 100 million rows.
+You already know dplyr. You can filter, mutate, group, and summarise in your sleep. The problem appears when your data outgrows RAM, a 2 GB CSV that crashes `read.csv()`, a Parquet file with 100 million rows.
 
 duckplyr solves this by swapping dplyr's in-memory engine for DuckDB's analytical engine. You write the same `filter()`, `mutate()`, `summarise()` code. duckplyr translates it into DuckDB operations that stream through data without loading it all at once. If DuckDB cannot handle a particular operation, duckplyr falls back to regular dplyr automatically.
 
@@ -31,7 +31,7 @@ In this tutorial you will learn what duckplyr does differently from plain dplyr,
 
 ## What is duckplyr and how does it differ from dplyr?
 
-duckplyr is a tidyverse package that overrides dplyr's core verbs — `filter()`, `mutate()`, `summarise()`, `group_by()`, `select()`, `arrange()`, and joins — so they execute on DuckDB instead of in R's memory. The key difference is **lazy materialisation**: duckplyr builds a query plan but does not compute anything until you call `collect()` or print the result.
+duckplyr is a tidyverse package that overrides dplyr's core verbs, `filter()`, `mutate()`, `summarise()`, `group_by()`, `select()`, `arrange()`, and joins, so they execute on DuckDB instead of in R's memory. The key difference is **lazy materialisation**: duckplyr builds a query plan but does not compute anything until you call `collect()` or print the result.
 
 Loading the package is all it takes. Your existing dplyr code works unchanged.
 
@@ -56,7 +56,7 @@ print(mtcars_result)
 The output is identical to what plain dplyr would produce. The difference is invisible: DuckDB executed the filter and aggregation using its columnar engine, which processes data in vectorised batches instead of row by row. For small data frames like `mtcars`, the speed difference is negligible. For millions of rows, it is dramatic.
 
 [KEY INSIGHT]
-**duckplyr is not a new API to learn.** It is the same dplyr you already know, with a faster engine underneath. If DuckDB cannot translate an operation, duckplyr falls back to dplyr silently — your code never breaks.
+**duckplyr is not a new API to learn.** It is the same dplyr you already know, with a faster engine underneath. If DuckDB cannot translate an operation, duckplyr falls back to dplyr silently, your code never breaks.
 
 **Try it:** Using duckplyr, filter `mtcars` to rows where `hp > 100`, group by `cyl`, and compute the mean `mpg`. Save to `ex_result`.
 
@@ -93,7 +93,7 @@ print(ex_result)
 
 ## How do you query CSV and Parquet files without loading them into memory?
 
-The biggest payoff of duckplyr is querying files directly on disk. `df_from_csv()` and `df_from_parquet()` create lazy references to files — no data enters R memory until you `collect()`.
+The biggest payoff of duckplyr is querying files directly on disk. `df_from_csv()` and `df_from_parquet()` create lazy references to files, no data enters R memory until you `collect()`.
 
 ```r
 # Write a sample CSV for demonstration
@@ -121,7 +121,7 @@ print(result)
 #> 3 LGA         3.80     758
 ```
 
-Everything before `collect()` is a query plan. DuckDB reads only the columns and rows it needs — if your CSV has 50 columns but you select 3, only 3 are scanned. This is why duckplyr can handle files larger than your available RAM.
+Everything before `collect()` is a query plan. DuckDB reads only the columns and rows it needs, if your CSV has 50 columns but you select 3, only 3 are scanned. This is why duckplyr can handle files larger than your available RAM.
 
 Parquet files work the same way but are faster because Parquet stores data in a columnar, compressed format that DuckDB reads natively.
 
@@ -189,7 +189,7 @@ print(ex_pq)
 
 ## How does duckplyr handle operations it cannot translate?
 
-duckplyr covers most common dplyr verbs and functions, but not everything. When it encounters an operation it cannot translate — a custom R function inside `mutate()`, for example — it **falls back** to regular dplyr. The fallback loads the data into memory and processes it the traditional way.
+duckplyr covers most common dplyr verbs and functions, but not everything. When it encounters an operation it cannot translate, a custom R function inside `mutate()`, for example, it **falls back** to regular dplyr. The fallback loads the data into memory and processes it the traditional way.
 
 ```r
 # Supported: standard aggregation functions
@@ -233,7 +233,7 @@ fallback_result <- mtcars |>
 #> 3     8   17.0
 ```
 
-The "materializing" message means duckplyr fell back to dplyr for that step. The result is still correct — fallback is a safety net, not an error. But the performance benefit disappears for that operation because the data was pulled into R memory.
+The "materializing" message means duckplyr fell back to dplyr for that step. The result is still correct, fallback is a safety net, not an error. But the performance benefit disappears for that operation because the data was pulled into R memory.
 
 [WARNING]
 **Fallback is silent by default in production code.** Set `options(duckdb.materialize_message = TRUE)` during development to see when it happens. If a critical pipeline falls back on every step, you are paying duckplyr's overhead with none of its speed.
@@ -310,7 +310,7 @@ The duckplyr version of that same query is the `mtcars_result` code from the fir
 | Prototyping interactively in the console | Performance-tuning a specific query plan |
 
 [KEY INSIGHT]
-**duckplyr and raw SQL are not competing tools — they are two interfaces to the same engine.** Use duckplyr for 90% of your work, drop to raw SQL for the remaining 10% when you need SQL-specific features like window functions or CTEs.
+**duckplyr and raw SQL are not competing tools, they are two interfaces to the same engine.** Use duckplyr for 90% of your work, drop to raw SQL for the remaining 10% when you need SQL-specific features like window functions or CTEs.
 
 **Try it:** Write a duckplyr pipeline on `mtcars` that filters to cars with `wt < 3`, groups by `gear`, and counts the rows. Sort by count descending. Save to `ex_duckplyr`.
 
@@ -428,7 +428,7 @@ print(head(ex_bench, 5))
 #> 5 e     9498.
 ```
 
-**Explanation:** `filter(value > 0)` keeps roughly half the rows, then `group_by() |> summarise(total = sum(value))` aggregates per group — all on DuckDB's engine.
+**Explanation:** `filter(value > 0)` keeps roughly half the rows, then `group_by() |> summarise(total = sum(value))` aggregates per group, all on DuckDB's engine.
 
 </details>
 
@@ -463,7 +463,7 @@ all_data <- df_from_parquet("huge.parquet") |> collect()
 filtered <- all_data |> filter(year == 2025)
 ```
 
-**Why it is wrong:** `collect()` materialises the entire dataset into R memory. The subsequent `filter()` runs on an in-memory data frame — you lost DuckDB's file-scanning advantage.
+**Why it is wrong:** `collect()` materialises the entire dataset into R memory. The subsequent `filter()` runs on an in-memory data frame, you lost DuckDB's file-scanning advantage.
 
 ✅ **Correct:**
 ```r
@@ -587,17 +587,17 @@ print(my_bench)
 | **data.table** | Fast in-memory operations with concise syntax | Still requires data to fit in RAM |
 
 **Key takeaways:**
-- `library(duckplyr)` is all you need — it overrides dplyr methods silently
+- `library(duckplyr)` is all you need, it overrides dplyr methods silently
 - `df_from_csv()` and `df_from_parquet()` create lazy references to files on disk
-- Keep pipelines lazy as long as possible — call `collect()` at the very end
+- Keep pipelines lazy as long as possible, call `collect()` at the very end
 - Use base R functions (`mean`, `grepl`, `sum`) over tidyverse extensions for best translation coverage
-- duckplyr and raw SQL share the same engine — pick the interface that fits the task
+- duckplyr and raw SQL share the same engine, pick the interface that fits the task
 
 ## FAQ
 
 ### Does duckplyr work with all dplyr verbs?
 
-Most core verbs are supported: `filter()`, `select()`, `mutate()`, `summarise()`, `group_by()`, `arrange()`, `slice_head()`/`slice_tail()`, and all join types. Verbs that need R-specific evaluation — like `rowwise()` or `do()` — fall back to dplyr. The coverage grows with each duckplyr release.
+Most core verbs are supported: `filter()`, `select()`, `mutate()`, `summarise()`, `group_by()`, `arrange()`, `slice_head()`/`slice_tail()`, and all join types. Verbs that need R-specific evaluation, like `rowwise()` or `do()`, fall back to dplyr. The coverage grows with each duckplyr release.
 
 ### Can I use duckplyr with remote Parquet files on S3?
 
@@ -605,17 +605,17 @@ Yes. DuckDB's `httpfs` extension lets you query Parquet files on S3, GCS, or any
 
 ### Should I switch all my scripts to duckplyr?
 
-For interactive analysis and new pipelines, yes — `library(duckplyr)` is a free speed boost with automatic fallback. For production pipelines with heavy custom R functions, profile first: if most steps fall back to dplyr, the overhead may not be worth it. You can always use duckplyr for the I/O-heavy parts and dplyr for the R-heavy parts in the same script.
+For interactive analysis and new pipelines, yes, `library(duckplyr)` is a free speed boost with automatic fallback. For production pipelines with heavy custom R functions, profile first: if most steps fall back to dplyr, the overhead may not be worth it. You can always use duckplyr for the I/O-heavy parts and dplyr for the R-heavy parts in the same script.
 
 ## References
 
-1. duckplyr documentation — official tidyverse site. [duckplyr.tidyverse.org](https://duckplyr.tidyverse.org/)
-2. DuckDB Blog — duckplyr announcement. [duckdb.org/2024/04/02/duckplyr](https://duckdb.org/2024/04/02/duckplyr)
+1. duckplyr documentation, official tidyverse site. [duckplyr.tidyverse.org](https://duckplyr.tidyverse.org/)
+2. DuckDB Blog, duckplyr announcement. [duckdb.org/2024/04/02/duckplyr](https://duckdb.org/2024/04/02/duckplyr)
 3. DuckDB R Client documentation. [duckdb.org/docs/stable/clients/r](https://duckdb.org/docs/stable/clients/r)
-4. Appsilon — R dplyr vs DuckDB benchmarks. [appsilon.com/post/r-dplyr-vs-duckdb](https://www.appsilon.com/post/r-dplyr-vs-duckdb)
+4. Appsilon, R dplyr vs DuckDB benchmarks. [appsilon.com/post/r-dplyr-vs-duckdb](https://www.appsilon.com/post/r-dplyr-vs-duckdb)
 5. duckplyr large data vignette. [duckplyr.tidyverse.org/articles/large.html](https://duckplyr.tidyverse.org/articles/large.html)
 
 ## Continue Learning
 
-- **[DuckDB in R](DuckDB-in-R.html)** — The parent tutorial covering DuckDB's SQL interface, in-process architecture, and when to use SQL vs dplyr syntax.
-- **[Connect R to Any Database: DBI](DBI-in-R.html)** — Learn the DBI package for connecting to PostgreSQL, MySQL, SQLite, and other databases from R.
+- **[DuckDB in R](DuckDB-in-R.html)**, The parent tutorial covering DuckDB's SQL interface, in-process architecture, and when to use SQL vs dplyr syntax.
+- **[Connect R to Any Database: DBI](DBI-in-R.html)**, Learn the DBI package for connecting to PostgreSQL, MySQL, SQLite, and other databases from R.

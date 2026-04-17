@@ -18,17 +18,17 @@ difficulty: "Intermediate"
 
 # geom_smooth in R: Add Trend Lines and Confidence Bands to Plots
 
-<p class="lead"><code>geom_smooth()</code> adds a smooth trend line to a ggplot2 scatter plot — either a LOESS curve (default for n &lt; 1,000), a linear regression line (<code>method = "lm"</code>), or any other statistical model you specify.</p>
+<p class="lead"><code>geom_smooth()</code> adds a smooth trend line to a ggplot2 scatter plot, either a LOESS curve (default for n &lt; 1,000), a linear regression line (<code>method = "lm"</code>), or any other statistical model you specify.</p>
 
 ## Introduction
 
-A scatter plot shows individual data points. `geom_smooth()` reveals the overall pattern by fitting a line or curve through the noise. The result — a trend line with a shaded confidence band — gives readers two things at once: the direction and shape of the relationship, and how certain you are about that shape.
+A scatter plot shows individual data points. `geom_smooth()` reveals the overall pattern by fitting a line or curve through the noise. The result, a trend line with a shaded confidence band, gives readers two things at once: the direction and shape of the relationship, and how certain you are about that shape.
 
 The key decision is *which* type of smooth to use. `geom_smooth()` supports several:
-- **LOESS** (default for small data) — a flexible local polynomial that finds curves automatically. Great for exploration, hard to interpret as a model.
-- **lm** — straight linear regression line. Simple, interpretable, assumes linearity.
-- **Polynomial** — curved regression using `poly()`. Captures curvature while staying interpretable.
-- **GAM** — generalized additive model (default for n ≥ 1,000). Flexible like LOESS but with penalized smoothing.
+- **LOESS** (default for small data), a flexible local polynomial that finds curves automatically. Great for exploration, hard to interpret as a model.
+- **lm**, straight linear regression line. Simple, interpretable, assumes linearity.
+- **Polynomial**, curved regression using `poly()`. Captures curvature while staying interpretable.
+- **GAM**, generalized additive model (default for n ≥ 1,000). Flexible like LOESS but with penalized smoothing.
 
 This post walks through each option with working code, explains the confidence band, and shows common mistakes that send readers to the wrong conclusions.
 
@@ -53,7 +53,7 @@ p_loess <- ggplot(mpg, aes(x = displ, y = hwy)) +
 p_loess
 ```
 
-The blue line is the LOESS fit — a local polynomial that adapts to the shape of the data. The grey ribbon is the 95% confidence band: you can be 95% confident the true smooth passes through this band at each x-value.
+The blue line is the LOESS fit, a local polynomial that adapts to the shape of the data. The grey ribbon is the 95% confidence band: you can be 95% confident the true smooth passes through this band at each x-value.
 
 **Try it:** Add `span = 0.3` inside `geom_smooth()` to make the LOESS more responsive to local fluctuations (wigglier). Then try `span = 1.5` for a smoother curve. The default `span = 0.75` is a balance between the two.
 
@@ -83,13 +83,13 @@ p_lm <- ggplot(mpg, aes(x = displ, y = hwy)) +
 p_lm
 ```
 
-The `formula = y ~ x` argument is optional but good practice — it makes explicit which model you're fitting. For a simple linear regression this is always `y ~ x`.
+The `formula = y ~ x` argument is optional but good practice, it makes explicit which model you're fitting. For a simple linear regression this is always `y ~ x`.
 
 **Try it:** Add `se = FALSE` inside `geom_smooth()` to remove the confidence band. This is useful in presentations where the band distracts from the trend, or when you've communicated uncertainty separately.
 
 ## How do you fit a polynomial (curved) regression line?
 
-When the relationship is clearly curved — like the U-shape in many biological dose-response relationships — a polynomial smooth fits a curve while remaining interpretable as a model.
+When the relationship is clearly curved, like the U-shape in many biological dose-response relationships, a polynomial smooth fits a curve while remaining interpretable as a model.
 
 ```r
 # Polynomial fit: y ~ poly(x, 2) = quadratic curve
@@ -112,7 +112,7 @@ p_poly <- ggplot(mpg, aes(x = displ, y = hwy)) +
 p_poly
 ```
 
-`poly(x, 2)` fits a quadratic term (second-degree polynomial). `poly(x, 3)` would fit a cubic. Keep the degree as low as possible that captures the real curvature — higher-degree polynomials overfit at the extremes.
+`poly(x, 2)` fits a quadratic term (second-degree polynomial). `poly(x, 3)` would fit a cubic. Keep the degree as low as possible that captures the real curvature, higher-degree polynomials overfit at the extremes.
 
 **Try it:** Compare `formula = y ~ poly(x, 2)` (quadratic) with `formula = y ~ poly(x, 3)` (cubic). Does the extra degree buy you anything, or does the curve just wiggle more at the edges?
 
@@ -146,9 +146,9 @@ p_ci <- ggplot(mpg, aes(x = displ, y = hwy)) +
 p_ci
 ```
 
-The `level` argument defaults to 0.95. Increasing to 0.99 widens the band — you're claiming higher confidence, which requires a wider interval. Reducing to 0.90 narrows the band.
+The `level` argument defaults to 0.95. Increasing to 0.99 widens the band, you're claiming higher confidence, which requires a wider interval. Reducing to 0.90 narrows the band.
 
-**Try it:** Change `level = 0.99` to `level = 0.50` (50% CI). Notice the band becomes very narrow — not because the model is highly certain, but because you're only claiming 50% confidence. This illustrates that the CI width is driven by your chosen confidence level, not just the data.
+**Try it:** Change `level = 0.99` to `level = 0.50` (50% CI). Notice the band becomes very narrow, not because the model is highly certain, but because you're only claiming 50% confidence. This illustrates that the CI width is driven by your chosen confidence level, not just the data.
 
 ## How do you draw separate smooth lines per group?
 
@@ -179,7 +179,7 @@ p_group
 
 The slope of each line tells a story: rear-wheel drive cars show a steeper fuel-efficiency penalty as engine displacement increases. Front-wheel drive cars maintain better fuel economy across sizes.
 
-**Try it:** Add `method = "loess"` (no quotes needed, that's the default) to use LOESS per group instead of linear fits. Compare the two — do the linear fits miss any important curvature?
+**Try it:** Add `method = "loess"` (no quotes needed, that's the default) to use LOESS per group instead of linear fits. Compare the two, do the linear fits miss any important curvature?
 
 ## Complete Example: Multi-layer Smooth Plot
 
@@ -220,7 +220,7 @@ p_final
 
 ### Mistake 1: Using LOESS for extrapolation
 
-LOESS only smooths within the range of your observed data — it cannot reliably extend beyond it. Use `method = "lm"` or `method = "gam"` when you need to predict outside the data range.
+LOESS only smooths within the range of your observed data, it cannot reliably extend beyond it. Use `method = "lm"` or `method = "gam"` when you need to predict outside the data range.
 
 ### Mistake 2: Ignoring the warning about method selection
 
@@ -228,7 +228,7 @@ When n ≥ 1,000, ggplot2 silently switches from LOESS to GAM. If you see "geom_
 
 ### Mistake 3: Treating the CI band as a prediction interval
 
-The confidence band shows where the *true smooth/line* likely falls — not where individual new observations would fall. A prediction interval would be much wider.
+The confidence band shows where the *true smooth/line* likely falls, not where individual new observations would fall. A prediction interval would be much wider.
 
 ```r
 # The CI band is NOT a prediction interval
@@ -335,13 +335,13 @@ ggplot(cars, aes(x = speed, y = dist)) +
 ## FAQ
 
 **Why does geom_smooth() switch from loess to gam for large datasets?**
-LOESS is computationally expensive (O(n²)) — for n ≥ 1,000, it becomes slow. ggplot2 automatically uses GAM (from the `mgcv` package) for large data. Force LOESS with `method = "loess"` if you need it.
+LOESS is computationally expensive (O(n²)), for n ≥ 1,000, it becomes slow. ggplot2 automatically uses GAM (from the `mgcv` package) for large data. Force LOESS with `method = "loess"` if you need it.
 
 **What is the span parameter in LOESS?**
 `span` controls how much of the data is used for each local fit. Smaller span (e.g., 0.3) fits more locally (wigglier), larger span (e.g., 1.0) uses more of the data (smoother). The default is 0.75.
 
 **Can geom_smooth() fit a log or spline model?**
-Yes — `formula = y ~ log(x)` fits a logarithmic curve. For splines, use `formula = y ~ splines::ns(x, df = 4)` (natural splines with 4 degrees of freedom).
+Yes, `formula = y ~ log(x)` fits a logarithmic curve. For splines, use `formula = y ~ splines::ns(x, df = 4)` (natural splines with 4 degrees of freedom).
 
 **How do I make geom_smooth() use my own model?**
 Pass a function to `method`. For example, `method = MASS::rlm` fits a robust linear model. Any function that works like `lm()` (takes `formula` and `data`) can be used.
@@ -352,12 +352,12 @@ When `aes(fill = group)` is set, geom_smooth uses `fill` for the CI band *and* t
 ## References
 
 - Wickham H. (2016). *ggplot2: Elegant Graphics for Data Analysis*. Springer.
-- ggplot2 official docs — geom_smooth: ggplot2.tidyverse.org/reference/geom_smooth.html
+- ggplot2 official docs, geom_smooth: ggplot2.tidyverse.org/reference/geom_smooth.html
 - Cleveland W.S. (1979). Robust Locally Weighted Regression and Smoothing Scatterplots. *JASA*.
-- Wilke C. (2019). *Fundamentals of Data Visualization* — Chapter 14: Visualizing trends
+- Wilke C. (2019). *Fundamentals of Data Visualization*, Chapter 14: Visualizing trends
 
 ## Continue Learning
 
-- **ggplot2 Scatter Plots** — the foundation: geom_point(), overplotting, and annotations
-- **Error Bars in ggplot2** — add uncertainty intervals to mean estimates
-- **R Correlation Matrix Plot** — visualize the full pairwise correlation structure
+- **ggplot2 Scatter Plots**, the foundation: geom_point(), overplotting, and annotations
+- **Error Bars in ggplot2**, add uncertainty intervals to mean estimates
+- **R Correlation Matrix Plot**, visualize the full pairwise correlation structure

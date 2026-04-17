@@ -16,7 +16,7 @@ difficulty: "Intermediate"
 
 # Synthetic Data Generation in R: Protect Privacy While Testing Models
 
-<p class="lead">Synthetic data looks and behaves like real data but contains no actual individuals. It lets you share datasets, test models, and develop code without exposing sensitive information — all while preserving the statistical relationships your analysis depends on.</p>
+<p class="lead">Synthetic data looks and behaves like real data but contains no actual individuals. It lets you share datasets, test models, and develop code without exposing sensitive information, all while preserving the statistical relationships your analysis depends on.</p>
 
 You need to share a dataset with a collaborator, but it contains patient records. You want to test a machine learning pipeline, but the real data is locked behind an NDA. You're teaching a class and need realistic examples without privacy risks. Synthetic data solves all of these problems.
 
@@ -256,7 +256,7 @@ cat('  "sample"  - Random sampling from observed values\n')
 ## FAQ
 
 **Can synthetic data completely replace real data for model training?**
-For testing and development, yes. For final model training, usually no — synthetic data may miss rare patterns, outliers, or subtle interactions. Use synthetic data for development and privacy-safe sharing, but validate final models on real data.
+For testing and development, yes. For final model training, usually no, synthetic data may miss rare patterns, outliers, or subtle interactions. Use synthetic data for development and privacy-safe sharing, but validate final models on real data.
 
 **How much noise should I add?**
 Enough to prevent re-identification but not so much that utility is destroyed. Start with 5-10% of the variable's standard deviation and check both utility metrics (KS test, coefficient comparison) and privacy metrics (close-match percentage). Adjust iteratively.
@@ -265,6 +265,6 @@ Enough to prevent re-identification but not so much that utility is destroyed. S
 No. Other options include `simPop` (for complex survey data), `simstudy` (for clinical trial simulation), `fabricatr` (for social science), and `MICE` (imputation-based synthesis). Choose based on your data type and use case.
 
 ## Continue Learning
-- [Data Ethics in R](Data-Ethics-in-R.html) — The broader ethical framework for data analysis
-- [Data Privacy in R](Data-Privacy-in-R.html) — Anonymization and differential privacy techniques
-- [Pre-Analysis Plans in R](Pre-Analysis-Plans-in-R.html) — Commit to your analysis before running it
+- [Data Ethics in R](Data-Ethics-in-R.html), The broader ethical framework for data analysis
+- [Data Privacy in R](Data-Privacy-in-R.html), Anonymization and differential privacy techniques
+- [Pre-Analysis Plans in R](Pre-Analysis-Plans-in-R.html), Commit to your analysis before running it

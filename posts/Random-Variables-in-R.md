@@ -1,5 +1,5 @@
 ---
-title: "Random Variables in R: Discrete vs Continuous, PMF, PDF, and CDF — Visualised"
+title: "Random Variables in R: Discrete vs Continuous, PMF, PDF, and CDF, Visualised"
 slug: "Random-Variables-in-R"
 description: "A random variable maps outcomes to numbers. Learn discrete PMFs and continuous PDFs in R, how CDFs unify both, and master R's d/p/q/r function pattern."
 keywords: "random variables in R, discrete random variable R, continuous random variable R, PMF in R, PDF in R, CDF in R, dbinom, dnorm, pnorm, d/p/q/r functions R"
@@ -16,13 +16,13 @@ sidebar_order: 19
 difficulty: "Beginner"
 ---
 
-# Random Variables in R: Discrete vs Continuous, PMF, PDF, and CDF — Visualised
+# Random Variables in R: Discrete vs Continuous, PMF, PDF, and CDF, Visualised
 
-<p class="lead">A random variable is a function that assigns a number to every outcome of a random experiment — and R gives you a consistent set of tools to compute probabilities, densities, quantiles, and random draws for any distribution.</p>
+<p class="lead">A random variable is a function that assigns a number to every outcome of a random experiment, and R gives you a consistent set of tools to compute probabilities, densities, quantiles, and random draws for any distribution.</p>
 
-## What is a random variable — and why does R care?
+## What is a random variable, and why does R care?
 
-Every time you roll a die, flip a coin, or measure a patient's blood pressure, the result is uncertain — but you can still attach numbers to the possible outcomes. That mapping from outcome to number is a **random variable**. Let's see one in action: we'll simulate 1,000 dice rolls and count how often each face appears.
+Every time you roll a die, flip a coin, or measure a patient's blood pressure, the result is uncertain, but you can still attach numbers to the possible outcomes. That mapping from outcome to number is a **random variable**. Let's see one in action: we'll simulate 1,000 dice rolls and count how often each face appears.
 
 ```r
 # Simulate 1,000 rolls of a fair six-sided die
@@ -43,7 +43,7 @@ barplot(freq_table,
         ylab = "Frequency")
 ```
 
-Each face shows up roughly 167 times (1,000 / 6), which matches our intuition for a fair die. The variable `rolls` holds the *realised values* of a random variable — the rule that says "read the top face and record its number."
+Each face shows up roughly 167 times (1,000 / 6), which matches our intuition for a fair die. The variable `rolls` holds the *realised values* of a random variable, the rule that says "read the top face and record its number."
 
 In probability notation, we write the random variable as a capital letter like $X$, and a specific observed value as lowercase $x$. So $X$ = "the face you roll" and $x = 4$ means you rolled a four.
 
@@ -59,10 +59,10 @@ mean(coin_flips)
 #> [1] 0.488
 ```
 
-The mean of 0.488 is close to the theoretical 0.5 — our simulated coin is approximately fair.
+The mean of 0.488 is close to the theoretical 0.5, our simulated coin is approximately fair.
 
 [KEY INSIGHT]
-**A random variable is not a number — it is a rule that turns each random outcome into a number.** The die itself doesn't change, but the random variable defines *which aspect* of the outcome you record (the face value, whether it's even, whether it exceeds 3, etc.).
+**A random variable is not a number, it is a rule that turns each random outcome into a number.** The die itself doesn't change, but the random variable defines *which aspect* of the outcome you record (the face value, whether it's even, whether it exceeds 3, etc.).
 
 **Try it:** Simulate 2,000 rolls of an 8-sided die (faces 1 through 8) and compute the sample mean. It should be close to 4.5.
 
@@ -92,8 +92,8 @@ mean(ex_rolls)
 
 Not all random variables work the same way. The crucial distinction is whether the possible values are **countable** or **uncountable**.
 
-- **Discrete** random variables take on a countable set of values — die faces (1 through 6), number of emails per hour (0, 1, 2, ...), defective items in a batch. You can list them out.
-- **Continuous** random variables can take any value in an interval — height (170.342... cm), temperature (36.6127...°C), waiting time (4.8 minutes). You cannot list every possibility because there are infinitely many values between any two points.
+- **Discrete** random variables take on a countable set of values, die faces (1 through 6), number of emails per hour (0, 1, 2, ...), defective items in a batch. You can list them out.
+- **Continuous** random variables can take any value in an interval, height (170.342... cm), temperature (36.6127...°C), waiting time (4.8 minutes). You cannot list every possibility because there are infinitely many values between any two points.
 
 Let's see how this plays out visually. A discrete distribution looks like a bar chart (each value gets its own bar), while a continuous distribution looks like a smooth curve.
 
@@ -118,13 +118,13 @@ curve(dnorm(x, mean = 0, sd = 1), from = -4, to = 4,
 par(mfrow = c(1, 1))
 ```
 
-The left panel shows that each die face has an exact probability of 1/6. The right panel shows a smooth density curve — the height at any single point is *not* a probability (more on that in the PDF section below).
+The left panel shows that each die face has an exact probability of 1/6. The right panel shows a smooth density curve, the height at any single point is *not* a probability (more on that in the PDF section below).
 
 ![Discrete random variables produce countable outcomes (bar chart); continuous random variables produce values on a real interval (smooth curve).](screenshots/Random-Variables-in-R-discrete-vs-continuous.webp)
 *Figure 1: Discrete random variables produce countable outcomes (bar chart); continuous random variables produce values on a real interval (smooth curve).*
 
 [WARNING]
-**For continuous random variables, P(X = x) is always zero.** You must compute P(a < X < b) — the probability of falling in a *range* — instead. This is the single most important distinction between discrete and continuous distributions.
+**For continuous random variables, P(X = x) is always zero.** You must compute P(a < X < b), the probability of falling in a *range*, instead. This is the single most important distinction between discrete and continuous distributions.
 
 **Try it:** Classify each of the following as discrete or continuous: (a) number of typos on a page, (b) waiting time at a bus stop, (c) shoe size in EU (36, 37, ..., 46). Store your answers in a character vector.
 
@@ -153,7 +153,7 @@ ex_types
 #> "discrete" "continuous"  "discrete"
 ```
 
-**Explanation:** Typos are counted (0, 1, 2, ...), waiting time can be any positive value (3.27 minutes), and EU shoe sizes jump in whole numbers — so they are countable.
+**Explanation:** Typos are counted (0, 1, 2, ...), waiting time can be any positive value (3.27 minutes), and EU shoe sizes jump in whole numbers, so they are countable.
 
 </details>
 
@@ -165,7 +165,7 @@ $$P(X = x) = p(x) \quad \text{for each possible } x$$
 
 Two rules must hold: every probability is between 0 and 1, and all probabilities sum to exactly 1.
 
-The most common discrete distribution is the **binomial** — it counts the number of successes in $n$ independent trials, each with success probability $p$. Its PMF is:
+The most common discrete distribution is the **binomial**, it counts the number of successes in $n$ independent trials, each with success probability $p$. Its PMF is:
 
 $$P(X = x) = \binom{n}{x} p^x (1-p)^{n-x}$$
 
@@ -174,7 +174,7 @@ Where:
 - $x$ = number of successes (0, 1, 2, ..., n)
 - $p$ = probability of success on each trial
 
-*If you're not interested in the math, skip to the code below — the practical R functions are all you need.*
+*If you're not interested in the math, skip to the code below, the practical R functions are all you need.*
 
 In R, the `dbinom()` function computes this PMF. The "d" prefix stands for "density", but for discrete distributions it returns an actual probability.
 
@@ -199,9 +199,9 @@ barplot(pmf_binom, names.arg = x_binom, col = "steelblue",
         ylab = "P(X = x)")
 ```
 
-The tallest bar is at $x = 3$, meaning 3 successes out of 10 is the single most likely outcome when $p = 0.3$. Notice how the bars drop off sharply after $x = 5$ — getting 8 or more successes is nearly impossible with such a low success rate.
+The tallest bar is at $x = 3$, meaning 3 successes out of 10 is the single most likely outcome when $p = 0.3$. Notice how the bars drop off sharply after $x = 5$, getting 8 or more successes is nearly impossible with such a low success rate.
 
-The Poisson distribution is another important discrete distribution. It counts events in a fixed interval (emails per hour, accidents per month) and has a single parameter $\lambda$ (lambda) — the average rate.
+The Poisson distribution is another important discrete distribution. It counts events in a fixed interval (emails per hour, accidents per month) and has a single parameter $\lambda$ (lambda), the average rate.
 
 ```r
 # Poisson PMF: average 5 events per interval
@@ -214,10 +214,10 @@ barplot(pmf_pois, names.arg = x_pois, col = "coral",
         ylab = "P(X = x)")
 ```
 
-The Poisson PMF is skewed right and peaks near $\lambda = 5$. Compared to the binomial, the Poisson has no upper limit on $x$ — you could theoretically see 20 events, though the probability is vanishingly small.
+The Poisson PMF is skewed right and peaks near $\lambda = 5$. Compared to the binomial, the Poisson has no upper limit on $x$, you could theoretically see 20 events, though the probability is vanishingly small.
 
 [TIP]
-**The d in dbinom() stands for density, but for discrete distributions it returns an actual probability — the value of the PMF at that point.** So `dbinom(3, 10, 0.3)` gives you exactly P(X = 3), which is 0.2668.
+**The d in dbinom() stands for density, but for discrete distributions it returns an actual probability, the value of the PMF at that point.** So `dbinom(3, 10, 0.3)` gives you exactly P(X = 3), which is 0.2668.
 
 **Try it:** A basketball player makes 60% of free throws. What is the probability of making exactly 7 out of 10? Use `dbinom()`.
 
@@ -243,7 +243,7 @@ ex_prob
 
 ## What is a probability density function (PDF)?
 
-For continuous random variables, individual point probabilities are zero — so instead of a PMF we use a **probability density function**. The PDF gives the *density* (the height of the curve), and probability comes from the *area under the curve* between two points:
+For continuous random variables, individual point probabilities are zero, so instead of a PMF we use a **probability density function**. The PDF gives the *density* (the height of the curve), and probability comes from the *area under the curve* between two points:
 
 $$P(a < X < b) = \int_a^b f(x)\,dx$$
 
@@ -275,9 +275,9 @@ pnorm(1) - pnorm(-1)
 #> [1] 0.6826895
 ```
 
-About 68.3% of the probability falls within one standard deviation of the mean — this is the famous **68-95-99.7 rule**. The shaded region shows this area visually.
+About 68.3% of the probability falls within one standard deviation of the mean, this is the famous **68-95-99.7 rule**. The shaded region shows this area visually.
 
-A common misconception is that `dnorm(0)` gives you a probability. It does not — it gives you a density value.
+A common misconception is that `dnorm(0)` gives you a probability. It does not, it gives you a density value.
 
 ```r
 # dnorm(0) is a density, NOT a probability
@@ -289,10 +289,10 @@ pnorm(0.01) - pnorm(-0.01)
 #> [1] 0.007978846
 ```
 
-The density at $x = 0$ is about 0.399, but the probability of $X$ falling in the tiny interval $(-0.01, 0.01)$ is only 0.008. As the interval shrinks, the probability approaches zero — which is why P(X = exactly 0) = 0 for continuous distributions.
+The density at $x = 0$ is about 0.399, but the probability of $X$ falling in the tiny interval $(-0.01, 0.01)$ is only 0.008. As the interval shrinks, the probability approaches zero, which is why P(X = exactly 0) = 0 for continuous distributions.
 
 [KEY INSIGHT]
-**The PDF value can exceed 1 — and that is perfectly fine.** For example, `dunif(0.5, min = 0, max = 0.5)` returns 2.0. Only the *total area* under the curve must equal 1, not the height at any point.
+**The PDF value can exceed 1, and that is perfectly fine.** For example, `dunif(0.5, min = 0, max = 0.5)` returns 2.0. Only the *total area* under the curve must equal 1, not the height at any point.
 
 **Try it:** For a normal distribution with mean = 100 and sd = 15 (IQ scores), what fraction of people score between 85 and 115? Use `pnorm()`.
 
@@ -312,7 +312,7 @@ ex_iq_prob
 #> [1] 0.6826895
 ```
 
-**Explanation:** 85 and 115 are each one standard deviation from the mean (100 ± 15). By the 68-95-99.7 rule, about 68.3% of people score in this range — exactly what `pnorm()` confirms.
+**Explanation:** 85 and 115 are each one standard deviation from the mean (100 ± 15). By the 68-95-99.7 rule, about 68.3% of people score in this range, exactly what `pnorm()` confirms.
 
 </details>
 
@@ -355,7 +355,7 @@ abline(h = c(0, 1), lty = 3, col = "gray")
 par(mfrow = c(1, 1))
 ```
 
-The binomial CDF jumps at each integer — the jump height at $x$ equals the PMF value $P(X = x)$. The normal CDF rises smoothly because the random variable can take any value.
+The binomial CDF jumps at each integer, the jump height at $x$ equals the PMF value $P(X = x)$. The normal CDF rises smoothly because the random variable can take any value.
 
 The **quantile function** is the inverse of the CDF: given a probability $p$, it finds the value $x$ such that $P(X \le x) = p$. R uses the `q` prefix for quantile functions.
 
@@ -374,10 +374,10 @@ qnorm(c(0.025, 0.975))  # 95% confidence interval bounds
 #> [1] -1.959964  1.959964
 ```
 
-The value 1.96 appears everywhere in statistics — it is the 97.5th percentile of the standard normal, which defines the bounds of a 95% confidence interval. The binomial median is 3, meaning half the time you get 3 or fewer successes out of 10 with $p = 0.3$.
+The value 1.96 appears everywhere in statistics, it is the 97.5th percentile of the standard normal, which defines the bounds of a 95% confidence interval. The binomial median is 3, meaning half the time you get 3 or fewer successes out of 10 with $p = 0.3$.
 
 [NOTE]
-**R's p-prefix functions compute the CDF: pbinom(), pnorm(), ppois(), punif(). The q-prefix functions invert it.** This pair — CDF and inverse CDF — answers the two most common probability questions: "what probability?" and "what value?".
+**R's p-prefix functions compute the CDF: pbinom(), pnorm(), ppois(), punif(). The q-prefix functions invert it.** This pair, CDF and inverse CDF, answers the two most common probability questions: "what probability?" and "what value?".
 
 **Try it:** A Poisson(lambda=7) variable counts daily customer complaints. What is the probability of receiving at most 5 complaints? Use `ppois()`.
 
@@ -412,7 +412,7 @@ Every distribution in R follows the same naming convention with four function pr
 | `q` | Quantile (inverse CDF) | "What value has this cumulative probability?" |
 | `r` | Random generation | "Give me simulated draws from this distribution." |
 
-Attach the prefix to any distribution name — `binom`, `norm`, `pois`, `unif`, `exp`, `t`, `chisq`, `gamma` — and you get the function. Let's see this consistency in action across four distributions.
+Attach the prefix to any distribution name, `binom`, `norm`, `pois`, `unif`, `exp`, `t`, `chisq`, `gamma`, and you get the function. Let's see this consistency in action across four distributions.
 
 ```r
 # The d/p/q/r pattern works identically across distributions
@@ -515,7 +515,7 @@ cat("Density:", ex_d, "\nCDF:", ex_p, "\nMedian:", ex_q, "\nDraws:", ex_r)
 
 ## How do you simulate random variables and verify their distributions?
 
-Simulation is the best way to build intuition about distributions. The idea is simple: generate a large number of random draws, plot a histogram, and compare it to the theoretical PMF or PDF. As the number of draws grows, the histogram converges to the true distribution — this is the **law of large numbers** in action.
+Simulation is the best way to build intuition about distributions. The idea is simple: generate a large number of random draws, plot a histogram, and compare it to the theoretical PMF or PDF. As the number of draws grows, the histogram converges to the true distribution, this is the **law of large numbers** in action.
 
 Let's start with a discrete example. We'll draw 10,000 samples from a Binomial(10, 0.3) distribution and overlay the theoretical PMF.
 
@@ -558,7 +558,7 @@ curve(dnorm(x, mean = 100, sd = 15), add = TRUE,
       col = "tomato", lwd = 2)
 ```
 
-The smooth red curve fits the histogram beautifully. This is the power of simulation — you can *see* the distribution come alive from random draws.
+The smooth red curve fits the histogram beautifully. This is the power of simulation, you can *see* the distribution come alive from random draws.
 
 How many draws do you need before the histogram looks right? Let's compare 100, 1,000, and 10,000 samples.
 
@@ -583,7 +583,7 @@ par(mfrow = c(1, 1))
 With $n = 100$, the histogram is lumpy and rough. At $n = 1{,}000$, the bell shape is clear. By $n = 10{,}000$, the histogram is nearly indistinguishable from the theoretical curve. More samples always gives a better picture.
 
 [WARNING]
-**Always call set.seed() before random generation if you want reproducible results.** Without it, every run gives different numbers — which makes debugging and sharing results much harder.
+**Always call set.seed() before random generation if you want reproducible results.** Without it, every run gives different numbers, which makes debugging and sharing results much harder.
 
 **Try it:** Simulate 5,000 draws from Poisson(lambda=4), plot a histogram, and check that the sample mean is close to 4.
 
@@ -655,7 +655,7 @@ cat("Sample mean:", mean(my_binom), "\nTheoretical mean:", 20 * 0.4)
 
 </details>
 
-### Exercise 2: Multiple-choice exam — binomial probabilities
+### Exercise 2: Multiple-choice exam, binomial probabilities
 
 An exam has 30 multiple-choice questions, each with 4 options. A student guesses randomly on all of them. Compute: (a) the probability of passing (≥15 correct), (b) the expected score, (c) the probability of getting exactly the expected score. Use binomial functions.
 
@@ -695,7 +695,7 @@ cat("\nP(X = 8):", dbinom(8, n_questions, p_guess))
 #> P(X = 8): 0.1332102
 ```
 
-**Explanation:** The chance of passing by guessing is tiny — about 0.03%. The expected score is 7.5, but since the number correct must be a whole number, we check both 7 and 8. Each has about a 15% probability. This exercise highlights that the expected value doesn't have to be a possible outcome.
+**Explanation:** The chance of passing by guessing is tiny, about 0.03%. The expected score is 7.5, but since the number correct must be a whole number, we check both 7 and 8. Each has about a 15% probability. This exercise highlights that the expected value doesn't have to be a possible outcome.
 
 </details>
 
@@ -740,7 +740,7 @@ hist(my_lifetimes, breaks = 50, freq = FALSE,
 curve(dexp(x, rate = my_rate), add = TRUE, col = "tomato", lwd = 2)
 ```
 
-**Explanation:** About 22.3% of parts survive past 150 hours. The median (69.3 hours) is less than the mean (100 hours) because the exponential distribution is right-skewed — most parts fail relatively early, but a long tail of parts lasts much longer.
+**Explanation:** About 22.3% of parts survive past 150 hours. The median (69.3 hours) is less than the mean (100 hours) because the exponential distribution is right-skewed, most parts fail relatively early, but a long tail of parts lasts much longer.
 
 </details>
 
@@ -798,23 +798,23 @@ cat("\nSample SD:", round(sd(sim_visits), 2),
 
 The sample mean (50.1) and standard deviation (7.2) closely match the theoretical values (50 and 7.07). For a Poisson distribution, both the mean and variance equal $\lambda$, so $SD = \sqrt{\lambda} = \sqrt{50} \approx 7.07$.
 
-The histogram shows that most days see between 40 and 60 visits, with a 90th percentile at 59 — meaning only about 10% of days exceed 59 visits. This kind of analysis helps website owners plan server capacity and set realistic traffic expectations.
+The histogram shows that most days see between 40 and 60 visits, with a 90th percentile at 59, meaning only about 10% of days exceed 59 visits. This kind of analysis helps website owners plan server capacity and set realistic traffic expectations.
 
 ## Summary
 
 | Concept | Discrete | Continuous | R Function Prefix |
 |---|---|---|---|
-| Probability at a point | PMF: $P(X = x)$ — gives actual probabilities | PDF: $f(x)$ — gives density, not probability | `d` (dbinom, dnorm, dpois, ...) |
-| Cumulative probability | CDF: $P(X \le x)$ — staircase function | CDF: $P(X \le x)$ — smooth S-curve | `p` (pbinom, pnorm, ppois, ...) |
+| Probability at a point | PMF: $P(X = x)$, gives actual probabilities | PDF: $f(x)$, gives density, not probability | `d` (dbinom, dnorm, dpois, ...) |
+| Cumulative probability | CDF: $P(X \le x)$, staircase function | CDF: $P(X \le x)$, smooth S-curve | `p` (pbinom, pnorm, ppois, ...) |
 | Inverse CDF (quantile) | Smallest $x$ where $F(x) \ge p$ | Value $x$ where $F(x) = p$ | `q` (qbinom, qnorm, qpois, ...) |
 | Random generation | Simulated integer draws | Simulated real-valued draws | `r` (rbinom, rnorm, rpois, ...) |
 
 **Key takeaways:**
 
-1. A random variable maps experiment outcomes to numbers — discrete if countable, continuous if uncountable
+1. A random variable maps experiment outcomes to numbers, discrete if countable, continuous if uncountable
 2. Discrete distributions use PMFs (bar charts); continuous distributions use PDFs (smooth curves)
 3. The CDF works for both types and answers "what is P(X ≤ x)?"
-4. R's d/p/q/r naming convention gives you four tools for every distribution — learn the pattern once, apply it everywhere
+4. R's d/p/q/r naming convention gives you four tools for every distribution, learn the pattern once, apply it everywhere
 5. Simulation with r-prefix functions lets you verify theory and build intuition
 
 ![Overview of random variable concepts: from experiment to outcome to PMF/PDF and CDF.](screenshots/Random-Variables-in-R-concept-overview.webp)
@@ -822,17 +822,17 @@ The histogram shows that most days see between 40 and 60 visits, with a 90th per
 
 ## References
 
-1. R Core Team — *An Introduction to R*, Ch. 8: Probability distributions. [Link](https://cran.r-project.org/doc/manuals/r-release/R-intro.html#Probability-distributions)
-2. Dekking, F.M. et al. — *A Modern Introduction to Probability and Statistics*. Springer (2005).
-3. Wickham, H. & Grolemund, G. — *R for Data Science*, 2nd Edition. O'Reilly (2023). [Link](https://r4ds.hadley.nz/)
-4. CRAN — Distributions task view. [Link](https://cran.r-project.org/web/views/Distributions.html)
-5. Rice, J.A. — *Mathematical Statistics and Data Analysis*, 3rd Edition. Cengage (2006).
-6. R Documentation — `?Distributions` (base R). [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/Distributions.html)
-7. Kross, S. — *Introduction to dnorm, pnorm, qnorm, and rnorm*. [Link](https://seankross.com/notes/dpqr/)
-8. Probability Course — *CDF and PDF*. [Link](https://www.probabilitycourse.com/chapter3/3_2_1_cdf.php)
+1. R Core Team, *An Introduction to R*, Ch. 8: Probability distributions. [Link](https://cran.r-project.org/doc/manuals/r-release/R-intro.html#Probability-distributions)
+2. Dekking, F.M. et al., *A Modern Introduction to Probability and Statistics*. Springer (2005).
+3. Wickham, H. & Grolemund, G., *R for Data Science*, 2nd Edition. O'Reilly (2023). [Link](https://r4ds.hadley.nz/)
+4. CRAN, Distributions task view. [Link](https://cran.r-project.org/web/views/Distributions.html)
+5. Rice, J.A., *Mathematical Statistics and Data Analysis*, 3rd Edition. Cengage (2006).
+6. R Documentation, `?Distributions` (base R). [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/Distributions.html)
+7. Kross, S., *Introduction to dnorm, pnorm, qnorm, and rnorm*. [Link](https://seankross.com/notes/dpqr/)
+8. Probability Course, *CDF and PDF*. [Link](https://www.probabilitycourse.com/chapter3/3_2_1_cdf.php)
 
 ## Continue Learning
 
-1. [Probability Axioms in R](Sample-Spaces-Events-and-Probability-Axioms-in-R-With-Monte-Carlo-Proof.html) — Prove the three rules of probability through hands-on Monte Carlo simulation before touching any formula.
-2. [Conditional Probability in R](Conditional-Probability-in-R.html) — Master P(A|B), independence tests, and Bayes' theorem with interactive R code.
-3. [Linear Regression](Linear-Regression.html) — See how random variables and probability distributions underpin regression modelling and prediction intervals.
+1. [Probability Axioms in R](Sample-Spaces-Events-and-Probability-Axioms-in-R-With-Monte-Carlo-Proof.html), Prove the three rules of probability through hands-on Monte Carlo simulation before touching any formula.
+2. [Conditional Probability in R](Conditional-Probability-in-R.html), Master P(A|B), independence tests, and Bayes' theorem with interactive R code.
+3. [Linear Regression](Linear-Regression.html), See how random variables and probability distributions underpin regression modelling and prediction intervals.

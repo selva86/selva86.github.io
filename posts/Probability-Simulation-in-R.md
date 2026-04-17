@@ -1,7 +1,7 @@
 ---
 title: "Probability Simulation in R: Dice, Cards & Birthday Problem Solved"
 slug: "Probability-Simulation-in-R"
-description: "Master probability simulation in R — dice rolls, card draws, and the birthday paradox. Runnable examples, theoretical formula comparisons, convergence plots."
+description: "Master probability simulation in R, dice rolls, card draws, and the birthday paradox. Runnable examples, theoretical formula comparisons, convergence plots."
 keywords: "probability simulation in R, Monte Carlo R, birthday problem R, dice simulation R, card simulation R, sample() function, replicate() function, law of large numbers"
 mathjax: true
 webr: true
@@ -16,11 +16,11 @@ auto_link_case_sensitive: false
 
 # Probability Simulation in R: Dice, Cards & Birthday Problem Solved
 
-<p class="lead">Probability simulation in R uses random sampling — <code>sample()</code> and <code>replicate()</code> — to estimate probabilities that are painful or impossible to derive by hand. Three classic problems (dice sums, card draws, and the birthday paradox) show how ten lines of code can match a formula to within 0.1%, and crack problems where no tidy formula exists.</p>
+<p class="lead">Probability simulation in R uses random sampling, <code>sample()</code> and <code>replicate()</code>, to estimate probabilities that are painful or impossible to derive by hand. Three classic problems (dice sums, card draws, and the birthday paradox) show how ten lines of code can match a formula to within 0.1%, and crack problems where no tidy formula exists.</p>
 
 ## How do you simulate a dice roll in R?
 
-Forget the formula for a moment. If you roll two dice a million times and count how often the sum is 7 or more, that fraction *is* the probability. R's `sample()` gives you one roll; `replicate()` repeats the experiment as many times as you want. You're about to estimate a non-trivial probability in three lines — and compare it to the closed-form answer.
+Forget the formula for a moment. If you roll two dice a million times and count how often the sum is 7 or more, that fraction *is* the probability. R's `sample()` gives you one roll; `replicate()` repeats the experiment as many times as you want. You're about to estimate a non-trivial probability in three lines, and compare it to the closed-form answer.
 
 Here's the whole simulation. Each trial rolls two dice, sums them, and checks if the sum is at least 7. Running the trial 100,000 times and averaging the TRUE/FALSE results gives us the probability.
 
@@ -31,9 +31,9 @@ p_hat
 #> [1] 0.58309
 ```
 
-The simulated probability is 0.583. The exact answer — the number of dice-pair outcomes where the sum is ≥ 7 divided by 36 total outcomes — is 21/36 = 0.5833. Three lines of R got us within 0.0003 of the truth.
+The simulated probability is 0.583. The exact answer, the number of dice-pair outcomes where the sum is ≥ 7 divided by 36 total outcomes, is 21/36 = 0.5833. Three lines of R got us within 0.0003 of the truth.
 
-Let me unpack what that one-liner is doing. `sample(1:6, 2, replace = TRUE)` picks two numbers from 1 through 6 with replacement — one dice roll. `sum()` adds them. `replicate(100000, ...)` runs that whole expression 100,000 times and returns a logical vector. `mean()` of a logical vector gives the proportion of TRUEs, which is our probability estimate.
+Let me unpack what that one-liner is doing. `sample(1:6, 2, replace = TRUE)` picks two numbers from 1 through 6 with replacement, one dice roll. `sum()` adds them. `replicate(100000, ...)` runs that whole expression 100,000 times and returns a logical vector. `mean()` of a logical vector gives the proportion of TRUEs, which is our probability estimate.
 
 ```r
 # Anatomy of one trial
@@ -50,10 +50,10 @@ theoretical
 #> [1] 0.5833333
 ```
 
-That first roll — a 6 and a 1 — sums to 7, so it counts as a success. Multiply that logic by 100,000 independent trials and you converge on the true probability. The theoretical 21/36 comes from listing every (die1, die2) pair where the sum is ≥ 7 and dividing by the 36 total pairs.
+That first roll, a 6 and a 1, sums to 7, so it counts as a success. Multiply that logic by 100,000 independent trials and you converge on the true probability. The theoretical 21/36 comes from listing every (die1, die2) pair where the sum is ≥ 7 and dividing by the 36 total pairs.
 
 [KEY INSIGHT]
-**Simulation turns a probability question into a counting question.** You don't need a formula — you just need a way to run the random experiment once, repeat it, and count successes. Any problem you can *describe* procedurally, you can simulate.
+**Simulation turns a probability question into a counting question.** You don't need a formula, you just need a way to run the random experiment once, repeat it, and count successes. Any problem you can *describe* procedurally, you can simulate.
 
 **Try it:** Simulate rolling a single fair die 10,000 times. Estimate the probability of getting a 6. Store the result in `ex_single_die`.
 
@@ -84,7 +84,7 @@ ex_single_die
 
 ## How do you simulate drawing cards from a deck?
 
-A deck of cards is just a vector of 52 labels — 13 ranks across 4 suits. `sample()` with `replace = FALSE` (the default) deals a hand: it picks without replacement, so no card appears twice.
+A deck of cards is just a vector of 52 labels, 13 ranks across 4 suits. `sample()` with `replace = FALSE` (the default) deals a hand: it picks without replacement, so no card appears twice.
 
 Let's build the deck, deal one hand, then ask a harder question: what's the probability of a flush (all five cards the same suit)?
 
@@ -111,7 +111,7 @@ hand
 #> 23   10 Diamonds
 ```
 
-`expand.grid()` gives us all rank × suit combinations — exactly 52 rows. `sample(nrow(deck), 5)` picks 5 distinct row indices; we use those to pull a hand from the data frame. The seeded hand above is a mix of suits — no flush this time.
+`expand.grid()` gives us all rank × suit combinations, exactly 52 rows. `sample(nrow(deck), 5)` picks 5 distinct row indices; we use those to pull a hand from the data frame. The seeded hand above is a mix of suits, no flush this time.
 
 Now we repeat the deal 200,000 times and check how often all five suits match. The check is one line: `length(unique(hand$suit)) == 1`.
 
@@ -126,7 +126,7 @@ p_flush
 #> [1] 0.002
 ```
 
-That's 0.002 — about 1 in 500 hands. The exact value is 5108 possible flushes out of C(52,5) = 2,598,960 hands, which is 0.001981. Our estimate rounds to the same three decimals.
+That's 0.002, about 1 in 500 hands. The exact value is 5108 possible flushes out of C(52,5) = 2,598,960 hands, which is 0.001981. Our estimate rounds to the same three decimals.
 
 ```r
 # Exact flush probability (includes straight flushes)
@@ -135,10 +135,10 @@ p_flush_exact
 #> [1] 0.001980792
 ```
 
-The `choose(52, 5)` function is R's way of computing "52 choose 5" — the number of ways to pick 5 cards from 52 ignoring order. That denominator, paired with the 5108 flush-friendly combinations counted by combinatorics, gives the exact probability simulation is approximating.
+The `choose(52, 5)` function is R's way of computing "52 choose 5", the number of ways to pick 5 cards from 52 ignoring order. That denominator, paired with the 5108 flush-friendly combinations counted by combinatorics, gives the exact probability simulation is approximating.
 
 [TIP]
-**`sample(x, k, replace = FALSE)` is the default — use it for dealing cards.** If you forget and pass `replace = TRUE`, you'll deal the same card twice and silently corrupt the simulation. Always state the replacement flag explicitly when it matters.
+**`sample(x, k, replace = FALSE)` is the default, use it for dealing cards.** If you forget and pass `replace = TRUE`, you'll deal the same card twice and silently corrupt the simulation. Always state the replacement flag explicitly when it matters.
 
 **Try it:** Estimate the probability that a 5-card hand contains at least one Ace. Store the result in `ex_ace`.
 
@@ -172,7 +172,7 @@ ex_ace
 
 Here's the problem that breaks intuition. How many people do you need in a room before there's a better-than-even chance that two share a birthday? Most people guess 100 or 180. The actual answer is 23. Simulation makes this believable in four lines.
 
-A single simulated group is `sample(1:365, 23, replace = TRUE)` — 23 random days with replacement (two people *can* share). `any(duplicated(...))` checks whether any day repeats.
+A single simulated group is `sample(1:365, 23, replace = TRUE)`, 23 random days with replacement (two people *can* share). `any(duplicated(...))` checks whether any day repeats.
 
 ```r
 # One group of 23 people
@@ -193,7 +193,7 @@ p_23
 #> [1] 0.5095
 ```
 
-50.95% — just over half. The exact formula gives 0.5073. Our simulation is off by 0.002, well inside the margin of error for 10,000 trials.
+50.95%, just over half. The exact formula gives 0.5073. Our simulation is off by 0.002, well inside the margin of error for 10,000 trials.
 
 The formula itself is worth seeing, because the simulation result makes it intuitive in a way the algebra doesn't:
 
@@ -242,7 +242,7 @@ bday_plot
 The orange dots (simulation) hug the blue line (formula) across the entire range. The dashed crosshair marks the surprise: at n = 23, the curve crosses 0.5. By n = 40 the probability is already 89%.
 
 [WARNING]
-**`duplicated()` checks if a value appeared *earlier* in the vector — not the same as `unique()`.** For this problem `any(duplicated(x))` is what you want; `length(unique(x)) < length(x)` also works. Do not confuse `duplicated()` with `!unique()` — they return different-length vectors.
+**`duplicated()` checks if a value appeared *earlier* in the vector, not the same as `unique()`.** For this problem `any(duplicated(x))` is what you want; `length(unique(x)) < length(x)` also works. Do not confuse `duplicated()` with `!unique()`, they return different-length vectors.
 
 **Try it:** Estimate the probability of a shared birthday in a group of 50 people using 5,000 simulated groups. Store the result in `ex_50`.
 
@@ -265,7 +265,7 @@ ex_50
 #> [1] 0.9704
 ```
 
-**Explanation:** The formula gives 0.9704 — the simulation matches to four decimals. By 50 people a shared birthday is nearly certain.
+**Explanation:** The formula gives 0.9704, the simulation matches to four decimals. By 50 people a shared birthday is nearly certain.
 
 </details>
 
@@ -310,7 +310,7 @@ conv_plot
 ```
 
 ![The five-step pattern every probability simulation follows in R.](screenshots/Probability-Simulation-in-R-simulation-loop.webp)
-*Figure 1: Every probability simulation in R follows the same five-step loop — define the experiment, sample one outcome, replicate, average, then compare to the formula when one exists.*
+*Figure 1: Every probability simulation in R follows the same five-step loop, define the experiment, sample one outcome, replicate, average, then compare to the formula when one exists.*
 
 At 100 rolls the estimate is 0.54, off by 0.04. By 10,000 rolls the error is under 0.003. At a million rolls, we match the truth to the fourth decimal. The *rate* of improvement follows a clean rule: the standard error shrinks as $\sqrt{N}$:
 
@@ -322,7 +322,7 @@ Where:
 - $p$ = the true probability we're trying to estimate
 - $N$ = the number of simulated trials
 
-For $p = 0.58$ and $N = 10{,}000$, that gives SE ≈ 0.005. Our actual error at that sample size was 0.003 — inside the expected range.
+For $p = 0.58$ and $N = 10{,}000$, that gives SE ≈ 0.005. Our actual error at that sample size was 0.003, inside the expected range.
 
 [KEY INSIGHT]
 **Error shrinks as √N, not N. Tenfold accuracy costs 100× the runs.** To cut your simulation error in half, quadruple the number of reps. This is why simulations that need four decimal places of precision cost *millions* of trials, not thousands.
@@ -351,7 +351,7 @@ c(ex_small_n, ex_big_n, truth = 1/6)
 #> 0.1800000 0.1670900 0.1666667
 ```
 
-**Explanation:** At N = 100 the estimate is 0.18 (error 0.013); at N = 100,000 it's 0.167 (error 0.0004). Thousand-fold more trials bought roughly 32× better accuracy — exactly what √N predicts.
+**Explanation:** At N = 100 the estimate is 0.18 (error 0.013); at N = 100,000 it's 0.167 (error 0.0004). Thousand-fold more trials bought roughly 32× better accuracy, exactly what √N predicts.
 
 </details>
 
@@ -367,7 +367,7 @@ Simulation and formulas are not rivals. They answer the same question with diffe
 | You need an answer to 6+ decimal places | Formula | Simulation noise dominates |
 | The problem has no closed-form solution | Simulation | Only option |
 
-Run both methods side by side whenever the formula exists — that's how you build confidence the code reflects the problem you meant to solve. Then push simulation into territory where formulas give up.
+Run both methods side by side whenever the formula exists, that's how you build confidence the code reflects the problem you meant to solve. Then push simulation into territory where formulas give up.
 
 ```r
 # Simulate-first validation: verify a known formula, then extend beyond it
@@ -389,10 +389,10 @@ dependent
 #> [1] 0.47436
 ```
 
-The classical version matches 21/36 = 0.583 — a sanity check that our simulation mechanics are correct. The dependent version has no tidy formula (you'd have to enumerate the conditional distribution), but swapping three lines of simulation code gives 0.474. That's the value of simulation: once the machinery is trustworthy, it handles problems the textbook can't.
+The classical version matches 21/36 = 0.583, a sanity check that our simulation mechanics are correct. The dependent version has no tidy formula (you'd have to enumerate the conditional distribution), but swapping three lines of simulation code gives 0.474. That's the value of simulation: once the machinery is trustworthy, it handles problems the textbook can't.
 
 [NOTE]
-**Simulation is how statisticians catch errors in their own derivations.** If your formula predicts 0.5833 and your simulation returns 0.48 with 1M trials, one of them is wrong — and it's almost never the simulation. Use discrepancies as a debugging signal, not an inconvenience.
+**Simulation is how statisticians catch errors in their own derivations.** If your formula predicts 0.5833 and your simulation returns 0.48 with 1M trials, one of them is wrong, and it's almost never the simulation. Use discrepancies as a debugging signal, not an inconvenience.
 
 **Try it:** For each scenario below, decide whether to use a formula or simulation. Store your three choices as character vector `ex_choice` with values `"formula"` or `"simulation"`.
 
@@ -416,7 +416,7 @@ ex_choice
 #> "formula" "simulation" "simulation"
 ```
 
-**Explanation:** (A) one flip is trivially 0.5. (B) "partial replacement" breaks standard combinatorics — simulate. (C) summing 10 twenty-sided dice has a formula (convolution), but it's enough of a chore that simulation wins on time-to-answer.
+**Explanation:** (A) one flip is trivially 0.5. (B) "partial replacement" breaks standard combinatorics, simulate. (C) summing 10 twenty-sided dice has a formula (convolution), but it's enough of a chore that simulation wins on time-to-answer.
 
 </details>
 
@@ -444,7 +444,7 @@ my_result_1
 #> [1] 0.35995
 ```
 
-**Explanation:** Sums 15..20 occur in 21 of 100 outcomes (by enumeration), so the exact answer is 0.36. Simulation lands at 0.360 — a perfect match.
+**Explanation:** Sums 15..20 occur in 21 of 100 outcomes (by enumeration), so the exact answer is 0.36. Simulation lands at 0.360, a perfect match.
 
 </details>
 
@@ -509,7 +509,7 @@ my_result_3
 #> [1] 57
 ```
 
-**Explanation:** The exact threshold is n = 57 (P ≈ 0.9901). Your simulated answer may vary by ±1 because of Monte Carlo noise near the 0.99 boundary — that's part of the lesson.
+**Explanation:** The exact threshold is n = 57 (P ≈ 0.9901). Your simulated answer may vary by ±1 because of Monte Carlo noise near the 0.99 boundary, that's part of the lesson.
 
 </details>
 
@@ -544,7 +544,7 @@ round(mean(final_df$abs_error), 4)
 #> [1] 0.0081
 ```
 
-Two functions, one data frame, and a single `which()` call recover the textbook answer: 23 people. The mean absolute error across 59 values of n is under 0.01 — tighter than the resolution of most published birthday-problem tables.
+Two functions, one data frame, and a single `which()` call recover the textbook answer: 23 people. The mean absolute error across 59 values of n is under 0.01, tighter than the resolution of most published birthday-problem tables.
 
 ## Summary
 
@@ -560,21 +560,21 @@ Two functions, one data frame, and a single `which()` call recover the textbook 
 | Run lengths | `rle(x)` | Streaks in coin flips or Bernoulli sequences |
 | Combinatorial count | `choose(n, k)` | Exact denominators for formula checks |
 
-Three rules of thumb from this tutorial. First, every simulation is five lines: set a seed, define one trial, replicate it, average the TRUEs, compare to the formula if one exists. Second, error shrinks as √N — so chase precision through patience, not cleverness. Third, simulate first when you're unsure of a derivation; the numerical answer is a cheap, trustworthy second opinion.
+Three rules of thumb from this tutorial. First, every simulation is five lines: set a seed, define one trial, replicate it, average the TRUEs, compare to the formula if one exists. Second, error shrinks as √N, so chase precision through patience, not cleverness. Third, simulate first when you're unsure of a derivation; the numerical answer is a cheap, trustworthy second opinion.
 
 ## References
 
-1. R Core Team — `sample()` documentation. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/sample.html)
-2. R Core Team — `replicate()` documentation. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/lapply.html)
-3. Wickham, H. — *Advanced R*, 2nd Edition. CRC Press, 2019. Chapter 24: Profiling and improving performance. [Link](https://adv-r.hadley.nz/perf-measure.html)
-4. Grinstead, C. M. & Snell, J. L. — *Introduction to Probability*, 2nd rev. edition. American Mathematical Society. Chapter 3 covers the birthday problem. [Link](https://math.dartmouth.edu/~prob/prob/prob.pdf)
-5. Ross, S. — *A First Course in Probability*, 10th Edition. Pearson, 2019. Classical counting and axioms.
+1. R Core Team, `sample()` documentation. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/sample.html)
+2. R Core Team, `replicate()` documentation. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/lapply.html)
+3. Wickham, H., *Advanced R*, 2nd Edition. CRC Press, 2019. Chapter 24: Profiling and improving performance. [Link](https://adv-r.hadley.nz/perf-measure.html)
+4. Grinstead, C. M. & Snell, J. L., *Introduction to Probability*, 2nd rev. edition. American Mathematical Society. Chapter 3 covers the birthday problem. [Link](https://math.dartmouth.edu/~prob/prob/prob.pdf)
+5. Ross, S., *A First Course in Probability*, 10th Edition. Pearson, 2019. Classical counting and axioms.
 6. Diaconis, P. & Mosteller, F. (1989). Methods for Studying Coincidences. *Journal of the American Statistical Association*, 84(408), 853–861. [Link](https://www.jstor.org/stable/2290058)
-7. Robinson, D. — The birthday paradox puzzle: tidy simulation in R. *Variance Explained*. [Link](http://varianceexplained.org/r/birthday-problem/)
-8. Grolemund, G. — *Hands-On Programming with R*, Project 1: Weighted Dice. O'Reilly / RStudio Education. [Link](https://rstudio-education.github.io/hopr/project-1-weighted-dice.html)
+7. Robinson, D., The birthday paradox puzzle: tidy simulation in R. *Variance Explained*. [Link](http://varianceexplained.org/r/birthday-problem/)
+8. Grolemund, G., *Hands-On Programming with R*, Project 1: Weighted Dice. O'Reilly / RStudio Education. [Link](https://rstudio-education.github.io/hopr/project-1-weighted-dice.html)
 
 ## Continue Learning
 
-- [Conditional Probability in R](Conditional-Probability-in-R.html) — simulate P(A|B), test independence, apply Bayes' theorem to a medical-testing scenario where the formula contradicts intuition.
-- [Counting Principles in R](Counting-Principles-in-R.html) — permutations, combinations, and the multiplication rule that power the exact denominators behind every formula-vs-simulation check in this tutorial.
-- [Central Limit Theorem in R](Central-Limit-Theorem-in-R.html) — why sample means go normal, how the √N convergence rule generalizes beyond probability estimates, and how to visualize the CLT with simulation.
+- [Conditional Probability in R](Conditional-Probability-in-R.html), simulate P(A|B), test independence, apply Bayes' theorem to a medical-testing scenario where the formula contradicts intuition.
+- [Counting Principles in R](Counting-Principles-in-R.html), permutations, combinations, and the multiplication rule that power the exact denominators behind every formula-vs-simulation check in this tutorial.
+- [Central Limit Theorem in R](Central-Limit-Theorem-in-R.html), why sample means go normal, how the √N convergence rule generalizes beyond probability estimates, and how to visualize the CLT with simulation.

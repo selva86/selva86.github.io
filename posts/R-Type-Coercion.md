@@ -16,13 +16,13 @@ difficulty: "Intermediate"
 
 # R Type Coercion: Why Your Numeric Columns Silently Turn Into Characters
 
-<p class="lead">R constantly converts values between types behind your back — logical becomes integer, integer becomes double, anything becomes character. The rule it follows is a one-way ladder, and the moment a stray string sneaks into a numeric vector, the whole column becomes character and your arithmetic silently fails.</p>
+<p class="lead">R constantly converts values between types behind your back, logical becomes integer, integer becomes double, anything becomes character. The rule it follows is a one-way ladder, and the moment a stray string sneaks into a numeric vector, the whole column becomes character and your arithmetic silently fails.</p>
 
 This post explains the coercion hierarchy, the two flavours of conversion (implicit vs explicit), the famous *"NAs introduced by coercion"* warning, and the five-step workflow for converting character columns to numeric safely.
 
 ## Why do R's types silently change on you?
 
-R has no row-by-row type — it has *vector* types. Every atomic vector is one type, top to bottom, which means the moment you mix types inside a `c()` call or read a CSV with one stray letter in an otherwise-numeric column, R has to pick **one** type for the whole vector. It resolves the conflict with a fixed hierarchy, always upgrading to the more general type. The ladder looks like this: `logical → integer → double → character`.
+R has no row-by-row type, it has *vector* types. Every atomic vector is one type, top to bottom, which means the moment you mix types inside a `c()` call or read a CSV with one stray letter in an otherwise-numeric column, R has to pick **one** type for the whole vector. It resolves the conflict with a fixed hierarchy, always upgrading to the more general type. The ladder looks like this: `logical → integer → double → character`.
 
 Here is the hierarchy in action. Watch the `class()` output change each time we mix in a "bigger" type.
 
@@ -45,9 +45,9 @@ sum(c(TRUE, FALSE, TRUE, TRUE))
 #> [1] 3
 ```
 
-The last two examples are where real bugs live. The moment a single `"x"` lands in the vector, every number is stringified: `"1"`, `"2.5"`, `"TRUE"`. And `sum()` on a logical vector is a hidden, *useful* coercion — it's how you count `TRUE`s without ever thinking of it as type conversion. R's rule is simple: when types disagree, climb the ladder until one type fits everyone.
+The last two examples are where real bugs live. The moment a single `"x"` lands in the vector, every number is stringified: `"1"`, `"2.5"`, `"TRUE"`. And `sum()` on a logical vector is a hidden, *useful* coercion, it's how you count `TRUE`s without ever thinking of it as type conversion. R's rule is simple: when types disagree, climb the ladder until one type fits everyone.
 
-**Try it:** Build a vector `ex_mix` that contains `FALSE`, `3L`, and `1.4` — predict the class before running, then verify with `class()` and `typeof()`.
+**Try it:** Build a vector `ex_mix` that contains `FALSE`, `3L`, and `1.4`, predict the class before running, then verify with `class()` and `typeof()`.
 
 ```r
 # Try it: predict the class, then check
@@ -79,7 +79,7 @@ Four base atomic types, one strict ordering. `logical` sits at the bottom becaus
 
 ![R's coercion hierarchy: logical, integer, double, character](screenshots/R-Type-Coercion-hierarchy.webp)
 
-*Figure 1: R always coerces upward. A single `character` in the mix pulls the entire vector to character — which is why one typo in a CSV column can ruin your arithmetic.*
+*Figure 1: R always coerces upward. A single `character` in the mix pulls the entire vector to character, which is why one typo in a CSV column can ruin your arithmetic.*
 
 | From → To | How it converts | Example |
 |---|---|---|
@@ -103,12 +103,12 @@ round(2.9)              # this is what you probably meant
 #> [1] 3
 ```
 
-`as.integer()` *truncates* — it drops the decimal part. That's the same as `trunc()`, and it surprises almost everyone coming from Python or Excel. Whenever you want a genuine rounded integer, use `round()` (or `ceiling()` / `floor()` if direction matters) and *then* coerce.
+`as.integer()` *truncates*, it drops the decimal part. That's the same as `trunc()`, and it surprises almost everyone coming from Python or Excel. Whenever you want a genuine rounded integer, use `round()` (or `ceiling()` / `floor()` if direction matters) and *then* coerce.
 
 [TIP]
 **Use typeof() when class() isn't specific enough.** `class(1L)` and `class(1.5)` both say `"numeric"`, which hides whether you're working with integers or doubles. `typeof()` returns `"integer"` vs `"double"` so you can spot subtle issues like integer overflow or unexpected divisions.
 
-**Try it:** You have `x <- c(1.2, 3.7, 5.1)`. Write one line that produces the *rounded* integer vector `c(1L, 4L, 5L)` — not the truncated version.
+**Try it:** You have `x <- c(1.2, 3.7, 5.1)`. Write one line that produces the *rounded* integer vector `c(1L, 4L, 5L)`, not the truncated version.
 
 ```r
 # Try it: round before you coerce
@@ -137,9 +137,9 @@ typeof(ex_rounded)
 
 </details>
 
-## Why does 'NAs introduced by coercion' appear — and how do you fix it?
+## Why does 'NAs introduced by coercion' appear, and how do you fix it?
 
-You'll meet this warning the first time you read a CSV where one cell has a stray dollar sign or a footnote marker. `as.numeric()` happily converts `"1.5"` to `1.5` but collapses `"N/A"`, `"—"`, or `"$42.00"` to `NA` and prints a warning. The warning is **your friend** — it's telling you a column you thought was numeric has dirty values you need to handle on purpose.
+You'll meet this warning the first time you read a CSV where one cell has a stray dollar sign or a footnote marker. `as.numeric()` happily converts `"1.5"` to `1.5` but collapses `"N/A"`, `"—"`, or `"$42.00"` to `NA` and prints a warning. The warning is **your friend**, it's telling you a column you thought was numeric has dirty values you need to handle on purpose.
 
 ```r
 # The classic scenario: a "numeric" column with contaminants
@@ -156,7 +156,7 @@ sum(is.na(as.numeric(raw)))
 #> [1] 4
 ```
 
-Four values failed to parse — the `"N/A"` text, the dollar sign, the empty string, and the comma-thousand separator. `"3.14"` survived. In a 10,000-row column you'd never spot this by eye, which is why the fix is not to silence the warning but to *clean first*, then convert.
+Four values failed to parse, the `"N/A"` text, the dollar sign, the empty string, and the comma-thousand separator. `"3.14"` survived. In a 10,000-row column you'd never spot this by eye, which is why the fix is not to silence the warning but to *clean first*, then convert.
 
 Here is the workflow in code: peek at the offenders, clean them, then coerce.
 
@@ -183,7 +183,7 @@ which(is.na(parsed))
 #> [1] 3 5
 ```
 
-Four clean numbers, two deliberate `NA`s for the `"N/A"` and the empty cell, and no silent data loss. `suppressWarnings()` is appropriate **only** after you've cleaned the known offenders — never as the first thing you reach for.
+Four clean numbers, two deliberate `NA`s for the `"N/A"` and the empty cell, and no silent data loss. `suppressWarnings()` is appropriate **only** after you've cleaned the known offenders, never as the first thing you reach for.
 
 ![Safe coercion workflow: peek, clean, convert, audit](screenshots/R-Type-Coercion-safe-convert.webp)
 
@@ -192,7 +192,7 @@ Four clean numbers, two deliberate `NA`s for the `"N/A"` and the empty cell, and
 [WARNING]
 **Never wrap as.numeric() in suppressWarnings() as your first move.** The warning is the only sign you've lost data. Silence it only after you've cleaned the offending values, and always audit with `sum(is.na(result))` afterwards to catch the last stragglers.
 
-**Try it:** You receive `ex_raw <- c(" 12", "15kg", "20", "n/a")`. Produce a numeric vector where only `"15kg"` and `"n/a"` become `NA` — `"12"` and `"20"` should come through clean.
+**Try it:** You receive `ex_raw <- c(" 12", "15kg", "20", "n/a")`. Produce a numeric vector where only `"15kg"` and `"n/a"` become `NA`, `"12"` and `"20"` should come through clean.
 
 ```r
 # Try it: clean then convert
@@ -222,7 +222,7 @@ ex_num
 
 ## How do implicit and explicit coercion differ in R?
 
-Every coercion in R is one of two flavours. **Implicit** coercion happens automatically when an operation needs values of compatible types — for example, `1 + TRUE` works because R quietly promotes `TRUE` to `1`. **Explicit** coercion is when you call a conversion function like `as.numeric()`, `as.character()`, `as.integer()` yourself.
+Every coercion in R is one of two flavours. **Implicit** coercion happens automatically when an operation needs values of compatible types, for example, `1 + TRUE` works because R quietly promotes `TRUE` to `1`. **Explicit** coercion is when you call a conversion function like `as.numeric()`, `as.character()`, `as.integer()` yourself.
 
 You need both, but the rule of thumb is: *prefer explicit when the stakes are high*. Implicit coercion is convenient in interactive work (`sum(my_logical)` to count `TRUE`s), but in production code it hides intent and can paper over bugs. Explicit coercion documents what you meant to do and makes failures loud.
 
@@ -247,10 +247,10 @@ NA + TRUE
 #> [1] NA
 ```
 
-The `mean()` example is lovely: it silently promotes logical to integer and returns the proportion of `TRUE` values — often exactly what you want. The `NA + TRUE` example is the dark side: implicit promotion combined with `NA` propagation silently produces `NA` instead of throwing an error, and the bug only surfaces downstream.
+The `mean()` example is lovely: it silently promotes logical to integer and returns the proportion of `TRUE` values, often exactly what you want. The `NA + TRUE` example is the dark side: implicit promotion combined with `NA` propagation silently produces `NA` instead of throwing an error, and the bug only surfaces downstream.
 
 [NOTE]
-**Date/time objects use their own coercion rules.** `as.numeric()` on a `Date` returns days since 1970-01-01; on a `POSIXct` it returns seconds. Neither is a bug — they're documented — but they catch people out. If you mean "parse this string as a date", use `as.Date()` or `lubridate`, not `as.numeric()`.
+**Date/time objects use their own coercion rules.** `as.numeric()` on a `Date` returns days since 1970-01-01; on a `POSIXct` it returns seconds. Neither is a bug, they're documented, but they catch people out. If you mean "parse this string as a date", use `as.Date()` or `lubridate`, not `as.numeric()`.
 
 **Try it:** Given `ex_v <- c(TRUE, FALSE, TRUE, NA, TRUE)`, count how many `TRUE`s it has *without* letting the `NA` ruin the answer.
 
@@ -316,10 +316,10 @@ as.integer(big)
 #> [1] NA
 ```
 
-Bug 4 is the subtlest and the cause of some spectacular production incidents. `factor(c("10","20","30"))` stores the *levels* as a character lookup and each row as a small integer pointing into that lookup. `as.integer(f)` returns those integer positions (`1, 2, 3`) — not the numeric values the strings represent. The fix is `as.numeric(as.character(f))`: first back to characters, then to numbers.
+Bug 4 is the subtlest and the cause of some spectacular production incidents. `factor(c("10","20","30"))` stores the *levels* as a character lookup and each row as a small integer pointing into that lookup. `as.integer(f)` returns those integer positions (`1, 2, 3`), not the numeric values the strings represent. The fix is `as.numeric(as.character(f))`: first back to characters, then to numbers.
 
 [WARNING]
-**Factor -> numeric is a two-step: character first, numeric second.** `as.numeric(factor)` silently returns the level *codes*, not the underlying numbers. Always write `as.numeric(as.character(f))`, or better, fix the read step so the column never becomes a factor to begin with (`read.csv(..., stringsAsFactors = FALSE)` — now the default in R 4.0+).
+**Factor -> numeric is a two-step: character first, numeric second.** `as.numeric(factor)` silently returns the level *codes*, not the underlying numbers. Always write `as.numeric(as.character(f))`, or better, fix the read step so the column never becomes a factor to begin with (`read.csv(..., stringsAsFactors = FALSE)`, now the default in R 4.0+).
 
 **Try it:** You have `f <- factor(c("100", "200", "300"))`. Extract the numeric vector `c(100, 200, 300)` from it.
 
@@ -346,7 +346,7 @@ is.numeric(ex_num)
 #> [1] TRUE
 ```
 
-**Explanation:** `as.character(f)` rebuilds the strings `"100", "200", "300"`. `as.numeric()` then parses them to doubles. Skipping the `as.character()` step would have returned `1, 2, 3` — the internal level codes.
+**Explanation:** `as.character(f)` rebuilds the strings `"100", "200", "300"`. `as.numeric()` then parses them to doubles. Skipping the `as.character()` step would have returned `1, 2, 3`, the internal level codes.
 
 </details>
 
@@ -356,7 +356,7 @@ Two capstone exercises that combine the patterns above. Use distinct variable na
 
 ### Exercise 1: Clean a messy price column
 
-Given `my_prices <- c("$1,200", "$950", "free", "$75.50", "N/A", " $300 ")`, produce `my_parsed` — a numeric vector where only `"free"` and `"N/A"` become `NA`. Print `sum(my_parsed, na.rm = TRUE)` to verify it equals `2525.50`.
+Given `my_prices <- c("$1,200", "$950", "free", "$75.50", "N/A", " $300 ")`, produce `my_parsed`, a numeric vector where only `"free"` and `"N/A"` become `NA`. Print `sum(my_parsed, na.rm = TRUE)` to verify it equals `2525.50`.
 
 ```r
 # Exercise 1: currency column -> numeric
@@ -483,7 +483,7 @@ Every column is now exactly the type you want: `Date` for the date, `num` for th
 | **Prefer explicit in scripts** | Call `as.numeric()` / `as.character()` by hand | Production code, shared pipelines |
 
 [KEY INSIGHT]
-**The warning is the feature, not the bug.** *"NAs introduced by coercion"* is R telling you that it couldn't convert some values and silently replaced them with `NA`. Treat every instance as a signal to investigate *which* values failed — never as noise to suppress first and ask questions later.
+**The warning is the feature, not the bug.** *"NAs introduced by coercion"* is R telling you that it couldn't convert some values and silently replaced them with `NA`. Treat every instance as a signal to investigate *which* values failed, never as noise to suppress first and ask questions later.
 
 ## References
 
@@ -497,6 +497,6 @@ Every column is now exactly the type you want: `Date` for the date, `num` for th
 
 ## Continue Learning
 
-- **[R Data Types: Which Type Is Your Variable?](R-Data-Types.html)** — The parent post on R's four atomic types and when each one applies.
-- **[R's Four Special Values: NA, NULL, NaN, Inf](R-Special-Values.html)** — The oddballs that often appear right next to coercion bugs.
-- **[R Vectors: The Foundation of Everything in R](R-Vectors.html)** — Vectors are where coercion happens; the vector chapter makes the ladder click.
+- **[R Data Types: Which Type Is Your Variable?](R-Data-Types.html)**, The parent post on R's four atomic types and when each one applies.
+- **[R's Four Special Values: NA, NULL, NaN, Inf](R-Special-Values.html)**, The oddballs that often appear right next to coercion bugs.
+- **[R Vectors: The Foundation of Everything in R](R-Vectors.html)**, Vectors are where coercion happens; the vector chapter makes the ladder click.

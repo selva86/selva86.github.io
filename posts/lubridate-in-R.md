@@ -22,7 +22,7 @@ difficulty: "Intermediate"
 
 ## Why does R need lubridate for dates?
 
-Base R has `as.Date()` and `as.POSIXct()`, but both force you to specify the input format with an obscure `%Y-%m-%d` string. Get one character wrong and you silently parse nothing. Worse, base R is inconsistent about what "month" returns, how to add a month, and how time zones interact. lubridate replaces all of that with a family of parsers named after the order of their components. Let's start with the payoff — parsing five messy date strings with zero format strings.
+Base R has `as.Date()` and `as.POSIXct()`, but both force you to specify the input format with an obscure `%Y-%m-%d` string. Get one character wrong and you silently parse nothing. Worse, base R is inconsistent about what "month" returns, how to add a month, and how time zones interact. lubridate replaces all of that with a family of parsers named after the order of their components. Let's start with the payoff, parsing five messy date strings with zero format strings.
 
 ```r
 library(lubridate)
@@ -45,7 +45,7 @@ Five formats, zero `%Y-%m-%d` strings. The function name tells lubridate the ord
 ![lubridate parser family](screenshots/lubridate-in-R-parsing-family.webp)
 *Figure 1: The lubridate parser family. Pick the function whose name matches the order of components in your input, and lubridate handles the rest.*
 
-> **[TIP]** If your dates come from Excel or a CSV with mixed formats, lubridate's parsers are vectorized — `ymd(c("2026-01-01", "2026-01-02", "bad"))` returns a Date vector with NA for the bad element and a warning telling you which one failed.
+> **[TIP]** If your dates come from Excel or a CSV with mixed formats, lubridate's parsers are vectorized, `ymd(c("2026-01-01", "2026-01-02", "bad"))` returns a Date vector with NA for the bad element and a warning telling you which one failed.
 
 **Try it:** Parse the vector below with the correct lubridate function.
 
@@ -126,7 +126,7 @@ parse_date_time(mixed, orders = c("ymd HM", "mdy HM", "dmy HM"))
 
 ## How do you extract components like year, month, and weekday?
 
-Once a value is a Date or POSIXct, lubridate gives you an accessor for every meaningful piece. Each accessor has a consistent name and returns the natural type — an integer for numeric parts and an ordered factor for labeled parts.
+Once a value is a Date or POSIXct, lubridate gives you an accessor for every meaningful piece. Each accessor has a consistent name and returns the natural type, an integer for numeric parts and an ordered factor for labeled parts.
 
 ```r
 library(lubridate)
@@ -162,7 +162,7 @@ week(x)
 ```
 
 ![lubridate component extraction](screenshots/lubridate-in-R-component-extraction.webp)
-*Figure 2: The component accessors form a hierarchy — year, quarter, month, week, day, hour, minute, second. Each returns a plain integer you can use in dplyr summaries.*
+*Figure 2: The component accessors form a hierarchy, year, quarter, month, week, day, hour, minute, second. Each returns a plain integer you can use in dplyr summaries.*
 
 The real power comes when you combine these inside a dplyr pipeline. Want average sales by weekday? One mutate and one group_by.
 
@@ -190,7 +190,7 @@ transactions |>
 #> 4 Fri       253     2
 ```
 
-> **[NOTE]** The `label = TRUE` variant of `wday`, `month`, and `quarter` returns an **ordered factor**, which is what you want for plotting — ggplot will display days in Mon, Tue, Wed order instead of alphabetical.
+> **[NOTE]** The `label = TRUE` variant of `wday`, `month`, and `quarter` returns an **ordered factor**, which is what you want for plotting, ggplot will display days in Mon, Tue, Wed order instead of alphabetical.
 
 **Try it:** From the vector below, compute the month and the weekday name for each date.
 
@@ -219,7 +219,7 @@ wday(dts, label = TRUE, week_start = 1)
 
 ## How do you do arithmetic on dates and times?
 
-The obvious question — "how many days between these two dates?" — has a simple answer:
+The obvious question, "how many days between these two dates?", has a simple answer:
 
 ```r
 library(lubridate)
@@ -251,7 +251,7 @@ start + years(1)
 #> [1] "2027-01-01"
 ```
 
-`days`, `weeks`, `months`, `years`, `hours`, `minutes`, `seconds` — each returns a period that lubridate adds according to calendar rules. "Three months after January 1st" means April 1st, not "90 days later". That distinction matters for billing cycles, subscriptions, and anything month-aware.
+`days`, `weeks`, `months`, `years`, `hours`, `minutes`, `seconds`, each returns a period that lubridate adds according to calendar rules. "Three months after January 1st" means April 1st, not "90 days later". That distinction matters for billing cycles, subscriptions, and anything month-aware.
 
 ```r
 # Chained: two months and three days after
@@ -276,7 +276,7 @@ ymd("2026-01-15") + months(6) + days(10)
 #> [1] "2026-07-25"
 ```
 
-`months()` and `days()` are calendar-aware periods, so the answer respects month boundaries — six months after January 15 is July 15, plus ten days lands on July 25.
+`months()` and `days()` are calendar-aware periods, so the answer respects month boundaries, six months after January 15 is July 15, plus ten days lands on July 25.
 
 </details>
 
@@ -287,7 +287,7 @@ lubridate distinguishes three things that all feel like "some amount of time" bu
 ![duration vs period vs interval](screenshots/lubridate-in-R-duration-period-interval.webp)
 *Figure 3: Durations measure exact seconds. Periods respect calendar boundaries. Intervals are a specific start and end pair. Choose based on what "correct" means for your problem.*
 
-**Duration** — an exact number of seconds, regardless of the calendar:
+**Duration**, an exact number of seconds, regardless of the calendar:
 
 ```r
 library(lubridate)
@@ -301,7 +301,7 @@ ymd("2026-01-01") + d
 
 `ddays(30)` is literally 30 × 86400 seconds. A leap second or DST jump changes the result slightly. Use durations for physics-y questions like "how long was the reactor at full power?".
 
-**Period** — calendar-aware, variable length:
+**Period**, calendar-aware, variable length:
 
 ```r
 p <- months(1)
@@ -315,7 +315,7 @@ ymd("2026-01-31") %m+% p   # safe version
 
 A period of one month can be 28, 29, 30, or 31 days. Periods are what you want for subscription renewals, legal deadlines, "birthday next year", and anything humans would describe in calendar terms.
 
-**Interval** — a specific pair `(start, end)`:
+**Interval**, a specific pair `(start, end)`:
 
 ```r
 i <- interval(ymd("2026-01-01"), ymd("2026-04-11"))
@@ -363,8 +363,8 @@ i / dweeks(1)
 
 Time zones cause more bugs than any other part of date handling. lubridate's rule is simple: every POSIXct value carries one time zone at a time, and you convert with one of two functions.
 
-- `with_tz(x, tz)` — **same moment**, displayed in a new zone. The underlying instant does not change; only how you render it does.
-- `force_tz(x, tz)` — **same wall clock**, reinterpreted as a different zone. The underlying instant shifts.
+- `with_tz(x, tz)`, **same moment**, displayed in a new zone. The underlying instant does not change; only how you render it does.
+- `force_tz(x, tz)`, **same wall clock**, reinterpreted as a different zone. The underlying instant shifts.
 
 ```r
 library(lubridate)
@@ -378,7 +378,7 @@ force_tz(utc, "Asia/Kolkata")
 #> [1] "2026-04-11 14:30:00 IST"
 ```
 
-`with_tz` is for display — "what time is it in Tokyo right now?". `force_tz` is for correcting a parse mistake — "this timestamp is actually India time but got labeled UTC on import".
+`with_tz` is for display, "what time is it in Tokyo right now?". `force_tz` is for correcting a parse mistake, "this timestamp is actually India time but got labeled UTC on import".
 
 ```r
 # Arithmetic across zones is correct automatically
@@ -388,9 +388,9 @@ flight_arrive - flight_depart
 #> Time difference of 8 hours
 ```
 
-Both times are converted to UTC internally for the subtraction, so the answer is right regardless of DST, offset, or zone. A full list of valid zone strings lives in `OlsonNames()` — over 600 names, always in `Continent/City` format.
+Both times are converted to UTC internally for the subtraction, so the answer is right regardless of DST, offset, or zone. A full list of valid zone strings lives in `OlsonNames()`, over 600 names, always in `Continent/City` format.
 
-> **[WARNING]** Never store "US/Pacific" or "EST" — those are legacy abbreviations and `EST` in particular means something different in different operating systems. Use `America/Los_Angeles` and `America/New_York`.
+> **[WARNING]** Never store "US/Pacific" or "EST", those are legacy abbreviations and `EST` in particular means something different in different operating systems. Use `America/Los_Angeles` and `America/New_York`.
 
 **Try it:** Convert a UTC datetime to Tokyo time for display, then to Paris time.
 
@@ -411,13 +411,13 @@ with_tz(ts, "Europe/Paris")
 #> [1] "2026-06-01 14:00:00 CEST"
 ```
 
-`with_tz()` keeps the same instant in time and only changes how it is displayed — Tokyo is UTC+9 and Paris is on summer time (CEST, UTC+2) on June 1.
+`with_tz()` keeps the same instant in time and only changes how it is displayed, Tokyo is UTC+9 and Paris is on summer time (CEST, UTC+2) on June 1.
 
 </details>
 
 ## How do you round dates to day, week, or month?
 
-Rounding is the operation hidden inside almost every time-series aggregation. "Sales per week", "users per month", "errors per hour" — all three are a round-then-group. lubridate gives you `floor_date`, `ceiling_date`, and `round_date`.
+Rounding is the operation hidden inside almost every time-series aggregation. "Sales per week", "users per month", "errors per hour", all three are a round-then-group. lubridate gives you `floor_date`, `ceiling_date`, and `round_date`.
 
 ```r
 library(lubridate)
@@ -595,7 +595,7 @@ summary
 #> 3 Tue                1    45.5      17
 ```
 
-Four lubridate calls — `ymd_hms`, `with_tz`, `wday`, `hour` — replace what would otherwise be a painful stack of `as.POSIXct`, `format`, `strftime`, and manual offset math. Parse once at the boundary, transform freely in the middle, render for humans at the end.
+Four lubridate calls, `ymd_hms`, `with_tz`, `wday`, `hour`, replace what would otherwise be a painful stack of `as.POSIXct`, `format`, `strftime`, and manual offset math. Parse once at the boundary, transform freely in the middle, render for humans at the end.
 
 ## Summary
 
@@ -630,11 +630,11 @@ Four rules:
 - [lubridate official reference](https://lubridate.tidyverse.org/reference/index.html)
 - [lubridate cheatsheet](https://rstudio.github.io/cheatsheets/lubridate.pdf)
 - [Garrett Grolemund and Hadley Wickham, *Dates and Times Made Easy with lubridate*, JSS 2011](https://www.jstatsoft.org/article/view/v040i03)
-- [R for Data Science, 2e — Dates and Times chapter](https://r4ds.hadley.nz/datetimes.html)
-- [IANA Time Zone Database](https://www.iana.org/time-zones) — canonical list of `Continent/City` names.
+- [R for Data Science, 2e, Dates and Times chapter](https://r4ds.hadley.nz/datetimes.html)
+- [IANA Time Zone Database](https://www.iana.org/time-zones), canonical list of `Continent/City` names.
 
 ## Continue Learning
 
-- [stringr in R](stringr-in-R.html) — often used alongside lubridate to clean messy date strings before parsing.
-- [dplyr group_by() and summarise()](dplyr-group-by-summarise.html) — the natural next step after rounding timestamps.
-- [pivot_longer() and pivot_wider()](pivot_longer-pivot_wider-Reshape-Data-in-R.html) — reshape time-series data before or after a date rollup.
+- [stringr in R](stringr-in-R.html), often used alongside lubridate to clean messy date strings before parsing.
+- [dplyr group_by() and summarise()](dplyr-group-by-summarise.html), the natural next step after rounding timestamps.
+- [pivot_longer() and pivot_wider()](pivot_longer-pivot_wider-Reshape-Data-in-R.html), reshape time-series data before or after a date rollup.

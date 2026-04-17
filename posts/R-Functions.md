@@ -18,11 +18,11 @@ difficulty: "Beginner"
 
 # Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise
 
-<p class="lead">An R function is a reusable block of code you define once with `function()` and call any time. Good R functions take named arguments, provide sensible defaults, return one clear value, and fail loudly on bad input — so you stop copy-pasting the same five lines across your script.</p>
+<p class="lead">An R function is a reusable block of code you define once with `function()` and call any time. Good R functions take named arguments, provide sensible defaults, return one clear value, and fail loudly on bad input, so you stop copy-pasting the same five lines across your script.</p>
 
 ## Why wrap code in a function at all?
 
-Because the same five lines copy-pasted four times is four places a bug can hide. A function turns that repetition into a single tested unit you can call with one line. Here's what the payoff looks like — a three-line function that replaces a block you'd otherwise write for every numeric vector.
+Because the same five lines copy-pasted four times is four places a bug can hide. A function turns that repetition into a single tested unit you can call with one line. Here's what the payoff looks like, a three-line function that replaces a block you'd otherwise write for every numeric vector.
 
 ```r
 z_score <- function(x) {
@@ -33,7 +33,7 @@ z_score(c(10, 12, 15, 18, 20))
 #> [1] -1.2649111 -0.6324555  0.3162278  1.2649111  1.8973666
 ```
 
-One definition, infinite reuse. Change the formula in one place and every caller gets the fix. Functions are also the unit you test, document, and share — R has no concept of "reusable code" smaller than a function.
+One definition, infinite reuse. Change the formula in one place and every caller gets the fix. Functions are also the unit you test, document, and share, R has no concept of "reusable code" smaller than a function.
 
 [TIP]
 If you've copy-pasted the same expression three times, stop and write a function. The two minutes you spend naming it will save you thirty later.
@@ -59,7 +59,7 @@ ex_celsius_to_f(c(0, 20, 100))
 #> [1]  32  68 212
 ```
 
-The body is a single expression, so there's no need for `return()` — the last (and only) expression is returned automatically. The formula is vectorised, so `c(0, 20, 100)` is converted element-by-element to `c(32, 68, 212)` in one call.
+The body is a single expression, so there's no need for `return()`, the last (and only) expression is returned automatically. The formula is vectorised, so `c(0, 20, 100)` is converted element-by-element to `c(32, 68, 212)` in one call.
 </details>
 
 ## How do you declare a function and what's in the signature?
@@ -68,7 +68,7 @@ Every R function has three parts: a **name** (how you'll call it), a **signature
 
 ![Anatomy of an R function showing name, arguments, body, and return value](screenshots/R-Functions-anatomy.webp)
 
-*Figure 1: The four pieces of every R function — the name you bind it to, the argument list, the body, and the return value.*
+*Figure 1: The four pieces of every R function, the name you bind it to, the argument list, the body, and the return value.*
 
 ```r
 summarise_vector <- function(x, digits = 2) {
@@ -85,7 +85,7 @@ summarise_vector(c(4, 7, 9, 12, 15, 18))
 #> 10.83 5.19 6.00
 ```
 
-Two arguments: `x` (required — no default) and `digits` (optional — defaults to 2). The body computes three statistics and returns a rounded named vector. Notice there's no `return()` — R returns the value of the last expression automatically. We'll come back to that.
+Two arguments: `x` (required, no default) and `digits` (optional, defaults to 2). The body computes three statistics and returns a rounded named vector. Notice there's no `return()`, R returns the value of the last expression automatically. We'll come back to that.
 
 [NOTE]
 A function in R is just an object like any other. `summarise_vector` is a variable whose value happens to be a function. You can pass it to other functions, store it in a list, or reassign it.
@@ -117,7 +117,7 @@ ex_summarise_v2(c(4, 7, 9, 12, 15, 18))
 #> 10.83  5.19  6.00  4.00 18.00
 ```
 
-Appending `min = min(x)` and `max = max(x)` to the named vector extends the return value without changing the rest of the function — the `round()` call then applies uniformly to all five entries. A named numeric vector is a fine lightweight return when every field is the same type; reach for a `list()` only when the pieces have different shapes.
+Appending `min = min(x)` and `max = max(x)` to the named vector extends the return value without changing the rest of the function, the `round()` call then applies uniformly to all five entries. A named numeric vector is a fine lightweight return when every field is the same type; reach for a `list()` only when the pieces have different shapes.
 </details>
 
 ## How do default arguments and positional/named matching really work?
@@ -126,7 +126,7 @@ When you call a function, R matches your arguments in three passes: **exact name
 
 ![Diagram showing argument matching order: exact name, then partial, then positional](screenshots/R-Functions-arg-matching.webp)
 
-*Figure 2: How R matches call-site arguments to a function's formal parameters — exact name wins, then partial, then position.*
+*Figure 2: How R matches call-site arguments to a function's formal parameters, exact name wins, then partial, then position.*
 
 ```r
 greet <- function(name, greeting = "Hello", punctuation = "!") {
@@ -168,7 +168,7 @@ Passing `name` and `greeting` by name lets R skip the positional order and leave
 
 ## Should you use return() explicitly or rely on implicit return?
 
-R returns the value of the **last expression** in the function body automatically. `return()` exists mainly for **early exits** — bailing out before the end of the function. For the happy path, leave it off.
+R returns the value of the **last expression** in the function body automatically. `return()` exists mainly for **early exits**, bailing out before the end of the function. For the happy path, leave it off.
 
 ```r
 # Implicit return — the idiomatic R style
@@ -190,10 +190,10 @@ safe_divide(10, 0)
 #> [1] NA
 ```
 
-Two idioms, one rule: use `return()` when you want to stop early. Don't sprinkle `return()` on every final line — it's noise. A function that returns something on every branch without `return()` reads more clearly than one littered with them.
+Two idioms, one rule: use `return()` when you want to stop early. Don't sprinkle `return()` on every final line, it's noise. A function that returns something on every branch without `return()` reads more clearly than one littered with them.
 
 [KEY INSIGHT]
-A function always returns exactly one object. If you need to return multiple things, wrap them in a `list()`. R has no tuples — lists are how you bundle heterogeneous return values.
+A function always returns exactly one object. If you need to return multiple things, wrap them in a `list()`. R has no tuples, lists are how you bundle heterogeneous return values.
 
 ```r
 fit_summary <- function(x, y) {
@@ -246,12 +246,12 @@ ex_range_info(c(4, 9, 2, 7))
 #> [1] 7
 ```
 
-Wrapping the three values in `list()` lets the single return carry heterogeneous pieces — if you used `c()` the elements would all collapse to one numeric vector and you'd lose the names' semantic distinction. Callers pull individual fields back out with `$min`, `$max`, `$span`.
+Wrapping the three values in `list()` lets the single return carry heterogeneous pieces, if you used `c()` the elements would all collapse to one numeric vector and you'd lose the names' semantic distinction. Callers pull individual fields back out with `$min`, `$max`, `$span`.
 </details>
 
 ## How does R find variables inside a function (lexical scoping)?
 
-When a function needs a variable, R first looks **inside the function**, then in the **environment where the function was defined**, then up the chain to the global environment, and finally in attached packages. This is **lexical scoping** — "lexical" because the lookup follows the code's written structure, not its call order.
+When a function needs a variable, R first looks **inside the function**, then in the **environment where the function was defined**, then up the chain to the global environment, and finally in attached packages. This is **lexical scoping**, "lexical" because the lookup follows the code's written structure, not its call order.
 
 ![Scope chain diagram: function local, enclosing, global, package](screenshots/R-Functions-scope-chain.webp)
 
@@ -268,12 +268,12 @@ scale_up(5)
 #> [1] 50
 ```
 
-`multiplier` isn't an argument, but R finds it in the global environment. This "reaching out" is powerful but also a trap — your function's behavior now depends on an invisible variable. Change `multiplier` elsewhere and `scale_up` silently changes too.
+`multiplier` isn't an argument, but R finds it in the global environment. This "reaching out" is powerful but also a trap, your function's behavior now depends on an invisible variable. Change `multiplier` elsewhere and `scale_up` silently changes too.
 
 [WARNING]
 Never rely on globals inside a function unless it's truly configuration (e.g., `options()`). Pass everything the function needs as arguments. Future-you will thank you.
 
-The second half of lexical scoping is that assignments inside a function **stay inside** — they don't leak out.
+The second half of lexical scoping is that assignments inside a function **stay inside**, they don't leak out.
 
 ```r
 counter <- 0
@@ -291,7 +291,7 @@ counter          # unchanged in global
 #> [1] 0
 ```
 
-Each call to `increment()` creates its own local `counter`, uses it, and throws it away. The global `counter` is untouched. This is R's **copy-on-modify** model in action — functions can't accidentally corrupt the caller's variables.
+Each call to `increment()` creates its own local `counter`, uses it, and throws it away. The global `counter` is untouched. This is R's **copy-on-modify** model in action, functions can't accidentally corrupt the caller's variables.
 
 **Try it:** Define `ex_g <- 100`. Write `ex_shift(x)` that returns `x + ex_g`. Call it with `x = 5`, then set `ex_g <- 200` and call again. What do you predict?
 
@@ -318,12 +318,12 @@ ex_shift(5)
 #> [1] 205
 ```
 
-`ex_shift()` has no `ex_g` in its own environment, so R walks outward and picks up the current value from the global environment *at call time* — not at definition time. That's why changing `ex_g` to 200 between the two calls changes the result. It's also why leaning on globals inside functions is fragile: a caller can silently alter the result without touching the arguments.
+`ex_shift()` has no `ex_g` in its own environment, so R walks outward and picks up the current value from the global environment *at call time*, not at definition time. That's why changing `ex_g` to 200 between the two calls changes the result. It's also why leaning on globals inside functions is fragile: a caller can silently alter the result without touching the arguments.
 </details>
 
 ## When should you vectorise vs loop inside a function?
 
-R's built-in operators and most functions are already **vectorised** — they apply element-wise to whole vectors in a single, fast C call. A for-loop in R is dramatically slower because each iteration pays interpreter overhead. The rule: if a vectorised version exists, use it.
+R's built-in operators and most functions are already **vectorised**, they apply element-wise to whole vectors in a single, fast C call. A for-loop in R is dramatically slower because each iteration pays interpreter overhead. The rule: if a vectorised version exists, use it.
 
 ```r
 # Vectorised — fast, idiomatic
@@ -353,9 +353,9 @@ Same answer, one-third the code, and on a million-element vector `normalise_vec`
 [TIP]
 Before writing a loop, ask: "Can I express this with `+`, `-`, `*`, `/`, `ifelse()`, `pmax()`, `pmin()`, `cumsum()`, or an `apply` family function?" Nine times out of ten, yes.
 
-Loops aren't forbidden — they're the right tool when each iteration depends on the previous result (like a simulation), or when you're calling a function that isn't itself vectorised. Write the loop then; don't apologise for it.
+Loops aren't forbidden, they're the right tool when each iteration depends on the previous result (like a simulation), or when you're calling a function that isn't itself vectorised. Write the loop then; don't apologise for it.
 
-**Try it:** Write `ex_standardise(x)` that returns `(x - mean(x)) / sd(x)` — vectorised, one line. Test on `c(1, 2, 3, 4, 5)`.
+**Try it:** Write `ex_standardise(x)` that returns `(x - mean(x)) / sd(x)`, vectorised, one line. Test on `c(1, 2, 3, 4, 5)`.
 
 ```r
 ex_standardise <- function(x) {
@@ -374,12 +374,12 @@ ex_standardise(c(1, 2, 3, 4, 5))
 #> [1] -1.2649111 -0.6324555  0.0000000  0.6324555  1.2649111
 ```
 
-`mean(x)` and `sd(x)` each collapse the vector to a scalar, and the surrounding arithmetic is recycled across every element of `x` in a single C call. The result is a vector with mean 0 and standard deviation 1 — the same thing `scale()` does, minus the matrix wrapper.
+`mean(x)` and `sd(x)` each collapse the vector to a scalar, and the surrounding arithmetic is recycled across every element of `x` in a single C call. The result is a vector with mean 0 and standard deviation 1, the same thing `scale()` does, minus the matrix wrapper.
 </details>
 
 ## How do you validate inputs and fail loudly, not silently?
 
-A function that accepts garbage and returns garbage is worse than one that crashes — the silent failure shows up three steps later with no trace of where it started. Validate at the top with `stopifnot()` or explicit `stop()` calls, so bad input fails immediately with a clear message.
+A function that accepts garbage and returns garbage is worse than one that crashes, the silent failure shows up three steps later with no trace of where it started. Validate at the top with `stopifnot()` or explicit `stop()` calls, so bad input fails immediately with a clear message.
 
 ```r
 z_score_safe <- function(x) {
@@ -395,7 +395,7 @@ z_score_safe(c(10, 12, 15, 18, 20))
 #> [1] -1.2649111 -0.6324555  0.3162278  1.2649111  1.8973666
 ```
 
-Each named string in `stopifnot()` is both the condition's description and the error message shown when it fails. If a caller hands in a character vector, they get `Error: x must be numeric` instantly — not a cryptic NaN ten functions downstream.
+Each named string in `stopifnot()` is both the condition's description and the error message shown when it fails. If a caller hands in a character vector, they get `Error: x must be numeric` instantly, not a cryptic NaN ten functions downstream.
 
 ```r
 # Watch it fail fast:
@@ -434,7 +434,7 @@ ex_mean_positive(c(2, 4, 6, 8))
 #> [1] 5
 ```
 
-The two `stopifnot()` conditions run before the body, so a character vector or any value `<= 0` raises the matching error immediately instead of silently flowing into `mean()`. Named strings on the left-hand side of each assertion become the error message — make them explicit enough that the caller understands the contract without reading the function body.
+The two `stopifnot()` conditions run before the body, so a character vector or any value `<= 0` raises the matching error immediately instead of silently flowing into `mean()`. Named strings on the left-hand side of each assertion become the error message, make them explicit enough that the caller understands the contract without reading the function body.
 </details>
 
 ## Practice Exercises
@@ -535,12 +535,12 @@ square(1:5)
 cube(1:5)
 ```
 
-The inner function "remembers" `exp` because of lexical scoping — that's a closure.
+The inner function "remembers" `exp` because of lexical scoping, that's a closure.
 </details>
 
 ## Complete Example: A Grouped Summary Function
 
-Let's put everything together. We'll write `group_stats(df, group_col, value_col)` — a function that takes a data frame, groups by one column, and returns mean and sd for another. It validates inputs, uses sensible defaults, and has an early return for empty data.
+Let's put everything together. We'll write `group_stats(df, group_col, value_col)`, a function that takes a data frame, groups by one column, and returns mean and sd for another. It validates inputs, uses sensible defaults, and has an early return for empty data.
 
 ```r
 group_stats <- function(df, group_col, value_col, digits = 2) {
@@ -568,7 +568,7 @@ group_stats(mtcars, "cyl", "mpg")
 #> 3     8 15.10 2.56
 ```
 
-One call, real output. The function is general — swap `"cyl"` for `"gear"` and `"mpg"` for `"hp"` and it just works. That reusability is the whole point.
+One call, real output. The function is general, swap `"cyl"` for `"gear"` and `"mpg"` for `"hp"` and it just works. That reusability is the whole point.
 
 ```r
 group_stats(mtcars, "gear", "hp")
@@ -582,10 +582,10 @@ group_stats(mtcars, "gear", "hp")
 
 | Concept | Rule of thumb |
 |---|---|
-| **Declare** | `name <- function(args) { body }` — a function is just an object |
+| **Declare** | `name <- function(args) { body }`, a function is just an object |
 | **Arguments** | Required first, optional (with defaults) after. Prefer named calls. |
 | **Return** | Last expression returns implicitly. Use `return()` only for early exits. |
-| **Multiple values** | Wrap in `list()` — R has no tuples. |
+| **Multiple values** | Wrap in `list()`, R has no tuples. |
 | **Scoping** | Lexical: look local first, then enclosing, then global, then packages. |
 | **Globals** | Don't read them inside functions. Pass everything as arguments. |
 | **Vectorise** | Default to element-wise operators. Loop only when iterations depend on each other. |
@@ -595,15 +595,15 @@ Functions are how you turn scripts into software. Master these seven habits and 
 
 ## References
 
-1. Wickham, H. *Advanced R*, 2nd ed. — Chapter 6 (Functions). <https://adv-r.hadley.nz/functions.html>
-2. R Core Team. *An Introduction to R* — Section 10: Writing your own functions. <https://cran.r-project.org/doc/manuals/r-release/R-intro.html#Writing-your-own-functions>
-3. Wickham, H. & Grolemund, G. *R for Data Science*, 2nd ed. — Chapter 25: Functions. <https://r4ds.hadley.nz/functions.html>
+1. Wickham, H. *Advanced R*, 2nd ed., Chapter 6 (Functions). <https://adv-r.hadley.nz/functions.html>
+2. R Core Team. *An Introduction to R*, Section 10: Writing your own functions. <https://cran.r-project.org/doc/manuals/r-release/R-intro.html#Writing-your-own-functions>
+3. Wickham, H. & Grolemund, G. *R for Data Science*, 2nd ed., Chapter 25: Functions. <https://r4ds.hadley.nz/functions.html>
 4. R Documentation. `?function`, `?stopifnot`, `?match.arg`, `?missing`. Run in any R session.
-5. Morandat, F. et al. *Evaluating the Design of the R Language* (2012) — scoping and semantics. <https://r.cs.purdue.edu/pub/ecoop12.pdf>
-6. Tidyverse style guide — function naming and argument order. <https://style.tidyverse.org/functions.html>
+5. Morandat, F. et al. *Evaluating the Design of the R Language* (2012), scoping and semantics. <https://r.cs.purdue.edu/pub/ecoop12.pdf>
+6. Tidyverse style guide, function naming and argument order. <https://style.tidyverse.org/functions.html>
 
 ## Continue Learning
 
-- [Control Flow in R](Control-Flow-in-R.html) — `if`, `else`, `for`, `while` — the building blocks you'll use inside function bodies.
-- [R Vectors](R-Vectors.html) — understand the data structures your functions will operate on.
-- [Functional Programming in R](Functional-Programming-in-R.html) — `map()`, `reduce()`, and treating functions as first-class objects.
+- [Control Flow in R](Control-Flow-in-R.html), `if`, `else`, `for`, `while`, the building blocks you'll use inside function bodies.
+- [R Vectors](R-Vectors.html), understand the data structures your functions will operate on.
+- [Functional Programming in R](Functional-Programming-in-R.html), `map()`, `reduce()`, and treating functions as first-class objects.

@@ -1,7 +1,7 @@
 ---
 title: "R for SPSS Users: Translate Every SPSS Procedure to R in One Guide"
 slug: "R-for-SPSS-Users"
-description: "A complete SPSS-to-R translation: t-tests, ANOVA, regression, factor analysis, and reliability — with runnable R code that mirrors SPSS output line by line."
+description: "A complete SPSS-to-R translation: t-tests, ANOVA, regression, factor analysis, and reliability, with runnable R code that mirrors SPSS output line by line."
 keywords: "R for SPSS users, SPSS to R, convert SPSS to R, SPSS to R translation, haven read_sav, psych alpha, factor analysis R, ANOVA Type III R"
 mathjax: false
 webr: true
@@ -16,11 +16,11 @@ difficulty: "Intermediate"
 
 # R for SPSS Users: Translate Every SPSS Procedure to R in One Guide
 
-<p class="lead">Every SPSS procedure has an R equivalent that produces the same numbers — usually in one or two function calls. This guide translates the most common SPSS commands into runnable R code, so you can keep doing the analyses you already know — only faster, free, and reproducible.</p>
+<p class="lead">Every SPSS procedure has an R equivalent that produces the same numbers, usually in one or two function calls. This guide translates the most common SPSS commands into runnable R code, so you can keep doing the analyses you already know, only faster, free, and reproducible.</p>
 
 ## How does an SPSS t-test translate to R?
 
-You probably ran your first SPSS analysis as a t-test. Let's start there. SPSS uses the `T-TEST` procedure with `GROUPS=` or `PAIRS=` subcommands; R uses one function, `t.test()`, with a formula or two vectors. The output looks different, but the numbers — t, degrees of freedom, p-value, mean difference — are identical. Run the block below and compare it to any SPSS output you have handy.
+You probably ran your first SPSS analysis as a t-test. Let's start there. SPSS uses the `T-TEST` procedure with `GROUPS=` or `PAIRS=` subcommands; R uses one function, `t.test()`, with a formula or two vectors. The output looks different, but the numbers, t, degrees of freedom, p-value, mean difference, are identical. Run the block below and compare it to any SPSS output you have handy.
 
 ```r
 # SPSS:  T-TEST PAIRS = group1 WITH group2 (PAIRED).
@@ -42,7 +42,7 @@ t.test(group1, group2, paired = TRUE)
 #>           -1.58
 ```
 
-Every value SPSS prints in its t-test output viewer appears here: `t = -4.06`, `df = 9`, `p-value = 0.0028`, the 95% CI for the mean difference, and the mean difference itself (`-1.58`). If you ran the same paired test in SPSS on the classic Cushny–Peebles sleep data, the numbers would line up to four decimals. The numbers are the same because the underlying formula is the same — only the display changes.
+Every value SPSS prints in its t-test output viewer appears here: `t = -4.06`, `df = 9`, `p-value = 0.0028`, the 95% CI for the mean difference, and the mean difference itself (`-1.58`). If you ran the same paired test in SPSS on the classic Cushny–Peebles sleep data, the numbers would line up to four decimals. The numbers are the same because the underlying formula is the same, only the display changes.
 
 **Try it:** Run a one-sample t-test asking whether the mean of `sleep$extra` differs from 0 (the SPSS equivalent of `T-TEST /TESTVAL=0 /VARIABLES=extra.`).
 
@@ -79,7 +79,7 @@ ex_t1
 
 ## How do I read SPSS .sav files into R?
 
-Your existing data lives in `.sav` files. The `haven` package reads them directly and — critically — preserves the metadata SPSS users care about: variable labels, value labels, and user-defined missings. The older `foreign::read.spss` strips most of this; use `haven` instead.
+Your existing data lives in `.sav` files. The `haven` package reads them directly and, critically, preserves the metadata SPSS users care about: variable labels, value labels, and user-defined missings. The older `foreign::read.spss` strips most of this; use `haven` instead.
 
 ```r
 library(haven)
@@ -100,7 +100,7 @@ head(spss_data[, 1:5], 3)
 #> 3  22.8     4   108    93  3.85
 ```
 
-`read_sav()` returns a tibble — the tidyverse data frame — with columns typed as `<dbl>`, `<chr>`, or `haven_labelled` for SPSS value-labelled variables. The first row of `<dbl>` markers tells you R has parsed the numeric columns correctly. For a labelled variable, you'd see `<dbl+lbl>` and could convert it to an R factor with `as_factor(spss_data$gender)`.
+`read_sav()` returns a tibble, the tidyverse data frame, with columns typed as `<dbl>`, `<chr>`, or `haven_labelled` for SPSS value-labelled variables. The first row of `<dbl>` markers tells you R has parsed the numeric columns correctly. For a labelled variable, you'd see `<dbl+lbl>` and could convert it to an R factor with `as_factor(spss_data$gender)`.
 
 [NOTE]
 **haven preserves SPSS metadata.** Variable labels live on `attr(x, "label")`, value labels travel as a `haven_labelled` class, and user-defined missings come through as `tagged_na` values. You can keep working in SPSS-style or convert with `as_factor()` when you want native R factors.
@@ -130,7 +130,7 @@ ex_survey <- read_sav("survey.sav")
 
 ## How do I translate descriptive and frequency procedures?
 
-`DESCRIPTIVES`, `FREQUENCIES`, and `CROSSTABS` are the three SPSS procedures you run before any model. Their R equivalents are `summary()`, `table()` plus `prop.table()`, and `table()` plus `chisq.test()`. The `psych::describe()` function adds skew, kurtosis, and standard error — closer to what SPSS prints by default in DESCRIPTIVES.
+`DESCRIPTIVES`, `FREQUENCIES`, and `CROSSTABS` are the three SPSS procedures you run before any model. Their R equivalents are `summary()`, `table()` plus `prop.table()`, and `table()` plus `chisq.test()`. The `psych::describe()` function adds skew, kurtosis, and standard error, closer to what SPSS prints by default in DESCRIPTIVES.
 
 ```r
 library(psych)
@@ -168,10 +168,10 @@ chisq.test(ct)
 #> X-squared = 8.7407, df = 2, p-value = 0.01265
 ```
 
-`describe()` prints the same columns you'd find in the SPSS Descriptives dialog — count, mean, SD, median, min, max, range, skew, kurtosis, SE. `prop.table() * 100` matches the "Valid Percent" column from FREQUENCIES. The cross-tab and chi-square reproduce the cell counts plus the test statistic, df, and p-value SPSS prints under "Chi-Square Tests".
+`describe()` prints the same columns you'd find in the SPSS Descriptives dialog, count, mean, SD, median, min, max, range, skew, kurtosis, SE. `prop.table() * 100` matches the "Valid Percent" column from FREQUENCIES. The cross-tab and chi-square reproduce the cell counts plus the test statistic, df, and p-value SPSS prints under "Chi-Square Tests".
 
 [KEY INSIGHT]
-**SPSS shows one giant Output Viewer; R prints whatever you ask for.** Think of each R call as one cell of the SPSS output table — you compose the report by stacking calls. This is why R Markdown and Quarto (which combine code, output, and narrative) replace the Output Viewer so cleanly.
+**SPSS shows one giant Output Viewer; R prints whatever you ask for.** Think of each R call as one cell of the SPSS output table, you compose the report by stacking calls. This is why R Markdown and Quarto (which combine code, output, and narrative) replace the Output Viewer so cleanly.
 
 **Try it:** Build a frequency table for `mtcars$gear` and store it as `ex_gear`.
 
@@ -193,7 +193,7 @@ ex_gear
 #> 15 12  5
 ```
 
-**Explanation:** `table()` on a single vector returns the frequency count for each unique value — the SPSS `FREQUENCIES VARIABLES = gear.` equivalent in one line.
+**Explanation:** `table()` on a single vector returns the frequency count for each unique value, the SPSS `FREQUENCIES VARIABLES = gear.` equivalent in one line.
 
 </details>
 
@@ -231,7 +231,7 @@ Anova(fit_two, type = "III")
 #> ---
 ```
 
-The one-way result is unambiguous: `F(2, 29) = 39.7, p < .001` — the same numbers SPSS would print for `ONEWAY mpg BY cyl`. The two-way Type III table now lines up cell-for-cell with the SPSS UNIANOVA "Tests of Between-Subjects Effects" table: each predictor's `Sum Sq`, `Df`, `F value`, and `Pr(>F)` are identical to what SPSS reports (try it if you have SPSS handy — the agreement is exact).
+The one-way result is unambiguous: `F(2, 29) = 39.7, p < .001`, the same numbers SPSS would print for `ONEWAY mpg BY cyl`. The two-way Type III table now lines up cell-for-cell with the SPSS UNIANOVA "Tests of Between-Subjects Effects" table: each predictor's `Sum Sq`, `Df`, `F value`, and `Pr(>F)` are identical to what SPSS reports (try it if you have SPSS handy, the agreement is exact).
 
 [WARNING]
 **SPSS UNIANOVA uses Type III sums of squares by default; R's aov() uses Type I.** For unbalanced designs the F values and p-values will not match unless you switch to `car::Anova(model, type = "III")` and set `options(contrasts = c("contr.sum", "contr.poly"))`. This is the #1 source of "the numbers don't agree!" complaints from new R users coming from SPSS.
@@ -263,7 +263,7 @@ ex_tukey
 #> 8-6  -4.642857  -8.327583 -0.9581313 0.0112287
 ```
 
-**Explanation:** `TukeyHSD()` takes an `aov` object and returns all pairwise mean differences with family-wise 95% confidence intervals and adjusted p-values — the same "Multiple Comparisons" table SPSS prints under POSTHOC = TUKEY.
+**Explanation:** `TukeyHSD()` takes an `aov` object and returns all pairwise mean differences with family-wise 95% confidence intervals and adjusted p-values, the same "Multiple Comparisons" table SPSS prints under POSTHOC = TUKEY.
 
 </details>
 
@@ -301,10 +301,10 @@ confint(fit_lm)
 #> hp          -0.05022927 -0.01331297
 ```
 
-Each row of the `Coefficients:` block maps to a row in the SPSS "Coefficients" table: `Estimate` is `B`, `Std. Error` is `Std. Error`, `t value` is `t`, and `Pr(>|t|)` is the two-tailed `Sig.` column. The `Residual standard error`, `Multiple R-squared`, `Adjusted R-squared`, and `F-statistic` lines reproduce the SPSS "Model Summary" and "ANOVA" tables. `confint()` adds the 95% lower and upper bounds — the same numbers SPSS prints when you tick the "Confidence intervals" checkbox.
+Each row of the `Coefficients:` block maps to a row in the SPSS "Coefficients" table: `Estimate` is `B`, `Std. Error` is `Std. Error`, `t value` is `t`, and `Pr(>|t|)` is the two-tailed `Sig.` column. The `Residual standard error`, `Multiple R-squared`, `Adjusted R-squared`, and `F-statistic` lines reproduce the SPSS "Model Summary" and "ANOVA" tables. `confint()` adds the 95% lower and upper bounds, the same numbers SPSS prints when you tick the "Confidence intervals" checkbox.
 
 [KEY INSIGHT]
-**The R formula syntax is the biggest conceptual jump from SPSS.** A formula like `y ~ x1 + x2` reads "modeled as." Once the tilde clicks, every model function in R uses the same grammar — `lm`, `glm`, `aov`, `lme4::lmer`, `survival::coxph`, `nlme::lme`. Learn one syntax, fit any model.
+**The R formula syntax is the biggest conceptual jump from SPSS.** A formula like `y ~ x1 + x2` reads "modeled as." Once the tilde clicks, every model function in R uses the same grammar, `lm`, `glm`, `aov`, `lme4::lmer`, `survival::coxph`, `nlme::lme`. Learn one syntax, fit any model.
 
 **Try it:** Fit a simple regression of `mpg` on `wt` only (one predictor), store as `ex_simple`, and print its `summary()`.
 
@@ -363,7 +363,7 @@ print(fa_fit, sort = TRUE, cut = 0.3)
 #> Cumulative Var        0.10  0.19  0.27  0.33  0.39
 ```
 
-The sorted loading matrix groups items by their dominant factor — `N1`–`N5` cluster on `ML2` (Neuroticism), `E2`–`E4` on `ML1` (Extraversion), and so on. The `SS loadings`, `Proportion Var`, and `Cumulative Var` rows are identical in form to the "Total Variance Explained" table SPSS prints. `h2` is the communality (sum of squared loadings — what SPSS calls "Extraction Communality"), and `u2` is uniqueness (1 − h2).
+The sorted loading matrix groups items by their dominant factor, `N1`–`N5` cluster on `ML2` (Neuroticism), `E2`–`E4` on `ML1` (Extraversion), and so on. The `SS loadings`, `Proportion Var`, and `Cumulative Var` rows are identical in form to the "Total Variance Explained" table SPSS prints. `h2` is the communality (sum of squared loadings, what SPSS calls "Extraction Communality"), and `u2` is uniqueness (1 − h2).
 
 **Try it:** Re-run the factor analysis with oblimin rotation (SPSS's default oblique rotation) and store the result as `ex_fa`.
 
@@ -390,13 +390,13 @@ ex_fa
 #> ...
 ```
 
-**Explanation:** Change `rotate = "varimax"` (orthogonal) to `rotate = "oblimin"` (oblique) and the factors are allowed to correlate. The output now includes a `factor correlations` block — these are the same correlations SPSS shows under "Component Correlation Matrix" when you choose Direct Oblimin.
+**Explanation:** Change `rotate = "varimax"` (orthogonal) to `rotate = "oblimin"` (oblique) and the factors are allowed to correlate. The output now includes a `factor correlations` block, these are the same correlations SPSS shows under "Component Correlation Matrix" when you choose Direct Oblimin.
 
 </details>
 
 ## How do I compute reliability (Cronbach's alpha) like SPSS RELIABILITY?
 
-SPSS `RELIABILITY /VARIABLES = ... /STATISTICS = ALPHA` becomes `psych::alpha()`. The output gives you raw alpha, standardized alpha, average inter-item correlation, item-total statistics, and the "alpha if item dropped" column — the same five blocks SPSS users are used to seeing. Use `check.keys = TRUE` so psych auto-flips reverse-coded items (in SPSS you'd do this by hand with RECODE).
+SPSS `RELIABILITY /VARIABLES = ... /STATISTICS = ALPHA` becomes `psych::alpha()`. The output gives you raw alpha, standardized alpha, average inter-item correlation, item-total statistics, and the "alpha if item dropped" column, the same five blocks SPSS users are used to seeing. Use `check.keys = TRUE` so psych auto-flips reverse-coded items (in SPSS you'd do this by hand with RECODE).
 
 ```r
 # SPSS: RELIABILITY /VARIABLES = A1 A2 A3 A4 A5 /STATISTICS = ALPHA.
@@ -425,7 +425,7 @@ agree_alpha
 #>   automatically reversed.  These items were  A1
 ```
 
-The first block prints raw alpha (`0.70`), standardized alpha (`0.71`), and Guttman's lambda 6 — exactly the columns SPSS prints in its "Reliability Statistics" output, plus a 95% CI. The "Reliability if an item is dropped" block reproduces the SPSS "Item-Total Statistics" → "Cronbach's Alpha if Item Deleted" column. The `A1-` suffix shows that psych reversed item `A1` because it correlated negatively with the total — saving you a manual RECODE step.
+The first block prints raw alpha (`0.70`), standardized alpha (`0.71`), and Guttman's lambda 6, exactly the columns SPSS prints in its "Reliability Statistics" output, plus a 95% CI. The "Reliability if an item is dropped" block reproduces the SPSS "Item-Total Statistics" → "Cronbach's Alpha if Item Deleted" column. The `A1-` suffix shows that psych reversed item `A1` because it correlated negatively with the total, saving you a manual RECODE step.
 
 [TIP]
 **Set check.keys = TRUE to auto-handle reverse-coded items.** psych flips negatively correlated items for you and prints a warning naming each one (look for a trailing `-` on the item name in the output), so you can audit the keying rather than discovering a hidden recode three months later.
@@ -450,7 +450,7 @@ ex_alpha
 #>        0.73      0.73    0.69      0.35 2.7 0.0061  4.3 1.07
 ```
 
-**Explanation:** Same call, different column slice. Conscientiousness lands around `raw_alpha = 0.73`, slightly above Agreeableness — consistent with published bfi scale reliabilities.
+**Explanation:** Same call, different column slice. Conscientiousness lands around `raw_alpha = 0.73`, slightly above Agreeableness, consistent with published bfi scale reliabilities.
 
 </details>
 
@@ -530,7 +530,7 @@ my_fa$Vaccounted
 #> Cumulative Proportion 1.0000000
 ```
 
-**Explanation:** Raw alpha is `0.76` and the single factor explains about `51%` of the items' variance — a solid indicator that the five Extraversion items measure one underlying trait. Whenever alpha is high and a one-factor solution captures most of the variance, your scale is behaving as a unidimensional measure.
+**Explanation:** Raw alpha is `0.76` and the single factor explains about `51%` of the items' variance, a solid indicator that the five Extraversion items measure one underlying trait. Whenever alpha is high and a one-factor solution captures most of the variance, your scale is behaving as a unidimensional measure.
 
 </details>
 
@@ -571,7 +571,7 @@ summary(final_fit)$coefficients
 #> age          0.062474  0.00929122  6.72392 2.226218e-11
 ```
 
-The whole pipeline runs in one block. Alpha is `0.70` (acceptable), one factor explains about 38% of the variance (modest — a single-factor model fits but isn't perfect), and the regression shows agreeableness scores increase by `0.06` points per year of age — small in magnitude but highly significant given the sample size of 2,236. Re-running this on new data is a single command. In SPSS, you'd click through five dialogs and pray you remembered every option.
+The whole pipeline runs in one block. Alpha is `0.70` (acceptable), one factor explains about 38% of the variance (modest, a single-factor model fits but isn't perfect), and the regression shows agreeableness scores increase by `0.06` points per year of age, small in magnitude but highly significant given the sample size of 2,236. Re-running this on new data is a single command. In SPSS, you'd click through five dialogs and pray you remembered every option.
 
 ## Summary
 
@@ -596,16 +596,16 @@ Three habits will make the transition smooth: read `.sav` files with `haven::rea
 
 ## References
 
-1. Wickham, H. & Miller, E. — *haven: Import and Export 'SPSS', 'Stata' and 'SAS' Files*. Tidyverse documentation. [Link](https://haven.tidyverse.org/)
-2. Revelle, W. — *psych: Procedures for Psychological, Psychometric, and Personality Research*. CRAN package. [Link](https://cran.r-project.org/package=psych)
-3. Fox, J. & Weisberg, S. — *An R Companion to Applied Regression*, 3rd Edition. SAGE Publications (2019). [Link](https://socialsciences.mcmaster.ca/jfox/Books/Companion/)
-4. R Core Team — *An Introduction to R*, base statistics functions. [Link](https://cran.r-project.org/doc/manuals/r-release/R-intro.html)
-5. UCLA OARC Statistical Consulting — *R Resources and Tutorials*. [Link](https://stats.oarc.ucla.edu/r/)
-6. Field, A., Miles, J. & Field, Z. — *Discovering Statistics Using R*. SAGE Publications. [Link](https://www.discoveringstatistics.com/books/discovering-statistics-using-r/)
-7. Tidyverse blog — *haven 2.5.0 release notes*. [Link](https://www.tidyverse.org/blog/2022/02/haven-2-5-0/)
+1. Wickham, H. & Miller, E., *haven: Import and Export 'SPSS', 'Stata' and 'SAS' Files*. Tidyverse documentation. [Link](https://haven.tidyverse.org/)
+2. Revelle, W., *psych: Procedures for Psychological, Psychometric, and Personality Research*. CRAN package. [Link](https://cran.r-project.org/package=psych)
+3. Fox, J. & Weisberg, S., *An R Companion to Applied Regression*, 3rd Edition. SAGE Publications (2019). [Link](https://socialsciences.mcmaster.ca/jfox/Books/Companion/)
+4. R Core Team, *An Introduction to R*, base statistics functions. [Link](https://cran.r-project.org/doc/manuals/r-release/R-intro.html)
+5. UCLA OARC Statistical Consulting, *R Resources and Tutorials*. [Link](https://stats.oarc.ucla.edu/r/)
+6. Field, A., Miles, J. & Field, Z., *Discovering Statistics Using R*. SAGE Publications. [Link](https://www.discoveringstatistics.com/books/discovering-statistics-using-r/)
+7. Tidyverse blog, *haven 2.5.0 release notes*. [Link](https://www.tidyverse.org/blog/2022/02/haven-2-5-0/)
 
 ## Continue Learning
 
-- [Is R Worth Learning in 2026?](Is-R-Worth-Learning-in-2026.html) — the case for adding R to your toolkit
-- [R for SAS Users](R-for-SAS-Users.html) — sister migration guide written in the same format
-- [R for Excel Users](R-for-Excel-Users.html) — the Excel-to-R version of this article
+- [Is R Worth Learning in 2026?](Is-R-Worth-Learning-in-2026.html), the case for adding R to your toolkit
+- [R for SAS Users](R-for-SAS-Users.html), sister migration guide written in the same format
+- [R for Excel Users](R-for-Excel-Users.html), the Excel-to-R version of this article

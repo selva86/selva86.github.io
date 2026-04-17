@@ -16,7 +16,7 @@ difficulty: "Intermediate"
 
 # Tail Call Optimization in R: Recursive Functions Without Stack Overflow
 
-<p class="lead">Tail call optimization (TCO) lets a recursive function reuse its current stack frame instead of adding a new one for each call — so your recursion runs in constant memory and never hits R's stack limit. R 4.4+ supports this natively with <code>Tailcall()</code>, and older versions can achieve the same effect with trampolines or accumulator rewrites.</p>
+<p class="lead">Tail call optimization (TCO) lets a recursive function reuse its current stack frame instead of adding a new one for each call, so your recursion runs in constant memory and never hits R's stack limit. R 4.4+ supports this natively with <code>Tailcall()</code>, and older versions can achieve the same effect with trampolines or accumulator rewrites.</p>
 
 ## Why does recursion hit a stack limit in R?
 
@@ -38,7 +38,7 @@ countdown(10)
 # Error: C stack usage 15926352 is too close to the limit
 ```
 
-R printed `"done!"` for `countdown(10)` — just 10 stack frames, no problem. But at `n = 10000`, each call stacks on top of the last until R's memory limit is hit. The exact limit varies by system (typically 1,000 to 10,000 frames), but the crash is always the same.
+R printed `"done!"` for `countdown(10)`, just 10 stack frames, no problem. But at `n = 10000`, each call stacks on top of the last until R's memory limit is hit. The exact limit varies by system (typically 1,000 to 10,000 frames), but the crash is always the same.
 
 To see the stack growing, let's peek inside a smaller recursion with `sys.nframe()`, which returns the current depth of the call stack.
 
@@ -58,7 +58,7 @@ show_depth(5)
 #> n = 1 | stack depth = 5
 ```
 
-Each call pushes one more frame onto the stack. Five calls, five frames. Ten thousand calls, ten thousand frames — and the stack runs out of space.
+Each call pushes one more frame onto the stack. Five calls, five frames. Ten thousand calls, ten thousand frames, and the stack runs out of space.
 
 [KEY INSIGHT]
 **The stack limit exists to protect your system.** Without it, a runaway recursion would consume all available memory and freeze your machine. The limit is a safety net, not a bug.
@@ -88,13 +88,13 @@ ex_sum_to(5)
 #> [1] 15
 ```
 
-**Explanation:** Each call adds `n` to the result of `ex_sum_to(n - 1)` until the base case returns 1. This works for small n but would crash for large values because `n + ex_sum_to(n - 1)` means the addition happens *after* the recursive call returns — R must keep every frame alive.
+**Explanation:** Each call adds `n` to the result of `ex_sum_to(n - 1)` until the base case returns 1. This works for small n but would crash for large values because `n + ex_sum_to(n - 1)` means the addition happens *after* the recursive call returns, R must keep every frame alive.
 
 </details>
 
 ## What makes a function tail-recursive?
 
-A function is tail-recursive when the recursive call is the very last thing it does — nothing happens after the call returns. This distinction matters because only tail-recursive functions can be optimized to reuse their stack frame.
+A function is tail-recursive when the recursive call is the very last thing it does, nothing happens after the call returns. This distinction matters because only tail-recursive functions can be optimized to reuse their stack frame.
 
 Let's compare two versions of factorial. First, the standard (non-tail-recursive) version.
 
@@ -109,7 +109,7 @@ factorial_bad(10)
 #> [1] 3628800
 ```
 
-The line `n * factorial_bad(n - 1)` means R can't discard the current frame — it needs to stick around so it can multiply `n` by whatever the recursive call returns. Every frame waits for the one below it.
+The line `n * factorial_bad(n - 1)` means R can't discard the current frame, it needs to stick around so it can multiply `n` by whatever the recursive call returns. Every frame waits for the one below it.
 
 Now here's the tail-recursive version. The trick is to move the multiplication *into* a parameter called an accumulator.
 
@@ -124,7 +124,7 @@ factorial_acc(10)
 #> [1] 3628800
 ```
 
-Both produce 3628800, but the second version carries the running product forward in `acc`. When `factorial_acc(n - 1, acc * n)` returns, there's nothing left to do — the current frame is truly finished. That's what makes it eligible for tail call optimization.
+Both produce 3628800, but the second version carries the running product forward in `acc`. When `factorial_acc(n - 1, acc * n)` returns, there's nothing left to do, the current frame is truly finished. That's what makes it eligible for tail call optimization.
 
 [TIP]
 **The accumulator trick works for any "build up a result" recursion.** Move the pending computation into an extra parameter with a sensible default (usually 0 for sums, 1 for products, or an empty vector for collections).
@@ -166,7 +166,7 @@ ex_power(2, 10)
 
 ## How does Tailcall() work in base R?
 
-R 4.4.0 introduced `Tailcall()`, a base R function that tells the interpreter: "replace my current stack frame with this new call." No packages needed — just wrap your recursive call in `Tailcall()` and R handles the rest.
+R 4.4.0 introduced `Tailcall()`, a base R function that tells the interpreter: "replace my current stack frame with this new call." No packages needed, just wrap your recursive call in `Tailcall()` and R handles the rest.
 
 ```r
 # Factorial with Tailcall() — handles huge n without stack overflow
@@ -202,7 +202,7 @@ countdown_tc(100)
 The function is identical in structure to our original `countdown`, but wrapping the recursive call in `Tailcall()` keeps the stack flat.
 
 [WARNING]
-**Tailcall() is experimental in R 4.4.** It works reliably, but stack traces from `traceback()` won't show replaced frames. This makes debugging harder — if something goes wrong inside deep recursion, you'll only see the last call, not the chain that led to it.
+**Tailcall() is experimental in R 4.4.** It works reliably, but stack traces from `traceback()` won't show replaced frames. This makes debugging harder, if something goes wrong inside deep recursion, you'll only see the last call, not the chain that led to it.
 
 [NOTE]
 **Tailcall() requires R >= 4.4.0.** Check your version with `R.version.string`. If you're on an older version, the trampoline pattern (next section) gives you the same stack safety on any R version.
@@ -238,7 +238,7 @@ ex_count_digits(123456)
 
 ## What is the trampoline pattern and when should you use it?
 
-A trampoline wraps recursion in a while loop. Instead of calling itself directly, the function returns a description of the next call (a "thunk"). The loop keeps evaluating thunks until a final value appears. This works on any R version with no special functions — just 8 lines of setup.
+A trampoline wraps recursion in a while loop. Instead of calling itself directly, the function returns a description of the next call (a "thunk"). The loop keeps evaluating thunks until a final value appears. This works on any R version with no special functions, just 8 lines of setup.
 
 Here's a minimal trampoline implementation based on Jim Hester's elegant pattern.
 
@@ -278,7 +278,7 @@ factorial_tramp(5000)
 #> [1] Inf
 ```
 
-`factorial_tramp(5000)` returns `Inf` (the number is too large for R's double-precision floating point), but it doesn't crash — the stack stays flat because the while loop does all the iteration.
+`factorial_tramp(5000)` returns `Inf` (the number is too large for R's double-precision floating point), but it doesn't crash, the stack stays flat because the while loop does all the iteration.
 
 The trampoline really shines with mutual recursion, where two functions call each other. Here's a classic: checking whether a number is even or odd using only subtraction by 1.
 
@@ -312,7 +312,7 @@ is_odd_t(7)
 Each function returns a zero-argument function (a thunk) instead of calling the other directly. The trampoline loop evaluates thunks until it gets a non-function value. No stack growth, no matter how large the number.
 
 [KEY INSIGHT]
-**A trampoline converts recursion into iteration without you having to rewrite the algorithm as a loop.** The recursive structure stays readable — you just swap direct calls for `recur()` or thunk returns.
+**A trampoline converts recursion into iteration without you having to rewrite the algorithm as a loop.** The recursive structure stays readable, you just swap direct calls for `recur()` or thunk returns.
 
 **Try it:** Use the `trampoline` and `recur` functions defined above to write a `ex_collatz(n, steps = 0)` function that counts how many steps it takes to reach 1 in the Collatz sequence (if even, divide by 2; if odd, multiply by 3 and add 1).
 
@@ -340,7 +340,7 @@ ex_collatz(27)
 #> [1] 111
 ```
 
-**Explanation:** The Collatz sequence starting at 27 takes 111 steps to reach 1. Without the trampoline, this would require 111 stack frames — manageable here, but some starting values need thousands of steps.
+**Explanation:** The Collatz sequence starting at 27 takes 111 steps to reach 1. Without the trampoline, this would require 111 stack frames, manageable here, but some starting values need thousands of steps.
 
 </details>
 
@@ -383,7 +383,7 @@ All three return 5050. The difference is in performance and portability. Here's 
 
 | Approach | R Version | Stack Usage | Speed | Readability | Mutual Recursion |
 |---|---|---|---|---|---|
-| Regular recursion | Any | O(n) — crashes | Fast | High | Yes |
+| Regular recursion | Any | O(n), crashes | Fast | High | Yes |
 | Accumulator only | Any | Still O(n) without TCO | Fast | Medium | No |
 | `Tailcall()` | 4.4+ | O(1) | Fast | High | Limited |
 | Trampoline | Any | O(1) | Slower (overhead) | Medium | Yes |
@@ -448,7 +448,7 @@ my_gcd(48, 18)
 #> [1] 6
 ```
 
-**Explanation:** Euclid's algorithm is naturally tail-recursive — the recursive call `gcd(b, a %% b)` is already the last operation. Wrapping in `Tailcall()` lets it handle arbitrarily large inputs without stack overflow.
+**Explanation:** Euclid's algorithm is naturally tail-recursive, the recursive call `gcd(b, a %% b)` is already the last operation. Wrapping in `Tailcall()` lets it handle arbitrarily large inputs without stack overflow.
 
 </details>
 
@@ -540,7 +540,7 @@ my_bsearch(1:100, 101)
 #> [1] NA
 ```
 
-**Explanation:** Binary search is naturally tail-recursive — each call narrows the search window without needing to do anything after the recursive call returns. `Tailcall()` ensures the stack stays flat even when searching through millions of elements.
+**Explanation:** Binary search is naturally tail-recursive, each call narrows the search window without needing to do anything after the recursive call returns. `Tailcall()` ensures the stack stays flat even when searching through millions of elements.
 
 </details>
 
@@ -602,7 +602,7 @@ Three versions, same result for small inputs. But only the `Tailcall()` version 
 
 | Approach | R Version | Stack | Best For |
 |---|---|---|---|
-| Regular recursion | Any | O(n) — crashes at depth limit | Prototyping, small inputs only |
+| Regular recursion | Any | O(n), crashes at depth limit | Prototyping, small inputs only |
 | Accumulator rewrite | Any | Still O(n) without TCO | Preparing code for `Tailcall()` |
 | `Tailcall()` | 4.4+ | O(1) | Production tail-recursive code |
 | Trampoline | Any | O(1) | Pre-4.4 R, mutual recursion |
@@ -611,7 +611,7 @@ Three versions, same result for small inputs. But only the `Tailcall()` version 
 Key takeaways:
 
 - **Recursion crashes** when the call stack exceeds R's limit (typically 1,000 to 10,000 frames)
-- **Tail-recursive** means the recursive call is the *last* operation — no pending work after it returns
+- **Tail-recursive** means the recursive call is the *last* operation, no pending work after it returns
 - **The accumulator pattern** converts non-tail-recursive functions to tail-recursive by carrying results forward
 - **Tailcall()** (R 4.4+) replaces the current stack frame, giving O(1) stack usage
 - **Trampolines** achieve the same effect on any R version by converting recursion into a while loop
@@ -619,16 +619,16 @@ Key takeaways:
 
 ## References
 
-1. R Core Team — `Tailcall` and `Exec` documentation. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/Tailcall.html)
-2. Wickham, H. — *Advanced R*, 2nd Edition. Chapter 6: Functions. [Link](https://adv-r.hadley.nz/functions.html)
-3. Jumping Rivers — What's New in R 4.4.0. [Link](https://www.jumpingrivers.com/blog/whats-new-r44/)
-4. Hester, J. — Tail Recursion in R with Trampolines. [Link](https://tailrecursion.com/wondr/posts/tail-recursion-in-r.html)
-5. Dinnager, R. — trampoline: Make Functions that Can Recurse Infinitely. [Link](https://rdinnager.github.io/trampoline/)
-6. Mailund, T. — tailr: Automatic Tail Recursion Optimisation. [Link](https://mailund.github.io/tailr/)
-7. Wikipedia — Tail call. [Link](https://en.wikipedia.org/wiki/Tail_call)
+1. R Core Team, `Tailcall` and `Exec` documentation. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/Tailcall.html)
+2. Wickham, H., *Advanced R*, 2nd Edition. Chapter 6: Functions. [Link](https://adv-r.hadley.nz/functions.html)
+3. Jumping Rivers, What's New in R 4.4.0. [Link](https://www.jumpingrivers.com/blog/whats-new-r44/)
+4. Hester, J., Tail Recursion in R with Trampolines. [Link](https://tailrecursion.com/wondr/posts/tail-recursion-in-r.html)
+5. Dinnager, R., trampoline: Make Functions that Can Recurse Infinitely. [Link](https://rdinnager.github.io/trampoline/)
+6. Mailund, T., tailr: Automatic Tail Recursion Optimisation. [Link](https://mailund.github.io/tailr/)
+7. Wikipedia, Tail call. [Link](https://en.wikipedia.org/wiki/Tail_call)
 
 ## Continue Learning
 
-1. [Functional Programming in R](Functional-Programming-in-R.html) — The parent guide covering closures, higher-order functions, and the functional mindset that makes tail recursion natural.
-2. [Memoization in R](Memoization-in-R.html) — Another technique for making recursive functions efficient — cache results so you never compute the same subproblem twice.
-3. [Reduce, Filter, Map in R](Reduce-Filter-Map-in-R.html) — Base R's functional triad that often replaces explicit recursion entirely with cleaner, vectorized alternatives.
+1. [Functional Programming in R](Functional-Programming-in-R.html), The parent guide covering closures, higher-order functions, and the functional mindset that makes tail recursion natural.
+2. [Memoization in R](Memoization-in-R.html), Another technique for making recursive functions efficient, cache results so you never compute the same subproblem twice.
+3. [Reduce, Filter, Map in R](Reduce-Filter-Map-in-R.html), Base R's functional triad that often replaces explicit recursion entirely with cleaner, vectorized alternatives.

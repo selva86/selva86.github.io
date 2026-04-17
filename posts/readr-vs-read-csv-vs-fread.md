@@ -16,7 +16,7 @@ difficulty: "Intermediate"
 
 # readr vs read.csv vs fread in R: Which Data Import Function Is Fastest?
 
-<p class="lead">For loading CSV files in R, <code>data.table::fread()</code> is usually the fastest pick — roughly 5× to 40× faster than base <code>read.csv()</code> and around 8× faster than <code>readr::read_csv()</code> once files cross 100 MB. The honest gap depends on file size, column types, and whether you want a data.frame, a tibble, or a data.table on the way out.</p>
+<p class="lead">For loading CSV files in R, <code>data.table::fread()</code> is usually the fastest pick, roughly 5× to 40× faster than base <code>read.csv()</code> and around 8× faster than <code>readr::read_csv()</code> once files cross 100 MB. The honest gap depends on file size, column types, and whether you want a data.frame, a tibble, or a data.table on the way out.</p>
 
 ## Which function reads CSVs fastest in R?
 
@@ -46,7 +46,7 @@ cat("fread()   :", round(t3["elapsed"], 3), "sec\n")
 #> fread()   : 0.041 sec
 ```
 
-Across this 50k-row file, `fread()` is roughly 10× faster than `read.csv()` and around 3× faster than `read_csv()`. The numbers will shift on your machine, but the *order* almost never does: `fread` first, `read_csv` second, `read.csv` third. The reason is structural — `fread()` does less work per row, parses columns in parallel, and uses a memory-mapped C parser instead of the row-by-row R-level loop that base R inherited from the 1990s.
+Across this 50k-row file, `fread()` is roughly 10× faster than `read.csv()` and around 3× faster than `read_csv()`. The numbers will shift on your machine, but the *order* almost never does: `fread` first, `read_csv` second, `read.csv` third. The reason is structural, `fread()` does less work per row, parses columns in parallel, and uses a memory-mapped C parser instead of the row-by-row R-level loop that base R inherited from the 1990s.
 
 **Try it:** Regenerate the CSV at 10,000 rows and rerun the three timings. Does the ratio between the readers stay roughly the same, or does it shrink?
 
@@ -103,7 +103,7 @@ class(r3)
 `read.csv()` returns a plain `data.frame`. `read_csv()` returns a `tibble`, which is also a data.frame but prints only the first 10 rows and respects column types more strictly. `fread()` returns a `data.table`, which is *also* a data.frame but supports a different `[i, j, by]` indexing syntax. The good news: all three inherit from `data.frame`, so any function that expects a data.frame accepts any of them.
 
 [NOTE]
-**All three readers accept a path or a URL string.** `fread()` goes one step further and accepts a shell command like `"unzip -p archive.zip data.csv"` on a local R session — handy for compressed pipelines, though not available inside the browser sandbox.
+**All three readers accept a path or a URL string.** `fread()` goes one step further and accepts a shell command like `"unzip -p archive.zip data.csv"` on a local R session, handy for compressed pipelines, though not available inside the browser sandbox.
 
 **Try it:** Convert `r3` (the data.table) into a tibble using `tibble::as_tibble()` and check its class.
 
@@ -143,12 +143,12 @@ cat("fread, 2 threads:", round(t_two["elapsed"], 3), "sec\n")
 #> fread, 2 threads: 0.038 sec
 ```
 
-On this small file the threading gain is modest — there isn't enough work to spread across cores. On a real 1 GB CSV with 20 columns, the same call typically scales near-linearly up to four threads. Threading also doesn't help if your bottleneck is a slow disk: you can only feed bytes to the parser as fast as the filesystem hands them over.
+On this small file the threading gain is modest, there isn't enough work to spread across cores. On a real 1 GB CSV with 20 columns, the same call typically scales near-linearly up to four threads. Threading also doesn't help if your bottleneck is a slow disk: you can only feed bytes to the parser as fast as the filesystem hands them over.
 
 [KEY INSIGHT]
 **fread is fast because it does less work per row, not because it does the same work faster.** Sampling for type inference, batching column allocation, and a single C-level parse loop are bigger wins than parallelism. Threading is the cherry on top, not the cake.
 
-**Try it:** Run `fread()` on the temp file with `verbose = TRUE` and look at the report — it tells you exactly how the parser sized columns and how many threads it used.
+**Try it:** Run `fread()` on the temp file with `verbose = TRUE` and look at the report, it tells you exactly how the parser sized columns and how many threads it used.
 
 ```r
 # Try it: see what fread is actually doing under the hood
@@ -179,7 +179,7 @@ ex_v <- fread(tmp_csv, verbose = TRUE)
 
 ## Does the speed advantage hold for tiny files?
 
-Below about 1 MB, the constant overhead of starting a parser dominates the measurement. The 40× headline disappears once your file shrinks to a few hundred rows — and on truly tiny files, `read.csv()` can even win because it doesn't pay the cost of loading a package.
+Below about 1 MB, the constant overhead of starting a parser dominates the measurement. The 40× headline disappears once your file shrinks to a few hundred rows, and on truly tiny files, `read.csv()` can even win because it doesn't pay the cost of loading a package.
 
 ```r
 # Tiny file: just 32 rows of mtcars
@@ -206,7 +206,7 @@ times_small
 On a 32-row file, all three finish in single-digit milliseconds, and the ranking is essentially noise. There is no meaningful "winner" at this scale. The speed comparison only becomes interesting once your file gets large enough that you actually feel the wait.
 
 [TIP]
-**Don't optimize CSV reading for files that load instantly.** If your file loads in under a second with `read.csv()`, switching to `fread()` saves you nothing measurable. Save the optimization effort for the slow files where it pays off — usually 100 MB and up.
+**Don't optimize CSV reading for files that load instantly.** If your file loads in under a second with `read.csv()`, switching to `fread()` saves you nothing measurable. Save the optimization effort for the slow files where it pays off, usually 100 MB and up.
 
 **Try it:** Time `read_csv()` on `tmp_small` with `progress = FALSE` and see if the elapsed time changes meaningfully.
 
@@ -230,7 +230,7 @@ system.time(read_csv(tmp_small, show_col_types = FALSE, progress = FALSE))["elap
 
 ## When should you pick readr instead of fread?
 
-Speed is one axis. The other axes are: friendly tibble output, locale-aware date and decimal parsing, structured warnings when a column doesn't match its expected type, and the explicit `col_types` specification — `readr`'s killer feature for production pipelines.
+Speed is one axis. The other axes are: friendly tibble output, locale-aware date and decimal parsing, structured warnings when a column doesn't match its expected type, and the explicit `col_types` specification, `readr`'s killer feature for production pipelines.
 
 ```r
 r_typed <- read_csv(
@@ -250,7 +250,7 @@ sapply(r_typed[, c("mpg", "cyl", "hp")], class)
 #> "numeric" "integer" "integer"
 ```
 
-Specifying `col_types` upfront does two important things. First, it locks the schema — if a column shows up as character because of a stray comma, `read_csv()` will warn instead of silently coercing. Second, it skips the type-inference step entirely, so the read is also faster than letting `read_csv()` guess. For a recurring ETL pipeline, this is the difference between catching schema drift on day one and finding it weeks later.
+Specifying `col_types` upfront does two important things. First, it locks the schema, if a column shows up as character because of a stray comma, `read_csv()` will warn instead of silently coercing. Second, it skips the type-inference step entirely, so the read is also faster than letting `read_csv()` guess. For a recurring ETL pipeline, this is the difference between catching schema drift on day one and finding it weeks later.
 
 **Try it:** Read `tmp_csv` again but pass `col_types = cols(.default = "c")` to force every column as character. Inspect the column classes.
 
@@ -270,13 +270,13 @@ sapply(ex_chr, class)[1:4]
 #> "character" "character" "character" "character"
 ```
 
-**Explanation:** The `.default = "c"` shortcut tells `read_csv()` to treat every column as character regardless of contents. This is the safest mode for a first look at unfamiliar data — you can convert types after you've inspected the values.
+**Explanation:** The `.default = "c"` shortcut tells `read_csv()` to treat every column as character regardless of contents. This is the safest mode for a first look at unfamiliar data, you can convert types after you've inspected the values.
 
 </details>
 
 ## How do they handle messy data and column types differently?
 
-Real CSVs are messier than `mtcars`. ID columns have leading zeros. Date columns mix formats. NA strings show up as `"NA"`, `""`, `"-"`, or `"N/A"` depending on which intern wrote the export script. The three readers disagree about how to treat each of these — and the disagreements are the source of most "why does my data look wrong?" support questions.
+Real CSVs are messier than `mtcars`. ID columns have leading zeros. Date columns mix formats. NA strings show up as `"NA"`, `""`, `"-"`, or `"N/A"` depending on which intern wrote the export script. The three readers disagree about how to treat each of these, and the disagreements are the source of most "why does my data look wrong?" support questions.
 
 The classic trap is the leading-zero column. Watch what happens to four ZIP-style codes when each function reads them.
 
@@ -298,7 +298,7 @@ z3$id
 #> [1] "01" "02" "03" "04"
 ```
 
-`read.csv()` saw four numbers and helpfully converted them to integers — destroying the leading zeros forever. `read_csv()` and `fread()` both noticed that the values had a non-numeric form (the leading `0` is a clue) and kept them as character. This is one of the strongest practical reasons to default to `fread()` or `read_csv()` for any file you didn't write yourself.
+`read.csv()` saw four numbers and helpfully converted them to integers, destroying the leading zeros forever. `read_csv()` and `fread()` both noticed that the values had a non-numeric form (the leading `0` is a clue) and kept them as character. This is one of the strongest practical reasons to default to `fread()` or `read_csv()` for any file you didn't write yourself.
 
 [WARNING]
 **Leading-zero ID columns are a top-five silent bug source in R.** `read.csv()` will quietly turn ZIP codes, account numbers, and product SKUs into integers and you won't notice until the join keys stop matching. Always inspect ID columns after import, regardless of which reader you used.
@@ -320,7 +320,7 @@ ex_fix$id
 #> [1] "01" "02" "03" "04"
 ```
 
-**Explanation:** Pre-specifying `colClasses` overrides the automatic type guess. It's the base-R equivalent of `readr`'s `col_types` argument — slightly clunkier syntax but exactly as effective.
+**Explanation:** Pre-specifying `colClasses` overrides the automatic type guess. It's the base-R equivalent of `readr`'s `col_types` argument, slightly clunkier syntax but exactly as effective.
 
 </details>
 
@@ -357,7 +357,7 @@ sapply(my_tibble, class)[1:3]
 
 ### Exercise 2: Benchmark and report
 
-Write a function `time_all(path)` that takes a CSV path, times all three readers on it, and returns a sorted `data.frame` with two columns — `reader` and `elapsed_sec` — fastest first. Test it on `tmp_csv` and save the result to `my_bench`.
+Write a function `time_all(path)` that takes a CSV path, times all three readers on it, and returns a sorted `data.frame` with two columns, `reader` and `elapsed_sec`, fastest first. Test it on `tmp_csv` and save the result to `my_bench`.
 
 ```r
 # Exercise: build a small benchmark function
@@ -425,7 +425,7 @@ my_zips
 #> 3 10001 New York
 ```
 
-**Explanation:** `colClasses` lets `read.csv()` keep the column as character. Without it, the zips become `1010`, `2134`, and `10001` — a silent bug that breaks every downstream join on ZIP code.
+**Explanation:** `colClasses` lets `read.csv()` keep the column as character. Without it, the zips become `1010`, `2134`, and `10001`, a silent bug that breaks every downstream join on ZIP code.
 
 </details>
 
@@ -468,7 +468,7 @@ agg_out
 #> 4        D 498.6204
 ```
 
-The whole pipeline — write, read, summarise — runs in under a second on this 87 KB file, and the leading zeros in the `id` column survive intact thanks to `colClasses`. The same recipe scales to a several-hundred-MB file just by raising the row count, with `fread()` handling the increase far better than the alternatives.
+The whole pipeline, write, read, summarise, runs in under a second on this 87 KB file, and the leading zeros in the `id` column survive intact thanks to `colClasses`. The same recipe scales to a several-hundred-MB file just by raising the row count, with `fread()` handling the increase far better than the alternatives.
 
 ## Summary
 
@@ -486,16 +486,16 @@ Three takeaways:
 
 ## References
 
-1. data.table — `fread()` reference manual. [Link](https://rdatatable.gitlab.io/data.table/reference/fread.html)
-2. readr — `read_csv()` reference. [Link](https://readr.tidyverse.org/reference/read_delim.html)
-3. R Core Team — `read.csv()` documentation (utils package). [Link](https://stat.ethz.ch/R-manual/R-devel/library/utils/html/read.table.html)
-4. Wickham, H. & Grolemund, G. — *R for Data Science*, 2nd Edition, Chapter 7: Data Import. [Link](https://r4ds.hadley.nz/data-import)
-5. Gillespie, C. & Lovelace, R. — *Efficient R Programming*, Chapter 5: Input/Output. [Link](https://bookdown.org/csgillespie/efficientR/input-output.html)
-6. Appsilon — *Fast Data Loading from Files to R*. [Link](https://appsilon.com/fast-data-loading-from-files-to-r/)
-7. Cook, D. — *Speeding up Reading and Writing in R*. [Link](https://www.danielecook.com/speeding-up-reading-and-writing-in-r/)
+1. data.table, `fread()` reference manual. [Link](https://rdatatable.gitlab.io/data.table/reference/fread.html)
+2. readr, `read_csv()` reference. [Link](https://readr.tidyverse.org/reference/read_delim.html)
+3. R Core Team, `read.csv()` documentation (utils package). [Link](https://stat.ethz.ch/R-manual/R-devel/library/utils/html/read.table.html)
+4. Wickham, H. & Grolemund, G., *R for Data Science*, 2nd Edition, Chapter 7: Data Import. [Link](https://r4ds.hadley.nz/data-import)
+5. Gillespie, C. & Lovelace, R., *Efficient R Programming*, Chapter 5: Input/Output. [Link](https://bookdown.org/csgillespie/efficientR/input-output.html)
+6. Appsilon, *Fast Data Loading from Files to R*. [Link](https://appsilon.com/fast-data-loading-from-files-to-r/)
+7. Cook, D., *Speeding up Reading and Writing in R*. [Link](https://www.danielecook.com/speeding-up-reading-and-writing-in-r/)
 
 ## Continue Learning
 
-- **[Importing Data in R](Importing-Data-in-R.html)** — the parent guide that covers reading CSV, Excel, JSON, SQL, and 12 other formats end to end.
-- **[R Data Types](R-Data-Types.html)** — once your data is loaded, you'll want to understand which types each column ended up as and why it matters.
-- **[dplyr Tutorial](dplyr-Tutorial.html)** — the natural next step after import: filter, group, and summarise with the tidyverse.
+- **[Importing Data in R](Importing-Data-in-R.html)**, the parent guide that covers reading CSV, Excel, JSON, SQL, and 12 other formats end to end.
+- **[R Data Types](R-Data-Types.html)**, once your data is loaded, you'll want to understand which types each column ended up as and why it matters.
+- **[dplyr Tutorial](dplyr-Tutorial.html)**, the natural next step after import: filter, group, and summarise with the tidyverse.

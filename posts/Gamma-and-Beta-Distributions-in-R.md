@@ -1,7 +1,7 @@
 ---
 title: "Gamma & Beta Distributions in R: Shape, Scale & Conjugate Priors"
 slug: Gamma-and-Beta-Distributions-in-R
-description: "Learn gamma and beta distributions in R — shape, scale, rate parameters, conjugate priors, and d/p/q/r functions with runnable examples and clear intuition."
+description: "Learn gamma and beta distributions in R, shape, scale, rate parameters, conjugate priors, and d/p/q/r functions with runnable examples and clear intuition."
 keywords: "gamma distribution R, beta distribution R, dgamma, dbeta, pgamma, pbeta, conjugate prior, shape parameter, rate parameter, Bayesian R"
 auto_link_terms: "gamma distribution|beta distribution|conjugate prior|conjugate priors|shape parameter|rate parameter|dgamma|dbeta|pgamma|pbeta"
 auto_link_case_sensitive: false
@@ -16,11 +16,11 @@ difficulty: Intermediate
 
 # Gamma & Beta Distributions in R: Shape, Scale & Conjugate Priors
 
-<p class="lead">The gamma distribution models positive, right-skewed quantities like waiting times and total claim amounts, while the beta distribution models proportions bounded between 0 and 1. In Bayesian analysis they are the canonical conjugate priors — beta pairs with the binomial, gamma pairs with the Poisson — and getting fluent in their R parameterisations unlocks both families.</p>
+<p class="lead">The gamma distribution models positive, right-skewed quantities like waiting times and total claim amounts, while the beta distribution models proportions bounded between 0 and 1. In Bayesian analysis they are the canonical conjugate priors, beta pairs with the binomial, gamma pairs with the Poisson, and getting fluent in their R parameterisations unlocks both families.</p>
 
 ## What is the gamma distribution and when does it arise?
 
-The gamma distribution is what you get when you add up `k` independent exponential waiting times. It shows up whenever a quantity is positive, continuous, and right-skewed — insurance claim totals, time to the `k`th arrival in a Poisson process, rainfall amounts, session durations. R exposes four functions for it — `dgamma()`, `pgamma()`, `qgamma()`, and `rgamma()` — which return the density, cumulative probability, quantile, and random samples. The quickest way to build intuition is to plot its family of shapes.
+The gamma distribution is what you get when you add up `k` independent exponential waiting times. It shows up whenever a quantity is positive, continuous, and right-skewed, insurance claim totals, time to the `k`th arrival in a Poisson process, rainfall amounts, session durations. R exposes four functions for it, `dgamma()`, `pgamma()`, `qgamma()`, and `rgamma()`, which return the density, cumulative probability, quantile, and random samples. The quickest way to build intuition is to plot its family of shapes.
 
 The code below loads `ggplot2` and `tibble`, builds a grid of x-values, computes the gamma density at three shape values (1, 3, and 6) with rate fixed at 1, and plots the three curves on one chart. Watch how the shape parameter pulls the peak to the right and makes the tail heavier.
 
@@ -50,7 +50,7 @@ ggplot(gamma_curves, aes(x, density, colour = shape)) +
 #> (shape 6). All start at 0 and decay to 0 as x grows.
 ```
 
-Shape 1 is the familiar exponential decay — a purely monotonic curve starting at 1 and falling to zero. Shape 3 introduces a visible peak because the distribution now represents the sum of three exponentials. Shape 6 pushes that peak further right and makes the overall shape look almost bell-like. The single shape parameter is doing all the work here; the rate only stretches or squeezes the horizontal axis.
+Shape 1 is the familiar exponential decay, a purely monotonic curve starting at 1 and falling to zero. Shape 3 introduces a visible peak because the distribution now represents the sum of three exponentials. Shape 6 pushes that peak further right and makes the overall shape look almost bell-like. The single shape parameter is doing all the work here; the rate only stretches or squeezes the horizontal axis.
 
 **Try it:** Evaluate `dgamma()` at x = 3 and `pgamma()` at q = 3 for Gamma(shape = 2, rate = 1). The first gives the height of the density, the second gives the probability of being at or below 3.
 
@@ -84,7 +84,7 @@ pgamma(3, shape = 2, rate = 1)
 
 ## How do shape, rate, and scale parameters differ?
 
-R's `dgamma()` accepts either `rate` (default) or `scale`, and tutorials often disagree on which name to use. Shape controls skewness: small shape gives a sharp early peak, large shape looks almost symmetric. Rate controls how quickly probability decays, and scale is its reciprocal — `scale = 1 / rate`. Mixing them silently produces wrong answers, so let's tighten the vocabulary.
+R's `dgamma()` accepts either `rate` (default) or `scale`, and tutorials often disagree on which name to use. Shape controls skewness: small shape gives a sharp early peak, large shape looks almost symmetric. Rate controls how quickly probability decays, and scale is its reciprocal, `scale = 1 / rate`. Mixing them silently produces wrong answers, so let's tighten the vocabulary.
 
 The formula below captures the relationship between mean, shape, and rate.
 
@@ -95,7 +95,7 @@ Where:
 - $\beta$ = rate
 - $\theta = 1/\beta$ = scale
 
-In R, the two parameterisations are fully equivalent. The next block computes the density at x = 1 using `rate = 2` and then using `scale = 0.5` — identical numbers fall out because they describe the same distribution.
+In R, the two parameterisations are fully equivalent. The next block computes the density at x = 1 using `rate = 2` and then using `scale = 0.5`, identical numbers fall out because they describe the same distribution.
 
 ```r
 # Equivalent calls using rate and scale
@@ -128,7 +128,7 @@ ggplot(gamma_shape_curves, aes(x, density, colour = shape)) +
 #> shape 5 peaks near x = 4; shape 10 peaks near x = 9 and looks almost symmetric.
 ```
 
-As shape grows, the peak moves right and the curve grows progressively more symmetric. At shape = 10 the gamma looks strikingly similar to a normal distribution — a sign that with enough summed exponentials the central limit theorem starts to take over.
+As shape grows, the peak moves right and the curve grows progressively more symmetric. At shape = 10 the gamma looks strikingly similar to a normal distribution, a sign that with enough summed exponentials the central limit theorem starts to take over.
 
 **Try it:** Compute the probability that a Gamma(shape = 3, rate = 0.5) draw exceeds 10. Use `pgamma()` with `lower.tail = FALSE`.
 
@@ -152,11 +152,11 @@ pgamma(10, shape = 3, rate = 0.5, lower.tail = FALSE)
 </details>
 
 [WARNING]
-**Supplying both `rate` and `scale` is an error.** R will throw an error if you pass both — intentional, to protect you from a half-remembered formula. Pick one naming convention for each analysis.
+**Supplying both `rate` and `scale` is an error.** R will throw an error if you pass both, intentional, to protect you from a half-remembered formula. Pick one naming convention for each analysis.
 
 ## What is the beta distribution and why is it used for proportions?
 
-The beta distribution lives on the interval [0, 1], which makes it the natural distribution over a probability itself. Its two shape parameters — `shape1` (often α) and `shape2` (often β) — act like "pseudo-successes" and "pseudo-failures." That single idea explains why Beta(1, 1) is flat, Beta(10, 10) is a tight bump around 0.5, and Beta(0.5, 0.5) is U-shaped with mass piled at both ends.
+The beta distribution lives on the interval [0, 1], which makes it the natural distribution over a probability itself. Its two shape parameters, `shape1` (often α) and `shape2` (often β), act like "pseudo-successes" and "pseudo-failures." That single idea explains why Beta(1, 1) is flat, Beta(10, 10) is a tight bump around 0.5, and Beta(0.5, 0.5) is U-shaped with mass piled at both ends.
 
 The mean is a simple ratio of the two parameters, and their sum controls how concentrated the distribution is.
 
@@ -192,7 +192,7 @@ ggplot(beta_curves, aes(p, density, colour = params)) +
 #> U-shape with mass at 0 and 1 (Beta(0.5,0.5)).
 ```
 
-Beta(1, 1) is the flat uniform — a reasonable prior when you want to say "I know nothing about this probability." Beta(10, 10) is the opposite: strong prior belief that the probability is near 0.5. The U-shape of Beta(0.5, 0.5) — Jeffreys' prior — carries the different idea that the probability is likely near 0 or 1 but rarely in between. Think of α and β as pseudo-counts and these shapes make immediate sense.
+Beta(1, 1) is the flat uniform, a reasonable prior when you want to say "I know nothing about this probability." Beta(10, 10) is the opposite: strong prior belief that the probability is near 0.5. The U-shape of Beta(0.5, 0.5), Jeffreys' prior, carries the different idea that the probability is likely near 0 or 1 but rarely in between. Think of α and β as pseudo-counts and these shapes make immediate sense.
 
 **Try it:** Find the 2.5% and 97.5% quantiles of a Beta(10, 20) distribution. Together they form a 95% central interval.
 
@@ -226,7 +226,7 @@ R follows the same four-letter convention for every distribution: `d` = density,
 | `q*()` | `qgamma(p, shape, rate)` | `qbeta(p, shape1, shape2)` | Inverse of p-function |
 | `r*()` | `rgamma(n, shape, rate)` | `rbeta(n, shape1, shape2)` | n random draws |
 
-The next block exercises all four for a Gamma(3, 1) and a Beta(5, 2) — one line each, to anchor the pattern.
+The next block exercises all four for a Gamma(3, 1) and a Beta(5, 2), one line each, to anchor the pattern.
 
 ```r
 # d/p/q/r tour for Gamma(3, 1) and Beta(5, 2)
@@ -251,7 +251,7 @@ rbeta(5, shape1 = 5, shape2 = 2)          # 5 random draws
 #> [1] 0.7762 0.5982 0.8411 0.6728 0.7104
 ```
 
-The pattern is fully regular — pick your distribution, pick your question (density, probability, quantile, or sample), and swap in the right prefix. The parameter names change between `shape`/`rate` and `shape1`/`shape2`, which is why it pays to use named arguments rather than positional ones.
+The pattern is fully regular, pick your distribution, pick your question (density, probability, quantile, or sample), and swap in the right prefix. The parameter names change between `shape`/`rate` and `shape1`/`shape2`, which is why it pays to use named arguments rather than positional ones.
 
 **Try it:** Draw 1000 samples from Beta(2, 5). Check that the sample mean is close to the theoretical mean `α / (α + β) = 2/7 ≈ 0.286`.
 
@@ -279,11 +279,11 @@ ex_sample_mean
 </details>
 
 [TIP]
-**Use `lower.tail = FALSE` for upper-tail probabilities.** `pgamma(q, ..., lower.tail = FALSE)` returns P(X > q) directly — numerically safer than `1 - pgamma(q, ...)` when the true probability is tiny. The same applies to `pbeta()`.
+**Use `lower.tail = FALSE` for upper-tail probabilities.** `pgamma(q, ..., lower.tail = FALSE)` returns P(X > q) directly, numerically safer than `1 - pgamma(q, ...)` when the true probability is tiny. The same applies to `pbeta()`.
 
 ## How does beta serve as the conjugate prior for binomial likelihoods?
 
-Conjugate means: start with a Beta(α, β) prior over the success probability, observe `x` successes in `n` trials, and the posterior is also a beta — specifically Beta(α + x, β + n − x). No integration, no MCMC, no optimiser. Add the successes to α, add the failures to β, done. This closed-form update is why the beta distribution is the first tool every Bayesian reaches for when modelling a probability.
+Conjugate means: start with a Beta(α, β) prior over the success probability, observe `x` successes in `n` trials, and the posterior is also a beta, specifically Beta(α + x, β + n − x). No integration, no MCMC, no optimiser. Add the successes to α, add the failures to β, done. This closed-form update is why the beta distribution is the first tool every Bayesian reaches for when modelling a probability.
 
 The formula behind the rule comes from combining the binomial likelihood with the beta prior and noticing the posterior has the same functional form.
 
@@ -324,7 +324,7 @@ qbeta(c(0.025, 0.975), post_ab["alpha"], post_ab["beta"])
 #> [1] 0.3863 0.8417
 ```
 
-The prior Beta(2, 2) is a gentle bump around 0.5 — a mild belief in a fair coin. After seeing 7 heads in 10 flips, the posterior Beta(9, 5) shifts noticeably to the right and tightens into a narrower curve that peaks near 0.65. The 95% credible interval says that the true probability of heads is between roughly 0.39 and 0.84 with 95% posterior probability — a useful honest statement given only 10 flips.
+The prior Beta(2, 2) is a gentle bump around 0.5, a mild belief in a fair coin. After seeing 7 heads in 10 flips, the posterior Beta(9, 5) shifts noticeably to the right and tightens into a narrower curve that peaks near 0.65. The 95% credible interval says that the true probability of heads is between roughly 0.39 and 0.84 with 95% posterior probability, a useful honest statement given only 10 flips.
 
 **Try it:** Repeat the update but with a much more opinionated Beta(20, 20) prior. Compare the posterior mean to the simple frequentist estimate 7/10.
 
@@ -352,7 +352,7 @@ ex_post_mean
 </details>
 
 [KEY INSIGHT]
-**Conjugacy lets prior and posterior share the same distribution family.** The update is algebra on the parameters, not calculus on the probabilities. You add observed successes to α and observed failures to β — that's the entire inference.
+**Conjugacy lets prior and posterior share the same distribution family.** The update is algebra on the parameters, not calculus on the probabilities. You add observed successes to α and observed failures to β, that's the entire inference.
 
 ![Beta-binomial conjugate update](screenshots/Gamma-and-Beta-Distributions-in-R-bayesian-update.webp)
 
@@ -360,7 +360,7 @@ ex_post_mean
 
 ## When should you use gamma as a prior?
 
-The gamma distribution is the conjugate prior for the rate parameter of a Poisson likelihood. Start with Gamma(α, β) over the rate `λ`, observe a total count `sum(x)` across `n` periods, and the posterior is Gamma(α + sum(x), β + n). The update adds observed events to α and observed time to β — same algebraic elegance as the beta-binomial case.
+The gamma distribution is the conjugate prior for the rate parameter of a Poisson likelihood. Start with Gamma(α, β) over the rate `λ`, observe a total count `sum(x)` across `n` periods, and the posterior is Gamma(α + sum(x), β + n). The update adds observed events to α and observed time to β, same algebraic elegance as the beta-binomial case.
 
 Concretely: suppose you run a blog and want to estimate its daily visitor rate. You start with a weak prior Gamma(2, 1) expressing "I think the rate is around 2 visits/day but I'm not sure." Then you collect 5 days of data and see a total of 37 visits. The posterior is Gamma(2 + 37, 1 + 5) = Gamma(39, 6).
 
@@ -385,7 +385,7 @@ qgamma(c(0.025, 0.975), visit_post["alpha"], visit_post["beta"])
 #> [1] 4.627 8.796
 ```
 
-The posterior mean is 6.5 visits/day, and the 95% credible interval runs from about 4.6 to 8.8 visits/day. That is a full summary of what the data have to say about the underlying rate, and it took three lines of arithmetic — no sampler, no optimiser.
+The posterior mean is 6.5 visits/day, and the 95% credible interval runs from about 4.6 to 8.8 visits/day. That is a full summary of what the data have to say about the underlying rate, and it took three lines of arithmetic, no sampler, no optimiser.
 
 **Try it:** A second week brings in 45 visits over 7 days. Update the Gamma(39, 6) posterior to a new posterior and report its mean.
 
@@ -409,12 +409,12 @@ ex_new_post["alpha"] / ex_new_post["beta"]
 #> 6.4615
 ```
 
-**Explanation:** Bayesian updating is sequential by design — today's posterior becomes tomorrow's prior. The new posterior Gamma(84, 13) has a mean of about 6.46 visits/day and a tighter interval than before because it now contains 12 days of evidence.
+**Explanation:** Bayesian updating is sequential by design, today's posterior becomes tomorrow's prior. The new posterior Gamma(84, 13) has a mean of about 6.46 visits/day and a tighter interval than before because it now contains 12 days of evidence.
 
 </details>
 
 [NOTE]
-**Gamma is also the conjugate prior for the rate of an exponential likelihood.** Same algebra, same intuition — add observed events to α and observed time to β.
+**Gamma is also the conjugate prior for the rate of an exponential likelihood.** Same algebra, same intuition, add observed events to α and observed time to β.
 
 ## Practice Exercises
 
@@ -449,7 +449,7 @@ claim_q99
 #> [1] 26.62
 ```
 
-**Explanation:** About 6% of days exceed 15 (thousand) in claims. The 99th percentile is roughly 26.6 (thousand) — exceeded on only 1 of every 100 days.
+**Explanation:** About 6% of days exceed 15 (thousand) in claims. The 99th percentile is roughly 26.6 (thousand), exceeded on only 1 of every 100 days.
 
 </details>
 
@@ -481,7 +481,7 @@ prob_variant_better
 #> [1] 0.9361
 ```
 
-**Explanation:** In about 94% of the 20,000 simulated scenarios, the variant's conversion rate exceeds the control's. That is a direct posterior probability — much more interpretable than a frequentist p-value and computed entirely from closed-form conjugate posteriors.
+**Explanation:** In about 94% of the 20,000 simulated scenarios, the variant's conversion rate exceeds the control's. That is a direct posterior probability, much more interpretable than a frequentist p-value and computed entirely from closed-form conjugate posteriors.
 
 </details>
 
@@ -549,21 +549,21 @@ Key takeaways:
 
 1. **Gamma lives on the positive reals and models positive skewed quantities.** Shape controls skewness, rate (or scale) controls spread.
 2. **Beta lives on [0, 1] and models proportions.** Shape1 and shape2 act as pseudo-successes and pseudo-failures.
-3. **The d/p/q/r convention carries over from the normal.** Density, cumulative probability, quantile, random sample — same four verbs for every distribution.
+3. **The d/p/q/r convention carries over from the normal.** Density, cumulative probability, quantile, random sample, same four verbs for every distribution.
 4. **Conjugate priors give you closed-form Bayesian updates.** Beta-binomial for success rates, gamma-Poisson for event rates. No sampler required.
 
 ## References
 
-1. R Core Team — *GammaDist: The Gamma Distribution*. Official stats docs. [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/GammaDist.html)
-2. R Core Team — *Beta: The Beta Distribution*. Official stats docs. [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/Beta.html)
-3. Gelman, A. et al. — *Bayesian Data Analysis*, 3rd Edition (2014). Chapman & Hall/CRC. Chapter 2: Single-parameter models.
-4. Hoff, P. D. — *A First Course in Bayesian Statistical Methods* (2009). Springer. Chapter 3: One-parameter models.
-5. Wickham, H. — *ggplot2: Elegant Graphics for Data Analysis*, 3rd Edition. [Link](https://ggplot2-book.org/)
-6. Wikipedia — *Gamma distribution*. [Link](https://en.wikipedia.org/wiki/Gamma_distribution)
-7. Wikipedia — *Beta distribution*. [Link](https://en.wikipedia.org/wiki/Beta_distribution)
+1. R Core Team, *GammaDist: The Gamma Distribution*. Official stats docs. [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/GammaDist.html)
+2. R Core Team, *Beta: The Beta Distribution*. Official stats docs. [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/Beta.html)
+3. Gelman, A. et al., *Bayesian Data Analysis*, 3rd Edition (2014). Chapman & Hall/CRC. Chapter 2: Single-parameter models.
+4. Hoff, P. D., *A First Course in Bayesian Statistical Methods* (2009). Springer. Chapter 3: One-parameter models.
+5. Wickham, H., *ggplot2: Elegant Graphics for Data Analysis*, 3rd Edition. [Link](https://ggplot2-book.org/)
+6. Wikipedia, *Gamma distribution*. [Link](https://en.wikipedia.org/wiki/Gamma_distribution)
+7. Wikipedia, *Beta distribution*. [Link](https://en.wikipedia.org/wiki/Beta_distribution)
 
 ## Continue Learning
 
-- [Normal, t, F, and Chi-Squared Distributions in R](Normal-t-F-and-Chi-Squared-Distributions-in-R.html) — the four distributions that dominate classical inference, with the d/p/q/r conventions you just practised here.
-- [Central Limit Theorem in R](Central-Limit-Theorem-in-R.html) — why the gamma starts looking normal at large shape values.
-- [Cauchy & Heavy-Tailed Distributions in R](Cauchy-and-Heavy-Tailed-Distributions-in-R.html) — the other end of the spectrum, where the mean is undefined and conjugate updates don't save you.
+- [Normal, t, F, and Chi-Squared Distributions in R](Normal-t-F-and-Chi-Squared-Distributions-in-R.html), the four distributions that dominate classical inference, with the d/p/q/r conventions you just practised here.
+- [Central Limit Theorem in R](Central-Limit-Theorem-in-R.html), why the gamma starts looking normal at large shape values.
+- [Cauchy & Heavy-Tailed Distributions in R](Cauchy-and-Heavy-Tailed-Distributions-in-R.html), the other end of the spectrum, where the mean is undefined and conjugate updates don't save you.

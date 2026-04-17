@@ -1,7 +1,7 @@
 ---
 title: "R Date & Time Exercises: 10 lubridate Practice Problems with Solutions"
 slug: "R-Date-Time-Exercises"
-description: "Practice R date and time skills with 10 lubridate exercises. Parse dates, extract components, do date arithmetic, handle timezones — with full solutions."
+description: "Practice R date and time skills with 10 lubridate exercises. Parse dates, extract components, do date arithmetic, handle timezones, with full solutions."
 keywords: "R date time exercises, lubridate exercises, R date practice problems, lubridate practice, R date arithmetic, R timezone exercises, ymd() practice, R date parsing exercises, lubridate solutions"
 auto_link_terms: "R date exercises|lubridate exercises|date time exercises|R date practice|lubridate practice problems"
 auto_link_case_sensitive: false
@@ -18,7 +18,7 @@ difficulty: "Intermediate"
 
 # R Date & Time Exercises: 10 lubridate Practice Problems with Solutions
 
-<p class="lead">These 10 exercises test your ability to parse, manipulate, and calculate with dates and times in R using the lubridate package. Each problem includes starter code with hints and a full worked solution — run them directly in your browser to check your answers.</p>
+<p class="lead">These 10 exercises test your ability to parse, manipulate, and calculate with dates and times in R using the lubridate package. Each problem includes starter code with hints and a full worked solution, run them directly in your browser to check your answers.</p>
 
 ## How do you parse dates from text strings?
 
@@ -38,7 +38,7 @@ dmy("25-12-2024")
 #> [1] "2024-12-25"
 ```
 
-The function name tells lubridate the order of components — `ymd()` expects year-month-day, `mdy()` expects month-day-year, and `dmy()` expects day-month-year. Lubridate figures out the separators and formats automatically, so you only need to pick the right function.
+The function name tells lubridate the order of components, `ymd()` expects year-month-day, `mdy()` expects month-day-year, and `dmy()` expects day-month-year. Lubridate figures out the separators and formats automatically, so you only need to pick the right function.
 
 ### Exercise 1: Parse a date with ymd()
 
@@ -130,7 +130,7 @@ ex_date1
 
 ## How do you extract and modify date components?
 
-Once you have a Date object, you often need to pull out individual pieces — the year, month, or day of the week. Lubridate's component functions work as both getters (read a component) and setters (change a component in place).
+Once you have a Date object, you often need to pull out individual pieces, the year, month, or day of the week. Lubridate's component functions work as both getters (read a component) and setters (change a component in place).
 
 ### Exercise 3: Extract year, month, and weekday
 
@@ -183,7 +183,7 @@ my_date
 #> [1] "2024-12-15"
 ```
 
-**Explanation:** Assigning to `month(my_date)` changes the month in place while keeping the year and day unchanged. The date moves from March 15 to December 15, 2024. This is one of lubridate's most convenient features — the same function works as both a getter and a setter.
+**Explanation:** Assigning to `month(my_date)` changes the month in place while keeping the year and day unchanged. The date moves from March 15 to December 15, 2024. This is one of lubridate's most convenient features, the same function works as both a getter and a setter.
 
 </details>
 
@@ -214,9 +214,9 @@ ex_q
 
 ## How do you do arithmetic with dates?
 
-Date arithmetic is where lubridate really shines. You can add or subtract periods like `days()`, `months()`, and `years()` directly to Date objects. But watch out — adding months can produce surprising results when the starting day doesn't exist in the target month.
+Date arithmetic is where lubridate really shines. You can add or subtract periods like `days()`, `months()`, and `years()` directly to Date objects. But watch out, adding months can produce surprising results when the starting day doesn't exist in the target month.
 
-### Exercise 5: Add days vs. months — compare the results
+### Exercise 5: Add days vs. months, compare the results
 
 Starting from `"2024-01-31"`, add 90 days and separately add 1 month. Store the results as `result_days` and `result_months`. Are they the same?
 
@@ -305,7 +305,7 @@ ex_future
 
 ## How do you work with date-time objects and timezones?
 
-Real-world data often includes timestamps with hours, minutes, and seconds — plus timezones that can trip you up if you're not careful. Lubridate has two key timezone functions: `with_tz()` converts the display to a different timezone (same instant), while `force_tz()` reinterprets the clock time as a different timezone (different instant).
+Real-world data often includes timestamps with hours, minutes, and seconds, plus timezones that can trip you up if you're not careful. Lubridate has two key timezone functions: `with_tz()` converts the display to a different timezone (same instant), while `force_tz()` reinterprets the clock time as a different timezone (different instant).
 
 ### Exercise 7: Parse a datetime and convert timezones
 
@@ -335,7 +335,7 @@ dt_ny
 #> [1] "2024-07-04 10:30:00 EDT"
 ```
 
-**Explanation:** `ymd_hms()` parses a full timestamp with hours, minutes, and seconds. The `tz` argument sets the timezone. `with_tz()` then converts the same moment in time to how it would appear on a clock in New York — 4 hours earlier in July (Eastern Daylight Time, UTC-4).
+**Explanation:** `ymd_hms()` parses a full timestamp with hours, minutes, and seconds. The `tz` argument sets the timezone. `with_tz()` then converts the same moment in time to how it would appear on a clock in New York, 4 hours earlier in July (Eastern Daylight Time, UTC-4).
 
 </details>
 
@@ -370,14 +370,14 @@ hour_utc - hour_ny
 #> [1] 4
 ```
 
-**Explanation:** The UTC time is 14:30 and the New York time is 10:30 — a 4-hour difference. This matches the EDT (Eastern Daylight Time) offset of UTC-4 that applies in July. In winter, New York uses EST (UTC-5), so the difference would be 5 hours.
+**Explanation:** The UTC time is 14:30 and the New York time is 10:30, a 4-hour difference. This matches the EDT (Eastern Daylight Time) offset of UTC-4 that applies in July. In winter, New York uses EST (UTC-5), so the difference would be 5 hours.
 
 </details>
 
 [KEY INSIGHT]
 **with_tz() changes the display, force_tz() changes the instant.** Use with_tz() when you know the correct UTC instant and want to see it in another timezone. Use force_tz() when the clock time is correct but was tagged with the wrong timezone.
 
-**Try it:** Use `force_tz()` to reinterpret `dt_utc` as if it were recorded in `"Asia/Tokyo"` time. Compare the result to `dt_utc` — is it the same instant?
+**Try it:** Use `force_tz()` to reinterpret `dt_utc` as if it were recorded in `"Asia/Tokyo"` time. Compare the result to `dt_utc`, is it the same instant?
 
 ```r
 # Try it: force_tz() vs with_tz()
@@ -401,7 +401,7 @@ ex_tokyo == dt_utc
 #> [1] FALSE
 ```
 
-**Explanation:** `force_tz()` keeps the clock reading (14:30) but changes the timezone label to Tokyo. Since Tokyo is UTC+9, this now represents a completely different moment — 9 hours earlier in UTC terms. That's why `==` returns FALSE. Use `force_tz()` only when you need to correct a mislabeled timezone.
+**Explanation:** `force_tz()` keeps the clock reading (14:30) but changes the timezone label to Tokyo. Since Tokyo is UTC+9, this now represents a completely different moment, 9 hours earlier in UTC terms. That's why `==` returns FALSE. Use `force_tz()` only when you need to correct a mislabeled timezone.
 
 </details>
 
@@ -461,7 +461,7 @@ my_age
 #> [1] 30
 ```
 
-**Explanation:** The `%--%` operator creates an interval from the birthdate to today. Dividing by `years(1)` with the integer division operator `%/%` gives the number of complete years — the person's age. This handles leap years and varying month lengths correctly, which makes it more reliable than dividing a day count by 365.25.
+**Explanation:** The `%--%` operator creates an interval from the birthdate to today. Dividing by `years(1)` with the integer division operator `%/%` gives the number of complete years, the person's age. This handles leap years and varying month lengths correctly, which makes it more reliable than dividing a day count by 365.25.
 
 </details>
 
@@ -492,7 +492,7 @@ ex_months
 
 ## Practice Exercises
 
-These capstone exercises combine multiple concepts from the problems above. They're harder than the individual exercises — take your time and refer back to earlier solutions if needed.
+These capstone exercises combine multiple concepts from the problems above. They're harder than the individual exercises, take your time and refer back to earlier solutions if needed.
 
 ### Exercise 1: Parse mixed-format dates and find the span
 
@@ -536,7 +536,7 @@ span
 #> [1] 321
 ```
 
-**Explanation:** Each date string requires a different parsing function because the component order varies. After parsing, `sort()` arranges them chronologically. The span is the difference between the latest (Dec 1) and earliest (Jan 15) dates — 321 days. In real data pipelines, you'd often detect the format programmatically, but knowing which function to use for each format is the fundamental skill.
+**Explanation:** Each date string requires a different parsing function because the component order varies. After parsing, `sort()` arranges them chronologically. The span is the difference between the latest (Dec 1) and earliest (Jan 15) dates, 321 days. In real data pipelines, you'd often detect the format programmatically, but knowing which function to use for each format is the fundamental skill.
 
 </details>
 
@@ -575,7 +575,7 @@ paste(year(age_period), "years,",
 #> [1] "35 years, 10 months, 26 days"
 ```
 
-**Explanation:** `as.period()` converts an interval into human-readable components. You can then extract the year, month, and day parts individually using the same component functions you use on dates. This approach correctly handles varying month lengths and leap years — much more reliable than dividing total days by 365.25 and 30.44.
+**Explanation:** `as.period()` converts an interval into human-readable components. You can then extract the year, month, and day parts individually using the same component functions you use on dates. This approach correctly handles varying month lengths and leap years, much more reliable than dividing total days by 365.25 and 30.44.
 
 </details>
 
@@ -626,7 +626,7 @@ today() %within% reg_window
 #> [1] FALSE
 ```
 
-This example combines date parsing (`ymd_hms()`), period arithmetic (`months()`, `days()`), timezone conversion (`with_tz()`), date subtraction, and interval testing (`%--%`, `%within%`) — all the skills from the 10 exercises above. In your own projects, you'll use exactly these patterns whenever you work with scheduling, logging, or any time-stamped data.
+This example combines date parsing (`ymd_hms()`), period arithmetic (`months()`, `days()`), timezone conversion (`with_tz()`), date subtraction, and interval testing (`%--%`, `%within%`), all the skills from the 10 exercises above. In your own projects, you'll use exactly these patterns whenever you work with scheduling, logging, or any time-stamped data.
 
 ## Summary
 
@@ -645,7 +645,7 @@ This example combines date parsing (`ymd_hms()`), period arithmetic (`months()`,
 
 **Key takeaways:**
 
-- The parse function name matches the component order: `ymd()`, `mdy()`, `dmy()` — lubridate handles separators automatically
+- The parse function name matches the component order: `ymd()`, `mdy()`, `dmy()`, lubridate handles separators automatically
 - Component functions (`year()`, `month()`, `day()`) work as both getters and setters
 - `months()` adds calendar months (which can produce NA on invalid dates); `days()` always adds exact days
 - `with_tz()` converts display (same instant), `force_tz()` changes the instant (same clock reading)
@@ -653,14 +653,14 @@ This example combines date parsing (`ymd_hms()`), period arithmetic (`months()`,
 
 ## References
 
-1. Spinu, V., Grolemund, G., & Wickham, H. — "Dates and Times Made Easy with lubridate." *Journal of Statistical Software*, 40(3), 2011. [Link](https://www.jstatsoft.org/article/view/v040i03)
-2. lubridate documentation — CRAN reference manual. [Link](https://cran.r-project.org/web/packages/lubridate/lubridate.pdf)
-3. Wickham, H. & Grolemund, G. — *R for Data Science*, 2nd Edition. Chapter 17: Dates and Times. [Link](https://r4ds.hadley.nz/datetimes.html)
-4. lubridate tidyverse documentation — Function reference and vignettes. [Link](https://lubridate.tidyverse.org/)
-5. R Core Team — `?DateTimeClasses` — Base R documentation for POSIXct and POSIXlt classes. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/DateTimeClasses.html)
+1. Spinu, V., Grolemund, G., & Wickham, H., "Dates and Times Made Easy with lubridate." *Journal of Statistical Software*, 40(3), 2011. [Link](https://www.jstatsoft.org/article/view/v040i03)
+2. lubridate documentation, CRAN reference manual. [Link](https://cran.r-project.org/web/packages/lubridate/lubridate.pdf)
+3. Wickham, H. & Grolemund, G., *R for Data Science*, 2nd Edition. Chapter 17: Dates and Times. [Link](https://r4ds.hadley.nz/datetimes.html)
+4. lubridate tidyverse documentation, Function reference and vignettes. [Link](https://lubridate.tidyverse.org/)
+5. R Core Team, `?DateTimeClasses`, Base R documentation for POSIXct and POSIXlt classes. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/DateTimeClasses.html)
 
 ## Continue Learning
 
-- [lubridate in R](lubridate-in-R.html) — Full lubridate tutorial covering every function used in these exercises, with detailed explanations and more examples
-- [R String Exercises](R-String-Exercises.html) — Practice R string manipulation with 10 stringr problems, similar format to this exercise set
-- [R Syntax 101](R-Syntax-101.html) — Foundational R syntax covering assignment, operators, and basic data types if you need a refresher
+- [lubridate in R](lubridate-in-R.html), Full lubridate tutorial covering every function used in these exercises, with detailed explanations and more examples
+- [R String Exercises](R-String-Exercises.html), Practice R string manipulation with 10 stringr problems, similar format to this exercise set
+- [R Syntax 101](R-Syntax-101.html), Foundational R syntax covering assignment, operators, and basic data types if you need a refresher

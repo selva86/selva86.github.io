@@ -1,7 +1,7 @@
 ---
-title: "data.table Exercises: 12 High-Performance Data Manipulation Problems — Solved Step-by-Step"
+title: "data.table Exercises: 12 High-Performance Data Manipulation Problems, Solved Step-by-Step"
 slug: "data-table-Exercises"
-description: "12 data.table exercises in R with step-by-step solutions — filter, group by, join, rolling join, reshape, and update by reference. Progressive difficulty."
+description: "12 data.table exercises in R with step-by-step solutions, filter, group by, join, rolling join, reshape, and update by reference. Progressive difficulty."
 keywords: "data.table exercises, data.table practice, R data.table tutorial, data.table DT syntax, data.table by group, data.table join, data.table chaining, setkey, := operator, rolling join"
 mathjax: false
 webr: true
@@ -16,15 +16,15 @@ difficulty: "Intermediate"
 ---
 
 
-# data.table Exercises: 12 High-Performance Data Manipulation Problems — Solved Step-by-Step
+# data.table Exercises: 12 High-Performance Data Manipulation Problems, Solved Step-by-Step
 
-<p class="lead">Twelve hands-on exercises to master the <code>data.table</code> package in R — from row filtering and <code>by=</code> aggregation to chained operations, joins, rolling joins, reshaping, and update-by-reference with <code>:=</code>. Each problem has a starter block, a click-to-reveal solution, and an explanation so you can check your answer and learn the idiom.</p>
+<p class="lead">Twelve hands-on exercises to master the <code>data.table</code> package in R, from row filtering and <code>by=</code> aggregation to chained operations, joins, rolling joins, reshaping, and update-by-reference with <code>:=</code>. Each problem has a starter block, a click-to-reveal solution, and an explanation so you can check your answer and learn the idiom.</p>
 
-The first four exercises cover the essentials: filtering rows, picking columns, and computing summaries on a single table. The middle four use `by=` grouping, `.SD`, chaining, and update-by-reference. The last four tackle joins, rolling joins, reshaping, and group-wise windowed calculations — the moves you use in real analysis work. Write your own answer first, run it, compare with the reveal, and read the explanation.
+The first four exercises cover the essentials: filtering rows, picking columns, and computing summaries on a single table. The middle four use `by=` grouping, `.SD`, chaining, and update-by-reference. The last four tackle joins, rolling joins, reshaping, and group-wise windowed calculations, the moves you use in real analysis work. Write your own answer first, run it, compare with the reveal, and read the explanation.
 
 ## How do you load data.table and build the working datasets?
 
-Every exercise below builds on two tables: `dt_cars` (the built-in `mtcars` dataset with row names promoted to a `model` column) and `dt_iris` (the classic 150-flower measurements). Run the block once — all code on this page shares one R session, so later exercises can reference both tables without reloading.
+Every exercise below builds on two tables: `dt_cars` (the built-in `mtcars` dataset with row names promoted to a `model` column) and `dt_iris` (the classic 150-flower measurements). Run the block once, all code on this page shares one R session, so later exercises can reference both tables without reloading.
 
 ```r
 # Load data.table and build two working tables from built-in datasets
@@ -42,10 +42,10 @@ class(dt_cars)
 #> [1] "data.table" "data.frame"
 ```
 
-`dt_cars` has 32 rows and 12 columns — the 12th column `model` was created from the row names. `dt_iris` has the classic 150 flower measurements across 5 columns. Both tables now carry the `data.table` class (plus `data.frame` for backward compatibility, which means any `data.frame` function still works on them).
+`dt_cars` has 32 rows and 12 columns, the 12th column `model` was created from the row names. `dt_iris` has the classic 150 flower measurements across 5 columns. Both tables now carry the `data.table` class (plus `data.frame` for backward compatibility, which means any `data.frame` function still works on them).
 
 [NOTE]
-**data.table modifies objects in place.** Unlike base R or dplyr, operations with `:=` change the original table without assignment. If you want to preserve the original, run `copy()` first — we cover this trap in the Common Mistakes section.
+**data.table modifies objects in place.** Unlike base R or dplyr, operations with `:=` change the original table without assignment. If you want to preserve the original, run `copy()` first, we cover this trap in the Common Mistakes section.
 
 ## What data.table syntax do you need to know?
 
@@ -68,7 +68,7 @@ Here is a one-screen cheat sheet before you start. Skim it, then jump to Exercis
 | Reshape wide to long | `melt()` | `melt(DT, id.vars="id")` |
 | Reshape long to wide | `dcast()` | `dcast(DT, id ~ var)` |
 
-The whole package boils down to one mental model — `DT[i, j, by]`: `i` picks rows, `j` operates on columns, and `by` groups. Every exercise below exercises one corner of that triple. Use distinct names like `my_dt` and `my_result` in your answers so you do not overwrite variables from earlier blocks.
+The whole package boils down to one mental model, `DT[i, j, by]`: `i` picks rows, `j` operates on columns, and `by` groups. Every exercise below exercises one corner of that triple. Use distinct names like `my_dt` and `my_result` in your answers so you do not overwrite variables from earlier blocks.
 
 ## Exercise 1: Convert and filter rows
 
@@ -99,7 +99,7 @@ head(my_result, 3)
 #> 3:    16      77  7.4   82     8   6
 ```
 
-**Explanation:** Inside `DT[i]`, bare column names like `Temp` and `Month` are evaluated in the table's scope — you do not write `my_aq$Temp`. The `&` operator combines two row conditions, and rows where either side is `NA` are dropped automatically. August (`Month == 8`) had 18 days where the temperature exceeded 80 degrees.
+**Explanation:** Inside `DT[i]`, bare column names like `Temp` and `Month` are evaluated in the table's scope, you do not write `my_aq$Temp`. The `&` operator combines two row conditions, and rows where either side is `NA` are dropped automatically. August (`Month == 8`) had 18 days where the temperature exceeded 80 degrees.
 
 </details>
 
@@ -131,7 +131,7 @@ dim(my_result)
 #> [1] 32  3
 ```
 
-**Explanation:** `.()` is shorthand for `list()` inside `j`. When `j` returns a list, data.table builds a new table with those columns. Existing columns like `model` and `mpg` are referenced by name; new columns get a name via `=`. Because we assigned the result to `my_result`, the original `dt_cars` is untouched — no `:=` was used.
+**Explanation:** `.()` is shorthand for `list()` inside `j`. When `j` returns a list, data.table builds a new table with those columns. Existing columns like `model` and `mpg` are referenced by name; new columns get a name via `=`. Because we assigned the result to `my_result`, the original `dt_cars` is untouched, no `:=` was used.
 
 </details>
 
@@ -165,7 +165,7 @@ nrow(my_result)
 #> [1] 20
 ```
 
-**Explanation:** R evaluates `&` before `|`, so without the parentheses your condition would become `cyl == 6 | (am == 1 & hp > 100)` — a different question entirely. Always parenthesise when mixing `|` and `&`. The column list `.(model, cyl, hp, am)` sits in `j`; because we also passed an `i` condition, this is a single filter-then-select in one call.
+**Explanation:** R evaluates `&` before `|`, so without the parentheses your condition would become `cyl == 6 | (am == 1 & hp > 100)`, a different question entirely. Always parenthesise when mixing `|` and `&`. The column list `.(model, cyl, hp, am)` sits in `j`; because we also passed an `i` condition, this is a single filter-then-select in one call.
 
 </details>
 
@@ -196,7 +196,7 @@ my_result
 #> 3:   8 15.10000     14
 ```
 
-**Explanation:** `.N` is a special symbol that holds the number of rows in each group. Combined with `by = cyl`, data.table splits the table into cylinder groups, computes `mean(mpg)` and `.N` per group, and returns a 3-row summary. `setorder()` sorts the result in place — faster than `order()` because no copy is made. Four-cylinder cars average 26.7 mpg; eight-cylinder cars only 15.1.
+**Explanation:** `.N` is a special symbol that holds the number of rows in each group. Combined with `by = cyl`, data.table splits the table into cylinder groups, computes `mean(mpg)` and `.N` per group, and returns a 3-row summary. `setorder()` sorts the result in place, faster than `order()` because no copy is made. Four-cylinder cars average 26.7 mpg; eight-cylinder cars only 15.1.
 
 </details>
 
@@ -228,7 +228,7 @@ my_result
 #> 3:  virginica        6.588       2.974        5.552       2.026
 ```
 
-**Explanation:** `.SD` stands for "Subset of Data" — it is a data.table containing the current group's rows for the columns listed in `.SDcols`. `lapply(.SD, mean)` applies `mean()` to each column of that subset. Without `.SDcols`, `.SD` would include every non-grouping column. Virginica irises have petals roughly 3.8x longer than setosa.
+**Explanation:** `.SD` stands for "Subset of Data", it is a data.table containing the current group's rows for the columns listed in `.SDcols`. `lapply(.SD, mean)` applies `mean()` to each column of that subset. Without `.SDcols`, `.SD` would include every non-grouping column. Virginica irises have petals roughly 3.8x longer than setosa.
 
 </details>
 
@@ -258,12 +258,12 @@ my_result
 #> 3:         Camaro Z28 245 13.3
 ```
 
-**Explanation:** Each `[]` consumes the table returned by the previous step, so you can read chains left to right: "take automatics, sort by horsepower descending, take the first three, keep these columns." The minus sign in `order(-hp)` sorts descending. This is equivalent to piping in dplyr — one operation per bracket keeps each step readable.
+**Explanation:** Each `[]` consumes the table returned by the previous step, so you can read chains left to right: "take automatics, sort by horsepower descending, take the first three, keep these columns." The minus sign in `order(-hp)` sorts descending. This is equivalent to piping in dplyr, one operation per bracket keeps each step readable.
 
 </details>
 
 [KEY INSIGHT]
-**Chaining lets you build a pipeline without temporary variables.** Each `[]` returns a fresh data.table that becomes the input for the next bracket. This keeps memory usage low and reads almost like English — filter, then sort, then slice, then pick columns.
+**Chaining lets you build a pipeline without temporary variables.** Each `[]` returns a fresh data.table that becomes the input for the next bracket. This keeps memory usage low and reads almost like English, filter, then sort, then slice, then pick columns.
 
 ## Exercise 7: Update by reference with :=
 
@@ -293,7 +293,7 @@ head(dt_cars[, .(model, mpg, kpl, hp, power_weight)], 3)
 #> 3:    Datsun 710 22.8 9.6900  93     40.08621
 ```
 
-**Explanation:** The `:=` operator modifies `dt_cars` in place — no assignment needed on the left. The multi-column form uses a character vector of names on the left and a list of expressions on the right. Because the update happens in place, it is memory-efficient: data.table does not copy the whole table to add two columns.
+**Explanation:** The `:=` operator modifies `dt_cars` in place, no assignment needed on the left. The multi-column form uses a character vector of names on the left and a list of expressions on the right. Because the update happens in place, it is memory-efficient: data.table does not copy the whole table to add two columns.
 
 </details>
 
@@ -329,7 +329,7 @@ head(dt_cars[, .(model, cyl, mpg)], 3)
 #> 3: Honda Civic     4 30.4
 ```
 
-**Explanation:** `setorder()` sorts a data.table in place (no copy), using a fast radix algorithm. Prefix a column with `-` to sort it descending. `setkey()` tells data.table to keep the table indexed on `cyl`, which makes future filters like `dt_cars[.(4)]` or joins on `cyl` much faster. Note that `setkey()` also physically reorders rows — `setorder()` and `setkey()` are related but distinct.
+**Explanation:** `setorder()` sorts a data.table in place (no copy), using a fast radix algorithm. Prefix a column with `-` to sort it descending. `setkey()` tells data.table to keep the table indexed on `cyl`, which makes future filters like `dt_cars[.(4)]` or joins on `cyl` much faster. Note that `setkey()` also physically reorders rows, `setorder()` and `setkey()` are related but distinct.
 
 </details>
 
@@ -348,7 +348,7 @@ planets <- data.table(planet_id = c(10, 20),
 
 Join `people` with `planets` on `planet_id` so every person keeps their row even if no planet matches. Save to `my_result`.
 
-**Expected output:** 4 rows — Chewie's planet is `NA` because planet 30 is not in `planets`.
+**Expected output:** 4 rows, Chewie's planet is `NA` because planet 30 is not in `planets`.
 
 ```r
 # Exercise 9: left join
@@ -390,7 +390,7 @@ setkey(events, t)
 
 Roll the `value` from `readings` forward onto each event, so each event gets the most recent prior reading. Save to `my_result`.
 
-**Expected output:** 3 rows — event times `2, 5, 9` get values `10, 30, 70`.
+**Expected output:** 3 rows, event times `2, 5, 9` get values `10, 30, 70`.
 
 ```r
 # Exercise 10: rolling join
@@ -494,7 +494,7 @@ my_result[Species == "setosa"][1:5]
 #> 5:  setosa   5    5.0         4.6       24.3
 ```
 
-**Explanation:** `shift()` is data.table's lag/lead function — by default it shifts values down by 1, so row i receives row i-1's value. The first row of each group has `NA` because there is no prior value. `cumsum()` runs a cumulative sum, resetting at each group boundary because of `by = Species`. These two are the most common window functions in practice.
+**Explanation:** `shift()` is data.table's lag/lead function, by default it shifts values down by 1, so row i receives row i-1's value. The first row of each group has `NA` because there is no prior value. `cumsum()` runs a cumulative sum, resetting at each group boundary because of `by = Species`. These two are the most common window functions in practice.
 
 </details>
 
@@ -551,7 +551,7 @@ dt_cars[, .(mpg, cyl)]   # the comma says: no row filter, select these columns
 
 ### Mistake 3: Assigning a chain that starts with :=
 
-`:=` returns the table invisibly — assigning it creates confusion.
+`:=` returns the table invisibly, assigning it creates confusion.
 
 Wrong:
 ```r
@@ -585,7 +585,7 @@ dt_cars[, .(avg = mean(mpg)), by = cyl]   # optimised group-by, returns a data.t
 
 ## Complete Example
 
-Now let's stitch several exercises together into a realistic mini-analysis. Imagine you want to answer the question: *"Which transmission type is more fuel-efficient, and how does the answer change by cylinder count?"* The pipeline below filters, aggregates, joins a label table, sorts, and reshapes for plotting — all in one readable flow.
+Now let's stitch several exercises together into a realistic mini-analysis. Imagine you want to answer the question: *"Which transmission type is more fuel-efficient, and how does the answer change by cylinder count?"* The pipeline below filters, aggregates, joins a label table, sorts, and reshapes for plotting, all in one readable flow.
 
 ```r
 # 1. Drop the very worst gas guzzlers so the summary is meaningful
@@ -620,7 +620,7 @@ wide
 #> 3:   8      15.1     NA
 ```
 
-Manuals beat automatics in every cylinder class where both appear — by 6 mpg for 4-cylinder cars and 1.5 mpg for 6-cylinder. The 8-cylinder cars above 15 mpg are all automatics, so the `Manual` column is `NA` there. The final `wide` table is plot-ready: one row per x-axis category, one column per bar group. This filter → aggregate → join → reshape pattern is the 80% workflow of real `data.table` analysis.
+Manuals beat automatics in every cylinder class where both appear, by 6 mpg for 4-cylinder cars and 1.5 mpg for 6-cylinder. The 8-cylinder cars above 15 mpg are all automatics, so the `Manual` column is `NA` there. The final `wide` table is plot-ready: one row per x-axis category, one column per bar group. This filter → aggregate → join → reshape pattern is the 80% workflow of real `data.table` analysis.
 
 ## Summary
 
@@ -637,19 +637,19 @@ Manuals beat automatics in every cylinder class where both appear — by 6 mpg f
 | Reshape | `melt()`, `dcast()` | 11 |
 | Window / group-wise | `shift()`, `cumsum()` with `by=` | 12 |
 
-If you solved all 12 without peeking, you can handle 90% of real-world data.table tasks. If a few stumped you, revisit the relevant exercise and the Common Mistakes section — the traps caught you for a reason, and the second attempt is where the syntax sticks.
+If you solved all 12 without peeking, you can handle 90% of real-world data.table tasks. If a few stumped you, revisit the relevant exercise and the Common Mistakes section, the traps caught you for a reason, and the second attempt is where the syntax sticks.
 
 ## References
 
-1. Dowle, M., Srinivasan, A. — data.table package documentation. CRAN. [Link](https://cran.r-project.org/package=data.table)
-2. data.table GitHub repository — Rdatatable/data.table. [Link](https://github.com/Rdatatable/data.table)
-3. data.table vignettes — Introduction, Reference semantics, Keys and fast binary search. [Link](https://cran.r-project.org/web/packages/data.table/vignettes/datatable-intro.html)
-4. Atrebas — data.table cheat sheet. [Link](https://atrebas.github.io/post/2020-06-14-datatable-introduction/)
-5. Wickham, H., Grolemund, G. — *R for Data Science*, 2nd edition. [Link](https://r4ds.hadley.nz/)
-6. Dowle, M. — data.table FAQ vignette. [Link](https://cran.r-project.org/web/packages/data.table/vignettes/datatable-faq.html)
+1. Dowle, M., Srinivasan, A., data.table package documentation. CRAN. [Link](https://cran.r-project.org/package=data.table)
+2. data.table GitHub repository, Rdatatable/data.table. [Link](https://github.com/Rdatatable/data.table)
+3. data.table vignettes, Introduction, Reference semantics, Keys and fast binary search. [Link](https://cran.r-project.org/web/packages/data.table/vignettes/datatable-intro.html)
+4. Atrebas, data.table cheat sheet. [Link](https://atrebas.github.io/post/2020-06-14-datatable-introduction/)
+5. Wickham, H., Grolemund, G., *R for Data Science*, 2nd edition. [Link](https://r4ds.hadley.nz/)
+6. Dowle, M., data.table FAQ vignette. [Link](https://cran.r-project.org/web/packages/data.table/vignettes/datatable-faq.html)
 
 ## Continue Learning
 
-- [dplyr filter() and select() Exercises](dplyr-filter-select-Exercises.html) — practise the tidyverse equivalent of Exercises 1-3 above.
-- [dplyr group_by() and summarise() Exercises](dplyr-group-by-summarise-Exercises.html) — contrast Exercises 4-5 with the dplyr aggregation pattern.
-- [R Joins Tutorial](R-Joins.html) — deeper dive into inner, left, right, full, and rolling joins.
+- [dplyr filter() and select() Exercises](dplyr-filter-select-Exercises.html), practise the tidyverse equivalent of Exercises 1-3 above.
+- [dplyr group_by() and summarise() Exercises](dplyr-group-by-summarise-Exercises.html), contrast Exercises 4-5 with the dplyr aggregation pattern.
+- [R Joins Tutorial](R-Joins.html), deeper dive into inner, left, right, full, and rolling joins.

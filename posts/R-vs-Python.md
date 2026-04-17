@@ -16,7 +16,7 @@ difficulty: "Intermediate"
 
 # R vs Python for Data Science: Stop Debating and Read the Actual Data
 
-<p class="lead">R is the right choice when statistics or research is your core work. Python is the right choice when deep learning or production software is your core work. Every major public dataset from 2024 to 2026 — Kaggle, TIOBE, PYPL, Glassdoor — agrees on exactly that split, and this page shows you the numbers instead of asking you to take anyone's word for it.</p>
+<p class="lead">R is the right choice when statistics or research is your core work. Python is the right choice when deep learning or production software is your core work. Every major public dataset from 2024 to 2026, Kaggle, TIOBE, PYPL, Glassdoor, agrees on exactly that split, and this page shows you the numbers instead of asking you to take anyone's word for it.</p>
 
 ## Who actually uses R and Python in 2026?
 
@@ -58,7 +58,7 @@ p1 <- usage_df |>
 print(p1)
 ```
 
-Every dataset shows the same shape: Python is dominant across developer populations, but R is still held by a meaningful minority — never zero, never close to it. Note that the Kaggle survey filters to data-science and ML respondents only, which is why R's share is much higher there (about 20%) than on Stack Overflow's general developer survey (about 4%). The audience matters more than the language.
+Every dataset shows the same shape: Python is dominant across developer populations, but R is still held by a meaningful minority, never zero, never close to it. Note that the Kaggle survey filters to data-science and ML respondents only, which is why R's share is much higher there (about 20%) than on Stack Overflow's general developer survey (about 4%). The audience matters more than the language.
 
 TIOBE tells a second story: R is actually climbing, not fading. In February 2026, TIOBE ranked R eighth with a 2.19% score, up from 15th a year earlier. Let's chart that.
 
@@ -80,10 +80,10 @@ p2 <- ggplot(tiobe_df, aes(x = snapshot, y = r_rank, group = 1)) +
 print(p2)
 ```
 
-R spent 2023-2025 hovering between ranks 11 and 15, then jumped to rank 8 in early 2026 — the highest it has been in three years. The common "R is dying" claim is straightforwardly contradicted by the TIOBE time series.
+R spent 2023-2025 hovering between ranks 11 and 15, then jumped to rank 8 in early 2026, the highest it has been in three years. The common "R is dying" claim is straightforwardly contradicted by the TIOBE time series.
 
 [KEY INSIGHT]
-**Every independent popularity dataset tells the same story: Python is dominant and R is specialized, but R is not shrinking.** When three separate surveys and two separate indices agree, that's not narrative — that's signal.
+**Every independent popularity dataset tells the same story: Python is dominant and R is specialized, but R is not shrinking.** When three separate surveys and two separate indices agree, that's not narrative, that's signal.
 
 **Try it:** Compute the ratio of Python users to R users inside `usage_df` for each source, and show which source has the *narrowest* gap.
 
@@ -121,7 +121,7 @@ ex_ratios
 
 ## What does the job market really pay?
 
-Job-posting counts and salaries are where "Python has 5x more jobs" claims come from. Those claims are technically true and practically misleading. Python job listings include web developers, DevOps engineers, backend engineers, and automation work — roles that have nothing to do with data science. Once you filter by job title, the gap narrows sharply.
+Job-posting counts and salaries are where "Python has 5x more jobs" claims come from. Those claims are technically true and practically misleading. Python job listings include web developers, DevOps engineers, backend engineers, and automation work, roles that have nothing to do with data science. Once you filter by job title, the gap narrows sharply.
 
 Here's a rough snapshot of US job posting volume and median base salary for the three main data-oriented titles, built from aggregated 2025-2026 figures on LinkedIn and Glassdoor.
 
@@ -147,7 +147,7 @@ jobs_df |>
 #> 5 Quant Researcher        4200   3600     205000     1.2
 ```
 
-Read that `py_to_r` column carefully. For ML Engineer roles, Python has roughly 24x more listings than R — Python wins that category decisively. For Biostatistician roles, R has *more* listings than Python. For Quant Researcher, they are essentially tied. The "5x more Python jobs" headline is just ML Engineer dragging the average.
+Read that `py_to_r` column carefully. For ML Engineer roles, Python has roughly 24x more listings than R, Python wins that category decisively. For Biostatistician roles, R has *more* listings than Python. For Quant Researcher, they are essentially tied. The "5x more Python jobs" headline is just ML Engineer dragging the average.
 
 Now let's visualize volume vs pay so you can see which quadrant each language owns.
 
@@ -168,7 +168,7 @@ p3 <- jobs_df |>
 print(p3)
 ```
 
-The high-volume, high-pay corner belongs to Python ML Engineer roles — that's the ~$172K, ~38K-listings point. But the high-pay, balanced-volume corner (Quant Researcher at ~$205K) is nearly split down the middle, and Biostatistician is R-dominant. If your target role is in pharma, clinical trials, or academic research, the job market rewards R, not Python.
+The high-volume, high-pay corner belongs to Python ML Engineer roles, that's the ~$172K, ~38K-listings point. But the high-pay, balanced-volume corner (Quant Researcher at ~$205K) is nearly split down the middle, and Biostatistician is R-dominant. If your target role is in pharma, clinical trials, or academic research, the job market rewards R, not Python.
 
 [NOTE]
 **"Python has more jobs" counts everyone, including web devs.** Always filter by job title before comparing languages. A raw LinkedIn search for "Python" returns roles that will never touch a dataset.
@@ -207,7 +207,7 @@ ex_jobs
 #> ...
 ```
 
-**Explanation:** Data Engineering is almost entirely Python territory (Spark, Airflow, dbt, Python SDKs). That's not a statement about R's quality — it's a statement about where R is rarely used.
+**Explanation:** Data Engineering is almost entirely Python territory (Spark, Airflow, dbt, Python SDKs). That's not a statement about R's quality, it's a statement about where R is rarely used.
 
 </details>
 
@@ -249,7 +249,7 @@ data.frame(
 #> 2         data.table       0.062
 ```
 
-On a 1 million row aggregation, `data.table` finishes roughly 20-30x faster than base R on a laptop. The gap is not "R vs Python" — it's "right tool vs wrong tool." The same applies on the Python side: pandas is the slow path, polars is the fast path.
+On a 1 million row aggregation, `data.table` finishes roughly 20-30x faster than base R on a laptop. The gap is not "R vs Python", it's "right tool vs wrong tool." The same applies on the Python side: pandas is the slow path, polars is the fast path.
 
 For a fairer language-to-language comparison, here are typical timings from the H2O.ai `db-benchmark` project for a 100 million row join and group-by on commodity hardware.
 
@@ -323,7 +323,7 @@ Public ranking data paints with a broad brush. Industry-by-industry, the picture
 ![Mindmap showing R strongholds in pharma, biostatistics, econometrics, and academic research; Python strongholds in deep learning, production ML, web, and general software.](screenshots/R-vs-Python-strongholds.webp)
 *Figure 1: Where each language genuinely dominates in 2026.*
 
-The R side of that mindmap maps to domains with three features: strong statistical tradition, regulatory expectations, and specialized libraries that Python has not replicated. US FDA submissions for clinical trials still run on R and SAS — not Python — because the validated packages (`survival`, `nlme`, `lme4`) have decades of peer-reviewed history. Econometrics (`plm`, `AER`) and epidemiology (`epiR`, `incidence`) are in the same category.
+The R side of that mindmap maps to domains with three features: strong statistical tradition, regulatory expectations, and specialized libraries that Python has not replicated. US FDA submissions for clinical trials still run on R and SAS, not Python, because the validated packages (`survival`, `nlme`, `lme4`) have decades of peer-reviewed history. Econometrics (`plm`, `AER`) and epidemiology (`epiR`, `incidence`) are in the same category.
 
 The Python side maps to domains that reward general-purpose tooling: deep learning (PyTorch, JAX, TensorFlow are all Python-first), production ML infrastructure (MLflow, Ray, Airflow are all Python-native), and software engineering in general.
 
@@ -361,7 +361,7 @@ scored
 #> ...
 ```
 
-The scoring is not a popularity contest — it reflects which ecosystem has the mature, documented, peer-reviewed tooling for each task. Notice that the `Either` column is small. Real use cases usually have a clear winner; the "both are equally good" slice is narrower than the internet suggests.
+The scoring is not a popularity contest, it reflects which ecosystem has the mature, documented, peer-reviewed tooling for each task. Notice that the `Either` column is small. Real use cases usually have a clear winner; the "both are equally good" slice is narrower than the internet suggests.
 
 [WARNING]
 **"Python is always better" advice hides that pharma and regulated industries still run on R.** Before you tell a biostatistician to switch, check whether their regulator accepts Python-generated results. Many do not.
@@ -404,7 +404,7 @@ tail(ex_use_cases, 2)
 
 </details>
 
-## Is R actually dying — or is the data telling a different story?
+## Is R actually dying, or is the data telling a different story?
 
 "R is dying" is the longest-running claim in this debate. It is also the easiest to falsify. Two datasets contradict it directly: the TIOBE rank trend you already saw, and CRAN's package growth.
 
@@ -462,7 +462,7 @@ head(ex_growth, 3)
 #> 3  2020    16800    10.5
 ```
 
-**Explanation:** `lag()` shifts a vector down by one, letting you compare each row to the previous. Growth was fastest between 2017 and 2020 — the same window when tidyverse adoption was still accelerating.
+**Explanation:** `lag()` shifts a vector down by one, letting you compare each row to the previous. Growth was fastest between 2017 and 2020, the same window when tidyverse adoption was still accelerating.
 
 </details>
 
@@ -470,7 +470,7 @@ head(ex_growth, 3)
 
 The honest answer depends on three things: your end goal, your existing background, and the industry you want to work in. The question is not "which is better" but "which gets *you* productive fastest."
 
-![Decision flowchart: primary work determines language — stats/research goes to R, deep learning and production ML go to Python, general analysis goes to either.](screenshots/R-vs-Python-decision-flow.webp)
+![Decision flowchart: primary work determines language, stats/research goes to R, deep learning and production ML go to Python, general analysis goes to either.](screenshots/R-vs-Python-decision-flow.webp)
 *Figure 2: A simple decision tree based on your primary work.*
 
 Let's express that flowchart as a function you can actually call with your own inputs.
@@ -579,7 +579,7 @@ head(my_adjusted, 3)
 #> 3 Data Scientist       155000              130200
 ```
 
-**Explanation:** `pull()` extracts a single column as a plain vector — we then use the scalar to scale salaries by the Kaggle Python share. It isn't a real economic metric, but it's a fun way to weight pay by adoption.
+**Explanation:** `pull()` extracts a single column as a plain vector, we then use the scalar to scale salaries by the Kaggle Python share. It isn't a real economic metric, but it's a fun way to weight pay by adoption.
 
 </details>
 
@@ -640,7 +640,7 @@ sapply(my_samples, my_classify)
 
 ## Putting It All Together
 
-Let's pull four independent signals — Kaggle usage, TIOBE rank, job volume, and median salary — into one tibble, normalize each signal to a 0-100 score, and plot who wins each dimension. This is the kind of multi-signal summary you would build for a real "which should we teach" decision at a company or a course.
+Let's pull four independent signals, Kaggle usage, TIOBE rank, job volume, and median salary, into one tibble, normalize each signal to a 0-100 score, and plot who wins each dimension. This is the kind of multi-signal summary you would build for a real "which should we teach" decision at a company or a course.
 
 ```r
 # End-to-end: four signals per language, normalized to 0-100
@@ -686,7 +686,7 @@ normalized |>
   theme(axis.text.x = element_text(angle = 15, hjust = 1))
 ```
 
-The median-pay bar is nearly 50/50 — the salary gap is smaller than headlines suggest. The share and job-volume bars lean Python, and TIOBE is the closest of the three. Change the raw inputs or add your own signals (GitHub stars, citation counts, Google Trends) and watch the chart update.
+The median-pay bar is nearly 50/50, the salary gap is smaller than headlines suggest. The share and job-volume bars lean Python, and TIOBE is the closest of the three. Change the raw inputs or add your own signals (GitHub stars, citation counts, Google Trends) and watch the chart update.
 
 ## Summary
 
@@ -694,26 +694,26 @@ The median-pay bar is nearly 50/50 — the salary gap is smaller than headlines 
 |---|---|
 | "Python has more users" | True across every survey |
 | "Python has way more jobs" | True in aggregate, not true role-by-role |
-| "R is dying" | False — TIOBE rising, CRAN growing |
+| "R is dying" | False, TIOBE rising, CRAN growing |
 | "Python pays more" | Essentially a tie once you filter to data roles |
-| "R is slow" | False — `data.table` rivals `polars` |
+| "R is slow" | False, `data.table` rivals `polars` |
 | "R is better for stats" | True in regulated industries and research |
 | "Python is better for ML" | True for deep learning and production |
 
-Pick the language whose strongholds match your goal. If your goal changes, learn the other one — you will be productive in about a month once you already know one well.
+Pick the language whose strongholds match your goal. If your goal changes, learn the other one, you will be productive in about a month once you already know one well.
 
 ## References
 
-1. Kaggle — *State of Machine Learning and Data Science Survey* (2022). [kaggle.com/kaggle-survey-2022](https://www.kaggle.com/kaggle-survey-2022)
-2. Stack Overflow — *2024 Annual Developer Survey*. [survey.stackoverflow.co/2024](https://survey.stackoverflow.co/2024)
-3. TIOBE — *TIOBE Index* (Feb 2026 snapshot). [tiobe.com/tiobe-index](https://www.tiobe.com/tiobe-index/)
-4. PYPL — *PopularitY of Programming Language Index*. [pypl.github.io](https://pypl.github.io/PYPL.html)
-5. Glassdoor — *Data Scientist Salary Report 2025-2026*. [glassdoor.com](https://www.glassdoor.com/Salaries/data-scientist-salary-SRCH_KO0,14.htm)
-6. JetBrains — *The State of Developer Ecosystem 2024*. [jetbrains.com/lp/devecosystem-2024](https://www.jetbrains.com/lp/devecosystem-2024/)
-7. CRAN — *Comprehensive R Archive Network* package listing. [cran.r-project.org](https://cran.r-project.org/)
-8. DuckDB Labs — *Database-like Ops Benchmark (db-benchmark)*. [duckdblabs.github.io/db-benchmark](https://duckdblabs.github.io/db-benchmark/)
-9. Wickham, H. — *R for Data Science*, 2nd Edition. [r4ds.hadley.nz](https://r4ds.hadley.nz/)
-10. posit — *2024 posit::conf Keynote on R's position in data science*. [posit.co/blog](https://posit.co/blog/)
+1. Kaggle, *State of Machine Learning and Data Science Survey* (2022). [kaggle.com/kaggle-survey-2022](https://www.kaggle.com/kaggle-survey-2022)
+2. Stack Overflow, *2024 Annual Developer Survey*. [survey.stackoverflow.co/2024](https://survey.stackoverflow.co/2024)
+3. TIOBE, *TIOBE Index* (Feb 2026 snapshot). [tiobe.com/tiobe-index](https://www.tiobe.com/tiobe-index/)
+4. PYPL, *PopularitY of Programming Language Index*. [pypl.github.io](https://pypl.github.io/PYPL.html)
+5. Glassdoor, *Data Scientist Salary Report 2025-2026*. [glassdoor.com](https://www.glassdoor.com/Salaries/data-scientist-salary-SRCH_KO0,14.htm)
+6. JetBrains, *The State of Developer Ecosystem 2024*. [jetbrains.com/lp/devecosystem-2024](https://www.jetbrains.com/lp/devecosystem-2024/)
+7. CRAN, *Comprehensive R Archive Network* package listing. [cran.r-project.org](https://cran.r-project.org/)
+8. DuckDB Labs, *Database-like Ops Benchmark (db-benchmark)*. [duckdblabs.github.io/db-benchmark](https://duckdblabs.github.io/db-benchmark/)
+9. Wickham, H., *R for Data Science*, 2nd Edition. [r4ds.hadley.nz](https://r4ds.hadley.nz/)
+10. posit, *2024 posit::conf Keynote on R's position in data science*. [posit.co/blog](https://posit.co/blog/)
 
 ## Continue Learning
 

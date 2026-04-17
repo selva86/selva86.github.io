@@ -1,5 +1,5 @@
 ---
-title: "tidyr Reshaping Exercises: 10 pivot_longer & pivot_wider Problems — Solved Step-by-Step"
+title: "tidyr Reshaping Exercises: 10 pivot_longer & pivot_wider Problems, Solved Step-by-Step"
 slug: "tidyr-Reshaping-Exercises"
 description: "Practise tidyr reshaping with 10 pivot_longer() and pivot_wider() problems in R. Runnable code blocks and click-to-reveal solutions, beginner to advanced."
 keywords: "tidyr exercises, pivot_longer exercises, pivot_wider exercises, tidyr practice problems, reshape data in R, wide to long R, tidyr practice, R data reshaping exercises"
@@ -17,11 +17,11 @@ difficulty: "Intermediate"
 
 # tidyr Reshaping Exercises: 10 pivot_longer & pivot_wider Problems
 
-<p class="lead">These 10 runnable tidyr exercises take you from basic <code>pivot_longer()</code> and <code>pivot_wider()</code> calls to advanced tricks like <code>names_sep</code>, <code>names_pattern</code>, and the <code>.value</code> sentinel — with a click-to-reveal solution for every problem.</p>
+<p class="lead">These 10 runnable tidyr exercises take you from basic <code>pivot_longer()</code> and <code>pivot_wider()</code> calls to advanced tricks like <code>names_sep</code>, <code>names_pattern</code>, and the <code>.value</code> sentinel, with a click-to-reveal solution for every problem.</p>
 
 ## How do you reshape wide data into long format with pivot_longer()?
 
-Most datasets arrive in *wide* shape — one row per subject, one column per measurement — but ggplot2 and dplyr expect *long* shape: one row per observation. `pivot_longer()` is the bridge. Let's load `tidyr` and reshape the built-in `relig_income` dataset on US religious groups and their income brackets, so you can see the shape of a pivot call before writing one yourself. Every exercise below runs in the same R session, so variables carry over.
+Most datasets arrive in *wide* shape, one row per subject, one column per measurement, but ggplot2 and dplyr expect *long* shape: one row per observation. `pivot_longer()` is the bridge. Let's load `tidyr` and reshape the built-in `relig_income` dataset on US religious groups and their income brackets, so you can see the shape of a pivot call before writing one yourself. Every exercise below runs in the same R session, so variables carry over.
 
 ```r
 library(tidyr)
@@ -47,7 +47,7 @@ head(long_relig)
 #> 6 Agnostic $50-75k              137
 ```
 
-`relig_income` started as 18 rows × 11 columns; after pivoting it is 180 rows × 3 columns — every religion × income combination is now its own row. The three arguments did all the work: `cols = -religion` picks every column *except* religion, `names_to` names the new key column, and `values_to` names the new value column. This is the canonical wide-to-long move you'll reach for 90% of the time.
+`relig_income` started as 18 rows × 11 columns; after pivoting it is 180 rows × 3 columns, every religion × income combination is now its own row. The three arguments did all the work: `cols = -religion` picks every column *except* religion, `names_to` names the new key column, and `values_to` names the new value column. This is the canonical wide-to-long move you'll reach for 90% of the time.
 
 [NOTE]
 **Built-in tidyr datasets keep exercises self-contained.** `relig_income`, `billboard`, `fish_encounters`, and `household` all ship with the tidyr package, so you can run every exercise in this page without touching the file system.
@@ -84,7 +84,7 @@ head(ex1_long, 3)
 #> 3 Agnostic $20-30k    60
 ```
 
-**Explanation:** The `names_to` and `values_to` arguments are just labels — rename them freely. 18 religions × 10 brackets = 180 rows.
+**Explanation:** The `names_to` and `values_to` arguments are just labels, rename them freely. 18 religions × 10 brackets = 180 rows.
 
 </details>
 
@@ -124,7 +124,7 @@ head(ex2_long, 3)
 
 ## How do you turn long data back into wide format with pivot_wider()?
 
-`pivot_wider()` is the mirror image of `pivot_longer()`. It takes a key column and a value column and spreads them back across new columns — perfect for presenting results or for undoing a reshape you did earlier in a pipeline. The two arguments that matter most are `names_from` (which column's values become the new column headers) and `values_from` (which column fills the cells).
+`pivot_wider()` is the mirror image of `pivot_longer()`. It takes a key column and a value column and spreads them back across new columns, perfect for presenting results or for undoing a reshape you did earlier in a pipeline. The two arguments that matter most are `names_from` (which column's values become the new column headers) and `values_from` (which column fills the cells).
 
 ```r
 # Rebuild the original wide frame from ex1_long
@@ -147,10 +147,10 @@ head(wide_again[, 1:4])
 #> 6 Evangel…     575       869      1064
 ```
 
-The 180-row long frame collapses back to 18 × 11 — the exact shape of the original `relig_income`. That is the invariant you want for any round-trip reshape: `pivot_wider(pivot_longer(x))` should return `x` (up to column ordering). When it doesn't, you have duplicate keys hiding in your data.
+The 180-row long frame collapses back to 18 × 11, the exact shape of the original `relig_income`. That is the invariant you want for any round-trip reshape: `pivot_wider(pivot_longer(x))` should return `x` (up to column ordering). When it doesn't, you have duplicate keys hiding in your data.
 
 [TIP]
-**Always sanity-check a round trip.** If `pivot_wider(pivot_longer(x))` changes the row count or introduces `NA`s you didn't have before, your (`id`, `key`) pairs are not unique — inspect with `janitor::get_dupes()` or a quick `count()`.
+**Always sanity-check a round trip.** If `pivot_wider(pivot_longer(x))` changes the row count or introduces `NA`s you didn't have before, your (`id`, `key`) pairs are not unique, inspect with `janitor::get_dupes()` or a quick `count()`.
 
 **Try it:** The `fish_encounters` dataset tracks which fish were seen at which river monitoring station. Pivot it so that each station becomes its own column, with the `seen` value in the cells. Save to `ex3_wide`.
 
@@ -181,7 +181,7 @@ head(ex3_wide, 3)
 #> 3 4844        1     1      1     1       1    1    1    NA    NA    NA    NA
 ```
 
-**Explanation:** Fish `4844` wasn't seen at the last four stations, so those cells are `NA` — `pivot_wider()` produces `NA` wherever a (fish, station) pair is missing from the input.
+**Explanation:** Fish `4844` wasn't seen at the last four stations, so those cells are `NA`, `pivot_wider()` produces `NA` wherever a (fish, station) pair is missing from the input.
 
 </details>
 
@@ -210,13 +210,13 @@ sum(is.na(ex4_wide))
 #> [1] 0
 ```
 
-**Explanation:** `values_fill = 0` replaces every cell that would otherwise be `NA`. Pass a named list — e.g. `values_fill = list(seen = 0)` — when you have multiple value columns that need different defaults.
+**Explanation:** `values_fill = 0` replaces every cell that would otherwise be `NA`. Pass a named list, e.g. `values_fill = list(seen = 0)`, when you have multiple value columns that need different defaults.
 
 </details>
 
 ## How do you pick which columns to pivot with tidyselect helpers?
 
-Listing columns by name is fine for small datasets, but the moment your column list grows, tidyselect helpers make the pivot call shorter and safer. Inside `cols =`, you can use `starts_with()`, `ends_with()`, `matches()` (regex), and `where(is.numeric)` — the same helpers you already use in `dplyr::select()`. Let's see it on `iris`, where the four measurement columns are all numeric and `Species` is a factor.
+Listing columns by name is fine for small datasets, but the moment your column list grows, tidyselect helpers make the pivot call shorter and safer. Inside `cols =`, you can use `starts_with()`, `ends_with()`, `matches()` (regex), and `where(is.numeric)`, the same helpers you already use in `dplyr::select()`. Let's see it on `iris`, where the four measurement columns are all numeric and `Species` is a factor.
 
 ```r
 # Pivot every numeric column in iris
@@ -236,10 +236,10 @@ head(iris_long, 4)
 #> 4 setosa  Petal.Width    0.2
 ```
 
-The call pivoted all four numeric columns in one stroke without naming any of them. `iris` went from 150 × 5 to 600 × 3 — exactly 150 × 4 value rows plus the untouched `Species` id column. Same result as `cols = Sepal.Length:Petal.Width`, but this version survives a column rename.
+The call pivoted all four numeric columns in one stroke without naming any of them. `iris` went from 150 × 5 to 600 × 3, exactly 150 × 4 value rows plus the untouched `Species` id column. Same result as `cols = Sepal.Length:Petal.Width`, but this version survives a column rename.
 
 [TIP]
-**`where(is.numeric)` is the fastest way to pivot every numeric column.** It is also a lifesaver in messy survey data where new numeric questions keep being added — you pivot once and forget.
+**`where(is.numeric)` is the fastest way to pivot every numeric column.** It is also a lifesaver in messy survey data where new numeric questions keep being added, you pivot once and forget.
 
 **Try it:** Pivot `iris` so that only the `Petal.Length` and `Petal.Width` columns become rows (leave the sepal columns as-is). Save to `ex5_long`.
 
@@ -277,7 +277,7 @@ head(ex5_long, 3)
 
 ## How do you split compound column names with names_sep and names_pattern?
 
-Real datasets love to cram multiple variables into one header — `sales_2023_q1`, `mpg_city_2022`, `new_sp_m014`. `pivot_longer()` can split those headers during the pivot instead of leaving you with a messy string you have to separate later. Pass a vector to `names_to` (one name per piece) and tell tidyr how to cut the header with either `names_sep` (a delimiter) or `names_pattern` (a regex with capture groups).
+Real datasets love to cram multiple variables into one header, `sales_2023_q1`, `mpg_city_2022`, `new_sp_m014`. `pivot_longer()` can split those headers during the pivot instead of leaving you with a messy string you have to separate later. Pass a vector to `names_to` (one name per piece) and tell tidyr how to cut the header with either `names_sep` (a delimiter) or `names_pattern` (a regex with capture groups).
 
 ```r
 sales_wide <- tribble(
@@ -308,10 +308,10 @@ sales_long
 #> 8 B     2024  q2        125
 ```
 
-`names_prefix = "sales_"` strips the common prefix first, then `names_sep = "_"` splits the remainder into exactly the two pieces named in `names_to`. Four columns become two (`year`, `quarter`) plus one `sales` value column — no messy post-pivot string surgery required.
+`names_prefix = "sales_"` strips the common prefix first, then `names_sep = "_"` splits the remainder into exactly the two pieces named in `names_to`. Four columns become two (`year`, `quarter`) plus one `sales` value column, no messy post-pivot string surgery required.
 
 [KEY INSIGHT]
-**`names_sep` and `names_pattern` do the same job; the delimiter decides which.** Use `names_sep` whenever a clean character (or position) separates the fields. Use `names_pattern` when the pieces run together — for example `wk12` (letters + digits with no gap), where you need a regex capture group to pull the number out.
+**`names_sep` and `names_pattern` do the same job; the delimiter decides which.** Use `names_sep` whenever a clean character (or position) separates the fields. Use `names_pattern` when the pieces run together, for example `wk12` (letters + digits with no gap), where you need a regex capture group to pull the number out.
 
 **Try it:** Reshape `billboard` so the week number is stored as an integer in a column called `week`. Use `names_pattern` to strip the `wk` prefix, and `names_transform` to cast the result to integer. Save to `ex6_long`.
 
@@ -391,13 +391,13 @@ ex7_long
 #> 8 Honda  mpg    hwy   2022     40
 ```
 
-**Explanation:** `names_sep = "_"` cuts each header into three pieces — `mpg`, the road type, and the year — matching the three names in `names_to`. The `metric` column is constant here; in a real dataset it would hold multiple metrics like `"mpg"` and `"kWh"`.
+**Explanation:** `names_sep = "_"` cuts each header into three pieces, `mpg`, the road type, and the year, matching the three names in `names_to`. The `metric` column is constant here; in a real dataset it would hold multiple metrics like `"mpg"` and `"kWh"`.
 
 </details>
 
 ## How do you reshape multiple value columns at once using .value?
 
-What if a single row holds *two* values that should become *two* columns after the pivot? The built-in `household` dataset is the classic example: each row is a family, and the columns `dob_child1`, `dob_child2`, `name_child1`, `name_child2` encode both a *child* identifier and a *measurement type* (dob or name). Stacking everything into one value column would mix dates and names, which tidyr refuses to do. The answer is the special `.value` sentinel — it tells `pivot_longer()` that this piece of the header should become the *output column name*.
+What if a single row holds *two* values that should become *two* columns after the pivot? The built-in `household` dataset is the classic example: each row is a family, and the columns `dob_child1`, `dob_child2`, `name_child1`, `name_child2` encode both a *child* identifier and a *measurement type* (dob or name). Stacking everything into one value column would mix dates and names, which tidyr refuses to do. The answer is the special `.value` sentinel, it tells `pivot_longer()` that this piece of the header should become the *output column name*.
 
 ```r
 hh_long <- household |> pivot_longer(
@@ -421,7 +421,7 @@ hh_long
 #>10      5 child2 2005-02-28 Gracie
 ```
 
-`.value` sits in the `names_to` slot where `dob`/`name` lived in the original headers, and `"child"` takes the slot where `child1`/`child2` lived. The result has two *separate* typed columns — `dob` as a date and `name` as a character — instead of one messy column. Family 2's `child2` row has `NA` in both because that family only had one child in the source data.
+`.value` sits in the `names_to` slot where `dob`/`name` lived in the original headers, and `"child"` takes the slot where `child1`/`child2` lived. The result has two *separate* typed columns, `dob` as a date and `name` as a character, instead of one messy column. Family 2's `child2` row has `NA` in both because that family only had one child in the source data.
 
 [WARNING]
 **Exactly one `.value` slot in `names_to`.** The other slot becomes the new key column. If you try to use `.value` twice, or forget it entirely when you have multiple value types, the pivot fails with a type-mismatch error.
@@ -468,9 +468,9 @@ ex8_long
 
 ## Practice Exercises
 
-The two capstone problems below combine everything above. They need more than one pivot call each — treat them like mini workflows and sketch the target shape on paper before you start typing.
+The two capstone problems below combine everything above. They need more than one pivot call each, treat them like mini workflows and sketch the target shape on paper before you start typing.
 
-### Exercise 9: Round-trip — long, summarise, wide again
+### Exercise 9: Round-trip, long, summarise, wide again
 
 Starting from `relig_income`, compute each income bracket's share of its religion's total. Your result should have one row per religion and one column per bracket (so the same shape as `relig_income`), but with proportions instead of raw counts. Save the final wide tibble to `ex9_result`.
 
@@ -522,7 +522,7 @@ round(head(ex9_result[, 1:4], 3), 3)
 
 ### Exercise 10: Clean a messy wide dataset with compound headers and missing values
 
-The tribble below holds quarterly store results. Column names encode three things — quarter, metric, currency — and a few cells are `NA`. Reshape it into a tidy frame with columns `store`, `quarter`, `sales`, `returns`, then drop any row where *both* `sales` and `returns` are missing. Save to `ex10_tidy`.
+The tribble below holds quarterly store results. Column names encode three things, quarter, metric, currency, and a few cells are `NA`. Reshape it into a tidy frame with columns `store`, `quarter`, `sales`, `returns`, then drop any row where *both* `sales` and `returns` are missing. Save to `ex10_tidy`.
 
 ```r
 # Exercise 10: real-world compound headers
@@ -612,7 +612,7 @@ bb_top3_wide
 #> 3 Lonestar Amazed                81    54    44    39    38    33
 ```
 
-One `pivot_longer()` tidies the raw chart data, a dplyr pipeline finds the top-3 most persistent tracks, and a final `pivot_wider()` reshapes just those three tracks back to a wide weekly view — all from the same input frame. `names_glue = "wk{week}"` rebuilds the original `wk1`, `wk2`, ... column naming so the final table matches the publication convention of the source.
+One `pivot_longer()` tidies the raw chart data, a dplyr pipeline finds the top-3 most persistent tracks, and a final `pivot_wider()` reshapes just those three tracks back to a wide weekly view, all from the same input frame. `names_glue = "wk{week}"` rebuilds the original `wk1`, `wk2`, ... column naming so the final table matches the publication convention of the source.
 
 ## Summary
 
@@ -627,18 +627,18 @@ One `pivot_longer()` tidies the raw chart data, a dplyr pipeline finds the top-3
 | Multiple value columns at once | `pivot_longer()` | `.value` in `names_to` |
 
 [KEY INSIGHT]
-**Every reshape is a round-trip.** If `pivot_wider(pivot_longer(x))` doesn't reproduce `x`, your data has duplicate keys — fix them before modelling, not after.
+**Every reshape is a round-trip.** If `pivot_wider(pivot_longer(x))` doesn't reproduce `x`, your data has duplicate keys, fix them before modelling, not after.
 
 ## References
 
-1. tidyr — *pivot_longer() reference*. [Link](https://tidyr.tidyverse.org/reference/pivot_longer.html)
-2. tidyr — *pivot_wider() reference*. [Link](https://tidyr.tidyverse.org/reference/pivot_wider.html)
-3. tidyr — *Pivoting vignette*. [Link](https://tidyr.tidyverse.org/articles/pivot.html)
-4. Wickham, H. & Grolemund, G. — *R for Data Science* (2e), Chapter 5: Data tidying. [Link](https://r4ds.hadley.nz/data-tidy.html)
-5. CRAN tidyr — *Pivoting vignette*. [Link](https://cran.r-project.org/web/packages/tidyr/vignettes/pivot.html)
+1. tidyr, *pivot_longer() reference*. [Link](https://tidyr.tidyverse.org/reference/pivot_longer.html)
+2. tidyr, *pivot_wider() reference*. [Link](https://tidyr.tidyverse.org/reference/pivot_wider.html)
+3. tidyr, *Pivoting vignette*. [Link](https://tidyr.tidyverse.org/articles/pivot.html)
+4. Wickham, H. & Grolemund, G., *R for Data Science* (2e), Chapter 5: Data tidying. [Link](https://r4ds.hadley.nz/data-tidy.html)
+5. CRAN tidyr, *Pivoting vignette*. [Link](https://cran.r-project.org/web/packages/tidyr/vignettes/pivot.html)
 
 ## Continue Learning
 
-- [pivot_longer() and pivot_wider(): Reshape Data in R Without Losing Your Mind](pivot_longer-pivot_wider-Reshape-Data-in-R.html) — the parent tutorial walks through every argument you practised here, with extra worked examples.
-- [dplyr group_by() & summarise() Exercises](dplyr-group-by-summarise-Exercises.html) — grouping and summarising exercises that pair naturally with reshaping.
-- [dplyr Exercises](dplyr-Exercises.html) — a broader dplyr practice set covering filter, select, mutate, and summarise.
+- [pivot_longer() and pivot_wider(): Reshape Data in R Without Losing Your Mind](pivot_longer-pivot_wider-Reshape-Data-in-R.html), the parent tutorial walks through every argument you practised here, with extra worked examples.
+- [dplyr group_by() & summarise() Exercises](dplyr-group-by-summarise-Exercises.html), grouping and summarising exercises that pair naturally with reshaping.
+- [dplyr Exercises](dplyr-Exercises.html), a broader dplyr practice set covering filter, select, mutate, and summarise.

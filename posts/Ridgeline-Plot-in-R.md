@@ -18,15 +18,15 @@ difficulty: "Intermediate"
 
 # Ridgeline Plot in R: Compare Many Distributions with ggridges
 
-<p class="lead">A ridgeline plot stacks density curves vertically — one per group — letting you compare many distributions at once without the clutter of overlapping violin plots. The <code>ggridges</code> package brings this chart type to ggplot2 with a single geom and a clean API.</p>
+<p class="lead">A ridgeline plot stacks density curves vertically, one per group, letting you compare many distributions at once without the clutter of overlapping violin plots. The <code>ggridges</code> package brings this chart type to ggplot2 with a single geom and a clean API.</p>
 
 ## Introduction
 
-Once you have more than 5-6 groups to compare, violin plots become a wall of shapes that's hard to scan. Ridgeline plots (sometimes called joy plots) solve this by stacking the density curves vertically with slight overlap between rows — the mountain ridge shape that gives them their name.
+Once you have more than 5-6 groups to compare, violin plots become a wall of shapes that's hard to scan. Ridgeline plots (sometimes called joy plots) solve this by stacking the density curves vertically with slight overlap between rows, the mountain ridge shape that gives them their name.
 
-Each curve shows the same information as a density plot — where values cluster, how spread they are, whether the distribution is symmetric or skewed — but the stacked layout lets you read down the page and compare groups naturally, the way you would scan a table.
+Each curve shows the same information as a density plot, where values cluster, how spread they are, whether the distribution is symmetric or skewed, but the stacked layout lets you read down the page and compare groups naturally, the way you would scan a table.
 
-The `ggridges` package by Claus Wilke integrates seamlessly with ggplot2. You replace `geom_density()` with `geom_density_ridges()` and add a y aesthetic that maps to your grouping variable — everything else follows the ggplot2 grammar you already know.
+The `ggridges` package by Claus Wilke integrates seamlessly with ggplot2. You replace `geom_density()` with `geom_density_ridges()` and add a y aesthetic that maps to your grouping variable, everything else follows the ggplot2 grammar you already know.
 
 In this tutorial you will learn:
 
@@ -57,9 +57,9 @@ p_basic <- ggplot(mpg, aes(x = hwy, y = class)) +
 p_basic
 ```
 
-`theme_ridges()` is a minimal theme from the `ggridges` package — it removes the x-axis grid lines and adjusts spacing to complement the stacked layout. You can also use `theme_minimal()` or any ggplot2 theme.
+`theme_ridges()` is a minimal theme from the `ggridges` package, it removes the x-axis grid lines and adjusts spacing to complement the stacked layout. You can also use `theme_minimal()` or any ggplot2 theme.
 
-The curves overlap slightly by default — this overlap is controlled by the `scale` parameter (not to be confused with ggplot2 scale functions). `scale = 1` means no overlap; `scale = 2` means the tallest peak of each curve reaches the baseline of the next group above it.
+The curves overlap slightly by default, this overlap is controlled by the `scale` parameter (not to be confused with ggplot2 scale functions). `scale = 1` means no overlap; `scale = 2` means the tallest peak of each curve reaches the baseline of the next group above it.
 
 ```r
 # Adjust overlap between ridges
@@ -75,9 +75,9 @@ p_overlap <- ggplot(mpg, aes(x = hwy, y = reorder(class, hwy, FUN = median))) +
 p_overlap
 ```
 
-`reorder(class, hwy, FUN = median)` sorts the y-axis by median highway MPG — so the most fuel-efficient class sits at the top and the least efficient at the bottom. `rel_min_height = 0.01` trims the long thin tails of each ridge where the density is less than 1% of the peak height.
+`reorder(class, hwy, FUN = median)` sorts the y-axis by median highway MPG, so the most fuel-efficient class sits at the top and the least efficient at the bottom. `rel_min_height = 0.01` trims the long thin tails of each ridge where the density is less than 1% of the peak height.
 
-> **KEY INSIGHT:** Sort the y-axis by a meaningful statistic (median, mean, or range). Alphabetical order hides patterns — sorted order lets you immediately see which group is highest, which is lowest, and whether groups form natural clusters.
+> **KEY INSIGHT:** Sort the y-axis by a meaningful statistic (median, mean, or range). Alphabetical order hides patterns, sorted order lets you immediately see which group is highest, which is lowest, and whether groups form natural clusters.
 
 **Try it:** Change `FUN = median` to `FUN = mean`. Does the group ordering change significantly?
 
@@ -97,12 +97,12 @@ ex_mean_sort <- ggplot(mpg, aes(x = hwy, y = reorder(class, hwy, FUN = mean))) +
 ex_mean_sort
 ```
 
-The ordering barely shifts — median and mean track closely here because most vehicle-class distributions are only mildly skewed. Differences appear only when a class has an extreme outlier that pulls its mean away from its median (pickup, for instance, has a couple of high-efficiency trucks that nudge the mean up). As a rule, use median when distributions are skewed or have outliers, and mean when they're roughly symmetric.
+The ordering barely shifts, median and mean track closely here because most vehicle-class distributions are only mildly skewed. Differences appear only when a class has an extreme outlier that pulls its mean away from its median (pickup, for instance, has a couple of high-efficiency trucks that nudge the mean up). As a rule, use median when distributions are skewed or have outliers, and mean when they're roughly symmetric.
 </details>
 
 ## How Do You Color Ridges by Group or Apply Gradient Fills?
 
-The simplest coloring strategy maps the grouping variable to `fill` — each ridge gets a distinct color:
+The simplest coloring strategy maps the grouping variable to `fill`, each ridge gets a distinct color:
 
 ```r
 p_fill <- ggplot(mpg,
@@ -122,7 +122,7 @@ p_fill <- ggplot(mpg,
 p_fill
 ```
 
-For a more sophisticated look, use a **gradient fill** where the color within each ridge encodes the x-value magnitude. The `ggridges` fill aesthetic supports this with `fill = after_stat(x)` — colors shift from cool to warm as x increases:
+For a more sophisticated look, use a **gradient fill** where the color within each ridge encodes the x-value magnitude. The `ggridges` fill aesthetic supports this with `fill = after_stat(x)`, colors shift from cool to warm as x increases:
 
 ```r
 p_gradient <- ggplot(mpg,
@@ -146,9 +146,9 @@ p_gradient <- ggplot(mpg,
 p_gradient
 ```
 
-`geom_density_ridges_gradient()` is a variant of `geom_density_ridges()` specifically designed for gradient fills — it splits each ridge into many thin vertical slices, each colored by its x-position. `after_stat(x)` maps the computed x value (from the density estimation) to the fill aesthetic.
+`geom_density_ridges_gradient()` is a variant of `geom_density_ridges()` specifically designed for gradient fills, it splits each ridge into many thin vertical slices, each colored by its x-position. `after_stat(x)` maps the computed x value (from the density estimation) to the fill aesthetic.
 
-> **TIP:** Gradient fills are visually striking but encode the x-variable twice — once on the horizontal axis and again as color. This is redundant but it draws attention to the distribution shape and makes the chart more memorable. Use it when the chart is standalone (a report cover, a presentation slide) rather than in dense analytical dashboards.
+> **TIP:** Gradient fills are visually striking but encode the x-variable twice, once on the horizontal axis and again as color. This is redundant but it draws attention to the distribution shape and makes the chart more memorable. Use it when the chart is standalone (a report cover, a presentation slide) rather than in dense analytical dashboards.
 
 **Try it:** Change `option = "plasma"` to `option = "magma"` in `scale_fill_viridis_c()`. How does the color temperature change?
 
@@ -170,12 +170,12 @@ ex_magma_ridges <- ggplot(mpg,
 ex_magma_ridges
 ```
 
-`magma` runs from near-black at the low end through deep purple and red to pale yellow at the top — moodier and warmer overall than `plasma`'s blue-to-yellow ramp. The visual contrast is slightly lower because magma spends more of its range in dark hues, which can be an advantage for print where dark colors reproduce more consistently. Both are perceptually uniform and colorblind-safe, so the choice is mostly aesthetic.
+`magma` runs from near-black at the low end through deep purple and red to pale yellow at the top, moodier and warmer overall than `plasma`'s blue-to-yellow ramp. The visual contrast is slightly lower because magma spends more of its range in dark hues, which can be an advantage for print where dark colors reproduce more consistently. Both are perceptually uniform and colorblind-safe, so the choice is mostly aesthetic.
 </details>
 
 ## How Do You Add Quantile Lines and Jitter Points?
 
-`stat_density_ridges()` is the underlying stat for ridgeline density computation. It accepts a `quantile_lines = TRUE` argument that draws vertical lines at specified quantiles across each ridge — a quick way to show where the median and quartiles fall without an embedded boxplot.
+`stat_density_ridges()` is the underlying stat for ridgeline density computation. It accepts a `quantile_lines = TRUE` argument that draws vertical lines at specified quantiles across each ridge, a quick way to show where the median and quartiles fall without an embedded boxplot.
 
 ```r
 # Quantile lines at 25th, 50th, 75th percentiles
@@ -232,7 +232,7 @@ p_jitter <- ggplot(iris,
 p_jitter
 ```
 
-`position_raincloud()` places jitter points below the density ridge rather than inside it — the "raincloud" layout that shows both the cloud (density) and the rain (data points) in a compact arrangement.
+`position_raincloud()` places jitter points below the density ridge rather than inside it, the "raincloud" layout that shows both the cloud (density) and the rain (data points) in a compact arrangement.
 
 > **WARNING:** `jittered_points = TRUE` works well only for small to medium datasets (under ~200 points per group). With large datasets, the points form dense bands that obscure the density curve they're supposed to annotate. For large data, use the density ridge alone.
 
@@ -259,7 +259,7 @@ ex_no_raincloud <- ggplot(iris,
 ex_no_raincloud
 ```
 
-Without `position_raincloud()`, the jittered points sit on the *baseline* of each ridge — right under the density curve — rather than in a separate band below it. That's fine when you have a small amount of data like `iris`, but on denser groups the points get hidden behind the filled curve. The raincloud layout trades a little extra vertical space for a cleaner separation between "the distribution" and "the raw observations."
+Without `position_raincloud()`, the jittered points sit on the *baseline* of each ridge, right under the density curve, rather than in a separate band below it. That's fine when you have a small amount of data like `iris`, but on denser groups the points get hidden behind the filled curve. The raincloud layout trades a little extra vertical space for a cleaner separation between "the distribution" and "the raw observations."
 </details>
 
 ## When Should You Use a Ridgeline Plot Instead of a Violin Plot?
@@ -272,10 +272,10 @@ This is the most practical question about ridgeline plots. Both show distributio
 | 6-15 groups | Ridgeline plot | Stacked layout avoids a wide, cluttered chart |
 | 15+ groups | Ridgeline plot (or faceted density) | Violins become unreadable at this scale |
 | Comparing across time (months, years) | Ridgeline plot | Temporal ordering reads naturally top-to-bottom |
-| Showing bimodal distributions clearly | Either — but ridgeline may show peaks more clearly | More horizontal space per curve in ridgeline |
+| Showing bimodal distributions clearly | Either, but ridgeline may show peaks more clearly | More horizontal space per curve in ridgeline |
 | Embedding in a dashboard or tight layout | Violin plot | More compact width for a few groups |
 
-The built-in `lincoln_weather` dataset from `ggridges` is a classic ridgeline example — 12 months of temperature data, where the stacked layout makes seasonal progression immediately readable:
+The built-in `lincoln_weather` dataset from `ggridges` is a classic ridgeline example, 12 months of temperature data, where the stacked layout makes seasonal progression immediately readable:
 
 ```r
 # Lincoln, Nebraska temperature by month - a classic ridgeline use case
@@ -313,7 +313,7 @@ p_final
 
 The seasonal pattern jumps out immediately: cold, narrow distributions in winter months (tight cluster of low values); warm, wider distributions in summer (broader spread of higher values). A violin plot of 12 groups would be a visual mess.
 
-> **KEY INSIGHT:** Ridgeline plots shine when the order of groups carries meaning — time series (months, years), ranked categories (score bands), or any sequence where reading top-to-bottom tells a story. When groups are unordered, violin plots or boxplots are usually better.
+> **KEY INSIGHT:** Ridgeline plots shine when the order of groups carries meaning, time series (months, years), ranked categories (score bands), or any sequence where reading top-to-bottom tells a story. When groups are unordered, violin plots or boxplots are usually better.
 
 **Try it:** Replace `scale_y_discrete(limits = rev)` with its removal (delete the line). Does January or December now appear at the top?
 
@@ -335,7 +335,7 @@ ex_no_rev <- ggplot(lincoln_weather,
 ex_no_rev
 ```
 
-Without the reversal, ggplot2 draws discrete factor levels bottom-up by default — so January lands at the **bottom** and December at the top. That feels backwards for a calendar view because humans read top-to-bottom and expect the earliest month first. `scale_y_discrete(limits = rev)` flips the order so January appears at the top, matching the left-to-right reading flow on a standard calendar page.
+Without the reversal, ggplot2 draws discrete factor levels bottom-up by default, so January lands at the **bottom** and December at the top. That feels backwards for a calendar view because humans read top-to-bottom and expect the earliest month first. `scale_y_discrete(limits = rev)` flips the order so January appears at the top, matching the left-to-right reading flow on a standard calendar page.
 </details>
 
 ## Common Mistakes and How to Fix Them
@@ -352,7 +352,7 @@ Without the reversal, ggplot2 draws discrete factor levels bottom-up by default 
 
 ✅ Sort by a meaningful statistic: `reorder(group, x, FUN = median)` sorts by median. For time-ordered groups (months, years), use `factor(month, levels = month.name)` to fix the calendar order.
 
-### Mistake 3: Setting scale too high — ridges cover earlier ones
+### Mistake 3: Setting scale too high, ridges cover earlier ones
 
 ❌ `scale = 5` makes tall peaks from one row cover the labels or curves of the row above, creating overlapping spaghetti.
 
@@ -368,7 +368,7 @@ Without the reversal, ggplot2 draws discrete factor levels bottom-up by default 
 
 ❌ Without `rel_min_height`, density curves extend into very long thin tails that visually suggest data exists far outside the actual range.
 
-✅ Set `rel_min_height = 0.01` to trim any part of the density curve that falls below 1% of the peak — this keeps the plot clean without losing meaningful information.
+✅ Set `rel_min_height = 0.01` to trim any part of the density curve that falls below 1% of the peak, this keeps the plot clean without losing meaningful information.
 
 ## Practice Exercises
 
@@ -468,9 +468,9 @@ p_complete
 | Clean theme | `theme_ridges()` |
 
 When to use ridgelines:
-- **5+ groups** — ridgeline is more readable than side-by-side violins
-- **Time-ordered groups** — months, years, age bands read naturally top-to-bottom
-- **Showing distributional shift across categories** — each ridge's shape and position tells the story at a glance
+- **5+ groups**, ridgeline is more readable than side-by-side violins
+- **Time-ordered groups**, months, years, age bands read naturally top-to-bottom
+- **Showing distributional shift across categories**, each ridge's shape and position tells the story at a glance
 
 ## FAQ
 
@@ -480,7 +480,7 @@ Yes. Install once with `install.packages("ggridges")`, then load in each session
 
 **What is the difference between scale and bandwidth in geom_density_ridges()?**
 
-`scale` controls the height/overlap between ridges — how much each ridge extends into the row above it. `bandwidth` (set via the `bw` argument) controls the smoothness of the kernel density estimate within each ridge — similar to `adjust` in `geom_violin()`. These are independent settings.
+`scale` controls the height/overlap between ridges, how much each ridge extends into the row above it. `bandwidth` (set via the `bw` argument) controls the smoothness of the kernel density estimate within each ridge, similar to `adjust` in `geom_violin()`. These are independent settings.
 
 **How do I draw a ridgeline plot with a discrete x-axis?**
 
@@ -500,10 +500,10 @@ By default, ridgeline density curves are filled above the x-axis. Set `alpha = 1
 2. Wilke, C. O. (2019). *Fundamentals of Data Visualization*, Chapter 9: Visualizing Many Distributions. https://clauswilke.com/dataviz/
 3. ggridges CRAN page and vignettes. https://cran.r-project.org/package=ggridges
 4. Wickham, H. (2016). *ggplot2: Elegant Graphics for Data Analysis*. Springer. https://ggplot2-book.org/
-5. R Graph Gallery — Ridgeline Charts. https://r-graph-gallery.com/ridgeline-plot.html
+5. R Graph Gallery, Ridgeline Charts. https://r-graph-gallery.com/ridgeline-plot.html
 
 ## Continue Learning
 
-- **ggplot2 Distribution Charts** — the complete guide to histograms, density plots, boxplots, and violin plots — the foundation that ridgeline plots extend.
-- **Violin Plot in R** — similar distribution visualization with a different emphasis; better for 2-5 groups with embedded boxplots.
-- **R Color Theory** — apply gradient fills and colorblind-safe palettes (like viridis) to ridgeline and other charts.
+- **ggplot2 Distribution Charts**, the complete guide to histograms, density plots, boxplots, and violin plots, the foundation that ridgeline plots extend.
+- **Violin Plot in R**, similar distribution visualization with a different emphasis; better for 2-5 groups with embedded boxplots.
+- **R Color Theory**, apply gradient fills and colorblind-safe palettes (like viridis) to ridgeline and other charts.

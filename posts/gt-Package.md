@@ -16,7 +16,7 @@ difficulty: "Intermediate"
 
 # gt Package: Beautiful Publication-Ready Tables in R
 
-<p class="lead">The gt package gives you a "grammar of tables" — a layered system for turning any data frame into a polished, publication-ready table with formatted numbers, styled headers, conditional colors, and footnotes, all in a few lines of R code.</p>
+<p class="lead">The gt package gives you a "grammar of tables", a layered system for turning any data frame into a polished, publication-ready table with formatted numbers, styled headers, conditional colors, and footnotes, all in a few lines of R code.</p>
 
 ## How Does gt() Turn a Data Frame into a Table?
 
@@ -39,7 +39,7 @@ mtcars |>
 #> Columns: mpg, cyl, disp, hp, drat, wt, qsec, vs, am, gear, carb
 ```
 
-The `gt()` function is the entry point — it takes any data frame and wraps it in a structured table object. From there, you layer on formatting with `tab_header()`, `tab_source_note()`, and other functions, just like adding layers in ggplot2.
+The `gt()` function is the entry point, it takes any data frame and wraps it in a structured table object. From there, you layer on formatting with `tab_header()`, `tab_source_note()`, and other functions, just like adding layers in ggplot2.
 
 [KEY INSIGHT]
 **gt follows a layered approach like ggplot2.** Start with your data, pipe it into gt(), then chain formatting functions one at a time. Each function modifies the table without changing your underlying data.
@@ -100,7 +100,7 @@ ex_air
 
 ## How Do You Format Numbers, Currencies, and Percentages?
 
-Raw numbers with many decimal places clutter your tables. The `fmt_*()` family reformats column values in place — no need to mutate your data first. These functions handle thousands separators, decimal precision, currency symbols, and percentages automatically.
+Raw numbers with many decimal places clutter your tables. The `fmt_*()` family reformats column values in place, no need to mutate your data first. These functions handle thousands separators, decimal precision, currency symbols, and percentages automatically.
 
 Let's create a summary table and format the numbers for readability.
 
@@ -126,7 +126,7 @@ summary_data |>
 #>   8     15.1   209.2    4.00     14
 ```
 
-The `fmt_number()` function takes a `columns` argument (supports tidy selection) and `decimals` to control precision. Notice how different columns get different decimal places — chain multiple `fmt_number()` calls for this.
+The `fmt_number()` function takes a `columns` argument (supports tidy selection) and `decimals` to control precision. Notice how different columns get different decimal places, chain multiple `fmt_number()` calls for this.
 
 Now let's see currency and percentage formatting. These are common in business reports where you need dollar signs and percent symbols.
 
@@ -153,7 +153,7 @@ sales_data |>
 The `fmt_currency()` function adds the currency symbol, thousands separators, and two decimal places by default. The `fmt_percent()` function multiplies by 100 and appends the % sign. Both accept a `locale` argument for international formatting.
 
 [TIP]
-**Chain multiple fmt_*() calls to format different columns in one pipeline.** Each call targets specific columns and leaves the rest untouched. The order doesn't matter — gt applies all formatting when the table renders.
+**Chain multiple fmt_*() calls to format different columns in one pipeline.** Each call targets specific columns and leaves the rest untouched. The order doesn't matter, gt applies all formatting when the table renders.
 
 Sometimes your data has missing values or dates that need special handling. The `sub_missing()` function replaces `NA` with a custom string, and `fmt_date()` converts date columns to readable formats.
 
@@ -222,7 +222,7 @@ ex_products |>
 
 ## How Do You Add Headers, Spanners, and Row Groups?
 
-Real-world tables often have hierarchical structure — columns that belong together under a shared label, or rows grouped by category. gt handles both with `tab_spanner()` for column groups and `tab_row_group()` for row groups.
+Real-world tables often have hierarchical structure, columns that belong together under a shared label, or rows grouped by category. gt handles both with `tab_spanner()` for column groups and `tab_row_group()` for row groups.
 
 Let's group related columns under a spanner label. Spanners add a second header row that visually ties columns together.
 
@@ -253,7 +253,7 @@ mtcars |>
 #> ...
 ```
 
-Each `tab_spanner()` call creates a header that spans the specified columns. The `cols_label()` function renames the individual column headers underneath — use readable names instead of the raw variable names.
+Each `tab_spanner()` call creates a header that spans the specified columns. The `cols_label()` function renames the individual column headers underneath, use readable names instead of the raw variable names.
 
 [TIP]
 **Use md() inside labels for bold or italic formatting.** Write `cols_label(mpg = md("**Miles/Gal**"))` to render the header in bold. This works in tab_spanner() labels too.
@@ -317,7 +317,7 @@ ex_spanner
 #> mpg and hp remain ungrouped
 ```
 
-**Explanation:** `tab_spanner(label = "Engine", columns = c(cyl, disp))` adds a grouped header. The columns must be adjacent in the table for the spanner to render correctly — use `cols_move()` if needed.
+**Explanation:** `tab_spanner(label = "Engine", columns = c(cyl, disp))` adds a grouped header. The columns must be adjacent in the table for the spanner to render correctly, use `cols_move()` if needed.
 
 </details>
 
@@ -352,7 +352,7 @@ The `tab_style()` function takes two main arguments: `style` (a list of cell for
 [WARNING]
 **tab_style() targets cells by location, not by value.** To highlight cells based on their content (like "all values above 20"), pass a filtering expression to the `rows` argument in `cells_body()`.
 
-Now let's apply conditional formatting — highlighting rows where a value exceeds a threshold. This is one of the most practical uses of `tab_style()`.
+Now let's apply conditional formatting, highlighting rows where a value exceeds a threshold. This is one of the most practical uses of `tab_style()`.
 
 ```r
 # Conditional formatting: highlight high-MPG cars
@@ -381,7 +381,7 @@ mtcars |>
 #> Other cells remain with default styling
 ```
 
-Each `tab_style()` call is independent — you can stack multiple conditional rules. The `rows` argument accepts any logical expression that references column values, just like `dplyr::filter()`.
+Each `tab_style()` call is independent, you can stack multiple conditional rules. The `rows` argument accepts any logical expression that references column values, just like `dplyr::filter()`.
 
 For continuous color scales across an entire column, use `data_color()`. This maps numeric values to a gradient, creating a heatmap effect.
 
@@ -406,7 +406,7 @@ mtcars |>
 #> Each cell background blends along the gradient based on its value
 ```
 
-The `data_color()` function maps the minimum value to the first palette color and the maximum to the last. The palette accepts any hex colors or named R colors. Note the reversed palette for HP — higher horsepower gets a warmer color to signal "more intense."
+The `data_color()` function maps the minimum value to the first palette color and the maximum to the last. The palette accepts any hex colors or named R colors. Note the reversed palette for HP, higher horsepower gets a warmer color to signal "more intense."
 
 **Try it:** Take the first 6 rows of `mtcars` and highlight all cells in the `mpg` column where the value exceeds 21 with a light yellow background (`"#fff3cd"`).
 
@@ -447,7 +447,7 @@ ex_cond
 
 ## How Do You Add Footnotes and Source Notes?
 
-Professional tables cite their sources and clarify specific values with footnotes. gt handles both automatically — footnotes get numbered markers, and source notes appear at the table footer.
+Professional tables cite their sources and clarify specific values with footnotes. gt handles both automatically, footnotes get numbered markers, and source notes appear at the table footer.
 
 ```r
 # Add footnotes to specific cells and column headers
@@ -483,7 +483,7 @@ mtcars |>
 Each `tab_footnote()` auto-numbers its marker. You can target column headers with `cells_column_labels()`, specific body cells with `cells_body()`, or even the title with `cells_title()`. The `tab_source_note()` is separate and always appears last in the footer without a number.
 
 [NOTE]
-**Footnotes auto-number sequentially.** You don't control the numbering — gt assigns numbers in the order you call tab_footnote(). If you reorder the calls, the numbers change.
+**Footnotes auto-number sequentially.** You don't control the numbering, gt assigns numbers in the order you call tab_footnote(). If you reorder the calls, the numbers change.
 
 **Try it:** Create a gt table from the first 4 rows of `iris`, add a footnote saying "Length in centimeters" to the `Sepal.Length` column header, and add a source note crediting "Anderson, 1935".
 
@@ -541,7 +541,7 @@ mtcars |>
 
 The `opt_stylize()` function offers 6 built-in styles (1 through 6) and several color options including "blue", "cyan", "pink", "green", "red", and "gray". Style 1 is subtle, style 6 is bold. Pick one that matches your report's tone.
 
-For full control, `tab_options()` lets you set individual properties — font family, font size, row padding, border styles, header colors, and more.
+For full control, `tab_options()` lets you set individual properties, font family, font size, row padding, border styles, header colors, and more.
 
 ```r
 # Fine-grained control with tab_options()
@@ -637,7 +637,7 @@ ex_theme
 #> opt_stylize sets the base theme, tab_options overrides individual properties
 ```
 
-**Explanation:** `opt_stylize()` applies the base theme, then `tab_options()` overrides specific properties. The order matters — place overrides after the base theme.
+**Explanation:** `opt_stylize()` applies the base theme, then `tab_options()` overrides specific properties. The order matters, place overrides after the base theme.
 
 </details>
 
@@ -730,7 +730,7 @@ mtcars |>
 
 ### Exercise 3: Complete Report Table
 
-Build a "report card" table. Create sample data for 6 students with columns: `student`, `subject` (Math or Science), `score`, and `grade` (A/B/C). Add row groups by subject. Format scores to 0 decimals. Color grade cells — green for A, yellow for B, red for C. Add a footnote on the score column header saying "Out of 100 points". Apply a custom theme.
+Build a "report card" table. Create sample data for 6 students with columns: `student`, `subject` (Math or Science), `score`, and `grade` (A/B/C). Add row groups by subject. Format scores to 0 decimals. Color grade cells, green for A, yellow for B, red for C. Add a footnote on the score column header saying "Out of 100 points". Apply a custom theme.
 
 ```r
 # Exercise 3: Build a report card table
@@ -788,7 +788,7 @@ report_data |>
 
 ## Putting It All Together
 
-Let's build a polished table from scratch — taking raw `mtcars` data through the complete gt pipeline: summarise, structure, format, style, annotate, and theme.
+Let's build a polished table from scratch, taking raw `mtcars` data through the complete gt pipeline: summarise, structure, format, style, annotate, and theme.
 
 ```r
 # Complete example: from raw data to publication-ready table
@@ -890,20 +890,20 @@ Here are the key gt functions organized by what they do:
 
 ![gt table-building pipeline](screenshots/gt-Package-pipeline.webp)
 
-*Figure 1: The gt table-building pipeline — raw data flows through structure, formatting, styling, annotation, and theming layers.*
+*Figure 1: The gt table-building pipeline, raw data flows through structure, formatting, styling, annotation, and theming layers.*
 
 ## References
 
-1. Iannone, R., Cheng, J., Schloerke, B., Hughes, E., Lauer, A., & Seo, J. — gt: Easily Create Presentation-Ready Display Tables. [Link](https://gt.rstudio.com/)
+1. Iannone, R., Cheng, J., Schloerke, B., Hughes, E., Lauer, A., & Seo, J., gt: Easily Create Presentation-Ready Display Tables. [Link](https://gt.rstudio.com/)
 2. gt CRAN documentation. [Link](https://cran.r-project.org/package=gt)
-3. Iannone, R. — Introduction to Creating gt Tables. [Link](https://gt.rstudio.com/articles/gt.html)
-4. Rapp, A. — Creating Beautiful Tables in R with gt. [Link](https://gt.albert-rapp.de/)
-5. Wickham, H., Çetinkaya-Rundel, M., & Grolemund, G. — R for Data Science (2e). O'Reilly (2023). [Link](https://r4ds.hadley.nz/)
-6. R Graph Gallery — gt Package Tutorial. [Link](https://r-graph-gallery.com/package/gt.html)
-7. gtsummary package — Presentation-Ready Summary Tables. [Link](https://www.danieldsjoberg.com/gtsummary/)
+3. Iannone, R., Introduction to Creating gt Tables. [Link](https://gt.rstudio.com/articles/gt.html)
+4. Rapp, A., Creating Beautiful Tables in R with gt. [Link](https://gt.albert-rapp.de/)
+5. Wickham, H., Çetinkaya-Rundel, M., & Grolemund, G., R for Data Science (2e). O'Reilly (2023). [Link](https://r4ds.hadley.nz/)
+6. R Graph Gallery, gt Package Tutorial. [Link](https://r-graph-gallery.com/package/gt.html)
+7. gtsummary package, Presentation-Ready Summary Tables. [Link](https://www.danieldsjoberg.com/gtsummary/)
 
 ## Continue Learning
 
-- [Publication-Quality Figures in R](Publication-Quality-Figures-in-R.html) — The parent guide on making journal-ready ggplot2 figures with proper fonts, sizes, and color profiles.
-- [ggplot2 Themes in R](ggplot2-Themes-in-R.html) — Comprehensive guide to customizing ggplot2's visual appearance with theme elements.
-- [Statistical Report Writing in R](Statistical-Report-Writing-in-R.html) — Build complete reproducible reports combining narrative, code, tables, and figures.
+- [Publication-Quality Figures in R](Publication-Quality-Figures-in-R.html), The parent guide on making journal-ready ggplot2 figures with proper fonts, sizes, and color profiles.
+- [ggplot2 Themes in R](ggplot2-Themes-in-R.html), Comprehensive guide to customizing ggplot2's visual appearance with theme elements.
+- [Statistical Report Writing in R](Statistical-Report-Writing-in-R.html), Build complete reproducible reports combining narrative, code, tables, and figures.

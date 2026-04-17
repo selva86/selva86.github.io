@@ -1,7 +1,7 @@
 ---
 title: "25 Best ggplot2 Extensions in R: ggrepel, ggforce, ggtext & Beyond"
 slug: "25-Best-ggplot2-Extensions"
-description: "Discover 25 essential ggplot2 extensions in R — from ggrepel labels to patchwork layouts to gganimate animations — with runnable code examples and tips."
+description: "Discover 25 essential ggplot2 extensions in R, from ggrepel labels to patchwork layouts to gganimate animations, with runnable code examples and tips."
 keywords: "ggplot2 extensions, best ggplot2 packages, ggrepel R, ggforce R, ggtext ggplot2, patchwork R, ggplot2 add-ons, R visualization packages, ggridges R, cowplot R"
 auto_link_terms: "ggplot2 extensions|ggplot extensions|best ggplot2 packages|ggplot2 add-ons|ggplot2 extension packages|R visualization extensions"
 auto_link_case_sensitive: false
@@ -16,16 +16,16 @@ difficulty: "Intermediate"
 
 # 25 Best ggplot2 Extensions in R: ggrepel, ggforce, ggtext & Beyond
 
-<p class="lead">The ggplot2 package powers most R visualizations, but over 100 extension packages expand it with better labels, new chart types, richer themes, and even animation — each one plugging in with the same <code>ggplot() + layer</code> syntax you already know.</p>
+<p class="lead">The ggplot2 package powers most R visualizations, but over 100 extension packages expand it with better labels, new chart types, richer themes, and even animation, each one plugging in with the same <code>ggplot() + layer</code> syntax you already know.</p>
 
 [NOTE]
-**Some extensions below are marked "Local only".** These packages aren't available in the browser code runner — install them in RStudio to try the code. All other examples run directly in your browser.
+**Some extensions below are marked "Local only".** These packages aren't available in the browser code runner, install them in RStudio to try the code. All other examples run directly in your browser.
 
 ## How Do You Fix Overlapping Labels and Add Rich Text?
 
-Overlapping labels are the single most common ggplot2 frustration. You add `geom_text()` to a scatter plot and half the labels pile on top of each other. The ggrepel package fixes this with physics-based repulsion — labels push away from each other and from data points automatically.
+Overlapping labels are the single most common ggplot2 frustration. You add `geom_text()` to a scatter plot and half the labels pile on top of each other. The ggrepel package fixes this with physics-based repulsion, labels push away from each other and from data points automatically.
 
-### 1. ggrepel — Non-Overlapping Labels
+### 1. ggrepel, Non-Overlapping Labels
 
 Let's see ggrepel in action on a scatter plot of car data. Notice how every label is readable without manual positioning.
 
@@ -48,12 +48,12 @@ ggplot(mtcars, aes(wt, mpg)) +
 #> [scatter plot with 8 labeled points, no overlapping text]
 ```
 
-Every label connects to its point with a subtle line segment. The `max.overlaps` argument controls how aggressively labels dodge — higher values allow more labels to appear in crowded regions. Use `geom_label_repel()` instead for labels with a background box.
+Every label connects to its point with a subtle line segment. The `max.overlaps` argument controls how aggressively labels dodge, higher values allow more labels to appear in crowded regions. Use `geom_label_repel()` instead for labels with a background box.
 
 [KEY INSIGHT]
 **ggrepel uses physics-based repulsion to place labels.** Each label acts like a charged particle, pushing away from other labels and data points until it finds an open position. This means you never need to manually adjust coordinates.
 
-### 2. ggtext — Rich Text Formatting in Plots
+### 2. ggtext, Rich Text Formatting in Plots
 
 Standard ggplot2 titles are plain text. With ggtext, you can make individual words **bold**, <span style="color:red">colored</span>, or italic using HTML/Markdown syntax right inside your plot titles and annotations.
 
@@ -72,9 +72,9 @@ ggplot(iris, aes(Sepal.Length, Sepal.Width, color = Species)) +
 #> [scatter plot with colored species names in the title, no legend needed]
 ```
 
-The key function is `element_markdown()` — use it in `theme()` for any text element (title, subtitle, axis labels, caption). For in-plot annotations, use `geom_richtext()` which supports the same HTML tags. This technique eliminates the need for a separate legend when you color-code your title.
+The key function is `element_markdown()`, use it in `theme()` for any text element (title, subtitle, axis labels, caption). For in-plot annotations, use `geom_richtext()` which supports the same HTML tags. This technique eliminates the need for a separate legend when you color-code your title.
 
-### 3. geomtextpath — Curved Text Along Lines (Local only)
+### 3. geomtextpath, Curved Text Along Lines (Local only)
 
 geomtextpath places text directly on lines and curves, replacing the need for a separate legend on line charts.
 
@@ -89,7 +89,7 @@ ggplot(economics_long, aes(date, value, color = variable,
 #> [line chart with variable names printed along each curve]
 ```
 
-The `geom_textline()` function replaces `geom_line()` and bends the text to follow the line's path. Readers see the label right on the data — no legend lookup required.
+The `geom_textline()` function replaces `geom_line()` and bends the text to follow the line's path. Readers see the label right on the data, no legend lookup required.
 
 **Try it:** Load ggrepel and create a scatter plot of `iris` using `Petal.Length` vs `Petal.Width`. Label only the 5 flowers with the largest `Petal.Length` using `geom_label_repel()`. Use `ex_top5` for your filtered data.
 
@@ -128,9 +128,9 @@ ggplot(iris, aes(Petal.Length, Petal.Width)) +
 
 ggplot2 ships with about 30 geoms (points, lines, bars, etc.), but many common visualizations need specialised geometries. These four packages fill the biggest gaps.
 
-### 4. ggforce — Zoom, Shapes, and Annotations
+### 4. ggforce, Zoom, Shapes, and Annotations
 
-ggforce gives you `facet_zoom()` — a way to zoom into a region of your plot while keeping the full view visible side-by-side.
+ggforce gives you `facet_zoom()`, a way to zoom into a region of your plot while keeping the full view visible side-by-side.
 
 ```r
 library(ggforce)
@@ -147,9 +147,9 @@ ggplot(diamonds[sample(nrow(diamonds), 2000), ],
 The zoomed panel links to the full view with a shaded region, so readers instantly see which portion is enlarged. ggforce also provides `geom_mark_ellipse()` for annotating clusters, `geom_arc_bar()` for donut charts, and `geom_sina()` for jittered violin-style point plots.
 
 [TIP]
-**Use facet_zoom() for crowded scatter plots.** Instead of filtering data or creating separate plots, facet_zoom gives readers both the overview and the detail in one figure — perfect for presentations where you want to highlight a specific region without losing context.
+**Use facet_zoom() for crowded scatter plots.** Instead of filtering data or creating separate plots, facet_zoom gives readers both the overview and the detail in one figure, perfect for presentations where you want to highlight a specific region without losing context.
 
-### 5. ggridges — Ridgeline Density Plots
+### 5. ggridges, Ridgeline Density Plots
 
 When you need to compare distributions across many groups, ridgeline plots stack density curves vertically so every group is visible without faceting.
 
@@ -166,12 +166,12 @@ ggplot(diamonds[sample(nrow(diamonds), 5000), ],
 #> [5 stacked density curves, one per cut quality, showing price spread]
 ```
 
-The `scale` parameter controls how much the ridges overlap — values above 1 let them overlap slightly for a compact look. Each ridge is a full density estimate, making it easy to spot bimodal distributions or outlier groups at a glance.
+The `scale` parameter controls how much the ridges overlap, values above 1 let them overlap slightly for a compact look. Each ridge is a full density estimate, making it easy to spot bimodal distributions or outlier groups at a glance.
 
 [TIP]
 **ggridges shines when you have 5+ groups.** With fewer groups, a standard `geom_density()` with `fill` works fine. With 10+ groups, ridgelines keep everything readable where facets would need scrolling.
 
-### 6. ggbeeswarm — Jittered Points That Don't Lie
+### 6. ggbeeswarm, Jittered Points That Don't Lie
 
 Standard `geom_jitter()` places points randomly, which can misrepresent density. ggbeeswarm arranges points in a structured pattern so dense regions look dense and sparse regions look sparse.
 
@@ -186,11 +186,11 @@ ggplot(iris, aes(Species, Sepal.Width, color = Species)) +
 #> [three columns of points arranged in bee-swarm pattern]
 ```
 
-Unlike jitter, every point position is deterministic — run it twice and you get the same layout. The `cex` parameter controls point spacing. Use `geom_quasirandom()` from the same package for a softer, violin-shaped alternative.
+Unlike jitter, every point position is deterministic, run it twice and you get the same layout. The `cex` parameter controls point spacing. Use `geom_quasirandom()` from the same package for a softer, violin-shaped alternative.
 
-### 7. ggdist — Distribution Visualisation and Raincloud Plots
+### 7. ggdist, Distribution Visualisation and Raincloud Plots
 
-ggdist combines density plots, dot plots, and interval summaries into single composite visualizations. Its signature output is the "raincloud plot" — a half-violin plus jittered dots plus a summary interval.
+ggdist combines density plots, dot plots, and interval summaries into single composite visualizations. Its signature output is the "raincloud plot", a half-violin plus jittered dots plus a summary interval.
 
 ```r
 library(ggdist)
@@ -244,7 +244,7 @@ ggplot(ex_aq, aes(x = Temp, y = Month, fill = Month)) +
 
 Scientific papers and reports almost always need multi-panel figures. Two packages dominate this space, and both work with any ggplot object.
 
-### 8. patchwork — Combine Plots With Math Operators
+### 8. patchwork, Combine Plots With Math Operators
 
 patchwork is the most intuitive way to arrange plots. Use `+` to place plots side by side, `/` to stack vertically, and `|` for explicit horizontal layout.
 
@@ -269,7 +269,7 @@ p3 <- ggplot(mtcars, aes(factor(cyl), mpg)) +
 #> [2 plots on top row, 1 spanning bottom, labeled A/B/C]
 ```
 
-The parentheses control grouping: `(p1 | p2) / p3` puts plots 1 and 2 on the top row and plot 3 spanning the full width below. The `tag_levels = "A"` argument auto-labels each panel as (A), (B), (C) — exactly what journals expect.
+The parentheses control grouping: `(p1 | p2) / p3` puts plots 1 and 2 on the top row and plot 3 spanning the full width below. The `tag_levels = "A"` argument auto-labels each panel as (A), (B), (C), exactly what journals expect.
 
 [WARNING]
 **patchwork collects themes from each plot independently.** If your panels use different themes, the combined figure can look inconsistent. Apply the same `theme_*()` to all plots before combining, or use `& theme_minimal()` after the patchwork expression to apply a theme to every panel at once.
@@ -277,7 +277,7 @@ The parentheses control grouping: `(p1 | p2) / p3` puts plots 1 and 2 on the top
 [KEY INSIGHT]
 **patchwork uses math operators for layout.** `+` and `|` place plots horizontally, `/` stacks vertically, and parentheses group sub-layouts. This reads like a formula: `(A | B) / C` is a 2-over-1 layout.
 
-### 9. cowplot — Publication-Ready Multi-Panel Layouts
+### 9. cowplot, Publication-Ready Multi-Panel Layouts
 
 cowplot predates patchwork and offers similar functionality via `plot_grid()`, plus the ability to add inset plots with `draw_plot()`.
 
@@ -298,7 +298,7 @@ ggdraw(p_main) +
 #> [scatter plot with a small bar chart inset in the top-right corner]
 ```
 
-The `ggdraw()` + `draw_plot()` pattern places one plot inside another at exact coordinates (0-1 range). This is perfect for overview + detail views. cowplot also provides `theme_cowplot()` and `theme_minimal_grid()` — clean themes designed for multi-panel figures.
+The `ggdraw()` + `draw_plot()` pattern places one plot inside another at exact coordinates (0-1 range). This is perfect for overview + detail views. cowplot also provides `theme_cowplot()` and `theme_minimal_grid()`, clean themes designed for multi-panel figures.
 
 **Try it:** Create three plots from `iris` (histogram of `Sepal.Length`, scatter of `Sepal.Length` vs `Petal.Length`, boxplot of `Sepal.Width` by Species). Combine them into a 1-row layout with patchwork using `|` and add panel tags with `plot_annotation(tag_levels = "A")`.
 
@@ -337,7 +337,7 @@ ex_p3 <- ggplot(iris, aes(Species, Sepal.Width, fill = Species)) +
 
 ggplot2 ships with `theme_gray()`, `theme_minimal()`, and a handful of others. These five packages give you hundreds of ready-made themes and thousands of color palettes.
 
-### 10. ggthemes — Ready-Made Publication Themes
+### 10. ggthemes, Ready-Made Publication Themes
 
 ggthemes replicates the visual style of well-known publications and data visualization experts.
 
@@ -355,7 +355,7 @@ p_base + theme_economist() +
 
 Other popular options include `theme_fivethirtyeight()` (bold, minimal), `theme_tufte()` (maximum data-ink ratio), and `theme_wsj()` (Wall Street Journal). Each theme comes with a matching `scale_color_*()` function.
 
-### 11. hrbrthemes — Typography-First Themes
+### 11. hrbrthemes, Typography-First Themes
 
 If you want clean, modern-looking plots with excellent font choices, hrbrthemes delivers with `theme_ipsum()`.
 
@@ -373,7 +373,7 @@ ggplot(mtcars, aes(wt, mpg)) +
 
 `theme_ipsum()` uses a condensed sans-serif font with generous spacing. The result looks professional without any manual theme tweaking. Variants include `theme_ipsum_rc()` (Roboto Condensed) and `theme_ipsum_tw()` (Titillium Web).
 
-### 12. ggsci — Journal and Sci-Fi Color Palettes
+### 12. ggsci, Journal and Sci-Fi Color Palettes
 
 ggsci provides color palettes inspired by scientific journals (Lancet, Nature, JAMA), sci-fi franchises, and data tools.
 
@@ -390,7 +390,7 @@ ggplot(iris, aes(Sepal.Length, Petal.Length, color = Species)) +
 
 Other palettes include `scale_color_lancet()`, `scale_color_jama()`, `scale_color_d3()` (D3.js colors), and `scale_color_startrek()`. Each comes in both `scale_color_*()` and `scale_fill_*()` variants.
 
-### 13. paletteer — One Package, 2,500+ Palettes
+### 13. paletteer, One Package, 2,500+ Palettes
 
 Instead of installing 10 palette packages, paletteer gives you unified access to all of them through a single interface.
 
@@ -409,9 +409,9 @@ ggplot(diamonds[sample(nrow(diamonds), 1000), ],
 The naming convention is `"package::palette_name"`. Use `paletteer_d()` for discrete palettes, `paletteer_c()` for continuous, and `paletteer_dynamic()` for palettes that adapt to the number of categories. Run `palettes_d_names` to browse all 2,500+ available palettes.
 
 [TIP]
-**paletteer is the meta-package for palettes.** One install gives you access to ggsci, viridis, RColorBrewer, wesanderson, and dozens more — all through a consistent syntax.
+**paletteer is the meta-package for palettes.** One install gives you access to ggsci, viridis, RColorBrewer, wesanderson, and dozens more, all through a consistent syntax.
 
-### 14. ggnewscale — Two Color Scales in One Plot
+### 14. ggnewscale, Two Color Scales in One Plot
 
 By default, ggplot2 only allows one `color` scale and one `fill` scale per plot. ggnewscale breaks this limit so you can map different variables to different color scales.
 
@@ -457,7 +457,7 @@ ex_themed
 #> [scatter on light yellow Solarized background with JAMA blue/red/green]
 ```
 
-**Explanation:** ggplot2 themes and color scales are independent layers — you can freely mix packages. `theme_solarized()` controls the background and grid; `scale_color_jama()` controls the point colors.
+**Explanation:** ggplot2 themes and color scales are independent layers, you can freely mix packages. `theme_solarized()` controls the background and grid; `scale_color_jama()` controls the point colors.
 
 </details>
 
@@ -465,9 +465,9 @@ ex_themed
 
 Sometimes you need to draw the reader's eye to specific data points, add statistical test results, or display correlation patterns. These five extensions handle those needs.
 
-### 15. gghighlight — Conditional Data Highlighting (Local only)
+### 15. gghighlight, Conditional Data Highlighting (Local only)
 
-gghighlight lets you emphasise a subset of data while graying out the rest — no manual filtering needed.
+gghighlight lets you emphasise a subset of data while graying out the rest, no manual filtering needed.
 
 ```r
 library(gghighlight)
@@ -480,9 +480,9 @@ ggplot(mtcars, aes(wt, mpg, color = factor(cyl))) +
 #> [all points visible, but only mpg > 25 points are colored; rest are grey]
 ```
 
-The `gghighlight()` function works with any geom — scatter, line, bar. It accepts any logical condition and automatically fades non-matching data to grey. Use `label_key = car_name` to auto-label the highlighted points.
+The `gghighlight()` function works with any geom, scatter, line, bar. It accepts any logical condition and automatically fades non-matching data to grey. Use `label_key = car_name` to auto-label the highlighted points.
 
-### 16. ggpubr — Publication-Ready Plots With Statistical Tests
+### 16. ggpubr, Publication-Ready Plots With Statistical Tests
 
 ggpubr wraps common plot types in convenience functions and adds built-in statistical comparisons.
 
@@ -502,7 +502,7 @@ ggboxplot(iris, x = "Species", y = "Sepal.Length",
 
 The `stat_compare_means()` function runs statistical tests (t-test, Wilcoxon, ANOVA, Kruskal-Wallis) and displays the p-value directly on the plot. The `comparisons` argument specifies which pairs to test. The `palette = "jco"` uses Journal of Clinical Oncology colors.
 
-### 17. ggcorrplot — Correlation Matrix Heatmaps
+### 17. ggcorrplot, Correlation Matrix Heatmaps
 
 ggcorrplot turns a correlation matrix into a publication-ready heatmap with one function call.
 
@@ -522,9 +522,9 @@ ggcorrplot(cor_mat, method = "circle", type = "lower",
 The `method = "circle"` uses circle size to encode correlation strength (large circle = strong correlation). Set `type = "lower"` to show only the lower triangle, avoiding redundancy. The `lab = TRUE` overlays the actual correlation values.
 
 [KEY INSIGHT]
-**Correlation heatmaps reveal multicollinearity at a glance.** When building regression models, look for variable pairs with correlations above 0.8 — including both in a model inflates standard errors and makes coefficients unreliable.
+**Correlation heatmaps reveal multicollinearity at a glance.** When building regression models, look for variable pairs with correlations above 0.8, including both in a model inflates standard errors and makes coefficients unreliable.
 
-### 18. GGally — Scatter Plot Matrices and More
+### 18. GGally, Scatter Plot Matrices and More
 
 GGally's `ggpairs()` creates comprehensive scatter-plot matrices showing correlations, distributions, and scatter plots for every variable pair.
 
@@ -540,9 +540,9 @@ ggpairs(iris, columns = 1:4, aes(color = Species, alpha = 0.5),
 #> [4x4 matrix: correlations above diagonal, scatters below, densities on diagonal]
 ```
 
-The upper triangle shows correlation coefficients, the lower triangle shows scatter plots, and the diagonal shows density distributions — all colored by Species. This single chart replaces six separate scatter plots and gives you a complete overview of multivariate relationships.
+The upper triangle shows correlation coefficients, the lower triangle shows scatter plots, and the diagonal shows density distributions, all colored by Species. This single chart replaces six separate scatter plots and gives you a complete overview of multivariate relationships.
 
-### 19. ggstatsplot — Automated Statistical Visualisations (Local only)
+### 19. ggstatsplot, Automated Statistical Visualisations (Local only)
 
 ggstatsplot creates publication-ready plots with statistical test results embedded directly in the subtitle.
 
@@ -592,11 +592,11 @@ ggcorrplot(ex_cor, method = "circle", type = "lower",
 
 ## How Do You Make ggplot2 Charts Interactive, Animated, or Specialised?
 
-The final group covers extensions that take ggplot2 beyond static PNG output — plus three packages for niche chart types you can't build with base geoms.
+The final group covers extensions that take ggplot2 beyond static PNG output, plus three packages for niche chart types you can't build with base geoms.
 
-### 20. gganimate — Animated Plots (Local only)
+### 20. gganimate, Animated Plots (Local only)
 
-gganimate adds a time dimension to any ggplot by treating "frame" as an aesthetic. It requires the gifski package for rendering GIFs — install both with `install.packages(c("gganimate", "gifski"))`.
+gganimate adds a time dimension to any ggplot by treating "frame" as an aesthetic. It requires the gifski package for rendering GIFs, install both with `install.packages(c("gganimate", "gifski"))`.
 
 ```r
 library(gganimate)
@@ -614,7 +614,7 @@ ggplot(gapminder::gapminder, aes(gdpPercap, lifeExp,
 
 Key transition functions: `transition_time()` for temporal data, `transition_states()` for categorical groups, and `transition_reveal()` for cumulative line charts. Use `shadow_wake()` to leave trails behind moving points.
 
-### 21. plotly — Interactive HTML Charts With ggplotly() (Local only)
+### 21. plotly, Interactive HTML Charts With ggplotly() (Local only)
 
 plotly's `ggplotly()` function converts any ggplot into an interactive chart with zoom, pan, and hover tooltips. Install locally with `install.packages("plotly")`.
 
@@ -632,7 +632,7 @@ ggplotly(p, tooltip = c("text", "x", "y"))
 
 The `tooltip` argument controls what appears on hover. Map extra information to the `text` aesthetic and include it in `tooltip` for rich hover cards. For dashboards, combine with Shiny or save standalone HTML with `htmlwidgets::saveWidget()`.
 
-### 22. treemapify — Treemap Charts
+### 22. treemapify, Treemap Charts
 
 treemapify turns hierarchical or proportional data into space-filling rectangles.
 
@@ -656,9 +656,9 @@ ggplot(tree_data, aes(area = count, fill = avg_mpg, label = paste0(cyl, " cyl\n"
 
 Map `area` to the variable that controls rectangle size, and `fill` to a second variable for color encoding. Use `geom_treemap_text()` to label each rectangle. For hierarchical treemaps, add `subgroup` aesthetics.
 
-### 23. waffle — Waffle Charts (Square Pie Charts)
+### 23. waffle, Waffle Charts (Square Pie Charts)
 
-Waffle charts display proportions as grids of squares — a more readable alternative to pie charts.
+Waffle charts display proportions as grids of squares, a more readable alternative to pie charts.
 
 ```r
 library(waffle)
@@ -676,14 +676,14 @@ ggplot(data.frame(category = names(parts), count = parts),
 #> [grid of colored squares: 11 green, 7 blue, 14 red, in rows of 4]
 ```
 
-Each square represents one unit. The `n_rows` parameter sets how many rows tall the grid is, and `coord_equal()` keeps the squares square. Waffle charts work best when your total count is under 100 — otherwise each square is too small to see.
+Each square represents one unit. The `n_rows` parameter sets how many rows tall the grid is, and `coord_equal()` keeps the squares square. Waffle charts work best when your total count is under 100, otherwise each square is too small to see.
 
 [TIP]
-**Waffle charts beat pie charts for comparing proportions.** Human brains estimate area in rectangles more accurately than in circle slices. Use waffle charts whenever you'd reach for a pie chart — your readers will thank you.
+**Waffle charts beat pie charts for comparing proportions.** Human brains estimate area in rectangles more accurately than in circle slices. Use waffle charts whenever you'd reach for a pie chart, your readers will thank you.
 
-### 24. ggiraph — Interactive SVG Graphics (Local only)
+### 24. ggiraph, Interactive SVG Graphics (Local only)
 
-ggiraph makes ggplot elements interactive — hover for tooltips, click to select, and link data across plots.
+ggiraph makes ggplot elements interactive, hover for tooltips, click to select, and link data across plots.
 
 ```r
 library(ggiraph)
@@ -698,11 +698,11 @@ girafe(ggobj = p)
 #> [scatter plot where hovering shows car name, clicking highlights the point]
 ```
 
-Replace standard geoms with `_interactive` versions (`geom_point_interactive`, `geom_bar_interactive`, etc.) and map `tooltip` and `data_id` aesthetics. The `data_id` enables linked brushing — clicking a point in one chart highlights the same observation in another.
+Replace standard geoms with `_interactive` versions (`geom_point_interactive`, `geom_bar_interactive`, etc.) and map `tooltip` and `data_id` aesthetics. The `data_id` enables linked brushing, clicking a point in one chart highlights the same observation in another.
 
-### 25. ggalluvial — Alluvial and Sankey Diagrams (Local only)
+### 25. ggalluvial, Alluvial and Sankey Diagrams (Local only)
 
-ggalluvial visualises flow between categorical variables — tracking how observations move across stages.
+ggalluvial visualises flow between categorical variables, tracking how observations move across stages.
 
 ```r
 library(ggalluvial)
@@ -799,7 +799,7 @@ my_p2 <- ggplot(mtcars, aes(x = mpg, y = factor(cyl), fill = factor(cyl))) +
 
 ### Exercise 2: Styled Correlation Matrix
 
-Build a correlation matrix of `mtcars` columns (mpg, hp, wt, qsec, drat) using ggcorrplot. Use `method = "square"` and `type = "upper"`. Apply a Nature Publishing Group (`scale_fill_npg()` won't work here — use custom colors from ggsci's NPG palette). Add a ggtext-styled title where "positive" is blue and "negative" is red.
+Build a correlation matrix of `mtcars` columns (mpg, hp, wt, qsec, drat) using ggcorrplot. Use `method = "square"` and `type = "upper"`. Apply a Nature Publishing Group (`scale_fill_npg()` won't work here, use custom colors from ggsci's NPG palette). Add a ggtext-styled title where "positive" is blue and "negative" is red.
 
 ```r
 # Exercise 2: ggcorrplot + ggsci-inspired colors + ggtext title
@@ -897,7 +897,7 @@ panel_b <- ggcorrplot(cor_vars, method = "circle", type = "lower",
 #> [Overall title with blue "Performance" and red "Efficiency"]
 ```
 
-This figure tells a complete story: Panel A reveals the weight-efficiency trade-off with standout cars labeled, while Panel B quantifies how each variable relates to the others. The NPG colors and ggtext title make it publication-ready. Five extensions, one unified figure — that's the power of the ggplot2 ecosystem.
+This figure tells a complete story: Panel A reveals the weight-efficiency trade-off with standout cars labeled, while Panel B quantifies how each variable relates to the others. The NPG colors and ggtext title make it publication-ready. Five extensions, one unified figure, that's the power of the ggplot2 ecosystem.
 
 ## Summary
 
@@ -931,23 +931,23 @@ Here's every extension covered in this article, with its category, key function,
 | 24 | ggiraph | Interactive | `geom_point_interactive()` | No |
 | 25 | ggalluvial | Specialised | `geom_alluvium()` | No |
 
-Every extension follows the same pattern: install the package, load it with `library()`, and add its geoms, themes, or scales to your existing ggplot code. Start with the ones that solve your most pressing pain point — for most people, that's ggrepel (labels) and patchwork (multi-panel figures).
+Every extension follows the same pattern: install the package, load it with `library()`, and add its geoms, themes, or scales to your existing ggplot code. Start with the ones that solve your most pressing pain point, for most people, that's ggrepel (labels) and patchwork (multi-panel figures).
 
 ## References
 
-1. Official ggplot2 Extensions Gallery — curated list of 100+ community packages. [Link](https://exts.ggplot2.tidyverse.org/gallery/)
-2. Wickham, H. — *ggplot2: Elegant Graphics for Data Analysis*, 3rd Edition. Springer (2024). [Link](https://ggplot2-book.org/)
-3. Slowkowski, K. — ggrepel documentation: repulsive text and label geoms. [Link](https://ggrepel.slowkow.com/)
-4. Pedersen, T.L. — patchwork: the composer of plots. [Link](https://patchwork.data-imaginist.com/)
-5. Pedersen, T.L. — ggforce: accelerating ggplot2. [Link](https://ggforce.data-imaginist.com/)
-6. Wilke, C.O. — ggtext: improved text rendering for ggplot2. [Link](https://wilkelab.org/ggtext/)
-7. Hvitfeldt, E. — paletteer: comprehensive collection of colour palettes. [Link](https://emilhvitfeldt.github.io/paletteer/)
-8. Pedersen, T.L. & Robinson, D. — gganimate: a grammar of animated graphics. [Link](https://gganimate.com/)
-9. Kassambara, A. — ggpubr: publication-ready plots. [Link](https://rpkgs.datanovia.com/ggpubr/)
-10. Patil, I. — ggstatsplot: ggplot2-based plots with statistical details. [Link](https://indrajeetpatil.github.io/ggstatsplot/)
+1. Official ggplot2 Extensions Gallery, curated list of 100+ community packages. [Link](https://exts.ggplot2.tidyverse.org/gallery/)
+2. Wickham, H., *ggplot2: Elegant Graphics for Data Analysis*, 3rd Edition. Springer (2024). [Link](https://ggplot2-book.org/)
+3. Slowkowski, K., ggrepel documentation: repulsive text and label geoms. [Link](https://ggrepel.slowkow.com/)
+4. Pedersen, T.L., patchwork: the composer of plots. [Link](https://patchwork.data-imaginist.com/)
+5. Pedersen, T.L., ggforce: accelerating ggplot2. [Link](https://ggforce.data-imaginist.com/)
+6. Wilke, C.O., ggtext: improved text rendering for ggplot2. [Link](https://wilkelab.org/ggtext/)
+7. Hvitfeldt, E., paletteer: comprehensive collection of colour palettes. [Link](https://emilhvitfeldt.github.io/paletteer/)
+8. Pedersen, T.L. & Robinson, D., gganimate: a grammar of animated graphics. [Link](https://gganimate.com/)
+9. Kassambara, A., ggpubr: publication-ready plots. [Link](https://rpkgs.datanovia.com/ggpubr/)
+10. Patil, I., ggstatsplot: ggplot2-based plots with statistical details. [Link](https://indrajeetpatil.github.io/ggstatsplot/)
 
 ## Continue Learning
 
-1. [ggforce Package in R](ggforce-Package.html) — Deep dive into facet_zoom, mark ellipses, arc bars, sina plots, and 30+ advanced ggplot2 geoms
-2. [patchwork in R](patchwork-Package.html) — Master multi-panel figures with aligned axes, shared legends, and complex nested layouts
-3. [ggdist Package in R](ggdist-Package-in-R.html) — Raincloud plots, half-eye plots, uncertainty bands, and distribution visualisation with stat_halfeye and stat_dots
+1. [ggforce Package in R](ggforce-Package.html), Deep dive into facet_zoom, mark ellipses, arc bars, sina plots, and 30+ advanced ggplot2 geoms
+2. [patchwork in R](patchwork-Package.html), Master multi-panel figures with aligned axes, shared legends, and complex nested layouts
+3. [ggdist Package in R](ggdist-Package-in-R.html), Raincloud plots, half-eye plots, uncertainty bands, and distribution visualisation with stat_halfeye and stat_dots

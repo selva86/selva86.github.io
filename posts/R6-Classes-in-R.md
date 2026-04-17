@@ -1,7 +1,7 @@
 ---
 title: "R6 Classes in R: When You Need Objects That Mutate In Place"
 slug: R6-Classes-in-R
-description: "Unlike S3 and S4, R6 objects are modified in place — no copies. Learn to build R6 classes with public/private fields, active bindings, and finalizers."
+description: "Unlike S3 and S4, R6 objects are modified in place, no copies. Learn to build R6 classes with public/private fields, active bindings, and finalizers."
 keywords: "R6 classes in R, R6 reference semantics, R6 public private fields, R6 active bindings, R6 inheritance, mutable objects R, R6Class tutorial, R OOP R6"
 auto_link_terms: "R6 classes|R6 class|R6Class()|R6 objects|reference semantics in R|mutable objects in R|R6 active bindings|R6 inheritance"
 auto_link_case_sensitive: false
@@ -16,11 +16,11 @@ sidebar_order: 14
 difficulty: "Advanced"
 ---
 
-<p class="lead">R6 classes give you mutable objects in R — when you modify an R6 object, the change happens in place instead of creating a copy. This makes R6 the right choice when you need shared state, resource management, or objects that talk to external systems like databases and APIs.</p>
+<p class="lead">R6 classes give you mutable objects in R, when you modify an R6 object, the change happens in place instead of creating a copy. This makes R6 the right choice when you need shared state, resource management, or objects that talk to external systems like databases and APIs.</p>
 
 ## What makes R6 different from S3 and S4?
 
-S3 and S4 follow R's copy-on-modify rule — assign an object to a new variable, change one, and the other stays untouched. R6 breaks that rule deliberately. Both variables point to the *same* object, so a change through one is visible through the other. This is called **reference semantics**.
+S3 and S4 follow R's copy-on-modify rule, assign an object to a new variable, change one, and the other stays untouched. R6 breaks that rule deliberately. Both variables point to the *same* object, so a change through one is visible through the other. This is called **reference semantics**.
 
 ```r
 # R6 objects mutate in place — both variables see the change
@@ -46,9 +46,9 @@ c2$count
 #> [1] 2
 ```
 
-Both `c1` and `c2` show a count of 2, even though we only called `increment()` on `c1`. That's reference semantics in action — there's only one object, and both variables point to it.
+Both `c1` and `c2` show a count of 2, even though we only called `increment()` on `c1`. That's reference semantics in action, there's only one object, and both variables point to it.
 
-Think of it like a sticky note on a document. S3 photocopies the document every time you hand it to someone — each person has their own copy and edits don't affect anyone else. R6 just sticks another label on the *same* document — everyone reads and writes the same page.
+Think of it like a sticky note on a document. S3 photocopies the document every time you hand it to someone, each person has their own copy and edits don't affect anyone else. R6 just sticks another label on the *same* document, everyone reads and writes the same page.
 
 Compare this directly with how a regular R list behaves:
 
@@ -64,10 +64,10 @@ s3_copy$count
 #> [1] 99
 ```
 
-The list copy is independent — changing `s3_copy` didn't touch `s3_list`. That's the opposite of what happened with our R6 Counter above.
+The list copy is independent, changing `s3_copy` didn't touch `s3_list`. That's the opposite of what happened with our R6 Counter above.
 
 [KEY INSIGHT]
-**Reference semantics means R6 objects behave like Python or Java objects.** If you've used objects in another language, R6 will feel familiar — assigning an object to a new variable doesn't create a copy, it creates another reference to the same thing.
+**Reference semantics means R6 objects behave like Python or Java objects.** If you've used objects in another language, R6 will feel familiar, assigning an object to a new variable doesn't create a copy, it creates another reference to the same thing.
 
 **Try it:** Create an R6 class called `Scoreboard` with a `score` field (starting at 0) and an `add_points(n)` method. Create one scoreboard, assign it to a second variable, add 10 points through the second variable, and verify the first variable also shows 10.
 
@@ -142,7 +142,7 @@ p1$name
 #> [1] "Ada"
 ```
 
-The `initialize()` method is R6's constructor — it runs automatically when you call `$new()`. Without it, fields keep their default values (both `NULL` here), and you'd have to set them manually after creation.
+The `initialize()` method is R6's constructor, it runs automatically when you call `$new()`. Without it, fields keep their default values (both `NULL` here), and you'd have to set them manually after creation.
 
 Methods can call other methods on the same object using `self$`. Let's add an `introduce()` method that builds on `greet()`:
 
@@ -172,7 +172,7 @@ p1$introduce("R6 classes")
 #> I'll be talking about R6 classes today.
 ```
 
-`introduce()` calls `self$greet()` internally, then adds its own output. This is how methods compose — each one can build on the others.
+`introduce()` calls `self$greet()` internally, then adds its own output. This is how methods compose, each one can build on the others.
 
 [TIP]
 **Always define an initialize() method.** Without it, every field starts at its default value and users must set each one manually. A constructor makes object creation clean and enforces that required fields are provided upfront.
@@ -229,7 +229,7 @@ ex_rect$area()
 
 ## How do public and private fields work in R6?
 
-So far, every field has been public — anyone with a reference to the object can read or change it. That's convenient, but dangerous. If external code sets `acct$balance <- -1000`, your object's invariants are broken.
+So far, every field has been public, anyone with a reference to the object can read or change it. That's convenient, but dangerous. If external code sets `acct$balance <- -1000`, your object's invariants are broken.
 
 R6 solves this with **private fields and methods**. They live in a separate `private` list and can only be accessed from *inside* the class using `private$`.
 
@@ -282,13 +282,13 @@ acct$balance
 #> NULL
 ```
 
-You get `NULL` — not an error, just nothing. R6 doesn't expose private fields through the public interface. If you accidentally write `self$balance` instead of `private$balance` inside a method, R6 silently creates a *new* public field — a subtle bug.
+You get `NULL`, not an error, just nothing. R6 doesn't expose private fields through the public interface. If you accidentally write `self$balance` instead of `private$balance` inside a method, R6 silently creates a *new* public field, a subtle bug.
 
 [WARNING]
 **Private fields use private$, not self$.** Writing self$balance inside a method when balance is private silently creates a separate public field with the same name. The private field stays untouched, and you'll get mysterious bugs. Always double-check the prefix.
 
 ![Anatomy of an R6 class](screenshots/R6-Classes-in-R-class-anatomy.webp)
-*Figure 1: Anatomy of an R6 class — public, private, and active sections.*
+*Figure 1: Anatomy of an R6 class, public, private, and active sections.*
 
 **Try it:** Add a private `transaction_log` list to BankAccount. Each deposit/withdrawal should append a string like "deposit: 50" to the log. Add a public `get_log()` method that returns the log.
 
@@ -369,7 +369,7 @@ ex_acct$get_log()
 
 ## What are active bindings and when should you use them?
 
-Active bindings look like fields from the outside — you read and write them with `obj$field` — but behind the scenes they run a function. This gives you computed properties, validation, and read-only fields without changing how users interact with the object.
+Active bindings look like fields from the outside, you read and write them with `obj$field`, but behind the scenes they run a function. This gives you computed properties, validation, and read-only fields without changing how users interact with the object.
 
 ```r
 # Active binding: computed Fahrenheit from Celsius
@@ -399,7 +399,7 @@ temp$celsius
 #> [1] 0
 ```
 
-The `fahrenheit` binding works both ways — reading it converts from Celsius, and setting it converts back. There's no stored Fahrenheit field. The value is always computed from `celsius`.
+The `fahrenheit` binding works both ways, reading it converts from Celsius, and setting it converts back. There's no stored Fahrenheit field. The value is always computed from `celsius`.
 
 Active bindings are also perfect for validation. Here's a class that rejects invalid age values:
 
@@ -435,10 +435,10 @@ v$age
 #> [1] 30
 ```
 
-From the outside, `v$age` looks like a plain field. But setting `v$age <- -5` would throw an error because the active binding validates every write. The actual value lives in `private$.age` — the active binding is just the gatekeeper.
+From the outside, `v$age` looks like a plain field. But setting `v$age <- -5` would throw an error because the active binding validates every write. The actual value lives in `private$.age`, the active binding is just the gatekeeper.
 
 [KEY INSIGHT]
-**Active bindings let you add validation without changing the interface.** Users still write obj$age = 25 — they don't need to switch to a setter method. The binding validates silently behind the scenes.
+**Active bindings let you add validation without changing the interface.** Users still write obj$age = 25, they don't need to switch to a setter method. The binding validates silently behind the scenes.
 
 **Try it:** Create a `Circle` class where setting `radius` stores it in a private field, and a read-only `area` active binding returns `pi * radius^2`. Setting `area` directly should throw an error.
 
@@ -581,7 +581,7 @@ class(buddy)
 `buddy` has access to Animal's `speak()`, Dog's `fetch()`, and its own `guide()` method. The `class()` output shows the full inheritance chain.
 
 ![R6 inheritance chain](screenshots/R6-Classes-in-R-inheritance-flow.webp)
-*Figure 2: R6 inheritance chain — child classes extend parents via super$.*
+*Figure 2: R6 inheritance chain, child classes extend parents via super$.*
 
 [TIP]
 **Always call super$initialize() in child constructors.** If you skip it, the parent's fields won't be set up and you'll get NULL values or errors when parent methods try to use them.
@@ -667,7 +667,7 @@ ex_car$describe()
 
 ## How do you clone R6 objects correctly?
 
-Since R6 uses reference semantics, plain assignment (`y <- x`) doesn't copy — both variables point to the same object. To get an independent copy, use `$clone()`.
+Since R6 uses reference semantics, plain assignment (`y <- x`) doesn't copy, both variables point to the same object. To get an independent copy, use `$clone()`.
 
 A **shallow clone** copies the object's own fields, but any R6 objects *inside* those fields are still shared:
 
@@ -706,7 +706,7 @@ t1$captain$score
 #> [1] 99
 ```
 
-Changing `t2$name` (a simple string) didn't affect `t1` — that field was copied. But changing `t2$captain$score` *did* affect `t1`, because both teams still share the same Player object.
+Changing `t2$name` (a simple string) didn't affect `t1`, that field was copied. But changing `t2$captain$score` *did* affect `t1`, because both teams still share the same Player object.
 
 To get fully independent copies, use `$clone(deep = TRUE)`:
 
@@ -723,7 +723,7 @@ t3$captain$score
 Now `t3` has its own Player object. Changing the captain's score in `t3` doesn't affect `t1`.
 
 ![Copy vs reference semantics](screenshots/R6-Classes-in-R-copy-vs-reference.webp)
-*Figure 3: Copy semantics vs reference semantics — S3 copies, R6 shares.*
+*Figure 3: Copy semantics vs reference semantics, S3 copies, R6 shares.*
 
 [WARNING]
 **Shallow cloning an R6 object that contains other R6 objects shares those inner objects.** Changes to the inner object appear in both the original and the clone. Use clone(deep = TRUE) whenever your object contains nested R6 fields.
@@ -784,7 +784,7 @@ ex_team2$players[[1]]$score
 
 ## What are finalizers and why do they matter?
 
-A **finalizer** is a method that runs automatically when an R6 object is garbage collected. It's your chance to clean up resources — close database connections, delete temporary files, or flush logs.
+A **finalizer** is a method that runs automatically when an R6 object is garbage collected. It's your chance to clean up resources, close database connections, delete temporary files, or flush logs.
 
 Define a finalizer by adding a `finalize` method to the private list:
 
@@ -1124,7 +1124,7 @@ vlog$print_logs()
 
 ## Putting It All Together
 
-Let's build a complete `TaskManager` that combines every concept — R6 class definition, private fields, active bindings, inheritance, and finalizers.
+Let's build a complete `TaskManager` that combines every concept, R6 class definition, private fields, active bindings, inheritance, and finalizers.
 
 ```r
 # Complete example: TaskManager with all R6 features
@@ -1227,7 +1227,7 @@ tm$total_count
 
 This example ties together every major R6 feature: private storage (`private$tasks`), active bindings (`pending_count`, `total_count`), reference semantics (Task objects inside the list are modified in place when completed), composition (TaskManager holds Task objects), and a finalizer that reports pending work.
 
-Now let's extend it with inheritance — a `PriorityTaskManager` that adds priority levels:
+Now let's extend it with inheritance, a `PriorityTaskManager` that adds priority levels:
 
 ```r
 # Inheritance: PriorityTaskManager
@@ -1318,16 +1318,16 @@ The child overrides `add_task()` to accept a priority and `list_tasks()` to grou
 
 ## References
 
-1. Wickham, H. — *Advanced R*, 2nd Edition. CRC Press (2019). Chapter 14: R6. [Link](https://adv-r.hadley.nz/r6.html)
-2. Chang, W. — R6: Encapsulated Classes with Reference Semantics (package documentation). [Link](https://r6.r-lib.org/)
-3. R6 Introduction vignette — Getting started with R6. [Link](https://r6.r-lib.org/articles/Introduction.html)
-4. CRAN — R6 package reference manual. [Link](https://cran.r-project.org/web/packages/R6/)
-5. Wickham, H. — *Advanced R*, 2nd Edition. Chapter 13: S4. [Link](https://adv-r.hadley.nz/s4.html)
-6. R Core Team — *R Language Definition*, Section 5: Object-Oriented Programming. [Link](https://cran.r-project.org/doc/manuals/r-release/R-lang.html#Object_002doriented-programming)
-7. Appsilon — OOP in R with R6: The Complete Guide (2022). [Link](https://www.appsilon.com/post/oop-in-r-with-r6)
+1. Wickham, H., *Advanced R*, 2nd Edition. CRC Press (2019). Chapter 14: R6. [Link](https://adv-r.hadley.nz/r6.html)
+2. Chang, W., R6: Encapsulated Classes with Reference Semantics (package documentation). [Link](https://r6.r-lib.org/)
+3. R6 Introduction vignette, Getting started with R6. [Link](https://r6.r-lib.org/articles/Introduction.html)
+4. CRAN, R6 package reference manual. [Link](https://cran.r-project.org/web/packages/R6/)
+5. Wickham, H., *Advanced R*, 2nd Edition. Chapter 13: S4. [Link](https://adv-r.hadley.nz/s4.html)
+6. R Core Team, *R Language Definition*, Section 5: Object-Oriented Programming. [Link](https://cran.r-project.org/doc/manuals/r-release/R-lang.html#Object_002doriented-programming)
+7. Appsilon, OOP in R with R6: The Complete Guide (2022). [Link](https://www.appsilon.com/post/oop-in-r-with-r6)
 
 ## Continue Learning
 
-1. [R6 Advanced](R6-Advanced.html) — Deep cloning with private deep_clone(), portable vs non-portable classes, and cross-package R6 inheritance patterns.
-2. [OOP in R: S3, S4, R5, R6](OOP-in-R.html) — Side-by-side comparison of all four R OOP systems to help you pick the right one.
-3. [OOP Design Patterns in R](OOP-Design-Patterns-in-R.html) — Factory, strategy, and observer patterns implemented with R6 classes.
+1. [R6 Advanced](R6-Advanced.html), Deep cloning with private deep_clone(), portable vs non-portable classes, and cross-package R6 inheritance patterns.
+2. [OOP in R: S3, S4, R5, R6](OOP-in-R.html), Side-by-side comparison of all four R OOP systems to help you pick the right one.
+3. [OOP Design Patterns in R](OOP-Design-Patterns-in-R.html), Factory, strategy, and observer patterns implemented with R6 classes.

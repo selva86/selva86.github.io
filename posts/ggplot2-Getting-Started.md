@@ -1,7 +1,7 @@
 ---
-title: "ggplot2 for Beginners: Build 5 Real Charts in 30 Minutes — Zero Experience Needed"
+title: "ggplot2 for Beginners: Build 5 Real Charts in 30 Minutes, Zero Experience Needed"
 slug: "ggplot2-Getting-Started"
-description: "Make a scatter plot, bar chart, histogram, line chart, and boxplot in ggplot2. Every line of code explained — the fastest genuine introduction to ggplot2."
+description: "Make a scatter plot, bar chart, histogram, line chart, and boxplot in ggplot2. Every line of code explained, the fastest genuine introduction to ggplot2."
 keywords: "ggplot2 getting started, ggplot2 tutorial, ggplot2 beginners, ggplot2 scatter plot, ggplot2 bar chart, ggplot2 histogram, ggplot2 line chart, ggplot2 boxplot"
 auto_link_terms: "ggplot2 getting started|ggplot2 tutorial|ggplot2 basics|ggplot2 for beginners|geom_point()|geom_bar()|geom_histogram()|geom_line()|geom_boxplot()"
 auto_link_case_sensitive: true
@@ -16,15 +16,15 @@ sidebar_order: 6
 difficulty: "Intermediate"
 ---
 
-# ggplot2 for Beginners: Build 5 Real Charts in 30 Minutes — Zero Experience Needed
+# ggplot2 for Beginners: Build 5 Real Charts in 30 Minutes, Zero Experience Needed
 
-<p class="lead">ggplot2 is R's most popular plotting package — it turns data frames into publication-quality charts with a consistent, layered grammar you can learn in one sitting.</p>
+<p class="lead">ggplot2 is R's most popular plotting package, it turns data frames into publication-quality charts with a consistent, layered grammar you can learn in one sitting.</p>
 
 ## Introduction
 
 You have data in R and you want a chart. Base R's `plot()` function works, but the code gets messy the moment you need colors, labels, or facets. There is a better way.
 
-ggplot2 is a tidyverse package that implements Leland Wilkinson's Grammar of Graphics. The core idea is simple: every chart is built from the same three ingredients — your data, a mapping of columns to visual properties, and a geometric shape that draws the result. Once you learn the pattern, you can build any chart.
+ggplot2 is a tidyverse package that implements Leland Wilkinson's Grammar of Graphics. The core idea is simple: every chart is built from the same three ingredients, your data, a mapping of columns to visual properties, and a geometric shape that draws the result. Once you learn the pattern, you can build any chart.
 
 In this tutorial you will build five real charts from scratch: a scatter plot, a bar chart, a histogram, a line chart, and a boxplot. Every line of code is explained, and every block runs right here in your browser. No installation needed.
 
@@ -153,7 +153,7 @@ ex_scatter
 
 ## How Do You Build a Bar Chart with geom_bar()?
 
-Bar charts count how many rows fall into each category. They are the go-to chart for summarizing categorical data. In ggplot2, `geom_bar()` counts rows for you — just map the category to the x-axis.
+Bar charts count how many rows fall into each category. They are the go-to chart for summarizing categorical data. In ggplot2, `geom_bar()` counts rows for you, just map the category to the x-axis.
 
 Let's count how many cars belong to each `class`.
 
@@ -168,7 +168,7 @@ ggplot(mpg, aes(x = class)) +
 #> SUVs have the most models in the dataset
 ```
 
-Each bar's height equals the number of rows where `class` matches that label. You did not supply a y-axis — `geom_bar()` computed the count automatically.
+Each bar's height equals the number of rows where `class` matches that label. You did not supply a y-axis, `geom_bar()` computed the count automatically.
 
 To break each bar into subgroups, map a second variable to `fill`. The `position` argument controls whether bars stack or stand side by side.
 
@@ -280,7 +280,7 @@ ex_hist
 #> Bins are 3 MPG wide, filled in coral with white borders
 ```
 
-**Explanation:** `binwidth = 3` sets each bin to cover 3 MPG. Any fill color string works — try "darkgreen", "#3366CC", or other R color names.
+**Explanation:** `binwidth = 3` sets each bin to cover 3 MPG. Any fill color string works, try "darkgreen", "#3366CC", or other R color names.
 
 </details>
 
@@ -655,7 +655,7 @@ my_bars
 
 ### Exercise 3: Histogram and boxplot for the same variable
 
-Create two separate charts for the `hwy` column from `mpg`. First, build a histogram with `binwidth = 2` and steelblue fill. Second, build a horizontal boxplot of `hwy` (no grouping — use `y = hwy` with an empty string for x). Use consistent colors in both charts.
+Create two separate charts for the `hwy` column from `mpg`. First, build a histogram with `binwidth = 2` and steelblue fill. Second, build a horizontal boxplot of `hwy` (no grouping, use `y = hwy` with an empty string for x). Use consistent colors in both charts.
 
 ```r
 # Exercise 3: histogram + boxplot pair
@@ -754,7 +754,7 @@ Every chart follows the same pattern: `ggplot(data, aes(...)) + geom_*()`. Add `
 
 **What is the difference between geom_bar() and geom_col()?**
 
-`geom_bar()` counts rows automatically — you only map x. `geom_col()` uses a y value you provide — you map both x and y. Use `geom_bar()` for raw data and `geom_col()` for pre-aggregated summaries.
+`geom_bar()` counts rows automatically, you only map x. `geom_col()` uses a y value you provide, you map both x and y. Use `geom_bar()` for raw data and `geom_col()` for pre-aggregated summaries.
 
 **How do I save a ggplot chart to a file?**
 
@@ -774,17 +774,17 @@ Use the `theme()` layer. For example: `theme(axis.text = element_text(size = 12)
 
 ## References
 
-1. Wickham, H. — *ggplot2: Elegant Graphics for Data Analysis*, 3rd Edition. Springer (2024). [Link](https://ggplot2-book.org/)
-2. ggplot2 documentation — tidyverse.org. [Link](https://ggplot2.tidyverse.org/)
-3. Wickham, H., Cetinkaya-Rundel, M., Grolemund, G. — *R for Data Science*, 2nd Edition. Chapter 2: Data Visualization. [Link](https://r4ds.hadley.nz/data-visualize)
-4. RStudio — Data Visualization with ggplot2 Cheat Sheet. [Link](https://rstudio.github.io/cheatsheets/html/data-visualization.html)
-5. Wilkinson, L. — *The Grammar of Graphics*. Springer (2005).
-6. R Graph Gallery — ggplot2 section. [Link](https://r-graph-gallery.com/)
-7. Scherer, C. — A ggplot2 Tutorial for Beautiful Plotting in R (2019). [Link](https://www.cedricscherer.com/2019/08/05/a-ggplot2-tutorial-for-beautiful-plotting-in-r/)
+1. Wickham, H., *ggplot2: Elegant Graphics for Data Analysis*, 3rd Edition. Springer (2024). [Link](https://ggplot2-book.org/)
+2. ggplot2 documentation, tidyverse.org. [Link](https://ggplot2.tidyverse.org/)
+3. Wickham, H., Cetinkaya-Rundel, M., Grolemund, G., *R for Data Science*, 2nd Edition. Chapter 2: Data Visualization. [Link](https://r4ds.hadley.nz/data-visualize)
+4. RStudio, Data Visualization with ggplot2 Cheat Sheet. [Link](https://rstudio.github.io/cheatsheets/html/data-visualization.html)
+5. Wilkinson, L., *The Grammar of Graphics*. Springer (2005).
+6. R Graph Gallery, ggplot2 section. [Link](https://r-graph-gallery.com/)
+7. Scherer, C., A ggplot2 Tutorial for Beautiful Plotting in R (2019). [Link](https://www.cedricscherer.com/2019/08/05/a-ggplot2-tutorial-for-beautiful-plotting-in-r/)
 
 ## Continue Learning
 
 Now that you can build five chart types, here are your next steps on r-statistics.co:
 
-- **[ggplot2 Tutorial 2 - Customizing Themes](Complete-Ggplot2-Tutorial-Part2-Customizing-Theme-With-R-Code.html)** — Master the `theme()` function, build custom themes from scratch, and control every visual detail of your charts.
-- **[Top 50 ggplot2 Visualizations](Top50-Ggplot2-Visualizations-MasterList-R-Code.html)** — Explore 50 chart types with complete code: area plots, density plots, bubble charts, waffle charts, and more.
+- **[ggplot2 Tutorial 2 - Customizing Themes](Complete-Ggplot2-Tutorial-Part2-Customizing-Theme-With-R-Code.html)**, Master the `theme()` function, build custom themes from scratch, and control every visual detail of your charts.
+- **[Top 50 ggplot2 Visualizations](Top50-Ggplot2-Visualizations-MasterList-R-Code.html)**, Explore 50 chart types with complete code: area plots, density plots, bubble charts, waffle charts, and more.

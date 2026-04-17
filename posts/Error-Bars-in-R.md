@@ -18,13 +18,13 @@ difficulty: "Intermediate"
 
 # Error Bars in R with ggplot2: SD, SE, and Confidence Intervals
 
-<p class="lead">Error bars in ggplot2 are added with <code>geom_errorbar()</code>, which takes <code>ymin</code> and <code>ymax</code> — typically computed as mean ± SD, mean ± SE, or a 95% confidence interval from your summary data.</p>
+<p class="lead">Error bars in ggplot2 are added with <code>geom_errorbar()</code>, which takes <code>ymin</code> and <code>ymax</code>, typically computed as mean ± SD, mean ± SE, or a 95% confidence interval from your summary data.</p>
 
 ## Introduction
 
 A mean without context is often misleading. If you say "Group A averages 42" and "Group B averages 45," the critical question is: how much variability is there within each group? Are those means reliably different, or could they easily swap on the next sample?
 
-Error bars answer that question visually. But there are three common choices — standard deviation (SD), standard error (SE), and 95% confidence intervals (CI) — and picking the wrong one changes what your chart communicates:
+Error bars answer that question visually. But there are three common choices, standard deviation (SD), standard error (SE), and 95% confidence intervals (CI), and picking the wrong one changes what your chart communicates:
 
 - **SD** shows the spread of *individual observations*. Wide SD = high natural variability in the data.
 - **SE** shows the precision of the *mean estimate*. Smaller SE = more confident the mean is a good estimate.
@@ -59,9 +59,9 @@ summary_df <- iris |>
 summary_df
 ```
 
-`qt(0.975, df = n - 1)` uses the t-distribution critical value (not 1.96) because `n = 50` per group — for small samples, the t-distribution gives wider, more honest intervals than the normal approximation.
+`qt(0.975, df = n - 1)` uses the t-distribution critical value (not 1.96) because `n = 50` per group, for small samples, the t-distribution gives wider, more honest intervals than the normal approximation.
 
-**Try it:** Change `qt(0.975, df = n - 1)` to `1.96` (the z-score for 95% CI). For n=50, the difference is small. Now try `n = 5` observations — you'll see the t-distribution gives notably wider intervals.
+**Try it:** Change `qt(0.975, df = n - 1)` to `1.96` (the z-score for 95% CI). For n=50, the difference is small. Now try `n = 5` observations, you'll see the t-distribution gives notably wider intervals.
 
 ## How do you add error bars to a point plot?
 
@@ -91,11 +91,11 @@ p_errbar
 
 The `width` argument controls the horizontal caps at the top and bottom of each error bar. Set `width = 0` to remove caps entirely (whiskers only).
 
-**Try it:** Replace `ymin = se_lo, ymax = se_hi` with `ymin = ci_lo, ymax = ci_hi` to show 95% CI instead of SE. Notice how the intervals widen. Then try `ymin = sd_lo, ymax = sd_hi` for SD — they're much wider because SD describes individual spread, not mean precision.
+**Try it:** Replace `ymin = se_lo, ymax = se_hi` with `ymin = ci_lo, ymax = ci_hi` to show 95% CI instead of SE. Notice how the intervals widen. Then try `ymin = sd_lo, ymax = sd_hi` for SD, they're much wider because SD describes individual spread, not mean precision.
 
 ## What is geom_pointrange() and when should you use it?
 
-`geom_pointrange()` combines the dot and the interval into a single geom — cleaner code and a cleaner look, since it ensures the dot and bar are perfectly aligned.
+`geom_pointrange()` combines the dot and the interval into a single geom, cleaner code and a cleaner look, since it ensures the dot and bar are perfectly aligned.
 
 ```r
 # geom_pointrange: dot + interval in one geom
@@ -121,11 +121,11 @@ p_pointrange
 `fatten` controls the ratio of dot size to line width. `fatten = 4` (default) makes the dot 4× the line width. Reduce it for a smaller dot, increase for a more prominent point.
 
 Related geoms for comparison:
-- `geom_linerange()` — line only, no dot
-- `geom_crossbar()` — box with a middle line (like a boxplot whisker)
-- `geom_errorbarh()` — horizontal error bars (for when the x-axis is continuous)
+- `geom_linerange()`, line only, no dot
+- `geom_crossbar()`, box with a middle line (like a boxplot whisker)
+- `geom_errorbarh()`, horizontal error bars (for when the x-axis is continuous)
 
-**Try it:** Replace `geom_pointrange()` with `geom_linerange(aes(ymin = ci_lo, ymax = ci_hi))` — the dot disappears. Then try `geom_crossbar(aes(ymin = ci_lo, ymax = ci_hi), width = 0.3)` — you get a box instead.
+**Try it:** Replace `geom_pointrange()` with `geom_linerange(aes(ymin = ci_lo, ymax = ci_hi))`, the dot disappears. Then try `geom_crossbar(aes(ymin = ci_lo, ymax = ci_hi), width = 0.3)`, you get a box instead.
 
 ## How do you add error bars to a bar chart?
 
@@ -154,7 +154,7 @@ p_bar <- ggplot(summary_df, aes(x = Species, y = mean, fill = Species)) +
 p_bar
 ```
 
-Note: many visualization experts argue against bar charts with error bars, because the bar fills from zero — implying the total area matters — while error bars relate only to the mean at the top. A point range or dot plot is more honest. But bar + error bar is so common in scientific literature that knowing how to make it is essential.
+Note: many visualization experts argue against bar charts with error bars, because the bar fills from zero, implying the total area matters, while error bars relate only to the mean at the top. A point range or dot plot is more honest. But bar + error bar is so common in scientific literature that knowing how to make it is essential.
 
 **Try it:** Change the error bars to show SD instead of SE: `ymin = sd_lo, ymax = sd_hi`. How does the perception of group differences change?
 
@@ -197,7 +197,7 @@ p_horiz <- ggplot(coef_df, aes(x = estimate, y = variable, color = sig)) +
 p_horiz
 ```
 
-This "forest plot" style is standard for coefficient plots, meta-analyses, and effect size summaries. The vertical dashed line at x=0 is the null hypothesis reference — coefficients whose CI crosses zero are not statistically significant at α=0.05.
+This "forest plot" style is standard for coefficient plots, meta-analyses, and effect size summaries. The vertical dashed line at x=0 is the null hypothesis reference, coefficients whose CI crosses zero are not statistically significant at α=0.05.
 
 **Try it:** Change `color = sig` to `color = estimate > 0` to color by direction (positive/negative) instead of significance. How does this change the message?
 
@@ -268,8 +268,8 @@ SD and SE answer different questions. If you're making a claim about how precise
 
 ### Mistake 3: Confusing `width` and `linewidth`
 
-- `width` — horizontal extent of the caps (set to 0 for no caps)
-- `linewidth` — thickness of the vertical line
+- `width`, horizontal extent of the caps (set to 0 for no caps)
+- `linewidth`, thickness of the vertical line
 
 ```r
 # Both matter
@@ -380,12 +380,12 @@ ggplot(tg_summary, aes(x = factor(dose), y = mean, fill = factor(dose))) +
 | SE | `sd(x) / sqrt(n)` | Precision of the mean estimate |
 | 95% CI | `qt(0.975, df=n-1) * se` | Range likely containing the true mean |
 
-**Always label your error bars** — unlabeled error bars are ambiguous and a common criticism in peer review.
+**Always label your error bars**, unlabeled error bars are ambiguous and a common criticism in peer review.
 
 ## FAQ
 
 **Should I use SD or SE for error bars?**
-Use **SD** to describe natural variability in your data (e.g., showing how spread out individual measurements are). Use **SE** or **95% CI** to show how precisely you've estimated the mean — these are for inferential claims.
+Use **SD** to describe natural variability in your data (e.g., showing how spread out individual measurements are). Use **SE** or **95% CI** to show how precisely you've estimated the mean, these are for inferential claims.
 
 **Why does 95% CI use qt() instead of 1.96?**
 `1.96` is the z-score for a 95% CI under the *normal* distribution (infinite sample size). For finite samples, the t-distribution with `df = n - 1` is more accurate. With n ≥ 30, the difference is negligible; for smaller samples, the t-distribution gives appropriately wider intervals.
@@ -394,7 +394,7 @@ Use **SD** to describe natural variability in your data (e.g., showing how sprea
 Add `geom_ribbon(aes(ymin = lo, ymax = hi), alpha = 0.2)` for shaded confidence bands, or `geom_errorbar()` at each time point. Ribbons look cleaner for dense time series.
 
 **Can I draw error bars horizontally?**
-Yes — `geom_errorbarh(aes(xmin = lo, xmax = hi))` draws horizontal bars. Use when the continuous variable is on the x-axis (regression coefficients, effect sizes).
+Yes, `geom_errorbarh(aes(xmin = lo, xmax = hi))` draws horizontal bars. Use when the continuous variable is on the x-axis (regression coefficients, effect sizes).
 
 **What is width vs. linewidth in geom_errorbar()?**
 `width` sets the horizontal extent of the end caps. `linewidth` sets the thickness of the vertical line. Set `width = 0` to remove caps entirely.
@@ -402,12 +402,12 @@ Yes — `geom_errorbarh(aes(xmin = lo, xmax = hi))` draws horizontal bars. Use w
 ## References
 
 - Wickham H. (2016). *ggplot2: Elegant Graphics for Data Analysis*. Springer.
-- STHDA — ggplot2 error bars: sthda.com/english/wiki/ggplot2-error-bars
+- STHDA, ggplot2 error bars: sthda.com/english/wiki/ggplot2-error-bars
 - Cumming G. et al. (2007). Error bars in experimental biology. *Journal of Cell Biology*.
-- Wilke C. (2019). *Fundamentals of Data Visualization* — Chapter 16: Visualizing uncertainty
+- Wilke C. (2019). *Fundamentals of Data Visualization*, Chapter 16: Visualizing uncertainty
 
 ## Continue Learning
 
-- **ggplot2 Scatter Plots** — the foundation for point-based visualizations
-- **geom_smooth() in ggplot2** — add regression lines and confidence ribbons
-- **R Correlation Matrix Plot** — visualize pairwise correlations with uncertainty
+- **ggplot2 Scatter Plots**, the foundation for point-based visualizations
+- **geom_smooth() in ggplot2**, add regression lines and confidence ribbons
+- **R Correlation Matrix Plot**, visualize pairwise correlations with uncertainty

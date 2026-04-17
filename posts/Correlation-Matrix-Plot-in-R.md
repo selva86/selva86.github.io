@@ -18,7 +18,7 @@ difficulty: "Intermediate"
 
 # Correlation Matrix Plot in R: corrplot, ggcorrplot, and ggplot2
 
-<p class="lead">A correlation matrix plot shows pairwise Pearson (or Spearman) correlations between all numeric variables in a dataset — typically as a color grid where warm colors mean strong positive correlation and cool colors mean negative correlation.</p>
+<p class="lead">A correlation matrix plot shows pairwise Pearson (or Spearman) correlations between all numeric variables in a dataset, typically as a color grid where warm colors mean strong positive correlation and cool colors mean negative correlation.</p>
 
 ## Introduction
 
@@ -26,9 +26,9 @@ When you have a dataset with 5-20 numeric variables, running `cor()` returns a m
 
 There are three common approaches in R:
 
-1. **ggplot2 + geom_tile()** — full manual control, no extra packages
-2. **ggcorrplot** — wraps ggplot2 with sensible correlation-plot defaults (reordering, significance masking, upper/lower triangle)
-3. **corrplot** — base-R graphics, extremely feature-rich for publication
+1. **ggplot2 + geom_tile()**, full manual control, no extra packages
+2. **ggcorrplot**, wraps ggplot2 with sensible correlation-plot defaults (reordering, significance masking, upper/lower triangle)
+3. **corrplot**, base-R graphics, extremely feature-rich for publication
 
 This post covers all three, starting with the ggplot2 approach to understand the mechanics, then showing how ggcorrplot streamlines the workflow.
 
@@ -52,7 +52,7 @@ head(cor_long, 6)
 
 `as.table(cor_mat)` converts the matrix to a table, and `as.data.frame()` flattens it to long format. Every pair of variables gets its own row, including the diagonal (self-correlation = 1) and both upper and lower triangle.
 
-**Try it:** After running this, type `nrow(cor_long)` — it should equal `n_vars² = 7² = 49` rows (all pairs including self-pairs and duplicates from both triangles).
+**Try it:** After running this, type `nrow(cor_long)`, it should equal `n_vars² = 7² = 49` rows (all pairs including self-pairs and duplicates from both triangles).
 
 ## How do you build a basic correlation heatmap with ggplot2?
 
@@ -80,7 +80,7 @@ p_basic <- ggplot(cor_long, aes(x = Var1, y = Var2, fill = Correlation)) +
 p_basic
 ```
 
-`scale_fill_gradient2()` with `midpoint = 0` and `limits = c(-1, 1)` anchors white to zero — strong positive correlations go red, strong negative go blue. The neutral variables appear white.
+`scale_fill_gradient2()` with `midpoint = 0` and `limits = c(-1, 1)` anchors white to zero, strong positive correlations go red, strong negative go blue. The neutral variables appear white.
 
 **Try it:** Change `low = "#4393c3"` and `high = "#d6604d"` to `low = "#2166ac"` and `high = "#b2182b"` for deeper, more saturated colors. Then try `scale_fill_viridis_c(limits = c(-1, 1), option = "RdYlBu", direction = -1)`.
 
@@ -108,9 +108,9 @@ p_ggcorr <- ggcorrplot(
 p_ggcorr
 ```
 
-`hc.order = TRUE` clusters variables so highly correlated ones sit near each other — making patterns (like the `cyl`, `disp`, `hp`, `wt` cluster) visually obvious. `type = "upper"` shows only the upper triangle, eliminating the redundant mirror image.
+`hc.order = TRUE` clusters variables so highly correlated ones sit near each other, making patterns (like the `cyl`, `disp`, `hp`, `wt` cluster) visually obvious. `type = "upper"` shows only the upper triangle, eliminating the redundant mirror image.
 
-**Try it:** Change `method = "square"` to `method = "circle"` — circles sized by correlation magnitude instead of solid colored squares. Which communicates the strength of weak correlations more clearly?
+**Try it:** Change `method = "square"` to `method = "circle"`, circles sized by correlation magnitude instead of solid colored squares. Which communicates the strength of weak correlations more clearly?
 
 ## How do you show only the upper or lower triangle?
 
@@ -142,7 +142,7 @@ p_upper <- ggcorrplot(
 p_upper
 ```
 
-**Try it:** Add `p.mat = cor_pmat(cor_mat)` and `sig.level = 0.05` inside `ggcorrplot()` — this masks correlations that are not statistically significant (p > 0.05) with an X mark, so readers know which correlations are reliable.
+**Try it:** Add `p.mat = cor_pmat(cor_mat)` and `sig.level = 0.05` inside `ggcorrplot()`, this masks correlations that are not statistically significant (p > 0.05) with an X mark, so readers know which correlations are reliable.
 
 ## How do you add correlation value labels to tiles?
 
@@ -181,7 +181,7 @@ p_labels
 
 `color = abs_cor > 0.5` switches between white text (for dark tiles with strong correlations) and grey text (for pale tiles near zero). This is the same technique used in the Heatmap-in-R post.
 
-**Try it:** Change the threshold from `0.5` to `0.3` — more tiles get white text. Find the threshold that gives the best contrast for your color palette.
+**Try it:** Change the threshold from `0.5` to `0.3`, more tiles get white text. Find the threshold that gives the best contrast for your color palette.
 
 ## Complete Example: Publication-Ready Correlation Plot
 
@@ -244,7 +244,7 @@ cor_mat <- cor(num_df)
 
 ### Mistake 3: Not setting limits = c(-1, 1) in the color scale
 
-Without explicit limits, the scale anchors to the min and max of your data — not to -1 and 1. A maximum correlation of 0.95 would push the color scale, making 0.7 look "light" when it's actually strong.
+Without explicit limits, the scale anchors to the min and max of your data, not to -1 and 1. A maximum correlation of 0.95 would push the color scale, making 0.7 look "light" when it's actually strong.
 
 ```r
 scale_fill_gradient2(..., limits = c(-1, 1))
@@ -354,10 +354,10 @@ Pearson measures linear association; Spearman measures monotonic (rank-based) as
 Before plotting, reorder `Var1` and `Var2` factors: `cor_long$Var1 <- factor(cor_long$Var1, levels = c("var_a", "var_b", ...))`. The plot will respect the factor level order.
 
 **Why does my ggcorrplot show "X" marks on some tiles?**
-You've passed `p.mat` with `insig = "pch"` — X marks indicate non-significant correlations (p > sig.level). Switch to `insig = "blank"` to show blanks, or `insig = "n"` to show nothing and display all correlations.
+You've passed `p.mat` with `insig = "pch"`, X marks indicate non-significant correlations (p > sig.level). Switch to `insig = "blank"` to show blanks, or `insig = "n"` to show nothing and display all correlations.
 
 **Can I add a scatter plot matrix alongside the correlation heatmap?**
-Yes — the `GGally::ggpairs()` function creates a scatterplot matrix with correlations in the upper triangle, distributions on the diagonal, and scatter plots in the lower triangle. It combines visual exploration with correlation values.
+Yes, the `GGally::ggpairs()` function creates a scatterplot matrix with correlations in the upper triangle, distributions on the diagonal, and scatter plots in the lower triangle. It combines visual exploration with correlation values.
 
 **How do I handle missing data in cor()?**
 `cor()` returns NA for any pair that has NAs. Use `use = "complete.obs"` (listwise deletion) or `use = "pairwise.complete.obs"` (pairwise deletion) to handle missing values.
@@ -367,10 +367,10 @@ Yes — the `GGally::ggpairs()` function creates a scatterplot matrix with corre
 - ggcorrplot documentation: sthda.com/english/wiki/ggcorrplot
 - corrplot CRAN vignette: cran.r-project.org/web/packages/corrplot
 - Wickham H. (2016). *ggplot2: Elegant Graphics for Data Analysis*. Springer.
-- Wilke C. (2019). *Fundamentals of Data Visualization* — Chapter 12: Visualizing associations
+- Wilke C. (2019). *Fundamentals of Data Visualization*, Chapter 12: Visualizing associations
 
 ## Continue Learning
 
-- **Heatmap in R** — the general case: any matrix as a color grid with geom_tile()
-- **ggplot2 Scatter Plots** — explore bivariate relationships between individual variable pairs
-- **R Statistical Tests** — back up what the correlation plot shows with formal hypothesis tests
+- **Heatmap in R**, the general case: any matrix as a color grid with geom_tile()
+- **ggplot2 Scatter Plots**, explore bivariate relationships between individual variable pairs
+- **R Statistical Tests**, back up what the correlation plot shows with formal hypothesis tests

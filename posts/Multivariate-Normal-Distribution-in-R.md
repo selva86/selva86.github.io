@@ -16,11 +16,11 @@ auto_link_case_sensitive: true
 
 # Multivariate Normal Distribution in R: MASS::mvrnorm, Simulation & Plots
 
-<p class="lead">The multivariate normal distribution generalises the familiar bell curve to two or more correlated variables at once. In R you simulate from it with <code>MASS::mvrnorm(n, mu, Sigma)</code> — supply a mean vector plus a covariance matrix and you get a matrix of correlated draws in a single line. This post walks through simulating, visualizing, and sanity-checking multivariate normal data, plus the covariance-matrix anatomy that makes everything click.</p>
+<p class="lead">The multivariate normal distribution generalises the familiar bell curve to two or more correlated variables at once. In R you simulate from it with <code>MASS::mvrnorm(n, mu, Sigma)</code>, supply a mean vector plus a covariance matrix and you get a matrix of correlated draws in a single line. This post walks through simulating, visualizing, and sanity-checking multivariate normal data, plus the covariance-matrix anatomy that makes everything click.</p>
 
 ## How do you simulate multivariate normal data with mvrnorm()?
 
-The fastest way to feel the multivariate normal is to draw a handful of samples and see them lined up side by side. Pick a mean vector `mu`, pick a covariance matrix `Sigma`, and `mvrnorm()` returns a matrix where every row is one correlated observation. Everything else in this tutorial — plots, checks, higher dimensions — builds on this one call.
+The fastest way to feel the multivariate normal is to draw a handful of samples and see them lined up side by side. Pick a mean vector `mu`, pick a covariance matrix `Sigma`, and `mvrnorm()` returns a matrix where every row is one correlated observation. Everything else in this tutorial, plots, checks, higher dimensions, builds on this one call.
 
 Let's simulate five draws from a two-dimensional normal with means at zero and a strong positive correlation of 0.7.
 
@@ -43,7 +43,7 @@ sim5
 #> [5,]  0.40426832  1.0290827
 ```
 
-Each row is one observation of the pair $(X_1, X_2)$. Notice how rows where `X1` is positive also tend to have a positive `X2` — that's the 0.7 correlation showing up in just five samples. The diagonal of `Sigma` sets each variable's variance to 1, and the off-diagonal sets their covariance.
+Each row is one observation of the pair $(X_1, X_2)$. Notice how rows where `X1` is positive also tend to have a positive `X2`, that's the 0.7 correlation showing up in just five samples. The diagonal of `Sigma` sets each variable's variance to 1, and the off-diagonal sets their covariance.
 
 Five rows is a taste. For real work you want hundreds or thousands of draws so the sample moments stabilise.
 
@@ -60,10 +60,10 @@ head(sim, 3)
 #> [3,]  1.1179754  1.6063953
 ```
 
-The output is always a matrix with `n` rows and `length(mu)` columns. One row, one observation — that convention carries through to every visualisation and summary in R.
+The output is always a matrix with `n` rows and `length(mu)` columns. One row, one observation, that convention carries through to every visualisation and summary in R.
 
 [TIP]
-**Give your columns names right away.** `colnames(sim) <- c("X1", "X2")` makes every downstream call — `head()`, `ggplot()`, `cor()` — print meaningful labels instead of `[,1]` and `[,2]`.
+**Give your columns names right away.** `colnames(sim) <- c("X1", "X2")` makes every downstream call, `head()`, `ggplot()`, `cor()`, print meaningful labels instead of `[,1]` and `[,2]`.
 
 **Try it:** Simulate 3 draws with mean vector `c(5, 10)` and a covariance matrix whose diagonal is 1 and off-diagonals are `-0.5`. The two columns should trend in opposite directions.
 
@@ -93,16 +93,16 @@ ex_sim
 #> [3,] 4.706847 10.458461
 ```
 
-**Explanation:** A negative off-diagonal forces `X1` and `X2` apart — when one is above its mean, the other tends below.
+**Explanation:** A negative off-diagonal forces `X1` and `X2` apart, when one is above its mean, the other tends below.
 
 </details>
 
 ## What does the covariance matrix actually control?
 
-The covariance matrix `Sigma` is where the whole shape of a multivariate normal lives. Read it like this: the **diagonal** entries are the variances of each variable, and the **off-diagonal** entries are the covariances between them. Because covariance is symmetric, `Sigma` is always symmetric — the value at row 1, column 2 equals the value at row 2, column 1.
+The covariance matrix `Sigma` is where the whole shape of a multivariate normal lives. Read it like this: the **diagonal** entries are the variances of each variable, and the **off-diagonal** entries are the covariances between them. Because covariance is symmetric, `Sigma` is always symmetric, the value at row 1, column 2 equals the value at row 2, column 1.
 
 ![Covariance-matrix anatomy](screenshots/Multivariate-Normal-Distribution-in-R-covariance-anatomy.webp)
-*Figure 1: Covariance-matrix anatomy — diagonal entries hold variances, off-diagonal entries hold the shared covariance, and the matrix is symmetric.*
+*Figure 1: Covariance-matrix anatomy, diagonal entries hold variances, off-diagonal entries hold the shared covariance, and the matrix is symmetric.*
 
 Covariance and correlation are close cousins. If $\sigma_i$ is the standard deviation of variable $i$ and $\rho_{ij}$ is its correlation with variable $j$, then:
 
@@ -110,11 +110,11 @@ $$\Sigma_{ij} = \rho_{ij}\,\sigma_i\,\sigma_j$$
 
 Where:
 
-- $\Sigma_{ij}$ — the covariance between variables $i$ and $j$ (the matrix entry)
-- $\rho_{ij}$ — the correlation between the two variables, between -1 and 1
-- $\sigma_i, \sigma_j$ — the standard deviations of each variable
+- $\Sigma_{ij}$, the covariance between variables $i$ and $j$ (the matrix entry)
+- $\rho_{ij}$, the correlation between the two variables, between -1 and 1
+- $\sigma_i, \sigma_j$, the standard deviations of each variable
 
-That formula lets you design `Sigma` from quantities you can actually reason about — spreads and correlations — instead of covariances that mix the two.
+That formula lets you design `Sigma` from quantities you can actually reason about, spreads and correlations, instead of covariances that mix the two.
 
 ```r
 # Build Sigma from standard deviations and a correlation
@@ -135,9 +135,9 @@ cov2cor(Sigma2)
 #> [2,]  0.6  1.0
 ```
 
-Reading `Sigma2` left-to-right: variable 1 has variance 4 (sd = 2), variable 2 has variance 9 (sd = 3), and the covariance is `0.6 * 2 * 3 = 3.6`. `cov2cor()` divides the off-diagonal by the product of standard deviations and returns the original correlation — a handy sanity check whenever you're handed a covariance matrix and want to see the underlying correlations.
+Reading `Sigma2` left-to-right: variable 1 has variance 4 (sd = 2), variable 2 has variance 9 (sd = 3), and the covariance is `0.6 * 2 * 3 = 3.6`. `cov2cor()` divides the off-diagonal by the product of standard deviations and returns the original correlation, a handy sanity check whenever you're handed a covariance matrix and want to see the underlying correlations.
 
-`mvrnorm()` requires `Sigma` to be **positive semi-definite** — every eigenvalue non-negative. Intuitively this rules out impossible correlations like 0.9 between A and B, 0.9 between B and C, and -0.9 between A and C.
+`mvrnorm()` requires `Sigma` to be **positive semi-definite**, every eigenvalue non-negative. Intuitively this rules out impossible correlations like 0.9 between A and B, 0.9 between B and C, and -0.9 between A and C.
 
 ```r
 # Positive-definite check: all eigenvalues should be > 0
@@ -148,7 +148,7 @@ eigen(Sigma2)$values
 Both eigenvalues are positive, so `Sigma2` defines a valid multivariate normal.
 
 [WARNING]
-**A non-PSD Sigma breaks mvrnorm().** You'll get an error like *"'Sigma' is not positive definite"*. Check with `eigen(Sigma)$values` — any negative value means your correlation structure is internally inconsistent.
+**A non-PSD Sigma breaks mvrnorm().** You'll get an error like *"'Sigma' is not positive definite"*. Check with `eigen(Sigma)$values`, any negative value means your correlation structure is internally inconsistent.
 
 **Try it:** Build a Sigma for variables with variances 4 and 9 and correlation -0.5. Then verify with `cov2cor()`.
 
@@ -207,7 +207,7 @@ ggplot(df, aes(x, y)) +
   theme_minimal()
 ```
 
-`geom_density_2d()` estimates the joint density from the points and draws contour lines. The contours of a bivariate normal are ellipses tilted along the direction of correlation — here, a positive slope because `rho = 0.7`.
+`geom_density_2d()` estimates the joint density from the points and draws contour lines. The contours of a bivariate normal are ellipses tilted along the direction of correlation, here, a positive slope because `rho = 0.7`.
 
 The 95% confidence ellipse is the most common visual summary. `stat_ellipse()` draws it directly from the data, assuming a normal distribution.
 
@@ -223,12 +223,12 @@ ggplot(df, aes(x, y)) +
   theme_minimal()
 ```
 
-Roughly 95% of the draws should sit inside the solid red ellipse and 68% inside the dashed orange one — the bivariate analogues of the familiar one- and two-sigma bands on a single variable.
+Roughly 95% of the draws should sit inside the solid red ellipse and 68% inside the dashed orange one, the bivariate analogues of the familiar one- and two-sigma bands on a single variable.
 
 [KEY INSIGHT]
 **The tilt of the ellipse is the off-diagonal of Sigma in disguise.** A positive covariance tilts the axes up-right, a negative one tilts them down-right, and zero gives axis-aligned ellipses. Change the off-diagonal and the picture rotates.
 
-**Try it:** Swap the ellipse level to a single `stat_ellipse(level = 0.50)` — the region that contains half of the distribution.
+**Try it:** Swap the ellipse level to a single `stat_ellipse(level = 0.50)`, the region that contains half of the distribution.
 
 ```r
 # Try it: 50% ellipse
@@ -255,7 +255,7 @@ ex_plot <- ggplot(df, aes(x, y)) +
 ex_plot
 ```
 
-**Explanation:** `stat_ellipse()` accepts any `level` between 0 and 1; 0.5 gives the median ellipse — half of the probability mass lives inside.
+**Explanation:** `stat_ellipse()` accepts any `level` between 0 and 1; 0.5 gives the median ellipse, half of the probability mass lives inside.
 
 </details>
 
@@ -279,7 +279,7 @@ round(cor(sim), 2)
 #> [2,] 0.67 1.00
 ```
 
-With 500 draws the sample means land near 0, the sample variances near 1, and the sample correlation near 0.67 — close to the true 0.7 but not exact. That gap is sampling noise; draw 50,000 samples and it will shrink.
+With 500 draws the sample means land near 0, the sample variances near 1, and the sample correlation near 0.67, close to the true 0.7 but not exact. That gap is sampling noise; draw 50,000 samples and it will shrink.
 
 When you want an exact match for teaching or reproducible demos, pass `empirical = TRUE`.
 
@@ -334,7 +334,7 @@ round(cor(ex_small), 2)
 The API stays the same for any number of variables: give `mvrnorm()` a k-length mean vector and a k-by-k covariance matrix. Only your Sigma bookkeeping gets more involved.
 
 ![mvrnorm simulation workflow](screenshots/Multivariate-Normal-Distribution-in-R-simulation-workflow.webp)
-*Figure 2: The mvrnorm() workflow — build mu and Sigma, draw samples, then check moments and visualize.*
+*Figure 2: The mvrnorm() workflow, build mu and Sigma, draw samples, then check moments and visualize.*
 
 Suppose you want to simulate three test scores (math, reading, writing) with means 60, 70, 75, standard deviations 10, 8, 9, and a moderate correlation structure.
 
@@ -358,7 +358,7 @@ head(sim3, 3)
 #> [3,] 67.11472 70.02233 78.45109
 ```
 
-Column names flow through from `mu3` because we gave it a named vector — a small touch that pays off every time you print or plot the matrix.
+Column names flow through from `mu3` because we gave it a named vector, a small touch that pays off every time you print or plot the matrix.
 
 `pairs()` is the quickest way to eyeball a three- or four-variable simulation. It draws a grid of scatter plots, one per pair.
 
@@ -377,9 +377,9 @@ round(cor(sim3), 2)
 #> writing   0.39    0.60    1.00
 ```
 
-The off-diagonal entries of `cor(sim3)` land close to the 0.5 / 0.4 / 0.6 you specified — the k-variable case works exactly like the 2-D case, just with more bookkeeping for `Sigma`.
+The off-diagonal entries of `cor(sim3)` land close to the 0.5 / 0.4 / 0.6 you specified, the k-variable case works exactly like the 2-D case, just with more bookkeeping for `Sigma`.
 
-**Try it:** Extend to four variables — add a "science" score with mean 65, sd 11, and correlations 0.3, 0.55, 0.5 with math, reading, writing (in that order). Simulate 200 draws and run `pairs()`.
+**Try it:** Extend to four variables, add a "science" score with mean 65, sd 11, and correlations 0.3, 0.55, 0.5 with math, reading, writing (in that order). Simulate 200 draws and run `pairs()`.
 
 ```r
 # Try it: 4-D simulation
@@ -414,7 +414,7 @@ round(cor(ex_sim4), 2)
 #> [4,] 0.28 0.56 0.49 1.00
 ```
 
-**Explanation:** The exact same build pattern — `diag(sds) %*% cor %*% diag(sds)` — scales to any dimension. `pairs()` handles the visualisation.
+**Explanation:** The exact same build pattern, `diag(sds) %*% cor %*% diag(sds)`, scales to any dimension. `pairs()` handles the visualisation.
 
 </details>
 
@@ -549,7 +549,7 @@ apply(scores, 2, summary)
 #> Max.     90.0040  94.3330 104.8950
 ```
 
-Every sample statistic lands within sampling noise of the spec: means within a point of 62, 71, 74 and correlations within two hundredths of 0.55 / 0.45 / 0.65. That combination — design Sigma, simulate, verify, visualise — is the full workflow you'll reuse whenever you need realistic synthetic data for testing, teaching, or power analysis.
+Every sample statistic lands within sampling noise of the spec: means within a point of 62, 71, 74 and correlations within two hundredths of 0.55 / 0.45 / 0.65. That combination, design Sigma, simulate, verify, visualise, is the full workflow you'll reuse whenever you need realistic synthetic data for testing, teaching, or power analysis.
 
 ## Summary
 
@@ -565,15 +565,15 @@ Every sample statistic lands within sampling noise of the spec: means within a p
 
 ## References
 
-1. Venables, W. N. & Ripley, B. D. — *Modern Applied Statistics with S*, 4th ed. Springer (2002). [Link](https://www.stats.ox.ac.uk/pub/MASS4/)
-2. MASS package — `mvrnorm()` reference page, R-project documentation. [Link](https://stat.ethz.ch/R-manual/R-devel/library/MASS/html/mvrnorm.html)
-3. Genz, A. & Bretz, F. — *Computation of Multivariate Normal and t Probabilities*. Lecture Notes in Statistics, Springer (2009). [Link](https://link.springer.com/book/10.1007/978-3-642-01689-9)
-4. `mvtnorm` package — *Multivariate Normal and t Distributions*, CRAN. [Link](https://cran.r-project.org/web/packages/mvtnorm/mvtnorm.pdf)
-5. Wasserman, L. — *All of Statistics: A Concise Course in Statistical Inference*. Springer (2004). Chapter 2: Random Variables.
-6. Wickham, H. — *ggplot2: Elegant Graphics for Data Analysis*, 3rd ed. [Link](https://ggplot2-book.org/)
+1. Venables, W. N. & Ripley, B. D., *Modern Applied Statistics with S*, 4th ed. Springer (2002). [Link](https://www.stats.ox.ac.uk/pub/MASS4/)
+2. MASS package, `mvrnorm()` reference page, R-project documentation. [Link](https://stat.ethz.ch/R-manual/R-devel/library/MASS/html/mvrnorm.html)
+3. Genz, A. & Bretz, F., *Computation of Multivariate Normal and t Probabilities*. Lecture Notes in Statistics, Springer (2009). [Link](https://link.springer.com/book/10.1007/978-3-642-01689-9)
+4. `mvtnorm` package, *Multivariate Normal and t Distributions*, CRAN. [Link](https://cran.r-project.org/web/packages/mvtnorm/mvtnorm.pdf)
+5. Wasserman, L., *All of Statistics: A Concise Course in Statistical Inference*. Springer (2004). Chapter 2: Random Variables.
+6. Wickham, H., *ggplot2: Elegant Graphics for Data Analysis*, 3rd ed. [Link](https://ggplot2-book.org/)
 
 ## Continue Learning
 
-- [Normal, t, F & Chi-Squared Distributions in R](Normal-t-F-and-Chi-Squared-Distributions-in-R.html) — the univariate foundations this post builds on.
-- [Correlation Analysis in R](Correlation-Analysis-in-R.html) — compute, interpret, and test correlations between variables.
-- [Sampling Distributions in R](Sampling-Distributions-in-R.html) — how simulated means and variances behave across repeated samples.
+- [Normal, t, F & Chi-Squared Distributions in R](Normal-t-F-and-Chi-Squared-Distributions-in-R.html), the univariate foundations this post builds on.
+- [Correlation Analysis in R](Correlation-Analysis-in-R.html), compute, interpret, and test correlations between variables.
+- [Sampling Distributions in R](Sampling-Distributions-in-R.html), how simulated means and variances behave across repeated samples.

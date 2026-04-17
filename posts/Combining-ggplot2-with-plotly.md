@@ -18,7 +18,7 @@ difficulty: "Intermediate"
 
 # ggplot2 + plotly: Add Hover Tooltips and Zoom to Any Chart in One Line
 
-<p class="lead"><code>ggplotly()</code> converts any ggplot2 chart into an interactive plotly widget with hover tooltips, zoom, pan, and click-to-filter — in a single function call.</p>
+<p class="lead"><code>ggplotly()</code> converts any ggplot2 chart into an interactive plotly widget with hover tooltips, zoom, pan, and click-to-filter, in a single function call.</p>
 
 ## How Does ggplotly() Turn a Static Chart Interactive?
 
@@ -48,7 +48,7 @@ ggplotly(p)
 #>   - Click legend entries to show/hide a class
 ```
 
-Every aesthetic you mapped in ggplot2 — colour, size, shape — carries over. The tooltip shows those mapped values by default, and the toolbar in the top-right corner lets users zoom, pan, and download the chart as a PNG.
+Every aesthetic you mapped in ggplot2, colour, size, shape, carries over. The tooltip shows those mapped values by default, and the toolbar in the top-right corner lets users zoom, pan, and download the chart as a PNG.
 
 [NOTE]
 **Interactive plotly output renders in RStudio and HTML documents, not in the browser code runner.** The code blocks here run the R code and show text output. Copy the code into RStudio or an R Markdown document to see the full interactive chart with hover, zoom, and click features.
@@ -82,7 +82,7 @@ ggplotly(ex_bar)
 
 ## How Do You Control What Appears in the Tooltip?
 
-By default, `ggplotly()` shows every mapped aesthetic in the tooltip — x, y, colour, size, and anything else in `aes()`. That's often too much. The `tooltip` argument lets you pick exactly which aesthetics appear.
+By default, `ggplotly()` shows every mapped aesthetic in the tooltip, x, y, colour, size, and anything else in `aes()`. That's often too much. The `tooltip` argument lets you pick exactly which aesthetics appear.
 
 Let's start by limiting the tooltip to just the x and y values.
 
@@ -97,7 +97,7 @@ ggplotly(p2, tooltip = c("x", "y"))
 #>   Highway MPG: 29
 ```
 
-That cleans up the hover, but sometimes you want a completely custom label — the car's manufacturer and model, plus formatted numbers. The `text` aesthetic is your tool for that.
+That cleans up the hover, but sometimes you want a completely custom label, the car's manufacturer and model, plus formatted numbers. The `text` aesthetic is your tool for that.
 
 ```r
 p3 <- ggplot(mpg, aes(x = displ, y = hwy, color = class,
@@ -117,7 +117,7 @@ ggplotly(p3, tooltip = "text")
 When you set `tooltip = "text"`, plotly ignores all the default aesthetics and only shows your custom label. This gives you full control over what readers see on hover.
 
 [TIP]
-**Use HTML tags inside the text aesthetic for rich formatting.** plotly renders a subset of HTML — `<b>` for bold, `<br>` for line breaks, `<i>` for italic. Write `paste0("<b>", manufacturer, "</b><br>MPG: ", hwy)` for a polished tooltip.
+**Use HTML tags inside the text aesthetic for rich formatting.** plotly renders a subset of HTML, `<b>` for bold, `<br>` for line breaks, `<i>` for italic. Write `paste0("<b>", manufacturer, "</b><br>MPG: ", hwy)` for a polished tooltip.
 
 Let's try HTML-formatted tooltips for a cleaner look.
 
@@ -187,7 +187,7 @@ The `hoverlabel` argument accepts `bgcolor`, `font` (with `family`, `size`, `col
 ![Four layers of tooltip customisation](screenshots/Combining-ggplot2-with-plotly-tooltip-layers.webp)
 *Figure 2: Four layers of tooltip customisation, from basic text aesthetic to trace-level styling.*
 
-For charts with multiple traces — like a line chart with several groups — the default "closest" hover mode shows the tooltip for whichever point is nearest to the cursor. That works for scatter plots, but for time series you often want to compare all y-values at the same x.
+For charts with multiple traces, like a line chart with several groups, the default "closest" hover mode shows the tooltip for whichever point is nearest to the cursor. That works for scatter plots, but for time series you often want to compare all y-values at the same x.
 
 ```r
 economics_long <- tidyr::pivot_longer(economics, cols = c(unemploy, pop),
@@ -238,7 +238,7 @@ ggplotly(ex_style) |>
 
 ## Which ggplot2 Geoms Translate Well to plotly?
 
-Not every geom survives the conversion equally. Most common geoms — points, lines, bars, boxplots — translate perfectly. A few lose features or need manual adjustment. Knowing which is which saves you debugging time.
+Not every geom survives the conversion equally. Most common geoms, points, lines, bars, boxplots, translate perfectly. A few lose features or need manual adjustment. Knowing which is which saves you debugging time.
 
 Here's a quick demo. All three geoms below convert cleanly.
 
@@ -271,7 +271,7 @@ ggplotly(p_smooth) |>
 Without the `style()` fix, hovering over the confidence band shows unhelpful "upper" and "lower" traces. The `style(hoverinfo = "skip", traces = c(2, 3))` call tells plotly to skip hover on the smooth line and its CI band (traces 2 and 3), so only the scatter points respond to hover.
 
 ![Geom compatibility with ggplotly()](screenshots/Combining-ggplot2-with-plotly-geom-compat.webp)
-*Figure 3: Geom compatibility spectrum — which ggplot2 geoms work best with ggplotly().*
+*Figure 3: Geom compatibility spectrum, which ggplot2 geoms work best with ggplotly().*
 
 Here's the full compatibility table:
 
@@ -282,10 +282,10 @@ Here's the full compatibility table:
 | `geom_bar()` / `geom_col()` | Perfect | Hover shows category and count/value |
 | `geom_boxplot()` | Perfect | Hover shows quartiles, median, outliers |
 | `geom_histogram()` | Perfect | Hover shows bin range and count |
-| `geom_smooth()` | Partial | CI band creates extra hover traces — use `style()` to suppress |
+| `geom_smooth()` | Partial | CI band creates extra hover traces, use `style()` to suppress |
 | `geom_tile()` | Partial | Works, but large heatmaps can be slow |
-| `geom_density()` | Partial | Hover shows density values — sometimes noisy |
-| `geom_text()` | Needs tweaks | Labels may overlap differently — use plotly's `textposition` |
+| `geom_density()` | Partial | Hover shows density values, sometimes noisy |
+| `geom_text()` | Needs tweaks | Labels may overlap differently, use plotly's `textposition` |
 | `geom_ribbon()` | Needs tweaks | Splits into upper/lower traces |
 | `geom_sf()` | Needs tweaks | Consider plotly's native `plot_geo()` for maps |
 
@@ -418,7 +418,7 @@ ggplotly(ex_toolbar) |>
 
 ## How Do You Animate a ggplot2 Chart with plotly?
 
-plotly can animate your ggplot2 charts — scatter points that move across frames, bars that grow and shrink, lines that evolve. You add a `frame` aesthetic in ggplot2, and `ggplotly()` turns it into a play/pause animation with a slider.
+plotly can animate your ggplot2 charts, scatter points that move across frames, bars that grow and shrink, lines that evolve. You add a `frame` aesthetic in ggplot2, and `ggplotly()` turns it into a play/pause animation with a slider.
 
 Let's create some sample data with three time periods and animate a scatter plot.
 
@@ -455,7 +455,7 @@ ggplotly(p_anim) |>
 The `frame` parameter controls how long each frame stays visible (milliseconds). `transition` controls how long the morph between frames takes. `easing` accepts CSS easing names like `"linear"`, `"elastic"`, `"bounce"`, and `"cubic-in-out"`.
 
 [KEY INSIGHT]
-**Animation works by mapping a discrete variable to `frame` inside `aes()`.** plotly handles the play button, slider, and transitions automatically. You don't need gganimate or any extra package — just one aesthetic mapping.
+**Animation works by mapping a discrete variable to `frame` inside `aes()`.** plotly handles the play button, slider, and transitions automatically. You don't need gganimate or any extra package, just one aesthetic mapping.
 
 **Try it:** Create an animated bar chart that shows the mean `mpg` for each `cyl` group in `mtcars`, using `cyl` as the frame variable. Use `stat_summary()` with `fun = mean`.
 
@@ -488,7 +488,7 @@ ggplotly(ex_anim)
 
 ## How Do You Save and Share an Interactive Chart?
 
-Interactive charts aren't PNGs — they're HTML with embedded JavaScript. Saving and sharing them works differently than static plots.
+Interactive charts aren't PNGs, they're HTML with embedded JavaScript. Saving and sharing them works differently than static plots.
 
 The `htmlwidgets::saveWidget()` function saves any plotly chart as a self-contained HTML file that anyone can open in a browser.
 
@@ -503,7 +503,7 @@ htmlwidgets::saveWidget(widget, "my_interactive_chart.html", selfcontained = TRU
 #> File size: ~3 MB (plotly.js is bundled inside)
 ```
 
-The `selfcontained = TRUE` option bundles the plotly.js library inside the HTML file. The result is a single file anyone can open, even without R installed. The tradeoff is file size — plotly.js adds about 3 MB.
+The `selfcontained = TRUE` option bundles the plotly.js library inside the HTML file. The result is a single file anyone can open, even without R installed. The tradeoff is file size, plotly.js adds about 3 MB.
 
 [NOTE]
 **Self-contained HTML files can be 2-5 MB because they bundle plotly.js.** For websites and dashboards, use `selfcontained = FALSE` and host plotly.js separately. For email attachments and one-off sharing, self-contained is simpler.
@@ -658,7 +658,7 @@ ggplotly(my_p3, tooltip = "text") |>
 
 ## Putting It All Together
 
-Let's build a complete interactive chart from scratch — styled, labelled, and ready to share.
+Let's build a complete interactive chart from scratch, styled, labelled, and ready to share.
 
 ```r
 mpg_styled <- mpg
@@ -707,7 +707,7 @@ final_interactive
 #>   - SVG download at 2x resolution
 ```
 
-This chart combines every technique from the tutorial: custom tooltips with HTML formatting, styled hover labels, curated toolbar buttons, and a meaningful size aesthetic. The reader can explore 234 data points, compare vehicle classes, and download a publication-ready SVG — all from one ggplot2 object wrapped in `ggplotly()`.
+This chart combines every technique from the tutorial: custom tooltips with HTML formatting, styled hover labels, curated toolbar buttons, and a meaningful size aesthetic. The reader can explore 234 data points, compare vehicle classes, and download a publication-ready SVG, all from one ggplot2 object wrapped in `ggplotly()`.
 
 ## Summary
 
@@ -735,16 +735,16 @@ The pattern is always the same: build your chart with ggplot2, wrap it in `ggplo
 
 ## References
 
-1. Sievert, C. — *Interactive Web-Based Data Visualization with R, plotly, and shiny*. CRC Press (2020). Chapters 25 and 33. [Link](https://plotly-r.com/)
-2. plotly for R documentation — ggplotly() reference. [Link](https://plotly.com/ggplot2/getting-started/)
-3. plotly-r.com — Controlling tooltips. [Link](https://plotly-r.com/controlling-tooltips.html)
-4. plotly-r.com — Improving ggplotly(). [Link](https://plotly-r.com/improving-ggplotly.html)
-5. Wickham, H. — *ggplot2: Elegant Graphics for Data Analysis*, 3rd Edition. Springer (2024). [Link](https://ggplot2-book.org/)
-6. htmlwidgets for R — saveWidget() reference. [Link](https://www.htmlwidgets.org/)
-7. R Graph Gallery — Customize plotly tooltip. [Link](https://r-graph-gallery.com/customize-plotly-tooltip.html)
+1. Sievert, C., *Interactive Web-Based Data Visualization with R, plotly, and shiny*. CRC Press (2020). Chapters 25 and 33. [Link](https://plotly-r.com/)
+2. plotly for R documentation, ggplotly() reference. [Link](https://plotly.com/ggplot2/getting-started/)
+3. plotly-r.com, Controlling tooltips. [Link](https://plotly-r.com/controlling-tooltips.html)
+4. plotly-r.com, Improving ggplotly(). [Link](https://plotly-r.com/improving-ggplotly.html)
+5. Wickham, H., *ggplot2: Elegant Graphics for Data Analysis*, 3rd Edition. Springer (2024). [Link](https://ggplot2-book.org/)
+6. htmlwidgets for R, saveWidget() reference. [Link](https://www.htmlwidgets.org/)
+7. R Graph Gallery, Customize plotly tooltip. [Link](https://r-graph-gallery.com/customize-plotly-tooltip.html)
 
 ## Continue Learning
 
-- [ggplot2 Getting Started](ggplot2-Getting-Started.html) — Build your first 5 charts with ggplot2 before making them interactive
-- [ggplot2 Themes in R](ggplot2-Themes-in-R.html) — Polish your static charts with themes, then convert to plotly
-- [ggplot2 Scatter Plots](ggplot2-Scatter-Plots.html) — Deep dive into scatter plot customisation — all techniques carry over to plotly
+- [ggplot2 Getting Started](ggplot2-Getting-Started.html), Build your first 5 charts with ggplot2 before making them interactive
+- [ggplot2 Themes in R](ggplot2-Themes-in-R.html), Polish your static charts with themes, then convert to plotly
+- [ggplot2 Scatter Plots](ggplot2-Scatter-Plots.html), Deep dive into scatter plot customisation, all techniques carry over to plotly

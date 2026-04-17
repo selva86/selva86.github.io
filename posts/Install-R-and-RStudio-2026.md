@@ -20,13 +20,13 @@ difficulty: "Beginner"
 
 <p class="lead">To use R, you install two things: R itself (the language engine) and RStudio (the editor you'll actually work in). R does the computing; RStudio makes it comfortable. Both are free and take about 5 minutes total.</p>
 
-Most installation guides show you where to click but skip the settings that save you hours later. This guide covers the full setup — installation, verification, first-run settings, and the most common errors with their fixes — for Windows, Mac, and Linux.
+Most installation guides show you where to click but skip the settings that save you hours later. This guide covers the full setup, installation, verification, first-run settings, and the most common errors with their fixes, for Windows, Mac, and Linux.
 
 ## Introduction
 
-**R** is the programming language — the engine that runs your code. **RStudio** is an IDE (Integrated Development Environment) — the dashboard where you write, run, and debug that code. You need both, and you must install R first because RStudio depends on it.
+**R** is the programming language, the engine that runs your code. **RStudio** is an IDE (Integrated Development Environment), the dashboard where you write, run, and debug that code. You need both, and you must install R first because RStudio depends on it.
 
-Think of it like this: R is the car engine, RStudio is the cockpit with the steering wheel, dashboard, and GPS. You wouldn't drive an engine without a cockpit — and you wouldn't use R without RStudio.
+Think of it like this: R is the car engine, RStudio is the cockpit with the steering wheel, dashboard, and GPS. You wouldn't drive an engine without a cockpit, and you wouldn't use R without RStudio.
 
 Here's the plan:
 
@@ -68,7 +68,7 @@ R is distributed through **CRAN** (the Comprehensive R Archive Network). Here's 
    - Choose **"No"** when asked about customizing startup options (the defaults are fine)
    - Click **"Next"** through the remaining screens and **"Finish"**
 
-**That's it.** R is now installed. You'll see an "R" icon in your Start Menu, but you won't use it directly — you'll use RStudio instead.
+**That's it.** R is now installed. You'll see an "R" icon in your Start Menu, but you won't use it directly, you'll use RStudio instead.
 
 ### Mac
 
@@ -79,7 +79,7 @@ R is distributed through **CRAN** (the Comprehensive R Archive Network). Here's 
    - **Intel Mac:** Download the `x86_64` version
    - Not sure which you have? Click the Apple menu → **"About This Mac"** → look for "Chip" (Apple M-series) or "Processor" (Intel)
 4. Open the downloaded `.pkg` file
-5. Follow the installation wizard — you'll need to enter your Mac password
+5. Follow the installation wizard, you'll need to enter your Mac password
 6. Click **"Install"** and then **"Close"** when finished
 
 ### Linux (Ubuntu/Debian)
@@ -113,20 +113,20 @@ sudo apt install r-base r-base-dev -y
 
 ## Step 2: Install RStudio
 
-Now that R is installed, install RStudio — the IDE you'll actually use every day.
+Now that R is installed, install RStudio, the IDE you'll actually use every day.
 
 ### Windows
 
 1. Go to **https://posit.co/download/rstudio-desktop/**
 2. The page auto-detects your OS. Click the big blue **"Download RStudio"** button
 3. Run the downloaded `.exe` file
-4. Accept all defaults in the installer — click **"Next"** through everything and **"Finish"**
+4. Accept all defaults in the installer, click **"Next"** through everything and **"Finish"**
 5. Open RStudio from the Start Menu
 
 ### Mac
 
 1. Go to **https://posit.co/download/rstudio-desktop/**
-2. Click **"Download RStudio"** — it'll download a `.dmg` file
+2. Click **"Download RStudio"**, it'll download a `.dmg` file
 3. Open the `.dmg` file
 4. Drag the **RStudio icon** into the **Applications** folder
 5. Open RStudio from the Applications folder or Launchpad
@@ -152,10 +152,10 @@ Then open RStudio from your application menu.
 
 Open RStudio. You should see four panels:
 
-1. **Console** (bottom-left) — where R code runs
-2. **Source** (top-left) — where you write scripts (may be hidden until you open a file)
-3. **Environment** (top-right) — shows your variables and data
-4. **Files/Plots/Help** (bottom-right) — file browser, plot viewer, help docs
+1. **Console** (bottom-left), where R code runs
+2. **Source** (top-left), where you write scripts (may be hidden until you open a file)
+3. **Environment** (top-right), shows your variables and data
+4. **Files/Plots/Help** (bottom-right), file browser, plot viewer, help docs
 
 If you see these panels, RStudio found R automatically. Let's verify by running code.
 
@@ -167,7 +167,7 @@ R.version.string
 
 You should see something like: `"R version 4.4.2 (2024-10-31)"`. If you see a version number, R is installed correctly.
 
-Now try this longer test — you can run it right here in your browser to see what the output should look like, then compare it with what you get in your local RStudio:
+Now try this longer test, you can run it right here in your browser to see what the output should look like, then compare it with what you get in your local RStudio:
 
 ```r
 # Test 1: Basic math
@@ -216,15 +216,15 @@ This controls where R downloads packages from. A closer mirror means faster down
 
 Go to **Appearance** and try different **Editor themes**. Popular choices:
 
-- **Tomorrow Night** — dark theme, easy on the eyes
-- **Solarized Dark** — warm tones, popular with developers
-- **Textmate** — classic light theme
+- **Tomorrow Night**, dark theme, easy on the eyes
+- **Solarized Dark**, warm tones, popular with developers
+- **Textmate**, classic light theme
 
 Also increase the **font size** if the default (10pt) feels small. Most people settle on 12-14pt.
 
 ## Step 5: Install Your First Package
 
-Packages extend R's capabilities. The tidyverse is the most important collection of packages for data science — let's install it to verify your package system works.
+Packages extend R's capabilities. The tidyverse is the most important collection of packages for data science, let's install it to verify your package system works.
 
 In RStudio's Console, type:
 
@@ -232,9 +232,9 @@ In RStudio's Console, type:
 install.packages("tidyverse")
 ```
 
-This will take 1-3 minutes (it downloads and compiles several packages). You'll see lots of text scrolling — that's normal. When you see the `>` prompt again, it's done.
+This will take 1-3 minutes (it downloads and compiles several packages). You'll see lots of text scrolling, that's normal. When you see the `>` prompt again, it's done.
 
-Now verify it works. You can run this code in your local RStudio — or try it here first to see the expected output:
+Now verify it works. You can run this code in your local RStudio, or try it here first to see the expected output:
 
 ```r
 # Load the tidyverse
@@ -265,7 +265,7 @@ ggplot(mtcars, aes(x = wt, y = mpg)) +
   theme_minimal()
 ```
 
-In your local RStudio, this plot will appear in the **Plots** panel (bottom-right). Click **"Export"** to save it as an image. Congratulations — you just created a publication-quality visualization.
+In your local RStudio, this plot will appear in the **Plots** panel (bottom-right). Click **"Export"** to save it as an image. Congratulations, you just created a publication-quality visualization.
 
 ## Common Installation Errors (and How to Fix Them)
 
@@ -273,7 +273,7 @@ In your local RStudio, this plot will appear in the **Plots** panel (bottom-righ
 
 **Problem:** You installed R but the terminal can't find it.
 
-**Fix (Windows):** Add R to your PATH. Search for "Environment Variables" in Windows Settings, edit the PATH variable, and add `C:\Program Files\R\R-4.x.x\bin`. Or simply use RStudio — it finds R automatically.
+**Fix (Windows):** Add R to your PATH. Search for "Environment Variables" in Windows Settings, edit the PATH variable, and add `C:\Program Files\R\R-4.x.x\bin`. Or simply use RStudio, it finds R automatically.
 
 **Fix (Mac/Linux):** Run `which R` in the terminal. If nothing shows, R didn't install to the expected location. Reinstall using the steps above.
 
@@ -309,11 +309,11 @@ In your local RStudio, this plot will appear in the **Plots** panel (bottom-righ
 
 **Problem:** You can't install packages to the system library.
 
-**Fix:** Don't use `sudo` for package installation. Instead, R will ask to create a personal library — say **"yes"**. Packages will install to `~/R/` and work fine.
+**Fix:** Don't use `sudo` for package installation. Instead, R will ask to create a personal library, say **"yes"**. Packages will install to `~/R/` and work fine.
 
 ## Alternative: Positron IDE
 
-In 2025, Posit (the company behind RStudio) released **Positron** — a new IDE built on VS Code's architecture. It supports both R and Python in one editor.
+In 2025, Posit (the company behind RStudio) released **Positron**, a new IDE built on VS Code's architecture. It supports both R and Python in one editor.
 
 **Should you use Positron instead of RStudio?**
 
@@ -334,7 +334,7 @@ Here's your complete setup checklist:
 | 3. Open RStudio | Verify 4-panel layout, run `R.version.string` | 1 min |
 | 4. Change settings | Turn off workspace save, set CRAN mirror | 2 min |
 | 5. Install tidyverse | Run `install.packages("tidyverse")` in Console | 2-3 min |
-| 6. Verify | Run `library(dplyr)` and `library(ggplot2)` — no errors | 30 sec |
+| 6. Verify | Run `library(dplyr)` and `library(ggplot2)`, no errors | 30 sec |
 
 **Total time: ~10 minutes.** You're ready to start coding in R.
 
@@ -342,7 +342,7 @@ Here's your complete setup checklist:
 
 ### Do I need to install R if I only want RStudio?
 
-Yes. RStudio is just an editor — it doesn't include R itself. You must install R first (from CRAN), then install RStudio. RStudio will automatically detect and use your R installation.
+Yes. RStudio is just an editor, it doesn't include R itself. You must install R first (from CRAN), then install RStudio. RStudio will automatically detect and use your R installation.
 
 ### Can I have multiple versions of R installed?
 
@@ -350,11 +350,11 @@ Yes. On Windows and Mac, each R version installs to its own folder. In RStudio, 
 
 ### How do I update R to a new version?
 
-Download and install the new version from CRAN — it installs alongside the old one. Then reinstall your packages. On Windows, the `installr` package can automate this: `installr::updateR()`.
+Download and install the new version from CRAN, it installs alongside the old one. Then reinstall your packages. On Windows, the `installr` package can automate this: `installr::updateR()`.
 
 ### Is RStudio really free?
 
-Yes. RStudio Desktop (the open-source edition) is completely free and always will be. Posit (the company) makes money from RStudio Server Pro, Posit Connect, and cloud services — not from the desktop IDE.
+Yes. RStudio Desktop (the open-source edition) is completely free and always will be. Posit (the company) makes money from RStudio Server Pro, Posit Connect, and cloud services, not from the desktop IDE.
 
 ### Can I use R without RStudio?
 
@@ -364,8 +364,8 @@ Yes, but you probably shouldn't. You can run R from the command line, or use oth
 
 Now that R and RStudio are installed and configured, you're ready to start coding. The next tutorial walks you through the RStudio interface:
 
-1. **RStudio IDE Tour** — learn what each panel does and the shortcuts that speed up your workflow
-2. **R Syntax 101** — write your first working R script
-3. **R Data Types** — understand the building blocks of every R program
+1. **RStudio IDE Tour**, learn what each panel does and the shortcuts that speed up your workflow
+2. **R Syntax 101**, write your first working R script
+3. **R Data Types**, understand the building blocks of every R program
 
-Each tutorial includes interactive code blocks — just like the ones on this page — so you can practice as you learn.
+Each tutorial includes interactive code blocks, just like the ones on this page, so you can practice as you learn.

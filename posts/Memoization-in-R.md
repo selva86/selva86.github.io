@@ -155,7 +155,7 @@ Memoization only works when the function's output depends entirely on its argume
 Good candidates for memoization:
 
 1. **External API calls** that return the same result for the same query
-2. **Web scraping** — hitting the same URL twice is wasted bandwidth
+2. **Web scraping**, hitting the same URL twice is wasted bandwidth
 3. **Expensive model fits in Shiny**, where users often revisit the same parameter combinations
 4. **Recursive math** like Fibonacci or dynamic programming
 5. **Parameter sweeps** that revisit earlier grid points
@@ -163,10 +163,10 @@ Good candidates for memoization:
 
 Bad candidates:
 
-1. **Functions with side effects** like writing to a file or sending an email — you want those to run every time
-2. **Functions that return the current time, date, or random numbers** — caching freezes the output at the first call
+1. **Functions with side effects** like writing to a file or sending an email, you want those to run every time
+2. **Functions that return the current time, date, or random numbers**, caching freezes the output at the first call
 3. **Functions that read mutable state** like a database row that might change between calls
-4. **Already-fast functions** — the hashing overhead can outweigh the saving
+4. **Already-fast functions**, the hashing overhead can outweigh the saving
 
 Here is what goes wrong when you violate referential transparency. We memoise `Sys.time()`, which should return the current time.
 
@@ -421,7 +421,7 @@ c(first = t_hit, after_ttl = t_miss)
 #>     0.503     0.503
 ```
 
-**Explanation:** The first call pays the half-second sleep. Waiting three seconds exceeds the two-second TTL, so the cache entry expires. The second call runs from scratch and matches the first call's timing — proof the cache miss is real.
+**Explanation:** The first call pays the half-second sleep. Waiting three seconds exceeds the two-second TTL, so the cache entry expires. The second call runs from scratch and matches the first call's timing, proof the cache miss is real.
 
 </details>
 
@@ -466,7 +466,7 @@ The first pass pays three API calls (three sleeps of 0.4 seconds each). The seco
 | Clear one key | Drop a single entry | `drop_cache(mf)(key)` |
 | Check a key | Ask if a key is cached | `has_cache(mf)(key)` |
 | Ignore an argument | Skip logging flags in the key | `omit_args = "verbose"` |
-| Safety rule | Only memoise pure functions | — |
+| Safety rule | Only memoise pure functions |, |
 
 ## References
 
@@ -480,6 +480,6 @@ The first pass pays three API calls (three sleeps of 0.4 seconds each). The seco
 
 ## Continue Learning
 
-- [Writing R Functions](R-Functions.html) — before you memoise a function, write one that is worth memoising.
-- [R Function Factories](R-Function-Factories.html) — `memoise()` is itself a function factory; this post shows the pattern behind it.
-- [Strategies to Speed Up R Code](Strategies-To-Improve-And-Speedup-R-Code.html) — memoization is one of many techniques for making slow R code fast.
+- [Writing R Functions](R-Functions.html), before you memoise a function, write one that is worth memoising.
+- [R Function Factories](R-Function-Factories.html), `memoise()` is itself a function factory; this post shows the pattern behind it.
+- [Strategies to Speed Up R Code](Strategies-To-Improve-And-Speedup-R-Code.html), memoization is one of many techniques for making slow R code fast.

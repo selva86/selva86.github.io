@@ -1,7 +1,7 @@
 ---
 title: "How R Stores Variables: The Copy-on-Modify Rule Every R User Should Know"
 slug: "R-Names-and-Values"
-description: "R doesn't copy data on assignment — it waits until modification. Learn R's copy-on-modify rule, when copies happen, and how to inspect memory with lobstr."
+description: "R doesn't copy data on assignment, it waits until modification. Learn R's copy-on-modify rule, when copies happen, and how to inspect memory with lobstr."
 keywords: "R copy-on-modify, R names and values, R memory management, lobstr package, R reference semantics, tracemem, obj_addr, modify in place R, R variables memory"
 mathjax: false
 webr: true
@@ -18,7 +18,7 @@ difficulty: "Beginner"
 
 # How R Stores Variables: The Copy-on-Modify Rule Every R User Should Know
 
-<p class="lead">In R, names point to values — not the other way round. When you write <code>y &lt;- x</code>, R does <em>not</em> copy the data. It only makes a new copy when you actually modify one of them. That rule — called <strong>copy-on-modify</strong> — is why R feels both safe and, sometimes, unexpectedly slow.</p>
+<p class="lead">In R, names point to values, not the other way round. When you write <code>y &lt;- x</code>, R does <em>not</em> copy the data. It only makes a new copy when you actually modify one of them. That rule, called <strong>copy-on-modify</strong>, is why R feels both safe and, sometimes, unexpectedly slow.</p>
 
 ## What does it mean for names to point to values in R?
 
@@ -36,10 +36,10 @@ obj_addr(y)
 #> [1] "0x55d4a8c1b3d0"
 ```
 
-Both calls print the same address. Assigning `y <- x` did not allocate a new vector or copy any numbers — it just stuck a second label on the value that already existed. The three numbers `1, 2, 3` live exactly once in memory, with two names pointing at them.
+Both calls print the same address. Assigning `y <- x` did not allocate a new vector or copy any numbers, it just stuck a second label on the value that already existed. The three numbers `1, 2, 3` live exactly once in memory, with two names pointing at them.
 
 [KEY INSIGHT]
-**The value doesn't have a name — the name has a value.** This is the single mental model that explains everything else on this page: assignment creates a binding from a name to an object, and several names can bind to the same object at once.
+**The value doesn't have a name, the name has a value.** This is the single mental model that explains everything else on this page: assignment creates a binding from a name to an object, and several names can bind to the same object at once.
 
 **Try it:** Create two vectors `ex_a` and `ex_b` where `ex_b` is assigned from `ex_a`. Use `obj_addr()` to confirm they share the same memory address.
 
@@ -92,10 +92,10 @@ obj_addr(y)
 untracemem(y)
 ```
 
-The `tracemem[OLD -> NEW]` line is R telling you "I just copied this object." `x` still lives at the original address. `y` has moved — the old label has been peeled off and stuck to a brand-new vector that happens to look like the old one, but with `99` in position one. This is copy-on-modify in one screen.
+The `tracemem[OLD -> NEW]` line is R telling you "I just copied this object." `x` still lives at the original address. `y` has moved, the old label has been peeled off and stuck to a brand-new vector that happens to look like the old one, but with `99` in position one. This is copy-on-modify in one screen.
 
 [NOTE]
-**Reassignment and modification both create new objects.** Writing `y <- c(99, 2, 3)` replaces what `y` points to; writing `y[1] <- 99` also replaces it under the hood. In both cases, `x` is unaffected because `x` never owned the vector — it only pointed at it.
+**Reassignment and modification both create new objects.** Writing `y <- c(99, 2, 3)` replaces what `y` points to; writing `y[1] <- 99` also replaces it under the hood. In both cases, `x` is unaffected because `x` never owned the vector, it only pointed at it.
 
 **Try it:** Use `tracemem()` on a new vector `ex_v`, then modify an element. Count how many `tracemem` lines print. Why that number?
 
@@ -117,13 +117,13 @@ ex_v[2] <- 200
 untracemem(ex_v)
 ```
 
-**Explanation:** One `tracemem` line prints because R copied the vector exactly once — on the first modification. The old value is now unreferenced and will be cleaned up by the garbage collector.
+**Explanation:** One `tracemem` line prints because R copied the vector exactly once, on the first modification. The old value is now unreferenced and will be cleaned up by the garbage collector.
 
 </details>
 
 ## How are lists and data frames actually copied?
 
-Lists change the picture in one important way. A list isn't a single blob of data — it is a *container* of pointers to other objects. When you copy a list, R copies the container (the pointers) but not the things the pointers point to. This is a **shallow copy**, and the `ref()` function from `lobstr` makes it visible.
+Lists change the picture in one important way. A list isn't a single blob of data, it is a *container* of pointers to other objects. When you copy a list, R copies the container (the pointers) but not the things the pointers point to. This is a **shallow copy**, and the `ref()` function from `lobstr` makes it visible.
 
 ```r
 lst <- list(a = 1:3, b = 4:6, c = 7:9)
@@ -134,7 +134,7 @@ ref(lst)
 #> \-c = [4:0x55d4aa001660] <int>
 ```
 
-Each element has its own memory address. Now clone the list and change one element — you will see that only the touched element gets a fresh address, while the others are still shared with the original.
+Each element has its own memory address. Now clone the list and change one element, you will see that only the touched element gets a fresh address, while the others are still shared with the original.
 
 ![Modifying one element of a copied list only allocates a new address for that element.](screenshots/R-Names-and-Values-shallow-copy.webp)
 *Figure 2: Changing `lst2$a` allocates a new vector for `a`. The elements `b` and `c` keep the same addresses as `lst`.*
@@ -155,10 +155,10 @@ ref(lst, lst2)
 #> \-c = [4:0x55d4aa001660] <int>   # shared with lst
 ```
 
-Only `a` got a new address. Elements `b` and `c` still live at the same memory as in `lst` — R is re-using them between the two lists. That is the whole point of shallow copying: changing one column of a 50-column data frame should not force R to re-allocate all 50 columns.
+Only `a` got a new address. Elements `b` and `c` still live at the same memory as in `lst`, R is re-using them between the two lists. That is the whole point of shallow copying: changing one column of a 50-column data frame should not force R to re-allocate all 50 columns.
 
 [TIP]
-**Data frames are lists of column vectors.** Every data frame is stored as a list where each element is one column. So when you run df$x <- df$x * 2, R only copies the x column — not the entire data frame. That is why column-wise work stays fast while row-wise work blows up.
+**Data frames are lists of column vectors.** Every data frame is stored as a list where each element is one column. So when you run df$x <- df$x * 2, R only copies the x column, not the entire data frame. That is why column-wise work stays fast while row-wise work blows up.
 
 **Try it:** Copy `mtcars` to `ex_mt`, change the `mpg` column to all zeros, and use `ref()` on both to confirm that only `mpg` has a new address.
 
@@ -200,7 +200,7 @@ obj_addr(v)
 #> [1] "0x55d4aa009440"
 ```
 
-Whether the in-place optimisation actually kicks in depends on R's internal reference counter — modern R (4.0+) tracks this more precisely than older versions, so you may see a copy in some older sessions. The takeaway: if a value has a single binding and you have not passed it through other functions, R will often skip the copy entirely.
+Whether the in-place optimisation actually kicks in depends on R's internal reference counter, modern R (4.0+) tracks this more precisely than older versions, so you may see a copy in some older sessions. The takeaway: if a value has a single binding and you have not passed it through other functions, R will often skip the copy entirely.
 
 Environments are the other exception. Every environment is a **reference object**. Assigning `e2 <- e1` does not copy the environment; it makes `e2` *another handle on the same environment*. Mutating through either handle mutates the single underlying environment. That is the only way in base R to get true pass-by-reference.
 
@@ -255,7 +255,7 @@ ex_env$flag
 
 ## How does this affect your code's speed and memory?
 
-Every rule you just learned has a dollar-and-cents consequence: copies cost time. A loop that modifies a data frame one cell at a time will, in the worst case, trigger one full column copy per iteration. A vectorised assignment does the same work in one copy. The difference between "slow" and "fast" R code is usually "how many hidden copies am I making?" — and `tracemem()` is how you answer that question.
+Every rule you just learned has a dollar-and-cents consequence: copies cost time. A loop that modifies a data frame one cell at a time will, in the worst case, trigger one full column copy per iteration. A vectorised assignment does the same work in one copy. The difference between "slow" and "fast" R code is usually "how many hidden copies am I making?", and `tracemem()` is how you answer that question.
 
 ```r
 grow_in_loop <- function(n) {
@@ -280,9 +280,9 @@ obj_size(vectorised(1000))
 #> 8.86 kB
 ```
 
-Both functions return the same data frame. The loop version, however, rewrites `df$y` a thousand times, and each rewrite copies the `y` column. The vectorised version does it in one stroke. On a laptop the loop is roughly 10–50× slower for a thousand rows and gets dramatically worse as `n` grows. Vectorisation is not just cleaner to read — it is copy-on-modify mathematics.
+Both functions return the same data frame. The loop version, however, rewrites `df$y` a thousand times, and each rewrite copies the `y` column. The vectorised version does it in one stroke. On a laptop the loop is roughly 10–50× slower for a thousand rows and gets dramatically worse as `n` grows. Vectorisation is not just cleaner to read, it is copy-on-modify mathematics.
 
-The other side of the coin is that shared values are *free*. Packing the same vector into a list three times does not triple your memory — the list just holds three pointers at the same address.
+The other side of the coin is that shared values are *free*. Packing the same vector into a list three times does not triple your memory, the list just holds three pointers at the same address.
 
 ```r
 big <- 1:1e5
@@ -294,10 +294,10 @@ obj_size(lst3)
 #> 680.22 kB
 ```
 
-The list stores three pointers plus a tiny container, not three copies of the vector. As soon as you modify one element, that element gets copied (copy-on-modify), and the other two still share the original. This is the trick that makes tidyverse-style pipelines — where you chain transformations and re-use intermediate objects — cheap in memory.
+The list stores three pointers plus a tiny container, not three copies of the vector. As soon as you modify one element, that element gets copied (copy-on-modify), and the other two still share the original. This is the trick that makes tidyverse-style pipelines, where you chain transformations and re-use intermediate objects, cheap in memory.
 
 [KEY INSIGHT]
-**Every in-loop modification of a data frame triggers a fresh copy. One vectorised assignment replaces thousands of copies.** If your R code is slow, open tracemem() on the slow variable and count the lines — each one is a free speed-up you have not taken yet.
+**Every in-loop modification of a data frame triggers a fresh copy. One vectorised assignment replaces thousands of copies.** If your R code is slow, open tracemem() on the slow variable and count the lines, each one is a free speed-up you have not taken yet.
 
 **Try it:** Rewrite the loop below as a single vectorised assignment and confirm they return the same result.
 
@@ -501,19 +501,19 @@ Three lessons in one block: vectors copy on modify, lists copy only the touched 
 | Reference semantics | Environments (and R6) always mutate in place | Pass to a function and re-check |
 
 [TIP]
-**Reach for lobstr::ref() whenever you are surprised.** It is the single most effective debugging tool for "why is my function slow?" and "did that really not share memory?" — more informative than `object.size()` and friendlier than `.Internal(inspect)`.
+**Reach for lobstr::ref() whenever you are surprised.** It is the single most effective debugging tool for "why is my function slow?" and "did that really not share memory?", more informative than `object.size()` and friendlier than `.Internal(inspect)`.
 
 ## References
 
-1. Wickham, H. — *Advanced R*, 2nd Edition, Chapter 2: Names and Values. [Link](https://adv-r.hadley.nz/names-values.html)
-2. lobstr package documentation — `obj_addr()`, `ref()`, `obj_size()`. [Link](https://lobstr.r-lib.org/)
-3. R Documentation — `tracemem()` reference. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/tracemem.html)
-4. Brodie Gaslam — *The Secret Lives of R Objects*: NAMED, REFCNT, and ALTREP. [Link](https://www.brodieg.com/2019/02/18/an-unofficial-reference-for-internal-inspect/)
-5. R Core Team — *R Internals* manual. [Link](https://cran.r-project.org/doc/manuals/r-release/R-ints.html)
-6. data.table — *Reference semantics* vignette. [Link](https://cran.r-project.org/web/packages/data.table/vignettes/datatable-reference-semantics.html)
+1. Wickham, H., *Advanced R*, 2nd Edition, Chapter 2: Names and Values. [Link](https://adv-r.hadley.nz/names-values.html)
+2. lobstr package documentation, `obj_addr()`, `ref()`, `obj_size()`. [Link](https://lobstr.r-lib.org/)
+3. R Documentation, `tracemem()` reference. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/tracemem.html)
+4. Brodie Gaslam, *The Secret Lives of R Objects*: NAMED, REFCNT, and ALTREP. [Link](https://www.brodieg.com/2019/02/18/an-unofficial-reference-for-internal-inspect/)
+5. R Core Team, *R Internals* manual. [Link](https://cran.r-project.org/doc/manuals/r-release/R-ints.html)
+6. data.table, *Reference semantics* vignette. [Link](https://cran.r-project.org/web/packages/data.table/vignettes/datatable-reference-semantics.html)
 
 ## Continue Learning
 
-1. **[R Data Types](R-Data-Types.html)** — Once you know where values live, the next question is what *kind* of value R thinks you have.
-2. **[R Lists](R-Lists.html)** — Lists are the workhorse of the shallow-copy story; this tutorial goes deep on how they are built and indexed.
-3. **[Writing R Functions](R-Functions.html)** — How function arguments use copy-on-modify, and why environments are the escape hatch when you need mutable state.
+1. **[R Data Types](R-Data-Types.html)**, Once you know where values live, the next question is what *kind* of value R thinks you have.
+2. **[R Lists](R-Lists.html)**, Lists are the workhorse of the shallow-copy story; this tutorial goes deep on how they are built and indexed.
+3. **[Writing R Functions](R-Functions.html)**, How function arguments use copy-on-modify, and why environments are the escape hatch when you need mutable state.

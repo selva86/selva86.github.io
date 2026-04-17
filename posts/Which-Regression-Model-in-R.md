@@ -16,15 +16,15 @@ difficulty: "Intermediate"
 
 # Which Regression Model in R? A Decision Framework From Data Type to Final Choice
 
-<p class="lead">Choosing the right regression model starts with one question: what type of outcome are you predicting? This guide maps five outcome types — continuous, binary, count, ordinal, and time-to-event — to their R functions, key assumptions, and diagnostic checks.</p>
+<p class="lead">Choosing the right regression model starts with one question: what type of outcome are you predicting? This guide maps five outcome types, continuous, binary, count, ordinal, and time-to-event, to their R functions, key assumptions, and diagnostic checks.</p>
 
 ## Introduction
 
-You know `lm()` for continuous outcomes and maybe `glm()` for binary ones. But what happens when your outcome is a count of hospital visits, an ordered satisfaction rating, or the time until a machine fails? The wrong model doesn't always throw an error — it silently gives misleading estimates.
+You know `lm()` for continuous outcomes and maybe `glm()` for binary ones. But what happens when your outcome is a count of hospital visits, an ordered satisfaction rating, or the time until a machine fails? The wrong model doesn't always throw an error, it silently gives misleading estimates.
 
 The right regression model depends on three things: the type of outcome variable, the distribution of that outcome, and the research question you're answering. Get the first decision wrong and everything downstream is unreliable.
 
-By the end of this guide you'll be able to identify your outcome type, pick the correct model family, fit it in R using base functions and a few standard packages, and verify that the model's assumptions hold. All code runs in your browser — no local setup needed.
+By the end of this guide you'll be able to identify your outcome type, pick the correct model family, fit it in R using base functions and a few standard packages, and verify that the model's assumptions hold. All code runs in your browser, no local setup needed.
 
 ## What Are the Five Outcome Types That Determine Your Regression Model?
 
@@ -35,11 +35,11 @@ Every regression problem starts with the same question: what does your outcome v
 
 Here are the five outcome types with concrete examples:
 
-- **Continuous** — a numeric value on a real-number scale. Examples: blood pressure, house price, temperature. Model: linear regression with `lm()`.
-- **Binary** — exactly two categories (yes/no, survived/died, 0/1). Model: logistic regression with `glm(family = binomial)`.
-- **Count** — non-negative integers representing how many times something happened. Examples: number of claims, website visits, species sightings. Model: Poisson regression with `glm(family = poisson)`.
-- **Ordinal** — ordered categories where the distance between levels is unknown. Examples: pain severity (none/mild/moderate/severe), Likert scales. Model: proportional odds with `MASS::polr()`.
-- **Time-to-event** — duration until something happens, often with censoring (some subjects haven't experienced the event yet). Examples: time to relapse, equipment lifetime. Model: Cox regression with `survival::coxph()`.
+- **Continuous**, a numeric value on a real-number scale. Examples: blood pressure, house price, temperature. Model: linear regression with `lm()`.
+- **Binary**, exactly two categories (yes/no, survived/died, 0/1). Model: logistic regression with `glm(family = binomial)`.
+- **Count**, non-negative integers representing how many times something happened. Examples: number of claims, website visits, species sightings. Model: Poisson regression with `glm(family = poisson)`.
+- **Ordinal**, ordered categories where the distance between levels is unknown. Examples: pain severity (none/mild/moderate/severe), Likert scales. Model: proportional odds with `MASS::polr()`.
+- **Time-to-event**, duration until something happens, often with censoring (some subjects haven't experienced the event yet). Examples: time to relapse, equipment lifetime. Model: Cox regression with `survival::coxph()`.
 
 Let's create small datasets that represent each type so you can see them side by side.
 
@@ -64,12 +64,12 @@ head(lung[, c("time", "status")], 4)
 #> 4  210      2
 ```
 
-The `lung` dataset records survival time in days and whether the patient died (status = 2) or was censored (status = 1). This is the hallmark of time-to-event data — not every subject experiences the event during the study.
+The `lung` dataset records survival time in days and whether the patient died (status = 2) or was censored (status = 1). This is the hallmark of time-to-event data, not every subject experiences the event during the study.
 
 [KEY INSIGHT]
-**The outcome type is your first and most important decision.** Every other modelling choice — link function, error distribution, coefficient interpretation — follows from it. Get this step right and the rest is manageable.
+**The outcome type is your first and most important decision.** Every other modelling choice, link function, error distribution, coefficient interpretation, follows from it. Get this step right and the rest is manageable.
 
-**Try it:** The variable `chickwts$weight` records the weight of chicks fed different diets. What outcome type is this — continuous, binary, count, ordinal, or time-to-event?
+**Try it:** The variable `chickwts$weight` records the weight of chicks fed different diets. What outcome type is this, continuous, binary, count, ordinal, or time-to-event?
 
 ```r
 # Try it: identify the outcome type of chickwts$weight
@@ -121,7 +121,7 @@ $$J(\beta) = \sum_{i=1}^{n} (y_i - \hat{y}_i)^2$$
 
 Where $y_i$ is the observed value, $\hat{y}_i$ is the predicted value, and $n$ is the number of observations. Smaller values mean better fit.
 
-*If you're not interested in the math, skip ahead — the practical code above is all you need.*
+*If you're not interested in the math, skip ahead, the practical code above is all you need.*
 
 Now let's check the assumptions with diagnostic plots.
 
@@ -163,7 +163,7 @@ summary(ex_iris_model)$r.squared
 
 ## When Should You Use Logistic Regression for Binary Outcomes?
 
-When the outcome has exactly two levels — pass/fail, yes/no, alive/dead — logistic regression is the standard choice. It models the probability of the outcome being 1 (the "success" class) as a function of the predictors.
+When the outcome has exactly two levels, pass/fail, yes/no, alive/dead, logistic regression is the standard choice. It models the probability of the outcome being 1 (the "success" class) as a function of the predictors.
 
 The key idea is the logistic function, which transforms a linear combination of predictors into a probability between 0 and 1:
 
@@ -200,7 +200,7 @@ exp(confint.default(logit_model))
 #> wt           0.00106218      0.3097
 ```
 
-An odds ratio of 0.018 for weight means each 1,000-lb increase multiplies the odds of manual transmission by 0.018 — a 98% decrease. The confidence interval (0.001 to 0.31) doesn't include 1, confirming statistical significance.
+An odds ratio of 0.018 for weight means each 1,000-lb increase multiplies the odds of manual transmission by 0.018, a 98% decrease. The confidence interval (0.001 to 0.31) doesn't include 1, confirming statistical significance.
 
 [WARNING]
 **Logistic regression coefficients are log-odds, not probabilities.** To get interpretable numbers, always exponentiate with `exp(coef(model))`. Reporting raw coefficients like -4.02 as "the effect" misleads your audience.
@@ -231,7 +231,7 @@ exp(coef(ex_vs_model))["wt"]
 
 ## How Do You Model Count Data with Poisson Regression?
 
-Count data — how many times something happened — calls for Poisson regression. The outcome is a non-negative integer (0, 1, 2, 3, ...) and the model assumes the mean equals the variance.
+Count data, how many times something happened, calls for Poisson regression. The outcome is a non-negative integer (0, 1, 2, 3, ...) and the model assumes the mean equals the variance.
 
 The `warpbreaks` dataset records the number of breaks in yarn during weaving. Let's model breaks as a function of wool type and tension.
 
@@ -249,7 +249,7 @@ summary(pois_model)
 
 Wool B has about 19% fewer breaks than wool A (since $e^{-0.206} \approx 0.81$). High tension reduces breaks by about 40% compared to low tension.
 
-The most common problem with Poisson regression is overdispersion — the variance is larger than the mean. Let's check.
+The most common problem with Poisson regression is overdispersion, the variance is larger than the mean. Let's check.
 
 ```r
 # Check for overdispersion
@@ -274,7 +274,7 @@ summary(nb_model)
 #> tensionH    -0.51849    0.11948  -4.339 1.43e-05 ***
 ```
 
-The dispersion ratio is 4.2 — well above the expected 1.0 for Poisson. The negative binomial model produces the same coefficient estimates but with wider (more honest) standard errors. Notice how the z-values dropped, reflecting the greater uncertainty.
+The dispersion ratio is 4.2, well above the expected 1.0 for Poisson. The negative binomial model produces the same coefficient estimates but with wider (more honest) standard errors. Notice how the z-values dropped, reflecting the greater uncertainty.
 
 [WARNING]
 **Overdispersion is the number-one Poisson violation.** When the dispersion ratio exceeds 1.5, switch to negative binomial regression with `MASS::glm.nb()`. Ignoring overdispersion gives artificially small p-values that make everything look significant.
@@ -389,9 +389,9 @@ cat("t-value:", coef_tab["age", "t value"], "\np-value:", round(p_val, 4))
 
 ## How Does Cox Regression Handle Time-to-Event Data?
 
-Survival analysis applies when your outcome is the time until an event — death, relapse, machine failure, customer churn. The key complication is censoring: some subjects haven't experienced the event by the end of the study. You can't just drop them or treat their last-known time as the event time.
+Survival analysis applies when your outcome is the time until an event, death, relapse, machine failure, customer churn. The key complication is censoring: some subjects haven't experienced the event by the end of the study. You can't just drop them or treat their last-known time as the event time.
 
-Cox proportional hazards regression estimates hazard ratios — the relative risk of the event happening at any given time — without specifying the baseline hazard function. It requires the `survival` package, which is bundled with every R installation.
+Cox proportional hazards regression estimates hazard ratios, the relative risk of the event happening at any given time, without specifying the baseline hazard function. It requires the `survival` package, which is bundled with every R installation.
 
 ![Decision flowchart: from outcome type to R function.](screenshots/Which-Regression-Model-in-R-decision-flow.webp)
 *Figure 2: Decision flowchart: from outcome type to R function.*
@@ -411,7 +411,7 @@ summary(cox_model)
 
 The hazard ratio for sex is 0.58, meaning females (sex = 2) have 42% lower hazard of death compared to males. Each unit increase in ECOG performance score increases the hazard by 59%.
 
-The proportional hazards assumption is critical — it means the hazard ratio between any two groups stays constant over time. Let's test it.
+The proportional hazards assumption is critical, it means the hazard ratio between any two groups stays constant over time. Let's test it.
 
 ```r
 # Test proportional hazards assumption
@@ -455,7 +455,7 @@ exp(coef(ex_cox))["sex"]
 
 ## How Do You Choose Between Competing Models?
 
-Once you've identified the correct model family, you often need to choose between competing specifications — different sets of predictors, interaction terms, or distributional assumptions.
+Once you've identified the correct model family, you often need to choose between competing specifications, different sets of predictors, interaction terms, or distributional assumptions.
 
 ![Key assumptions to verify for each model family.](screenshots/Which-Regression-Model-in-R-assumptions-check.webp)
 *Figure 3: Key assumptions to verify for each model family.*
@@ -464,7 +464,7 @@ Here are the three main tools for model comparison within a family.
 
 **AIC (Akaike Information Criterion)** balances model fit against complexity. Lower AIC is better. It works for any model fitted with maximum likelihood, including `lm()`, `glm()`, and `polr()`.
 
-**Likelihood ratio test** compares nested models — one must be a special case of the other. Use `anova()` with `test = "Chisq"` for GLMs.
+**Likelihood ratio test** compares nested models, one must be a special case of the other. Use `anova()` with `test = "Chisq"` for GLMs.
 
 **Residual diagnostics** reveal whether the model's assumptions hold. No single number replaces visual inspection of residuals.
 
@@ -504,7 +504,7 @@ Here is a quick-reference table summarising everything:
 | Time-to-event | `survival::coxph()` | Proportional hazards | `cox.zph()` |
 | Overdispersed count | `MASS::glm.nb()` | Variance > mean | Compare with Poisson AIC |
 
-**Try it:** Fit two models — `mpg ~ wt` and `mpg ~ wt + disp` — on `mtcars`. Which has the lower AIC? Is the difference meaningful?
+**Try it:** Fit two models, `mpg ~ wt` and `mpg ~ wt + disp`, on `mtcars`. Which has the lower AIC? Is the difference meaningful?
 
 ```r
 # Try it: compare two models with AIC
@@ -715,11 +715,11 @@ cat("\nNeg Binomial p-values:\n")
 round(coef(summary(my_nb2))[, "Pr(>|z|)"], 4)
 ```
 
-**Explanation:** The negative binomial model wins decisively: lower AIC (326 vs 469), and the Poisson dispersion ratio of 3.4 confirms overdispersion. The negative binomial gives wider, more honest standard errors. The interaction terms may lose significance in the negative binomial — this is correct, not a flaw.
+**Explanation:** The negative binomial model wins decisively: lower AIC (326 vs 469), and the Poisson dispersion ratio of 3.4 confirms overdispersion. The negative binomial gives wider, more honest standard errors. The interaction terms may lose significance in the negative binomial, this is correct, not a flaw.
 
 </details>
 
-### Exercise 3: Full pipeline — from data to interpretation
+### Exercise 3: Full pipeline, from data to interpretation
 
 You receive a dataset of patients where the outcome is 30-day mortality (1 = died, 0 = survived) with predictors age and treatment group. Complete the full pipeline: identify the outcome type, fit the right model, interpret the coefficients as odds ratios with confidence intervals, and check if treatment significantly reduces mortality.
 
@@ -881,19 +881,19 @@ Yes. The `survival` package supports time-varying covariates by restructuring da
 
 ## References
 
-1. R Core Team — *An Introduction to R*. [Link](https://cran.r-project.org/doc/manuals/r-release/R-intro.html)
-2. Hosmer, D.W., Lemeshow, S. & Sturdivant, R.X. — *Applied Logistic Regression*, 3rd Edition. Wiley (2013).
-3. Cameron, A.C. & Trivedi, P.K. — *Regression Analysis of Count Data*, 2nd Edition. Cambridge University Press (2013).
-4. Agresti, A. — *Analysis of Ordinal Categorical Data*, 2nd Edition. Wiley (2010).
-5. Therneau, T.M. & Grambsch, P.M. — *Modeling Survival Data: Extending the Cox Model*. Springer (2000).
-6. Venables, W.N. & Ripley, B.D. — *Modern Applied Statistics with S*, 4th Edition. Springer (2002). [Link](https://www.stats.ox.ac.uk/pub/MASS4/)
-7. glm() documentation — R Stats Package. [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/glm.html)
-8. survival package documentation — CRAN. [Link](https://cran.r-project.org/web/packages/survival/index.html)
-9. Harrell, F.E. — *Regression Modeling Strategies*, 2nd Edition. Springer (2015). [Link](https://hbiostat.org/rmsc/)
-10. Fox, J. — *Applied Regression Analysis and Generalized Linear Models*, 3rd Edition. Sage (2016).
+1. R Core Team, *An Introduction to R*. [Link](https://cran.r-project.org/doc/manuals/r-release/R-intro.html)
+2. Hosmer, D.W., Lemeshow, S. & Sturdivant, R.X., *Applied Logistic Regression*, 3rd Edition. Wiley (2013).
+3. Cameron, A.C. & Trivedi, P.K., *Regression Analysis of Count Data*, 2nd Edition. Cambridge University Press (2013).
+4. Agresti, A., *Analysis of Ordinal Categorical Data*, 2nd Edition. Wiley (2010).
+5. Therneau, T.M. & Grambsch, P.M., *Modeling Survival Data: Extending the Cox Model*. Springer (2000).
+6. Venables, W.N. & Ripley, B.D., *Modern Applied Statistics with S*, 4th Edition. Springer (2002). [Link](https://www.stats.ox.ac.uk/pub/MASS4/)
+7. glm() documentation, R Stats Package. [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/glm.html)
+8. survival package documentation, CRAN. [Link](https://cran.r-project.org/web/packages/survival/index.html)
+9. Harrell, F.E., *Regression Modeling Strategies*, 2nd Edition. Springer (2015). [Link](https://hbiostat.org/rmsc/)
+10. Fox, J., *Applied Regression Analysis and Generalized Linear Models*, 3rd Edition. Sage (2016).
 
 ## Continue Learning
 
-- **[Which Statistical Test in R? A Decision Flowchart](Choosing-the-Right-Statistical-Test-in-R.html)** — the parent guide that covers hypothesis tests, not just regression models
-- **[Linear Regression in R](Linear-Regression-in-R.html)** — deep dive into OLS with diagnostics, transformations, and feature selection
-- **[Logistic Regression in R](Logistic-Regression-in-R.html)** — complete walkthrough of binary classification with ROC curves and model evaluation
+- **[Which Statistical Test in R? A Decision Flowchart](Choosing-the-Right-Statistical-Test-in-R.html)**, the parent guide that covers hypothesis tests, not just regression models
+- **[Linear Regression in R](Linear-Regression-in-R.html)**, deep dive into OLS with diagnostics, transformations, and feature selection
+- **[Logistic Regression in R](Logistic-Regression-in-R.html)**, complete walkthrough of binary classification with ROC curves and model evaluation

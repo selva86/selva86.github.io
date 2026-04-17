@@ -1,7 +1,7 @@
 ---
 title: "R Data Scientist Salary & Career Path : Real Numbers, Real Requirements"
 slug: "R-Data-Scientist-Career"
-description: "Median salaries, skill requirements, and career paths for R-focused data scientists — based on 5,000+ job listings, LinkedIn data, and practitioner surveys."
+description: "Median salaries, skill requirements, and career paths for R-focused data scientists, based on 5,000+ job listings, LinkedIn data, and practitioner surveys."
 keywords: "R data scientist salary, R data scientist career, R programming career, biostatistician salary, R jobs, R career path, data scientist R, R programming salary"
 auto_link_terms: "R data scientist salary|R data scientist career|data scientist with R|R career path|R programming career"
 auto_link_case_sensitive: false

@@ -18,13 +18,13 @@ difficulty: "Beginner"
 
 # R Anonymous Functions: The \\(x) Syntax That Replaces function(x)
 
-<p class="lead">R's <code>\\(x)</code> is a compact shorthand for <code>function(x)</code>, introduced in R 4.1. It lets you write one-line inline functions inside <code>sapply</code>, <code>purrr::map</code>, and pipes without the usual boilerplate — and saves a named function object only for logic that really earns a name.</p>
+<p class="lead">R's <code>\\(x)</code> is a compact shorthand for <code>function(x)</code>, introduced in R 4.1. It lets you write one-line inline functions inside <code>sapply</code>, <code>purrr::map</code>, and pipes without the usual boilerplate, and saves a named function object only for logic that really earns a name.</p>
 
 ## What does \\(x) do in R?
 
-Most R users write `function(x) x * 2` on autopilot and never notice that the keyword `function` is eight characters longer than it needs to be. R 4.1 added a backslash form — `\(x) x * 2` — that saves the noise in exactly the places it hurts most: inline helpers inside `sapply`, `map`, and pipes. The two forms produce the same function object, and we can prove it in one block.
+Most R users write `function(x) x * 2` on autopilot and never notice that the keyword `function` is eight characters longer than it needs to be. R 4.1 added a backslash form, `\(x) x * 2`, that saves the noise in exactly the places it hurts most: inline helpers inside `sapply`, `map`, and pipes. The two forms produce the same function object, and we can prove it in one block.
 
-Below, we build the same doubling function twice — once with `function(x)` and once with `\(x)` — call both on the same input, and compare their bodies.
+Below, we build the same doubling function twice, once with `function(x)` and once with `\(x)`, call both on the same input, and compare their bodies.
 
 ```r
 # Two ways to write the same function
@@ -40,10 +40,10 @@ identical(body(long), body(short))
 #> [1] TRUE
 ```
 
-Both calls return `10`, and `identical(body(long), body(short))` is `TRUE`. The parser turns `\(x) x * 2` into exactly the same R function object as `function(x) x * 2`. There is no runtime cost, no special class, no subtle difference in scoping — just fewer characters to type and read.
+Both calls return `10`, and `identical(body(long), body(short))` is `TRUE`. The parser turns `\(x) x * 2` into exactly the same R function object as `function(x) x * 2`. There is no runtime cost, no special class, no subtle difference in scoping, just fewer characters to type and read.
 
 [KEY INSIGHT]
-**`\(x)` is pure syntactic sugar — same object, shorter name.** The R parser rewrites it to `function(x)` before your code ever runs, so there is nothing new to learn about scoping, closures, or evaluation.
+**`\(x)` is pure syntactic sugar, same object, shorter name.** The R parser rewrites it to `function(x)` before your code ever runs, so there is nothing new to learn about scoping, closures, or evaluation.
 
 **Try it:** Write an anonymous function that subtracts `3` from its argument, assign it to `minus3`, and call it on `10`.
 
@@ -70,7 +70,7 @@ minus3(10)
 
 ## When should you use \\(x) instead of function(x)?
 
-The whole point of `\(x)` is *inline* use — when the function is born, used once, and thrown away in the same expression. If you are going to bind the function to a name (as we just did with `minus3`), stick with `function(x)` — it reads more like prose. Save `\(x)` for the spot where writing `function(x)` would push a one-liner onto two lines.
+The whole point of `\(x)` is *inline* use, when the function is born, used once, and thrown away in the same expression. If you are going to bind the function to a name (as we just did with `minus3`), stick with `function(x)`, it reads more like prose. Save `\(x)` for the spot where writing `function(x)` would push a one-liner onto two lines.
 
 The classic example is `sapply`. Here we square each integer from 1 to 5 without ever naming the squaring function.
 
@@ -81,7 +81,7 @@ squares
 #> [1]  1  4  9 16 25
 ```
 
-`sapply` walks `1:5` and hands each element to our `\(x) x^2`. The result is a numeric vector, stored in `squares`. Writing this as `sapply(1:5, function(x) x^2)` would work identically but makes the eye trip over the word `function` every time — noise you don't need.
+`sapply` walks `1:5` and hands each element to our `\(x) x^2`. The result is a numeric vector, stored in `squares`. Writing this as `sapply(1:5, function(x) x^2)` would work identically but makes the eye trip over the word `function` every time, noise you don't need.
 
 The same pattern shines inside a pipe. Here we add `10` to each element as the last step of a pipeline.
 
@@ -95,7 +95,7 @@ shifted
 Read it left-to-right: take `1:5`, pipe it into `sapply`, and for each element apply `\(x) x + 10`. The pipe's readability depends on keeping each step short, and `\(x)` is what keeps the inline step short.
 
 [TIP]
-**Use `\(x)` inline inside `sapply`, `vapply`, `Filter`, `Reduce`, `Map`, and every `purrr::map*` variant.** Any higher-order function that takes another function as its argument is a good home for it — that is where the verbose `function(x)` keyword adds the most visual noise.
+**Use `\(x)` inline inside `sapply`, `vapply`, `Filter`, `Reduce`, `Map`, and every `purrr::map*` variant.** Any higher-order function that takes another function as its argument is a good home for it, that is where the verbose `function(x)` keyword adds the most visual noise.
 
 **Try it:** Use `sapply` with an anonymous function to compute the cube of each integer from 1 to 4. Assign the result to `cubes`.
 
@@ -125,7 +125,7 @@ cubes
 If you have read any tidyverse code from before 2022, you have seen a third way to write an anonymous function: the tilde form, `~ .x + 1`. The purrr package invented this in the days when base R had no shorthand and typing `function(x)` felt painful. Now that `\(x)` exists in every R 4.1+ installation, purrr accepts all three forms, and the native `\(x)` form is the one to reach for in new code.
 
 ![Three syntaxes for anonymous functions in R](screenshots/R-Anonymous-Functions-three-syntaxes.webp)
-*Figure 1: Three syntaxes for anonymous functions — all produce the same function object.*
+*Figure 1: Three syntaxes for anonymous functions, all produce the same function object.*
 
 The block below shows all three styles producing the identical result with `purrr::map_dbl`.
 
@@ -195,7 +195,7 @@ pairs
 #> [1] 15
 ```
 
-`Map` walks the two input vectors in parallel and hands each pair of elements to `\(x, y) x + y`. Note that `x` and `y` are ordinary names — there is nothing magic about `.x` and `.y`. Those belong to purrr's tilde form, not to base R.
+`Map` walks the two input vectors in parallel and hands each pair of elements to `\(x, y) x + y`. Note that `x` and `y` are ordinary names, there is nothing magic about `.x` and `.y`. Those belong to purrr's tilde form, not to base R.
 
 Second, braced vs unbraced bodies. A one-expression body needs no braces; multi-statement bodies do.
 
@@ -210,10 +210,10 @@ b
 #> [1] 11
 ```
 
-`a` uses a one-expression body, so no braces are needed. `b` uses a two-statement body, so the braces are required — the same rule you already know from `function(x) { ... }`. Notice the outer parentheses: we wrap the whole `\(x) ...` in `( ... )` so that R reads it as an expression that can be called with `(5)` immediately afterwards.
+`a` uses a one-expression body, so no braces are needed. `b` uses a two-statement body, so the braces are required, the same rule you already know from `function(x) { ... }`. Notice the outer parentheses: we wrap the whole `\(x) ...` in `( ... )` so that R reads it as an expression that can be called with `(5)` immediately afterwards.
 
 [WARNING]
-**`\(x)` binds weakly — wrap the function in parentheses when you want to call it immediately.** Write `(\(x) x + 1)(4)`, not `\(x) x + 1(4)`. Without the outer parens, R parses `1(4)` as a call and raises an error. The same rule applies when piping directly into an anonymous function: `4 |> (\(x) x + 1)()`.
+**`\(x)` binds weakly, wrap the function in parentheses when you want to call it immediately.** Write `(\(x) x + 1)(4)`, not `\(x) x + 1(4)`. Without the outer parens, R parses `1(4)` as a call and raises an error. The same rule applies when piping directly into an anonymous function: `4 |> (\(x) x + 1)()`.
 
 **Try it:** The expression `4 |> \(x) x + 1` fails because the anonymous function is not wrapped in parentheses. Fix it so it returns `5`.
 
@@ -263,7 +263,7 @@ head(scored2)
 #> [1] 18.90 18.90 20.52 19.26 20.57 16.29
 ```
 
-Both produce the same result, but the second version tells you *what* the inner logic means the moment you read its name. If `score_row` ever breaks, the stack trace will say `score_row` instead of `FUN` — which matters a lot the first time you are debugging at 11pm. And next quarter, when someone else needs the same rule, they can call `score_row` directly instead of copy-pasting a lambda.
+Both produce the same result, but the second version tells you *what* the inner logic means the moment you read its name. If `score_row` ever breaks, the stack trace will say `score_row` instead of `FUN`, which matters a lot the first time you are debugging at 11pm. And next quarter, when someone else needs the same rule, they can call `score_row` directly instead of copy-pasting a lambda.
 
 [KEY INSIGHT]
 **If you would ever grep for its definition, give it a name.** Anonymous functions are for code you will never look at again. The moment you might want to find, test, or reuse a piece of logic, promote it to a named function.
@@ -301,7 +301,7 @@ ex_choice
 
 ## Practice Exercises
 
-These capstones combine the ideas from above. Each is solvable with the functions shown in this tutorial — try them before peeking at the solutions.
+These capstones combine the ideas from above. Each is solvable with the functions shown in this tutorial, try them before peeking at the solutions.
 
 ### Exercise 1: Column means with map_dbl and \\(x)
 
@@ -330,7 +330,7 @@ my_means
 #>   0.43750   0.40625   3.68750   2.81250
 ```
 
-**Explanation:** `map_dbl` iterates over the list-like columns of `mtcars` and applies `\(x) mean(x)` to each. The return type is guaranteed to be a named double vector — safer than `sapply` when column types are mixed.
+**Explanation:** `map_dbl` iterates over the list-like columns of `mtcars` and applies `\(x) mean(x)` to each. The return type is guaranteed to be a named double vector, safer than `sapply` when column types are mixed.
 
 </details>
 
@@ -365,13 +365,13 @@ my_species_means
 #> Petal.Width   0.246      1.326     2.026
 ```
 
-**Explanation:** `col_means` is now a normal, testable function — you can call it on any numeric data frame and the stack trace will name it. The outer `sapply` still uses an anonymous function as glue between the split groups and the named helper, which is exactly what `\(x)` is good at.
+**Explanation:** `col_means` is now a normal, testable function, you can call it on any numeric data frame and the stack trace will name it. The outer `sapply` still uses an anonymous function as glue between the split groups and the named helper, which is exactly what `\(x)` is good at.
 
 </details>
 
 ## Complete Example
 
-Let's put everything together. We'll compute per-species z-scores for each numeric column of `iris` — a small but realistic "apply per group" task. Z-scoring each column means subtracting its mean and dividing by its standard deviation, so every column ends up with mean `0` and standard deviation `1` within its group.
+Let's put everything together. We'll compute per-species z-scores for each numeric column of `iris`, a small but realistic "apply per group" task. Z-scoring each column means subtracting its mean and dividing by its standard deviation, so every column ends up with mean `0` and standard deviation `1` within its group.
 
 ```r
 # Per-species z-scores for iris numeric columns
@@ -390,10 +390,10 @@ round(apply(z_iris$virginica, 2, sd), 10)
 #>            1            1            1            1
 ```
 
-The outer `lapply(split(iris[, 1:4], iris$Species), \(df) ...)` walks the three species groups. Inside it, `sapply(df, \(col) (col - mean(col)) / sd(col))` z-scores each numeric column using a second anonymous function. Both anonymous functions are one-liners used exactly once — the textbook sweet spot for `\(x)`. The sanity checks at the end confirm the transformation worked: column means round to `0` and column standard deviations round to `1`.
+The outer `lapply(split(iris[, 1:4], iris$Species), \(df) ...)` walks the three species groups. Inside it, `sapply(df, \(col) (col - mean(col)) / sd(col))` z-scores each numeric column using a second anonymous function. Both anonymous functions are one-liners used exactly once, the textbook sweet spot for `\(x)`. The sanity checks at the end confirm the transformation worked: column means round to `0` and column standard deviations round to `1`.
 
 [TIP]
-**The `lapply(split(df, df$group), \(g) ...)` idiom is one of R's most useful one-liners.** It splits a data frame by a grouping column, applies an anonymous function to each piece, and returns a named list of results — no extra packages required.
+**The `lapply(split(df, df$group), \(g) ...)` idiom is one of R's most useful one-liners.** It splits a data frame by a grouping column, applies an anonymous function to each piece, and returns a named list of results, no extra packages required.
 
 ## Summary
 
@@ -401,28 +401,28 @@ The outer `lapply(split(iris[, 1:4], iris$Species), \(df) ...)` walks the three 
 |---|---|---|
 | `function(x)` | `double <- function(x) x * 2` | You are naming the function or writing a multi-line body. |
 | `\(x)` | `sapply(1:5, \(x) x^2)` | You need a one-line helper inline (R 4.1+). |
-| `~ .x` | `map_dbl(1:5, ~ .x^2)` | Working with legacy purrr code — prefer `\(x)` for new code. |
+| `~ .x` | `map_dbl(1:5, ~ .x^2)` | Working with legacy purrr code, prefer `\(x)` for new code. |
 
 **Key takeaways:**
 
-1. `\(x)` is pure sugar for `function(x)` — same function object, no runtime cost.
+1. `\(x)` is pure sugar for `function(x)`, same function object, no runtime cost.
 2. Use it inline inside `sapply`, `Map`, `Filter`, `Reduce`, and every `purrr::map*` variant.
 3. Multi-argument forms work: `\(x, y) x + y`.
 4. Wrap the function in parentheses to call it immediately: `(\(x) x + 1)(4)`.
-5. If you would ever grep for, test, or reuse the logic — give it a real name.
+5. If you would ever grep for, test, or reuse the logic, give it a real name.
 
 ## References
 
-1. R Core Team — *NEWS for R 4.1.0*: introduction of `\(x)` backslash syntax. [Link](https://cran.r-project.org/doc/manuals/r-release/NEWS.html)
-2. Wickham, H. — *Advanced R*, 2nd Edition. Chapter 6: Functions. [Link](https://adv-r.hadley.nz/functions.html)
-3. Wickham, H. — *Advanced R*, 2nd Edition. Chapter 9: Functionals. [Link](https://adv-r.hadley.nz/functionals.html)
-4. purrr documentation — `map()` reference and argument-function forms. [Link](https://purrr.tidyverse.org/reference/map.html)
-5. rlang documentation — `as_function()` and how formulas become functions. [Link](https://rlang.r-lib.org/reference/as_function.html)
-6. Jumping Rivers — *New features in R 4.1.0: pipe and anonymous functions*. [Link](https://www.jumpingrivers.com/blog/new-features-r410-pipe-anonymous-functions/)
-7. tidyverse blog — *Differences between the base R and magrittr pipes*. [Link](https://www.tidyverse.org/blog/2023/04/base-vs-magrittr-pipe/)
+1. R Core Team, *NEWS for R 4.1.0*: introduction of `\(x)` backslash syntax. [Link](https://cran.r-project.org/doc/manuals/r-release/NEWS.html)
+2. Wickham, H., *Advanced R*, 2nd Edition. Chapter 6: Functions. [Link](https://adv-r.hadley.nz/functions.html)
+3. Wickham, H., *Advanced R*, 2nd Edition. Chapter 9: Functionals. [Link](https://adv-r.hadley.nz/functionals.html)
+4. purrr documentation, `map()` reference and argument-function forms. [Link](https://purrr.tidyverse.org/reference/map.html)
+5. rlang documentation, `as_function()` and how formulas become functions. [Link](https://rlang.r-lib.org/reference/as_function.html)
+6. Jumping Rivers, *New features in R 4.1.0: pipe and anonymous functions*. [Link](https://www.jumpingrivers.com/blog/new-features-r410-pipe-anonymous-functions/)
+7. tidyverse blog, *Differences between the base R and magrittr pipes*. [Link](https://www.tidyverse.org/blog/2023/04/base-vs-magrittr-pipe/)
 
 ## Continue Learning
 
-- **Writing R Functions** — Learn how named functions work in R, including defaults, `...`, and return semantics.
-- **purrr map() Variants** — The full `map`, `map_dbl`, `map_df`, `map2`, and `pmap` family, all of which accept `\(x)` forms.
-- **Reduce, Filter, Map in R** — Base R's higher-order toolkit, and when each is sharper than a `for` loop.
+- **Writing R Functions**, Learn how named functions work in R, including defaults, `...`, and return semantics.
+- **purrr map() Variants**, The full `map`, `map_dbl`, `map_df`, `map2`, and `pmap` family, all of which accept `\(x)` forms.
+- **Reduce, Filter, Map in R**, Base R's higher-order toolkit, and when each is sharper than a `for` loop.

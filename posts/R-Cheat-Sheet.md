@@ -1,7 +1,7 @@
 ---
-title: "R Cheat Sheet: 200 Functions Across dplyr, ggplot2, Stats — Printable"
+title: "R Cheat Sheet: 200 Functions Across dplyr, ggplot2, Stats, Printable"
 slug: "R-Cheat-Sheet"
-description: "The ultimate R cheat sheet: 200 essential functions across dplyr, ggplot2, base R, statistics, strings, and dates — with arguments and runnable examples."
+description: "The ultimate R cheat sheet: 200 essential functions across dplyr, ggplot2, base R, statistics, strings, and dates, with arguments and runnable examples."
 keywords: "R cheat sheet, dplyr cheat sheet, ggplot2 cheat sheet, R functions reference, base R functions, R quick reference, R programming cheat sheet"
 auto_link_terms: "R cheat sheet|R quick reference|R functions reference|dplyr cheat sheet|ggplot2 cheat sheet"
 auto_link_case_sensitive: false
@@ -14,15 +14,15 @@ fr_parent: "Getting-Help-in-R.html"
 difficulty: "Intermediate"
 ---
 
-# R Cheat Sheet: 200 Functions Across dplyr, ggplot2, Stats — Printable
+# R Cheat Sheet: 200 Functions Across dplyr, ggplot2, Stats, Printable
 
-<p class="lead">This R cheat sheet lists the 200 most-used functions across base R, dplyr, ggplot2, statistics, strings, and dates — each with a one-line description and a runnable example you can try right in your browser.</p>
+<p class="lead">This R cheat sheet lists the 200 most-used functions across base R, dplyr, ggplot2, statistics, strings, and dates, each with a one-line description and a runnable example you can try right in your browser.</p>
 
-Every code block on this page runs live. Edit the values, hit Run, and watch the output update. No setup, no install — the tables are your index, the code is your playground.
+Every code block on this page runs live. Edit the values, hit Run, and watch the output update. No setup, no install, the tables are your index, the code is your playground.
 
 ## Which base R functions should I know by heart?
 
-You didn't come here to read — you came to look something up. So let's open with the one pattern that covers 80% of real R work: load a built-in dataset, pick a few rows, compute a summary. Every function used below appears in the tables further down, but seeing them together first builds the mental model that makes the rest of this page easier to scan.
+You didn't come here to read, you came to look something up. So let's open with the one pattern that covers 80% of real R work: load a built-in dataset, pick a few rows, compute a summary. Every function used below appears in the tables further down, but seeing them together first builds the mental model that makes the rest of this page easier to scan.
 
 ```r
 # Base R snapshot: pick fast cars, then summarise their horsepower
@@ -34,7 +34,7 @@ summary(fast_cars$hp)
 #>   52.00   62.25   65.50   73.67   78.50  113.00
 ```
 
-Six cars in `mtcars` clear 25 mpg, and their horsepower sits mostly between 62 and 79 — the one outlier at 113 hp is the Lotus Europa. That tiny snippet used five base R functions: subsetting with `[ ]`, comparison with `>`, column selection by name, `nrow()`, and `summary()`. Those five are load-bearing in every R session you'll ever write.
+Six cars in `mtcars` clear 25 mpg, and their horsepower sits mostly between 62 and 79, the one outlier at 113 hp is the Lotus Europa. That tiny snippet used five base R functions: subsetting with `[ ]`, comparison with `>`, column selection by name, `nrow()`, and `summary()`. Those five are load-bearing in every R session you'll ever write.
 
 ### Vectors and sequences
 
@@ -90,7 +90,7 @@ Six cars in `mtcars` clear 25 mpg, and their horsepower sits mostly between 62 a
 | `all.equal()` | Near-equality (floats) | `all.equal(0.1+0.2, 0.3)` |
 
 [KEY INSIGHT]
-**Vectorized operations in R are faster than loops because the iteration happens inside compiled C code.** When you write `x + 1`, R doesn't loop in R — it calls a compiled routine that processes all elements at once, often 10-100× faster than an explicit `for` loop doing the same thing.
+**Vectorized operations in R are faster than loops because the iteration happens inside compiled C code.** When you write `x + 1`, R doesn't loop in R, it calls a compiled routine that processes all elements at once, often 10-100× faster than an explicit `for` loop doing the same thing.
 
 **Try it:** Use `seq_len()` to build a vector of length 7, then reverse it with `rev()`. Save the reversed vector as `ex_countdown`.
 
@@ -118,7 +118,7 @@ ex_countdown
 
 ## How do I manipulate data frames with dplyr?
 
-dplyr gives you a small grammar — about a dozen verbs — that composes into almost any wrangling task you can describe. The verbs chain together with the pipe `|>`, so the code reads left-to-right the way you'd explain it out loud: "take mtcars, filter rows where mpg > 20, group by cylinder count, summarise mean horsepower."
+dplyr gives you a small grammar, about a dozen verbs, that composes into almost any wrangling task you can describe. The verbs chain together with the pipe `|>`, so the code reads left-to-right the way you'd explain it out loud: "take mtcars, filter rows where mpg > 20, group by cylinder count, summarise mean horsepower."
 
 ```r
 # dplyr: filter, group, summarise — the core workflow
@@ -136,7 +136,7 @@ mpg_by_cyl
 #> 2     6     3   110.
 ```
 
-Fourteen efficient cars made it through the filter. Four-cylinder cars average 82 hp; the three six-cylinder survivors average 110 hp. Notice how the pipe routes the data frame through each verb in sequence — `filter()` keeps rows, `group_by()` tags them for aggregation, `summarise()` collapses each group to one row.
+Fourteen efficient cars made it through the filter. Four-cylinder cars average 82 hp; the three six-cylinder survivors average 110 hp. Notice how the pipe routes the data frame through each verb in sequence, `filter()` keeps rows, `group_by()` tags them for aggregation, `summarise()` collapses each group to one row.
 
 ### Row operations
 
@@ -243,7 +243,7 @@ p1 <- ggplot(mtcars, aes(x = wt, y = mpg, color = factor(cyl))) +
 p1
 ```
 
-Each `+` adds a layer. `aes()` maps weight to x, mpg to y, and cylinder count to color; `geom_point()` draws the dots; `geom_smooth(method = "lm")` fits a linear trend per color group; `labs()` sets the title and legend name; `theme_minimal()` strips the grey background. Change any argument and the whole plot updates — that's the payoff of the grammar.
+Each `+` adds a layer. `aes()` maps weight to x, mpg to y, and cylinder count to color; `geom_point()` draws the dots; `geom_smooth(method = "lm")` fits a linear trend per color group; `labs()` sets the title and legend name; `theme_minimal()` strips the grey background. Change any argument and the whole plot updates, that's the payoff of the grammar.
 
 ### Geoms (what you draw)
 
@@ -317,13 +317,13 @@ ex_hist <- ggplot(mtcars, aes(x = mpg)) +
 ex_hist
 ```
 
-Each new behaviour is another `+` layer — `labs()` for the title, `theme_minimal()` for the clean background.
+Each new behaviour is another `+` layer, `labs()` for the title, `theme_minimal()` for the clean background.
 
 </details>
 
 ## Which statistics functions do I use most?
 
-R was built for statistics. The functions below have been refined since 1993 and form the backbone of every statistical workflow — from a quick descriptive summary to a full linear model with diagnostics. Most statistical distributions follow a consistent `r/d/p/q` naming convention: `rnorm()` draws random values, `dnorm()` is the density, `pnorm()` is the CDF, `qnorm()` is the quantile function. Learn the pattern once, apply it to `binom`, `pois`, `unif`, `exp`, `chisq`, `t`, `f`, `gamma`, and `beta`.
+R was built for statistics. The functions below have been refined since 1993 and form the backbone of every statistical workflow, from a quick descriptive summary to a full linear model with diagnostics. Most statistical distributions follow a consistent `r/d/p/q` naming convention: `rnorm()` draws random values, `dnorm()` is the density, `pnorm()` is the CDF, `qnorm()` is the quantile function. Learn the pattern once, apply it to `binom`, `pois`, `unif`, `exp`, `chisq`, `t`, `f`, `gamma`, and `beta`.
 
 ```r
 # Stats: a t-test and a linear model, side by side
@@ -339,7 +339,7 @@ round(coef(fit), 3)
 #>      37.227      -3.878      -0.032
 ```
 
-Automatic cars average 7.2 mpg more than manuals, with a p-value of 0.0014 — unusually fuel-efficient, driven by the heavier automatics in the 1974 mtcars sample. The linear model says every extra 1000 lbs of weight costs 3.88 mpg and every extra 1 hp costs 0.032 mpg, holding the other constant. `coef()`, `summary()`, `confint()`, and `predict()` all operate on the same fitted model object.
+Automatic cars average 7.2 mpg more than manuals, with a p-value of 0.0014, unusually fuel-efficient, driven by the heavier automatics in the 1974 mtcars sample. The linear model says every extra 1000 lbs of weight costs 3.88 mpg and every extra 1 hp costs 0.032 mpg, holding the other constant. `coef()`, `summary()`, `confint()`, and `predict()` all operate on the same fitted model object.
 
 ### Descriptive statistics
 
@@ -398,7 +398,7 @@ Automatic cars average 7.2 mpg more than manuals, with a p-value of 0.0014 — u
 | `step()` | Stepwise selection | `step(fit)` |
 
 [KEY INSIGHT]
-**The r/d/p/q naming convention is the same across every distribution in R.** Once you know `rnorm`/`dnorm`/`pnorm`/`qnorm`, you know `rbinom`/`dbinom`/`pbinom`/`qbinom` and every other family. This is no accident — it's a deliberate API design choice that rewards fluency.
+**The r/d/p/q naming convention is the same across every distribution in R.** Once you know `rnorm`/`dnorm`/`pnorm`/`qnorm`, you know `rbinom`/`dbinom`/`pbinom`/`qbinom` and every other family. This is no accident, it's a deliberate API design choice that rewards fluency.
 
 **Try it:** Fit a linear model of `hp` explained by `mpg` on `mtcars`, save it as `ex_fit`, and print only the coefficients.
 
@@ -421,13 +421,13 @@ round(coef(ex_fit), 2)
 #>      324.08       -8.83
 ```
 
-Every 1 mpg increase predicts an 8.83 hp decrease — the fuel-economy / horsepower tradeoff in one coefficient.
+Every 1 mpg increase predicts an 8.83 hp decrease, the fuel-economy / horsepower tradeoff in one coefficient.
 
 </details>
 
 ## How do I handle strings and dates in R?
 
-Text and time are the two fiddliest parts of R for beginners — every locale, format, and edge case can bite. Base R covers the essentials; `stringr` and `lubridate` cover the rest with friendlier argument orders. The payoff block below parses three character strings into real Date objects, extracts the year, and computes the day of the week.
+Text and time are the two fiddliest parts of R for beginners, every locale, format, and edge case can bite. Base R covers the essentials; `stringr` and `lubridate` cover the rest with friendlier argument orders. The payoff block below parses three character strings into real Date objects, extracts the year, and computes the day of the week.
 
 ```r
 # Parse, extract, compute — dates in 4 lines
@@ -440,9 +440,9 @@ cbind(date = as.character(dates), year = years, day = weekdays(dates))
 #> [3,] "2026-12-01" "2026" "Tuesday"
 ```
 
-`as.Date()` parses ISO strings by default; `format()` with a strftime pattern pulls out any component; `weekdays()` returns the localized day name. The same three steps work for any number of dates — vectorized, no loop.
+`as.Date()` parses ISO strings by default; `format()` with a strftime pattern pulls out any component; `weekdays()` returns the localized day name. The same three steps work for any number of dates, vectorized, no loop.
 
-### Strings — base R
+### Strings, base R
 
 | Function | Description | Example |
 |---|---|---|
@@ -459,7 +459,7 @@ cbind(date = as.character(dates), year = years, day = weekdays(dates))
 | `startsWith()` / `endsWith()` | Prefix / suffix test | `startsWith("hello", "he")` |
 | `format()` / `formatC()` | Format numbers as strings | `format(3.14, nsmall = 4)` |
 
-### Strings — stringr
+### Strings, stringr
 
 | Function | Description | Example |
 |---|---|---|
@@ -474,7 +474,7 @@ cbind(date = as.character(dates), year = years, day = weekdays(dates))
 | `str_to_lower()` / `str_to_upper()` / `str_to_title()` | Change case | `str_to_title("hello world")` |
 | `str_pad()` | Pad to width | `str_pad("42", 5, pad = "0")` |
 
-### Dates — base R
+### Dates, base R
 
 | Function | Description | Example |
 |---|---|---|
@@ -487,7 +487,7 @@ cbind(date = as.character(dates), year = years, day = weekdays(dates))
 | `seq.Date()` | Sequence of dates | `seq.Date(as.Date("2026-01-01"), by="month", length.out=6)` |
 | `weekdays()` / `months()` / `quarters()` | Components | `weekdays(Sys.Date())` |
 
-### Dates — lubridate
+### Dates, lubridate
 
 | Function | Description | Example |
 |---|---|---|
@@ -532,7 +532,7 @@ Since the format is fixed-width, `substr()` is the simplest answer. For variable
 
 ## What about I/O, control flow, and functional programming?
 
-The last category covers the glue that holds scripts together: reading and writing files, branching and looping, applying functions over collections, and catching errors. R has two layers here — base R's `apply()` family and the more consistent `purrr::map()` family from the tidyverse — and you'll see both in the wild.
+The last category covers the glue that holds scripts together: reading and writing files, branching and looping, applying functions over collections, and catching errors. R has two layers here, base R's `apply()` family and the more consistent `purrr::map()` family from the tidyverse, and you'll see both in the wild.
 
 ```r
 # sapply over columns; tryCatch for safe logs
@@ -546,7 +546,7 @@ sapply(c(10, -1, 0.5), safe_log)
 #> [1] 2.302585        NA -0.693147
 ```
 
-`sapply()` walks the first four columns of `mtcars`, applies `mean()` to each, and returns a named numeric vector. `tryCatch()` wraps `log()` so that `log(-1)` — which normally warns and returns `NaN` — becomes a clean `NA` instead. Same two-line recipe handles any "try this, default on failure" pattern in R.
+`sapply()` walks the first four columns of `mtcars`, applies `mean()` to each, and returns a named numeric vector. `tryCatch()` wraps `log()` so that `log(-1)`, which normally warns and returns `NaN`, becomes a clean `NA` instead. Same two-line recipe handles any "try this, default on failure" pattern in R.
 
 ### Input / Output
 
@@ -638,7 +638,7 @@ ex_classes
 
 Two capstone exercises combining multiple sections of the cheat sheet. Work them yourself first, then open the solution to check your approach.
 
-### Exercise 1: dplyr pipeline — filter, group, summarise, arrange
+### Exercise 1: dplyr pipeline, filter, group, summarise, arrange
 
 Using `mtcars`, write one pipeline that: keeps cars with `mpg > 20`, groups by `cyl`, computes the mean `hp` per group as `mean_hp`, and arranges the result from highest `mean_hp` to lowest. Save the result as `my_result`.
 
@@ -673,7 +673,7 @@ Four dplyr verbs, one pipeline. `arrange(desc(...))` sorts descending; the `.gro
 
 </details>
 
-### Exercise 2: ggplot2 — scatter + smooth + theme in one plot
+### Exercise 2: ggplot2, scatter + smooth + theme in one plot
 
 Build a plot from `mtcars` showing `mpg` versus `wt`, colored by `factor(cyl)`, with a linear trend line per cylinder group (no confidence ribbon), a title "MPG by weight and cylinders", and a minimal theme. Save the plot object as `my_plot`.
 
@@ -740,7 +740,7 @@ ggplot(aq_monthly, aes(x = Month, y = mean_ozone, fill = Month)) +
   theme(legend.position = "none")
 ```
 
-That single script demonstrates nine of the functions from this cheat sheet: `drop_na()`, `mutate()`, `factor()`, `group_by()`, `summarise()`, `arrange()`, `ggplot()`, `geom_col()`, `theme_minimal()`. July and August average around 60 ppb ozone — typical summer smog levels — while the rest of the months sit 30 ppb or lower.
+That single script demonstrates nine of the functions from this cheat sheet: `drop_na()`, `mutate()`, `factor()`, `group_by()`, `summarise()`, `arrange()`, `ggplot()`, `geom_col()`, `theme_minimal()`. July and August average around 60 ppb ozone, typical summer smog levels, while the rest of the months sit 30 ppb or lower.
 
 ## Summary
 
@@ -769,16 +769,16 @@ Two hundred functions, six categories, one page. Come back often.
 
 ## References
 
-1. R Core Team — *An Introduction to R* official manual. [Link](https://cran.r-project.org/doc/manuals/r-release/R-intro.html)
-2. Wickham, H. & Grolemund, G. — *R for Data Science (2e)*. [Link](https://r4ds.hadley.nz/)
-3. dplyr function reference — tidyverse. [Link](https://dplyr.tidyverse.org/reference/)
-4. ggplot2 function reference — tidyverse. [Link](https://ggplot2.tidyverse.org/reference/)
-5. stringr function reference — tidyverse. [Link](https://stringr.tidyverse.org/reference/)
-6. lubridate function reference — tidyverse. [Link](https://lubridate.tidyverse.org/reference/)
-7. purrr function reference — tidyverse. [Link](https://purrr.tidyverse.org/reference/)
+1. R Core Team, *An Introduction to R* official manual. [Link](https://cran.r-project.org/doc/manuals/r-release/R-intro.html)
+2. Wickham, H. & Grolemund, G., *R for Data Science (2e)*. [Link](https://r4ds.hadley.nz/)
+3. dplyr function reference, tidyverse. [Link](https://dplyr.tidyverse.org/reference/)
+4. ggplot2 function reference, tidyverse. [Link](https://ggplot2.tidyverse.org/reference/)
+5. stringr function reference, tidyverse. [Link](https://stringr.tidyverse.org/reference/)
+6. lubridate function reference, tidyverse. [Link](https://lubridate.tidyverse.org/reference/)
+7. purrr function reference, tidyverse. [Link](https://purrr.tidyverse.org/reference/)
 8. Posit cheatsheets collection. [Link](https://posit.co/resources/cheatsheets/)
-9. R Language Definition — official reference. [Link](https://cran.r-project.org/doc/manuals/r-release/R-lang.html)
+9. R Language Definition, official reference. [Link](https://cran.r-project.org/doc/manuals/r-release/R-lang.html)
 
 ## Continue Learning
-- [Getting Help in R](Getting-Help-in-R.html) — How to search R's help system when a function isn't on this page
-- [R for Excel Users](R-for-Excel-Users.html) — Map your Excel formulas and pivots to R equivalents
+- [Getting Help in R](Getting-Help-in-R.html), How to search R's help system when a function isn't on this page
+- [R for Excel Users](R-for-Excel-Users.html), Map your Excel formulas and pivots to R equivalents

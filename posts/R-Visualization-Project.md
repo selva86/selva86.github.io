@@ -1,7 +1,7 @@
 ---
-title: "R Visualization Project: Reproduce 5 Real-World Charts from Scratch — Solved Step-by-Step"
+title: "R Visualization Project: Reproduce 5 Real-World Charts from Scratch, Solved Step-by-Step"
 slug: "R-Visualization-Project"
-description: "Reproduce 5 iconic chart styles in R with ggplot2 — Economist, FiveThirtyEight, journal figures, and more. Step-by-step starter code, hints, and full solutions."
+description: "Reproduce 5 iconic chart styles in R with ggplot2, Economist, FiveThirtyEight, journal figures, and more. Step-by-step starter code, hints, and full solutions."
 keywords: "R visualization project, reproduce charts in R, ggplot2 chart styles, Economist chart ggplot2, FiveThirtyEight style R, publication-quality figures R, real-world charts ggplot2"
 auto_link_terms: "R visualization project|reproduce charts in R|real-world charts ggplot2|chart reproduction ggplot2|recreate professional charts R"
 auto_link_case_sensitive: false
@@ -17,13 +17,13 @@ fr_parent: "Publication-Quality-Figures-in-R.html"
 difficulty: "Intermediate"
 ---
 
-# R Visualization Project: Reproduce 5 Real-World Charts from Scratch — Solved Step-by-Step
+# R Visualization Project: Reproduce 5 Real-World Charts from Scratch, Solved Step-by-Step
 
-<p class="lead">The fastest way to level up your ggplot2 skills is to reproduce charts you admire. This project gives you 5 real-world chart styles — from The Economist to scientific journals — and walks you through rebuilding each one from scratch using only ggplot2 and built-in R datasets.</p>
+<p class="lead">The fastest way to level up your ggplot2 skills is to reproduce charts you admire. This project gives you 5 real-world chart styles, from The Economist to scientific journals, and walks you through rebuilding each one from scratch using only ggplot2 and built-in R datasets.</p>
 
 ## How Do You Recreate The Economist's Signature Scatter Plot?
 
-The Economist's data team produces some of the most recognizable charts in journalism — clean scatter plots with a light blue-gray background, minimal gridlines, and bold titles positioned above the plot area. In this first project, you'll reproduce that signature look using the `mpg` dataset.
+The Economist's data team produces some of the most recognizable charts in journalism, clean scatter plots with a light blue-gray background, minimal gridlines, and bold titles positioned above the plot area. In this first project, you'll reproduce that signature look using the `mpg` dataset.
 
 ```r
 library(ggplot2)
@@ -75,12 +75,12 @@ Let's break down the three key theme elements that do the heavy lifting.
 
 **The background and gridlines** create the Economist's signature look. Setting both `plot.background` and `panel.background` to the same blue-gray means the chart and its margins blend together seamlessly. Then `panel.grid.major.y = element_line(color = "white")` draws white horizontal lines that appear to float.
 
-**The axis treatment** is deliberately asymmetric. A thin dark line runs along the bottom x-axis (`axis.line.x`), while the y-axis has no line at all — only the white gridlines guide the eye. This pulls attention toward the data points rather than the chart frame.
+**The axis treatment** is deliberately asymmetric. A thin dark line runs along the bottom x-axis (`axis.line.x`), while the y-axis has no line at all, only the white gridlines guide the eye. This pulls attention toward the data points rather than the chart frame.
 
 **The text hierarchy** uses size and weight to create a visual pecking order. The title is bold and large, the subtitle is smaller and gray, and the caption sits quietly at the bottom left.
 
 [KEY INSIGHT]
-**theme() is the single function that separates amateur from professional charts.** Every publication style — Economist, NYT, FiveThirtyEight — is just a different combination of background colors, gridline visibility, axis lines, and font weights inside theme(). Master theme() and you can reproduce any style.
+**theme() is the single function that separates amateur from professional charts.** Every publication style, Economist, NYT, FiveThirtyEight, is just a different combination of background colors, gridline visibility, axis lines, and font weights inside theme(). Master theme() and you can reproduce any style.
 
 **Try it:** Modify the scatter plot to show `cty` (city MPG) on the y-axis instead of `hwy`, and add a subtitle that describes the city driving pattern.
 
@@ -141,7 +141,7 @@ ggplot(mpg, aes(x = displ, y = cty, color = class)) +
 
 ## How Do You Build a FiveThirtyEight-Style Bar Chart From Scratch?
 
-FiveThirtyEight's charts are the opposite of flashy — a light gray background, no axis lines, no borders, bold headlines, and muted single-color fills. The design philosophy is "get out of the way and let the data speak." Let's recreate that with a bar chart showing vehicle class counts.
+FiveThirtyEight's charts are the opposite of flashy, a light gray background, no axis lines, no borders, bold headlines, and muted single-color fills. The design philosophy is "get out of the way and let the data speak." Let's recreate that with a bar chart showing vehicle class counts.
 
 ```r
 class_counts <- mpg |>
@@ -176,12 +176,12 @@ ggplot(class_counts, aes(x = class, y = n)) +
 #> and midsize (~41). 2seater is the shortest (~5).
 ```
 
-Two things make this instantly recognizable as FiveThirtyEight. First, *everything* non-essential is removed — no axis lines, no tick marks, no axis titles. The bars and subtle gray gridlines carry all the information. Second, the headline does the work of an axis title — "SUVs Dominate" tells the story, so a y-axis label saying "Count" would be redundant.
+Two things make this instantly recognizable as FiveThirtyEight. First, *everything* non-essential is removed, no axis lines, no tick marks, no axis titles. The bars and subtle gray gridlines carry all the information. Second, the headline does the work of an axis title, "SUVs Dominate" tells the story, so a y-axis label saying "Count" would be redundant.
 
 [TIP]
 **Always reorder bars by value, not alphabetically.** The line `mutate(class = reorder(class, n))` sorts bars from shortest to tallest, which makes the chart immediately scannable. Alphabetical ordering forces readers to hunt for the largest category.
 
-The color choice is deliberate too. FiveThirtyEight typically uses a single strong accent color (`#008fd5` is their signature blue) rather than mapping colors to categories. When every bar is the same color, the reader compares heights — which is the whole point of a bar chart.
+The color choice is deliberate too. FiveThirtyEight typically uses a single strong accent color (`#008fd5` is their signature blue) rather than mapping colors to categories. When every bar is the same color, the reader compares heights, which is the whole point of a bar chart.
 
 [NOTE]
 **axis.title = element_blank() removes both x and y axis titles at once.** For selective removal, use `axis.title.x = element_blank()` or `axis.title.y = element_blank()` individually. FiveThirtyEight charts almost always remove both because the headline does that job.
@@ -274,14 +274,14 @@ ggplot(iris, aes(x = Petal.Length, y = Petal.Width, color = Species, shape = Spe
 #> virginica (gray squares) occupies the upper-right.
 ```
 
-Notice what's *different* from the Economist and FiveThirtyEight styles. There's no background color, no gridlines, and no headline — journal figures rely on figure captions below the chart, not titles inside it. The axis labels include units in parentheses because a reviewer will flag "Petal length" without "(cm)".
+Notice what's *different* from the Economist and FiveThirtyEight styles. There's no background color, no gridlines, and no headline, journal figures rely on figure captions below the chart, not titles inside it. The axis labels include units in parentheses because a reviewer will flag "Petal length" without "(cm)".
 
-The grayscale palette isn't just an aesthetic choice — many journals still print in black and white. Using different shapes (`scale_shape_manual`) alongside color ensures the three species stay distinguishable even without color.
+The grayscale palette isn't just an aesthetic choice, many journals still print in black and white. Using different shapes (`scale_shape_manual`) alongside color ensures the three species stay distinguishable even without color.
 
 [WARNING]
 **Most journals require 300 DPI minimum for figures.** When saving with ggsave(), always set `dpi = 300` (or 600 for line art). The default 72 DPI looks fine on screen but will appear blurry in print. Use `ggsave("fig1.pdf", width = 6, height = 4, dpi = 300)` for vector output.
 
-`theme_classic()` gives you the perfect starting point — a white background with axis lines and no gridlines. From there, you only need to adjust font sizes, add bold axis labels, and position the legend inside the plot area to save space.
+`theme_classic()` gives you the perfect starting point, a white background with axis lines and no gridlines. From there, you only need to adjust font sizes, add bold axis labels, and position the legend inside the plot area to save space.
 
 **Try it:** Add a linear regression line for each species using `geom_smooth()`, and move the legend from upper-left to bottom-right.
 
@@ -328,7 +328,7 @@ ggplot(iris, aes(x = Petal.Length, y = Petal.Width,
 
 ## How Do You Reproduce a New York Times Annotated Line Chart?
 
-The New York Times data visualization team pioneered a style where annotations replace legends entirely. Instead of a color key off to the side, labels sit directly on or next to the data lines. The result is a chart that reads like a paragraph — your eye follows the line and picks up context as it goes. Let's recreate this with unemployment data.
+The New York Times data visualization team pioneered a style where annotations replace legends entirely. Instead of a color key off to the side, labels sit directly on or next to the data lines. The result is a chart that reads like a paragraph, your eye follows the line and picks up context as it goes. Let's recreate this with unemployment data.
 
 ```r
 recessions <- data.frame(
@@ -383,7 +383,7 @@ ggplot(economics, aes(x = date, y = unemploy / 1000)) +
 #> Annotations label each recession and the peak directly on the chart.
 ```
 
-Three techniques make this chart feel like the NYT. First, `geom_rect()` draws shaded bands behind the line to mark recession periods — the pink rectangles give instant context without requiring the reader to look up dates. Second, `annotate("text")` places labels directly on the chart instead of relying on a separate legend. Third, the bold peak label ("Peak: 15.4 million") tells the reader the most important number without making them trace the line to the exact point.
+Three techniques make this chart feel like the NYT. First, `geom_rect()` draws shaded bands behind the line to mark recession periods, the pink rectangles give instant context without requiring the reader to look up dates. Second, `annotate("text")` places labels directly on the chart instead of relying on a separate legend. Third, the bold peak label ("Peak: 15.4 million") tells the reader the most important number without making them trace the line to the exact point.
 
 [KEY INSIGHT]
 **Replace legends with direct labels whenever you have 1-3 data series.** Legends force readers to look away from the data, match a color, then look back. Direct annotations like "Great Recession" placed right next to the relevant area eliminate that back-and-forth entirely. This is the core NYT design principle.
@@ -447,7 +447,7 @@ ggplot(econ_subset, aes(x = date, y = unemploy / 1000)) +
 
 ## How Do You Create a Modern Lollipop Chart for Data Journalism?
 
-Lollipop charts are bar charts' sleeker cousin — a thin segment topped with a dot. They work especially well when you have many categories with similar values, because the dots are easier to compare than thick bar edges. Modern data journalism sites use them frequently for rankings. Let's build one with the top 15 most fuel-efficient cars in `mtcars`.
+Lollipop charts are bar charts' sleeker cousin, a thin segment topped with a dot. They work especially well when you have many categories with similar values, because the dots are easier to compare than thick bar edges. Modern data journalism sites use them frequently for rankings. Let's build one with the top 15 most fuel-efficient cars in `mtcars`.
 
 ```r
 top_cars <- mtcars |>
@@ -496,12 +496,12 @@ ggplot(top_cars, aes(x = car, y = mpg)) +
 [NOTE]
 **coord_flip() swaps x and y axes without changing your aes() mapping.** You still define `aes(x = car, y = mpg)` as if the chart were vertical, and coord_flip() rotates the entire thing. This makes it easy to switch between horizontal and vertical layouts without rewriting your aesthetics.
 
-The lollipop chart solves a specific problem: when you have 10+ categories, thick bars create visual clutter. The thin segment + dot combination reduces ink and draws the eye to the endpoints — which is where the actual comparison happens.
+The lollipop chart solves a specific problem: when you have 10+ categories, thick bars create visual clutter. The thin segment + dot combination reduces ink and draws the eye to the endpoints, which is where the actual comparison happens.
 
-The highlight strategy is key to data journalism. Instead of coloring all 15 cars differently (which would overwhelm the reader), we use just two colors: red for the leader and blue for everyone else. The subtitle reinforces this — "the Toyota Corolla leads the pack" — so the visual and textual stories align.
+The highlight strategy is key to data journalism. Instead of coloring all 15 cars differently (which would overwhelm the reader), we use just two colors: red for the leader and blue for everyone else. The subtitle reinforces this, "the Toyota Corolla leads the pack", so the visual and textual stories align.
 
 [TIP]
-**Use lollipop charts instead of bar charts when you have more than 8-10 categories or when values are close together.** Thin segments reduce visual clutter, and the dots make it easier to compare endpoints. For fewer categories or large value differences, stick with bars — they're more familiar.
+**Use lollipop charts instead of bar charts when you have more than 8-10 categories or when values are close together.** Thin segments reduce visual clutter, and the dots make it easier to compare endpoints. For fewer categories or large value differences, stick with bars, they're more familiar.
 
 **Try it:** Instead of highlighting just the top car, highlight the top 3 cars in red and keep the rest in blue.
 
@@ -621,11 +621,11 @@ ggplot(mpg, aes(x = reorder(class, hwy, FUN = median), y = hwy)) +
 #> Outliers appear as red dots.
 ```
 
-**Explanation:** `reorder(class, hwy, FUN = median)` sorts classes by their median highway MPG. `coord_flip()` makes the box plots horizontal, which is easier to read with text labels. The Economist theme elements — blue-gray background, white gridlines, no y-axis line — carry over directly from the scatter plot project.
+**Explanation:** `reorder(class, hwy, FUN = median)` sorts classes by their median highway MPG. `coord_flip()` makes the box plots horizontal, which is easier to read with text labels. The Economist theme elements, blue-gray background, white gridlines, no y-axis line, carry over directly from the scatter plot project.
 
 </details>
 
-### Exercise 2: Side-by-Side Panel — Two Styles, One Dataset
+### Exercise 2: Side-by-Side Panel, Two Styles, One Dataset
 
 Create a two-panel figure using `mpg` data. The left panel is a FiveThirtyEight-style bar chart of average highway MPG by class. The right panel is a journal-style scatter plot of `displ` vs `hwy`. Arrange them side by side using `gridExtra::grid.arrange()` or by saving each plot to a variable and printing them.
 
@@ -818,7 +818,7 @@ ggplot(year_class, aes(x = class, y = avg_hwy, fill = year)) +
 
 This chart combines several techniques from the project: the Economist blue-gray background, white gridlines, bold title hierarchy, and no axis titles (the subtitle does that job). The grouped bars use `position_dodge()` for side-by-side comparison, and the two-tone blue palette keeps the color scheme coherent with the background.
 
-The title does something important — it tells the story ("Improved Modestly") rather than just describing the chart ("Highway MPG by Class and Year"). The reader knows the conclusion before they even look at the bars, and the bars serve as evidence.
+The title does something important, it tells the story ("Improved Modestly") rather than just describing the chart ("Highway MPG by Class and Year"). The reader knows the conclusion before they even look at the bars, and the bars serve as evidence.
 
 [TIP]
 **Storytelling titles outperform descriptive titles.** Compare "Fuel Economy by Class" (descriptive) vs. "Fuel Economy Improved Modestly Between 1999 and 2008" (storytelling). The second one tells readers what to look for, making the chart instantly more useful. Use this technique in every publication-style chart.
@@ -834,22 +834,22 @@ The title does something important — it tells the story ("Improved Modestly") 
 | Modern Lollipop | Minimal background, segment + dot, highlight strategy | Rankings, many categories | `geom_segment()` + `geom_point()` + `coord_flip()` |
 
 [KEY INSIGHT]
-**Every professional chart style is just a different answer to the same question: "What can I remove?"** The Economist removes vertical gridlines. FiveThirtyEight removes axis lines. Journals remove background color. The NYT removes legends. Start with a default ggplot and practice removing elements one at a time — you'll converge on a professional look faster than adding decorations.
+**Every professional chart style is just a different answer to the same question: "What can I remove?"** The Economist removes vertical gridlines. FiveThirtyEight removes axis lines. Journals remove background color. The NYT removes legends. Start with a default ggplot and practice removing elements one at a time, you'll converge on a professional look faster than adding decorations.
 
-The common thread across all five styles: **remove everything that doesn't help the reader understand the data faster.** Every gridline, axis tick, border, and color choice either earns its place by adding clarity — or it gets cut.
+The common thread across all five styles: **remove everything that doesn't help the reader understand the data faster.** Every gridline, axis tick, border, and color choice either earns its place by adding clarity, or it gets cut.
 
 ## References
 
-1. Wickham, H. — *ggplot2: Elegant Graphics for Data Analysis*, 3rd Edition. Springer (2024). [Link](https://ggplot2-book.org/)
-2. ggplot2 documentation — theme() reference. [Link](https://ggplot2.tidyverse.org/reference/theme.html)
-3. Scherer, C. — A ggplot2 Tutorial for Beautiful Plotting in R (2019). [Link](https://www.cedricscherer.com/2019/08/05/a-ggplot2-tutorial-for-beautiful-plotting-in-r/)
-4. The R Graph Gallery — ggplot2 examples. [Link](https://r-graph-gallery.com/ggplot2-package.html)
-5. Schwabish, J. — *Better Data Visualizations*. Columbia University Press (2021).
-6. Wilke, C. — *Fundamentals of Data Visualization*. O'Reilly (2019). [Link](https://clauswilke.com/dataviz/)
-7. R Core Team — *An Introduction to R*. [Link](https://cran.r-project.org/doc/manuals/r-release/R-intro.html)
+1. Wickham, H., *ggplot2: Elegant Graphics for Data Analysis*, 3rd Edition. Springer (2024). [Link](https://ggplot2-book.org/)
+2. ggplot2 documentation, theme() reference. [Link](https://ggplot2.tidyverse.org/reference/theme.html)
+3. Scherer, C., A ggplot2 Tutorial for Beautiful Plotting in R (2019). [Link](https://www.cedricscherer.com/2019/08/05/a-ggplot2-tutorial-for-beautiful-plotting-in-r/)
+4. The R Graph Gallery, ggplot2 examples. [Link](https://r-graph-gallery.com/ggplot2-package.html)
+5. Schwabish, J., *Better Data Visualizations*. Columbia University Press (2021).
+6. Wilke, C., *Fundamentals of Data Visualization*. O'Reilly (2019). [Link](https://clauswilke.com/dataviz/)
+7. R Core Team, *An Introduction to R*. [Link](https://cran.r-project.org/doc/manuals/r-release/R-intro.html)
 
 ## Continue Learning
 
-1. [Publication-Quality Figures in R](Publication-Quality-Figures-in-R.html) — The complete checklist for making ggplot2 figures journal- and thesis-ready.
-2. [ggplot2 Customization Exercises](ggplot2-Customization-Exercises.html) — 10 theme and scale practice problems to sharpen your styling skills.
-3. [ggplot2 Facet Exercises](ggplot2-Facet-Exercises.html) — 8 facet_wrap() and facet_grid() problems for multi-panel layouts.
+1. [Publication-Quality Figures in R](Publication-Quality-Figures-in-R.html), The complete checklist for making ggplot2 figures journal- and thesis-ready.
+2. [ggplot2 Customization Exercises](ggplot2-Customization-Exercises.html), 10 theme and scale practice problems to sharpen your styling skills.
+3. [ggplot2 Facet Exercises](ggplot2-Facet-Exercises.html), 8 facet_wrap() and facet_grid() problems for multi-panel layouts.

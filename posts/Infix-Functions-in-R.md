@@ -14,11 +14,11 @@ fr_parent: "R-Function-Operators.html"
 difficulty: "Intermediate"
 ---
 
-<p class="lead">An infix function in R is a function you call <em>between</em> its two arguments — like <code>x + y</code> or <code>a %in% b</code> — instead of the usual <code>func(x, y)</code> prefix style. You can define your own infix operators using the <code>%name%</code> syntax, turning any two-argument function into a clean, readable operator.</p>
+<p class="lead">An infix function in R is a function you call <em>between</em> its two arguments, like <code>x + y</code> or <code>a %in% b</code>, instead of the usual <code>func(x, y)</code> prefix style. You can define your own infix operators using the <code>%name%</code> syntax, turning any two-argument function into a clean, readable operator.</p>
 
 ## What Are Infix Functions and Why Does R Use Them?
 
-Every operator you type in R — `+`, `-`, `*`, `<`, even `[` — is secretly a regular function. R just lets you write it *between* the arguments instead of wrapping them in parentheses. This "infix" placement is why `3 + 5` feels natural while `` `+`(3, 5) `` feels clunky. Let's prove it:
+Every operator you type in R, `+`, `-`, `*`, `<`, even `[`, is secretly a regular function. R just lets you write it *between* the arguments instead of wrapping them in parentheses. This "infix" placement is why `3 + 5` feels natural while `` `+`(3, 5) `` feels clunky. Let's prove it:
 
 ```r
 # Every R operator is a function — you can call it in prefix form
@@ -39,7 +39,7 @@ Every operator you type in R — `+`, `-`, `*`, `<`, even `[` — is secretly a 
 Both forms produce identical results because the infix style is syntactic sugar. When R sees `3 + 5`, it internally translates that to `` `+`(3, 5) ``. The same applies to every operator — arithmetic (`+`, `-`, `*`, `/`), comparison (`<`, `==`, `>=`), logical (`&`, `|`), and special operators like `%in%`.
 
 [KEY INSIGHT]
-**Every R operator is a function in disguise.** The `+` in `3 + 5` is syntactic sugar for calling the function `+`() with two arguments. This means you can pass operators to higher-order functions like Reduce(), store them in variables, and — most importantly — create your own.
+**Every R operator is a function in disguise.** The `+` in `3 + 5` is syntactic sugar for calling the function `+`() with two arguments. This means you can pass operators to higher-order functions like Reduce(), store them in variables, and, most importantly, create your own.
 
 This insight unlocks a powerful idea: if built-in operators are just two-argument functions with special names, nothing stops you from making your own. R reserves the `%name%` syntax specifically for user-defined infix operators.
 
@@ -77,7 +77,7 @@ ex_x * ex_y - ex_z
 #> [1] 10
 ```
 
-**Explanation:** `x * y` becomes `` `*`(x, y) ``, and the outer `- z` wraps that result: `` `-`(`*`(x, y), z) ``. Read it inside-out — multiply first, then subtract.
+**Explanation:** `x * y` becomes `` `*`(x, y) ``, and the outer `- z` wraps that result: `` `-`(`*`(x, y), z) ``. Read it inside-out, multiply first, then subtract.
 
 </details>
 
@@ -100,7 +100,7 @@ Creating your own infix operator takes three steps: pick a name wrapped in `%`, 
 #> [1] 15
 ```
 
-That's it — `%plus%` is now a working infix operator. The backticks in the definition tell R that `%plus%` is the function name (special characters need backtick-quoting). When *calling* the operator, no backticks are needed — just write `a %plus% b`.
+That's it, `%plus%` is now a working infix operator. The backticks in the definition tell R that `%plus%` is the function name (special characters need backtick-quoting). When *calling* the operator, no backticks are needed, just write `a %plus% b`.
 
 Let's build something more useful. A common need is checking divisibility:
 
@@ -123,7 +123,7 @@ c(10, 15, 20, 25) %divisible% 5
 
 Notice that `%divisible%` is automatically vectorized because `%%` and `==` are vectorized. Your operator inherits whatever behavior its body uses.
 
-Here's one more — a string concatenation operator that replaces nested `paste0()` calls:
+Here's one more, a string concatenation operator that replaces nested `paste0()` calls:
 
 ```r
 # String concatenation operator
@@ -185,7 +185,7 @@ c(5, 15, 25) %between% c(10, 20)
 
 ## What Naming Rules Apply to Custom Infix Operators?
 
-R is surprisingly permissive with infix operator names. The only hard rule is: **no `%` character inside the name**. Everything else — spaces, punctuation, Unicode — is technically allowed.
+R is surprisingly permissive with infix operator names. The only hard rule is: **no `%` character inside the name**. Everything else, spaces, punctuation, Unicode, is technically allowed.
 
 ```r
 # Spaces in the name — legal but weird
@@ -250,7 +250,7 @@ R's parser sees the second `%` as the closing delimiter and gets confused by wha
 
 ## How Does Operator Precedence Work With Custom Infix Operators?
 
-All custom `%op%` operators share the **same precedence level** — they sit between addition/subtraction and comparison operators in R's precedence table. They also associate **left to right**. Both facts can surprise you.
+All custom `%op%` operators share the **same precedence level**, they sit between addition/subtraction and comparison operators in R's precedence table. They also associate **left to right**. Both facts can surprise you.
 
 Let's see left-to-right association in action:
 
@@ -320,7 +320,7 @@ Because `%plus%` has higher precedence than `-`, R evaluates `2 %plus% 3` first,
 # NOT (2 - 3) %plus% 4 = -1 + 4 = 3
 ```
 
-**Explanation:** In both cases, `%plus%` evaluates before `+` or `-` because it has higher precedence. The first example `2 + 7 = 9` looks unsurprising, but the second example `2 - 7 = -5` reveals the trap — many people expect left-to-right reading and would predict `(2 - 3) + 4 = 3`.
+**Explanation:** In both cases, `%plus%` evaluates before `+` or `-` because it has higher precedence. The first example `2 + 7 = 9` looks unsurprising, but the second example `2 - 7 = -5` reveals the trap, many people expect left-to-right reading and would predict `(2 - 3) + 4 = 3`.
 
 </details>
 
@@ -350,9 +350,9 @@ users[users %ni% banned]
 ```
 
 [KEY INSIGHT]
-**The best custom operators encode a pattern you repeat often.** If you write `!x %in% y` ten times a day, `%ni%` saves keystrokes and prevents a subtle precedence bug: `!x %in% y` actually means `(!x) %in% y` for non-logical x — the `!` binds to x first, not the whole expression. With `%ni%`, the negation is safely inside the function.
+**The best custom operators encode a pattern you repeat often.** If you write `!x %in% y` ten times a day, `%ni%` saves keystrokes and prevents a subtle precedence bug: `!x %in% y` actually means `(!x) %in% y` for non-logical x, the `!` binds to x first, not the whole expression. With `%ni%`, the negation is safely inside the function.
 
-**Null coalescing** gives a default value when the left side is `NULL` — like Python's `or` or JavaScript's `??`:
+**Null coalescing** gives a default value when the left side is `NULL`, like Python's `or` or JavaScript's `??`:
 
 ```r
 # %??% — null coalescing (return left if not NULL, else right)
@@ -475,7 +475,7 @@ label2
 #> [1] "Found 8 cars"
 ```
 
-The custom operator version reads more like English. But notice — the standard version is also perfectly clear. The operators help most when the pattern repeats dozens of times across a project.
+The custom operator version reads more like English. But notice, the standard version is also perfectly clear. The operators help most when the pattern repeats dozens of times across a project.
 
 [TIP]
 **Write a custom operator when it makes the calling code clearer, not the definition code.** If a colleague can't guess what `x %op% y` does from the name alone, use a regular function instead. A good test: would you put it in your project's utility file and expect everyone on the team to adopt it?
@@ -519,7 +519,7 @@ titlecase("hello")
 #> [1] "Hello"
 ```
 
-**Explanation:** The infix version wastes its right argument — a sign this operation isn't naturally binary. `titlecase("hello")` is cleaner than `"hello" %titlecase% NULL`. When you find yourself ignoring an argument, that's a strong hint to use a regular function instead.
+**Explanation:** The infix version wastes its right argument, a sign this operation isn't naturally binary. `titlecase("hello")` is cleaner than `"hello" %titlecase% NULL`. When you find yourself ignoring an argument, that's a strong hint to use a regular function instead.
 
 </details>
 
@@ -568,7 +568,7 @@ c("a", "b", "c", "d") %swap% c(2, 4)
 
 ### Exercise 2: Create a %chain% Function Composition Operator
 
-Create a `%chain%` operator that composes two functions **left-to-right**: `(f %chain% g)(x)` should equal `g(f(x))`. This is the opposite of mathematical composition (which is right-to-left). Test with `(sqrt %chain% round)(10)` — it should compute `round(sqrt(10))` which is 3.
+Create a `%chain%` operator that composes two functions **left-to-right**: `(f %chain% g)(x)` should equal `g(f(x))`. This is the opposite of mathematical composition (which is right-to-left). Test with `(sqrt %chain% round)(10)`, it should compute `round(sqrt(10))` which is 3.
 
 ```r
 # Exercise 2: %chain% operator
@@ -640,7 +640,7 @@ result[, 1:4]
 #> Lotus Europa   30.4   4  95.1 113
 ```
 
-**Explanation:** `parse(text = condition)` converts the string into an R expression, and `eval(expr, envir = df)` evaluates it with the data frame's columns as variables. This produces a logical vector that subsets the rows. Note: `eval(parse(...))` on user-supplied strings is a security risk in production — fine for interactive analysis, but don't accept untrusted input.
+**Explanation:** `parse(text = condition)` converts the string into an R expression, and `eval(expr, envir = df)` evaluates it with the data frame's columns as variables. This produces a logical vector that subsets the rows. Note: `eval(parse(...))` on user-supplied strings is a security risk in production, fine for interactive analysis, but don't accept untrusted input.
 
 </details>
 
@@ -695,15 +695,15 @@ Each operator replaces a common pattern: `%between%` replaces a double compariso
 
 ## References
 
-1. Wickham, H. — *Advanced R*, 2nd Edition. Chapter 6: Functions, §6.8 Function Forms. [Link](https://adv-r.hadley.nz/functions.html)
-2. R Core Team — *R Language Definition*, §3.1.4 Operators. [Link](https://cran.r-project.org/doc/manuals/r-release/R-lang.html)
-3. R Core Team — *An Introduction to R*, §10.2 Defining New Binary Operators. [Link](https://cran.r-project.org/doc/manuals/r-release/R-intro.html)
-4. R Documentation — Syntax: Operator Precedence Table. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/Syntax.html)
-5. Wickham, H. & Grolemund, G. — *R for Data Science*, 2nd Edition. [Link](https://r4ds.hadley.nz/)
-6. magrittr package documentation — Pipe operators. [Link](https://magrittr.tidyverse.org/)
+1. Wickham, H., *Advanced R*, 2nd Edition. Chapter 6: Functions, §6.8 Function Forms. [Link](https://adv-r.hadley.nz/functions.html)
+2. R Core Team, *R Language Definition*, §3.1.4 Operators. [Link](https://cran.r-project.org/doc/manuals/r-release/R-lang.html)
+3. R Core Team, *An Introduction to R*, §10.2 Defining New Binary Operators. [Link](https://cran.r-project.org/doc/manuals/r-release/R-intro.html)
+4. R Documentation, Syntax: Operator Precedence Table. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/Syntax.html)
+5. Wickham, H. & Grolemund, G., *R for Data Science*, 2nd Edition. [Link](https://r4ds.hadley.nz/)
+6. magrittr package documentation, Pipe operators. [Link](https://magrittr.tidyverse.org/)
 
 ## Continue Learning
 
-1. [R Function Operators](/R-Function-Operators.html) — Learn `compose()`, `negate()`, `partial()`, and `memoise()` to transform existing functions without rewriting them.
-2. [Functional Programming in R](/Functional-Programming-in-R.html) — The complete guide to first-class functions, closures, and functional patterns in R.
-3. [R Currying and Partial Application](/R-Currying-and-Partial-Application.html) — Pre-fill function arguments for cleaner, more reusable pipelines.
+1. [R Function Operators](/R-Function-Operators.html), Learn `compose()`, `negate()`, `partial()`, and `memoise()` to transform existing functions without rewriting them.
+2. [Functional Programming in R](/Functional-Programming-in-R.html), The complete guide to first-class functions, closures, and functional patterns in R.
+3. [R Currying and Partial Application](/R-Currying-and-Partial-Application.html), Pre-fill function arguments for cleaner, more reusable pipelines.

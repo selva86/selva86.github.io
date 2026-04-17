@@ -1,5 +1,5 @@
 ---
-title: "Missing Data in R Exercises: 10 NA Detection & Imputation Problems — Solved Step-by-Step"
+title: "Missing Data in R Exercises: 10 NA Detection & Imputation Problems, Solved Step-by-Step"
 slug: "Missing-Data-in-R-Exercises"
 description: "Practise missing data handling in R with 10 NA detection and imputation problems and worked solutions. Build real R skills through hands-on exercises, beginner to advanced."
 keywords: "missing data exercises R, NA exercises R, is.na exercises, complete.cases practice, na.omit exercises, imputation exercises R, missing value practice problems, NA detection R"
@@ -18,7 +18,7 @@ difficulty: "Intermediate"
 
 # Missing Data in R Exercises: 10 NA Detection & Imputation Problems
 
-<p class="lead">Ten hands-on exercises drill NA detection, removal, and imputation in R — from basic <code>is.na()</code> checks to grouped median imputation — run every solution in your browser.</p>
+<p class="lead">Ten hands-on exercises drill NA detection, removal, and imputation in R, from basic <code>is.na()</code> checks to grouped median imputation, run every solution in your browser.</p>
 
 ## Introduction
 
@@ -441,7 +441,7 @@ sum(is.na(ans10$units))
 #> [1] 0
 ```
 
-**Explanation:** The pipeline does three things in one `mutate()` call. First, `rowSums(is.na(pick(revenue, units)))` counts how many NAs each row has across the two numeric columns — this is computed before imputation so it captures the original pattern. Second, `revenue` NAs are filled with the column mean: (500 + 320 + 410 + 600) / 4 = 457.5. Third, `units` NAs are filled with the column median. The four non-missing units values sorted are 28, 30, 41, 50. The median is (30 + 41) / 2 = 35.5. The `na_count` column is a diagnostic that tells you which rows were imputed and how many values were filled.
+**Explanation:** The pipeline does three things in one `mutate()` call. First, `rowSums(is.na(pick(revenue, units)))` counts how many NAs each row has across the two numeric columns, this is computed before imputation so it captures the original pattern. Second, `revenue` NAs are filled with the column mean: (500 + 320 + 410 + 600) / 4 = 457.5. Third, `units` NAs are filled with the column median. The four non-missing units values sorted are 28, 30, 41, 50. The median is (30 + 41) / 2 = 35.5. The `na_count` column is a diagnostic that tells you which rows were imputed and how many values were filled.
 
 </details>
 
@@ -533,18 +533,18 @@ Group-wise imputation returns `NaN` (Not a Number) because `mean(c(NA, NA), na.r
 
 ## References
 
-1. R Core Team — `is.na()` documentation. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/NA.html)
-2. R Core Team — `complete.cases()` documentation. [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/complete.cases.html)
-3. Wickham, H. & Grolemund, G. — *R for Data Science*, 2nd Edition. Chapter 18: Missing Values. [Link](https://r4ds.hadley.nz/missing-values.html)
-4. UC Business Analytics R Programming Guide — Dealing with Missing Values. [Link](https://uc-r.github.io/missing_values)
-5. dplyr documentation — mutate() reference. [Link](https://dplyr.tidyverse.org/reference/mutate.html)
-6. The Epidemiologist R Handbook — Missing Data chapter. [Link](https://www.epirhandbook.com/en/new_pages/missing_data.html)
-7. Tierney, N. — naniar: Data Structures, Summaries, and Visualisations for Missing Data. [Link](https://naniar.njtierney.com/)
+1. R Core Team, `is.na()` documentation. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/NA.html)
+2. R Core Team, `complete.cases()` documentation. [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/complete.cases.html)
+3. Wickham, H. & Grolemund, G., *R for Data Science*, 2nd Edition. Chapter 18: Missing Values. [Link](https://r4ds.hadley.nz/missing-values.html)
+4. UC Business Analytics R Programming Guide, Dealing with Missing Values. [Link](https://uc-r.github.io/missing_values)
+5. dplyr documentation, mutate() reference. [Link](https://dplyr.tidyverse.org/reference/mutate.html)
+6. The Epidemiologist R Handbook, Missing Data chapter. [Link](https://www.epirhandbook.com/en/new_pages/missing_data.html)
+7. Tierney, N., naniar: Data Structures, Summaries, and Visualisations for Missing Data. [Link](https://naniar.njtierney.com/)
 
 ## Continue Learning
 
 Now that you can detect, remove, and impute missing values, explore these related tutorials:
 
-- [Missing Values in R: Detect, Count, Remove & Impute NA](Missing-Values-in-R-Detect-Count-Remove-Impute-NA.html) — review the parent tutorial if any exercise stumped you
-- [dplyr Exercises (15 problems)](dplyr-Exercises.html) — practise filtering, grouping, and joining on clean data
-- [tidyr Reshaping Exercises (10 problems)](tidyr-Reshaping-Exercises.html) — reshape data after cleaning it
+- [Missing Values in R: Detect, Count, Remove & Impute NA](Missing-Values-in-R-Detect-Count-Remove-Impute-NA.html), review the parent tutorial if any exercise stumped you
+- [dplyr Exercises (15 problems)](dplyr-Exercises.html), practise filtering, grouping, and joining on clean data
+- [tidyr Reshaping Exercises (10 problems)](tidyr-Reshaping-Exercises.html), reshape data after cleaning it

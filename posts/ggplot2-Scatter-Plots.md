@@ -18,11 +18,11 @@ difficulty: "Intermediate"
 
 # ggplot2 Scatter Plots: Map Color, Size, Shape and Add Trend Lines
 
-<p class="lead">A scatter plot maps two continuous variables onto x and y axes to reveal relationships, clusters, and outliers. In ggplot2, <code>geom_point()</code> creates the points — and layering on color, size, shape, and trend lines turns a basic chart into a diagnostic tool.</p>
+<p class="lead">A scatter plot maps two continuous variables onto x and y axes to reveal relationships, clusters, and outliers. In ggplot2, <code>geom_point()</code> creates the points, and layering on color, size, shape, and trend lines turns a basic chart into a diagnostic tool.</p>
 
 ## Introduction
 
-Imagine you have fuel efficiency data for 234 cars. You suspect that engine displacement affects highway miles per gallon, but you also think transmission type plays a role. A scatter plot can show all three dimensions at once — displacement on x, mpg on y, and transmission type as color. Three variables, one chart, instant pattern recognition.
+Imagine you have fuel efficiency data for 234 cars. You suspect that engine displacement affects highway miles per gallon, but you also think transmission type plays a role. A scatter plot can show all three dimensions at once, displacement on x, mpg on y, and transmission type as color. Three variables, one chart, instant pattern recognition.
 
 That is the power of `geom_point()`. The function plots a point for every row in your data, and ggplot2's aesthetic mapping system lets you encode up to five variables simultaneously: x position, y position, color, size, and shape. Add a trend line with `geom_smooth()` and you go from "I see a pattern" to "here is the direction and uncertainty of that pattern."
 
@@ -34,7 +34,7 @@ In this tutorial, you will learn how to:
 - Fix overplotting when your data has too many points
 - Annotate specific points with labels
 
-All code blocks share a single session — variables created early are available in later blocks.
+All code blocks share a single session, variables created early are available in later blocks.
 
 ## How does geom_point() build a scatter plot?
 
@@ -51,7 +51,7 @@ mpg_sm <- mpg[sample(nrow(mpg), 150), ]
 head(mpg_sm[, c("displ", "hwy", "drv", "class", "cyl")])
 ```
 
-Now let's draw the most basic scatter plot — engine displacement (`displ`) on the x-axis, highway mpg (`hwy`) on the y-axis:
+Now let's draw the most basic scatter plot, engine displacement (`displ`) on the x-axis, highway mpg (`hwy`) on the y-axis:
 
 ```r
 p_basic <- ggplot(mpg_sm, aes(x = displ, y = hwy)) +
@@ -65,9 +65,9 @@ p_basic <- ggplot(mpg_sm, aes(x = displ, y = hwy)) +
 p_basic
 ```
 
-The negative slope is immediately visible — bigger engines get fewer miles per gallon. The `aes()` call inside `ggplot()` defines the *data-to-visual* mapping: `displ` on x, `hwy` on y. Everything inside `aes()` reads from your data frame.
+The negative slope is immediately visible, bigger engines get fewer miles per gallon. The `aes()` call inside `ggplot()` defines the *data-to-visual* mapping: `displ` on x, `hwy` on y. Everything inside `aes()` reads from your data frame.
 
-> **KEY INSIGHT:** There are two places to set point properties in `geom_point()`. Inside `aes()` — maps a *variable* to a property (data-driven). Outside `aes()` — sets a *fixed* value for all points. `geom_point(aes(color = drv))` colors by drive type. `geom_point(color = "blue")` colors everything blue.
+> **KEY INSIGHT:** There are two places to set point properties in `geom_point()`. Inside `aes()`, maps a *variable* to a property (data-driven). Outside `aes()`, sets a *fixed* value for all points. `geom_point(aes(color = drv))` colors by drive type. `geom_point(color = "blue")` colors everything blue.
 
 **Try it:** Change the y-axis to city mpg (`cty`) instead of `hwy`. Does the negative relationship with displacement hold?
 
@@ -86,7 +86,7 @@ ex_city <- ggplot(mpg_sm, aes(x = displ, y = cty)) +
 ex_city
 ```
 
-The negative slope is still clearly there — bigger engines also hurt city fuel economy. The `cty` values sit a few mpg lower than `hwy` across the board (city driving is less efficient), but the shape of the relationship is virtually identical because highway and city MPG are driven by the same underlying engine physics.
+The negative slope is still clearly there, bigger engines also hurt city fuel economy. The `cty` values sit a few mpg lower than `hwy` across the board (city driving is less efficient), but the shape of the relationship is virtually identical because highway and city MPG are driven by the same underlying engine physics.
 </details>
 
 ## How do you map color, size, and shape to variables?
@@ -97,7 +97,7 @@ The real power of `geom_point()` shows up when you encode a third (or fourth) va
 
 *Figure 1: How data variables map to visual aesthetics in geom_point().*
 
-Here's how to map three variables at once — drive type to color, number of cylinders to size, and vehicle class to shape:
+Here's how to map three variables at once, drive type to color, number of cylinders to size, and vehicle class to shape:
 
 ```r
 p_aes <- ggplot(mpg_sm, aes(
@@ -124,12 +124,12 @@ A few things to notice:
 
 - `color = drv` assigns a different color per drive type. Since `drv` is categorical, ggplot2 uses a discrete color scale.
 - `size = cyl` scales point area by cylinder count. Larger points = more cylinders.
-- `alpha = 0.8` sits *outside* `aes()` — it applies a fixed 80% opacity to every point, which helps when points overlap.
+- `alpha = 0.8` sits *outside* `aes()`, it applies a fixed 80% opacity to every point, which helps when points overlap.
 - `scale_color_brewer()` swaps the default colors for a ColorBrewer palette, which is colorblind-friendlier.
 
 > **TIP:** Map at most **two** extra aesthetics (color + one other) before the chart becomes hard to read. Three aesthetics (color + size + shape) simultaneously is usually too much. Pick the encoding that best serves your story.
 
-> **WARNING:** Never map a continuous variable to `shape`. Shapes are discrete — ggplot2 only has 6 default shapes, so a continuous variable mapped to shape will either fail or produce misleading results. Use `color` or `size` for continuous variables.
+> **WARNING:** Never map a continuous variable to `shape`. Shapes are discrete, ggplot2 only has 6 default shapes, so a continuous variable mapped to shape will either fail or produce misleading results. Use `color` or `size` for continuous variables.
 
 **Try it:** Map only `class` (vehicle class) to color. How many distinct colors appear in the legend?
 
@@ -148,12 +148,12 @@ ex_class <- ggplot(mpg_sm, aes(x = displ, y = hwy, color = class)) +
 ex_class
 ```
 
-Seven distinct colors appear — one per vehicle class (compact, midsize, SUV, pickup, 2seater, minivan, subcompact). That's right at the upper limit of what's comfortably readable with a qualitative palette; any more categories and the colors start to look similar. When you have more than ~8 groups, consider faceting or collapsing rare levels with `forcats::fct_lump()`.
+Seven distinct colors appear, one per vehicle class (compact, midsize, SUV, pickup, 2seater, minivan, subcompact). That's right at the upper limit of what's comfortably readable with a qualitative palette; any more categories and the colors start to look similar. When you have more than ~8 groups, consider faceting or collapsing rare levels with `forcats::fct_lump()`.
 </details>
 
 ## How do you add trend lines with geom_smooth()?
 
-A scatter plot shows whether a relationship exists. `geom_smooth()` quantifies its direction and shape. Layer it directly on top of your scatter plot — it uses the same `aes()` mappings automatically.
+A scatter plot shows whether a relationship exists. `geom_smooth()` quantifies its direction and shape. Layer it directly on top of your scatter plot, it uses the same `aes()` mappings automatically.
 
 ```r
 p_smooth <- ggplot(mpg_sm, aes(x = displ, y = hwy)) +
@@ -168,7 +168,7 @@ p_smooth <- ggplot(mpg_sm, aes(x = displ, y = hwy)) +
 p_smooth
 ```
 
-The shaded ribbon around the line is the 95% confidence interval (`se = TRUE`). A narrow ribbon means the trend is well-constrained by data. A wide ribbon means high uncertainty — usually from sparse data at the extremes.
+The shaded ribbon around the line is the 95% confidence interval (`se = TRUE`). A narrow ribbon means the trend is well-constrained by data. A wide ribbon means high uncertainty, usually from sparse data at the extremes.
 
 `geom_smooth()` supports several `method` options:
 
@@ -197,7 +197,7 @@ p_loess
 
 Notice how the loess curve follows the dip around displacement = 3. The linear fit misses that local pattern. When you're not sure whether the relationship is linear, loess is a safer starting point.
 
-> **TIP:** If your scatter plot is grouped by color (`aes(color = drv)`), `geom_smooth()` will automatically draw one trend line per group — one per drive type. This is handy but can clutter the chart. Add `geom_smooth(aes(group = 1))` to force a single combined trend line across all groups.
+> **TIP:** If your scatter plot is grouped by color (`aes(color = drv)`), `geom_smooth()` will automatically draw one trend line per group, one per drive type. This is handy but can clutter the chart. Add `geom_smooth(aes(group = 1))` to force a single combined trend line across all groups.
 
 **Try it:** Add `geom_smooth(method = "lm", se = FALSE)` to `p_basic` (from the first block). Does removing the confidence band make the chart cleaner?
 
@@ -215,12 +215,12 @@ ex_smooth <- p_basic +
 ex_smooth
 ```
 
-Yes — removing the confidence ribbon (`se = FALSE`) gives you just the trend line, which is much cleaner when the exact uncertainty isn't the story. Use `se = TRUE` when you want to communicate how confident the fit is (a wide ribbon warns the reader); use `se = FALSE` for presentations where the line itself is the message.
+Yes, removing the confidence ribbon (`se = FALSE`) gives you just the trend line, which is much cleaner when the exact uncertainty isn't the story. Use `se = TRUE` when you want to communicate how confident the fit is (a wide ribbon warns the reader); use `se = FALSE` for presentations where the line itself is the message.
 </details>
 
 ## How do you handle overplotting in large datasets?
 
-When your dataset has thousands of rows, scatter plots become a solid mass of overlapping dots. You lose all sense of density — you can't tell whether a region has 10 points or 1,000. There are three practical fixes.
+When your dataset has thousands of rows, scatter plots become a solid mass of overlapping dots. You lose all sense of density, you can't tell whether a region has 10 points or 1,000. There are three practical fixes.
 
 ![Decision guide for fixing overplotting in scatter plots.](screenshots/ggplot2-Scatter-Plots-overplotting-guide.webp)
 
@@ -228,7 +228,7 @@ When your dataset has thousands of rows, scatter plots become a solid mass of ov
 
 **Fix 1: Reduce alpha (transparency)**
 
-The simplest fix. When multiple points overlap, their colors stack and the area appears darker — giving a rough sense of density.
+The simplest fix. When multiple points overlap, their colors stack and the area appears darker, giving a rough sense of density.
 
 ```r
 # Full diamonds dataset - 53,940 rows
@@ -262,7 +262,7 @@ p_jitter
 
 **Fix 3: Use geom_bin2d() for very large datasets**
 
-For truly large datasets (100K+ rows), even transparency doesn't help much. `geom_bin2d()` divides the plot area into rectangular bins and fills each bin according to count — giving a heatmap-style view of density.
+For truly large datasets (100K+ rows), even transparency doesn't help much. `geom_bin2d()` divides the plot area into rectangular bins and fills each bin according to count, giving a heatmap-style view of density.
 
 ```r
 p_bin <- ggplot(diamonds, aes(x = carat, y = price)) +
@@ -277,7 +277,7 @@ p_bin <- ggplot(diamonds, aes(x = carat, y = price)) +
 p_bin
 ```
 
-The color scale now reveals that most diamonds cluster below 1.5 carats and below $5,000 — information that's invisible in a plain scatter plot.
+The color scale now reveals that most diamonds cluster below 1.5 carats and below $5,000, information that's invisible in a plain scatter plot.
 
 **Try it:** Try `geom_hex()` (from the `hexbin` package) as an alternative to `geom_bin2d()`. Hexagonal bins often look cleaner than rectangular ones.
 
@@ -298,12 +298,12 @@ ex_hex <- ggplot(diamonds, aes(x = carat, y = price)) +
 ex_hex
 ```
 
-Hexagonal bins tile the plane more evenly than rectangles — each cell has the same distance to its neighbors in every direction, so gradients in density look smoother and less "blocky." The note about requiring the `hexbin` package is important: `geom_hex()` depends on it for the tessellation math, and ggplot2 will error out if it isn't installed.
+Hexagonal bins tile the plane more evenly than rectangles, each cell has the same distance to its neighbors in every direction, so gradients in density look smoother and less "blocky." The note about requiring the `hexbin` package is important: `geom_hex()` depends on it for the tessellation math, and ggplot2 will error out if it isn't installed.
 </details>
 
 ## How do you annotate and label points in a scatter plot?
 
-Sometimes you want to call out specific points by name — outliers, key observations, or benchmark values. ggplot2 provides `geom_text()` for simple labels, and the `ggrepel` package prevents them from overlapping.
+Sometimes you want to call out specific points by name, outliers, key observations, or benchmark values. ggplot2 provides `geom_text()` for simple labels, and the `ggrepel` package prevents them from overlapping.
 
 ```r
 library(ggrepel)
@@ -330,7 +330,7 @@ p_label <- ggplot(mpg_sm, aes(x = displ, y = hwy)) +
 p_label
 ```
 
-The trick here is passing a filtered dataset (`worst_mpg`) to the label layers via `data = worst_mpg`. The main `geom_point()` still uses the full dataset — only the labels and highlight points use the filtered set.
+The trick here is passing a filtered dataset (`worst_mpg`) to the label layers via `data = worst_mpg`. The main `geom_point()` still uses the full dataset, only the labels and highlight points use the filtered set.
 
 > **TIP:** `geom_label_repel()` from `ggrepel` draws labels with a background box and automatically moves them to avoid overlap. Plain `geom_text()` is fine for a handful of labels but becomes unreadable quickly. Use `ggrepel` when you have more than 3-4 labels.
 
@@ -385,11 +385,11 @@ ggplot(mpg_sm, aes(x = displ, y = hwy, color = drv)) +
 
 ❌ Using `method = "lm"` on a clearly non-linear relationship forces a line that misrepresents the data. Always plot without a trend line first, then decide what shape makes sense.
 
-✅ Default `geom_smooth()` (no method) uses loess for small datasets and gam for large ones — a safer starting point than immediately jumping to linear.
+✅ Default `geom_smooth()` (no method) uses loess for small datasets and gam for large ones, a safer starting point than immediately jumping to linear.
 
 ### Mistake 3: Forgetting alpha on dense plots
 
-❌ A scatter plot of 50,000 points without alpha looks like a filled rectangle — no information visible.
+❌ A scatter plot of 50,000 points without alpha looks like a filled rectangle, no information visible.
 
 ✅ Start with `alpha = 0.1` or lower and increase until individual points are discernible. For very large datasets, switch to `geom_bin2d()`.
 
@@ -491,14 +491,14 @@ This chart answers three questions simultaneously: How does displacement relate 
 Key rules:
 - Use `aes()` for data-driven mappings; set fixed values outside `aes()`
 - Use `color` or `size` for continuous variables; use `shape` only for categoricals with ≤ 6 levels
-- Always check for overplotting — even 2,000 points can obscure patterns
+- Always check for overplotting, even 2,000 points can obscure patterns
 - Add `geom_smooth()` *after* inspecting the raw scatter to choose the right method
 
 ## FAQ
 
 **Can I use geom_point() with one categorical and one continuous variable?**
 
-Yes, but the result shows discrete columns of points — often with severe overplotting. Use `geom_jitter()` instead, or switch to a boxplot or violin plot which are designed for that layout.
+Yes, but the result shows discrete columns of points, often with severe overplotting. Use `geom_jitter()` instead, or switch to a boxplot or violin plot which are designed for that layout.
 
 **Why does my geom_smooth() give different results with method = "lm" vs no method?**
 
@@ -519,15 +519,15 @@ If your data contains `NA` values in the x or y columns, `geom_point()` removes 
 ## References
 
 1. Wickham, H. (2016). *ggplot2: Elegant Graphics for Data Analysis*. Springer. https://ggplot2-book.org/
-2. ggplot2 reference — `geom_point()`. https://ggplot2.tidyverse.org/reference/geom_point.html
-3. ggplot2 reference — `geom_smooth()`. https://ggplot2.tidyverse.org/reference/geom_smooth.html
+2. ggplot2 reference, `geom_point()`. https://ggplot2.tidyverse.org/reference/geom_point.html
+3. ggplot2 reference, `geom_smooth()`. https://ggplot2.tidyverse.org/reference/geom_smooth.html
 4. Wilke, C. O. (2019). *Fundamentals of Data Visualization*. O'Reilly. https://clauswilke.com/dataviz/
-5. R Graph Gallery — Scatter Plots. https://r-graph-gallery.com/scatter-plot.html
+5. R Graph Gallery, Scatter Plots. https://r-graph-gallery.com/scatter-plot.html
 6. Slowikowski, K. ggrepel package documentation. https://ggrepel.slowkow.com/
 7. ColorBrewer palettes for R. https://colorbrewer2.org/
 
 ## Continue Learning
 
-- **ggplot2 Line Charts** — connect points over time or ordered categories with `geom_line()` and customize line types, colors, and groups.
-- **ggplot2 Bar Charts** — compare counts and values across categories using `geom_bar()` and `geom_col()` with full control over stacking and ordering.
-- **ggplot2 Distribution Charts** — understand how your data is spread with histograms, density plots, boxplots, and violin plots.
+- **ggplot2 Line Charts**, connect points over time or ordered categories with `geom_line()` and customize line types, colors, and groups.
+- **ggplot2 Bar Charts**, compare counts and values across categories using `geom_bar()` and `geom_col()` with full control over stacking and ordering.
+- **ggplot2 Distribution Charts**, understand how your data is spread with histograms, density plots, boxplots, and violin plots.

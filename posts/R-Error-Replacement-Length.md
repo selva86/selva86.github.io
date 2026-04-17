@@ -1,5 +1,5 @@
 ---
-title: "R Error: 'replacement has length zero' — The Hidden NA That Breaks Assignment"
+title: "R Error: 'replacement has length zero', The Hidden NA That Breaks Assignment"
 slug: "R-Error-Replacement-Length"
 description: "R error 'replacement has length zero' means the right side of your assignment returned nothing. Diagnose empty filters, missing lookups, and NA indexes fast."
 keywords: "replacement has length zero, R assignment error, R zero length, R empty filter, R missing lookup, R integer zero, R which NA, R grep no match"
@@ -14,15 +14,15 @@ fr_parent: "R-Common-Errors.html"
 difficulty: "Intermediate"
 ---
 
-# R Error: 'replacement has length zero' — The Hidden NA That Breaks Assignment
+# R Error: 'replacement has length zero', The Hidden NA That Breaks Assignment
 
-<p class="lead"><code>Error in x[i] &lt;- value : replacement has length zero</code> means the right side of your assignment evaluated to <em>nothing</em> — a <code>NULL</code>, an empty vector, or a missing index — so R has no value to place into <code>x[i]</code>. It almost always traces back to a filter, lookup, or subscript that silently returned zero rows.</p>
+<p class="lead"><code>Error in x[i] &lt;- value : replacement has length zero</code> means the right side of your assignment evaluated to <em>nothing</em>, a <code>NULL</code>, an empty vector, or a missing index, so R has no value to place into <code>x[i]</code>. It almost always traces back to a filter, lookup, or subscript that silently returned zero rows.</p>
 
 ## What does "replacement has length zero" actually mean?
 
-The error fires when R tries to execute `x[i] <- value` and finds that `value` has length zero. The assignment slot still expects one concrete element, so R refuses and throws. The tricky part is that the right-hand side rarely *looks* empty — it came from a filter, a `grep()`, a `which()`, or a lookup whose key was not in the table. Reproducing the failure in a familiar `for` loop makes the mechanism obvious.
+The error fires when R tries to execute `x[i] <- value` and finds that `value` has length zero. The assignment slot still expects one concrete element, so R refuses and throws. The tricky part is that the right-hand side rarely *looks* empty, it came from a filter, a `grep()`, a `which()`, or a lookup whose key was not in the table. Reproducing the failure in a familiar `for` loop makes the mechanism obvious.
 
-Reproduce it with a short `for` loop that pulls ages from a lookup table — two of the three keys match, one does not:
+Reproduce it with a short `for` loop that pulls ages from a lookup table, two of the three keys match, one does not:
 
 ```r
 people     <- c("Alice", "Bob", "Charlie")
@@ -39,7 +39,7 @@ for (i in seq_along(people)) {
 #>   replacement has length zero
 ```
 
-The loop runs fine for Alice (`i = 1`) because `ages_table$age[ages_table$name == "Alice"]` returns `30` — a length-1 vector that fits neatly into `ages[1]`. On Bob (`i = 2`) the same expression returns `numeric(0)` because no row matches. `ages[2] <- numeric(0)` asks R to put zero values into one slot, which is impossible, and the loop dies with the exact error message above. The fix is never to "catch" the error — it is to prevent the RHS from being empty in the first place.
+The loop runs fine for Alice (`i = 1`) because `ages_table$age[ages_table$name == "Alice"]` returns `30`, a length-1 vector that fits neatly into `ages[1]`. On Bob (`i = 2`) the same expression returns `numeric(0)` because no row matches. `ages[2] <- numeric(0)` asks R to put zero values into one slot, which is impossible, and the loop dies with the exact error message above. The fix is never to "catch" the error, it is to prevent the RHS from being empty in the first place.
 
 [KEY INSIGHT]
 **The error is always a cardinality mismatch on assignment.** The slot on the left wants exactly one value, the expression on the right produced zero, and R will never guess what to put there.
@@ -104,12 +104,12 @@ length(young)
 #> [1] 0
 ```
 
-Every call above returns a zero-length vector of the appropriate type: `integer(0)`, `integer(0)`, `numeric(0)`, `numeric(0)`. None of them raise a warning, and none print anything unusual — they look like normal return values right up until you try to place them into a single slot. Patterns 1 and 2 return `integer(0)` because both `grep()` and `which()` are indexing functions. Patterns 3 and 4 preserve the storage mode of the source vector, so the emptiness "looks" like the numeric type you expected.
+Every call above returns a zero-length vector of the appropriate type: `integer(0)`, `integer(0)`, `numeric(0)`, `numeric(0)`. None of them raise a warning, and none print anything unusual, they look like normal return values right up until you try to place them into a single slot. Patterns 1 and 2 return `integer(0)` because both `grep()` and `which()` are indexing functions. Patterns 3 and 4 preserve the storage mode of the source vector, so the emptiness "looks" like the numeric type you expected.
 
 [TIP]
-**The diagnosis is always `length(rhs)`.** When you see "replacement has length zero", isolate the exact expression on the right side of the failing `<-`, wrap it in `length()`, and print it. If the answer is `0`, you have found the cause — no further digging required.
+**The diagnosis is always `length(rhs)`.** When you see "replacement has length zero", isolate the exact expression on the right side of the failing `<-`, wrap it in `length()`, and print it. If the answer is `0`, you have found the cause, no further digging required.
 
-**Try it:** Fill `ex_hits[i]` with the number of `grep()` matches for each query. The second query (`"melon"`) matches nothing — make sure the loop does not crash on it.
+**Try it:** Fill `ex_hits[i]` with the number of `grep()` matches for each query. The second query (`"melon"`) matches nothing, make sure the loop does not crash on it.
 
 ```r
 # Try it: guarded grep assignment
@@ -138,13 +138,13 @@ ex_hits
 #> [1] 1 0 1
 ```
 
-**Explanation:** Writing `length(found)` into the slot always produces a single integer, so the assignment is never empty. A common broken version is `ex_hits[i] <- found` — when `found` is `integer(0)`, that form triggers "replacement has length zero" on the "melon" iteration, which is exactly the error this post is about.
+**Explanation:** Writing `length(found)` into the slot always produces a single integer, so the assignment is never empty. A common broken version is `ex_hits[i] <- found`, when `found` is `integer(0)`, that form triggers "replacement has length zero" on the "melon" iteration, which is exactly the error this post is about.
 
 </details>
 
 ## How do you diagnose a zero-length assignment before R does?
 
-Reactive debugging — waiting for the crash and then reading the traceback — is painful because the error message never names the key that was missing. Proactive diagnostics fail *loud* at the exact line where the RHS goes empty, and they name the culprit.
+Reactive debugging, waiting for the crash and then reading the traceback, is painful because the error message never names the key that was missing. Proactive diagnostics fail *loud* at the exact line where the RHS goes empty, and they name the culprit.
 
 The workhorse is a hand-rolled `stop()` that names the culprit. Wrap your lookup in a tiny function that asserts exactly one row came back, and you get an error message that points at the data, not the assignment.
 
@@ -166,7 +166,7 @@ tryCatch(
 #> Caught: no row for key: Bob
 ```
 
-Compare that to the vague "replacement has length zero" message you started with. The new failure reads as `no row for key: Bob`, tells you exactly which key broke the contract, and suppresses the function-call prefix with `call. = FALSE` so the message stays clean. For loops that process thousands of keys, this turns a ten-minute hunt into a one-line fix — you know *which* key is missing because the loop dies on it before the assignment even runs.
+Compare that to the vague "replacement has length zero" message you started with. The new failure reads as `no row for key: Bob`, tells you exactly which key broke the contract, and suppresses the function-call prefix with `call. = FALSE` so the message stays clean. For loops that process thousands of keys, this turns a ten-minute hunt into a one-line fix, you know *which* key is missing because the loop dies on it before the assignment even runs.
 
 [WARNING]
 **Debuggers do not always reach inside `sapply()` and `vapply()`.** When a zero-length error blows up inside an apply family call, the traceback points at the outer call, not the iteration that failed. Isolate the failing key with a plain `for` loop first, fix the RHS, then vectorise.
@@ -233,12 +233,12 @@ best_match
 #> [1] NA
 ```
 
-Every call to `%||%` collapses an uncertain RHS into a guaranteed length-1 result, so the downstream assignment can never error. Notice how the same expression behaves in both the matched and unmatched case — that uniformity is what makes this pattern production-ready.
+Every call to `%||%` collapses an uncertain RHS into a guaranteed length-1 result, so the downstream assignment can never error. Notice how the same expression behaves in both the matched and unmatched case, that uniformity is what makes this pattern production-ready.
 
 [NOTE]
 **`rlang::%||%` ships in the tidyverse.** If your project already depends on rlang, dplyr, or ggplot2, you do not need to redefine the operator. Just write `library(rlang)` at the top of your script and use `%||%` directly.
 
-The second pattern replaces the entire `for` loop with a vectorised `match()`. This is almost always the right answer — R's indexing is built for it.
+The second pattern replaces the entire `for` loop with a vectorised `match()`. This is almost always the right answer, R's indexing is built for it.
 
 ```r
 # Vectorised lookup — never crashes, returns NA for missing keys
@@ -248,10 +248,10 @@ all_ages
 #> [1] 30 NA 25
 ```
 
-`match()` returns `NA_integer_` for every key that is not in the table. When you use that `NA` as an index, R quietly returns `NA` from the lookup vector — no zero-length intermediate, no crash, no `stopifnot()` needed. A three-line vectorised pipeline replaces a ten-line guarded loop and runs faster on real data sizes.
+`match()` returns `NA_integer_` for every key that is not in the table. When you use that `NA` as an index, R quietly returns `NA` from the lookup vector, no zero-length intermediate, no crash, no `stopifnot()` needed. A three-line vectorised pipeline replaces a ten-line guarded loop and runs faster on real data sizes.
 
 [KEY INSIGHT]
-**Vectorised `match()` is almost always the right answer.** `for` loops with scalar lookups are where zero-length errors breed. Vectorised indexing never returns `integer(0)` — it returns `NA` in the right positions, which is a legal assignment.
+**Vectorised `match()` is almost always the right answer.** `for` loops with scalar lookups are where zero-length errors breed. Vectorised indexing never returns `integer(0)`, it returns `NA` in the right positions, which is a legal assignment.
 
 **Try it:** Build a `safe_first()` helper that returns the first element of a vector, or `NA_real_` if the vector is empty or `NULL`.
 
@@ -286,7 +286,7 @@ ex_safe_first(NULL)
 #> [1] NA
 ```
 
-**Explanation:** The early return collapses both the `NULL` and zero-length cases into a single `NA_real_` result. The happy path uses `[[1]]` (double bracket) to unwrap the first element cleanly — `x[1]` would keep vector names, which is usually not what you want in a scalar helper.
+**Explanation:** The early return collapses both the `NULL` and zero-length cases into a single `NA_real_` result. The happy path uses `[[1]]` (double bracket) to unwrap the first element cleanly, `x[1]` would keep vector names, which is usually not what you want in a scalar helper.
 
 </details>
 
@@ -294,7 +294,7 @@ ex_safe_first(NULL)
 
 ### Exercise 1: Safe user age lookup
 
-You have a vector of user ids and a data frame of known users. Build an `ages` vector that contains the user's age for every matched id and `NA_real_` for every unmatched id. The solution must be vectorised — no `for` loop — and must never raise "replacement has length zero".
+You have a vector of user ids and a data frame of known users. Build an `ages` vector that contains the user's age for every matched id and `NA_real_` for every unmatched id. The solution must be vectorised, no `for` loop, and must never raise "replacement has length zero".
 
 ```r
 cap_users <- c("u1", "u2", "u3", "u99", "u4")
@@ -326,7 +326,7 @@ cap_ages
 #> [1] 42 NA 31 NA 28
 ```
 
-**Explanation:** `match()` walks `cap_users` once and produces a length-5 integer vector of row positions, using `NA_integer_` for the two unmatched ids. Indexing `cap_users_df$age` by that vector preserves the length — zero-length slices cannot appear because every `NA` index resolves to `NA` in the result.
+**Explanation:** `match()` walks `cap_users` once and produces a length-5 integer vector of row positions, using `NA_integer_` for the two unmatched ids. Indexing `cap_users_df$age` by that vector preserves the length, zero-length slices cannot appear because every `NA` index resolves to `NA` in the result.
 
 </details>
 
@@ -432,7 +432,7 @@ missing_cust
 #> [1] "c7" "c9"
 ```
 
-The whole pipeline is four lines of real work plus an audit line. No `for` loop. No `tryCatch`. No "replacement has length zero". The two deleted customers surface as `NA` in the `city` column — which downstream code can handle with `is.na()` checks — and the `missing_cust` vector gives the operations team a list of data-quality issues to fix upstream. This is the shape almost every real enrichment job should take.
+The whole pipeline is four lines of real work plus an audit line. No `for` loop. No `tryCatch`. No "replacement has length zero". The two deleted customers surface as `NA` in the `city` column, which downstream code can handle with `is.na()` checks, and the `missing_cust` vector gives the operations team a list of data-quality issues to fix upstream. This is the shape almost every real enrichment job should take.
 
 ## Summary
 
@@ -442,20 +442,20 @@ The whole pipeline is four lines of real work plus an audit line. No `for` loop.
 | `grep()` no match | `grep("...", v)` returns `integer(0)` | `length(hits) > 0` guard or `[1] %\|\|% NA` |
 | `which()` on always-false logical | `which(cond)` returns `integer(0)` | Same guard pattern |
 | Function with no `else` branch | Silent `NULL` return | Always write the `else` clause |
-| NA index from `match()` | Slices propagate `NA`, not length-0 | Assign through the `NA` — no fix needed |
+| NA index from `match()` | Slices propagate `NA`, not length-0 | Assign through the `NA`, no fix needed |
 | Loop scalar lookup | Any of the above, one iteration at a time | Replace loop with vectorised `match()` |
 
 ## References
 
-1. R Core Team — *The R Language Definition*, section on "Indexing" and "Subset assignment". [Link](https://cran.r-project.org/doc/manuals/r-release/R-lang.html#Indexing)
-2. Wickham, H. — *Advanced R*, 2nd Edition, Chapter 4: Subsetting. [Link](https://adv-r.hadley.nz/subsetting.html)
-3. R documentation — `?base::match` (returns `NA` for unmatched, never length-0). [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/match.html)
-4. R documentation — `?base::which` (returns `integer(0)` when no element is TRUE). [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/which.html)
-5. rlang reference — `%||%` null-default operator. [Link](https://rlang.r-lib.org/reference/op-null-default.html)
-6. dplyr reference — `coalesce()` for replacing missing values in vectors. [Link](https://dplyr.tidyverse.org/reference/coalesce.html)
+1. R Core Team, *The R Language Definition*, section on "Indexing" and "Subset assignment". [Link](https://cran.r-project.org/doc/manuals/r-release/R-lang.html#Indexing)
+2. Wickham, H., *Advanced R*, 2nd Edition, Chapter 4: Subsetting. [Link](https://adv-r.hadley.nz/subsetting.html)
+3. R documentation, `?base::match` (returns `NA` for unmatched, never length-0). [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/match.html)
+4. R documentation, `?base::which` (returns `integer(0)` when no element is TRUE). [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/which.html)
+5. rlang reference, `%||%` null-default operator. [Link](https://rlang.r-lib.org/reference/op-null-default.html)
+6. dplyr reference, `coalesce()` for replacing missing values in vectors. [Link](https://dplyr.tidyverse.org/reference/coalesce.html)
 
 ## Continue Learning
 
-1. **R Common Errors** — the full reference for the 50 most common R error messages, including this one and its close cousins.
-2. **R Error: object 'x' not found** — the paired companion error that shows up when the *left* side of an assignment points at something that does not exist.
-3. **R Error: subscript out of bounds** — the closest conceptual cousin, fired when an index exceeds the length of the vector instead of collapsing to zero.
+1. **R Common Errors**, the full reference for the 50 most common R error messages, including this one and its close cousins.
+2. **R Error: object 'x' not found**, the paired companion error that shows up when the *left* side of an assignment points at something that does not exist.
+3. **R Error: subscript out of bounds**, the closest conceptual cousin, fired when an index exceeds the length of the vector instead of collapsing to zero.

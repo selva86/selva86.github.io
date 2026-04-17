@@ -18,11 +18,11 @@ difficulty: "Advanced"
 
 # S4 Classes in R: Formal Object-Oriented Programming With Type Checking
 
-<p class="lead"><strong>S4 classes</strong> are R's formal object-oriented system — they enforce typed fields (called <em>slots</em>), validate data on creation, and support multiple dispatch so a single generic function can choose different behavior based on the types of <em>several</em> arguments at once. If S3 is a handshake agreement, S4 is a signed contract.</p>
+<p class="lead"><strong>S4 classes</strong> are R's formal object-oriented system, they enforce typed fields (called <em>slots</em>), validate data on creation, and support multiple dispatch so a single generic function can choose different behavior based on the types of <em>several</em> arguments at once. If S3 is a handshake agreement, S4 is a signed contract.</p>
 
 ## What Are S4 Classes and Why Use Them Instead of S3?
 
-S3 classes are simple — you slap a class label onto a list and trust everyone to play nice. That flexibility is great until someone passes a character where you expected a number, and nothing breaks until three functions later. S4 solves this with formal class definitions that enforce types at creation time.
+S3 classes are simple, you slap a class label onto a list and trust everyone to play nice. That flexibility is great until someone passes a character where you expected a number, and nothing breaks until three functions later. S4 solves this with formal class definitions that enforce types at creation time.
 
 Let's define a `Person` class with S4 and see what happens when we pass the wrong types.
 
@@ -53,7 +53,7 @@ tryCatch(
 #> invalid class "Person" object: invalid object for slot "age" in class "Person": got class "character", should be or extend class "numeric"
 ```
 
-S4 caught the type mismatch *immediately* — before the object even existed. Now compare that to S3, which accepts anything without complaint.
+S4 caught the type mismatch *immediately*, before the object even existed. Now compare that to S3, which accepts anything without complaint.
 
 ```r
 # S3 version — no type checking at all
@@ -67,14 +67,14 @@ person_s3$age
 The S3 version happily stores `"thirty"` as the age. You won't discover the problem until some downstream function tries `person_s3$age + 1` and throws a confusing error about non-numeric arguments.
 
 [KEY INSIGHT]
-**S4 catches type errors at object creation, not three functions later.** When you define slots with types, R validates every field the moment you call new(). This front-loads the pain — errors are immediate, specific, and easy to fix.
+**S4 catches type errors at object creation, not three functions later.** When you define slots with types, R validates every field the moment you call new(). This front-loads the pain, errors are immediate, specific, and easy to fix.
 
 Here's when S4 makes sense over S3:
 
-1. **Shared packages** — other people will create objects from your classes, and you can't trust them to pass correct types
-2. **Bioconductor ecosystem** — S4 is the standard; genomic data structures like SummarizedExperiment and GRanges are all S4
-3. **Complex hierarchies** — when you need inheritance, multiple dispatch, or cross-field validation
-4. **Safety-critical code** — when a wrong type could produce silently wrong results
+1. **Shared packages**, other people will create objects from your classes, and you can't trust them to pass correct types
+2. **Bioconductor ecosystem**, S4 is the standard; genomic data structures like SummarizedExperiment and GRanges are all S4
+3. **Complex hierarchies**, when you need inheritance, multiple dispatch, or cross-field validation
+4. **Safety-critical code**, when a wrong type could produce silently wrong results
 
 **Try it:** Define an S4 class `ex_Book` with slots `title` (character) and `pages` (numeric). Create a valid book, then try creating one with pages as a string to see the error.
 
@@ -124,10 +124,10 @@ tryCatch(
 
 The `setClass()` function takes four key arguments. Think of it as filling out a form for your class:
 
-- **Class** — the name (a string, typically UpperCamelCase)
-- **slots** — a named character vector mapping field names to their required types
-- **contains** — the parent class to inherit from (optional)
-- **prototype** — default values for slots (optional but recommended)
+- **Class**, the name (a string, typically UpperCamelCase)
+- **slots**, a named character vector mapping field names to their required types
+- **contains**, the parent class to inherit from (optional)
+- **prototype**, default values for slots (optional but recommended)
 
 Let's define an `Employee` class that builds on these concepts.
 
@@ -161,7 +161,7 @@ emp1@department
 #> [1] "Data Science"
 ```
 
-The prototype gives every slot a sensible default. This is particularly useful during development — you can create test objects without specifying every field.
+The prototype gives every slot a sensible default. This is particularly useful during development, you can create test objects without specifying every field.
 
 Slot types can be any R class, including other S4 classes or the special type `"ANY"` that accepts anything.
 
@@ -182,7 +182,7 @@ new("FlexObj", label = "text", data = "hello")@data
 ```
 
 [TIP]
-**Always provide a prototype so new() works without arguments during testing.** It also serves as documentation — readers see at a glance what a "blank" object looks like. If a slot has no sensible default, use NA or NA_character_ / NA_real_ to signal "not yet set."
+**Always provide a prototype so new() works without arguments during testing.** It also serves as documentation, readers see at a glance what a "blank" object looks like. If a slot has no sensible default, use NA or NA_character_ / NA_real_ to signal "not yet set."
 
 **Try it:** Define an S4 class `ex_Car` with slots `make` (character), `year` (numeric), and `electric` (logical). Give it a prototype where `electric` defaults to `FALSE`. Create a Tesla Model 3 from 2024.
 
@@ -239,7 +239,7 @@ ex_tesla
 
 ## How Do You Create and Inspect S4 Objects?
 
-You already know `new()` creates objects. But in practice, you should wrap it in a **helper constructor function** — a friendly, user-facing function that validates inputs before passing them to `new()`. This is the pattern used throughout Bioconductor and other professional S4 packages.
+You already know `new()` creates objects. But in practice, you should wrap it in a **helper constructor function**, a friendly, user-facing function that validates inputs before passing them to `new()`. This is the pattern used throughout Bioconductor and other professional S4 packages.
 
 Let's first look at the inspection tools available.
 
@@ -265,7 +265,7 @@ isClass("Employee")
 #> [1] TRUE
 ```
 
-These functions help you explore S4 objects interactively — especially useful when working with someone else's S4 code (like Bioconductor packages) and you need to understand the structure.
+These functions help you explore S4 objects interactively, especially useful when working with someone else's S4 code (like Bioconductor packages) and you need to understand the structure.
 
 Now here's the helper constructor pattern. Instead of exposing `new()` directly, write a function with a clear name and argument validation.
 
@@ -297,7 +297,7 @@ tryCatch(
 The helper function gives you two layers of protection: your own argument checks (clear, human-readable messages) plus S4's built-in type checking (catches anything your checks missed).
 
 [WARNING]
-**Never expose new() directly in user-facing code.** Write a helper constructor with a clear name like make_employee() or Employee(). This is the Bioconductor convention — it lets you validate inputs, set computed defaults, and change the internal implementation without breaking user code.
+**Never expose new() directly in user-facing code.** Write a helper constructor with a clear name like make_employee() or Employee(). This is the Bioconductor convention, it lets you validate inputs, set computed defaults, and change the internal implementation without breaking user code.
 
 **Try it:** Write a helper function `ex_make_employee(name, salary)` that creates an Employee but rejects negative salaries with a clear error message before calling new().
 
@@ -366,7 +366,7 @@ tryCatch(
 #> invalid class "Employee" object: invalid object for slot "salary" in class "Employee": got class "character", should be or extend class "numeric"
 ```
 
-Direct `@` access works, but there's a serious catch: it bypasses your validity function (which we'll add in the next section). The professional approach is to define **accessor functions** — getter/setter pairs that control how users interact with your slots.
+Direct `@` access works, but there's a serious catch: it bypasses your validity function (which we'll add in the next section). The professional approach is to define **accessor functions**, getter/setter pairs that control how users interact with your slots.
 
 ```r
 # Define getter generic and method
@@ -390,7 +390,7 @@ get_salary(emp1)
 #> [1] 95000
 ```
 
-The setter calls `validObject(x)` after the modification — this triggers any validity checks you've defined. Without this, someone could set a negative salary and your validity function would never know.
+The setter calls `validObject(x)` after the modification, this triggers any validity checks you've defined. Without this, someone could set a negative salary and your validity function would never know.
 
 [WARNING]
 **Direct @ modification bypasses validity checks.** If you define a validity function requiring salary > 0, someone can still do obj@salary <- -1 without error. Accessor functions with validObject() inside them are the only way to enforce constraints on modification.
@@ -425,7 +425,7 @@ ex_get_salary(emp1)
 
 ## How Do You Enforce Data Integrity With Validity Checking?
 
-Slot types catch wrong types (character instead of numeric), but they can't catch wrong *values* — a salary of -50000 is still numeric. For that, you need `setValidity()`.
+Slot types catch wrong types (character instead of numeric), but they can't catch wrong *values*, a salary of -50000 is still numeric. For that, you need `setValidity()`.
 
 A validity function receives the object and returns `TRUE` if everything is fine, or a character vector of error messages if something is wrong.
 
@@ -461,7 +461,7 @@ tryCatch(
 #> invalid class "Employee" object: salary must be non-negative
 ```
 
-The validity function runs automatically when `new()` creates the object. But here's the critical gotcha — it does **not** run when you modify a slot with `@`:
+The validity function runs automatically when `new()` creates the object. But here's the critical gotcha, it does **not** run when you modify a slot with `@`:
 
 ```r
 # @ bypasses validity — this silently succeeds!
@@ -533,9 +533,9 @@ tryCatch(
 
 ## How Do You Define S4 Generics and Methods?
 
-A **generic function** is a dispatcher — it looks at the class of its arguments and routes the call to the right **method**. You create them with `setGeneric()` and bind implementations with `setMethod()`.
+A **generic function** is a dispatcher, it looks at the class of its arguments and routes the call to the right **method**. You create them with `setGeneric()` and bind implementations with `setMethod()`.
 
-Think of it like a restaurant hostess. When a party walks in, the hostess (generic) looks at the reservation type (class) and seats them at the right table (method). The hostess doesn't cook — she just routes.
+Think of it like a restaurant hostess. When a party walks in, the hostess (generic) looks at the reservation type (class) and seats them at the right table (method). The hostess doesn't cook, she just routes.
 
 ```r
 # Step 1: Create the generic
@@ -562,9 +562,9 @@ describe(emp1)
 #> [1] "Selva works in Data Science earning 95000"
 ```
 
-The `standardGeneric("describe")` inside `setGeneric()` is a placeholder — it tells R "this function dispatches to methods, don't try to run it directly."
+The `standardGeneric("describe")` inside `setGeneric()` is a placeholder, it tells R "this function dispatches to methods, don't try to run it directly."
 
-To customize how objects print, override the existing `show()` generic. Since `show` already exists in R, you only need `setMethod()` — no `setGeneric()` required.
+To customize how objects print, override the existing `show()` generic. Since `show` already exists in R, you only need `setMethod()`, no `setGeneric()` required.
 
 ```r
 # Override show() for prettier printing
@@ -638,7 +638,7 @@ ex_summary_info(ex_test_book)
 
 ## How Does S4 Method Dispatch Work With Inheritance?
 
-Method dispatch is where S4 really earns its complexity budget. When you call a generic on an object, R searches for a matching method — first for the exact class, then walking up the inheritance chain to parent classes.
+Method dispatch is where S4 really earns its complexity budget. When you call a generic on an object, R searches for a matching method, first for the exact class, then walking up the inheritance chain to parent classes.
 
 Let's build a shape hierarchy to see this in action.
 
@@ -701,7 +701,7 @@ R matched each object to its most specific method. The Ellipse got its own `area
 ![S4 method dispatch flow](screenshots/S4-Classes-in-R-method-dispatch.webp)
 *Figure 1: How S4 method dispatch walks the inheritance chain to find the right method.*
 
-Now for S4's killer feature — **multiple dispatch**. A generic can choose its method based on the classes of *multiple* arguments, not just one.
+Now for S4's killer feature, **multiple dispatch**. A generic can choose its method based on the classes of *multiple* arguments, not just one.
 
 ```r
 # Multiple dispatch — combine() behaves differently based on BOTH arguments
@@ -732,7 +732,7 @@ area(combined_mixed)
 
 S3 can only dispatch on the first argument. S4 examines the types of *all* listed arguments in the signature, which lets you write functions that behave differently for every combination of input types.
 
-Finally, `callNextMethod()` lets a child method invoke its parent's implementation — similar to `super()` in Python or Java.
+Finally, `callNextMethod()` lets a child method invoke its parent's implementation, similar to `super()` in Python or Java.
 
 ```r
 # describe() for shapes with callNextMethod()
@@ -780,7 +780,7 @@ describe_shape(elli)
 #> [1] "A green shape - circle with radius 5 - ellipse with semi-minor 3"
 ```
 
-**Explanation:** callNextMethod() walks up the chain — Ellipse calls Circle's method, which calls Shape's method, building the description layer by layer.
+**Explanation:** callNextMethod() walks up the chain, Ellipse calls Circle's method, which calls Shape's method, building the description layer by layer.
 
 </details>
 
@@ -788,7 +788,7 @@ describe_shape(elli)
 
 You've already seen `contains` for single inheritance. S4 also supports **virtual classes** (abstract classes that can't be instantiated) and **class unions** (grouping unrelated classes under one type).
 
-Virtual classes define an interface without implementation — they force child classes to provide their own slots and methods.
+Virtual classes define an interface without implementation, they force child classes to provide their own slots and methods.
 
 ```r
 # Virtual class — can't be instantiated directly
@@ -828,7 +828,7 @@ is(my_car, "Car")
 #> [1] TRUE
 ```
 
-Virtual classes are useful when you want to guarantee that every Vehicle has `make`, `year`, and `speed` slots, but there's no such thing as a generic "Vehicle" — only cars, motorcycles, trucks, etc.
+Virtual classes are useful when you want to guarantee that every Vehicle has `make`, `year`, and `speed` slots, but there's no such thing as a generic "Vehicle", only cars, motorcycles, trucks, etc.
 
 **Class unions** let you group unrelated types so a slot can accept any of them. This is how you'd say "this slot accepts either a numeric or a character."
 
@@ -922,7 +922,7 @@ is(ex_rex, "ex_Animal")
 #> [1] TRUE
 ```
 
-**Explanation:** Virtual classes act as interfaces — they define the contract (slots) but can't be instantiated. Only concrete children can.
+**Explanation:** Virtual classes act as interfaces, they define the contract (slots) but can't be instantiated. Only concrete children can.
 
 </details>
 
@@ -1074,7 +1074,7 @@ add(m1, 10)
 #> [2,]   12   14
 ```
 
-**Explanation:** Multiple dispatch uses signature() to match on both arguments. R picks the right add() based on whether the second argument is Matrix2D or numeric — no if/else needed.
+**Explanation:** Multiple dispatch uses signature() to match on both arguments. R picks the right add() based on whether the second argument is Matrix2D or numeric, no if/else needed.
 
 </details>
 
@@ -1137,7 +1137,7 @@ greet(rex, buddy)
 #> [1] "Rex and Buddy wag tails at each other"
 ```
 
-**Explanation:** Each setMethod() uses a different signature pair. R examines both arguments to pick the method — this is multiple dispatch at work. With S3, you'd need nested if/else on class(b) inside a single method.
+**Explanation:** Each setMethod() uses a different signature pair. R examines both arguments to pick the method, this is multiple dispatch at work. With S3, you'd need nested if/else on class(b) inside a single method.
 
 </details>
 
@@ -1292,13 +1292,13 @@ This example demonstrates the full S4 workflow: virtual base class with shared s
 
 Here's what you've learned about S4 classes in R:
 
-- **setClass()** defines formal classes with typed slots — wrong types are rejected immediately
+- **setClass()** defines formal classes with typed slots, wrong types are rejected immediately
 - **new()** creates objects, but you should write **helper constructors** for user-facing code
 - **@** accesses slots, but use **accessor functions** (getter/setter pairs) to enforce validity on modification
-- **setValidity()** enforces cross-slot constraints — runs on new() but *not* on direct @ assignment
-- **setGeneric() + setMethod()** define polymorphic behavior — same function name, different behavior per class
+- **setValidity()** enforces cross-slot constraints, runs on new() but *not* on direct @ assignment
+- **setGeneric() + setMethod()** define polymorphic behavior, same function name, different behavior per class
 - **Method dispatch** walks the inheritance chain from most specific to most general class
-- **Multiple dispatch** is S4's unique power — a generic can choose behavior based on *multiple* argument types simultaneously
+- **Multiple dispatch** is S4's unique power, a generic can choose behavior based on *multiple* argument types simultaneously
 - **callNextMethod()** lets child methods invoke parent behavior, building layered functionality
 - **Virtual classes** define interfaces without allowing direct instantiation
 - **Class unions** let a slot accept multiple unrelated types
@@ -1315,20 +1315,20 @@ Here's what you've learned about S4 classes in R:
 *Figure 2: The building blocks of an S4 class definition with setClass().*
 
 ![S4 inheritance hierarchy](screenshots/S4-Classes-in-R-inheritance-hierarchy.webp)
-*Figure 3: An S4 inheritance hierarchy — child classes inherit parent slots and can override methods.*
+*Figure 3: An S4 inheritance hierarchy, child classes inherit parent slots and can override methods.*
 
 ## References
 
-1. Wickham, H. — *Advanced R*, 2nd Edition. Chapter 15: S4. [Link](https://adv-r.hadley.nz/s4.html)
-2. R Core Team — *Writing R Extensions*. Chapter 5: Classes and Methods. [Link](https://cran.r-project.org/doc/manuals/r-release/R-exts.html#Classes-and-methods)
-3. Chambers, J.M. — *Software for Data Analysis: Programming with R*. Springer (2008).
-4. Bioconductor — S4 classes and methods. [Link](https://bioconductor.org/help/course-materials/2017/Zurich/S4-classes-and-methods.html)
-5. Genolini, C. — *A (Not So) Short Introduction to S4*. CRAN. [Link](https://cran.r-project.org/doc/contrib/Genolini-S4tutorialV0-5en.pdf)
-6. R Documentation — methods package. [Link](https://stat.ethz.ch/R-manual/R-devel/library/methods/html/00Index.html)
-7. Appsilon — Object Oriented Programming in R Part 3: S4 System. [Link](https://www.appsilon.com/post/object-oriented-programming-in-r-part-3)
+1. Wickham, H., *Advanced R*, 2nd Edition. Chapter 15: S4. [Link](https://adv-r.hadley.nz/s4.html)
+2. R Core Team, *Writing R Extensions*. Chapter 5: Classes and Methods. [Link](https://cran.r-project.org/doc/manuals/r-release/R-exts.html#Classes-and-methods)
+3. Chambers, J.M., *Software for Data Analysis: Programming with R*. Springer (2008).
+4. Bioconductor, S4 classes and methods. [Link](https://bioconductor.org/help/course-materials/2017/Zurich/S4-classes-and-methods.html)
+5. Genolini, C., *A (Not So) Short Introduction to S4*. CRAN. [Link](https://cran.r-project.org/doc/contrib/Genolini-S4tutorialV0-5en.pdf)
+6. R Documentation, methods package. [Link](https://stat.ethz.ch/R-manual/R-devel/library/methods/html/00Index.html)
+7. Appsilon, Object Oriented Programming in R Part 3: S4 System. [Link](https://www.appsilon.com/post/object-oriented-programming-in-r-part-3)
 
 ## Continue Learning
 
-1. [S4 Methods & Dispatch](S4-Methods-in-R.html) — Deep dive into multiple dispatch signatures, method combination, and advanced callNextMethod() patterns
-2. [R6 Classes](R6-Classes-in-R.html) — R's reference-semantics OOP system for mutable state, private fields, and active bindings
-3. [OOP in R: S3/S4/R6](OOP-in-R.html) — Side-by-side comparison of all three OOP systems to help you choose the right one for your project
+1. [S4 Methods & Dispatch](S4-Methods-in-R.html), Deep dive into multiple dispatch signatures, method combination, and advanced callNextMethod() patterns
+2. [R6 Classes](R6-Classes-in-R.html), R's reference-semantics OOP system for mutable state, private fields, and active bindings
+3. [OOP in R: S3/S4/R6](OOP-in-R.html), Side-by-side comparison of all three OOP systems to help you choose the right one for your project

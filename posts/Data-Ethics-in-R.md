@@ -1,7 +1,7 @@
 ---
 title: "Data Ethics for R Programmers: The Questions to Ask Before You Analyse"
 slug: "Data-Ethics-in-R"
-description: "Data ethics isn't abstract philosophy — it shapes how R programmers collect, store, and analyse data. Learn the consent, privacy, and bias principles."
+description: "Data ethics isn't abstract philosophy, it shapes how R programmers collect, store, and analyse data. Learn the consent, privacy, and bias principles."
 keywords: "data ethics R, responsible data analysis, data privacy R, p-hacking R, informed consent data, ethical data science, data minimization R, bias detection R"
 auto_link_terms: "data ethics|responsible data analysis|p-hacking|data minimization|data provenance|informed consent"
 auto_link_case_sensitive: false
@@ -18,7 +18,7 @@ difficulty: "Beginner"
 
 # Data Ethics for R Programmers: The Questions to Ask Before You Analyse
 
-<p class="lead">Data ethics is the set of choices you make about consent, privacy, p-hacking, and reporting that decide whether your analysis helps people or harms them. This guide walks through six concrete questions to ask before you analyse — each paired with R code you can run right now.</p>
+<p class="lead">Data ethics is the set of choices you make about consent, privacy, p-hacking, and reporting that decide whether your analysis helps people or harms them. This guide walks through six concrete questions to ask before you analyse, each paired with R code you can run right now.</p>
 
 ## Why does data ethics matter for the code you write?
 
@@ -60,7 +60,7 @@ manifest
 #> [1] "Effect of sleep on reaction time"
 ```
 
-The function does almost nothing — and that's the point. A printed manifest is a contract: it says "if you re-run this script with R 4.4 and seed 2026 on these 240 rows, you should get the same answer I did." Most ethical breakdowns in data science start with the absence of this single object.
+The function does almost nothing, and that's the point. A printed manifest is a contract: it says "if you re-run this script with R 4.4 and seed 2026 on these 240 rows, you should get the same answer I did." Most ethical breakdowns in data science start with the absence of this single object.
 
 [KEY INSIGHT]
 **Reproducibility is the floor of data ethics, not the ceiling.** If another analyst can't re-run your script and land on the same numbers, every downstream conversation about consent, bias, or honesty becomes a guessing game.
@@ -135,10 +135,10 @@ consented
 #> 3 P004        CF-2042            52            68
 ```
 
-Two rows out of five are gone — P003 had no form, P005 had a blank string. Your analysis runs on three rows now, not five. That feels like a loss, but the alternative is publishing results that include people who never agreed to participate. The filter has to be the very first line of your pipeline, before any joins, imputations, or models.
+Two rows out of five are gone, P003 had no form, P005 had a blank string. Your analysis runs on three rows now, not five. That feels like a loss, but the alternative is publishing results that include people who never agreed to participate. The filter has to be the very first line of your pipeline, before any joins, imputations, or models.
 
 [WARNING]
-**A missing consent ID is not a missing value to impute.** It is a row you must not analyse. Never let `tidyr::replace_na()` or model-based imputation paper over a consent gap — the data point doesn't exist for you.
+**A missing consent ID is not a missing value to impute.** It is a row you must not analyse. Never let `tidyr::replace_na()` or model-based imputation paper over a consent gap, the data point doesn't exist for you.
 
 **Try it:** Tighten the filter to also require that `consent_form_id` matches the regex `^CF-\d{4}$`. Save the result to `ex_consented`.
 
@@ -169,7 +169,7 @@ nrow(ex_consented)
 
 ## How much of this data should you actually keep?
 
-Data minimization is the principle that you should collect and retain only what your analysis truly needs. Direct identifiers — name, email, social security number — almost never belong in an analysis frame. Indirect identifiers like exact date of birth or full ZIP code often need to be binned or generalised. The rule of thumb: if you can answer your question without a column, drop it.
+Data minimization is the principle that you should collect and retain only what your analysis truly needs. Direct identifiers, name, email, social security number, almost never belong in an analysis frame. Indirect identifiers like exact date of birth or full ZIP code often need to be binned or generalised. The rule of thumb: if you can answer your question without a column, drop it.
 
 We'll take the consented dataset, drop the direct-PII columns, and bin `age` into a coarser group so the data carries less re-identification risk.
 
@@ -198,7 +198,7 @@ analysis_data
 #> 3 anon_3 45-59                68
 ```
 
-The `participant` and `consent_form_id` columns are gone. `age` has been replaced by a 4-level factor, and the original `participant` codes are now opaque `anon_*` IDs. The dataset still answers the question "does outcome score differ by age group?" — but it can no longer be linked back to a real person without the source-of-truth file.
+The `participant` and `consent_form_id` columns are gone. `age` has been replaced by a 4-level factor, and the original `participant` codes are now opaque `anon_*` IDs. The dataset still answers the question "does outcome score differ by age group?", but it can no longer be linked back to a real person without the source-of-truth file.
 
 ![Decide what to keep on a per-column basis](screenshots/Data-Ethics-in-R-column-decision.webp)
 *Figure 1: Decide what to keep on a per-column basis.*
@@ -243,7 +243,7 @@ table(ex_income_bin)
 
 ## How do you know if you're p-hacking by accident?
 
-P-hacking means running many statistical tests and reporting only the ones that crossed `p < 0.05`. R makes this dangerously easy — `cor.test()` and `t.test()` are one line each, and a researcher can chew through fifty comparisons in an afternoon without noticing. The maths guarantees that 5% of those tests will be "significant" by pure chance, even when nothing real is going on.
+P-hacking means running many statistical tests and reporting only the ones that crossed `p < 0.05`. R makes this dangerously easy, `cor.test()` and `t.test()` are one line each, and a researcher can chew through fifty comparisons in an afternoon without noticing. The maths guarantees that 5% of those tests will be "significant" by pure chance, even when nothing real is going on.
 
 To make the problem concrete, we'll generate 20 completely random columns, run 19 correlation tests against the first column, and count how many cross the threshold.
 
@@ -265,12 +265,12 @@ round(min(p_values), 4)
 #> [1] 0.0188
 ```
 
-One of the nineteen tests came back with `p = 0.019` — a finding that would look impressive in a paper. But the numbers are pure noise; we drew them from `rnorm()` ourselves. If you ran the experiment, looked at the 19 p-values, and quietly published only the "significant" one, you would be p-hacking. The temptation is enormous because the cherry-picked test really does look real.
+One of the nineteen tests came back with `p = 0.019`, a finding that would look impressive in a paper. But the numbers are pure noise; we drew them from `rnorm()` ourselves. If you ran the experiment, looked at the 19 p-values, and quietly published only the "significant" one, you would be p-hacking. The temptation is enormous because the cherry-picked test really does look real.
 
 ![How p-hacking inflates false positives](screenshots/Data-Ethics-in-R-phacking-flow.webp)
 *Figure 2: Each independent test contributes a small false-positive risk that compounds.*
 
-The fix isn't to run fewer tests — exploration is legitimate. The fix is to correct the p-values for the number of tests you ran. R has `p.adjust()` built into base stats with several methods; Benjamini-Hochberg (`"BH"`) is the modern default for exploratory work.
+The fix isn't to run fewer tests, exploration is legitimate. The fix is to correct the p-values for the number of tests you ran. R has `p.adjust()` built into base stats with several methods; Benjamini-Hochberg (`"BH"`) is the modern default for exploratory work.
 
 ```r
 p_adj <- p.adjust(p_values, method = "BH")
@@ -286,7 +286,7 @@ round(min(p_adj), 4)
 After the BH correction, zero tests survive. The single "significant" hit was inflated by the cost of looking 19 times. This is what an honest report of the experiment looks like: "we tested 19 correlations and none were significant after multiple-comparison correction."
 
 [WARNING]
-**The fix isn't to run fewer tests — it's to correct for the ones you ran.** Pre-register your primary hypothesis, then label everything else as exploratory and apply `p.adjust()` to the whole exploration batch.
+**The fix isn't to run fewer tests, it's to correct for the ones you ran.** Pre-register your primary hypothesis, then label everything else as exploratory and apply `p.adjust()` to the whole exploration batch.
 
 **Try it:** Apply Bonferroni correction (`method = "bonferroni"`) to `p_values` and count survivors.
 
@@ -346,7 +346,7 @@ ab_result
 #> 1      0.97   0.06    1.88     0.42    80   0.037
 ```
 
-The mean difference is about 1 second, the 95% confidence interval runs from 0.06 to 1.88, and Cohen's d is 0.42 — a small-to-medium effect. The p-value is 0.037, which would headline as "significant," but the wide CI tells a more honest story: the real effect could be almost zero or it could be nearly two seconds. Reporting all five numbers lets a reader judge for themselves.
+The mean difference is about 1 second, the 95% confidence interval runs from 0.06 to 1.88, and Cohen's d is 0.42, a small-to-medium effect. The p-value is 0.037, which would headline as "significant," but the wide CI tells a more honest story: the real effect could be almost zero or it could be nearly two seconds. Reporting all five numbers lets a reader judge for themselves.
 
 [KEY INSIGHT]
 **A p-value answers "how surprising?" An effect size answers "how much?"** Reports without both are half-honest. A reader who sees only the p-value cannot tell whether you found a tiny effect in a huge sample or a real effect in a small one.
@@ -412,10 +412,10 @@ group_metrics
 #> 2 group_b    0.5   0.515
 ```
 
-The two accuracy numbers look close in this synthetic example — but the false-negative rate gap (0.47 vs 0.52) means group_b is missed more often. In a medical-screening context that gap is the difference between catching a disease and sending a patient home. Reporting only the average of 49.7% would erase the disparity entirely. The fix isn't fancier maths; it's the habit of always disaggregating before you ship.
+The two accuracy numbers look close in this synthetic example, but the false-negative rate gap (0.47 vs 0.52) means group_b is missed more often. In a medical-screening context that gap is the difference between catching a disease and sending a patient home. Reporting only the average of 49.7% would erase the disparity entirely. The fix isn't fancier maths; it's the habit of always disaggregating before you ship.
 
 [WARNING]
-**Aggregate accuracy hides subgroup harm.** Always disaggregate metrics by sensitive attribute before shipping a model, and report the gap explicitly — not just the headline number.
+**Aggregate accuracy hides subgroup harm.** Always disaggregate metrics by sensitive attribute before shipping a model, and report the gap explicitly, not just the headline number.
 
 **Try it:** Add a `fpr` (false-positive rate) column to `group_metrics`.
 
@@ -583,7 +583,7 @@ pe3_gap(pe3_pred, pe3_truth, pe3_group)
 #> [1] FALSE
 ```
 
-**Explanation:** `tapply()` computes a per-group mean of the boolean accuracy vector. `diff()` gives the difference between the two groups, and `abs()` makes it order-independent. The 0.05 threshold is arbitrary — pick one your stakeholders understand.
+**Explanation:** `tapply()` computes a per-group mean of the boolean accuracy vector. `diff()` gives the difference between the two groups, and `abs()` makes it order-independent. The 0.05 threshold is arbitrary, pick one your stakeholders understand.
 
 </details>
 
@@ -648,7 +648,7 @@ final_report
 #> [1] 0.067
 ```
 
-The report contains everything an external reviewer would ask for: the provenance manifest, how many rows were dropped for missing consent, the effect size with confidence interval, the p-value, and the subgroup gap. None of those numbers required a new package — every step uses base R or dplyr. Ethical analysis isn't a separate workflow; it's a normal workflow with a few habits added.
+The report contains everything an external reviewer would ask for: the provenance manifest, how many rows were dropped for missing consent, the effect size with confidence interval, the p-value, and the subgroup gap. None of those numbers required a new package, every step uses base R or dplyr. Ethical analysis isn't a separate workflow; it's a normal workflow with a few habits added.
 
 ## Summary
 
@@ -668,16 +668,16 @@ Six questions cover the full lifecycle, from raw CSV to shipped model. Each maps
 
 ## References
 
-1. Baumer, B. S., Garcia, R. L., Kim, A. Y., Kinnaird, K. M., & Ott, M. Q. — *Modern Data Science with R*, 3rd ed., Chapter 8: "Data science ethics." [Link](https://mdsr-book.github.io/mdsr3e/08-ethics.html)
-2. Royal Statistical Society — *A Guide for Ethical Data Science* (2019). [Link](https://rss.org.uk/RSS/media/News-and-publications/Publications/Reports%20and%20guides/A-Guide-for-Ethical-Data-Science-Final-Oct-2019.pdf)
-3. Wickham, H. & Grolemund, G. — *R for Data Science*, 2nd ed. [Link](https://r4ds.hadley.nz/)
-4. Benjamin, D. J., et al. — "Redefine statistical significance." *Nature Human Behaviour* (2018). [Link](https://www.nature.com/articles/s41562-017-0189-z)
-5. Floridi, L. & Taddeo, M. — "What is data ethics?" *Phil. Trans. R. Soc. A* (2016). [Link](https://royalsocietypublishing.org/doi/10.1098/rsta.2016.0360)
-6. R documentation — `p.adjust()` reference. [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/p.adjust.html)
-7. Wickham, H. — *Advanced R*, 2nd ed. [Link](https://adv-r.hadley.nz/)
+1. Baumer, B. S., Garcia, R. L., Kim, A. Y., Kinnaird, K. M., & Ott, M. Q., *Modern Data Science with R*, 3rd ed., Chapter 8: "Data science ethics." [Link](https://mdsr-book.github.io/mdsr3e/08-ethics.html)
+2. Royal Statistical Society, *A Guide for Ethical Data Science* (2019). [Link](https://rss.org.uk/RSS/media/News-and-publications/Publications/Reports%20and%20guides/A-Guide-for-Ethical-Data-Science-Final-Oct-2019.pdf)
+3. Wickham, H. & Grolemund, G., *R for Data Science*, 2nd ed. [Link](https://r4ds.hadley.nz/)
+4. Benjamin, D. J., et al., "Redefine statistical significance." *Nature Human Behaviour* (2018). [Link](https://www.nature.com/articles/s41562-017-0189-z)
+5. Floridi, L. & Taddeo, M., "What is data ethics?" *Phil. Trans. R. Soc. A* (2016). [Link](https://royalsocietypublishing.org/doi/10.1098/rsta.2016.0360)
+6. R documentation, `p.adjust()` reference. [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/p.adjust.html)
+7. Wickham, H., *Advanced R*, 2nd ed. [Link](https://adv-r.hadley.nz/)
 
 ## Continue Learning
 
-- [Bias in Data and Models](Bias-in-Data-and-Models.html) — How to detect and reduce bias in your analyses, with worked examples.
-- [Reproducibility Crisis](Reproducibility-Crisis.html) — What went wrong in modern science and how R tools help fix it.
-- [Data Privacy in R](Data-Privacy-in-R.html) — Anonymization, differential privacy, and GDPR compliance for R users.
+- [Bias in Data and Models](Bias-in-Data-and-Models.html), How to detect and reduce bias in your analyses, with worked examples.
+- [Reproducibility Crisis](Reproducibility-Crisis.html), What went wrong in modern science and how R tools help fix it.
+- [Data Privacy in R](Data-Privacy-in-R.html), Anonymization, differential privacy, and GDPR compliance for R users.

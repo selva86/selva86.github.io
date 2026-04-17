@@ -22,7 +22,7 @@ difficulty: "Advanced"
 
 ## What is a function factory in R?
 
-Imagine you need `square()`, `cube()`, and a tenth-power helper — identical except for the exponent. Writing three copies is busywork. A better move is to write `power()` once, hand it an exponent, and let it return a specialised child function you can call like any other. Here is the whole idea in six lines of R, with the payoff on display.
+Imagine you need `square()`, `cube()`, and a tenth-power helper, identical except for the exponent. Writing three copies is busywork. A better move is to write `power()` once, hand it an exponent, and let it return a specialised child function you can call like any other. Here is the whole idea in six lines of R, with the payoff on display.
 
 ```r
 power <- function(exponent) {
@@ -38,7 +38,7 @@ cube(1:5)
 #> [1]   1   8  27  64 125
 ```
 
-`power()` is the factory. It does not do the work — it manufactures a worker. Every call to `power()` returns a brand-new function that carries its own `exponent` along with it, tucked inside the enclosing environment of the returned function. `square` and `cube` look like plain functions from the outside, but each one has a tiny backpack of remembered state.
+`power()` is the factory. It does not do the work, it manufactures a worker. Every call to `power()` returns a brand-new function that carries its own `exponent` along with it, tucked inside the enclosing environment of the returned function. `square` and `cube` look like plain functions from the outside, but each one has a tiny backpack of remembered state.
 
 ![Function factory mechanism diagram](screenshots/R-Function-Factories-mechanism.webp)
 *Figure 1: How power(2) captures its exponent and returns a specialised child function.*
@@ -79,7 +79,7 @@ triple(1:4)
 
 ## Why does R need force() inside a function factory?
 
-R evaluates arguments lazily — it does not look at the value of a parameter until something in the function body actually uses it. That sounds harmless until you build factories inside a loop. Watch what happens when we try to make a list of power functions the naive way.
+R evaluates arguments lazily, it does not look at the value of a parameter until something in the function body actually uses it. That sounds harmless until you build factories inside a loop. Watch what happens when we try to make a list of power functions the naive way.
 
 ```r
 exponents <- 2:4
@@ -93,7 +93,7 @@ powers_buggy[[3]](10)
 #> [1] 10000
 ```
 
-All three functions return 10000, which is `10^4`. That is not what we asked for. The problem is subtle: when `power(e)` runs, `exponent` is bound to a *promise* pointing at `e`. The promise is not evaluated until someone calls the manufactured function — and by then the loop has finished, leaving every promise resolving to the last value of `e`. Every child function ends up with the same exponent.
+All three functions return 10000, which is `10^4`. That is not what we asked for. The problem is subtle: when `power(e)` runs, `exponent` is bound to a *promise* pointing at `e`. The promise is not evaluated until someone calls the manufactured function, and by then the loop has finished, leaving every promise resolving to the last value of `e`. Every child function ends up with the same exponent.
 
 [WARNING]
 **Lazy evaluation inside factories is a silent bug.** The code runs, no error is raised, and the wrong number quietly propagates. Any factory that captures a value from its arguments should force that argument early.
@@ -116,7 +116,7 @@ powers_safe[[3]](10)
 #> [1] 10000
 ```
 
-Now each child carries its own exponent. `force()` itself is nothing magical — it is literally defined as `function(x) x`. The important bit is naming it: calling `force(exponent)` tells both R and the next reader of your code "I deliberately want this promise resolved right here."
+Now each child carries its own exponent. `force()` itself is nothing magical, it is literally defined as `function(x) x`. The important bit is naming it: calling `force(exponent)` tells both R and the next reader of your code "I deliberately want this promise resolved right here."
 
 **Try it:** The factory below is broken by lazy evaluation. Fix it so each adder adds the correct value.
 
@@ -157,7 +157,7 @@ ex_adders[[3]](10)
 
 ## How do function factories use closures to remember state?
 
-So far every child function has been read-only with respect to its captured values. But the enclosing environment is a real R environment — you can also *write* to it. The super-assignment operator `<<-` walks up the scope chain and updates a binding in the first enclosing frame that has it. That turns the enclosing environment into persistent memory.
+So far every child function has been read-only with respect to its captured values. But the enclosing environment is a real R environment, you can also *write* to it. The super-assignment operator `<<-` walks up the scope chain and updates a binding in the first enclosing frame that has it. That turns the enclosing environment into persistent memory.
 
 The canonical example is a counter factory. Each call to `new_counter()` creates an independent counter with its own state.
 
@@ -191,7 +191,7 @@ counter_b()
 [NOTE]
 **Stateful factories are how R built toy "objects" before R6 or S4 existed.** Counters, caches, and small accumulators were routinely written exactly this way. It is still the right tool when you need one small piece of private state and do not want the ceremony of a class.
 
-**Try it:** Build `ex_running_sum()` — each call to the returned function should add its argument to a running total and return the new total.
+**Try it:** Build `ex_running_sum()`, each call to the returned function should add its argument to a running total and return the new total.
 
 ```r
 # Try it: write ex_running_sum
@@ -273,7 +273,7 @@ The optimiser hammered the child function hundreds of times, but `length()`, `su
 [TIP]
 **Move every constant out of the child function and into the factory body.** If a calculation does not depend on the argument the child receives, it belongs above the inner `function(...)` line. This is the single biggest performance lever factories give you.
 
-**Try it:** Write `ex_deviation(x)` — it precomputes `mean(x)` and returns a function that takes a new value `v` and reports how far it is from that mean.
+**Try it:** Write `ex_deviation(x)`, it precomputes `mean(x)` and returns a function that takes a new value `v` and reports how far it is from that mean.
 
 ```r
 # Try it: write ex_deviation
@@ -311,7 +311,7 @@ dev_fn(12)
 
 ## How do function factories power ggplot2 label formatters?
 
-Open `scales::label_number()` or `scales::label_dollar()` and you will find function factories. They take formatting options (prefix, suffix, big-mark, precision) and return a function that turns a numeric vector into strings. That is exactly the shape ggplot2 wants for axis labels — a single-argument function — so factories let you configure the formatting up front and pass the customised child into `scale_y_continuous(labels = ...)`.
+Open `scales::label_number()` or `scales::label_dollar()` and you will find function factories. They take formatting options (prefix, suffix, big-mark, precision) and return a function that turns a numeric vector into strings. That is exactly the shape ggplot2 wants for axis labels, a single-argument function, so factories let you configure the formatting up front and pass the customised child into `scale_y_continuous(labels = ...)`.
 
 You can build your own in a few lines.
 
@@ -337,7 +337,7 @@ pct2(c(0.1, 12.345, 100))
 [TIP]
 **Reach for a factory whenever you need to hand a "configured" function to something that only accepts a single-argument function.** Plotting libraries, `optimise()`, `integrate()`, `Reduce()`, and `purrr::map()` all fit this description.
 
-**Try it:** Write `ex_percent(digits)` — a factory returning a function that formats numeric proportions as percentages with the given number of decimal places. `ex_percent(0)` on `0.257` should give `"26%"`.
+**Try it:** Write `ex_percent(digits)`, a factory returning a function that formats numeric proportions as percentages with the given number of decimal places. `ex_percent(0)` on `0.257` should give `"26%"`.
 
 ```r
 # Try it: write ex_percent
@@ -370,7 +370,7 @@ fmt0(c(0.1, 0.257, 0.999))
 
 ## How do you avoid memory leaks in function factories?
 
-There is one footgun worth knowing about. A manufactured function keeps its enclosing environment alive as long as the function itself is alive — and that enclosing environment contains **everything** that was defined inside the factory, not just the things the child function uses. If you happen to create a big temporary object in the factory body, it sticks around forever.
+There is one footgun worth knowing about. A manufactured function keeps its enclosing environment alive as long as the function itself is alive, and that enclosing environment contains **everything** that was defined inside the factory, not just the things the child function uses. If you happen to create a big temporary object in the factory body, it sticks around forever.
 
 ```r
 factory_heavy <- function() {
@@ -594,16 +594,16 @@ Every trick from the tutorial shows up in `make_range_validator`. `force()` pins
 
 ## References
 
-1. Wickham, H. — *Advanced R*, 2nd Edition, Chapter 10: Function factories. [Link](https://adv-r.hadley.nz/function-factories.html)
-2. Wickham, H. — *Advanced R*, 2nd Edition, Chapter 6: Functions (closures and lexical scoping). [Link](https://adv-r.hadley.nz/functions.html)
-3. Advanced R Solutions — Chapter 9: Function factories exercises. [Link](https://advanced-r-solutions.rbind.io/function-factories.html)
-4. R Documentation — `force()`: forcing evaluation of an argument. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/force.html)
-5. R Documentation — `environment()`: inspecting and manipulating environments. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/environment.html)
-6. scales package — `label_number()` and the formatter family (real-world factories used by ggplot2). [Link](https://scales.r-lib.org/reference/label_number.html)
-7. factory package on CRAN — tools for building function factories with cleaner printed output. [Link](https://cran.r-project.org/package=factory)
+1. Wickham, H., *Advanced R*, 2nd Edition, Chapter 10: Function factories. [Link](https://adv-r.hadley.nz/function-factories.html)
+2. Wickham, H., *Advanced R*, 2nd Edition, Chapter 6: Functions (closures and lexical scoping). [Link](https://adv-r.hadley.nz/functions.html)
+3. Advanced R Solutions, Chapter 9: Function factories exercises. [Link](https://advanced-r-solutions.rbind.io/function-factories.html)
+4. R Documentation, `force()`: forcing evaluation of an argument. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/force.html)
+5. R Documentation, `environment()`: inspecting and manipulating environments. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/environment.html)
+6. scales package, `label_number()` and the formatter family (real-world factories used by ggplot2). [Link](https://scales.r-lib.org/reference/label_number.html)
+7. factory package on CRAN, tools for building function factories with cleaner printed output. [Link](https://cran.r-project.org/package=factory)
 
 ## Continue Learning
 
-- **[R Closures](R-Closures.html)** — The closure mechanism that makes every factory in this tutorial work. Go deeper on environments and lexical scope.
-- **[R Function Operators](R-Function-Operators.html)** — A close cousin of factories: functions that take a function and return a modified version of it. Think decorators in Python.
-- **[Functional Programming in R](Functional-Programming-in-R.html)** — How factories, closures, operators, and functionals fit together as one coherent toolkit.
+- **[R Closures](R-Closures.html)**, The closure mechanism that makes every factory in this tutorial work. Go deeper on environments and lexical scope.
+- **[R Function Operators](R-Function-Operators.html)**, A close cousin of factories: functions that take a function and return a modified version of it. Think decorators in Python.
+- **[Functional Programming in R](Functional-Programming-in-R.html)**, How factories, closures, operators, and functionals fit together as one coherent toolkit.

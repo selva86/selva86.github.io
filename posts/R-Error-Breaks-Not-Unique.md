@@ -1,7 +1,7 @@
 ---
-title: "R hist() Error: 'breaks are not unique' — Why Your Data Has No Spread"
+title: "R hist() Error: 'breaks are not unique', Why Your Data Has No Spread"
 slug: "R-Error-Breaks-Not-Unique"
-description: "Fix R's 'breaks are not unique' error in hist(). Caused by constant or low-variance data — learn to detect it and use jitter, fewer breaks, or barplot()."
+description: "Fix R's 'breaks are not unique' error in hist(). Caused by constant or low-variance data, learn to detect it and use jitter, fewer breaks, or barplot()."
 keywords: "R breaks are not unique, R hist error, R histogram error, breaks not unique fix, R hist constant data, R hist bin width, R histogram low variance"
 mathjax: false
 webr: true
@@ -14,9 +14,9 @@ fr_parent: "R-Common-Errors.html"
 difficulty: "Intermediate"
 ---
 
-# R hist() Error: 'breaks are not unique' — Why Your Data Has No Spread
+# R hist() Error: 'breaks are not unique', Why Your Data Has No Spread
 
-<p class="lead">The error <code>some 'breaks' are not unique</code> means <code>hist()</code> built bin edges that contain duplicates — almost always because your data has zero or near-zero spread, so the computed boundaries collapse onto the same number.</p>
+<p class="lead">The error <code>some 'breaks' are not unique</code> means <code>hist()</code> built bin edges that contain duplicates, almost always because your data has zero or near-zero spread, so the computed boundaries collapse onto the same number.</p>
 
 ## Why does R throw "breaks are not unique"?
 
@@ -40,10 +40,10 @@ length(unique(flat_data))
 #> [1] 1
 ```
 
-The error text is literal — R is telling you that after it built the break vector, two or more entries were equal. The diagnostic lines confirm why: the range is zero and there is only one unique value. Any fix has to either give `hist()` a range to work with, or switch to a chart that doesn't need one.
+The error text is literal, R is telling you that after it built the break vector, two or more entries were equal. The diagnostic lines confirm why: the range is zero and there is only one unique value. Any fix has to either give `hist()` a range to work with, or switch to a chart that doesn't need one.
 
 [KEY INSIGHT]
-**This error is a symptom, not a bug.** `hist()` is refusing to draw bins because the data has no spread to bin — the fix is to inspect the data, not to patch the plot call.
+**This error is a symptom, not a bug.** `hist()` is refusing to draw bins because the data has no spread to bin, the fix is to inspect the data, not to patch the plot call.
 
 **Try it:** Build a vector of 50 zeros named `ex_zero`, pass it to `hist(..., plot = FALSE)` inside `tryCatch()`, and capture the error message.
 
@@ -72,7 +72,7 @@ ex_msg
 #> [1] "some 'breaks' are not unique"
 ```
 
-**Explanation:** Any constant vector triggers the same error — the specific value (5, 0, 42) doesn't matter. What matters is that `length(unique(x)) == 1`.
+**Explanation:** Any constant vector triggers the same error, the specific value (5, 0, 42) doesn't matter. What matters is that `length(unique(x)) == 1`.
 
 </details>
 
@@ -104,7 +104,7 @@ names(df)[col_stats["n_unique", ] < 2]
 #> [1] "constant"
 ```
 
-The `constant` column shows up with `var = 0`, `n_unique = 1`, and `spread = 0` — any one of those three is a reliable flag. In production code you only need one check; `length(unique(x)) > 1` is the cheapest because it stops as soon as it finds a second distinct value.
+The `constant` column shows up with `var = 0`, `n_unique = 1`, and `spread = 0`, any one of those three is a reliable flag. In production code you only need one check; `length(unique(x)) > 1` is the cheapest because it stops as soon as it finds a second distinct value.
 
 [TIP]
 **Guard every call to hist() in a loop.** Wrap the call in `if (length(unique(x)) > 1) hist(x) else message("skip: constant column")` so one bad column doesn't stop the whole batch.
@@ -128,13 +128,13 @@ length(unique(df$ex_tiny)) > 1
 #> [1] TRUE
 ```
 
-**Explanation:** The guard clears it because R stores doubles with ~15 digits of precision, so 100 draws with `sd = 1e-9` are almost all distinct. But the spread is tiny — the next section handles that case.
+**Explanation:** The guard clears it because R stores doubles with ~15 digits of precision, so 100 draws with `sd = 1e-9` are almost all distinct. But the spread is tiny, the next section handles that case.
 
 </details>
 
 ## How do you fix constant or near-constant data?
 
-Once you know a column has no useful spread, there are three practical paths. Use `barplot(table(x))` when the data is truly constant — it's the honest chart. Use `jitter()` when you want to *visualize* tiny noise that's invisible at the default resolution. Use manual `seq()` breaks when you want `hist()` to draw a single bar around the constant value.
+Once you know a column has no useful spread, there are three practical paths. Use `barplot(table(x))` when the data is truly constant, it's the honest chart. Use `jitter()` when you want to *visualize* tiny noise that's invisible at the default resolution. Use manual `seq()` breaks when you want `hist()` to draw a single bar around the constant value.
 
 ```r
 # Fix 1: barplot is the honest chart for constant data
@@ -155,10 +155,10 @@ hist(flat_data,
      col    = "lightgreen")
 ```
 
-The barplot version is correct but boring — a single bar of height 100. The jittered version looks like a real histogram, but the spread is artificial. The manual-breaks version is the best compromise if you need a histogram in a panel of other histograms: the chart type stays consistent and readers see one tall bar centered on 5.
+The barplot version is correct but boring, a single bar of height 100. The jittered version looks like a real histogram, but the spread is artificial. The manual-breaks version is the best compromise if you need a histogram in a panel of other histograms: the chart type stays consistent and readers see one tall bar centered on 5.
 
 [WARNING]
-**jitter() invents spread that isn't in the data.** Only use it for visualization. Never run statistics on jittered values — you'll be reporting noise you injected yourself.
+**jitter() invents spread that isn't in the data.** Only use it for visualization. Never run statistics on jittered values, you'll be reporting noise you injected yourself.
 
 **Try it:** Use `hist()` with manual `breaks = seq(4, 6, by = 0.5)` on `flat_data` and confirm it renders without error.
 
@@ -185,7 +185,7 @@ hist(flat_data, breaks = ex_breaks,
 
 ## How do you fix duplicate manual or quantile breaks?
 
-Even when your data has plenty of spread, you can still hand `hist()` a bad break vector. The two common failure modes are a hardcoded vector with a typo and a break vector generated from `quantile()` on tied data. Both trigger the same error, and both are fixed by `sort(unique(...))` — though the quantile version is usually a hint that `barplot()` is a better fit.
+Even when your data has plenty of spread, you can still hand `hist()` a bad break vector. The two common failure modes are a hardcoded vector with a typo and a break vector generated from `quantile()` on tied data. Both trigger the same error, and both are fixed by `sort(unique(...))`, though the quantile version is usually a hint that `barplot()` is a better fit.
 
 ```r
 # Tied data: only values 1 and 2, 50 of each
@@ -209,10 +209,10 @@ barplot(table(tied),
         main = "tied as barplot", col = "skyblue")
 ```
 
-`quantile()` returned six `1`s and five `2`s because the 10th through 50th percentiles of the data are all exactly `1`. `unique()` collapses the break vector to just `c(1, 2)` and `hist()` draws a single bin — technically correct but not informative. The `barplot(table(tied))` version is usually what you actually wanted: two bars, one per discrete level.
+`quantile()` returned six `1`s and five `2`s because the 10th through 50th percentiles of the data are all exactly `1`. `unique()` collapses the break vector to just `c(1, 2)` and `hist()` draws a single bin, technically correct but not informative. The `barplot(table(tied))` version is usually what you actually wanted: two bars, one per discrete level.
 
 [NOTE]
-**`cut()` errors with the same message.** If you're binning a variable with `cut(x, breaks = quantile(x, ...))` and see `'breaks' are not unique`, apply the same `unique()` rescue — or switch to `cut(x, breaks = unique(...), include.lowest = TRUE)`.
+**`cut()` errors with the same message.** If you're binning a variable with `cut(x, breaks = quantile(x, ...))` and see `'breaks' are not unique`, apply the same `unique()` rescue, or switch to `cut(x, breaks = unique(...), include.lowest = TRUE)`.
 
 **Try it:** Given `c(rep(1, 50), rep(2, 50))`, build a quantile break vector at deciles, fix the duplicates, and count how many unique edges remain.
 
@@ -237,7 +237,7 @@ length(ex_fix)
 #> [1] 2
 ```
 
-**Explanation:** After `unique()` the vector holds only `1` and `2`. Two edges make one bin — a sign that a barplot would communicate more than a histogram here.
+**Explanation:** After `unique()` the vector holds only `1` and `2`. Two edges make one bin, a sign that a barplot would communicate more than a histogram here.
 
 </details>
 
@@ -284,7 +284,7 @@ my_safe_hist(rnorm(200))
 
 ### Exercise 2: Column-wise dispatch
 
-Given a data frame with four numeric columns — one constant, one near-constant, two normal — loop over columns and pick the right chart per column. Skip the constant one, jitter the near-constant one, plot the normal ones directly. Save each decision (`"skip"`, `"jitter"`, `"plot"`) to a named character vector `my_plot_log`.
+Given a data frame with four numeric columns, one constant, one near-constant, two normal, loop over columns and pick the right chart per column. Skip the constant one, jitter the near-constant one, plot the normal ones directly. Save each decision (`"skip"`, `"jitter"`, `"plot"`) to a named character vector `my_plot_log`.
 
 ```r
 # Exercise: column-wise dispatch
@@ -342,7 +342,7 @@ my_plot_log
 
 ## Complete Example
 
-Here is the full pattern you would ship in a reporting pipeline — inspect each numeric column, pick a chart, plot it, and return a decision log.
+Here is the full pattern you would ship in a reporting pipeline, inspect each numeric column, pick a chart, plot it, and return a decision log.
 
 ```r
 # End-to-end: safe histogram for every numeric column
@@ -382,7 +382,7 @@ for (nm in names(demo_df)) {
 }
 ```
 
-The `decisions` vector is your audit trail. In a real pipeline you would log it alongside the plots so a reviewer can see *why* the `flat` column became a barplot and the `noise` column became a jittered histogram — without that log, an unexpected chart type looks like a bug instead of a deliberate choice.
+The `decisions` vector is your audit trail. In a real pipeline you would log it alongside the plots so a reviewer can see *why* the `flat` column became a barplot and the `noise` column became a jittered histogram, without that log, an unexpected chart type looks like a bug instead of a deliberate choice.
 
 ## Summary
 
@@ -391,21 +391,21 @@ The `decisions` vector is your audit trail. In a real pipeline you would log it 
 | All values identical | Zero range → duplicate edges | `barplot(table(x))` |
 | Near-constant data, many requested breaks | Spread below bin resolution | Reduce breaks or `jitter()` |
 | Manual `breaks = c(...)` with a repeat | Typo in the vector | `sort(unique(breaks))` |
-| `quantile()`-derived breaks on tied data | Tied values collapse quantiles | `unique(quantile(...))` — or `barplot` |
+| `quantile()`-derived breaks on tied data | Tied values collapse quantiles | `unique(quantile(...))`, or `barplot` |
 | Discrete integer data, narrow range | Few unique values | `seq(min - 0.5, max + 0.5, by = 1)` |
 
 The common thread: the error is about your data, not your plot call. Inspect `length(unique(x))` first; the right fix follows from the answer.
 
 ## References
 
-1. R Core Team — `?hist` documentation, stats package reference manual. [Link](https://stat.ethz.ch/R-manual/R-devel/library/graphics/html/hist.html)
-2. Venables, W. N. & Ripley, B. D. — *Modern Applied Statistics with S*, 4th Edition, Chapter 5: Graphics. Springer (2002).
-3. Wickham, H. — *ggplot2: Elegant Graphics for Data Analysis*, 3rd Edition, Chapter on histograms and density plots. [Link](https://ggplot2-book.org/statistical-summaries)
-4. R source — `hist.default()` implementation in the `graphics` package. [Link](https://github.com/wch/r-source/blob/trunk/src/library/graphics/R/hist.R)
-5. R Core Team — `?cut` documentation (same error shape, same fix). [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/cut.html)
+1. R Core Team, `?hist` documentation, stats package reference manual. [Link](https://stat.ethz.ch/R-manual/R-devel/library/graphics/html/hist.html)
+2. Venables, W. N. & Ripley, B. D., *Modern Applied Statistics with S*, 4th Edition, Chapter 5: Graphics. Springer (2002).
+3. Wickham, H., *ggplot2: Elegant Graphics for Data Analysis*, 3rd Edition, Chapter on histograms and density plots. [Link](https://ggplot2-book.org/statistical-summaries)
+4. R source, `hist.default()` implementation in the `graphics` package. [Link](https://github.com/wch/r-source/blob/trunk/src/library/graphics/R/hist.R)
+5. R Core Team, `?cut` documentation (same error shape, same fix). [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/cut.html)
 
 ## Continue Learning
 
-1. **R Common Errors** — the full reference for `Error in ...` messages you'll meet in base R.
-2. **R Error: singular matrix in solve()** — another "your data is degenerate" message with a similar fix pattern.
-3. **R Error in read.csv: more columns than column names** — parsing errors that hit before you ever get to plot.
+1. **R Common Errors**, the full reference for `Error in ...` messages you'll meet in base R.
+2. **R Error: singular matrix in solve()**, another "your data is degenerate" message with a similar fix pattern.
+3. **R Error in read.csv: more columns than column names**, parsing errors that hit before you ever get to plot.

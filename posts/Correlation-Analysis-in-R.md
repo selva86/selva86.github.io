@@ -1,7 +1,7 @@
 ---
-title: "Correlation in R: Pearson vs Spearman vs Kendall — Compute, Test, and Visualise"
+title: "Correlation in R: Pearson vs Spearman vs Kendall, Compute, Test, and Visualise"
 slug: "Correlation-Analysis-in-R"
-description: "Choose the right correlation for your data in R. Pearson for linear, Spearman for ranked, Kendall for small samples — with significance tests and corrplot."
+description: "Choose the right correlation for your data in R. Pearson for linear, Spearman for ranked, Kendall for small samples, with significance tests and corrplot."
 keywords: "correlation in R, Pearson correlation R, Spearman correlation R, Kendall tau R, cor.test R, correlation matrix R, corrplot, correlation coefficient, cor function R, correlation significance test"
 auto_link_terms: "correlation in R|Pearson correlation|Spearman correlation|Kendall correlation|cor.test()|correlation matrix|corrplot()|correlation coefficient"
 auto_link_case_sensitive: false
@@ -16,13 +16,13 @@ sidebar_order: 44
 difficulty: "Intermediate"
 ---
 
-# Correlation in R: Pearson vs Spearman vs Kendall — Compute, Test, and Visualise
+# Correlation in R: Pearson vs Spearman vs Kendall, Compute, Test, and Visualise
 
-<p class="lead">Correlation measures the strength and direction of the relationship between two variables — a number between −1 and +1. R gives you three methods: Pearson for linear relationships, Spearman for monotonic (ranked) data, and Kendall's tau for small or tied samples.</p>
+<p class="lead">Correlation measures the strength and direction of the relationship between two variables, a number between −1 and +1. R gives you three methods: Pearson for linear relationships, Spearman for monotonic (ranked) data, and Kendall's tau for small or tied samples.</p>
 
 ## How do you compute a correlation in R?
 
-How strong is the link between a car's weight and its fuel economy? That's the question correlation answers — it gives you a single number that captures both the direction and strength of a relationship. Let's compute one right now with `cor()` and see the result.
+How strong is the link between a car's weight and its fuel economy? That's the question correlation answers, it gives you a single number that captures both the direction and strength of a relationship. Let's compute one right now with `cor()` and see the result.
 
 ```r
 # Correlation between weight and fuel economy
@@ -31,7 +31,7 @@ r_value
 #> [1] -0.8676594
 ```
 
-The result is −0.87, which tells you two things. The negative sign means heavier cars get *worse* fuel economy (mpg goes down as weight goes up). The magnitude — close to 1 — tells you this is a strong relationship. In other words, weight is one of the best predictors of fuel economy in this dataset.
+The result is −0.87, which tells you two things. The negative sign means heavier cars get *worse* fuel economy (mpg goes down as weight goes up). The magnitude, close to 1, tells you this is a strong relationship. In other words, weight is one of the best predictors of fuel economy in this dataset.
 
 By default, `cor()` computes Pearson correlation. You can switch to the other two methods by passing the `method` argument. Let's see all three on the same data.
 
@@ -49,7 +49,7 @@ cat("Pearson: ", round(pearson_r, 3),
 #> Kendall:  -0.734
 ```
 
-All three agree on the direction (negative) and general strength (strong). Pearson and Spearman are close because the relationship is roughly linear. Kendall's value is smaller — that's expected and normal. We'll explain why in the Kendall section below.
+All three agree on the direction (negative) and general strength (strong). Pearson and Spearman are close because the relationship is roughly linear. Kendall's value is smaller, that's expected and normal. We'll explain why in the Kendall section below.
 
 Here's a quick reference for interpreting the magnitude of any correlation coefficient.
 
@@ -57,7 +57,7 @@ Here's a quick reference for interpreting the magnitude of any correlation coeff
 
 *Figure 1: Interpreting correlation strength: from perfect negative to perfect positive.*
 
-These thresholds come from Cohen's (1988) conventions for behavioural sciences. In some fields — physics, finance, genomics — the standards differ. Use them as a starting point, not a rigid rule.
+These thresholds come from Cohen's (1988) conventions for behavioural sciences. In some fields, physics, finance, genomics, the standards differ. Use them as a starting point, not a rigid rule.
 
 [KEY INSIGHT]
 **A correlation of 0 does not mean "no relationship."** It means no *linear* relationship. A perfect U-shaped curve gives a Pearson correlation of zero. Always plot your data before concluding there's nothing going on.
@@ -80,7 +80,7 @@ ex_r
 #> [1] -0.7082234
 ```
 
-**Explanation:** The correlation is −0.71 (strong negative). More horsepower means a *lower* quarter-mile time — the car accelerates faster.
+**Explanation:** The correlation is −0.71 (strong negative). More horsepower means a *lower* quarter-mile time, the car accelerates faster.
 
 </details>
 
@@ -99,7 +99,7 @@ Where:
 - The numerator measures how much $x$ and $y$ move together
 - The denominator standardises the result to the −1 to +1 scale
 
-*If you're not interested in the math, skip ahead — the practical code above is all you need.*
+*If you're not interested in the math, skip ahead, the practical code above is all you need.*
 
 Pearson works well when three assumptions hold: (1) both variables are continuous, (2) the relationship is linear, and (3) both variables are approximately normally distributed. Let's check these visually and statistically.
 
@@ -112,7 +112,7 @@ plot(mtcars$wt, mtcars$mpg,
 abline(lm(mpg ~ wt, data = mtcars), col = "red", lwd = 2)
 ```
 
-The scatter plot shows points clustering around a straight line — good evidence that Pearson is appropriate here. The red line is the linear fit, and the points stick close to it.
+The scatter plot shows points clustering around a straight line, good evidence that Pearson is appropriate here. The red line is the linear fit, and the points stick close to it.
 
 Now let's check normality with the Shapiro-Wilk test. A p-value above 0.05 means we can't reject normality.
 
@@ -170,9 +170,9 @@ shapiro.test(ex_temp)
 
 Spearman's rank correlation works by converting your raw data to ranks, then computing Pearson correlation on those ranks. This simple trick makes it robust to outliers, skewed distributions, and non-linear monotonic relationships.
 
-A monotonic relationship means "as one variable goes up, the other consistently goes up (or consistently goes down)" — but the change doesn't have to follow a straight line. An exponential curve is monotonic but not linear. Spearman catches these; Pearson doesn't.
+A monotonic relationship means "as one variable goes up, the other consistently goes up (or consistently goes down)", but the change doesn't have to follow a straight line. An exponential curve is monotonic but not linear. Spearman catches these; Pearson doesn't.
 
-Let's see the difference with a concrete example. We'll create data that follows an exponential curve — clearly monotonic, but not linear.
+Let's see the difference with a concrete example. We'll create data that follows an exponential curve, clearly monotonic, but not linear.
 
 ```r
 # Monotonic but non-linear: exponential growth
@@ -186,7 +186,7 @@ cat("Pearson: ", round(cor(x_exp, y_exp, method = "pearson"), 3),
 #> Spearman: 0.993
 ```
 
-Spearman (0.993) is much closer to 1 than Pearson (0.889) because the relationship is perfectly monotonic — every increase in `x` produces an increase in `y` — even though the curve bends upward. Pearson underestimates the strength because it's looking for a straight line that isn't there.
+Spearman (0.993) is much closer to 1 than Pearson (0.889) because the relationship is perfectly monotonic, every increase in `x` produces an increase in `y`, even though the curve bends upward. Pearson underestimates the strength because it's looking for a straight line that isn't there.
 
 Spearman also works naturally with ordinal data (ranks, survey ratings, Likert scales) where the raw numbers are just labels for order.
 
@@ -204,7 +204,7 @@ cor(ratings, satisfaction, method = "spearman")
 A Spearman correlation of 0.70 on ordinal data tells us that higher product ratings are strongly associated with higher customer satisfaction scores. Pearson would give a similar number here, but Spearman is the theoretically correct choice because the data is ordinal, not truly continuous.
 
 [TIP]
-**When in doubt between Pearson and Spearman, compute both.** If they agree, the relationship is likely linear. If Spearman is notably higher, the relationship is monotonic but not linear — Spearman is the better summary.
+**When in doubt between Pearson and Spearman, compute both.** If they agree, the relationship is likely linear. If Spearman is notably higher, the relationship is monotonic but not linear, Spearman is the better summary.
 
 **Try it:** The `iris` dataset has numeric measurements. Compute both Pearson and Spearman correlation between `Sepal.Length` and `Petal.Length`. Which one is stronger?
 
@@ -246,7 +246,7 @@ Where:
 - $\tau$ = Kendall's tau
 - Total pairs = $\frac{n(n-1)}{2}$
 
-This pair-counting approach gives Kendall two practical advantages. First, it's more reliable than Spearman with **small samples** (n < 30), because each pair provides an independent piece of evidence. Second, it handles **tied values** more gracefully — important with ordinal or discrete data.
+This pair-counting approach gives Kendall two practical advantages. First, it's more reliable than Spearman with **small samples** (n < 30), because each pair provides an independent piece of evidence. Second, it handles **tied values** more gracefully, important with ordinal or discrete data.
 
 ```r
 # Small sample: compare all three
@@ -262,14 +262,14 @@ cat("Pearson: ", round(cor(small_x, small_y, method = "pearson"), 3),
 #> Kendall:  0.822
 ```
 
-Notice that Kendall's tau (0.822) is noticeably lower than Spearman's rho (0.927). This is *not* a weakness — Kendall and Spearman use different scales. Kendall's values are naturally more conservative because it counts individual pair agreements rather than measuring rank deviation. Think of it like comparing Celsius and Fahrenheit — different scales, same underlying temperature.
+Notice that Kendall's tau (0.822) is noticeably lower than Spearman's rho (0.927). This is *not* a weakness, Kendall and Spearman use different scales. Kendall's values are naturally more conservative because it counts individual pair agreements rather than measuring rank deviation. Think of it like comparing Celsius and Fahrenheit, different scales, same underlying temperature.
 
 ![Decision flowchart: which correlation method?](screenshots/Correlation-Analysis-in-R-method-decision.webp)
 
 *Figure 2: Decision flowchart: which correlation method fits your data?*
 
 [NOTE]
-**Kendall's tau values are typically lower than Spearman's rho for the same data.** Don't compare them directly — they measure slightly different things. A tau of 0.7 and a rho of 0.85 can represent the same underlying relationship strength.
+**Kendall's tau values are typically lower than Spearman's rho for the same data.** Don't compare them directly, they measure slightly different things. A tau of 0.7 and a rho of 0.85 can represent the same underlying relationship strength.
 
 **Try it:** Create a small dataset of 8 paired observations where some values are tied. Compute both Kendall's tau and Spearman's rho. Do the ties change the relative gap between them?
 
@@ -300,7 +300,7 @@ cat("Spearman:", round(cor(ex_x, ex_y, method = "spearman"), 4),
 
 ## How do you test if a correlation is statistically significant?
 
-A correlation coefficient by itself doesn't tell you whether the relationship is real or just sampling noise. Is r = −0.87 genuinely strong, or could random data produce a number that large? That's where `cor.test()` comes in — it gives you a p-value and confidence interval alongside the correlation.
+A correlation coefficient by itself doesn't tell you whether the relationship is real or just sampling noise. Is r = −0.87 genuinely strong, or could random data produce a number that large? That's where `cor.test()` comes in, it gives you a p-value and confidence interval alongside the correlation.
 
 ```r
 # Full significance test
@@ -322,7 +322,7 @@ Let's unpack each piece of this output:
 
 - **t = −9.559:** the test statistic. Larger absolute values mean stronger evidence against the null hypothesis (no correlation)
 - **df = 30:** degrees of freedom (n − 2 = 32 − 2)
-- **p-value = 1.29 × 10⁻¹⁰:** the probability of seeing a correlation this extreme if there were truly no relationship. This is astronomically small — the relationship is real
+- **p-value = 1.29 × 10⁻¹⁰:** the probability of seeing a correlation this extreme if there were truly no relationship. This is astronomically small, the relationship is real
 - **95% CI: [−0.93, −0.74]:** we're 95% confident the true correlation falls in this range. It's entirely negative and entirely strong
 - **cor = −0.868:** the point estimate
 
@@ -338,10 +338,10 @@ cat("Correlation:", test_result$estimate,
 #> 95% CI:      -0.9338264 -0.7440872
 ```
 
-The confidence interval is especially useful — it tells you how *precise* your estimate is. A wide interval means you need more data; a narrow one means you can trust the number.
+The confidence interval is especially useful, it tells you how *precise* your estimate is. A wide interval means you need more data; a narrow one means you can trust the number.
 
 [KEY INSIGHT]
-**A statistically significant correlation can still be practically meaningless.** With n = 10,000, even r = 0.02 is significant. Always report the coefficient alongside the p-value. A useful rule of thumb: square the correlation ($r^2$) to get the proportion of variance explained. For r = −0.87, that's $r^2 = 0.75$ — weight explains 75% of the variation in fuel economy.
+**A statistically significant correlation can still be practically meaningless.** With n = 10,000, even r = 0.02 is significant. Always report the coefficient alongside the p-value. A useful rule of thumb: square the correlation ($r^2$) to get the proportion of variance explained. For r = −0.87, that's $r^2 = 0.75$, weight explains 75% of the variation in fuel economy.
 
 **Try it:** Test whether the correlation between `mtcars$drat` (rear axle ratio) and `mtcars$qsec` (quarter-mile time) is significant at the 0.05 level. What's the p-value?
 
@@ -363,7 +363,7 @@ cat("Correlation:", round(ex_test$estimate, 4),
 #> p-value:     0.6196
 ```
 
-**Explanation:** The p-value (0.62) is well above 0.05, so this correlation is *not* statistically significant. The coefficient itself (0.09) is near zero — rear axle ratio and quarter-mile time have essentially no linear relationship.
+**Explanation:** The p-value (0.62) is well above 0.05, so this correlation is *not* statistically significant. The coefficient itself (0.09) is near zero, rear axle ratio and quarter-mile time have essentially no linear relationship.
 
 </details>
 
@@ -386,7 +386,7 @@ cor_matrix
 #> qsec  0.42 -0.43 -0.71 -0.17  1.00
 ```
 
-The diagonal is always 1.0 (every variable correlates perfectly with itself). The matrix is symmetric — the upper triangle mirrors the lower. Now let's visualise it with `corrplot()`.
+The diagonal is always 1.0 (every variable correlates perfectly with itself). The matrix is symmetric, the upper triangle mirrors the lower. Now let's visualise it with `corrplot()`.
 
 ```r
 # Visualise with corrplot
@@ -399,9 +399,9 @@ corrplot(cor_matrix,
          tl.srt = 45)
 ```
 
-In this plot, each circle encodes two pieces of information. The **colour** shows direction — blue for positive, red for negative. The **size** shows strength — larger circles mean stronger correlations. The `order = "hclust"` argument clusters related variables together, making patterns easier to spot.
+In this plot, each circle encodes two pieces of information. The **colour** shows direction, blue for positive, red for negative. The **size** shows strength, larger circles mean stronger correlations. The `order = "hclust"` argument clusters related variables together, making patterns easier to spot.
 
-From the matrix, you can immediately see that `mpg` is strongly negatively correlated with `wt` (−0.87) and `disp` (−0.85), while `disp` and `wt` are strongly *positively* correlated (0.89) — heavier cars have bigger engines.
+From the matrix, you can immediately see that `mpg` is strongly negatively correlated with `wt` (−0.87) and `disp` (−0.85), while `disp` and `wt` are strongly *positively* correlated (0.89), heavier cars have bigger engines.
 
 [TIP]
 **Use corrplot(method = "circle", type = "upper", order = "hclust") for the cleanest view.** Showing only the upper triangle removes redundancy, and hierarchical clustering groups related variables together so patterns pop out.
@@ -425,7 +425,7 @@ corrplot(ex_cor,
          tl.col = "black")
 ```
 
-**Explanation:** Petal.Length and Petal.Width show the strongest positive correlation (~0.94). Sepal.Width is weakly negatively correlated with most other variables — it moves somewhat independently of petal measurements.
+**Explanation:** Petal.Length and Petal.Width show the strongest positive correlation (~0.94). Sepal.Width is weakly negatively correlated with most other variables, it moves somewhat independently of petal measurements.
 
 </details>
 
@@ -433,7 +433,7 @@ corrplot(ex_cor,
 
 Correlation is one of the most misused statistics in practice. Here are four pitfalls that trip up even experienced analysts.
 
-**Pitfall 1: Correlation does not imply causation.** Ice cream sales and drowning deaths are positively correlated — but ice cream doesn't cause drowning. A hidden third variable (summer heat) drives both. Always ask: "Is there a confounding variable?"
+**Pitfall 1: Correlation does not imply causation.** Ice cream sales and drowning deaths are positively correlated, but ice cream doesn't cause drowning. A hidden third variable (summer heat) drives both. Always ask: "Is there a confounding variable?"
 
 **Pitfall 2: Outliers can dominate the result.** A single extreme point can dramatically shift the Pearson correlation. Let's see this in action.
 
@@ -454,7 +454,7 @@ cat("Without outlier:", round(cor(x_clean, y_clean), 3),
 #> Spearman (with): 0.841
 ```
 
-One outlier dragged the Pearson correlation from 0.95 (strong positive) to −0.05 (near zero). Spearman barely flinched (0.84) because it works on ranks — the outlier's extreme value doesn't matter, only its relative position.
+One outlier dragged the Pearson correlation from 0.95 (strong positive) to −0.05 (near zero). Spearman barely flinched (0.84) because it works on ranks, the outlier's extreme value doesn't matter, only its relative position.
 
 **Pitfall 3: Non-linear relationships hide from Pearson.** A perfect quadratic curve has near-zero Pearson correlation, because the positive and negative halves cancel out.
 
@@ -471,9 +471,9 @@ plot(x_quad, y_quad, pch = 19, col = "steelblue",
      xlab = "x", ylab = "y = x²")
 ```
 
-The plot shows a perfect, deterministic relationship — if you know $x$, you know $y$ exactly. Yet Pearson reports zero. This is why the first rule of correlation analysis is: *plot your data*.
+The plot shows a perfect, deterministic relationship, if you know $x$, you know $y$ exactly. Yet Pearson reports zero. This is why the first rule of correlation analysis is: *plot your data*.
 
-**Pitfall 4: Restricted range deflates correlation.** If you only look at data within a narrow range, you lose the signal. Imagine measuring height vs weight only among professional basketball players — the range of heights is so narrow that the strong population-level correlation nearly vanishes.
+**Pitfall 4: Restricted range deflates correlation.** If you only look at data within a narrow range, you lose the signal. Imagine measuring height vs weight only among professional basketball players, the range of heights is so narrow that the strong population-level correlation nearly vanishes.
 
 [WARNING]
 **Always plot your data before computing correlation.** A scatter plot takes one line of code and can save you from every pitfall listed above. No number, however sophisticated, replaces looking at the data.
@@ -503,7 +503,7 @@ plot(ex_x, ex_y, pch = 19, col = "steelblue",
      xlab = "x", ylab = "(x - 25)²")
 ```
 
-**Explanation:** The parabola is symmetric around x = 25. The left half (x < 25) shows a negative relationship and the right half (x > 25) shows a positive one — they cancel perfectly, giving r = 0 despite a deterministic relationship.
+**Explanation:** The parabola is symmetric around x = 25. The left half (x < 25) shows a negative relationship and the right half (x > 25) shows a positive one, they cancel perfectly, giving r = 0 despite a deterministic relationship.
 
 </details>
 
@@ -541,7 +541,7 @@ cat("Pearson:  r =", round(pearson_test$estimate, 4),
 #> Spearman: rho = -0.5968  p = 1.637e-13
 ```
 
-**Explanation:** Both show a strong negative relationship — more wind, less ozone. Both are highly significant. However, since Ozone violates the normality assumption (right-skewed), Spearman is the more appropriate choice. The values are similar here, which tells us the relationship is close to linear even though the marginal distribution of Ozone is skewed.
+**Explanation:** Both show a strong negative relationship, more wind, less ozone. Both are highly significant. However, since Ozone violates the normality assumption (right-skewed), Spearman is the more appropriate choice. The values are similar here, which tells us the relationship is close to linear even though the marginal distribution of Ozone is skewed.
 
 </details>
 
@@ -578,7 +578,7 @@ cat("\nStrongest positive: disp & wt (0.89), disp & hp (0.79)",
     "\nStrongest negative: wt & mpg (-0.87), disp & mpg (-0.85)")
 ```
 
-**Explanation:** Displacement and weight (0.89) have the strongest positive correlation — larger engines come in heavier cars. Weight and mpg (−0.87) have the strongest negative — heavier cars burn more fuel. The `"number"` method displays the actual values inside the matrix cells for precise reading.
+**Explanation:** Displacement and weight (0.89) have the strongest positive correlation, larger engines come in heavier cars. Weight and mpg (−0.87) have the strongest negative, heavier cars burn more fuel. The `"number"` method displays the actual values inside the matrix cells for precise reading.
 
 </details>
 
@@ -618,7 +618,7 @@ plot(my_x, my_y, pch = 19, col = "steelblue",
 
 ## Putting It All Together
 
-Let's walk through a complete correlation analysis from start to finish using the `swiss` dataset — 47 French-speaking Swiss provinces measured on fertility and socio-economic indicators in 1888.
+Let's walk through a complete correlation analysis from start to finish using the `swiss` dataset, 47 French-speaking Swiss provinces measured on fertility and socio-economic indicators in 1888.
 
 ```r
 # Complete workflow: Swiss fertility data
@@ -672,7 +672,7 @@ corrplot(swiss_cor,
 
 This workflow shows the pattern you should follow for any correlation analysis: look at the data first, check assumptions to pick the right method, compute and test, then visualise the full picture with a correlation matrix.
 
-The key finding? Education and Fertility have a strong negative Spearman correlation (−0.66, p < 0.001). Provinces with higher education levels had lower fertility rates — a relationship that holds up even with the non-normal education distribution, because we used Spearman.
+The key finding? Education and Fertility have a strong negative Spearman correlation (−0.66, p < 0.001). Provinces with higher education levels had lower fertility rates, a relationship that holds up even with the non-normal education distribution, because we used Spearman.
 
 ## Summary
 
@@ -698,17 +698,17 @@ Here's a side-by-side comparison of the three methods to help you choose quickly
 
 ## References
 
-1. R Core Team — `cor()` and `cor.test()` documentation. [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/cor.html)
-2. Cohen, J. — *Statistical Power Analysis for the Behavioral Sciences*, 2nd Edition. Lawrence Erlbaum (1988). Effect size conventions (small = 0.1, medium = 0.3, large = 0.5).
-3. Anscombe, F.J. — "Graphs in Statistical Analysis." *The American Statistician* 27(1): 17–21 (1973). [Link](https://www.jstor.org/stable/2682899)
-4. Hauke, J. & Kossowski, T. — "Comparison of Values of Pearson's and Spearman's Correlation Coefficients on the Same Sets of Data." *Quaestiones Geographicae* 30(2): 87–93 (2011). [Link](https://doi.org/10.2478/v10117-011-0021-1)
-5. Wei, T. & Simko, V. — corrplot: Visualization of a Correlation Matrix. CRAN package documentation. [Link](https://cran.r-project.org/package=corrplot)
-6. Hollander, M. & Wolfe, D.A. — *Nonparametric Statistical Methods*, 3rd Edition. Wiley (2013). Chapters on rank correlation.
-7. Wickham, H. & Grolemund, G. — *R for Data Science*, 2nd Edition. O'Reilly (2023). Chapter 11: Exploratory Data Analysis. [Link](https://r4ds.hadley.nz/eda)
-8. Kendall, M.G. — "A New Measure of Rank Correlation." *Biometrika* 30(1/2): 81–93 (1938). [Link](https://doi.org/10.2307/2332226)
+1. R Core Team, `cor()` and `cor.test()` documentation. [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/cor.html)
+2. Cohen, J., *Statistical Power Analysis for the Behavioral Sciences*, 2nd Edition. Lawrence Erlbaum (1988). Effect size conventions (small = 0.1, medium = 0.3, large = 0.5).
+3. Anscombe, F.J., "Graphs in Statistical Analysis." *The American Statistician* 27(1): 17–21 (1973). [Link](https://www.jstor.org/stable/2682899)
+4. Hauke, J. & Kossowski, T., "Comparison of Values of Pearson's and Spearman's Correlation Coefficients on the Same Sets of Data." *Quaestiones Geographicae* 30(2): 87–93 (2011). [Link](https://doi.org/10.2478/v10117-011-0021-1)
+5. Wei, T. & Simko, V., corrplot: Visualization of a Correlation Matrix. CRAN package documentation. [Link](https://cran.r-project.org/package=corrplot)
+6. Hollander, M. & Wolfe, D.A., *Nonparametric Statistical Methods*, 3rd Edition. Wiley (2013). Chapters on rank correlation.
+7. Wickham, H. & Grolemund, G., *R for Data Science*, 2nd Edition. O'Reilly (2023). Chapter 11: Exploratory Data Analysis. [Link](https://r4ds.hadley.nz/eda)
+8. Kendall, M.G., "A New Measure of Rank Correlation." *Biometrika* 30(1/2): 81–93 (1938). [Link](https://doi.org/10.2307/2332226)
 
 ## Continue Learning
 
-- **[Bivariate EDA in R](Bivariate-EDA-in-R.html)** — Explore relationships between two variables with visual and statistical methods beyond correlation.
-- **[Descriptive Statistics in R](Descriptive-Statistics-in-R.html)** — Summarise central tendency, spread, and shape before diving into relationships.
-- **[Correlation Matrix Plot in R](Correlation-Matrix-Plot-in-R.html)** — Advanced corrplot customisation, alternative colour palettes, and publication-ready correlation heatmaps.
+- **[Bivariate EDA in R](Bivariate-EDA-in-R.html)**, Explore relationships between two variables with visual and statistical methods beyond correlation.
+- **[Descriptive Statistics in R](Descriptive-Statistics-in-R.html)**, Summarise central tendency, spread, and shape before diving into relationships.
+- **[Correlation Matrix Plot in R](Correlation-Matrix-Plot-in-R.html)**, Advanced corrplot customisation, alternative colour palettes, and publication-ready correlation heatmaps.

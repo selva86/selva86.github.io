@@ -18,11 +18,11 @@ difficulty: "Intermediate"
 
 # dplyr group_by() + summarise(): The Combination That Answers Most Business Questions
 
-<p class="lead">In dplyr, <code>group_by()</code> splits your data into groups and <code>summarise()</code> collapses each group into a single row of aggregated values. Together they answer almost every "what's the average X by Y?" question — the single most common pattern in day-to-day data analysis.</p>
+<p class="lead">In dplyr, <code>group_by()</code> splits your data into groups and <code>summarise()</code> collapses each group into a single row of aggregated values. Together they answer almost every "what's the average X by Y?" question, the single most common pattern in day-to-day data analysis.</p>
 
 ## What does group_by() + summarise() actually do?
 
-Most analytical questions sound the same: *what's the average by category?* *which segment spends the most?* *how many orders per month?* Every one of them follows one pattern — split rows into groups, apply a function, combine the results into a tidy table. `group_by()` marks the split and `summarise()` does the apply-and-combine in one step. Here's the payoff on the built-in `mtcars` dataset, answering "what's the average fuel economy by cylinder count?":
+Most analytical questions sound the same: *what's the average by category?* *which segment spends the most?* *how many orders per month?* Every one of them follows one pattern, split rows into groups, apply a function, combine the results into a tidy table. `group_by()` marks the split and `summarise()` does the apply-and-combine in one step. Here's the payoff on the built-in `mtcars` dataset, answering "what's the average fuel economy by cylinder count?":
 
 ```r
 library(dplyr)
@@ -43,13 +43,13 @@ mpg_by_cyl
 #> 3     8    15.1     14
 ```
 
-The 32-row `mtcars` table collapsed into 3 rows — one per unique value of `cyl`. For each group, `mean(mpg)` was computed over just the rows in that group, and `n()` counted them. Four-cylinder cars average 26.7 mpg while eight-cylinder cars manage only 15.1 — exactly the kind of answer a business analyst needs in one line of code. That's the whole pattern: one verb to split, one verb to apply-and-combine.
+The 32-row `mtcars` table collapsed into 3 rows, one per unique value of `cyl`. For each group, `mean(mpg)` was computed over just the rows in that group, and `n()` counted them. Four-cylinder cars average 26.7 mpg while eight-cylinder cars manage only 15.1, exactly the kind of answer a business analyst needs in one line of code. That's the whole pattern: one verb to split, one verb to apply-and-combine.
 
 ![Split-apply-combine with group_by() + summarise()](screenshots/dplyr-group-by-summarise-split-apply-combine.webp)
 *Figure 1: The split-apply-combine pattern that group_by() + summarise() implements.*
 
 [KEY INSIGHT]
-**Think of group_by() as placing invisible dividers between rows.** The rows themselves don't move — dplyr just marks which rows belong to which group. The real work happens in summarise(), which runs your functions once per marker boundary and stacks the results.
+**Think of group_by() as placing invisible dividers between rows.** The rows themselves don't move, dplyr just marks which rows belong to which group. The real work happens in summarise(), which runs your functions once per marker boundary and stacks the results.
 
 **Try it:** Use `group_by()` and `summarise()` on the built-in `iris` dataset to find the mean `Sepal.Length` for each species. Save the result to `ex_iris_stats`.
 
@@ -93,7 +93,7 @@ ex_iris_stats
 
 ## How do you summarise multiple columns at once?
 
-A real business question is rarely "just the average." You usually want the mean, the spread, the count, and the extremes — all in the same table so you can compare segments at a glance. `summarise()` happily takes as many `name = function(col)` expressions as you hand it, separated by commas, and each becomes a new column in the result.
+A real business question is rarely "just the average." You usually want the mean, the spread, the count, and the extremes, all in the same table so you can compare segments at a glance. `summarise()` happily takes as many `name = function(col)` expressions as you hand it, separated by commas, and each becomes a new column in the result.
 
 ```r
 mtcars_stats <- mtcars |>
@@ -115,7 +115,7 @@ mtcars_stats
 #> 3     8     14    15.1   2.56    10.4    19.2
 ```
 
-Five summary columns in one pass. Notice how `n()` is a special helper — it doesn't take a column name because it simply counts rows in the current group. The standard deviation column reveals something the mean alone hides: six-cylinder cars cluster tightly (sd = 1.45), while four-cylinder cars are all over the map (sd = 4.51). That's a story a mean-only table would completely bury.
+Five summary columns in one pass. Notice how `n()` is a special helper, it doesn't take a column name because it simply counts rows in the current group. The standard deviation column reveals something the mean alone hides: six-cylinder cars cluster tightly (sd = 1.45), while four-cylinder cars are all over the map (sd = 4.51). That's a story a mean-only table would completely bury.
 
 [TIP]
 **Name summary columns by what they contain, not by how you computed them.** Prefer `avg_mpg` to `mean_mpg_value` and `n_orders` to `count_of_orders`. Short, business-friendly names keep downstream filter() and arrange() calls readable.
@@ -155,7 +155,7 @@ ex_mtcars_stats
 #> 3     8    15.1       15.2       8.8
 ```
 
-**Explanation:** Any R expression returning length 1 per group works — including arithmetic on other summaries like `max(mpg) - min(mpg)`.
+**Explanation:** Any R expression returning length 1 per group works, including arithmetic on other summaries like `max(mpg) - min(mpg)`.
 
 </details>
 
@@ -186,7 +186,7 @@ cyl_gear_stats
 #> 8     8     5      2    15.4
 ```
 
-Three cylinder counts times up-to-three gear counts gives eight populated combinations (not nine — no eight-cylinder car in `mtcars` has four gears). The `.groups = "drop"` line at the end removes all grouping from the result, which you almost always want. The next section explains why.
+Three cylinder counts times up-to-three gear counts gives eight populated combinations (not nine, no eight-cylinder car in `mtcars` has four gears). The `.groups = "drop"` line at the end removes all grouping from the result, which you almost always want. The next section explains why.
 
 **Try it:** In the built-in `starwars` dataset, count how many characters exist for each combination of `species` and `sex`. Save the result to `ex_sw_counts` with column name `n_chars`.
 
@@ -220,13 +220,13 @@ head(ex_sw_counts, 4)
 #> 4 Chagrian male         1
 ```
 
-**Explanation:** `n()` needs no arguments — it always counts rows in the current group, which after a two-variable `group_by()` means rows sharing both values.
+**Explanation:** `n()` needs no arguments, it always counts rows in the current group, which after a two-variable `group_by()` means rows sharing both values.
 
 </details>
 
 ## Which summary functions work inside summarise()?
 
-`summarise()` accepts any R function — as long as that function returns a single value when given a vector. That rule is simple but important: `mean(x)` returns one number, so it works. `range(x)` returns two numbers, so it doesn't (you'd need `min(x)` and `max(x)` separately). Here are the functions you'll use 90% of the time:
+`summarise()` accepts any R function, as long as that function returns a single value when given a vector. That rule is simple but important: `mean(x)` returns one number, so it works. `range(x)` returns two numbers, so it doesn't (you'd need `min(x)` and `max(x)` separately). Here are the functions you'll use 90% of the time:
 
 | Function | What it returns | Example use |
 |---|---|---|
@@ -240,7 +240,7 @@ head(ex_sw_counts, 4)
 | `first(x)`, `last(x)` | First/last value | Opening price, closing price |
 | `quantile(x, 0.9)` | 90th percentile | SLA thresholds |
 
-Here's `n_distinct()` in action — a question prose can barely ask concisely: *how many unique hair colors does each species in Star Wars have?*
+Here's `n_distinct()` in action, a question prose can barely ask concisely: *how many unique hair colors does each species in Star Wars have?*
 
 ```r
 sw_stats <- starwars |>
@@ -328,7 +328,7 @@ The four options for `.groups`:
 | Value | Behavior |
 |---|---|
 | `"drop_last"` | Peel the last grouping variable (the default, shows the warning) |
-| `"drop"` | Drop all grouping — return a plain ungrouped tibble |
+| `"drop"` | Drop all grouping, return a plain ungrouped tibble |
 | `"keep"` | Keep the full original grouping |
 | `"rowwise"` | Treat each resulting row as its own group |
 
@@ -342,7 +342,7 @@ group_vars(cyl_gear_dropped)
 #> character(0)
 ```
 
-`group_vars()` returns an empty character vector, confirming the result is fully ungrouped. That's the state you want 95% of the time — any further `mutate()` or `filter()` calls will act on the whole table instead of being silently group-aware.
+`group_vars()` returns an empty character vector, confirming the result is fully ungrouped. That's the state you want 95% of the time, any further `mutate()` or `filter()` calls will act on the whole table instead of being silently group-aware.
 
 [WARNING]
 **Lingering groups cause silent bugs.** A `mutate(rank = row_number())` after an unintentionally grouped summarise will restart ranks at 1 inside each leftover group rather than numbering the whole table. Always finish with `.groups = "drop"` or `ungroup()` unless you specifically want grouped behavior downstream.
@@ -382,7 +382,7 @@ group_vars(ex_drop_stats)
 
 ## When should you use the new .by argument instead?
 
-dplyr 1.1.0 (released January 2023) introduced a simpler alternative for one-shot aggregations: the `.by` argument, available directly on `summarise()`, `mutate()`, and `filter()`. It groups inline for that single call and always returns an ungrouped result — sidestepping the `.groups` confusion entirely.
+dplyr 1.1.0 (released January 2023) introduced a simpler alternative for one-shot aggregations: the `.by` argument, available directly on `summarise()`, `mutate()`, and `filter()`. It groups inline for that single call and always returns an ungrouped result, sidestepping the `.groups` confusion entirely.
 
 ```r
 # Old way — group_by() + .groups = "drop"
@@ -406,7 +406,7 @@ by_cyl
 Same numbers, two fewer lines. For multiple grouping columns, wrap them in `c()`: `.by = c(cyl, gear)`. The `.by` form shines when grouping is a one-off and no downstream operations need the grouping to persist. When grouping *should* carry through several pipeline steps, keep using `group_by()`.
 
 [NOTE]
-**.by requires dplyr 1.1.0 or newer.** Check your version with `packageVersion("dplyr")`. On an older release, stick with `group_by()` + `.groups = "drop"` — it works identically.
+**.by requires dplyr 1.1.0 or newer.** Check your version with `packageVersion("dplyr")`. On an older release, stick with `group_by()` + `.groups = "drop"`, it works identically.
 
 **Try it:** Rewrite this `group_by()` call using `.by` instead. Save to `ex_by_rewrite`.
 
@@ -446,7 +446,7 @@ ex_by_rewrite
 
 ## How do you filter groups after summarising?
 
-A common workflow: compute a per-group summary, then keep only the groups meeting some criterion — "regions with revenue above target," "products with more than 100 orders," "customers who bought at least three distinct items." Because `summarise()` returns a fresh tibble with one row per group, you can pipe it straight into `filter()` and `arrange()`.
+A common workflow: compute a per-group summary, then keep only the groups meeting some criterion, "regions with revenue above target," "products with more than 100 orders," "customers who bought at least three distinct items." Because `summarise()` returns a fresh tibble with one row per group, you can pipe it straight into `filter()` and `arrange()`.
 
 ```r
 top_cyl <- mtcars |>
@@ -466,7 +466,7 @@ top_cyl
 #> 2     6    19.7      7
 ```
 
-Two rows survive the `avg_mpg > 18` filter, and `arrange(desc(avg_mpg))` ranks them. This post-summarise filtering is how dplyr expresses SQL's `HAVING` clause — `filter()` before `group_by()` is `WHERE`, `filter()` after `summarise()` is `HAVING`. The mental model is the same in both worlds: filter rows, aggregate, then filter groups.
+Two rows survive the `avg_mpg > 18` filter, and `arrange(desc(avg_mpg))` ranks them. This post-summarise filtering is how dplyr expresses SQL's `HAVING` clause, `filter()` before `group_by()` is `WHERE`, `filter()` after `summarise()` is `HAVING`. The mental model is the same in both worlds: filter rows, aggregate, then filter groups.
 
 **Try it:** Find the top 2 `gear` groups in `mtcars` by mean `hp`. Use `.by`, then arrange and take the top 2. Save to `ex_top_gear`.
 
@@ -501,7 +501,7 @@ ex_top_gear
 #> 2     3  176.1
 ```
 
-**Explanation:** After summarise the result is a regular tibble — `arrange()` + `head(2)` gives the top-n rows by any column.
+**Explanation:** After summarise the result is a regular tibble, `arrange()` + `head(2)` gives the top-n rows by any column.
 
 </details>
 
@@ -550,7 +550,7 @@ head(my_homeworld, 5)
 #> 5 Naboo          11      175.
 ```
 
-**Explanation:** Two `filter()` calls play different roles — the first drops bad rows before grouping, the second drops small groups after summarising (SQL's `WHERE` vs `HAVING`).
+**Explanation:** Two `filter()` calls play different roles, the first drops bad rows before grouping, the second drops small groups after summarising (SQL's `WHERE` vs `HAVING`).
 
 </details>
 
@@ -630,7 +630,7 @@ my_cut_eff
 #> # Premium cut has the highest median price-per-carat.
 ```
 
-**Explanation:** Derived quantities (`price / carat`) can be computed directly inside `summarise()` — no need to `mutate()` first. Premium beats Ideal here because Premium diamonds tend to be larger on average.
+**Explanation:** Derived quantities (`price / carat`) can be computed directly inside `summarise()`, no need to `mutate()` first. Premium beats Ideal here because Premium diamonds tend to be larger on average.
 
 </details>
 
@@ -668,27 +668,27 @@ Every line corresponds to one question: *drop missing mass or height*, *for each
 
 | Concept | What to remember |
 |---|---|
-| `group_by(var)` | Marks invisible dividers between rows — no physical sorting or movement |
+| `group_by(var)` | Marks invisible dividers between rows, no physical sorting or movement |
 | `summarise(name = f(x))` | Collapses each group into one row; any length-1 function works |
-| `n()` | Counts rows in the current group — no arguments needed |
+| `n()` | Counts rows in the current group, no arguments needed |
 | `n_distinct(x)` | Counts unique non-NA values per group |
 | Multiple groupings | `group_by(a, b)` creates one group per unique combination |
-| `.groups = "drop"` | Return an ungrouped tibble — almost always what you want |
+| `.groups = "drop"` | Return an ungrouped tibble, almost always what you want |
 | `.by` (dplyr 1.1+) | Inline grouping for one call; always returns ungrouped |
 | Filter → Summarise → Filter | SQL's `WHERE` → `GROUP BY` → `HAVING` translated to dplyr |
 
 ## References
 
-1. dplyr reference — `group_by()`. [Link](https://dplyr.tidyverse.org/reference/group_by.html)
-2. dplyr reference — `summarise()`. [Link](https://dplyr.tidyverse.org/reference/summarise.html)
-3. dplyr 1.1.0 release notes — introducing `.by`. [Link](https://www.tidyverse.org/blog/2023/02/dplyr-1-1-0-per-operation-grouping/)
-4. Wickham, H., & Grolemund, G. — *R for Data Science*, Chapter 4: Data Transformation. [Link](https://r4ds.hadley.nz/data-transform.html)
+1. dplyr reference, `group_by()`. [Link](https://dplyr.tidyverse.org/reference/group_by.html)
+2. dplyr reference, `summarise()`. [Link](https://dplyr.tidyverse.org/reference/summarise.html)
+3. dplyr 1.1.0 release notes, introducing `.by`. [Link](https://www.tidyverse.org/blog/2023/02/dplyr-1-1-0-per-operation-grouping/)
+4. Wickham, H., & Grolemund, G., *R for Data Science*, Chapter 4: Data Transformation. [Link](https://r4ds.hadley.nz/data-transform.html)
 5. dplyr grouping vignette. [Link](https://dplyr.tidyverse.org/articles/grouping.html)
-6. Wickham, H. — "The Split-Apply-Combine Strategy for Data Analysis." *Journal of Statistical Software* 40(1), 2011. [Link](https://www.jstatsoft.org/article/view/v040i01)
-7. Posit tidyverse blog — dplyr 1.0.0 summarise changes. [Link](https://www.tidyverse.org/blog/2020/03/dplyr-1-0-0-summarise/)
+6. Wickham, H., "The Split-Apply-Combine Strategy for Data Analysis." *Journal of Statistical Software* 40(1), 2011. [Link](https://www.jstatsoft.org/article/view/v040i01)
+7. Posit tidyverse blog, dplyr 1.0.0 summarise changes. [Link](https://www.tidyverse.org/blog/2020/03/dplyr-1-0-0-summarise/)
 
 ## Continue Learning
 
-1. **[dplyr filter() and select()](dplyr-filter-select.html)** — Row and column subsetting, the verbs you reach for before group_by.
-2. **[dplyr mutate() and rename()](dplyr-mutate-rename.html)** — Add computed columns; pairs naturally with summarise for feature engineering.
-3. **[R Pipe Operator](R-Pipe-Operator.html)** — The `|>` and `%>%` operators that glue these pipelines together.
+1. **[dplyr filter() and select()](dplyr-filter-select.html)**, Row and column subsetting, the verbs you reach for before group_by.
+2. **[dplyr mutate() and rename()](dplyr-mutate-rename.html)**, Add computed columns; pairs naturally with summarise for feature engineering.
+3. **[R Pipe Operator](R-Pipe-Operator.html)**, The `|>` and `%>%` operators that glue these pipelines together.

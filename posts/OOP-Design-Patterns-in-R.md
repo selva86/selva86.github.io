@@ -16,7 +16,7 @@ difficulty: "Intermediate"
 
 # OOP Design Patterns in R: Factory, Strategy & Observer in R6
 
-<p class="lead">Design patterns are reusable solutions to recurring object-oriented problems. R6's mutable reference classes make the classic Gang-of-Four patterns — <strong>Factory</strong>, <strong>Strategy</strong>, <strong>Observer</strong>, <strong>Singleton</strong> and <strong>Builder</strong> — natural, compact and genuinely useful inside R packages, Shiny apps and simulation code.</p>
+<p class="lead">Design patterns are reusable solutions to recurring object-oriented problems. R6's mutable reference classes make the classic Gang-of-Four patterns, <strong>Factory</strong>, <strong>Strategy</strong>, <strong>Observer</strong>, <strong>Singleton</strong> and <strong>Builder</strong>, natural, compact and genuinely useful inside R packages, Shiny apps and simulation code.</p>
 
 ## How does the Factory Pattern work in R6?
 
@@ -83,7 +83,7 @@ reader2$read("config.json")
 #> [1] 4
 ```
 
-Two different classes, one line of calling code. Adding an `ParquetReader` tomorrow means adding one `R6Class` and one line in the `switch` — no caller touches change.
+Two different classes, one line of calling code. Adding an `ParquetReader` tomorrow means adding one `R6Class` and one line in the `switch`, no caller touches change.
 
 ![Factory flow](screenshots/OOP-Design-Patterns-in-R-factory-flow.webp)
 *Figure 1: How a factory routes one call to the right reader class.*
@@ -146,7 +146,7 @@ ex_create_reader("model.rds")$read("model.rds")
 
 ## How does the Strategy Pattern swap behavior at runtime?
 
-Strategy splits *what* from *how*. A **context** object knows what job needs doing — computing a single score from a vector of numbers — and holds onto a **strategy** object that knows how to do it. Swap the strategy and the same context behaves differently, without a single `if`/`else`.
+Strategy splits *what* from *how*. A **context** object knows what job needs doing, computing a single score from a vector of numbers, and holds onto a **strategy** object that knows how to do it. Swap the strategy and the same context behaves differently, without a single `if`/`else`.
 
 We'll build three scoring strategies (mean, median, trimmed mean) and a `Scorer` context that delegates to whichever strategy it currently holds. The important move is that the caller can change strategies midway through a session.
 
@@ -189,12 +189,12 @@ sc$run(c(1, 2, 3, 4, 100))
 #> [1] 3
 ```
 
-The single outlier (`100`) drags the plain mean to 22, but both the median and the 20%-trimmed mean ignore it and report 3. Same `sc$run()` call, three completely different robust-statistics behaviors — decided by which strategy object is attached.
+The single outlier (`100`) drags the plain mean to 22, but both the median and the 20%-trimmed mean ignore it and report 3. Same `sc$run()` call, three completely different robust-statistics behaviors, decided by which strategy object is attached.
 
 [TIP]
 **Strategies can be plain functions when they carry no state.** If `TrimmedScore` didn't need to remember `trim`, you could skip the R6 wrapper entirely and pass `mean`, `median` or `function(x) mean(x, trim = 0.2)` directly. Reach for R6 only when the strategy itself needs fields.
 
-**Try it:** Write `ex_MaxStrategy` — an R6 class whose `score()` method returns `max(x)` — and plug it into `Scorer` (already defined above).
+**Try it:** Write `ex_MaxStrategy`, an R6 class whose `score()` method returns `max(x)`, and plug it into `Scorer` (already defined above).
 
 ```r
 ex_MaxStrategy <- R6Class("ex_MaxStrategy",
@@ -222,7 +222,7 @@ ex_sc$run(c(3, 1, 9, 4))
 #> [1] 9
 ```
 
-**Explanation:** The context doesn't care how `score()` is computed — it only calls `self$strategy$score(x)`. Any object that implements `score()` plugs in cleanly.
+**Explanation:** The context doesn't care how `score()` is computed, it only calls `self$strategy$score(x)`. Any object that implements `score()` plugs in cleanly.
 
 </details>
 
@@ -282,15 +282,15 @@ sensor$set_value(35)
 #> [alert]  35 exceeds 30
 ```
 
-Neither `LoggerObs` nor `AlertObs` knows the other exists — the sensor just walks its observer list and calls `update()` on each. Adding a third observer tomorrow is a single `$subscribe()` call; removing one is a single `$unsubscribe()`.
+Neither `LoggerObs` nor `AlertObs` knows the other exists, the sensor just walks its observer list and calls `update()` on each. Adding a third observer tomorrow is a single `$subscribe()` call; removing one is a single `$unsubscribe()`.
 
 ![Observer sequence](screenshots/OOP-Design-Patterns-in-R-observer-seq.webp)
 *Figure 2: The subject notifies every subscribed observer whenever its state changes.*
 
 [WARNING]
-**R6 objects are reference-semantic — always mutate in place.** Writing `self$observers <- c(self$observers, obs)` works; writing it outside the R6 method using `x <- sensor; x$observers <- ...` mutates the original sensor too, because `x` is not a copy. This is exactly why R6 fits Observer cleanly: one subject is one shared identity.
+**R6 objects are reference-semantic, always mutate in place.** Writing `self$observers <- c(self$observers, obs)` works; writing it outside the R6 method using `x <- sensor; x$observers <- ...` mutates the original sensor too, because `x` is not a copy. This is exactly why R6 fits Observer cleanly: one subject is one shared identity.
 
-**Try it:** Write `ex_AverageObs` — an observer that keeps a running vector of readings in a public `values` field and prints the running mean on every update.
+**Try it:** Write `ex_AverageObs`, an observer that keeps a running vector of readings in a public `values` field and prints the running mean on every update.
 
 ```r
 ex_AverageObs <- R6Class("ex_AverageObs",
@@ -336,7 +336,7 @@ ex_sensor$set_value(20)
 
 ## When should you reach for Singleton or Builder patterns?
 
-Two smaller patterns fill obvious niches. **Singleton** guarantees exactly one instance exists — useful for a shared configuration, a database connection, or a logger. **Builder** handles objects whose construction has many optional knobs and you want a fluent, readable call site.
+Two smaller patterns fill obvious niches. **Singleton** guarantees exactly one instance exists, useful for a shared configuration, a database connection, or a logger. **Builder** handles objects whose construction has many optional knobs and you want a fluent, readable call site.
 
 The cleanest R singleton hides the instance inside a closure-scoped variable rather than a true class, because R packages already behave like process-wide namespaces.
 
@@ -367,7 +367,7 @@ identical(cfg1, cfg2)
 #> [1] TRUE
 ```
 
-`cfg1` and `cfg2` are the same object — setting the host through one shows up in the other.
+`cfg1` and `cfg2` are the same object, setting the host through one shows up in the other.
 
 Now Builder: a report object with many optional fields, built up with chained calls.
 
@@ -405,7 +405,7 @@ report$format
 Each setter returns `invisible(self)`, which is the trick that makes the fluent `$set_x()$set_y()` chain work. The final `$build()` hands you the finished object.
 
 [NOTE]
-**R package namespaces already give you a de-facto singleton.** Any object stored in your package environment (via `.onLoad` or a top-level assignment) exists exactly once per session — no pattern required. Reach for the closure-style singleton only when you want lazy initialization or a stand-alone script.
+**R package namespaces already give you a de-facto singleton.** Any object stored in your package environment (via `.onLoad` or a top-level assignment) exists exactly once per session, no pattern required. Reach for the closure-style singleton only when you want lazy initialization or a stand-alone script.
 
 **Try it:** Extend the config singleton with a `set_port(p)` method that updates the port. Show that changing it via one reference is visible from the other.
 
@@ -453,10 +453,10 @@ b$port
 
 ## How do you choose the right pattern for your problem?
 
-Patterns are not a checklist. They are vocabulary — a way to name a shape that keeps turning up in your code so that you and your reviewers can discuss it without re-explaining the mechanics. The question to ask is always "what pain am I feeling?" and then pick the pattern whose intent matches.
+Patterns are not a checklist. They are vocabulary, a way to name a shape that keeps turning up in your code so that you and your reviewers can discuss it without re-explaining the mechanics. The question to ask is always "what pain am I feeling?" and then pick the pattern whose intent matches.
 
 ![Pattern map](screenshots/OOP-Design-Patterns-in-R-pattern-map.webp)
-*Figure 3: The five R6 patterns grouped by purpose — creational versus behavioral.*
+*Figure 3: The five R6 patterns grouped by purpose, creational versus behavioral.*
 
 Here is the decision shortcut I use when reviewing R code:
 
@@ -501,7 +501,7 @@ classify_v2(0.3, SlopeStrategy$new(cutoff = 0.1))
 #> [1] "up"
 ```
 
-The `v1` function grows a new `else if` branch every time someone invents a new rule. The `v2` function will never change again — you just construct a new strategy with whatever cutoff (or entirely different logic) you need.
+The `v1` function grows a new `else if` branch every time someone invents a new rule. The `v2` function will never change again, you just construct a new strategy with whatever cutoff (or entirely different logic) you need.
 
 [KEY INSIGHT]
 **Patterns are vocabulary, not scaffolding.** Don't force Strategy onto a script that has two branches and one caller. Reach for it when you catch yourself adding branches repeatedly, or when reviewers keep asking "wait, where does this behavior come from?"
@@ -595,13 +595,13 @@ my_totals
 #> [1] 75
 ```
 
-**Explanation:** `Cart` doesn't know (or care) which discount math happens — it delegates to whatever strategy it currently holds. Swapping strategies is a one-line operation.
+**Explanation:** `Cart` doesn't know (or care) which discount math happens, it delegates to whatever strategy it currently holds. Swapping strategies is a one-line operation.
 
 </details>
 
 ### Exercise 2: Factory + Observer broadcast hub
 
-Build a `make_notifier(kind)` factory that returns an `EmailNotifier`, `SmsNotifier` or `SlackNotifier` — each implements a `send(msg)` method that `cat()`s a tagged line. Then build an `AlertHub` subject that stores a list of notifiers and broadcasts every alert to all of them via `$raise(msg)`. Save the hub to `my_hub` and raise one alert that reaches three notifiers.
+Build a `make_notifier(kind)` factory that returns an `EmailNotifier`, `SmsNotifier` or `SlackNotifier`, each implements a `send(msg)` method that `cat()`s a tagged line. Then build an `AlertHub` subject that stores a list of notifiers and broadcasts every alert to all of them via `$raise(msg)`. Save the hub to `my_hub` and raise one alert that reaches three notifiers.
 
 ```r
 # Exercise 2: Factory + Observer
@@ -689,7 +689,7 @@ result
 #> [1] 20.13462
 ```
 
-The calling code never says `TrimmedScore`, never says `LoggerObs`, and never says `Reader` — it just says "give me a reader, score its data, and tell the sensor." Every piece is replaceable independently. That is what the patterns buy you.
+The calling code never says `TrimmedScore`, never says `LoggerObs`, and never says `Reader`, it just says "give me a reader, score its data, and tell the sensor." Every piece is replaceable independently. That is what the patterns buy you.
 
 ## Summary
 
@@ -701,19 +701,19 @@ The calling code never says `TrimmedScore`, never says `LoggerObs`, and never sa
 | Singleton | Creational | Guarantee a single shared instance | You want one config/logger/connection per session |
 | Builder | Creational | Fluent step-by-step construction | Constructor has many optional arguments |
 
-Reach for these patterns by name when a shape keeps recurring, not because the textbook told you to. R6's reference semantics make all five compact — most fit in under 25 lines.
+Reach for these patterns by name when a shape keeps recurring, not because the textbook told you to. R6's reference semantics make all five compact, most fit in under 25 lines.
 
 ## References
 
-1. Wickham, H. — *Advanced R*, 2nd Edition. Chapter 14: R6. [Link](https://adv-r.hadley.nz/r6.html)
+1. Wickham, H., *Advanced R*, 2nd Edition. Chapter 14: R6. [Link](https://adv-r.hadley.nz/r6.html)
 2. R6 package documentation on CRAN. [Link](https://cran.r-project.org/package=R6)
 3. R6P: Design Patterns in R (tidylab). [Link](https://tidylab.github.io/R6P/)
-4. Gamma, Helm, Johnson, Vlissides — *Design Patterns: Elements of Reusable Object-Oriented Software*. Addison-Wesley (1994).
-5. Refactoring.Guru — Catalog of Design Patterns. [Link](https://refactoring.guru/design-patterns)
-6. tidyverse R6 vignette — Introduction to R6. [Link](https://r6.r-lib.org/articles/Introduction.html)
+4. Gamma, Helm, Johnson, Vlissides, *Design Patterns: Elements of Reusable Object-Oriented Software*. Addison-Wesley (1994).
+5. Refactoring.Guru, Catalog of Design Patterns. [Link](https://refactoring.guru/design-patterns)
+6. tidyverse R6 vignette, Introduction to R6. [Link](https://r6.r-lib.org/articles/Introduction.html)
 
 ## Continue Learning
 
-- [R6 Classes in R](R6-Classes-in-R.html) — the parent tutorial that teaches R6 fields, methods, inheritance and active bindings.
-- [OOP in R](OOP-in-R.html) — overview of R's four OOP systems (S3, S4, R5/Reference Classes, R6).
-- [S4 Classes in R](S4-Classes-in-R.html) — the formal, generic-function-based alternative to R6 for package-grade type systems.
+- [R6 Classes in R](R6-Classes-in-R.html), the parent tutorial that teaches R6 fields, methods, inheritance and active bindings.
+- [OOP in R](OOP-in-R.html), overview of R's four OOP systems (S3, S4, R5/Reference Classes, R6).
+- [S4 Classes in R](S4-Classes-in-R.html), the formal, generic-function-based alternative to R6 for package-grade type systems.

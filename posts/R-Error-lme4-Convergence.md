@@ -1,5 +1,5 @@
 ---
-title: "lme4 'Model failed to converge' — 5 Fixes That Actually Work (in Order)"
+title: "lme4 'Model failed to converge', 5 Fixes That Actually Work (in Order)"
 slug: "R-Error-lme4-Convergence"
 description: "Fix lme4 'Model failed to converge' warning in R mixed models. Work through 5 ordered fixes: rescale, simplify random effects, switch optimiser, allFit()."
 keywords: "lme4 convergence, model failed to converge, R mixed model convergence, lmer failed to converge, allFit, lmerControl optimizer, glmer convergence, singular fit lme4"
@@ -14,9 +14,9 @@ fr_parent: "R-Common-Errors.html"
 difficulty: "Intermediate"
 ---
 
-# lme4 'Model failed to converge' — 5 Fixes That Actually Work (in Order)
+# lme4 'Model failed to converge', 5 Fixes That Actually Work (in Order)
 
-<p class="lead"><code>Model failed to converge</code> in lme4 means the optimiser stopped at a point where its gradient — the slope of the log-likelihood — is still larger than the tolerance it expects. The fit is returned, but its coefficients may be unreliable. Work through the five fixes below in order and stop as soon as the warning clears.</p>
+<p class="lead"><code>Model failed to converge</code> in lme4 means the optimiser stopped at a point where its gradient, the slope of the log-likelihood, is still larger than the tolerance it expects. The fit is returned, but its coefficients may be unreliable. Work through the five fixes below in order and stop as soon as the warning clears.</p>
 
 ## Why does lme4 say the model failed to converge?
 
@@ -52,7 +52,7 @@ max(abs(m2@optinfo$derivs$gradient))
 #> [1] 4.17e-08
 ```
 
-The gradient dropped from roughly `0.003` to effectively zero. Same data, same random-effect structure, same model — the only change was one `scale()` call. When predictors live on different numerical orders of magnitude, the optimiser cannot take steps that are simultaneously large enough to move the intercept and small enough to resolve the slope, so it stops with a gradient still above tolerance. Rescaling aligns the step sizes with the curvature the optimiser needs to measure.
+The gradient dropped from roughly `0.003` to effectively zero. Same data, same random-effect structure, same model, the only change was one `scale()` call. When predictors live on different numerical orders of magnitude, the optimiser cannot take steps that are simultaneously large enough to move the intercept and small enough to resolve the slope, so it stops with a gradient still above tolerance. Rescaling aligns the step sizes with the curvature the optimiser needs to measure.
 
 [KEY INSIGHT]
 **The convergence warning is a gradient check, not an error.** lme4 compares the final gradient to a tolerance (default `0.002`) and flags anything above it. Your job is to move the gradient clearly into the accept region, not to silence the check.
@@ -83,7 +83,7 @@ ex_grad
 
 ## Fix 1: How should you rescale predictors (and why it works)?
 
-`scale()` centers a numeric vector at zero and divides it by its standard deviation, putting every predictor on the same unit — "one standard deviation". That matters in mixed models because the random-effect variance lives in the same space as the fixed effects; when one predictor is a million times larger than another, the variance components become numerically incomparable to the coefficients. Rescaling is cheap, interpretable, and almost always the right first move.
+`scale()` centers a numeric vector at zero and divides it by its standard deviation, putting every predictor on the same unit, "one standard deviation". That matters in mixed models because the random-effect variance lives in the same space as the fixed effects; when one predictor is a million times larger than another, the variance components become numerically incomparable to the coefficients. Rescaling is cheap, interpretable, and almost always the right first move.
 
 Below, three numeric predictors on wildly different scales are normalised in one `mutate(across())` call, and the scaled fit converges cleanly.
 
@@ -117,7 +117,7 @@ fixef(m_scaled)
 #>      0.0012       0.3421       0.2895       0.1974
 ```
 
-Three scaled predictors, one random intercept, gradient at `2e-7` — well inside the accept region. The fixed effects are now on "per-SD" units, which is actually easier to interpret than raw dollars versus years. The random-intercept variance you see in `VarCorr()` sits on the same residual scale as before because the outcome was not rescaled.
+Three scaled predictors, one random intercept, gradient at `2e-7`, well inside the accept region. The fixed effects are now on "per-SD" units, which is actually easier to interpret than raw dollars versus years. The random-intercept variance you see in `VarCorr()` sits on the same residual scale as before because the outcome was not rescaled.
 
 [TIP]
 **Keep the centering and scaling attributes if you need to back-transform.** `scale()` returns a matrix with `"scaled:center"` and `"scaled:scale"` attributes. Save them before the `as.numeric()` wrap so you can undo the transformation when you report coefficients.
@@ -147,7 +147,7 @@ names(ex_df_scaled)
 
 ## Fix 2: When should you simplify the random-effects structure?
 
-Barr et al. (2013) famously recommended "keep it maximal" — a random slope for every within-subject factor. Matuschek et al. (2017) then showed that on real-world sample sizes this often overparameterises the model and causes convergence failures for variance components that carry no information. The honest fix is to start with random intercepts only, add correlated slopes only if the data supports them, and drop correlations with `||` before dropping the slopes themselves.
+Barr et al. (2013) famously recommended "keep it maximal", a random slope for every within-subject factor. Matuschek et al. (2017) then showed that on real-world sample sizes this often overparameterises the model and causes convergence failures for variance components that carry no information. The honest fix is to start with random intercepts only, add correlated slopes only if the data supports them, and drop correlations with `||` before dropping the slopes themselves.
 
 Here we simulate a crossed design (subjects × items) and watch a maximal model fail, then a simpler model converge.
 
@@ -177,10 +177,10 @@ anova(m_simple, m_max)
 #> m_max       9  1826  1866   -904     1808  2.14  4       0.71
 ```
 
-The maximal model fails and the simpler model lands at a gradient of `1e-9`. The `anova()` comparison shows a chi-square of `2.14` on 4 extra degrees of freedom (p = 0.71), so the random slopes contributed effectively zero explanatory power. Removing them didn't cost the model anything — it bought identifiability back.
+The maximal model fails and the simpler model lands at a gradient of `1e-9`. The `anova()` comparison shows a chi-square of `2.14` on 4 extra degrees of freedom (p = 0.71), so the random slopes contributed effectively zero explanatory power. Removing them didn't cost the model anything, it bought identifiability back.
 
 [WARNING]
-**Don't reflexively drop every random slope you theoretically need.** Try the uncorrelated form `(1 + cond || subject)` first — it removes the correlation parameters, which are usually the first thing to become unidentifiable, while keeping the slope itself. Drop the slope only if `||` also fails.
+**Don't reflexively drop every random slope you theoretically need.** Try the uncorrelated form `(1 + cond || subject)` first, it removes the correlation parameters, which are usually the first thing to become unidentifiable, while keeping the slope itself. Drop the slope only if `||` also fails.
 
 **Try it:** Refit `m_max` but with uncorrelated random effects on `subject` only (keep `item` maximal). Save to `ex_m_uncor`.
 
@@ -206,7 +206,7 @@ max(abs(ex_m_uncor@optinfo$derivs$gradient))
 
 ## Fix 3: How do you switch or combine optimisers with allFit()?
 
-lme4 ships several optimisers (`bobyqa`, `Nelder_Mead`, `nlminbwrap`, and two `nloptwrap` variants). Each takes a different path through the likelihood surface, so one may get stuck where another does not. `allFit()` refits the same model with every optimiser in one call and lets you compare final gradients and estimates. When every optimiser lands on the same coefficients to four decimal places, the warning is cosmetic — you can pick the one with the smallest gradient and move on.
+lme4 ships several optimisers (`bobyqa`, `Nelder_Mead`, `nlminbwrap`, and two `nloptwrap` variants). Each takes a different path through the likelihood surface, so one may get stuck where another does not. `allFit()` refits the same model with every optimiser in one call and lets you compare final gradients and estimates. When every optimiser lands on the same coefficients to four decimal places, the warning is cosmetic, you can pick the one with the smallest gradient and move on.
 
 ```r
 # Refit the maximal model with every available optimiser
@@ -227,10 +227,10 @@ names(which.min(grads))
 #> [1] "nlminbwrap"
 ```
 
-Every optimiser returned effectively the same fixed effects, which is the strongest possible evidence that the estimates are trustworthy. The gradients differ by two orders of magnitude, and `nlminbwrap` is the clear winner — refit your real model with `lmerControl(optimizer = "nlminbwrap")` and the warning disappears.
+Every optimiser returned effectively the same fixed effects, which is the strongest possible evidence that the estimates are trustworthy. The gradients differ by two orders of magnitude, and `nlminbwrap` is the clear winner, refit your real model with `lmerControl(optimizer = "nlminbwrap")` and the warning disappears.
 
 [NOTE]
-**`allFit()` is slow — run it after Fixes 1 and 2, not before.** It refits the model five times, so on a large dataset it can take minutes. Use it as a diagnostic tool, not a first line of defence.
+**`allFit()` is slow, run it after Fixes 1 and 2, not before.** It refits the model five times, so on a large dataset it can take minutes. Use it as a diagnostic tool, not a first line of defence.
 
 **Try it:** From the gradient vector `grads`, return the name of the optimiser with the smallest gradient. Save it to `ex_best_opt`.
 
@@ -256,7 +256,7 @@ ex_best_opt
 
 ## Fix 4: How do you detect and handle a singular fit?
 
-A singular fit means at least one variance component has been estimated exactly at its boundary — a variance of zero, or a correlation of `±1`. lme4 reports this with `isSingular()`, and the check is separate from the convergence check. But the two warnings often appear together, because the optimiser is struggling to optimise a parameter that carries no information in the first place. Dropping the redundant random term fixes both at once.
+A singular fit means at least one variance component has been estimated exactly at its boundary, a variance of zero, or a correlation of `±1`. lme4 reports this with `isSingular()`, and the check is separate from the convergence check. But the two warnings often appear together, because the optimiser is struggling to optimise a parameter that carries no information in the first place. Dropping the redundant random term fixes both at once.
 
 ```r
 # Simulate data with no real group-level effect
@@ -303,13 +303,13 @@ ex_is_sing
 #> [1] TRUE
 ```
 
-**Explanation:** `isSingular()` is the canonical way to detect boundary fits in lme4 — always run it after a convergence warning, since the two often go together.
+**Explanation:** `isSingular()` is the canonical way to detect boundary fits in lme4, always run it after a convergence warning, since the two often go together.
 
 </details>
 
 ## Fix 5: When should you increase iterations or change tolerance?
 
-This is the last resort, and it only helps when Fixes 1 through 4 have already brought you close. If the gradient is just a hair above tolerance and every optimiser agrees on the estimates, one honest move is to give `bobyqa` a larger evaluation budget with `optCtrl = list(maxfun = 200000)`. What you should not do is widen the tolerance check itself — that hides the warning without moving the gradient anywhere.
+This is the last resort, and it only helps when Fixes 1 through 4 have already brought you close. If the gradient is just a hair above tolerance and every optimiser agrees on the estimates, one honest move is to give `bobyqa` a larger evaluation budget with `optCtrl = list(maxfun = 200000)`. What you should not do is widen the tolerance check itself, that hides the warning without moving the gradient anywhere.
 
 ```r
 # Take the near-convergence maximal model and give bobyqa more budget
@@ -325,7 +325,7 @@ max(abs(m_more@optinfo$derivs$gradient))
 #> [1] 0.00091
 ```
 
-With `maxfun` raised from the default `10000` to `200000`, bobyqa had enough iterations to polish the gradient down from `0.0087` to `0.00091` — now comfortably under the `0.002` tolerance. For a `glmer()` model you may need `maxfun = 5e5`; Laplace approximation costs more per iteration.
+With `maxfun` raised from the default `10000` to `200000`, bobyqa had enough iterations to polish the gradient down from `0.0087` to `0.00091`, now comfortably under the `0.002` tolerance. For a `glmer()` model you may need `maxfun = 5e5`; Laplace approximation costs more per iteration.
 
 [WARNING]
 **Widening `check.conv.grad` tolerance is silencing a smoke alarm, not fixing the fire.** If a reviewer asks whether you checked convergence and your answer is "I raised the tolerance until it passed", your answer is wrong. Raise iterations, not thresholds.
@@ -352,7 +352,7 @@ max(abs(ex_m_more@optinfo$derivs$gradient))
 #> [1] 0.0018
 ```
 
-**Explanation:** Doubling the iteration budget usually shaves the gradient by a factor of two or three — enough to cross the tolerance boundary from just above to just below.
+**Explanation:** Doubling the iteration budget usually shaves the gradient by a factor of two or three, enough to cross the tolerance boundary from just above to just below.
 
 </details>
 
@@ -453,7 +453,7 @@ max(abs(my_fit2@optinfo$derivs$gradient))
 
 ## Complete Example
 
-Here is an end-to-end run on a two-level dataset — 500 students nested in 25 schools, three numeric covariates on wildly different scales, and a treatment indicator. The raw fit fails; after applying Fixes 1 and 2 it converges cleanly.
+Here is an end-to-end run on a two-level dataset, 500 students nested in 25 schools, three numeric covariates on wildly different scales, and a treatment indicator. The raw fit fails; after applying Fixes 1 and 2 it converges cleanly.
 
 ```r
 set.seed(2026)
@@ -496,7 +496,7 @@ VarCorr(m_final)
 #>  Residual             0.504
 ```
 
-All four fixed-effect coefficients are on SD units (the treatment indicator is left unscaled because it is binary). The between-school standard deviation is about `0.3`, or roughly 60% of the residual, which is consistent with the `0.3` we simulated. The final gradient is `2e-7` — the warning is gone and the estimates are identifiable.
+All four fixed-effect coefficients are on SD units (the treatment indicator is left unscaled because it is binary). The between-school standard deviation is about `0.3`, or roughly 60% of the residual, which is consistent with the `0.3` we simulated. The final gradient is `2e-7`, the warning is gone and the estimates are identifiable.
 
 ## Summary
 
@@ -512,20 +512,20 @@ All four fixed-effect coefficients are on SD units (the treatment indicator is l
 | 5. Raise iterations | Gradient just above tolerance | `lmerControl(optCtrl = list(maxfun = 2e5))` | Only after Fixes 1–4 |
 
 [TIP]
-**Never widen the tolerance to hide a warning.** Raise `maxfun`, scale your predictors, simplify your random effects — but leave `check.conv.grad` alone. Silencing the check is not the same as passing it.
+**Never widen the tolerance to hide a warning.** Raise `maxfun`, scale your predictors, simplify your random effects, but leave `check.conv.grad` alone. Silencing the check is not the same as passing it.
 
 ## References
 
-1. Bolker, B. M. — *GLMM FAQ: Mixed Models Frequently Asked Questions*. [Link](https://bbolker.github.io/mixedmodels-misc/glmmFAQ.html)
-2. Bates, D., Mächler, M., Bolker, B., Walker, S. — *Fitting Linear Mixed-Effects Models Using lme4*. Journal of Statistical Software 67(1), 2015. [Link](https://www.jstatsoft.org/article/view/v067i01)
-3. Barr, D. J., Levy, R., Scheepers, C., Tily, H. J. — *Random effects structure for confirmatory hypothesis testing: Keep it maximal*. Journal of Memory and Language 68(3), 2013. [Link](https://doi.org/10.1016/j.jml.2012.11.001)
-4. Matuschek, H., Kliegl, R., Vasishth, S., Baayen, H., Bates, D. — *Balancing Type I error and power in linear mixed models*. Journal of Memory and Language 94, 2017. [Link](https://doi.org/10.1016/j.jml.2017.01.001)
-5. lme4 reference manual — `lmerControl`, `allFit`, `isSingular`. [Link](https://cran.r-project.org/package=lme4)
+1. Bolker, B. M., *GLMM FAQ: Mixed Models Frequently Asked Questions*. [Link](https://bbolker.github.io/mixedmodels-misc/glmmFAQ.html)
+2. Bates, D., Mächler, M., Bolker, B., Walker, S., *Fitting Linear Mixed-Effects Models Using lme4*. Journal of Statistical Software 67(1), 2015. [Link](https://www.jstatsoft.org/article/view/v067i01)
+3. Barr, D. J., Levy, R., Scheepers, C., Tily, H. J., *Random effects structure for confirmatory hypothesis testing: Keep it maximal*. Journal of Memory and Language 68(3), 2013. [Link](https://doi.org/10.1016/j.jml.2012.11.001)
+4. Matuschek, H., Kliegl, R., Vasishth, S., Baayen, H., Bates, D., *Balancing Type I error and power in linear mixed models*. Journal of Memory and Language 94, 2017. [Link](https://doi.org/10.1016/j.jml.2017.01.001)
+5. lme4 reference manual, `lmerControl`, `allFit`, `isSingular`. [Link](https://cran.r-project.org/package=lme4)
 6. CRAN Task View: MixedModels. [Link](https://cran.r-project.org/view=MixedModels)
-7. StackOverflow canonical thread — "lme4 model gives convergence warning". [Link](https://stackoverflow.com/questions/23478792/warning-messages-when-trying-to-run-glmer-in-r)
+7. StackOverflow canonical thread, "lme4 model gives convergence warning". [Link](https://stackoverflow.com/questions/23478792/warning-messages-when-trying-to-run-glmer-in-r)
 
 ## Continue Learning
 
-1. **[R Common Errors](R-Common-Errors.html)** — the full reference hub linking every error-fix post on the site.
-2. **R Error: isSingular TRUE in lme4** — deeper coverage of the singular-fit diagnostic and when it is safe to ignore.
-3. **R Error: non-numeric argument to binary operator** — the most common type-mismatch error in R modelling code.
+1. **[R Common Errors](R-Common-Errors.html)**, the full reference hub linking every error-fix post on the site.
+2. **R Error: isSingular TRUE in lme4**, deeper coverage of the singular-fit diagnostic and when it is safe to ignore.
+3. **R Error: non-numeric argument to binary operator**, the most common type-mismatch error in R modelling code.

@@ -1,7 +1,7 @@
 ---
-title: "Advanced R Exercises: 10 Functional Programming Practice Problems — Solved Step-by-Step"
+title: "Advanced R Exercises: 10 Functional Programming Practice Problems, Solved Step-by-Step"
 slug: "R-Functional-Programming-Exercises"
-description: "Practice functional programming in R with 10 hands-on exercises — pure functions, closures, map, reduce, composition. Starter code and worked solutions."
+description: "Practice functional programming in R with 10 hands-on exercises, pure functions, closures, map, reduce, composition. Starter code and worked solutions."
 keywords: "R functional programming exercises, R map reduce exercises, functional programming practice R, R closures exercises, higher-order functions exercises R, R practice problems functional, purrr exercises R, R Reduce Filter exercises"
 mathjax: false
 webr: true
@@ -15,11 +15,11 @@ fr_parent: "Functional-Programming-in-R.html"
 difficulty: "Intermediate"
 ---
 
-# Advanced R Exercises: 10 Functional Programming Practice Problems — Solved Step-by-Step
+# Advanced R Exercises: 10 Functional Programming Practice Problems, Solved Step-by-Step
 
-<p class="lead">Sharpen your functional programming skills in R with 10 hands-on exercises covering pure functions, first-class functions, higher-order operations (<code>map</code>, <code>filter</code>, <code>reduce</code>), immutability, closures, and pipeline composition — each with starter code and a fully worked solution.</p>
+<p class="lead">Sharpen your functional programming skills in R with 10 hands-on exercises covering pure functions, first-class functions, higher-order operations (<code>map</code>, <code>filter</code>, <code>reduce</code>), immutability, closures, and pipeline composition, each with starter code and a fully worked solution.</p>
 
-These exercises follow the same progression as the [Functional Programming in R](Functional-Programming-in-R.html) tutorial. Work through them in order — earlier problems build habits you need for the later ones. Type your answer before opening the solution; the struggle is where the learning happens.
+These exercises follow the same progression as the [Functional Programming in R](Functional-Programming-in-R.html) tutorial. Work through them in order, earlier problems build habits you need for the later ones. Type your answer before opening the solution; the struggle is where the learning happens.
 
 ## How Should You Use These Exercises?
 
@@ -38,7 +38,7 @@ That variable now exists for the rest of this page. Each exercise gives you a **
 
 ## Exercise 1: Can You Write a Pure Function That Scales a Vector?
 
-A pure function takes its inputs and returns a result — no globals, no side effects, same input always gives the same output. Your job: write `scale_between(x, low, high)` that rescales a numeric vector `x` to fall within `[low, high]`.
+A pure function takes its inputs and returns a result, no globals, no side effects, same input always gives the same output. Your job: write `scale_between(x, low, high)` that rescales a numeric vector `x` to fall within `[low, high]`.
 
 ```r
 # Write scale_between() — a pure function
@@ -67,13 +67,13 @@ scale_between(c(10, 20, 30, 40, 50), 0, 100)
 #> [1]   0  25  50  75 100
 ```
 
-**Explanation:** First we normalise `x` to the 0-1 range by subtracting the minimum and dividing by the range. Then we stretch it to `[low, high]` by multiplying by the target width and adding `low`. The function touches nothing outside its own body — pure by construction.
+**Explanation:** First we normalise `x` to the 0-1 range by subtracting the minimum and dividing by the range. Then we stretch it to `[low, high]` by multiplying by the target width and adding `low`. The function touches nothing outside its own body, pure by construction.
 
 </details>
 
 ## Exercise 2: Can You Spot and Fix the Impure Function?
 
-The function below tracks a running total using `<<-`, which writes to the global environment. That makes it impure — calling it twice with the same input gives different results. Rewrite it so the same inputs always produce the same output.
+The function below tracks a running total using `<<-`, which writes to the global environment. That makes it impure, calling it twice with the same input gives different results. Rewrite it so the same inputs always produce the same output.
 
 ```r
 # Impure version — DO NOT use this pattern
@@ -118,7 +118,7 @@ add_pure(0, 5)
 #> [1] 18
 ```
 
-**Explanation:** The impure version hid state in a global variable, making the output depend on *when* you call it. The pure version takes the current total as an explicit argument, so the output depends only on the inputs. To accumulate, you chain calls or use `Reduce` — the state travels through the function, not around it.
+**Explanation:** The impure version hid state in a global variable, making the output depend on *when* you call it. The pure version takes the current total as an explicit argument, so the output depends only on the inputs. To accumulate, you chain calls or use `Reduce`, the state travels through the function, not around it.
 
 </details>
 
@@ -127,7 +127,7 @@ add_pure(0, 5)
 
 ## Exercise 3: Can You Store Functions in a List and Dispatch by Name?
 
-In R, functions are first-class values — you can store them in variables, lists, or pass them as arguments. Create a named list of four summary statistics and write a dispatcher function.
+In R, functions are first-class values, you can store them in variables, lists, or pass them as arguments. Create a named list of four summary statistics and write a dispatcher function.
 
 ```r
 # Create a named list of summary functions:
@@ -175,7 +175,7 @@ summarise_with(1:100, "iqr")
 #> [1] 49.5
 ```
 
-**Explanation:** `stat_funs` is a named list where each element is a function. `stat_funs[[stat_name]]` retrieves the function by name, and the trailing `(x)` calls it. This pattern is called "dispatch by name" — it replaces long `if`/`else` chains with a clean lookup.
+**Explanation:** `stat_funs` is a named list where each element is a function. `stat_funs[[stat_name]]` retrieves the function by name, and the trailing `(x)` calls it. This pattern is called "dispatch by name", it replaces long `if`/`else` chains with a clean lookup.
 
 </details>
 
@@ -221,7 +221,7 @@ make_power(0.5)(16)
 #> [1] 4
 ```
 
-**Explanation:** `make_power(2)` creates a new function whose body is `x^n`, where `n` is locked to `2` in the enclosing environment. That binding persists even after `make_power` finishes. This is a **closure** — the returned function "closes over" `n`. The `0.5` test shows that square roots are just power-0.5, and the factory handles that without any special case.
+**Explanation:** `make_power(2)` creates a new function whose body is `x^n`, where `n` is locked to `2` in the enclosing environment. That binding persists even after `make_power` finishes. This is a **closure**, the returned function "closes over" `n`. The `0.5` test shows that square roots are just power-0.5, and the factory handles that without any special case.
 
 </details>
 
@@ -265,7 +265,7 @@ round(df_z, 2)
 #> 5  -0.63  -0.58  0.98
 ```
 
-**Explanation:** `sapply(df, fun)` applies the anonymous function to each column and simplifies the result to a matrix. Wrapping it in `as.data.frame()` gives back a data frame. One line replaces four. More importantly, the intent — "normalise each column" — is visible at a glance, while the loop buries it in index bookkeeping.
+**Explanation:** `sapply(df, fun)` applies the anonymous function to each column and simplifies the result to a matrix. Wrapping it in `as.data.frame()` gives back a data frame. One line replaces four. More importantly, the intent, "normalise each column", is visible at a glance, while the loop buries it in index bookkeeping.
 
 </details>
 
@@ -299,7 +299,7 @@ mixed |>
 #> [1] 280
 ```
 
-**Explanation:** `Filter` applies the predicate to each element. Strings fail `is.numeric()`, negatives fail `x > 0`, and `TRUE` is technically numeric but not `> 0` in the way we want (it equals 1, so the predicate passes — if you want to exclude it, add `!is.logical(x)`). `Reduce` then folds `*` across the surviving values: `7 * 2 = 14`, `14 * 5 = 70`, `70 * 4 = 280`.
+**Explanation:** `Filter` applies the predicate to each element. Strings fail `is.numeric()`, negatives fail `x > 0`, and `TRUE` is technically numeric but not `> 0` in the way we want (it equals 1, so the predicate passes, if you want to exclude it, add `!is.logical(x)`). `Reduce` then folds `*` across the surviving values: `7 * 2 = 14`, `14 * 5 = 70`, `70 * 4 = 280`.
 
 </details>
 
@@ -308,7 +308,7 @@ mixed |>
 
 ## Exercise 7: Can You Write Your Own Map From Scratch?
 
-The best way to understand a higher-order function is to build one. Implement `my_map(x, f)` that applies `f` to every element of `x` and returns a list — without using `lapply`, `sapply`, `Map`, `purrr::map`, or any apply variant.
+The best way to understand a higher-order function is to build one. Implement `my_map(x, f)` that applies `f` to every element of `x` and returns a list, without using `lapply`, `sapply`, `Map`, `purrr::map`, or any apply variant.
 
 ```r
 my_map <- function(x, f) {
@@ -359,16 +359,16 @@ my_map(c("hello", "world"), toupper)
 #> [1] "WORLD"
 ```
 
-**Explanation:** We pre-allocate a list with `vector("list", length(x))` to avoid growing the list inside the loop (which is slow). `seq_along(x)` generates indices safely even if `x` is empty. Then we apply `f` to each element and store the result. This is essentially what `lapply` does internally in C — you've just written the R version.
+**Explanation:** We pre-allocate a list with `vector("list", length(x))` to avoid growing the list inside the loop (which is slow). `seq_along(x)` generates indices safely even if `x` is empty. Then we apply `f` to each element and store the result. This is essentially what `lapply` does internally in C, you've just written the R version.
 
 </details>
 
 [KEY INSIGHT]
-**Every higher-order function is hiding a loop.** The value of `sapply`, `Filter`, and `Reduce` isn't that they avoid loops — it's that they give the loop a *name*. When you see `sapply`, you know "one call per element, collect results." When you see a raw `for` loop, you have to read the body to know what pattern it follows.
+**Every higher-order function is hiding a loop.** The value of `sapply`, `Filter`, and `Reduce` isn't that they avoid loops, it's that they give the loop a *name*. When you see `sapply`, you know "one call per element, collect results." When you see a raw `for` loop, you have to read the body to know what pattern it follows.
 
 ## Exercise 8: Can You Prove That Copy-on-Modify Keeps Your Data Safe?
 
-R's copy-on-modify rule means a function cannot corrupt the data you pass in. Write a function `mangle(df)` that sorts the rows, renames a column, and adds a new column — then prove the original data frame is identical before and after the call.
+R's copy-on-modify rule means a function cannot corrupt the data you pass in. Write a function `mangle(df)` that sorts the rows, renames a column, and adds a new column, then prove the original data frame is identical before and after the call.
 
 ```r
 original_df <- data.frame(
@@ -420,7 +420,7 @@ original_df
 #> 3  Mia    72
 ```
 
-**Explanation:** Inside `mangle`, every modification triggers R's copy-on-modify: the `df` inside the function becomes a private copy the moment we sort, rename, or add a column. The caller's `original_df` is never touched. This is why functional R code is safe for data analysis — mistakes inside a function cannot retroactively poison your source data.
+**Explanation:** Inside `mangle`, every modification triggers R's copy-on-modify: the `df` inside the function becomes a private copy the moment we sort, rename, or add a column. The caller's `original_df` is never touched. This is why functional R code is safe for data analysis, mistakes inside a function cannot retroactively poison your source data.
 
 </details>
 
@@ -523,18 +523,18 @@ fib(50)
 #> [1] 12586269025
 ```
 
-**Explanation:** `make_fib_memo` creates an environment (`cache`) that lives as long as the returned function does — this is a closure in action. On each call, `fib_inner` first checks if the result is already cached. If yes, it returns instantly. If no, it computes the value recursively, stores it in `cache`, and returns it. The naive version computes `fib(30)` with over a billion recursive calls; the memoised version computes each value exactly once — 30 calls total.
+**Explanation:** `make_fib_memo` creates an environment (`cache`) that lives as long as the returned function does, this is a closure in action. On each call, `fib_inner` first checks if the result is already cached. If yes, it returns instantly. If no, it computes the value recursively, stores it in `cache`, and returns it. The naive version computes `fib(30)` with over a billion recursive calls; the memoised version computes each value exactly once, 30 calls total.
 
 </details>
 
 [KEY INSIGHT]
-**Memoisation turns exponential time into linear time for overlapping subproblems.** The cache is just an environment (R's native hash map), and the closure keeps it private — no global variables, no side effects visible to the caller. This pattern works for any pure function with expensive, repeated computations: API calls, file parsing, or matrix factorisation.
+**Memoisation turns exponential time into linear time for overlapping subproblems.** The cache is just an environment (R's native hash map), and the closure keeps it private, no global variables, no side effects visible to the caller. This pattern works for any pure function with expensive, repeated computations: API calls, file parsing, or matrix factorisation.
 
 ## Summary
 
 | Exercise | Concept | Key Takeaway |
 |---|---|---|
-| 1 | Pure functions | Same input, same output — no side effects |
+| 1 | Pure functions | Same input, same output, no side effects |
 | 2 | Pure vs impure | Replace `<<-` with explicit arguments |
 | 3 | First-class functions | Store functions in lists for clean dispatch |
 | 4 | Function factories | Closures capture their enclosing environment |
@@ -547,15 +547,15 @@ fib(50)
 
 ## References
 
-1. Wickham, H. — *Advanced R*, 2nd Edition. Chapter 6: Functions. [Link](https://adv-r.hadley.nz/functions.html)
-2. Wickham, H. — *Advanced R*, 2nd Edition. Chapter 9: Functionals. [Link](https://adv-r.hadley.nz/functionals.html)
-3. Wickham, H. — *Advanced R*, 2nd Edition. Chapter 10: Function Factories. [Link](https://adv-r.hadley.nz/function-factories.html)
-4. purrr package documentation — Functional programming tools for R. [Link](https://purrr.tidyverse.org/)
-5. R Core Team — base R `Reduce`, `Filter`, `Map`, and `Position` reference. [Link](https://rdrr.io/r/base/funprog.html)
-6. R Core Team — *An Introduction to R*. [Link](https://cran.r-project.org/doc/manuals/r-release/R-intro.html)
+1. Wickham, H., *Advanced R*, 2nd Edition. Chapter 6: Functions. [Link](https://adv-r.hadley.nz/functions.html)
+2. Wickham, H., *Advanced R*, 2nd Edition. Chapter 9: Functionals. [Link](https://adv-r.hadley.nz/functionals.html)
+3. Wickham, H., *Advanced R*, 2nd Edition. Chapter 10: Function Factories. [Link](https://adv-r.hadley.nz/function-factories.html)
+4. purrr package documentation, Functional programming tools for R. [Link](https://purrr.tidyverse.org/)
+5. R Core Team, base R `Reduce`, `Filter`, `Map`, and `Position` reference. [Link](https://rdrr.io/r/base/funprog.html)
+6. R Core Team, *An Introduction to R*. [Link](https://cran.r-project.org/doc/manuals/r-release/R-intro.html)
 
 ## Continue Learning
 
-- [Functional Programming in R](Functional-Programming-in-R.html) — the parent tutorial covering all five concepts these exercises test.
-- [Base R's Functional Triad: Reduce(), Filter(), Map()](Reduce-Filter-Map-in-R.html) — deep dive into the three base R higher-order functions used in exercises 6 and 7.
-- [purrr map() Variants](purrr-map-Variants.html) — typed map alternatives when you want vectors instead of lists.
+- [Functional Programming in R](Functional-Programming-in-R.html), the parent tutorial covering all five concepts these exercises test.
+- [Base R's Functional Triad: Reduce(), Filter(), Map()](Reduce-Filter-Map-in-R.html), deep dive into the three base R higher-order functions used in exercises 6 and 7.
+- [purrr map() Variants](purrr-map-Variants.html), typed map alternatives when you want vectors instead of lists.

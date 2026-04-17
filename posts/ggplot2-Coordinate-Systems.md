@@ -16,26 +16,26 @@ difficulty: "Intermediate"
 
 # ggplot2 Coordinate Systems: coord_flip(), coord_polar(), and Beyond
 
-<p class="lead">In ggplot2, coordinate systems transform how x and y values map to position on the plot — letting you flip axes, build circular charts, lock aspect ratios, and zoom without dropping data, all without touching your underlying dataset.</p>
+<p class="lead">In ggplot2, coordinate systems transform how x and y values map to position on the plot, letting you flip axes, build circular charts, lock aspect ratios, and zoom without dropping data, all without touching your underlying dataset.</p>
 
 ## Introduction
 
-Most ggplot2 users get comfortable with geoms, aesthetics, and scales — and stop there. But coordinate systems are where you unlock a surprising set of chart types that would otherwise require completely different code.
+Most ggplot2 users get comfortable with geoms, aesthetics, and scales, and stop there. But coordinate systems are where you unlock a surprising set of chart types that would otherwise require completely different code.
 
 Consider: a pie chart in ggplot2 is just a stacked bar chart viewed in polar coordinates. A horizontal bar chart is a vertical bar chart with flipped axes. A zoomed-in scatter plot that keeps the trend line accurate is a chart with coordinate clipping rather than data filtering. All of this is controlled by `coord_*()` functions.
 
-Coordinate systems apply *after* geoms are drawn. This matters because statistics and summaries (like regression lines and boxplot quartiles) are computed on the full data first — then the coordinate transform is applied to the result. That sequencing is what makes `coord_cartesian()` safe for zooming and `scale_x_continuous(limits = ...)` potentially dangerous.
+Coordinate systems apply *after* geoms are drawn. This matters because statistics and summaries (like regression lines and boxplot quartiles) are computed on the full data first, then the coordinate transform is applied to the result. That sequencing is what makes `coord_cartesian()` safe for zooming and `scale_x_continuous(limits = ...)` potentially dangerous.
 
 In this tutorial you will learn:
 
-- `coord_flip()` — flip x and y for horizontal charts
-- `coord_polar()` — map to polar coordinates for pies and roses
-- `coord_fixed()` — lock the aspect ratio between axes
-- `coord_cartesian()` — zoom the view without dropping data
+- `coord_flip()`, flip x and y for horizontal charts
+- `coord_polar()`, map to polar coordinates for pies and roses
+- `coord_fixed()`, lock the aspect ratio between axes
+- `coord_cartesian()`, zoom the view without dropping data
 
 ## How Does coord_flip() Work to Make Horizontal Charts?
 
-`coord_flip()` swaps the x and y axes after the plot is fully built. The data, geoms, and scales all remain unchanged — only the final display is rotated 90°.
+`coord_flip()` swaps the x and y axes after the plot is fully built. The data, geoms, and scales all remain unchanged, only the final display is rotated 90°.
 
 This is most useful when category labels are long and would overlap on a vertical axis. Instead of abbreviating or rotating labels, flip the chart so labels sit comfortably on the y-axis (which becomes the horizontal one after flipping).
 
@@ -85,7 +85,7 @@ p_box_flipped <- ggplot(mpg, aes(x = drv, y = hwy, fill = drv)) +
 p_box_flipped
 ```
 
-> **TIP:** In ggplot2 3.3+, you can achieve horizontal bars by simply swapping `aes(x = ...)` and `aes(y = ...)` without `coord_flip()`. The older `coord_flip()` approach is still widely used and perfectly valid — but if you're writing fresh code and don't need to support older ggplot2 versions, direct axis swapping is slightly cleaner.
+> **TIP:** In ggplot2 3.3+, you can achieve horizontal bars by simply swapping `aes(x = ...)` and `aes(y = ...)` without `coord_flip()`. The older `coord_flip()` approach is still widely used and perfectly valid, but if you're writing fresh code and don't need to support older ggplot2 versions, direct axis swapping is slightly cleaner.
 
 **Try it:** Apply `coord_flip()` to a bar chart of `cut` frequency in the `diamonds` dataset. Use `fct_infreq()` to sort bars by count before flipping.
 
@@ -106,12 +106,12 @@ ex_flip <- ggplot(diamonds, aes(x = fct_infreq(cut))) +
 ex_flip
 ```
 
-`fct_infreq()` sorts the cut levels by their frequency count *before* plotting, so the bar chart reads from most-common to least-common automatically. Because `coord_flip()` keeps the underlying data axes oriented the same way internally, `Ideal` (the most common cut) ends up at the *bottom* of the flipped chart — readers scan bottom-to-top. To flip the reading order, wrap the factor in `fct_rev(fct_infreq(cut))` so the top bar is the most common.
+`fct_infreq()` sorts the cut levels by their frequency count *before* plotting, so the bar chart reads from most-common to least-common automatically. Because `coord_flip()` keeps the underlying data axes oriented the same way internally, `Ideal` (the most common cut) ends up at the *bottom* of the flipped chart, readers scan bottom-to-top. To flip the reading order, wrap the factor in `fct_rev(fct_infreq(cut))` so the top bar is the most common.
 </details>
 
 ## How Does coord_polar() Create Pie Charts and Radial Plots?
 
-`coord_polar()` maps one of the axes to angle (the polar coordinate) and the other to radius. The key argument is `theta` — which axis becomes the angle.
+`coord_polar()` maps one of the axes to angle (the polar coordinate) and the other to radius. The key argument is `theta`, which axis becomes the angle.
 
 The magic trick: a stacked bar chart with `position = "fill"` plus `coord_polar(theta = "y")` becomes a pie chart. The stacked segments become slices; their widths become their angular sizes.
 
@@ -135,9 +135,9 @@ p_pie <- ggplot(df_pie, aes(x = "", y = pct, fill = category)) +
 p_pie
 ```
 
-`theta = "y"` maps the y-axis (proportion) to the angle — making each segment's arc proportional to its share. `x = ""` collapses the bar to a single stack. `theme_void()` removes the axes and grid, which look wrong in a circular layout.
+`theta = "y"` maps the y-axis (proportion) to the angle, making each segment's arc proportional to its share. `x = ""` collapses the bar to a single stack. `theme_void()` removes the axes and grid, which look wrong in a circular layout.
 
-For a **coxcomb (rose) chart** — a bar chart in polar coordinates where bars fan out from the center — use `theta = "x"` instead:
+For a **coxcomb (rose) chart**, a bar chart in polar coordinates where bars fan out from the center, use `theta = "x"` instead:
 
 ```r
 p_rose <- ggplot(df_pie, aes(x = category, y = count, fill = category)) +
@@ -152,9 +152,9 @@ p_rose <- ggplot(df_pie, aes(x = category, y = count, fill = category)) +
 p_rose
 ```
 
-> **KEY INSIGHT:** Pie charts in ggplot2 are not a built-in geom — they are stacked bar charts viewed in polar coordinates. This is not just trivia: it means all the customization tools for bar charts (fill colors, labels, `scale_fill_*`) work on pies without any special syntax.
+> **KEY INSIGHT:** Pie charts in ggplot2 are not a built-in geom, they are stacked bar charts viewed in polar coordinates. This is not just trivia: it means all the customization tools for bar charts (fill colors, labels, `scale_fill_*`) work on pies without any special syntax.
 
-> **WARNING:** Pie charts make it hard for readers to compare slice sizes — especially when slices are similar or non-adjacent. For comparisons, a sorted bar chart is almost always clearer. Reserve pie charts for cases where you need to show that one segment dominates (60%+) or for audiences who specifically expect a pie.
+> **WARNING:** Pie charts make it hard for readers to compare slice sizes, especially when slices are similar or non-adjacent. For comparisons, a sorted bar chart is almost always clearer. Reserve pie charts for cases where you need to show that one segment dominates (60%+) or for audiences who specifically expect a pie.
 
 **Try it:** Turn `p_rose` into a standard pie chart by changing `theta = "x"` to `theta = "y"` and adding `x = ""` to the aesthetic mapping. What changes?
 
@@ -176,7 +176,7 @@ ex_rose_to_pie <- ggplot(df_pie, aes(x = "", y = count, fill = category)) +
 ex_rose_to_pie
 ```
 
-Switching to `theta = "y"` moves the mapping from "radius = count" to "angle = count" — so instead of bars fanning out from the center with different radii, you get slices of a filled disc with different angular widths. Setting `x = ""` collapses what was an axis of distinct categories into a single stacked column, which is exactly the starting shape you need for a pie. The result: a classic pie chart where the category with the largest count takes up the widest wedge.
+Switching to `theta = "y"` moves the mapping from "radius = count" to "angle = count", so instead of bars fanning out from the center with different radii, you get slices of a filled disc with different angular widths. Setting `x = ""` collapses what was an axis of distinct categories into a single stacked column, which is exactly the starting shape you need for a pie. The result: a classic pie chart where the category with the largest count takes up the widest wedge.
 </details>
 
 ## How Does coord_fixed() Control Aspect Ratios?
@@ -212,9 +212,9 @@ p_fixed <- ggplot(iris, aes(x = Sepal.Length, y = Sepal.Width,
 p_fixed
 ```
 
-The fixed version immediately shows that sepal length varies across a wider range than sepal width — information that was hidden in the stretched version.
+The fixed version immediately shows that sepal length varies across a wider range than sepal width, information that was hidden in the stretched version.
 
-> **TIP:** Use `coord_fixed()` when both axes measure the same unit (cm, dollars, pixels) and the relative scale is meaningful. Avoid it when axes measure different things (height vs weight, time vs money) — forcing equal units would make the chart misleading.
+> **TIP:** Use `coord_fixed()` when both axes measure the same unit (cm, dollars, pixels) and the relative scale is meaningful. Avoid it when axes measure different things (height vs weight, time vs money), forcing equal units would make the chart misleading.
 
 **Try it:** Add `coord_fixed(ratio = 0.5)` to `p_scatter`. How does the chart shape change compared to `ratio = 1`?
 
@@ -230,12 +230,12 @@ ex_fixed_half <- p_scatter + coord_fixed(ratio = 0.5)
 ex_fixed_half
 ```
 
-`ratio = 0.5` means one y-unit takes half the physical height that one x-unit takes — so the y-axis gets compressed vertically compared to `ratio = 1`. The cloud of sepal points looks flatter and wider because the y-range (sepal width) is squashed relative to the x-range (sepal length). You'd pick a ratio less than 1 when the y-variable has a smaller range than x and you want the plot to occupy a wider-than-tall rectangle; greater than 1 does the opposite.
+`ratio = 0.5` means one y-unit takes half the physical height that one x-unit takes, so the y-axis gets compressed vertically compared to `ratio = 1`. The cloud of sepal points looks flatter and wider because the y-range (sepal width) is squashed relative to the x-range (sepal length). You'd pick a ratio less than 1 when the y-variable has a smaller range than x and you want the plot to occupy a wider-than-tall rectangle; greater than 1 does the opposite.
 </details>
 
 ## How Does coord_cartesian() Zoom In Without Dropping Data?
 
-This is the most subtle but most important coord function. When you want to zoom into a region of a scatter plot, your instinct might be to set limits on the scale: `scale_x_continuous(limits = c(1, 3))`. But this *drops all data outside the limits before computing statistics* — which silently changes regression lines, smooths, and boxplot quartiles.
+This is the most subtle but most important coord function. When you want to zoom into a region of a scatter plot, your instinct might be to set limits on the scale: `scale_x_continuous(limits = c(1, 3))`. But this *drops all data outside the limits before computing statistics*, which silently changes regression lines, smooths, and boxplot quartiles.
 
 `coord_cartesian()` clips only the *view*, not the data. All statistics are computed on the complete dataset; then the plot window is cropped to show only the specified range.
 
@@ -264,9 +264,9 @@ p_zoom_coord <- ggplot(diamonds, aes(x = carat, y = price)) +
 p_zoom_coord
 ```
 
-The regression lines will look different — and the `coord_cartesian` version is the honest one. The `scale_x_continuous(limits = ...)` version fits a line only to the visible subset, which can create a completely different slope.
+The regression lines will look different, and the `coord_cartesian` version is the honest one. The `scale_x_continuous(limits = ...)` version fits a line only to the visible subset, which can create a completely different slope.
 
-> **WARNING:** `scale_x_continuous(limits = ...)` is not a zoom — it filters data. Use it only when you genuinely want to exclude out-of-range data from calculations. For zooming into a region while keeping all statistics accurate, always use `coord_cartesian()`.
+> **WARNING:** `scale_x_continuous(limits = ...)` is not a zoom, it filters data. Use it only when you genuinely want to exclude out-of-range data from calculations. For zooming into a region while keeping all statistics accurate, always use `coord_cartesian()`.
 
 **Try it:** Add `coord_cartesian(ylim = c(0, 10000))` to `p_zoom_coord` to also limit the y view. Does the regression line position change?
 
@@ -287,14 +287,14 @@ ex_zoom_xy <- ggplot(diamonds, aes(x = carat, y = price)) +
 ex_zoom_xy
 ```
 
-The regression line's *position and slope* don't change because `coord_cartesian()` still fits the model on all 53,940 diamonds — it only clips the final view. What changes is what you *see*: points above $10,000 disappear off the top of the window, but they still contribute to the fit. Compare this to `scale_y_continuous(limits = c(0, 10000))`, which would drop those high-price diamonds before fitting and produce a visibly different (and wrong) line.
+The regression line's *position and slope* don't change because `coord_cartesian()` still fits the model on all 53,940 diamonds, it only clips the final view. What changes is what you *see*: points above $10,000 disappear off the top of the window, but they still contribute to the fit. Compare this to `scale_y_continuous(limits = c(0, 10000))`, which would drop those high-price diamonds before fitting and produce a visibly different (and wrong) line.
 </details>
 
 ## Common Mistakes and How to Fix Them
 
 ### Mistake 1: Using scale limits to zoom (silently changes statistics)
 
-❌ `scale_x_continuous(limits = c(1, 3))` drops data before fitting smooths, boxplots, and summaries — changing the results without warning.
+❌ `scale_x_continuous(limits = c(1, 3))` drops data before fitting smooths, boxplots, and summaries, changing the results without warning.
 
 ✅ Use `coord_cartesian(xlim = c(1, 3))` to crop the view while keeping all data for calculations.
 
@@ -308,7 +308,7 @@ ggplot(df_pie, aes(x = "", y = pct, fill = category)) +
   geom_col() + coord_polar(theta = "x")
 ```
 
-✅ For a standard pie chart, always use `theta = "y"` — the proportional y-values become the angular slices:
+✅ For a standard pie chart, always use `theta = "y"`, the proportional y-values become the angular slices:
 
 ```r
 # Correct for a pie
@@ -382,7 +382,7 @@ In the `economics` dataset, the unemployment count (`unemploy`) may show differe
 
 ## Complete Example
 
-Here is a side-by-side demonstration of all four coordinate systems applied to the same base data — showing how a single dataset transforms across different coordinate views:
+Here is a side-by-side demonstration of all four coordinate systems applied to the same base data, showing how a single dataset transforms across different coordinate views:
 
 ```r
 library(patchwork)
@@ -430,34 +430,34 @@ p4 <- ggplot(class_counts, aes(x = class, y = n, fill = class)) +
 
 | Function | Purpose | Key Argument | Best Use Case |
 |---|---|---|---|
-| `coord_flip()` | Swap x and y axes | — | Horizontal bars, long labels |
+| `coord_flip()` | Swap x and y axes |, | Horizontal bars, long labels |
 | `coord_polar()` | Map to circular coordinates | `theta = "x"` or `"y"` | Pie charts, coxcomb/rose charts |
 | `coord_fixed()` | Lock physical axis ratio | `ratio = 1` | Same-unit axes, geographic-style plots |
 | `coord_cartesian()` | Clip view without dropping data | `xlim`, `ylim` | Zooming while preserving statistics |
 
 Rules to remember:
-- `coord_flip()` rotates the whole plot — scales and labels flip with it
+- `coord_flip()` rotates the whole plot, scales and labels flip with it
 - Pie chart = stacked bar + `coord_polar(theta = "y")` + `theme_void()`
 - Use `coord_cartesian()` to zoom; use scale limits only when you truly want to exclude data
-- `coord_fixed()` is for same-unit axes — it distorts charts when axes measure different things
+- `coord_fixed()` is for same-unit axes, it distorts charts when axes measure different things
 
 ## FAQ
 
 **When should I use coord_flip() vs just switching aes(x, y)?**
 
-Both work. `coord_flip()` is more convenient when you've already built a vertical chart and want to flip it — add one line and you're done. Directly swapping `x` and `y` in `aes()` gives you more control over individual scale properties. For new code targeting ggplot2 3.3+, the direct swap is slightly cleaner.
+Both work. `coord_flip()` is more convenient when you've already built a vertical chart and want to flip it, add one line and you're done. Directly swapping `x` and `y` in `aes()` gives you more control over individual scale properties. For new code targeting ggplot2 3.3+, the direct swap is slightly cleaner.
 
 **Can I combine coord_flip() with facets?**
 
-Yes. `coord_flip() + facet_wrap()` works, but label positioning can get crowded — especially strip labels on the right side of each panel. Use `theme(strip.text.y = element_text(angle = 0))` to rotate strip labels for readability.
+Yes. `coord_flip() + facet_wrap()` works, but label positioning can get crowded, especially strip labels on the right side of each panel. Use `theme(strip.text.y = element_text(angle = 0))` to rotate strip labels for readability.
 
 **Why does my pie chart look wrong with coord_polar()?**
 
-The most common causes: (1) you used `theta = "x"` instead of `theta = "y"` — this gives a coxcomb, not a pie; (2) you forgot `x = ""` in the aesthetic, leaving gaps between pie segments; (3) your bars aren't stacked with `position = "stack"` (the default for `geom_col()`). Check all three.
+The most common causes: (1) you used `theta = "x"` instead of `theta = "y"`, this gives a coxcomb, not a pie; (2) you forgot `x = ""` in the aesthetic, leaving gaps between pie segments; (3) your bars aren't stacked with `position = "stack"` (the default for `geom_col()`). Check all three.
 
 **What is the difference between coord_cartesian() and xlim()?**
 
-`xlim(a, b)` is shorthand for `scale_x_continuous(limits = c(a, b))` — it drops data outside the range before statistics are computed. `coord_cartesian(xlim = c(a, b))` clips only the visible window; data outside the range still contributes to smooths, boxplot quartiles, and summaries.
+`xlim(a, b)` is shorthand for `scale_x_continuous(limits = c(a, b))`, it drops data outside the range before statistics are computed. `coord_cartesian(xlim = c(a, b))` clips only the visible window; data outside the range still contributes to smooths, boxplot quartiles, and summaries.
 
 **Can I use coord_fixed() with map projections?**
 
@@ -466,14 +466,14 @@ Sort of. `coord_fixed()` fixes the x/y pixel ratio, which gives a rough approxim
 ## References
 
 1. Wickham, H. (2016). *ggplot2: Elegant Graphics for Data Analysis*, Chapter 15: Coordinate Systems. Springer. https://ggplot2-book.org/coord.html
-2. ggplot2 reference — `coord_flip()`. https://ggplot2.tidyverse.org/reference/coord_flip.html
-3. ggplot2 reference — `coord_polar()`. https://ggplot2.tidyverse.org/reference/coord_polar.html
-4. ggplot2 reference — `coord_fixed()`. https://ggplot2.tidyverse.org/reference/coord_fixed.html
-5. ggplot2 reference — `coord_cartesian()`. https://ggplot2.tidyverse.org/reference/coord_cartesian.html
+2. ggplot2 reference, `coord_flip()`. https://ggplot2.tidyverse.org/reference/coord_flip.html
+3. ggplot2 reference, `coord_polar()`. https://ggplot2.tidyverse.org/reference/coord_polar.html
+4. ggplot2 reference, `coord_fixed()`. https://ggplot2.tidyverse.org/reference/coord_fixed.html
+5. ggplot2 reference, `coord_cartesian()`. https://ggplot2.tidyverse.org/reference/coord_cartesian.html
 6. Wilke, C. O. (2019). *Fundamentals of Data Visualization*. O'Reilly. https://clauswilke.com/dataviz/
 
 ## Continue Learning
 
-- **ggplot2 Scales** — control axis breaks, labels, and color palettes with `scale_x_*()`, `scale_y_*()`, and `scale_color_*()`.
-- **ggplot2 Distribution Charts** — histograms, density plots, boxplots, and violin plots to explore how your data is spread.
-- **ggplot2 Bar Charts** — stacked, dodged, and percent bars with `geom_bar()` and `geom_col()`.
+- **ggplot2 Scales**, control axis breaks, labels, and color palettes with `scale_x_*()`, `scale_y_*()`, and `scale_color_*()`.
+- **ggplot2 Distribution Charts**, histograms, density plots, boxplots, and violin plots to explore how your data is spread.
+- **ggplot2 Bar Charts**, stacked, dodged, and percent bars with `geom_bar()` and `geom_col()`.

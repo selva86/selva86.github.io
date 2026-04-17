@@ -16,7 +16,7 @@ difficulty: "Intermediate"
 
 # R Execution Stack: sys.call(), parent.frame() & Call Stack Internals
 
-<p class="lead">Every time you call a function in R, it gets pushed onto the call stack. R provides <code>sys.call()</code>, <code>sys.frame()</code>, <code>parent.frame()</code>, and <code>sys.nframe()</code> to inspect this stack at runtime — essential for metaprogramming and advanced debugging.</p>
+<p class="lead">Every time you call a function in R, it gets pushed onto the call stack. R provides <code>sys.call()</code>, <code>sys.frame()</code>, <code>parent.frame()</code>, and <code>sys.nframe()</code> to inspect this stack at runtime, essential for metaprogramming and advanced debugging.</p>
 
 These functions are rarely needed in everyday R code, but they power many internal mechanisms: how `tryCatch()` finds handlers, how `debug()` walks through code, and how packages like rlang build their error reporting.
 
@@ -106,7 +106,7 @@ my_function()
 
 ## parent.frame(): The Caller's Environment
 
-`parent.frame()` is shorthand for `sys.frame(-1)` — it gives you the environment of the function that called you:
+`parent.frame()` is shorthand for `sys.frame(-1)`, it gives you the environment of the function that called you:
 
 ```r
 # Useful for functions that need to evaluate in the caller's context
@@ -223,6 +223,6 @@ They're identical. `parent.frame(n)` is `sys.frame(-n)`. `parent.frame()` defaul
 
 ## Continue Learning
 
-1. **R Namespaces** — how package environments and the search path work together
-2. **R Environments** — the foundational concept behind all stack frames
-3. **R Debugging** — practical use of stack inspection for finding bugs
+1. **R Namespaces**, how package environments and the search path work together
+2. **R Environments**, the foundational concept behind all stack frames
+3. **R Debugging**, practical use of stack inspection for finding bugs

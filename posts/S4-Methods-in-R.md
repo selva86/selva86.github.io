@@ -1,7 +1,7 @@
 ---
 title: "S4 Multiple Dispatch in R: Dispatch on Two Arguments Simultaneously"
 slug: "S4-Methods-in-R"
-description: "S4 multiple dispatch lets methods specialise on the combination of two argument types — a capability S3 lacks. Learn setMethod(), showMethods(), and real use cases."
+description: "S4 multiple dispatch lets methods specialise on the combination of two argument types, a capability S3 lacks. Learn setMethod(), showMethods(), and real use cases."
 keywords: "S4 multiple dispatch R, setMethod R, S4 methods R, multiple dispatch two arguments R, setGeneric R, showMethods R, S4 method signature, S4 dispatch resolution, S4 vs S3 dispatch"
 mathjax: false
 webr: true
@@ -18,11 +18,11 @@ difficulty: "Beginner"
 
 # S4 Multiple Dispatch in R: Dispatch on Two Arguments Simultaneously
 
-<p class="lead">S4's multiple dispatch lets a single generic function choose different methods based on the classes of two or more arguments at once — something S3 cannot do. This is R's most powerful method-selection mechanism, used throughout Bioconductor and the Matrix package.</p>
+<p class="lead">S4's multiple dispatch lets a single generic function choose different methods based on the classes of two or more arguments at once, something S3 cannot do. This is R's most powerful method-selection mechanism, used throughout Bioconductor and the Matrix package.</p>
 
 ## How does S4 multiple dispatch differ from S3's single dispatch?
 
-S3 dispatches on the class of the first argument only. If you call `combine(x, y)`, S3 checks `class(x)` and ignores `y` entirely. S4 flips this limitation — it examines the classes of *both* arguments together and picks the method that best matches the combination. Let's see the difference in action.
+S3 dispatches on the class of the first argument only. If you call `combine(x, y)`, S3 checks `class(x)` and ignores `y` entirely. S4 flips this limitation, it examines the classes of *both* arguments together and picks the method that best matches the combination. Let's see the difference in action.
 
 ```r
 # Define two S4 classes for unit systems
@@ -64,10 +64,10 @@ result2@value
 #> [1] 0
 ```
 
-Notice how `convert(m1, i1)` and `convert(i1, m1)` call completely different methods. R looked at the class of *both* arguments to decide. In S3, only the first argument would matter — you'd have no way to distinguish the direction of conversion.
+Notice how `convert(m1, i1)` and `convert(i1, m1)` call completely different methods. R looked at the class of *both* arguments to decide. In S3, only the first argument would matter, you'd have no way to distinguish the direction of conversion.
 
 [KEY INSIGHT]
-**Multiple dispatch selects methods based on argument combinations, not just the first argument.** This means convert(Metric, Imperial) and convert(Imperial, Metric) can run entirely different code — a capability S3 simply doesn't have.
+**Multiple dispatch selects methods based on argument combinations, not just the first argument.** This means convert(Metric, Imperial) and convert(Imperial, Metric) can run entirely different code, a capability S3 simply doesn't have.
 
 ![S3 dispatches on one argument; S4 dispatches on the combination of two.](screenshots/S4-Methods-in-R-s3-vs-s4.webp)
 
@@ -129,7 +129,7 @@ interact(new("Cat", name = "Whiskers"), new("Dog", name = "Rex"), verbose = TRUE
 #> [1] "Whiskers hisses at Rex (Cat is not happy)"
 ```
 
-Both calls route to the same method because `verbose` isn't in the signature — it doesn't affect dispatch. Only the classes of `x` and `y` matter.
+Both calls route to the same method because `verbose` isn't in the signature, it doesn't affect dispatch. Only the classes of `x` and `y` matter.
 
 If you omit the `signature` argument entirely, R defaults to dispatching on all formal arguments except `...`. That's usually fine for two-argument generics, but it can cause surprises when you have extra parameters you don't want in the dispatch.
 
@@ -146,7 +146,7 @@ setGeneric("demo_dispatch", function(a, b, mode = "fast") {
 [TIP]
 **Keep signatures to two arguments maximum.** Each dispatched argument multiplies the number of methods you need. Two classes across two arguments means 4 methods; three arguments with two classes each means 8. Combinatorial explosion gets painful fast.
 
-**Try it:** Define a generic called `merge_data()` with arguments `source`, `target`, and `method = "inner"`. Make it dispatch on `source` and `target` only — not on `method`.
+**Try it:** Define a generic called `merge_data()` with arguments `source`, `target`, and `method = "inner"`. Make it dispatch on `source` and `target` only, not on `method`.
 
 ```r
 # Try it: define merge_data with a two-arg signature
@@ -178,7 +178,7 @@ merge_data
 
 ## How do you write methods for specific argument combinations?
 
-Once your generic has a two-argument signature, you register methods by specifying the class name for each position. Think of it as filling in cells of a grid — each cell is a unique class combination.
+Once your generic has a two-argument signature, you register methods by specifying the class name for each position. Think of it as filling in cells of a grid, each cell is a unique class combination.
 
 ```r
 # Two simple classes
@@ -222,9 +222,9 @@ combine(n1, n2)@values
 #> [1] 1 2 3 4 5
 ```
 
-Each combination runs a completely different method body. The order matters — `combine(TextData, NumericData)` is a different cell from `combine(NumericData, TextData)`.
+Each combination runs a completely different method body. The order matters, `combine(TextData, NumericData)` is a different cell from `combine(NumericData, TextData)`.
 
-You don't always need to fill every cell. The `"ANY"` pseudo-class acts as a wildcard — it matches any class in that argument position.
+You don't always need to fill every cell. The `"ANY"` pseudo-class acts as a wildcard, it matches any class in that argument position.
 
 ```r
 # A fallback for ANY + TextData
@@ -250,7 +250,7 @@ combine(t1)
 ```
 
 [WARNING]
-**Method signatures are order-sensitive.** The signature c("TextData", "NumericData") is a completely different method from c("NumericData", "TextData"). Swapping the argument order won't automatically find the reverse method — you must define both if you need both directions.
+**Method signatures are order-sensitive.** The signature c("TextData", "NumericData") is a completely different method from c("NumericData", "TextData"). Swapping the argument order won't automatically find the reverse method, you must define both if you need both directions.
 
 **Try it:** Add a method for `combine()` with signature `c("NumericData", "missing")` that returns a NumericData object with doubled values. Test it with `combine(n1)`.
 
@@ -276,7 +276,7 @@ combine(n1)@values
 #> [1] 2 4 6
 ```
 
-**Explanation:** The `"missing"` class matches when the second argument is absent. Inside the method, `y` isn't used — the method operates only on `x`.
+**Explanation:** The `"missing"` class matches when the second argument is absent. Inside the method, `y` isn't used, the method operates only on `x`.
 
 </details>
 
@@ -307,7 +307,7 @@ overlap(c1, s1)
 #> [1] "Generic shape overlap check"
 ```
 
-No method exists for `(Circle, Square)`. R walks up: Circle inherits from Shape, Square inherits from Shape. The method `(Shape, Shape)` matches after one step per argument — two total steps. That's the closest match, so R uses it.
+No method exists for `(Circle, Square)`. R walks up: Circle inherits from Shape, Square inherits from Shape. The method `(Shape, Shape)` matches after one step per argument, two total steps. That's the closest match, so R uses it.
 
 Now let's add a more specific method and see how dispatch changes.
 
@@ -333,9 +333,9 @@ R always picks the method requiring the fewest total inheritance steps. In this 
 *Figure 1: How S4 selects a method based on two argument classes.*
 
 [KEY INSIGHT]
-**R picks the method requiring the fewest total inheritance steps across all arguments.** An exact match on one argument plus one inheritance step on the other (1 total) beats one step on each argument (2 total). Think of it like "total distance" — closer is better.
+**R picks the method requiring the fewest total inheritance steps across all arguments.** An exact match on one argument plus one inheritance step on the other (1 total) beats one step on each argument (2 total). Think of it like "total distance", closer is better.
 
-**Try it:** Without running the code, predict which method `overlap(s1, c1)` will call — `(Shape, Shape)` or `(Circle, Shape)`? Then verify your prediction.
+**Try it:** Without running the code, predict which method `overlap(s1, c1)` will call, `(Shape, Shape)` or `(Circle, Shape)`? Then verify your prediction.
 
 ```r
 # Try it: predict which method handles overlap(Square, Circle)
@@ -353,7 +353,7 @@ overlap(s1, c1)
 #> [1] "Generic shape overlap check"
 ```
 
-**Explanation:** `s1` is a Square (child of Shape), and `c1` is a Circle (child of Shape). The `(Circle, Shape)` method needs the first arg to be a Circle, but `s1` is a Square — no match even via inheritance. So R falls back to `(Shape, Shape)` which matches after 1 step per argument. Argument order matters in dispatch!
+**Explanation:** `s1` is a Square (child of Shape), and `c1` is a Circle (child of Shape). The `(Circle, Shape)` method needs the first arg to be a Circle, but `s1` is a Square, no match even via inheritance. So R falls back to `(Shape, Shape)` which matches after 1 step per argument. Argument order matters in dispatch!
 
 </details>
 
@@ -373,7 +373,7 @@ showMethods("overlap")
 #>   "Shape"  "Shape"
 ```
 
-`selectMethod()` is the most useful debugging tool — it reveals exactly which method R would call for a given class combination, including inherited methods.
+`selectMethod()` is the most useful debugging tool, it reveals exactly which method R would call for a given class combination, including inherited methods.
 
 ```r
 # What method handles Circle + Square?
@@ -388,7 +388,7 @@ selectMethod("overlap", c("Circle", "Square"))
 #> defined "Circle" "Shape"
 ```
 
-This tells you the `(Circle, Shape)` method handles the `(Circle, Square)` call — even though no `(Circle, Square)` method was directly defined.
+This tells you the `(Circle, Shape)` method handles the `(Circle, Square)` call, even though no `(Circle, Square)` method was directly defined.
 
 `existsMethod()` and `hasMethod()` check whether a method exists. The difference: `existsMethod()` checks for directly defined methods only, while `hasMethod()` includes inherited methods.
 
@@ -411,7 +411,7 @@ findMethod("overlap", c("Shape", "Shape"))
 ```
 
 [TIP]
-**Use selectMethod() as your go-to debugging tool.** It shows the method R will actually call — including inherited methods — rather than just directly defined ones. When dispatch behaves unexpectedly, selectMethod() is your first stop.
+**Use selectMethod() as your go-to debugging tool.** It shows the method R will actually call, including inherited methods, rather than just directly defined ones. When dispatch behaves unexpectedly, selectMethod() is your first stop.
 
 **Try it:** Use `showMethods()` to list all methods for the `convert` generic you defined in the first section.
 
@@ -533,13 +533,13 @@ setMethod("+", c("numeric", "Money"), function(e1, e2) {
 #> [1] 55
 ```
 
-**Explanation:** Without this method, `5 + wallet` would fail because R has no method for (numeric, Money). You must explicitly handle both argument orders — multiple dispatch doesn't assume commutativity.
+**Explanation:** Without this method, `5 + wallet` would fail because R has no method for (numeric, Money). You must explicitly handle both argument orders, multiple dispatch doesn't assume commutativity.
 
 </details>
 
 ## How does dispatch resolution handle ambiguity?
 
-Ambiguity arises when two methods are equally "close" to the target classes — they require the same number of total inheritance steps. R selects one but raises a warning, because the choice is arbitrary.
+Ambiguity arises when two methods are equally "close" to the target classes, they require the same number of total inheritance steps. R selects one but raises a warning, because the choice is arbitrary.
 
 ```r
 # Two parent classes
@@ -586,7 +586,7 @@ process(doc1, doc2)
 #> [1] "Route C: document-specific processing"
 ```
 
-Now R has an exact match at 0 total steps — no ambiguity. Whenever you see an ambiguity warning during development, add the explicit method immediately rather than hoping the arbitrary choice is correct.
+Now R has an exact match at 0 total steps, no ambiguity. Whenever you see an ambiguity warning during development, add the explicit method immediately rather than hoping the arbitrary choice is correct.
 
 [WARNING]
 **Ambiguity warnings are silent bugs waiting to happen.** R picks a method but the choice is arbitrary. If the "wrong" method runs, you'll get incorrect results with no error. Always resolve ambiguities by defining an explicit method for the conflicting signature.
@@ -614,7 +614,7 @@ selectMethod("process", c("Document", "Document"))
 #> defined "Document" "Document"
 ```
 
-**Explanation:** The target and defined signatures match perfectly — (Document, Document). No inheritance climbing needed, no ambiguity.
+**Explanation:** The target and defined signatures match perfectly, (Document, Document). No inheritance climbing needed, no ambiguity.
 
 </details>
 
@@ -749,7 +749,7 @@ Intentionally create an ambiguous dispatch scenario:
 1. Define classes `Alpha` and `Beta`, and `AlphaBeta` that inherits from both
 2. Define a generic `resolve()` dispatching on `(x, y)`
 3. Define methods for `(Alpha, Beta)` and `(Beta, Alpha)`
-4. Call `resolve(ab, ab)` where `ab` is an AlphaBeta object — observe the warning
+4. Call `resolve(ab, ab)` where `ab` is an AlphaBeta object, observe the warning
 5. Fix the ambiguity by adding a method for `(AlphaBeta, AlphaBeta)`
 6. Use `showMethods()` and `selectMethod()` to verify the fix
 
@@ -905,23 +905,23 @@ This system handles four scenarios through multiple dispatch: same-type addition
 - S4 multiple dispatch selects methods based on the combination of argument classes, not just the first argument
 - The `signature` parameter in `setGeneric()` controls which arguments participate in dispatch
 - R resolves inherited methods by minimising total inheritance steps across all arguments
-- Ambiguity warnings mean two methods are equidistant — always resolve with an explicit method
+- Ambiguity warnings mean two methods are equidistant, always resolve with an explicit method
 - Use `selectMethod()` to see exactly which method R will call for any class combination
 - Keep signatures to two arguments to avoid combinatorial explosion
 
 ## References
 
-1. Wickham, H. — *Advanced R*, 2nd Edition. Chapter 15: S4. [Link](https://adv-r.hadley.nz/s4.html)
-2. R Core Team — *Writing R Extensions*: Methods and Classes. [Link](https://cran.r-project.org/doc/manuals/r-release/R-exts.html#Classes-and-methods)
-3. Chambers, J.M. — *How S4 Methods Work* (2006). [Link](https://developer.r-project.org/howMethodsWork.pdf)
-4. Leisch, F. — *S4 Classes and Methods*, UseR! 2004 Keynote. [Link](https://www.r-project.org/conferences/useR-2004/Keynotes/Leisch.pdf)
-5. Genolini, C. — *A (Not So) Short Introduction to S4 OOP in R*. [Link](https://cran.r-project.org/doc/contrib/Genolini-S4tutorialV0-5en.pdf)
-6. Hansen, K.D. — *R S4 Classes and Methods* (Bioconductor course). [Link](https://kasperdanielhansen.github.io/genbioconductor/html/R_S4.html)
-7. R documentation — setMethod() reference. [Link](https://rdrr.io/r/methods/setMethod.html)
-8. Jones, M. — *R, Julia, Multiple Dispatch* (2021). [Link](https://www.mpjon.es/2021/05/31/r-julia-multiple-dispatch/)
+1. Wickham, H., *Advanced R*, 2nd Edition. Chapter 15: S4. [Link](https://adv-r.hadley.nz/s4.html)
+2. R Core Team, *Writing R Extensions*: Methods and Classes. [Link](https://cran.r-project.org/doc/manuals/r-release/R-exts.html#Classes-and-methods)
+3. Chambers, J.M., *How S4 Methods Work* (2006). [Link](https://developer.r-project.org/howMethodsWork.pdf)
+4. Leisch, F., *S4 Classes and Methods*, UseR! 2004 Keynote. [Link](https://www.r-project.org/conferences/useR-2004/Keynotes/Leisch.pdf)
+5. Genolini, C., *A (Not So) Short Introduction to S4 OOP in R*. [Link](https://cran.r-project.org/doc/contrib/Genolini-S4tutorialV0-5en.pdf)
+6. Hansen, K.D., *R S4 Classes and Methods* (Bioconductor course). [Link](https://kasperdanielhansen.github.io/genbioconductor/html/R_S4.html)
+7. R documentation, setMethod() reference. [Link](https://rdrr.io/r/methods/setMethod.html)
+8. Jones, M., *R, Julia, Multiple Dispatch* (2021). [Link](https://www.mpjon.es/2021/05/31/r-julia-multiple-dispatch/)
 
 ## Continue Learning
 
-1. [S4 Classes in R](/S4-Classes-in-R.html) — How to define formal S4 classes with slots, validators, and inheritance before you need methods.
-2. [S3 Method Dispatch in R](/S3-Method-Dispatch-in-R.html) — How S3's simpler single-dispatch system works and where it falls short.
-3. [OOP in R: S3, S4, and R6](/OOP-in-R.html) — A bird's-eye comparison of R's three major OOP systems and when to choose each.
+1. [S4 Classes in R](/S4-Classes-in-R.html), How to define formal S4 classes with slots, validators, and inheritance before you need methods.
+2. [S3 Method Dispatch in R](/S3-Method-Dispatch-in-R.html), How S3's simpler single-dispatch system works and where it falls short.
+3. [OOP in R: S3, S4, and R6](/OOP-in-R.html), A bird's-eye comparison of R's three major OOP systems and when to choose each.

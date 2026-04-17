@@ -18,15 +18,15 @@ difficulty: "Intermediate"
 
 # Lollipop Chart in R: A Cleaner Alternative to Bar Charts
 
-<p class="lead">A lollipop chart is a bar chart stripped down to its essentials — a thin line (stem) topped with a dot — built in ggplot2 with <code>geom_segment()</code> and <code>geom_point()</code>.</p>
+<p class="lead">A lollipop chart is a bar chart stripped down to its essentials, a thin line (stem) topped with a dot, built in ggplot2 with <code>geom_segment()</code> and <code>geom_point()</code>.</p>
 
 ## Introduction
 
-Bar charts are workhorses. They communicate magnitude clearly. But when you have 15-25 categories, a dense forest of filled bars becomes visually noisy — the bars dominate the ink budget, and the actual values (the tops of the bars) are lost in the clutter.
+Bar charts are workhorses. They communicate magnitude clearly. But when you have 15-25 categories, a dense forest of filled bars becomes visually noisy, the bars dominate the ink budget, and the actual values (the tops of the bars) are lost in the clutter.
 
 A lollipop chart solves this. By replacing the filled bar with a thin line and a single dot, you reduce visual noise and make the data points themselves the focal element. The reader's eye goes directly to the dot, not to a wall of colored rectangles.
 
-The tradeoff is that lollipops are slightly less precise than bars for length comparison — humans are better at comparing bar lengths than dot positions along a line. But when you have many categories and want a clean ranked visualization, lollipops are often the better choice.
+The tradeoff is that lollipops are slightly less precise than bars for length comparison, humans are better at comparing bar lengths than dot positions along a line. But when you have many categories and want a clean ranked visualization, lollipops are often the better choice.
 
 ## How do you create a basic lollipop chart in R?
 
@@ -60,7 +60,7 @@ p_basic
 
 `geom_segment()` takes four coordinates: `x`, `xend` (same category on both ends), `y = 0` (baseline), and `yend = temp` (the value). `geom_point()` then places a dot at `(month, temp)`.
 
-**Try it:** Change `geom_point(color = "steelblue", size = 4)` to `geom_point(shape = 21, fill = "steelblue", color = "white", size = 5, stroke = 1.5)`. Shape 21 is a hollow circle you can fill — the white stroke creates a clean border.
+**Try it:** Change `geom_point(color = "steelblue", size = 4)` to `geom_point(shape = 21, fill = "steelblue", color = "white", size = 5, stroke = 1.5)`. Shape 21 is a hollow circle you can fill, the white stroke creates a clean border.
 
 ## How do you order a lollipop chart by value?
 
@@ -92,7 +92,7 @@ p_ordered
 
 ## How do you make a horizontal lollipop chart?
 
-When category names are long — country names, product names, multi-word labels — flip the axes so labels run horizontally and are readable without tilting your head.
+When category names are long, country names, product names, multi-word labels, flip the axes so labels run horizontally and are readable without tilting your head.
 
 ```r
 # Horizontal lollipop: switch x and y, use long category names
@@ -120,7 +120,7 @@ p_horiz <- ggplot(countries, aes(x = country, y = hdi)) +
 p_horiz
 ```
 
-`coord_flip()` swaps x and y axes — country names now run vertically on the left, values extend horizontally. Note that `y = 0.9` in `geom_segment()` sets the baseline at 0.9 (not 0), since all HDI values are close to 1. Starting from 0 would make tiny differences invisible.
+`coord_flip()` swaps x and y axes, country names now run vertically on the left, values extend horizontally. Note that `y = 0.9` in `geom_segment()` sets the baseline at 0.9 (not 0), since all HDI values are close to 1. Starting from 0 would make tiny differences invisible.
 
 **Try it:** Change the baseline from `y = 0.9` to `y = 0` to see how a zero baseline changes the apparent differences between countries.
 
@@ -158,7 +158,7 @@ p_color <- ggplot(df, aes(x = month, y = temp, color = status)) +
 p_color
 ```
 
-The stems now start at `avg_temp` (not 0) and extend to each value. Red dots are above average, blue are below — the diverging stems from the reference line make the pattern immediately visible.
+The stems now start at `avg_temp` (not 0) and extend to each value. Red dots are above average, blue are below, the diverging stems from the reference line make the pattern immediately visible.
 
 **Try it:** Change the reference from `avg_temp` to `15` (a round number) and see how choosing a different threshold changes the story.
 
@@ -204,7 +204,7 @@ p_diverg
 
 Value labels are placed to the right of positive dots and to the left of negative dots using `hjust = ifelse(change >= 0, -0.3, 1.3)`. This keeps labels from overlapping the stems.
 
-**Try it:** Remove `+ theme(legend.position = "none")` to show the legend. Then try removing the `geom_text()` layer entirely — do you still know which bars are positive vs negative? This is the difference between encoding the sign (stem direction) and annotating the magnitude.
+**Try it:** Remove `+ theme(legend.position = "none")` to show the legend. Then try removing the `geom_text()` layer entirely, do you still know which bars are positive vs negative? This is the difference between encoding the sign (stem direction) and annotating the magnitude.
 
 ## Complete Example: Polished Lollipop Chart
 
@@ -385,26 +385,26 @@ ggplot(monthly, aes(x = Month, y = dev, color = direction)) +
 ## FAQ
 
 **What is the difference between a lollipop chart and a Cleveland dot plot?**
-A Cleveland dot plot shows dots only — no stems. It's used to compare multiple groups per category (two dots per row, one per group). A lollipop has a stem from zero and is used for single-variable ranked comparisons.
+A Cleveland dot plot shows dots only, no stems. It's used to compare multiple groups per category (two dots per row, one per group). A lollipop has a stem from zero and is used for single-variable ranked comparisons.
 
 **Can I add multiple lollipops per category (grouped lollipops)?**
-Yes — use `position_dodge()` in both `geom_segment()` and `geom_point()`, similar to a grouped bar chart. But more than 2 groups gets cluttered; consider small multiples instead.
+Yes, use `position_dodge()` in both `geom_segment()` and `geom_point()`, similar to a grouped bar chart. But more than 2 groups gets cluttered; consider small multiples instead.
 
 **How do I add value labels that don't overlap the dots?**
 Use `hjust = -0.3` for vertical lollipops (labels to the right of dots) or `hjust = 1.3` for labels to the left. For horizontal charts, use `vjust = -0.5` (above) or `vjust = 1.5` (below).
 
 **Is there a dedicated lollipop geom in ggplot2?**
-No — you compose it from `geom_segment()` + `geom_point()`. The `ggalt` package has `geom_lollipop()` as a convenience wrapper, but the base ggplot2 approach gives more flexibility.
+No, you compose it from `geom_segment()` + `geom_point()`. The `ggalt` package has `geom_lollipop()` as a convenience wrapper, but the base ggplot2 approach gives more flexibility.
 
 ## References
 
 - Wickham H. (2016). *ggplot2: Elegant Graphics for Data Analysis*. Springer.
-- R Graph Gallery — Lollipop chart: r-graph-gallery.com/lollipop-plot.html
-- Wilke C. (2019). *Fundamentals of Data Visualization* — Chapter 6: Visualizing amounts
-- data-to-viz.com — Lollipop chart
+- R Graph Gallery, Lollipop chart: r-graph-gallery.com/lollipop-plot.html
+- Wilke C. (2019). *Fundamentals of Data Visualization*, Chapter 6: Visualizing amounts
+- data-to-viz.com, Lollipop chart
 
 ## Continue Learning
 
-- **ggplot2 Bar Charts** — the classic alternative for comparing categorical magnitudes
-- **Error Bars in ggplot2** — add uncertainty intervals to your point estimates
-- **R Waffle Chart** — display counts as a grid of unit squares for intuitive proportions
+- **ggplot2 Bar Charts**, the classic alternative for comparing categorical magnitudes
+- **Error Bars in ggplot2**, add uncertainty intervals to your point estimates
+- **R Waffle Chart**, display counts as a grid of unit squares for intuitive proportions

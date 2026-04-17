@@ -16,11 +16,11 @@ difficulty: "Intermediate"
 
 # R Vector Recycling Warning: When R Silently Gives You the Wrong Answer
 
-<p class="lead">The R warning <code>longer object length is not a multiple of shorter object length</code> fires when a vectorized operation pairs two vectors of unequal length and the shorter one cannot divide evenly into the longer one. R still runs the operation by <strong>recycling</strong> the shorter vector — repeating its values from the top — but the result is almost always wrong.</p>
+<p class="lead">The R warning <code>longer object length is not a multiple of shorter object length</code> fires when a vectorized operation pairs two vectors of unequal length and the shorter one cannot divide evenly into the longer one. R still runs the operation by <strong>recycling</strong> the shorter vector, repeating its values from the top, but the result is almost always wrong.</p>
 
 ## What does "longer object length is not a multiple of shorter object length" mean?
 
-R hits this warning whenever a pairwise operation — `+`, `*`, `==`, `ifelse()`, and friends — tries to line up two vectors of unequal length and the shorter one does not divide cleanly into the longer one. R does not stop. It finishes the calculation, hands you a result, and hopes you notice the warning in the console.
+R hits this warning whenever a pairwise operation, `+`, `*`, `==`, `ifelse()`, and friends, tries to line up two vectors of unequal length and the shorter one does not divide cleanly into the longer one. R does not stop. It finishes the calculation, hands you a result, and hopes you notice the warning in the console.
 
 Let's reproduce it in the smallest possible way and see what R actually did.
 
@@ -35,9 +35,9 @@ result
 #> In x + y : longer object length is not a multiple of shorter object length
 ```
 
-R lined up `x` and `y`, ran out of `y` after the second element, started `y` again from the top, and stopped partway through the third recycle. The result `11 22 13 24 15` is `1+10, 2+20, 3+10, 4+20, 5+10` — you got a number, but it is almost certainly not the number you wanted. The warning is the only signal that something is off.
+R lined up `x` and `y`, ran out of `y` after the second element, started `y` again from the top, and stopped partway through the third recycle. The result `11 22 13 24 15` is `1+10, 2+20, 3+10, 4+20, 5+10`, you got a number, but it is almost certainly not the number you wanted. The warning is the only signal that something is off.
 
-**Try it:** Change `y` to a length-3 vector `c(10, 20, 30)` and predict the result before you run it. You should still get a warning — 5 is not a multiple of 3.
+**Try it:** Change `y` to a length-3 vector `c(10, 20, 30)` and predict the result before you run it. You should still get a warning, 5 is not a multiple of 3.
 
 ```r
 # Try it: predict the output
@@ -91,12 +91,12 @@ c(1, 2, 3, 4, 5) + c(10, 20)
 #> longer object length is not a multiple of shorter object length
 ```
 
-Case 1 is so ordinary you probably never thought of it as recycling — but it is. Case 2 shows that R also accepts "clean multiples" silently: `b` is repeated twice and added to `a`. Only Case 3 earns the warning, because R cannot even finish one clean pass through the shorter vector.
+Case 1 is so ordinary you probably never thought of it as recycling, but it is. Case 2 shows that R also accepts "clean multiples" silently: `b` is repeated twice and added to `a`. Only Case 3 earns the warning, because R cannot even finish one clean pass through the shorter vector.
 
 [KEY INSIGHT]
-**The warning only fires at the jagged edge, not at the dangerous edge.** R happily recycles whenever the short length divides the long length, warning or no warning — so a "silent" recycle is not the same as a "correct" recycle.
+**The warning only fires at the jagged edge, not at the dangerous edge.** R happily recycles whenever the short length divides the long length, warning or no warning, so a "silent" recycle is not the same as a "correct" recycle.
 
-**Try it:** Build a length-8 vector of prices and a length-4 vector of tax rates. Add them and confirm there is no warning — even though recycling is clearly happening.
+**Try it:** Build a length-8 vector of prices and a length-4 vector of tax rates. Add them and confirm there is no warning, even though recycling is clearly happening.
 
 ```r
 # Try it: confirm silent recycle
@@ -118,7 +118,7 @@ ex_prices + ex_tax
 #> [1] 105 210 315 420 505 610 715 820
 ```
 
-**Explanation:** 8 is a multiple of 4, so R recycles `ex_tax` twice (`5,10,15,20,5,10,15,20`) and adds element-wise. No warning — even though the operation is probably still wrong if you meant each price to have its own tax.
+**Explanation:** 8 is a multiple of 4, so R recycles `ex_tax` twice (`5,10,15,20,5,10,15,20`) and adds element-wise. No warning, even though the operation is probably still wrong if you meant each price to have its own tax.
 
 </details>
 
@@ -150,7 +150,7 @@ Notice anything missing? There is no warning. There is no error. `data.frame()` 
 [WARNING]
 **Silent recycling is more dangerous than the warning.** A warning at least tells you to stop and look. A clean multiple produces confident, wrong output that can survive an entire analysis undetected.
 
-**Try it:** The code below pairs a 10-element id vector with a 5-element flag vector. Spot the bug before running it — then run it to confirm.
+**Try it:** The code below pairs a 10-element id vector with a 5-element flag vector. Spot the bug before running it, then run it to confirm.
 
 ```r
 # Try it: spot the silent recycle
@@ -182,7 +182,7 @@ data.frame(id = ex_ids, flag = ex_flags)
 #> 10 10  TRUE
 ```
 
-**Explanation:** 10 is a multiple of 5, so `data.frame()` recycles `ex_flags` twice without a peep. Rows 6-10 are copies of rows 1-5 — likely not what the analyst meant.
+**Explanation:** 10 is a multiple of 5, so `data.frame()` recycles `ex_flags` twice without a peep. Rows 6-10 are copies of rows 1-5, likely not what the analyst meant.
 
 </details>
 
@@ -215,7 +215,7 @@ tax_rates
 #> [1] 0.05 0.10 0.05 0.10 0.05 0.10 0.05 0.10
 ```
 
-Fix 1 is the cheapest guardrail and the one you should reach for inside any function that takes two vectors. Fixes 2 and 3 cover the common case where `diff()`, `lag()`, or a slice returned a vector one element short. Fix 4 is the rare case where you actually want repetition — but writing `rep()` out loud makes the intent obvious in code review.
+Fix 1 is the cheapest guardrail and the one you should reach for inside any function that takes two vectors. Fixes 2 and 3 cover the common case where `diff()`, `lag()`, or a slice returned a vector one element short. Fix 4 is the rare case where you actually want repetition, but writing `rep()` out loud makes the intent obvious in code review.
 
 [TIP]
 **Add stopifnot(length(x) == length(y)) to any function that does vectorized math on two inputs.** It is one line, it fails fast with a readable error, and it prevents silent recycling from ever reaching your output.
@@ -249,7 +249,7 @@ stopifnot(length(ex_x) == length(ex_y))
 
 ## How can you catch recycling bugs before production?
 
-The `vctrs` package (a dependency of dplyr and tibble that is already in your library) provides a strict alternative to base R's recycling rules. Its `vec_recycle_common()` function accepts a scalar recycle — because that is universally safe — and errors on every other length mismatch, including the dangerous clean-multiple case.
+The `vctrs` package (a dependency of dplyr and tibble that is already in your library) provides a strict alternative to base R's recycling rules. Its `vec_recycle_common()` function accepts a scalar recycle, because that is universally safe, and errors on every other length mismatch, including the dangerous clean-multiple case.
 
 ```r
 library(vctrs)
@@ -398,7 +398,7 @@ payroll_df
 
 ## Complete Example
 
-Here is a realistic payroll pipeline where silent recycling almost ships to production. Ten employees, but only four got a bonus this quarter. The naive version fails loudly on `data.frame()` — which is good — but a single typo that makes the lengths match could have made it silent.
+Here is a realistic payroll pipeline where silent recycling almost ships to production. Ten employees, but only four got a bonus this quarter. The naive version fails loudly on `data.frame()`, which is good, but a single typo that makes the lengths match could have made it silent.
 
 ```r
 employees <- c("Alice", "Bob", "Carol", "Dave", "Eve",
@@ -427,13 +427,13 @@ payroll
 #> 10     Judy    NA
 ```
 
-The fix is three lines: pad with `NA_real_`, build the data frame, and now the missing bonuses are explicit instead of invisible. If you later want to filter to employees who actually received a bonus, `payroll[!is.na(payroll$bonus), ]` does exactly that — and the same filter would quietly return every row if you had let recycling fill in the blanks.
+The fix is three lines: pad with `NA_real_`, build the data frame, and now the missing bonuses are explicit instead of invisible. If you later want to filter to employees who actually received a bonus, `payroll[!is.na(payroll$bonus), ]` does exactly that, and the same filter would quietly return every row if you had let recycling fill in the blanks.
 
 ## Summary
 
 | Situation | What R does | How to handle it |
 |---|---|---|
-| Scalar recycles (length 1) | Silent, intentional | Nothing — this is R's design |
+| Scalar recycles (length 1) | Silent, intentional | Nothing, this is R's design |
 | Shorter length divides cleanly | Silent, often unintentional | `stopifnot()` or switch to `tibble()` |
 | Shorter length does not divide | Warning, runs anyway | Align lengths before the operation |
 | `diff()`, `lag()` returns shorter | Warning on combine | Pad with `NA` or trim the other side |
@@ -442,14 +442,14 @@ The fix is three lines: pad with `NA_real_`, build the data frame, and now the m
 
 ## References
 
-1. R Core Team — *An Introduction to R*, Section 2.2 on vector arithmetic and the recycling rule. [Link](https://cran.r-project.org/doc/manuals/r-release/R-intro.html#Vector-arithmetic)
-2. Wickham, H. — *Advanced R*, 2nd Edition. Chapter 3: Vectors. [Link](https://adv-r.hadley.nz/vectors-chap.html)
-3. `vctrs` package documentation — `vec_recycle_common()` reference. [Link](https://vctrs.r-lib.org/reference/vec_recycle.html)
-4. Wickham, H. & Grolemund, G. — *R for Data Science*, 2nd Edition. Chapter on vectors and recycling. [Link](https://r4ds.hadley.nz/)
-5. `tibble` package — "Invariants: Comparing behaviour with data frames." [Link](https://tibble.tidyverse.org/articles/invariants.html)
+1. R Core Team, *An Introduction to R*, Section 2.2 on vector arithmetic and the recycling rule. [Link](https://cran.r-project.org/doc/manuals/r-release/R-intro.html#Vector-arithmetic)
+2. Wickham, H., *Advanced R*, 2nd Edition. Chapter 3: Vectors. [Link](https://adv-r.hadley.nz/vectors-chap.html)
+3. `vctrs` package documentation, `vec_recycle_common()` reference. [Link](https://vctrs.r-lib.org/reference/vec_recycle.html)
+4. Wickham, H. & Grolemund, G., *R for Data Science*, 2nd Edition. Chapter on vectors and recycling. [Link](https://r4ds.hadley.nz/)
+5. `tibble` package, "Invariants: Comparing behaviour with data frames." [Link](https://tibble.tidyverse.org/articles/invariants.html)
 
 ## Continue Learning
 
-1. **R Common Errors** — the full reference of plain-English fixes for R's warnings and errors.
-2. **R Vectors** — the foundation chapter on how R stores and operates on vectors, including the recycling rule.
-3. **R Error: argument is of length zero** — a related conditional-logic bug that often shows up alongside recycling issues.
+1. **R Common Errors**, the full reference of plain-English fixes for R's warnings and errors.
+2. **R Vectors**, the foundation chapter on how R stores and operates on vectors, including the recycling rule.
+3. **R Error: argument is of length zero**, a related conditional-logic bug that often shows up alongside recycling issues.

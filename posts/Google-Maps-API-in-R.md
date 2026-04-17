@@ -16,14 +16,14 @@ fr_parent: "Interactive-Maps-in-R-with-leaflet.html"
 
 # Google Maps API in R: ggmap Package for Basemap Visualization
 
-<p class="lead">The ggmap package fetches raster basemaps from Google Maps, Stadia Maps, and OpenStreetMap directly into R, then lets you layer your own data on top with familiar ggplot2 syntax — giving you publication-quality map visualizations in a few lines of code.</p>
+<p class="lead">The ggmap package fetches raster basemaps from Google Maps, Stadia Maps, and OpenStreetMap directly into R, then lets you layer your own data on top with familiar ggplot2 syntax, giving you publication-quality map visualizations in a few lines of code.</p>
 
 [NOTE]
 **This tutorial requires a local R installation.** ggmap fetches map tiles from external servers and needs API keys, so the code cannot run in the browser. Install R and RStudio locally, then follow the API setup in the first section below.
 
 ## How do you set up Google Maps API for ggmap in R?
 
-Before you can pull a single map tile, you need an API key. ggmap talks to two tile providers — Google Maps (richer features, requires a billing account) and Stadia Maps (free tier, no credit card needed). Here's the full setup-to-first-map workflow in one block:
+Before you can pull a single map tile, you need an API key. ggmap talks to two tile providers, Google Maps (richer features, requires a billing account) and Stadia Maps (free tier, no credit card needed). Here's the full setup-to-first-map workflow in one block:
 
 ```r
 # Install ggmap (run once)
@@ -47,7 +47,7 @@ ggmap(nyc_map)
 # Renders a terrain-shaded map of Manhattan with roads, parks, and elevation
 ```
 
-Three lines of setup, then a terrain map of New York City appears in your plot window. `get_googlemap()` downloads a static map image from Google's servers, and `ggmap()` renders it as a ggplot2 layer. The `zoom` parameter controls detail level — 3 shows a continent, 10 a city, 15 a single street.
+Three lines of setup, then a terrain map of New York City appears in your plot window. `get_googlemap()` downloads a static map image from Google's servers, and `ggmap()` renders it as a ggplot2 layer. The `zoom` parameter controls detail level, 3 shows a continent, 10 a city, 15 a single street.
 
 To get a Google API key, create a project on Google Cloud Platform, enable the "Maps Static API" and "Geocoding API", then copy the key from the Credentials page. Google offers a free monthly credit that covers light usage.
 
@@ -94,7 +94,7 @@ ggmap(london_map)
 
 ## How do you use qmplot() and ggmap() for quick basemap plotting?
 
-The `ggmap()` function you just used is one of two main plotting functions. The other is `qmplot()`, which is even simpler for quick plots — it auto-computes a bounding box from your data so you don't need to specify center and zoom.
+The `ggmap()` function you just used is one of two main plotting functions. The other is `qmplot()`, which is even simpler for quick plots, it auto-computes a bounding box from your data so you don't need to specify center and zoom.
 
 ```r
 # Quick map: just pass lon/lat columns from a data frame
@@ -106,10 +106,10 @@ df <- data.frame(
 qmplot(lon, lat, data = df, maptype = "terrain", color = I("red"))
 ```
 
-`qmplot()` figures out the map boundaries from your data's coordinate range, downloads the right tiles, and plots your points — all in one call. Use it when you want a fast visualization without fiddling with bounding boxes.
+`qmplot()` figures out the map boundaries from your data's coordinate range, downloads the right tiles, and plots your points, all in one call. Use it when you want a fast visualization without fiddling with bounding boxes.
 
 [KEY INSIGHT]
-**ggmap objects ARE ggplot objects.** This means you can add any ggplot2 layer on top — `geom_point()`, `geom_text()`, `scale_color_*()`, `theme()` — using the exact same `+` syntax you already know.
+**ggmap objects ARE ggplot objects.** This means you can add any ggplot2 layer on top, `geom_point()`, `geom_text()`, `scale_color_*()`, `theme()`, using the exact same `+` syntax you already know.
 
 For more control, use the two-step `get_googlemap()` + `ggmap()` workflow. The `get_googlemap()` function accepts a character place name OR numeric coordinates as its center:
 
@@ -226,7 +226,7 @@ ggmap(paris_toner) + ggtitle("Toner Lite — Paris")
 
 ## How do you overlay data points on a ggmap basemap?
 
-Since `ggmap()` returns a ggplot object, you add data layers with the same `geom_*()` functions you already know. The key requirement is that your data uses longitude and latitude coordinates (WGS84 — the default GPS system).
+Since `ggmap()` returns a ggplot object, you add data layers with the same `geom_*()` functions you already know. The key requirement is that your data uses longitude and latitude coordinates (WGS84, the default GPS system).
 
 Let's plot some landmark locations on our NYC basemap:
 
@@ -294,7 +294,7 @@ ggmap(nyc_map) +
 
 ## How do you geocode addresses and calculate routes with ggmap?
 
-One of ggmap's most powerful features is geocoding — converting text addresses to coordinates. The `geocode()` function sends addresses to Google's Geocoding API and returns longitude/latitude pairs. The reverse function, `revgeocode()`, converts coordinates back to human-readable addresses.
+One of ggmap's most powerful features is geocoding, converting text addresses to coordinates. The `geocode()` function sends addresses to Google's Geocoding API and returns longitude/latitude pairs. The reverse function, `revgeocode()`, converts coordinates back to human-readable addresses.
 
 ```r
 # Geocode text addresses to coordinates
@@ -378,7 +378,7 @@ print(paste("Distance:", round(dist$km, 1), "km"))
 #> [1] "Distance: 4.1 km"
 ```
 
-**Explanation:** `mapdist()` accepts text addresses directly — no need to geocode first. It queries Google's Distance Matrix API for driving distance and time.
+**Explanation:** `mapdist()` accepts text addresses directly, no need to geocode first. It queries Google's Distance Matrix API for driving distance and time.
 
 </details>
 
@@ -551,7 +551,7 @@ ggmap(city_map) +
 
 This produces a terrain map of the contiguous US with six cities plotted as red circles. New York appears largest (8.3M), and a light blue path connects the cities in row order. The `geom_label()` annotations sit above each point with a semi-transparent white background for readability.
 
-The entire workflow — geocoding, basemap fetching, data overlay, and styling — chains together because every step produces or consumes standard ggplot2/data.frame objects.
+The entire workflow, geocoding, basemap fetching, data overlay, and styling, chains together because every step produces or consumes standard ggplot2/data.frame objects.
 
 ## Summary
 
@@ -574,7 +574,7 @@ Here's a quick reference of the key ggmap functions:
 
 Key takeaways:
 
-- ggmap objects are ggplot2 objects — layer any `geom_*()` on top
+- ggmap objects are ggplot2 objects, layer any `geom_*()` on top
 - Google Maps needs a billing account; Stadia Maps offers a free tier
 - Stamen-style tiles now live under `get_stadiamap()` (not the deprecated `get_stamenmap()`)
 - All coordinates must be WGS84 longitude/latitude
@@ -582,16 +582,16 @@ Key takeaways:
 
 ## References
 
-1. Kahle, D. & Wickham, H. — *ggmap: Spatial Visualization with ggplot2*. The R Journal, 5(1), 144-161 (2013). [Link](https://journal.r-project.org/archive/2013-1/kahle-wickham.pdf)
-2. ggmap CRAN documentation — Package reference manual (v4.0.2). [Link](https://cran.r-project.org/web/packages/ggmap/ggmap.pdf)
-3. Kahle, D. — ggmap GitHub repository. [Link](https://github.com/dkahle/ggmap)
-4. Google — Maps Static API documentation. [Link](https://developers.google.com/maps/documentation/maps-static/overview)
-5. Stadia Maps — Getting Started with ggmap. [Link](https://docs.stadiamaps.com/tutorials/getting-started-in-r-with-ggmap/)
-6. Wickham, H. — *ggplot2: Elegant Graphics for Data Analysis*, 3rd Edition. Springer (2016). [Link](https://ggplot2-book.org/)
-7. Google Cloud — Geocoding API documentation. [Link](https://developers.google.com/maps/documentation/geocoding/overview)
+1. Kahle, D. & Wickham, H., *ggmap: Spatial Visualization with ggplot2*. The R Journal, 5(1), 144-161 (2013). [Link](https://journal.r-project.org/archive/2013-1/kahle-wickham.pdf)
+2. ggmap CRAN documentation, Package reference manual (v4.0.2). [Link](https://cran.r-project.org/web/packages/ggmap/ggmap.pdf)
+3. Kahle, D., ggmap GitHub repository. [Link](https://github.com/dkahle/ggmap)
+4. Google, Maps Static API documentation. [Link](https://developers.google.com/maps/documentation/maps-static/overview)
+5. Stadia Maps, Getting Started with ggmap. [Link](https://docs.stadiamaps.com/tutorials/getting-started-in-r-with-ggmap/)
+6. Wickham, H., *ggplot2: Elegant Graphics for Data Analysis*, 3rd Edition. Springer (2016). [Link](https://ggplot2-book.org/)
+7. Google Cloud, Geocoding API documentation. [Link](https://developers.google.com/maps/documentation/geocoding/overview)
 
 ## Continue Learning
 
-- [Interactive Maps in R with leaflet](/Interactive-Maps-in-R-with-leaflet.html) — Build zoomable, clickable web maps with markers, popups, and tile layers using the leaflet package.
-- [Spatial Data in R with sf](/Spatial-Data-in-R-with-sf.html) — Read shapefiles, transform coordinate reference systems, and plot with `geom_sf()` in ggplot2.
-- [Choropleth Maps in R](/Choropleth-Maps-in-R.html) — Colour geographic regions by data values using ggplot2 and sf for thematic mapping.
+- [Interactive Maps in R with leaflet](/Interactive-Maps-in-R-with-leaflet.html), Build zoomable, clickable web maps with markers, popups, and tile layers using the leaflet package.
+- [Spatial Data in R with sf](/Spatial-Data-in-R-with-sf.html), Read shapefiles, transform coordinate reference systems, and plot with `geom_sf()` in ggplot2.
+- [Choropleth Maps in R](/Choropleth-Maps-in-R.html), Colour geographic regions by data values using ggplot2 and sf for thematic mapping.

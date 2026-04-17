@@ -1,7 +1,7 @@
 ---
 title: "Positron vs RStudio: Should You Switch? A Feature-by-Feature Verdict"
 slug: Positron-vs-RStudio
-description: "Posit's Positron IDE promises a unified R and Python experience. Here is the honest feature-by-feature comparison with RStudio — and when each one is the right choice."
+description: "Posit's Positron IDE promises a unified R and Python experience. Here is the honest feature-by-feature comparison with RStudio, and when each one is the right choice."
 keywords: "Positron vs RStudio, Positron IDE, Posit Positron, R IDE comparison, RStudio alternative, Positron review"
 mathjax: false
 webr: true
@@ -16,9 +16,9 @@ difficulty: "Intermediate"
 
 # Positron vs RStudio: Should You Switch? A Feature-by-Feature Verdict
 
-<p class="lead">Positron is Posit's new IDE — a VS Code fork with first-class R and Python support. RStudio is the tool most R users already know. Here is what actually differs, what is genuinely better in each, and a clear rule for deciding which one to use.</p>
+<p class="lead">Positron is Posit's new IDE, a VS Code fork with first-class R and Python support. RStudio is the tool most R users already know. Here is what actually differs, what is genuinely better in each, and a clear rule for deciding which one to use.</p>
 
-If you have tried Positron for ten minutes you have probably already hit the main question: "This looks like VS Code with an R console. Is there a real reason to switch?" The short answer is that there is — but only for some workflows. For others, RStudio remains faster and less friction-heavy. This guide walks through the comparison feature by feature so you can decide based on the work you actually do, not on screenshots.
+If you have tried Positron for ten minutes you have probably already hit the main question: "This looks like VS Code with an R console. Is there a real reason to switch?" The short answer is that there is, but only for some workflows. For others, RStudio remains faster and less friction-heavy. This guide walks through the comparison feature by feature so you can decide based on the work you actually do, not on screenshots.
 
 ![Decision flow: Positron or RStudio](screenshots/Positron-vs-RStudio-decision.webp)
 
@@ -40,7 +40,7 @@ Positron is not a replacement for RStudio. It is an alternative, and Posit has s
 This is where Positron has the biggest lead. Because it inherits the VS Code editor core, you get:
 
 - **Multi-cursor editing**, column selection, and the full VS Code keymap.
-- **A vastly larger extension ecosystem** — linters, git tools, themes, remote-development support, AI coding assistants.
+- **A vastly larger extension ecosystem**, linters, git tools, themes, remote-development support, AI coding assistants.
 - **Better large-file performance.** VS Code's editor handles 100,000-line files without lag; RStudio noticeably slows down past about 20,000 lines.
 
 RStudio has its own strengths that Positron has not matched yet:
@@ -61,7 +61,7 @@ mtcars |>
   )
 ```
 
-For most modern R code — tidyverse pipes, Quarto, package development — completion quality is effectively tied. For legacy RMarkdown-heavy workflows, RStudio is still noticeably smoother.
+For most modern R code, tidyverse pipes, Quarto, package development, completion quality is effectively tied. For legacy RMarkdown-heavy workflows, RStudio is still noticeably smoother.
 
 ## Which has better tools for data analysis day-to-day?
 
@@ -71,7 +71,7 @@ This comparison is the closest to a tie, and the winner depends on what "data an
 
 **Data explorer.** Positron's data explorer is surprisingly good. You can sort and filter data frames interactively, and it handles 100k+ row tables without reloading the whole data set. RStudio's `View()` is simpler but less capable on large tables.
 
-**Plots.** RStudio's plots pane has a dedicated history, zoom, and export flow that many users have muscle memory for. Positron's plots pane is functional but plainer — no history navigation yet, and export requires right-clicking.
+**Plots.** RStudio's plots pane has a dedicated history, zoom, and export flow that many users have muscle memory for. Positron's plots pane is functional but plainer, no history navigation yet, and export requires right-clicking.
 
 ```r
 # Interactive data exploration — works identically in both IDEs.
@@ -90,16 +90,16 @@ If you spend most of your day flipping between many small plots, RStudio's plots
 
 This is where Positron flips the comparison completely.
 
-**Python in Positron** is a first-class citizen. The same Variables pane, the same Plots pane, the same completion engine, the same debugger — it all just works. There is no extension to install, no kernel to configure. Open a `.py` file and you have a Python session as polished as the R one.
+**Python in Positron** is a first-class citizen. The same Variables pane, the same Plots pane, the same completion engine, the same debugger, it all just works. There is no extension to install, no kernel to configure. Open a `.py` file and you have a Python session as polished as the R one.
 
 **Python in RStudio** works through `reticulate`. It is usable for calling Python from R, but it is not a Python IDE. You do not get native Python debugging, and the Python console is noticeably less responsive.
 
 **Quarto** is fully supported in both, but Positron's preview opens inside the editor as a tab, which matches VS Code conventions. RStudio's Quarto integration opens the preview in a separate Viewer pane. Both work well.
 
-**Jupyter notebooks** open natively in Positron with full kernel support — R and Python. RStudio does not open `.ipynb` files at all.
+**Jupyter notebooks** open natively in Positron with full kernel support, R and Python. RStudio does not open `.ipynb` files at all.
 
 [NOTE]
-If your team does any mix of R and Python at all — even 80/20 — Positron removes a real friction point. Switching IDEs to run a Python script is genuinely annoying, and Positron eliminates that.
+If your team does any mix of R and Python at all, even 80/20, Positron removes a real friction point. Switching IDEs to run a Python script is genuinely annoying, and Positron eliminates that.
 
 ## Which is better for Shiny and package development?
 
@@ -107,7 +107,7 @@ RStudio wins this round clearly.
 
 **Shiny apps.** RStudio has had a "Run App" button and a hot-reload workflow for Shiny for over a decade. Positron supports Shiny through its `shiny` extension, but the feedback loop is not as tight yet, and the app preview is less polished.
 
-**Package development.** RStudio's `devtools` integration — the "Build" pane with Check / Install / Test buttons — is still the reference experience. Positron can run the same commands, but through the terminal or command palette, not through a dedicated UI.
+**Package development.** RStudio's `devtools` integration, the "Build" pane with Check / Install / Test buttons, is still the reference experience. Positron can run the same commands, but through the terminal or command palette, not through a dedicated UI.
 
 **Debugging.** Both IDEs support `browser()` and breakpoint-style debugging, and both are usable. RStudio's visual breakpoints in the source editor feel a shade more responsive.
 
@@ -180,7 +180,7 @@ The command `R: Select Interpreter` opens a picker with every discoverable R ins
 <details>
 <summary>Solution</summary>
 
-This is a subjective exercise — there is no single right answer. Typical results: RStudio is faster for plot export, Positron is faster for inspecting large data frames, and "run the whole script" is usually a tie. The point is to make the decision based on *your* workflow, not on feature lists.
+This is a subjective exercise, there is no single right answer. Typical results: RStudio is faster for plot export, Positron is faster for inspecting large data frames, and "run the whole script" is usually a tie. The point is to make the decision based on *your* workflow, not on feature lists.
 
 </details>
 
@@ -221,7 +221,7 @@ ggplot(diamonds, aes(x = carat, y = price, colour = cut)) +
 - Positron wins on editor, extensions, Python, Jupyter, large files, and remote development.
 - RStudio wins on Shiny, package development, the Environment pane, and the Plots pane.
 - Install both. Use whichever one fits the specific task you are about to do.
-- The decision is not one-way. You can move a project between them freely — all project state lives in files, not in the IDE.
+- The decision is not one-way. You can move a project between them freely, all project state lives in files, not in the IDE.
 
 ## References
 

@@ -16,13 +16,13 @@ difficulty: "Intermediate"
 
 # dplyr case_when() in R: Replace Nested if_else with Clean Conditional Logic
 
-<p class="lead"><code>case_when()</code> walks through a list of conditions top to bottom and returns the value of the first one that's TRUE — like SQL's CASE WHEN, fully vectorized over an entire column at once. It replaces nested <code>if_else()</code> chains with clean, readable conditional logic.</p>
+<p class="lead"><code>case_when()</code> walks through a list of conditions top to bottom and returns the value of the first one that's TRUE, like SQL's CASE WHEN, fully vectorized over an entire column at once. It replaces nested <code>if_else()</code> chains with clean, readable conditional logic.</p>
 
 ## How does case_when() replace nested if_else()?
 
 Picture a column of student scores you need to bucket into letter grades. Five thresholds, five outcomes. Written with nested `if_else()`, you end up with a tower of parentheses that is painful to read and worse to debug. `case_when()` flattens that mess into a single tidy block where every condition lines up next to its result.
 
-Here is the same grading rule written both ways. The first version uses the nested approach. The second uses `case_when()` — notice how each rule sits on its own line and reads almost like English.
+Here is the same grading rule written both ways. The first version uses the nested approach. The second uses `case_when()`, notice how each rule sits on its own line and reads almost like English.
 
 ```r
 library(dplyr)
@@ -104,7 +104,7 @@ The function takes a sequence of two-sided formulas. The left side is a logical 
 ![Evaluation flow of case_when()](screenshots/dplyr-case-when-evaluation-flow.webp)
 *Figure 1: How case_when() walks through conditions top to bottom and returns on the first TRUE match.*
 
-Since dplyr 1.1.0, you can pass a `.default` argument to set the fallback value for rows that match no condition. Before 1.1.0, the idiom was a final `TRUE ~ default_value` line — `TRUE` always matches, so it acts as the catch-all.
+Since dplyr 1.1.0, you can pass a `.default` argument to set the fallback value for rows that match no condition. Before 1.1.0, the idiom was a final `TRUE ~ default_value` line, `TRUE` always matches, so it acts as the catch-all.
 
 ```r
 # Modern .default form (dplyr 1.1+)
@@ -144,7 +144,7 @@ students |>
 Both produce the same result. Use `.default` in new code; recognise `TRUE ~` when you read older tutorials and packages.
 
 [NOTE]
-**If you omit both `.default` and `TRUE ~`, unmatched rows get NA.** That is sometimes what you want — for example, when you only care about flagging the rows that satisfy a positive rule and want to leave everything else blank.
+**If you omit both `.default` and `TRUE ~`, unmatched rows get NA.** That is sometimes what you want, for example, when you only care about flagging the rows that satisfy a positive rule and want to leave everything else blank.
 
 **Try it:** Rewrite the following legacy snippet to use the modern `.default` argument. The behaviour should be identical.
 
@@ -182,7 +182,7 @@ identical(ex_legacy, ex_modern)
 
 ## How does case_when() handle NA values?
 
-This is the gotcha that bites everyone at least once. When a left-hand-side condition involves an NA value, the comparison returns NA — and `case_when()` treats NA on the LHS the same as FALSE. The row falls through to the next rule, and eventually to `.default` if nothing matches.
+This is the gotcha that bites everyone at least once. When a left-hand-side condition involves an NA value, the comparison returns NA, and `case_when()` treats NA on the LHS the same as FALSE. The row falls through to the next rule, and eventually to `.default` if nothing matches.
 
 ```r
 x_vals <- c(1, NA, 3, NA, 5)
@@ -196,7 +196,7 @@ na_demo
 #> [1] "low"  "low"  "mid"  "low"  "high"
 ```
 
-Look at positions 2 and 4. The original values were NA, but the result says `"low"`. That is almost never what you want — your missing-data rows are now silently lumped in with the smallest bucket.
+Look at positions 2 and 4. The original values were NA, but the result says `"low"`. That is almost never what you want, your missing-data rows are now silently lumped in with the smallest bucket.
 
 The fix is to put an explicit `is.na()` check **first**, before any numeric comparison. Because `case_when()` returns on the first TRUE match, the NA rows get caught before they fall through to the wrong rule.
 
@@ -211,7 +211,7 @@ na_demo_fixed
 #> [1] "low"     "missing" "mid"     "missing" "high"
 ```
 
-Now positions 2 and 4 carry the `"missing"` label. Same logic, same data — but the order of the rules changes the answer entirely.
+Now positions 2 and 4 carry the `"missing"` label. Same logic, same data, but the order of the rules changes the answer entirely.
 
 [WARNING]
 **NA on the left side of a `case_when()` formula is silently treated as FALSE.** Without an explicit `is.na()` check at the top, your missing-data rows quietly land in `.default` (or the wrong bucket), and no error or warning will tell you.
@@ -246,7 +246,7 @@ ex_tagged
 
 ## How do I combine multiple columns in case_when() conditions?
 
-The left-hand side of each formula is just an R logical expression, so it can reference any column in scope — not only the one you are creating. Combine multiple columns with `&` (AND) and `|` (OR), and remember that order matters: the most specific rule should come first.
+The left-hand side of each formula is just an R logical expression, so it can reference any column in scope, not only the one you are creating. Combine multiple columns with `&` (AND) and `|` (OR), and remember that order matters: the most specific rule should come first.
 
 ```r
 mtcars_typed <- mtcars |>
@@ -267,7 +267,7 @@ mtcars_typed
 #> 5 Efficient & Powerful  1
 ```
 
-Notice the rule ordering. "Efficient & Light" is a strict subset of "Efficient & Powerful" (it adds the `hp < 100` requirement), so it must come first. If you reversed them, every efficient car would match the broader rule and "Efficient & Light" would never fire — a silent logic bug with no error.
+Notice the rule ordering. "Efficient & Light" is a strict subset of "Efficient & Powerful" (it adds the `hp < 100` requirement), so it must come first. If you reversed them, every efficient car would match the broader rule and "Efficient & Light" would never fire, a silent logic bug with no error.
 
 [TIP]
 **Order your `case_when()` rules from most specific to most general.** When two rules overlap, the one written first wins. Putting a broad rule above a narrow one means the narrow rule is dead code.
@@ -308,7 +308,7 @@ ex_cars
 
 ## When should I use case_when() vs case_match()?
 
-`case_when()` is built for arbitrary logical conditions. When all you want to do is map specific values to new values — recode `"M"` to `"Male"`, `"F"` to `"Female"`, and so on — you end up writing a wall of `x == "M"` checks that adds noise without adding meaning. dplyr 1.1.0 introduced `case_match()` exactly for this case: a vectorised `switch()` that matches values directly.
+`case_when()` is built for arbitrary logical conditions. When all you want to do is map specific values to new values, recode `"M"` to `"Male"`, `"F"` to `"Female"`, and so on, you end up writing a wall of `x == "M"` checks that adds noise without adding meaning. dplyr 1.1.0 introduced `case_match()` exactly for this case: a vectorised `switch()` that matches values directly.
 
 ```r
 iris_recoded <- iris |>
@@ -365,7 +365,7 @@ identical(ex_via_when, ex_via_match)
 #> [1] TRUE
 ```
 
-**Explanation:** `case_match()` accepts a literal value or a vector of values on the LHS. No `==` operator is needed — the matching is implicit.
+**Explanation:** `case_match()` accepts a literal value or a vector of values on the LHS. No `==` operator is needed, the matching is implicit.
 
 </details>
 
@@ -394,7 +394,7 @@ good_demo
 #> [1] 1 0 1
 ```
 
-The fix is to choose one type and convert. If you wanted a labelled column, return `"yes"` and `"no"`. If you wanted a 0/1 indicator, return `1L` and `0L`. Don't try to mix the two in one call — `case_when()` is strict about this on purpose, because a column with mixed types is almost always a bug.
+The fix is to choose one type and convert. If you wanted a labelled column, return `"yes"` and `"no"`. If you wanted a 0/1 indicator, return `1L` and `0L`. Don't try to mix the two in one call, `case_when()` is strict about this on purpose, because a column with mixed types is almost always a bug.
 
 [NOTE]
 **dplyr 1.1+ error messages name the offending arguments.** When you see `Can't combine ..1 <character> and .default <double>`, `..1` refers to the first formula and `.default` refers to your fallback. Match those positions to the lines in your call to find the type clash.
@@ -577,7 +577,7 @@ head(aq_classified, 6)
 #> 6    28      NA 14.9   66     5   6 Spring        Good
 ```
 
-The pipeline does two things in one `mutate()` call. First, `case_match()` recodes the numeric `Month` column into named seasons using pure equality matching — much cleaner than writing `Month == 5 ~ ...`. Second, `case_when()` builds an `air_quality` label that depends on numeric thresholds and explicitly handles the days where Ozone is missing. Both new columns sit alongside the original measurements, ready for grouping or plotting downstream.
+The pipeline does two things in one `mutate()` call. First, `case_match()` recodes the numeric `Month` column into named seasons using pure equality matching, much cleaner than writing `Month == 5 ~ ...`. Second, `case_when()` builds an `air_quality` label that depends on numeric thresholds and explicitly handles the days where Ozone is missing. Both new columns sit alongside the original measurements, ready for grouping or plotting downstream.
 
 ## Summary
 
@@ -595,14 +595,14 @@ Key things to remember about `case_when()`:
 
 ## References
 
-1. dplyr — `case_when()` reference. [Link](https://dplyr.tidyverse.org/reference/case_when.html)
-2. dplyr — `case_match()` reference. [Link](https://dplyr.tidyverse.org/reference/case_match.html)
-3. tidyverse blog — *dplyr 1.1.0: The power of vctrs* (introduces `.default`). [Link](https://www.tidyverse.org/blog/2023/02/dplyr-1-1-0-vctrs/)
-4. Wickham, H., Çetinkaya-Rundel, M. & Grolemund, G. — *R for Data Science* (2e), Chapter 12 Logical vectors. [Link](https://r4ds.hadley.nz/logicals)
-5. Wickham, H. — *Advanced R* (2e), Chapter 9 Functionals & vectorisation. [Link](https://adv-r.hadley.nz/functionals.html)
+1. dplyr, `case_when()` reference. [Link](https://dplyr.tidyverse.org/reference/case_when.html)
+2. dplyr, `case_match()` reference. [Link](https://dplyr.tidyverse.org/reference/case_match.html)
+3. tidyverse blog, *dplyr 1.1.0: The power of vctrs* (introduces `.default`). [Link](https://www.tidyverse.org/blog/2023/02/dplyr-1-1-0-vctrs/)
+4. Wickham, H., Çetinkaya-Rundel, M. & Grolemund, G., *R for Data Science* (2e), Chapter 12 Logical vectors. [Link](https://r4ds.hadley.nz/logicals)
+5. Wickham, H., *Advanced R* (2e), Chapter 9 Functionals & vectorisation. [Link](https://adv-r.hadley.nz/functionals.html)
 
 ## Continue Learning
 
-- [dplyr mutate() and rename()](/dplyr-mutate-rename.html) — the parent tutorial covering column creation and transformation
-- [dplyr filter() and select()](/dplyr-filter-select.html) — narrow rows and columns before applying conditional logic
-- [dplyr across()](/dplyr-across.html) — apply the same transformation across many columns at once
+- [dplyr mutate() and rename()](/dplyr-mutate-rename.html), the parent tutorial covering column creation and transformation
+- [dplyr filter() and select()](/dplyr-filter-select.html), narrow rows and columns before applying conditional logic
+- [dplyr across()](/dplyr-across.html), apply the same transformation across many columns at once

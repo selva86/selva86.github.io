@@ -1,5 +1,5 @@
 ---
-title: "Probability in R Exercises: 15 Problems from Basic to Bayesian — Solved Step-by-Step"
+title: "Probability in R Exercises: 15 Problems from Basic to Bayesian, Solved Step-by-Step"
 slug: Probability-in-R-Exercises
 description: "Practice probability in R with 15 exercises from basic distributions to Bayesian inference. Each problem includes a starter, solution reveal, and explanation."
 keywords: "probability in R, R probability exercises, probability simulation R, Bayesian R, rbinom, sample function, set.seed, dbinom, beta distribution"
@@ -15,13 +15,13 @@ fr_parent: What-Is-Probability-Simulation-First-Intuition-in-R-Before-the-Formul
 difficulty: Intermediate
 ---
 
-# Probability in R Exercises: 15 Problems from Basic to Bayesian — Solved Step-by-Step
+# Probability in R Exercises: 15 Problems from Basic to Bayesian, Solved Step-by-Step
 
-<p class="lead">Probability in R powers everything from A/B testing to Bayesian inference, but it clicks only when you solve problems with code. This exercise set walks you through 15 problems — from basic coin tosses to Bayesian belief updates — each with a starter, a click-to-reveal solution, and a clear explanation.</p>
+<p class="lead">Probability in R powers everything from A/B testing to Bayesian inference, but it clicks only when you solve problems with code. This exercise set walks you through 15 problems, from basic coin tosses to Bayesian belief updates, each with a starter, a click-to-reveal solution, and a clear explanation.</p>
 
 ## How do I simulate basic probability events in R?
 
-Estimating a probability with R takes two steps: simulate the random event many times, then count how often the outcome you care about happens. The function `sample()` generates the random draws, and `mean()` (applied to a logical vector) gives you the proportion of TRUEs — your estimated probability. Below, we toss a fair coin 1,000 times. The empirical proportion lands close to the true 0.5; this same simulate-and-count pattern powers every problem in this set.
+Estimating a probability with R takes two steps: simulate the random event many times, then count how often the outcome you care about happens. The function `sample()` generates the random draws, and `mean()` (applied to a logical vector) gives you the proportion of TRUEs, your estimated probability. Below, we toss a fair coin 1,000 times. The empirical proportion lands close to the true 0.5; this same simulate-and-count pattern powers every problem in this set.
 
 ```r
 set.seed(2026)
@@ -30,10 +30,10 @@ mean(tosses == "H")
 #> [1] 0.516
 ```
 
-We sampled 1,000 outcomes from `{H, T}` with replacement, then asked for the proportion that equalled `"H"`. The result, **0.516**, is just slightly off the theoretical 0.5 — exactly the kind of sampling wobble you'd expect with 1,000 trials. Push the trial count higher and the estimate tightens. This is the workhorse pattern: `mean(condition)` over many simulated outcomes estimates any probability.
+We sampled 1,000 outcomes from `{H, T}` with replacement, then asked for the proportion that equalled `"H"`. The result, **0.516**, is just slightly off the theoretical 0.5, exactly the kind of sampling wobble you'd expect with 1,000 trials. Push the trial count higher and the estimate tightens. This is the workhorse pattern: `mean(condition)` over many simulated outcomes estimates any probability.
 
 [KEY INSIGHT]
-**The simulate-and-count formula is the workhorse of probability in R.** Sample the random outcomes, write a logical condition for the event of interest, and take the mean — `mean(condition)` is your estimated probability.
+**The simulate-and-count formula is the workhorse of probability in R.** Sample the random outcomes, write a logical condition for the event of interest, and take the mean, `mean(condition)` is your estimated probability.
 
 ### Problem 1: Estimate P(heads) from a fair coin
 
@@ -87,7 +87,7 @@ p2_prob
 #> [1] 0.1656
 ```
 
-**Explanation:** `sample(1:6, ...)` draws integers 1 through 6 uniformly. The mean of `p2_rolls == 6` (a logical vector with TRUE wherever the roll was a 6) gives the empirical probability — 0.1656 against the true 1/6 ≈ 0.1667.
+**Explanation:** `sample(1:6, ...)` draws integers 1 through 6 uniformly. The mean of `p2_rolls == 6` (a logical vector with TRUE wherever the roll was a 6) gives the empirical probability, 0.1656 against the true 1/6 ≈ 0.1667.
 
 </details>
 
@@ -117,7 +117,7 @@ p3_prob
 #> [1] 0.0779
 ```
 
-**Explanation:** We collapsed the deck to two categories because we only care about Ace vs not. `replace = TRUE` is appropriate here because each "draw" is independent — we're simulating 10,000 separate single-card draws, not dealing a hand.
+**Explanation:** We collapsed the deck to two categories because we only care about Ace vs not. `replace = TRUE` is appropriate here because each "draw" is independent, we're simulating 10,000 separate single-card draws, not dealing a hand.
 
 </details>
 
@@ -153,7 +153,7 @@ mean(p4_results)
 #> [1] 0.8112
 ```
 
-**Explanation:** `rle()` returns the lengths and values of consecutive runs in a vector. We ask whether any run is 5+ long AND consists of heads. Most people guess this probability is much lower than 81% — long streaks are far more common than intuition suggests.
+**Explanation:** `rle()` returns the lengths and values of consecutive runs in a vector. We ask whether any run is 5+ long AND consists of heads. Most people guess this probability is much lower than 81%, long streaks are far more common than intuition suggests.
 
 </details>
 
@@ -184,7 +184,7 @@ mean((p5_d1 + p5_d2) >= 10)
 #> [1] 0.1664
 ```
 
-**Explanation:** Out of the 36 possible (d1, d2) pairs, six produce a sum of 10 or more — (4,6), (5,5), (5,6), (6,4), (6,5), (6,6). The exact probability is 6/36 ≈ 0.1667, and our simulation lands at 0.1664 with 20,000 trials.
+**Explanation:** Out of the 36 possible (d1, d2) pairs, six produce a sum of 10 or more, (4,6), (5,5), (5,6), (6,4), (6,5), (6,6). The exact probability is 6/36 ≈ 0.1667, and our simulation lands at 0.1664 with 20,000 trials.
 
 </details>
 
@@ -195,8 +195,8 @@ R ships with built-in functions for every common distribution, organised by a fo
 | Prefix | What it returns | Example |
 |---|---|---|
 | `d` | density / probability mass at a value | `dbinom(6, 10, 0.5)` |
-| `p` | cumulative probability — P(X ≤ x) | `pbinom(4, 20, 0.3)` |
-| `q` | quantile — inverse cumulative | `qnorm(0.95, 70, 10)` |
+| `p` | cumulative probability, P(X ≤ x) | `pbinom(4, 20, 0.3)` |
+| `q` | quantile, inverse cumulative | `qnorm(0.95, 70, 10)` |
 | `r` | random samples | `rnorm(1000, 0, 1)` |
 
 The same four prefixes apply to every distribution: `*binom`, `*norm`, `*pois`, `*exp`, `*beta`, `*gamma`, and so on. The next five problems give you practice with the most common ones.
@@ -245,7 +245,7 @@ p7_prob
 #> [1] 0.2375077
 ```
 
-**Explanation:** `pbinom(q, size, prob)` returns P(X ≤ q). With 20 trials and p = 0.3, the expected count is 6, so seeing 4 or fewer is below average — about 24% of the time.
+**Explanation:** `pbinom(q, size, prob)` returns P(X ≤ q). With 20 trials and p = 0.3, the expected count is 6, so seeing 4 or fewer is below average, about 24% of the time.
 
 </details>
 
@@ -272,7 +272,7 @@ p8_prob
 #> [1] 0.1586553
 ```
 
-**Explanation:** 75 kg is exactly one standard deviation above the mean. The familiar 68-95-99.7 rule tells us about 16% of the distribution lies beyond +1 sd — and that's precisely what `pnorm()` returns.
+**Explanation:** 75 kg is exactly one standard deviation above the mean. The familiar 68-95-99.7 rule tells us about 16% of the distribution lies beyond +1 sd, and that's precisely what `pnorm()` returns.
 
 </details>
 
@@ -299,7 +299,7 @@ p9_score
 #> [1] 86.44854
 ```
 
-**Explanation:** `qnorm()` is the inverse of `pnorm()` — give it a probability, get back the value at that percentile. A score of ~86.4 means 95% of students score 86 or below, and the top 5% score above it.
+**Explanation:** `qnorm()` is the inverse of `pnorm()`, give it a probability, get back the value at that percentile. A score of ~86.4 means 95% of students score 86 or below, and the top 5% score above it.
 
 </details>
 
@@ -323,16 +323,16 @@ p10_prob
 #> [1] 0.3233236
 ```
 
-**Explanation:** `ppois(2, 2, lower.tail = FALSE)` returns P(X > 2), which equals P(X ≥ 3) for integer-valued distributions. About a third of all hours will see 3+ emails — useful for staffing decisions.
+**Explanation:** `ppois(2, 2, lower.tail = FALSE)` returns P(X > 2), which equals P(X ≥ 3) for integer-valued distributions. About a third of all hours will see 3+ emails, useful for staffing decisions.
 
 </details>
 
 ## How do I solve conditional probability problems in R?
 
-Conditional probability — P(A given B) — narrows the sample space to the cases where B happened, then asks how often A occurs within that narrower world. In R you can compute it two ways: by counting (filter the simulated outcomes where B is true, then take the mean of A among them), or by applying Bayes' theorem directly.
+Conditional probability, P(A given B), narrows the sample space to the cases where B happened, then asks how often A occurs within that narrower world. In R you can compute it two ways: by counting (filter the simulated outcomes where B is true, then take the mean of A among them), or by applying Bayes' theorem directly.
 
 [NOTE]
-**Bayes' theorem is just a rearrangement of conditional probability.** It lets you flip the direction — if you know P(B given A) but want P(A given B), Bayes converts one into the other using the base rates of A and B.
+**Bayes' theorem is just a rearrangement of conditional probability.** It lets you flip the direction, if you know P(B given A) but want P(A given B), Bayes converts one into the other using the base rates of A and B.
 
 The formula:
 
@@ -377,13 +377,13 @@ p11_prob
 #> [1] 0.07692308
 ```
 
-**Explanation:** Conditioning on "red" narrows the deck from 52 cards to 26. Of those, 2 are aces (the heart and diamond aces). 2/26 = 1/13 ≈ 0.077. Notice this is the same as the unconditional P(Ace) = 4/52 = 1/13 — colour and ace-ness are independent.
+**Explanation:** Conditioning on "red" narrows the deck from 52 cards to 26. Of those, 2 are aces (the heart and diamond aces). 2/26 = 1/13 ≈ 0.077. Notice this is the same as the unconditional P(Ace) = 4/52 = 1/13, colour and ace-ness are independent.
 
 </details>
 
-### Problem 12: Medical test — P(disease | positive test)?
+### Problem 12: Medical test, P(disease | positive test)?
 
-A disease has a prevalence of 1% in the population. A test is 99% sensitive (correctly flags 99% of true cases) and 95% specific (correctly clears 95% of healthy people). Someone tests positive — what's the probability they actually have the disease?
+A disease has a prevalence of 1% in the population. A test is 99% sensitive (correctly flags 99% of true cases) and 95% specific (correctly clears 95% of healthy people). Someone tests positive, what's the probability they actually have the disease?
 
 **Try it:** Apply Bayes' theorem directly. P(B) needs the law of total probability: P(positive) = P(pos | disease)·P(disease) + P(pos | healthy)·P(healthy).
 
@@ -416,11 +416,11 @@ p12_post
 </details>
 
 [KEY INSIGHT]
-**Base rates often beat test accuracy in your intuition.** A 99% sensitive test for a rare disease still produces mostly false positives — the math is correct, your gut isn't. Always plug numbers into Bayes before trusting a single test result.
+**Base rates often beat test accuracy in your intuition.** A 99% sensitive test for a rare disease still produces mostly false positives, the math is correct, your gut isn't. Always plug numbers into Bayes before trusting a single test result.
 
 ## Practice Exercises
 
-The next three problems are capstones — each combines simulation, distributions, and conditional reasoning into a single workflow. They use a `mp_` variable prefix to keep them isolated from the per-problem variables above.
+The next three problems are capstones, each combines simulation, distributions, and conditional reasoning into a single workflow. They use a `mp_` variable prefix to keep them isolated from the per-problem variables above.
 
 ### Exercise 13: The birthday problem
 
@@ -460,11 +460,11 @@ c(simulation = mp13_sim, analytical = mp13_analytical)
 #>    0.5081     0.5073
 ```
 
-**Explanation:** Both methods land at ~0.507 — a coin-flip chance of a shared birthday in just 23 people, which surprises almost everyone. The analytical formula computes P(all distinct) by multiplying the available "free" days for each new person, then subtracts from 1.
+**Explanation:** Both methods land at ~0.507, a coin-flip chance of a shared birthday in just 23 people, which surprises almost everyone. The analytical formula computes P(all distinct) by multiplying the available "free" days for each new person, then subtracts from 1.
 
 </details>
 
-### Exercise 14: Monty Hall — should you switch?
+### Exercise 14: Monty Hall, should you switch?
 
 Three doors hide one car and two goats. You pick a door. The host (who knows where the car is) opens a different door revealing a goat, then offers you the chance to switch. Simulate 10,000 games for both "stay" and "switch" strategies. Report the empirical win rates.
 
@@ -516,13 +516,13 @@ c(stay = mp14_stay, switch = mp14_switch)
 #> 0.3343 0.6648
 ```
 
-**Explanation:** Switching wins ~2/3 of the time — twice as often as staying. The intuition: your initial pick is right 1/3 of the time, so switching loses 1/3 of the time and wins the other 2/3. The host's reveal doesn't change the original 1/3 odds on your first pick — it just concentrates the remaining 2/3 onto the single unopened door.
+**Explanation:** Switching wins ~2/3 of the time, twice as often as staying. The intuition: your initial pick is right 1/3 of the time, so switching loses 1/3 of the time and wins the other 2/3. The host's reveal doesn't change the original 1/3 odds on your first pick, it just concentrates the remaining 2/3 onto the single unopened door.
 
 </details>
 
-### Exercise 15: Bayesian update — coin bias from data
+### Exercise 15: Bayesian update, coin bias from data
 
-You're handed a coin and want to estimate its bias (probability of heads). Start with a uniform prior, Beta(1, 1), reflecting "I have no idea — any bias from 0 to 1 is equally plausible." After observing 7 heads in 10 tosses, compute the posterior, plot it, and report the posterior mean and 95% credible interval. Use the conjugate update: Beta(α + heads, β + tails).
+You're handed a coin and want to estimate its bias (probability of heads). Start with a uniform prior, Beta(1, 1), reflecting "I have no idea, any bias from 0 to 1 is equally plausible." After observing 7 heads in 10 tosses, compute the posterior, plot it, and report the posterior mean and 95% credible interval. Use the conjugate update: Beta(α + heads, β + tails).
 
 ```r
 # Exercise 15: Bayesian beta-binomial update
@@ -605,7 +605,7 @@ data.frame(
 #> 2     analytical formula 0.5073
 ```
 
-The simulation and the closed-form answer agree to within 0.001 — a sanity check that both your code and your math are correct. Now we extend the question: how does the probability scale with room size?
+The simulation and the closed-form answer agree to within 0.001, a sanity check that both your code and your math are correct. Now we extend the question: how does the probability scale with room size?
 
 ```r
 # 5. Sweep n from 5 to 50 and plot the curve
@@ -620,19 +620,19 @@ abline(h = 0.5, lty = 2, col = "red")
 abline(v = 23,  lty = 2, col = "red")
 ```
 
-The dashed lines mark the famous tipping point: 23 people is the smallest n where the probability crosses 50%. By 50 people, you're at 97% — almost guaranteed. The same simulate-then-verify-then-explore workflow scales to any probability question you'll encounter.
+The dashed lines mark the famous tipping point: 23 people is the smallest n where the probability crosses 50%. By 50 people, you're at 97%, almost guaranteed. The same simulate-then-verify-then-explore workflow scales to any probability question you'll encounter.
 
 ## Summary
 
 The 15 problems above span the full toolkit you need for everyday probability work in R:
 
-- **Simulate-and-count** — `mean(condition)` over many `replicate()`s estimates any probability empirically
-- **`d/p/q/r` distribution prefix family** — density, cumulative, quantile, random samples for `*binom`, `*norm`, `*pois`, `*exp`, `*beta`
-- **`pbinom(k, ...)` returns P(X ≤ k)** — use `lower.tail = FALSE` for upper tails and to avoid off-by-one bugs
-- **Conditional probability narrows the sample space** — filter to where the condition holds, then compute the inner probability
-- **Bayes' theorem flips the direction** — prior × likelihood / evidence converts P(B|A) into P(A|B)
-- **Beta-Binomial conjugate update** — Bayesian inference in a single line: posterior = Beta(α + heads, β + tails)
-- **Always verify simulation against analytical** — when an exact formula exists, compute both and check they agree
+- **Simulate-and-count**, `mean(condition)` over many `replicate()`s estimates any probability empirically
+- **`d/p/q/r` distribution prefix family**, density, cumulative, quantile, random samples for `*binom`, `*norm`, `*pois`, `*exp`, `*beta`
+- **`pbinom(k, ...)` returns P(X ≤ k)**, use `lower.tail = FALSE` for upper tails and to avoid off-by-one bugs
+- **Conditional probability narrows the sample space**, filter to where the condition holds, then compute the inner probability
+- **Bayes' theorem flips the direction**, prior × likelihood / evidence converts P(B|A) into P(A|B)
+- **Beta-Binomial conjugate update**, Bayesian inference in a single line: posterior = Beta(α + heads, β + tails)
+- **Always verify simulation against analytical**, when an exact formula exists, compute both and check they agree
 
 | Problem type | Function | Typical pattern |
 |---|---|---|
@@ -644,16 +644,16 @@ The 15 problems above span the full toolkit you need for everyday probability wo
 
 ## References
 
-1. R Core Team — *An Introduction to R*. CRAN documentation. [Link](https://cran.r-project.org/doc/manuals/r-release/R-intro.html)
-2. R `stats` package — distribution function reference (`?Distributions`). [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/Distributions.html)
-3. Jim Albert & Jingchen Hu — *Probability and Bayesian Modeling*. CRC Press. [Link](https://bayesball.github.io/BOOK/)
-4. Alicia A. Johnson, Miles Q. Ott, Mine Dogucu — *Bayes Rules! An Introduction to Applied Bayesian Modeling*. CRC Press. [Link](https://www.bayesrulesbook.com/)
-5. Paul Teetor — *R Cookbook* (2nd ed.), Chapter 8: Probability. O'Reilly. [Link](https://rc2e.com/probability)
-6. Wikipedia — Birthday problem. [Link](https://en.wikipedia.org/wiki/Birthday_problem)
-7. Wikipedia — Monty Hall problem. [Link](https://en.wikipedia.org/wiki/Monty_Hall_problem)
+1. R Core Team, *An Introduction to R*. CRAN documentation. [Link](https://cran.r-project.org/doc/manuals/r-release/R-intro.html)
+2. R `stats` package, distribution function reference (`?Distributions`). [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/Distributions.html)
+3. Jim Albert & Jingchen Hu, *Probability and Bayesian Modeling*. CRC Press. [Link](https://bayesball.github.io/BOOK/)
+4. Alicia A. Johnson, Miles Q. Ott, Mine Dogucu, *Bayes Rules! An Introduction to Applied Bayesian Modeling*. CRC Press. [Link](https://www.bayesrulesbook.com/)
+5. Paul Teetor, *R Cookbook* (2nd ed.), Chapter 8: Probability. O'Reilly. [Link](https://rc2e.com/probability)
+6. Wikipedia, Birthday problem. [Link](https://en.wikipedia.org/wiki/Birthday_problem)
+7. Wikipedia, Monty Hall problem. [Link](https://en.wikipedia.org/wiki/Monty_Hall_problem)
 
 ## Continue Learning
 
-- [Probability Simulation in R](Probability-Simulation-in-R.html) — a deeper tutorial on the simulate-and-count workflow, including `replicate()`, Monte Carlo estimation, and convergence diagnostics.
-- [Conditional Probability in R](Conditional-Probability-in-R.html) — extends Problems 11 and 12 with more conditional setups, the law of total probability, and event independence.
-- [Binomial and Poisson Distributions in R](Binomial-and-Poisson-Distributions-in-R.html) — a focused walk-through of the discrete distributions used in Problems 6, 7, and 10, with all four `d/p/q/r` functions explored in depth.
+- [Probability Simulation in R](Probability-Simulation-in-R.html), a deeper tutorial on the simulate-and-count workflow, including `replicate()`, Monte Carlo estimation, and convergence diagnostics.
+- [Conditional Probability in R](Conditional-Probability-in-R.html), extends Problems 11 and 12 with more conditional setups, the law of total probability, and event independence.
+- [Binomial and Poisson Distributions in R](Binomial-and-Poisson-Distributions-in-R.html), a focused walk-through of the discrete distributions used in Problems 6, 7, and 10, with all four `d/p/q/r` functions explored in depth.

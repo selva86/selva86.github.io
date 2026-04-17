@@ -1,7 +1,7 @@
 ---
 title: "DuckDB in R: Query 100 Million Rows on Your Laptop in Under 2 Seconds"
 slug: "DuckDB-in-R"
-description: "DuckDB is an in-process SQL OLAP database that runs inside R. Query CSV, Parquet, and data frames with SQL or dplyr — faster than pandas for most tasks."
+description: "DuckDB is an in-process SQL OLAP database that runs inside R. Query CSV, Parquet, and data frames with SQL or dplyr, faster than pandas for most tasks."
 keywords: "DuckDB R, duckdb, duckplyr, query parquet R, query CSV with SQL, in-process database R"
 auto_link_terms: "DuckDB|DuckDB in R|duckplyr|query parquet in R"
 auto_link_case_sensitive: false
@@ -18,11 +18,11 @@ difficulty: "Intermediate"
 
 # DuckDB in R: Query 100 Million Rows on Your Laptop in Under 2 Seconds
 
-<p class="lead">DuckDB is an in-process analytical database that runs inside your R session — no server, no setup. It queries CSVs, Parquet files, and R data frames directly with SQL or dplyr syntax, and it does so fast enough to handle datasets that crash most tools.</p>
+<p class="lead">DuckDB is an in-process analytical database that runs inside your R session, no server, no setup. It queries CSVs, Parquet files, and R data frames directly with SQL or dplyr syntax, and it does so fast enough to handle datasets that crash most tools.</p>
 
 ## Why is DuckDB faster than reading a CSV?
 
-Reading a CSV into R with `read.csv` loads every column and every row into memory as R vectors. For a 10-million-row file, that can take minutes and gigabytes of RAM. DuckDB does something fundamentally different: it opens the file, reads only the columns and rows your query needs, and never builds a full in-memory copy. The payoff is a 10x-100x speedup on realistic analytical queries — and you can query files larger than your RAM.
+Reading a CSV into R with `read.csv` loads every column and every row into memory as R vectors. For a 10-million-row file, that can take minutes and gigabytes of RAM. DuckDB does something fundamentally different: it opens the file, reads only the columns and rows your query needs, and never builds a full in-memory copy. The payoff is a 10x-100x speedup on realistic analytical queries, and you can query files larger than your RAM.
 
 ```r
 library(DBI)
@@ -51,7 +51,7 @@ dbDisconnect(con, shutdown = TRUE)
 Same API as any DBI database, but the engine behind it is a columnar, vectorised, multi-threaded query planner that was purpose-built for analytical queries. If you know SQL, everything you already write just runs faster.
 
 ![DuckDB architecture: in-process columnar engine](screenshots/DuckDB-in-R-architecture.webp)
-*Figure 1: DuckDB runs inside the R process — no client-server round trips. Data lives in columnar format for vectorised queries.*
+*Figure 1: DuckDB runs inside the R process, no client-server round trips. Data lives in columnar format for vectorised queries.*
 
 > **[KEY INSIGHT]** "In-process" means DuckDB has no server. It is a library you load like `ggplot2`. There is nothing to install separately, nothing to configure, nothing to start. It just works.
 
@@ -78,7 +78,7 @@ dbGetQuery(con, "SELECT 42 AS answer")
 dbDisconnect(con, shutdown = TRUE)
 ```
 
-This is the smallest possible DuckDB session — connect, run a single SELECT that needs no tables, disconnect. If this works, your installation is good.
+This is the smallest possible DuckDB session, connect, run a single SELECT that needs no tables, disconnect. If this works, your installation is good.
 
 </details>
 
@@ -157,13 +157,13 @@ dbGetQuery(con, "SELECT * FROM cars ORDER BY mpg DESC LIMIT 5")
 #> 5 27.3   4  79.0 66 4.08 1.935 18.90  1  1    4    1
 ```
 
-`ORDER BY mpg DESC LIMIT 5` sorts the table descending and keeps only the top five rows — the standard SQL "top-N" pattern.
+`ORDER BY mpg DESC LIMIT 5` sorts the table descending and keeps only the top five rows, the standard SQL "top-N" pattern.
 
 </details>
 
 ## How do you query CSV and Parquet files without loading them?
 
-This is where DuckDB really shines. You can point it at a file on disk and it queries the file directly — no `read.csv`, no temporary table, no RAM spike.
+This is where DuckDB really shines. You can point it at a file on disk and it queries the file directly, no `read.csv`, no temporary table, no RAM spike.
 
 ```r
 library(DBI); library(duckdb)
@@ -186,12 +186,12 @@ con <- dbConnect(duckdb())
 dbDisconnect(con, shutdown = TRUE)
 ```
 
-Read "SELECT ... FROM 'file.csv'" as "treat this file as if it were a table in the database". DuckDB's CSV reader is battle-tested — it auto-detects separators, quotes, and types. For Parquet, the advantage is even bigger because the format is columnar on disk: if your query touches 3 out of 50 columns, DuckDB reads only those 3 from the file.
+Read "SELECT ... FROM 'file.csv'" as "treat this file as if it were a table in the database". DuckDB's CSV reader is battle-tested, it auto-detects separators, quotes, and types. For Parquet, the advantage is even bigger because the format is columnar on disk: if your query touches 3 out of 50 columns, DuckDB reads only those 3 from the file.
 
 ![Query pipeline: file → parse → project → filter → aggregate](screenshots/DuckDB-in-R-query-pipeline.webp)
 *Figure 2: DuckDB's query pipeline. Projection (selecting columns) happens before the data is materialised, so wide files stay cheap to query.*
 
-For multiple files that share a schema — say, one CSV per day — use a glob pattern:
+For multiple files that share a schema, say, one CSV per day, use a glob pattern:
 
 ```r
 # Read all 2025 Parquet files at once
@@ -223,7 +223,7 @@ dbGetQuery(con, "SELECT cyl, AVG(mpg) AS avg_mpg FROM 'mtcars_tmp.csv' GROUP BY 
 #> 3   8 15.10000
 ```
 
-DuckDB treats `'mtcars_tmp.csv'` as if it were a table name. The CSV reader auto-detects the schema and only reads the columns the query needs — no `read.csv` step required.
+DuckDB treats `'mtcars_tmp.csv'` as if it were a table name. The CSV reader auto-detects the schema and only reads the columns the query needs, no `read.csv` step required.
 
 </details>
 
@@ -240,7 +240,7 @@ All three are fast, but they target different problems.
 | Query larger than RAM | Limited | Yes | No |
 | Direct CSV/Parquet query | No | Yes | No |
 
-**SQLite** is optimized for transactional workloads — small, frequent reads and writes on a single row at a time. It is the right choice for configuration files, offline apps, and small datasets. It is not optimised for "aggregate over 10 million rows".
+**SQLite** is optimized for transactional workloads, small, frequent reads and writes on a single row at a time. It is the right choice for configuration files, offline apps, and small datasets. It is not optimised for "aggregate over 10 million rows".
 
 **data.table** is the fastest in-memory table library in R. It is perfect for datasets that fit in RAM and when you want R syntax, not SQL. But it cannot query Parquet files and does not stream larger-than-RAM data.
 
@@ -294,7 +294,7 @@ dbGetQuery(con, "SELECT Species, COUNT(*) AS n FROM iris_v GROUP BY Species ORDE
 
 ## How do you use DuckDB with dplyr via dbplyr or duckplyr?
 
-Two options. The older path is **dbplyr** via DBI — exactly like any other database. The newer path is **duckplyr**, a drop-in replacement for dplyr that is powered by DuckDB under the hood.
+Two options. The older path is **dbplyr** via DBI, exactly like any other database. The newer path is **duckplyr**, a drop-in replacement for dplyr that is powered by DuckDB under the hood.
 
 ![Two interfaces: SQL via DBI vs dplyr via duckplyr](screenshots/DuckDB-in-R-two-interfaces.webp)
 *Figure 3: Two ways to talk to DuckDB from R. Pick the one that matches your team's background.*
@@ -332,7 +332,7 @@ The newer `duckplyr` package goes one step further: you do not even see the DBI 
 #   summarise(avg_hp = mean(hp))
 ```
 
-Syntactically identical to dplyr. Behind the scenes, duckplyr turns each verb into DuckDB execution, so the whole pipeline runs at the native speed of the engine — often 5-50x faster than plain dplyr for group-and-aggregate workloads.
+Syntactically identical to dplyr. Behind the scenes, duckplyr turns each verb into DuckDB execution, so the whole pipeline runs at the native speed of the engine, often 5-50x faster than plain dplyr for group-and-aggregate workloads.
 
 > **[WARNING]** duckplyr matches dplyr's API but not every function is supported yet. If a verb falls through, the pipeline may quietly execute in base dplyr, losing the speedup. Check the duckplyr documentation for coverage before betting a production job on it.
 
@@ -370,9 +370,9 @@ The dplyr verbs are translated to SQL by dbplyr and executed inside DuckDB. `set
 
 In-memory mode (`dbConnect(duckdb())` with no path) is perfect when:
 
-- You are **querying a CSV or Parquet** file directly — the DuckDB "database" is just a scratch space for the query planner.
-- Your workflow is **stateless** — every script run starts fresh.
-- You want **maximum speed** — no disk I/O for intermediate state.
+- You are **querying a CSV or Parquet** file directly, the DuckDB "database" is just a scratch space for the query planner.
+- Your workflow is **stateless**, every script run starts fresh.
+- You want **maximum speed**, no disk I/O for intermediate state.
 
 Persistent mode (`dbConnect(duckdb(), dbdir = "file.duckdb")`) is the right choice when:
 
@@ -403,7 +403,7 @@ dbDisconnect(con, shutdown = TRUE)
 
 The `CREATE OR REPLACE TABLE ... AS SELECT` pattern (CTAS) materializes the result of a query into a named table. For ETL and reporting workflows, this is the bread-and-butter idiom.
 
-> **[NOTE]** A DuckDB file is a single `.duckdb` file on disk — easy to back up, version, or share. Unlike PostgreSQL, there is no cluster directory or permissions to worry about.
+> **[NOTE]** A DuckDB file is a single `.duckdb` file on disk, easy to back up, version, or share. Unlike PostgreSQL, there is no cluster directory or permissions to worry about.
 
 **Try it:** Create a persistent DuckDB file, write a table, disconnect, reconnect, and verify the table is still there.
 
@@ -459,11 +459,11 @@ con <- dbConnect(duckdb())
 dbDisconnect(con, shutdown = TRUE)
 ```
 
-The aggregate is computed in streaming fashion — DuckDB reads the Parquet file one row group at a time, maintains a partial hash table per customer, and spills to a temporary file when memory pressure gets high. You get a 100-row result from a 50-GB input.
+The aggregate is computed in streaming fashion, DuckDB reads the Parquet file one row group at a time, maintains a partial hash table per customer, and spills to a temporary file when memory pressure gets high. You get a 100-row result from a 50-GB input.
 
 Three tips for very large data:
 
-1. **Use Parquet, not CSV.** Parquet is compressed and columnar — often 10x smaller on disk and much faster to query.
+1. **Use Parquet, not CSV.** Parquet is compressed and columnar, often 10x smaller on disk and much faster to query.
 2. **Filter early.** Put `WHERE` clauses on columns that exist in the file, so DuckDB can skip entire row groups via predicate pushdown.
 3. **Limit memory with `memory_limit` if needed.** `dbExecute(con, "SET memory_limit = '4GB'")` caps DuckDB to 4 GB and forces aggressive spilling.
 
@@ -477,9 +477,9 @@ dbExecute(con, "SET threads = 4")
 dbDisconnect(con, shutdown = TRUE)
 ```
 
-`SET threads = 4` tells DuckDB to use 4 parallel threads — on a laptop with 8 cores, 4 is often a good balance between query speed and leaving cores for the rest of your workflow.
+`SET threads = 4` tells DuckDB to use 4 parallel threads, on a laptop with 8 cores, 4 is often a good balance between query speed and leaving cores for the rest of your workflow.
 
-> **[KEY INSIGHT]** With DuckDB, "bigger than RAM" is no longer a special case — it is just a normal query that takes a bit longer. For most R users, this one feature alone justifies the switch from pandas-style pipelines.
+> **[KEY INSIGHT]** With DuckDB, "bigger than RAM" is no longer a special case, it is just a normal query that takes a bit longer. For most R users, this one feature alone justifies the switch from pandas-style pipelines.
 
 **Try it:** Use `SET memory_limit` to cap DuckDB at 2 GB and `SET threads` to 2.
 
@@ -511,7 +511,7 @@ dbGetQuery(con, "SELECT current_setting('memory_limit') AS memory_limit, current
 dbDisconnect(con, shutdown = TRUE)
 ```
 
-`SET memory_limit` and `SET threads` are session-level pragmas — they apply to the current connection. The `[1] 0` from `dbExecute()` is the affected-row count (zero, because no data rows changed).
+`SET memory_limit` and `SET threads` are session-level pragmas, they apply to the current connection. The `[1] 0` from `dbExecute()` is the affected-row count (zero, because no data rows changed).
 
 </details>
 
@@ -653,6 +653,6 @@ Four rules:
 
 ## Continue Learning
 
-- [DBI in R](DBI-in-R.html) — the interface DuckDB uses; learn DBI once, use it with any database.
-- [dplyr group_by() and summarise()](dplyr-group-by-summarise.html) — translate directly to DuckDB via dbplyr.
-- [Importing Data in R](Importing-Data-in-R.html) — DuckDB complements the traditional `read_csv`/`read_parquet` workflow.
+- [DBI in R](DBI-in-R.html), the interface DuckDB uses; learn DBI once, use it with any database.
+- [dplyr group_by() and summarise()](dplyr-group-by-summarise.html), translate directly to DuckDB via dbplyr.
+- [Importing Data in R](Importing-Data-in-R.html), DuckDB complements the traditional `read_csv`/`read_parquet` workflow.

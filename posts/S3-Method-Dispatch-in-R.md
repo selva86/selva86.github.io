@@ -18,11 +18,11 @@ difficulty: "Advanced"
 
 # S3 Method Dispatch: Exactly How R Finds the Right Function for Your Object
 
-<p class="lead">S3 method dispatch is R's mechanism for deciding which function implementation to run when you call a generic like <code>print()</code> or <code>summary()</code> — R inspects the object's class attribute, searches for a matching method name, and calls the first one it finds.</p>
+<p class="lead">S3 method dispatch is R's mechanism for deciding which function implementation to run when you call a generic like <code>print()</code> or <code>summary()</code>, R inspects the object's class attribute, searches for a matching method name, and calls the first one it finds.</p>
 
 ## What happens when you call a generic function like print()?
 
-Every time you type `print(x)`, R doesn't just run one fixed function. It checks what *kind* of object `x` is, builds a method name from the generic and the class, and calls that specific function. This is S3 method dispatch — and it powers almost every interaction you have with R.
+Every time you type `print(x)`, R doesn't just run one fixed function. It checks what *kind* of object `x` is, builds a method name from the generic and the class, and calls that specific function. This is S3 method dispatch, and it powers almost every interaction you have with R.
 
 ```r
 # Create a custom "greeting" class
@@ -56,7 +56,7 @@ print
 #> <environment: namespace:base>
 ```
 
-That single line — `UseMethod("print")` — is the engine. Every S3 generic function follows this pattern: accept arguments, then immediately hand off to `UseMethod()`. The generic never does any real work itself. It's a dispatcher, not a doer.
+That single line, `UseMethod("print")`, is the engine. Every S3 generic function follows this pattern: accept arguments, then immediately hand off to `UseMethod()`. The generic never does any real work itself. It's a dispatcher, not a doer.
 
 [KEY INSIGHT]
 **Every S3 generic is a one-line function that calls UseMethod().** When you call `print(x)`, R never executes any code after `UseMethod("print")`. Control transfers entirely to the matched method.
@@ -232,7 +232,7 @@ describe(emp2)
 #> Employee: Ada
 ```
 
-Now `describe.employee` fires first because `"employee"` is at position 1 in the class vector. The class vector is a priority list — the first class that has a matching method wins.
+Now `describe.employee` fires first because `"employee"` is at position 1 in the class vector. The class vector is a priority list, the first class that has a matching method wins.
 
 This becomes important with built-in R objects too. Many base types carry implicit class vectors.
 
@@ -257,7 +257,7 @@ class(fit)
 #> [1] "glm" "lm"
 ```
 
-That `c("glm", "lm")` class vector means: when you call `summary(fit)`, R first looks for `summary.glm`. If that didn't exist, it would fall through to `summary.lm`. This is how S3 implements inheritance — not through formal parent/child declarations, but through the order of the class vector.
+That `c("glm", "lm")` class vector means: when you call `summary(fit)`, R first looks for `summary.glm`. If that didn't exist, it would fall through to `summary.lm`. This is how S3 implements inheritance, not through formal parent/child declarations, but through the order of the class vector.
 
 [TIP]
 **Use unclass() to strip the class and see the raw underlying object.** This is handy for debugging when you want to bypass dispatch entirely and inspect the base structure.
@@ -301,7 +301,7 @@ describe(ex_tesla)
 
 ## How does NextMethod() delegate to parent classes?
 
-So far, when R finds a method, the dispatch stops. But sometimes you want a child method to do its own work *and then* pass control to the parent method. That's what `NextMethod()` does — it moves to the next class in the class vector and calls that method.
+So far, when R finds a method, the dispatch stops. But sometimes you want a child method to do its own work *and then* pass control to the parent method. That's what `NextMethod()` does, it moves to the next class in the class vector and calls that method.
 
 ```r
 # Build a pet hierarchy: puppy > dog > pet
@@ -360,10 +360,10 @@ summary(buddy)
 #> Pet: Buddy
 ```
 
-Notice how `.Class` shrinks at each step. In `summary.puppy`, it's `c("puppy", "dog", "pet")`. In `summary.dog`, it's `c("dog", "pet")` — `"puppy"` has been consumed. R uses this to know which method to call next.
+Notice how `.Class` shrinks at each step. In `summary.puppy`, it's `c("puppy", "dog", "pet")`. In `summary.dog`, it's `c("dog", "pet")`, `"puppy"` has been consumed. R uses this to know which method to call next.
 
 [WARNING]
-**Don't modify the dispatched object before calling NextMethod().** Changes to `x` inside a method are ignored by NextMethod() — R passes the *original* object, not your modified copy. If you need to pass extra information, use additional arguments.
+**Don't modify the dispatched object before calling NextMethod().** Changes to `x` inside a method are ignored by NextMethod(), R passes the *original* object, not your modified copy. If you need to pass extra information, use additional arguments.
 
 **Try it:** Add a `describe.puppy()` method that prints `"Puppy: <name>"` and then calls `NextMethod()` to also trigger `describe.dog()`. Verify both lines print.
 
@@ -410,14 +410,14 @@ describe(ex_pup)
 
 Not all dispatch goes through `UseMethod()`. R has two special categories of generics that work differently: internal generics and group generics.
 
-**Internal generics** like `[`, `[[`, `c`, `+`, and `length` are implemented in C code. They perform dispatch at the C level, which is faster but follows the same class-lookup logic. You can still write S3 methods for them — R checks for your method before falling back to the C implementation.
+**Internal generics** like `[`, `[[`, `c`, `+`, and `length` are implemented in C code. They perform dispatch at the C level, which is faster but follows the same class-lookup logic. You can still write S3 methods for them, R checks for your method before falling back to the C implementation.
 
 **Group generics** are even more powerful. Instead of writing a separate method for every operator (`+`, `-`, `*`, `<`, `==`), you write *one* method for the group, and R routes all member operators through it. R has four groups:
 
-1. **Ops** — arithmetic and comparison: `+`, `-`, `*`, `/`, `^`, `%%`, `%/%`, `<`, `>`, `<=`, `>=`, `==`, `!=`, `&`, `|`, `!`
-2. **Math** — math functions: `abs`, `sqrt`, `floor`, `ceiling`, `round`, `log`, `exp`, `sin`, `cos`, etc.
-3. **Summary** — aggregation: `sum`, `min`, `max`, `range`, `prod`, `any`, `all`
-4. **Complex** — complex number operations: `Re`, `Im`, `Mod`, `Arg`, `Conj`
+1. **Ops**, arithmetic and comparison: `+`, `-`, `*`, `/`, `^`, `%%`, `%/%`, `<`, `>`, `<=`, `>=`, `==`, `!=`, `&`, `|`, `!`
+2. **Math**, math functions: `abs`, `sqrt`, `floor`, `ceiling`, `round`, `log`, `exp`, `sin`, `cos`, etc.
+3. **Summary**, aggregation: `sum`, `min`, `max`, `range`, `prod`, `any`, `all`
+4. **Complex**, complex number operations: `Re`, `Im`, `Mod`, `Arg`, `Conj`
 
 Let's see this in action with a custom `currency` class.
 
@@ -586,7 +586,7 @@ trace_dispatch("print", ordered(c("low", "mid", "high")))
 #>   Try: print.factor <-- MATCH
 ```
 
-The ordered factor example is revealing: there's no `print.ordered`, so R falls through to `print.factor`. This is inheritance in action — the class vector `c("ordered", "factor")` gives ordered factors all the behavior of regular factors, plus any ordered-specific methods that exist for other generics.
+The ordered factor example is revealing: there's no `print.ordered`, so R falls through to `print.factor`. This is inheritance in action, the class vector `c("ordered", "factor")` gives ordered factors all the behavior of regular factors, plus any ordered-specific methods that exist for other generics.
 
 [TIP]
 **Use methods(class = "yourclass") right after defining a new class.** It's the fastest way to verify all your methods registered correctly. If a method doesn't show up, check for typos in the naming convention.
@@ -902,30 +902,30 @@ Alice's checking account has no specialized withdraw method, so it falls through
 
 | Concept | What It Does | Example |
 |---|---|---|
-| `UseMethod("generic")` | Starts dispatch — looks for generic.class() | `print <- function(x, ...) UseMethod("print")` |
+| `UseMethod("generic")` | Starts dispatch, looks for generic.class() | `print <- function(x, ...) UseMethod("print")` |
 | `generic.class()` naming | Convention R uses to find methods | `print.data.frame()`, `summary.lm()` |
 | `generic.default()` | Fallback when no class-specific method matches | `print.default()` handles anything without a custom method |
 | Class vector | Multi-class objects, searched left to right | `class(fit)` returns `c("glm", "lm")` |
 | `NextMethod()` | Delegate to the next method in the class chain | Child does its work, then passes to parent |
 | `.Generic` | Inside a method: which generic was called | In `Ops.currency`, tells you if `+` or `>` was used |
 | `.Class` | Inside a method: remaining classes to try | Shrinks as NextMethod() advances through the chain |
-| Internal generics | `[`, `c`, `+` — dispatch in C code | Write `[.myclass` to customize subsetting |
+| Internal generics | `[`, `c`, `+`, dispatch in C code | Write `[.myclass` to customize subsetting |
 | Group generics | One method for a family of operators | `Ops.myclass` handles all arithmetic + comparison |
 | `methods()` | List methods for a generic or class | `methods(print)`, `methods(class = "Date")` |
 | `getAnywhere()` | Find methods hidden in package namespaces | `getAnywhere("residuals.lm")` |
 
 ## References
 
-1. Wickham, H. — *Advanced R*, 2nd Edition. Chapter 13: S3. [Link](https://adv-r.hadley.nz/s3.html)
-2. R Core Team — UseMethod() documentation. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/UseMethod.html)
-3. R Core Team — InternalMethods documentation. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/InternalMethods.html)
-4. R Core Team — groupGeneric documentation. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/groupGeneric.html)
-5. Wickham, H. — sloop package: helpers for S3 OOP exploration. [Link](https://sloop.r-lib.org/)
-6. Gagolewski, M. — *Deep R Programming*, Chapter 10: S3 Classes. [Link](https://deepr.gagolewski.com/chapter/220-s3.html)
-7. R Core Team — *An Introduction to R*. [Link](https://cran.r-project.org/doc/manuals/r-release/R-intro.html)
+1. Wickham, H., *Advanced R*, 2nd Edition. Chapter 13: S3. [Link](https://adv-r.hadley.nz/s3.html)
+2. R Core Team, UseMethod() documentation. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/UseMethod.html)
+3. R Core Team, InternalMethods documentation. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/InternalMethods.html)
+4. R Core Team, groupGeneric documentation. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/groupGeneric.html)
+5. Wickham, H., sloop package: helpers for S3 OOP exploration. [Link](https://sloop.r-lib.org/)
+6. Gagolewski, M., *Deep R Programming*, Chapter 10: S3 Classes. [Link](https://deepr.gagolewski.com/chapter/220-s3.html)
+7. R Core Team, *An Introduction to R*. [Link](https://cran.r-project.org/doc/manuals/r-release/R-intro.html)
 
 ## Continue Learning
 
-1. [S3 Classes in R](S3-Classes-in-R.html) — How to create and structure S3 classes with constructors, validators, and helpers.
-2. [OOP in R: S3/S4/R6](OOP-in-R.html) — Compare all three OOP systems and when to use each.
-3. [R Environments](R-Environments.html) — Understand where R searches for methods and how environments chain together.
+1. [S3 Classes in R](S3-Classes-in-R.html), How to create and structure S3 classes with constructors, validators, and helpers.
+2. [OOP in R: S3/S4/R6](OOP-in-R.html), Compare all three OOP systems and when to use each.
+3. [R Environments](R-Environments.html), Understand where R searches for methods and how environments chain together.

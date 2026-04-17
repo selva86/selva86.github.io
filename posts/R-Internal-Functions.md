@@ -1,5 +1,5 @@
 ---
-title: "R Internal Functions: .Internal(), .Call(), .External() — Low Level"
+title: "R Internal Functions: .Internal(), .Call(), .External(), Low Level"
 slug: "R-Internal-Functions"
 description: "Brief guide to R's low-level interfaces: .Primitive(), .Internal(), .Call(), .External(), and how R functions call compiled C code underneath."
 keywords: "R .Internal, R .Call, R .Primitive, R .External, R C interface, R compiled code, R low level functions"
@@ -14,11 +14,11 @@ fr_parent: "R-Environments.html"
 difficulty: "Intermediate"
 ---
 
-# R Internal Functions: .Internal(), .Call(), .External() — Low Level
+# R Internal Functions: .Internal(), .Call(), .External(), Low Level
 
 <p class="lead">Many R functions are thin wrappers around compiled C code. <code>.Primitive()</code> and <code>.Internal()</code> call built-in C routines inside R itself, while <code>.Call()</code> and <code>.External()</code> call C code in add-on packages. Understanding this layer explains why some functions are fast and why you can't always see their source code.</p>
 
-## .Primitive() — The Fastest R Functions
+## .Primitive(), The Fastest R Functions
 
 Primitive functions are implemented directly in C with no R-level wrapper. They're the fastest operations in R:
 
@@ -43,7 +43,7 @@ cat("Primitive functions:", length(primitives), "\n")
 cat("\nSample primitives:", paste(head(primitives, 10), collapse = ", "), "\n")
 ```
 
-## .Internal() — Built-in R Functions
+## .Internal(), Built-in R Functions
 
 `.Internal()` calls C code that's compiled into R itself, but through a regular R function wrapper:
 
@@ -78,7 +78,7 @@ for (fn in samples) {
 }
 ```
 
-## .Call() and .External() — Package C Code
+## .Call() and .External(), Package C Code
 
 `.Call()` is the modern interface for R packages to call their own compiled C/C++ code:
 
@@ -140,10 +140,10 @@ No. `.Internal()` can only be called from base R functions. If you try `eval(.In
 
 ### Why does print(sum) show ".Primitive" instead of source code?
 
-Primitive functions have no R source code — they're implemented entirely in C. The R interpreter recognizes the function name and jumps directly to compiled code without creating an execution environment.
+Primitive functions have no R source code, they're implemented entirely in C. The R interpreter recognizes the function name and jumps directly to compiled code without creating an execution environment.
 
 ## Continue Learning
 
-1. **R Promise Objects** — lazy evaluation and the force() function
-2. **R Namespaces** — how packages organize their exported and internal functions
-3. **R Environments** — the environment system that all function calls rely on
+1. **R Promise Objects**, lazy evaluation and the force() function
+2. **R Namespaces**, how packages organize their exported and internal functions
+3. **R Environments**, the environment system that all function calls rely on

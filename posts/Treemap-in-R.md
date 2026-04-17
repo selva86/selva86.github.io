@@ -18,13 +18,13 @@ difficulty: "Intermediate"
 
 # Treemap in R with treemapify and ggplot2
 
-<p class="lead">A treemap divides a rectangle into tiles — each tile represents one observation, and its area encodes a numeric value. In R, the <code>treemapify</code> package brings treemaps into the ggplot2 grammar with <code>geom_treemap()</code>.</p>
+<p class="lead">A treemap divides a rectangle into tiles, each tile represents one observation, and its area encodes a numeric value. In R, the <code>treemapify</code> package brings treemaps into the ggplot2 grammar with <code>geom_treemap()</code>.</p>
 
 ## Introduction
 
 When you have many categories and want to show their proportional sizes, a bar chart works well up to about 20-30 bars. Beyond that, the chart becomes a wall of color with labels you can barely read.
 
-A treemap solves this by packing every category into a single rectangle. Bigger categories get bigger tiles — the proportions are immediately visible even with 50+ categories. Add a second variable as color, and you're encoding two dimensions in one compact chart.
+A treemap solves this by packing every category into a single rectangle. Bigger categories get bigger tiles, the proportions are immediately visible even with 50+ categories. Add a second variable as color, and you're encoding two dimensions in one compact chart.
 
 The tradeoff: treemaps are harder to compare precisely. You can tell that one tile is roughly twice the size of another, but you can't read exact values without labels. They're a visualization for "big picture proportions," not precise comparisons.
 
@@ -57,13 +57,13 @@ p_basic <- ggplot(market_df, aes(area = share, fill = company)) +
 p_basic
 ```
 
-The `area` aesthetic is the only required aesthetic — it controls the tile size. `fill` maps a variable to tile color. Without labels, though, you can't tell which tile belongs to which company.
+The `area` aesthetic is the only required aesthetic, it controls the tile size. `fill` maps a variable to tile color. Without labels, though, you can't tell which tile belongs to which company.
 
-**Try it:** Remove `fill = company` and instead use `fill = share` with `scale_fill_viridis_c()`. This encodes the same information (market share) as both area AND color — double encoding that makes the largest tiles stand out even more.
+**Try it:** Remove `fill = company` and instead use `fill = share` with `scale_fill_viridis_c()`. This encodes the same information (market share) as both area AND color, double encoding that makes the largest tiles stand out even more.
 
 ## How do you add text labels to a treemap?
 
-`geom_treemap_text()` automatically resizes labels to fit inside each tile — small tiles get smaller text, large tiles get larger text. Labels that don't fit at all are hidden automatically.
+`geom_treemap_text()` automatically resizes labels to fit inside each tile, small tiles get smaller text, large tiles get larger text. Labels that don't fit at all are hidden automatically.
 
 ```r
 # Add auto-sized text labels
@@ -82,7 +82,7 @@ p_labels <- ggplot(market_df, aes(area = share, fill = company, label = company)
 p_labels
 ```
 
-`grow = TRUE` scales text up to fill the tile. `reflow = TRUE` wraps long labels across multiple lines. Set `color = "white"` for light text on colored tiles — adjust for light-colored tiles.
+`grow = TRUE` scales text up to fill the tile. `reflow = TRUE` wraps long labels across multiple lines. Set `color = "white"` for light text on colored tiles, adjust for light-colored tiles.
 
 To also show the share value, use `label = paste0(company, "\n", share, "%")`:
 
@@ -123,7 +123,7 @@ At a glance: Samsung has the largest market share (biggest tile) but is shrinkin
 
 ## How do you create a hierarchical treemap with subgroups?
 
-Real data often has a natural hierarchy — categories within sectors, products within brands. `treemapify` supports this with the `subgroup` aesthetic and `geom_treemap_subgroup_border()`.
+Real data often has a natural hierarchy, categories within sectors, products within brands. `treemapify` supports this with the `subgroup` aesthetic and `geom_treemap_subgroup_border()`.
 
 ```r
 # Hierarchical treemap: subgroup by region
@@ -214,7 +214,7 @@ p_final
 
 ### Mistake 1: Forgetting the area aesthetic
 
-`geom_treemap()` requires `area` — without it, ggplot2 can't size the tiles.
+`geom_treemap()` requires `area`, without it, ggplot2 can't size the tiles.
 
 ```r
 # Wrong: missing area
@@ -226,7 +226,7 @@ ggplot(df, aes(area = value, fill = category)) + geom_treemap()
 
 ### Mistake 2: Using treemaps for time series or comparisons
 
-Treemaps show proportions at a single point in time. They cannot show change over time (use a line chart) or allow precise side-by-side comparison (use a bar chart). If your audience needs to read exact values, add labels — or use a bar chart instead.
+Treemaps show proportions at a single point in time. They cannot show change over time (use a line chart) or allow precise side-by-side comparison (use a bar chart). If your audience needs to read exact values, add labels, or use a bar chart instead.
 
 ### Mistake 3: Too many categories with tiny tiles
 
@@ -338,29 +338,29 @@ ggplot(cars_df, aes(area = hp, fill = mpg, label = car, subgroup = cyl)) +
 ## FAQ
 
 **Is treemapify on CRAN?**
-Yes — `install.packages("treemapify")`. It depends on ggplot2 and ggfittext (for auto-sizing text).
+Yes, `install.packages("treemapify")`. It depends on ggplot2 and ggfittext (for auto-sizing text).
 
 **How do I control the treemap layout algorithm?**
 `geom_treemap()` accepts a `layout` argument: `"squarified"` (default, best aspect ratios), `"scol"` (column-oriented), `"srow"` (row-oriented). Squarified is almost always the best choice.
 
 **Can I add more than one level of subgroup?**
-Yes — up to three levels: `subgroup`, `subgroup2`, `subgroup3`. Each level has corresponding border and text geoms (e.g., `geom_treemap_subgroup2_border()`).
+Yes, up to three levels: `subgroup`, `subgroup2`, `subgroup3`. Each level has corresponding border and text geoms (e.g., `geom_treemap_subgroup2_border()`).
 
 **Why do some labels disappear?**
 `geom_treemap_text()` drops labels that can't fit in the tile even at minimum size. For small tiles, either increase `min.size` (minimum font size before hiding) or reduce the number of categories.
 
 **Can I use facets with treemapify?**
-Yes — `facet_wrap()` and `facet_grid()` work with treemapify geoms, creating separate treemaps per facet panel. Useful for comparing structure across time periods or groups.
+Yes, `facet_wrap()` and `facet_grid()` work with treemapify geoms, creating separate treemaps per facet panel. Useful for comparing structure across time periods or groups.
 
 ## References
 
 - treemapify package documentation: wilkox.org/treemapify/
 - Shneiderman B. (1992). Tree visualization with tree-maps. *ACM Transactions on Graphics*.
-- Wilke C. (2019). *Fundamentals of Data Visualization* — Chapter 11: Visualizing nested proportions
-- r-charts.com — Treemaps with treemapify
+- Wilke C. (2019). *Fundamentals of Data Visualization*, Chapter 11: Visualizing nested proportions
+- r-charts.com, Treemaps with treemapify
 
 ## Continue Learning
 
-- **ggplot2 Bar Charts** — precise categorical comparisons when you have fewer categories
-- **Pie Chart and Donut Chart in R** — part-to-whole for 3-5 categories
-- **R Waffle Chart** — encode counts as grids of unit squares
+- **ggplot2 Bar Charts**, precise categorical comparisons when you have fewer categories
+- **Pie Chart and Donut Chart in R**, part-to-whole for 3-5 categories
+- **R Waffle Chart**, encode counts as grids of unit squares

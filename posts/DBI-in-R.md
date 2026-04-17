@@ -18,11 +18,11 @@ difficulty: "Intermediate"
 
 # Connect R to Any Database: DBI + RSQLite, RPostgres, and RMySQL
 
-<p class="lead">DBI is the standard R interface to relational databases. You write the same R code — <code>dbConnect()</code>, <code>dbGetQuery()</code>, <code>dbWriteTable()</code> — and swap the driver package to target SQLite, PostgreSQL, MySQL, SQL Server, or anything else that speaks SQL.</p>
+<p class="lead">DBI is the standard R interface to relational databases. You write the same R code, <code>dbConnect()</code>, <code>dbGetQuery()</code>, <code>dbWriteTable()</code>, and swap the driver package to target SQLite, PostgreSQL, MySQL, SQL Server, or anything else that speaks SQL.</p>
 
 ## Why use DBI instead of loading CSVs?
 
-CSVs work until they don't. Once your data is too big to load into RAM, changes frequently, or lives on a server shared with other users, a database is the right tool. DBI lets you query only what you need, when you need it — without ever materialising the full table in memory. The payoff: you can run arbitrary SQL and get a data frame back in one function call.
+CSVs work until they don't. Once your data is too big to load into RAM, changes frequently, or lives on a server shared with other users, a database is the right tool. DBI lets you query only what you need, when you need it, without ever materialising the full table in memory. The payoff: you can run arbitrary SQL and get a data frame back in one function call.
 
 ```r
 library(DBI)
@@ -47,7 +47,7 @@ dbGetQuery(con, "SELECT store, revenue FROM sales WHERE revenue > 10000")
 dbDisconnect(con)
 ```
 
-Four functions and you have a working database workflow. The same code pattern works with a real PostgreSQL database — you only change the first line. That portability is the single biggest reason DBI exists.
+Four functions and you have a working database workflow. The same code pattern works with a real PostgreSQL database, you only change the first line. That portability is the single biggest reason DBI exists.
 
 ![DBI architecture: R code talks to DBI which dispatches to drivers](screenshots/DBI-in-R-architecture.webp)
 *Figure 1: DBI sits between your R code and the database-specific drivers. You write DBI calls; the driver package translates them to wire protocol.*
@@ -161,7 +161,7 @@ dbListFields(con, "t1")
 #> [1] "a" "b"
 ```
 
-`dbListTables()` is the database equivalent of `ls()`, and `dbListFields()` returns the column names for a single table — both work identically across every DBI backend.
+`dbListTables()` is the database equivalent of `ls()`, and `dbListFields()` returns the column names for a single table, both work identically across every DBI backend.
 
 </details>
 
@@ -206,7 +206,7 @@ while (!dbHasCompleted(rs)) {
 dbClearResult(rs)
 ```
 
-This pattern is essential for multi-gigabyte tables. You get 1,000 rows at a time, process them, and free the memory before the next batch. Always call `dbClearResult()` to close the statement handle — leaks here cause resource exhaustion on long jobs.
+This pattern is essential for multi-gigabyte tables. You get 1,000 rows at a time, process them, and free the memory before the next batch. Always call `dbClearResult()` to close the statement handle, leaks here cause resource exhaustion on long jobs.
 
 > **[TIP]** If your query has no result (INSERT, UPDATE, DELETE, CREATE), use `dbExecute()` instead of `dbGetQuery()`. It returns the number of affected rows and is the right function for side-effect SQL.
 
@@ -265,7 +265,7 @@ dbReadTable(con, "customers")
 #> 5  5   Edu    Madrid
 ```
 
-`dbWriteTable(..., overwrite = TRUE)` replaces an existing table; `dbWriteTable(..., append = TRUE)` adds to it — equivalent to `dbAppendTable()`. The explicit append function is clearer.
+`dbWriteTable(..., overwrite = TRUE)` replaces an existing table; `dbWriteTable(..., append = TRUE)` adds to it, equivalent to `dbAppendTable()`. The explicit append function is clearer.
 
 For schema changes, drop down to raw SQL with `dbExecute()`:
 
@@ -278,7 +278,7 @@ dbExecute(con, "ALTER TABLE customers ADD COLUMN signup_date TEXT")
 
 The `[1] 0` is the affected-row count; DDL statements return 0 because no data rows are changed.
 
-> **[NOTE]** `dbWriteTable()` does type inference from your R data frame — integers become INT, doubles become REAL, character becomes TEXT. For precise control, create the table yourself with `dbExecute(CREATE TABLE ...)` and then use `dbAppendTable()` to populate it.
+> **[NOTE]** `dbWriteTable()` does type inference from your R data frame, integers become INT, doubles become REAL, character becomes TEXT. For precise control, create the table yourself with `dbExecute(CREATE TABLE ...)` and then use `dbAppendTable()` to populate it.
 
 **Try it:** Write a small data frame to SQLite, then append two more rows.
 
@@ -311,7 +311,7 @@ dbReadTable(con, "t")
 
 ## How do you use parameterised queries to prevent SQL injection?
 
-Never, ever, build SQL with `paste0()` or `sprintf()` from user input. If the input contains a quote or semicolon, your query breaks — or worse, does something you never intended. Parameterised queries separate the SQL template from the values, and the driver quotes the values correctly.
+Never, ever, build SQL with `paste0()` or `sprintf()` from user input. If the input contains a quote or semicolon, your query breaks, or worse, does something you never intended. Parameterised queries separate the SQL template from the values, and the driver quotes the values correctly.
 
 ![Parameterised query vs paste: the safety difference](screenshots/DBI-in-R-parameterised-vs-paste.webp)
 *Figure 3: Paste-based queries let user input become part of the SQL statement. Parameterised queries treat input as data. Always use the right side.*
@@ -386,7 +386,7 @@ The `?` placeholder is filled in by the value in `params`. Because the value tra
 
 ## How does dbplyr let you use dplyr syntax on SQL tables?
 
-`dbplyr` translates dplyr verbs into SQL and sends them to the database. You write familiar R code; the database runs the actual computation. This is the best of both worlds — dplyr's ergonomics plus the database's query planner.
+`dbplyr` translates dplyr verbs into SQL and sends them to the database. You write familiar R code; the database runs the actual computation. This is the best of both worlds, dplyr's ergonomics plus the database's query planner.
 
 ```r
 library(DBI); library(RSQLite); library(dplyr); library(dbplyr)
@@ -421,11 +421,11 @@ result |> show_query()
 result |> collect()
 ```
 
-Two key ideas. First, `tbl(con, "name")` returns a **lazy** reference. No data is fetched until you call `collect()`. Second, `show_query()` lets you see exactly what SQL dbplyr generated — useful for debugging and for learning SQL itself.
+Two key ideas. First, `tbl(con, "name")` returns a **lazy** reference. No data is fetched until you call `collect()`. Second, `show_query()` lets you see exactly what SQL dbplyr generated, useful for debugging and for learning SQL itself.
 
 Lazy evaluation means you can chain a dozen dplyr steps and the database optimizes the whole thing as a single query. You never pull the raw table into R until the final summary, which is often small.
 
-> **[TIP]** Use `collect()` only at the **end** of your pipeline, after filtering and aggregation have shrunk the data. Calling `collect()` early defeats the whole purpose — you load the entire table into RAM.
+> **[TIP]** Use `collect()` only at the **end** of your pipeline, after filtering and aggregation have shrunk the data. Calling `collect()` early defeats the whole purpose, you load the entire table into RAM.
 
 **Try it:** Use dbplyr to compute the average `delay` per origin airport, then collect the result.
 
@@ -494,9 +494,9 @@ dbReadTable(con, "accounts")
 dbDisconnect(con)
 ```
 
-`dbWithTransaction()` runs the block inside `BEGIN` / `COMMIT`. If any statement throws, everything is rolled back automatically. This is exactly what you want for "debit this account, credit that one" — either both happen, or neither does.
+`dbWithTransaction()` runs the block inside `BEGIN` / `COMMIT`. If any statement throws, everything is rolled back automatically. This is exactly what you want for "debit this account, credit that one", either both happen, or neither does.
 
-> **[NOTE]** SQLite supports transactions too, even for an in-memory database. The API is the same everywhere — another reason DBI makes switching backends painless.
+> **[NOTE]** SQLite supports transactions too, even for an in-memory database. The API is the same everywhere, another reason DBI makes switching backends painless.
 
 **Try it:** Wrap two inserts in a transaction so that either both succeed or neither does.
 
@@ -631,7 +631,7 @@ dbListTables(con)
 #> [1] "sales"        "top_customers"
 ```
 
-Five DBI calls (`dbConnect`, `dbWriteTable` twice, `dbListTables`, and the implicit `dbSendQuery` behind `collect()`), plus a dplyr pipeline — zero raw SQL. The whole workflow is portable: point the driver at PostgreSQL and it runs unchanged.
+Five DBI calls (`dbConnect`, `dbWriteTable` twice, `dbListTables`, and the implicit `dbSendQuery` behind `collect()`), plus a dplyr pipeline, zero raw SQL. The whole workflow is portable: point the driver at PostgreSQL and it runs unchanged.
 
 ## Summary
 
@@ -665,10 +665,10 @@ Four rules:
 - [RSQLite reference](https://rsqlite.r-dbi.org/)
 - [RPostgres reference](https://rpostgres.r-dbi.org/)
 - [dbplyr package site](https://dbplyr.tidyverse.org/)
-- [R for Data Science, 2e — Databases chapter](https://r4ds.hadley.nz/databases.html)
+- [R for Data Science, 2e, Databases chapter](https://r4ds.hadley.nz/databases.html)
 
 ## Continue Learning
 
-- [dplyr filter() and select()](dplyr-filter-select.html) — the local dplyr knowledge you already have translates to dbplyr.
-- [dplyr group_by() and summarise()](dplyr-group-by-summarise.html) — both verbs work unchanged on database tables.
-- [Importing Data in R](Importing-Data-in-R.html) — when the source is a flat file, not a database.
+- [dplyr filter() and select()](dplyr-filter-select.html), the local dplyr knowledge you already have translates to dbplyr.
+- [dplyr group_by() and summarise()](dplyr-group-by-summarise.html), both verbs work unchanged on database tables.
+- [Importing Data in R](Importing-Data-in-R.html), when the source is a flat file, not a database.

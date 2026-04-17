@@ -1,5 +1,5 @@
 ---
-title: "purrr map() Functions in R: map, map2, imap, pmap — Functional Data Processing"
+title: "purrr map() Functions in R: map, map2, imap, pmap, Functional Data Processing"
 slug: "purrr-map-Data-Wrangling"
 description: "Apply purrr map(), map2(), imap(), and pmap() to data wrangling tasks: read files, run row-wise calculations, fit models per group, and handle errors safely."
 keywords: "purrr data wrangling, map multiple files R, list columns purrr, purrr map2 example, purrr pmap rowwise, imap names, purrr safely, functional data processing R, tidyverse iteration"
@@ -14,15 +14,15 @@ fr_parent: "dplyr-group-by-summarise.html"
 difficulty: "Intermediate"
 ---
 
-# purrr map() Functions in R: map, map2, imap, pmap — Functional Data Processing
+# purrr map() Functions in R: map, map2, imap, pmap, Functional Data Processing
 
-<p class="lead">purrr's <code>map()</code> family turns messy real-world data into tidy results without writing loops. With <code>map()</code>, <code>map2()</code>, <code>imap()</code>, and <code>pmap()</code> — plus <code>safely()</code> for resilience — you can read dozens of files at once, run row-wise calculations, fit a model per group, and label outputs with their source names.</p>
+<p class="lead">purrr's <code>map()</code> family turns messy real-world data into tidy results without writing loops. With <code>map()</code>, <code>map2()</code>, <code>imap()</code>, and <code>pmap()</code>, plus <code>safely()</code> for resilience, you can read dozens of files at once, run row-wise calculations, fit a model per group, and label outputs with their source names.</p>
 
 ## How do you read and combine multiple CSV files with map()?
 
-Imagine twelve monthly sales exports — same columns, twelve files. The loop-and-append version is fragile; the purrr version is one pipeline. `map_dfr()` reads each file with the function you give it and binds the rows into a single tibble in one shot. The example below generates three CSVs in a temp directory so you can run it end-to-end without leaving the browser.
+Imagine twelve monthly sales exports, same columns, twelve files. The loop-and-append version is fragile; the purrr version is one pipeline. `map_dfr()` reads each file with the function you give it and binds the rows into a single tibble in one shot. The example below generates three CSVs in a temp directory so you can run it end-to-end without leaving the browser.
 
-We will write three tiny CSVs, list them, and read them back into one tibble. Watch the `.id` argument — it tags every row with the file it came from, so you never lose track of source.
+We will write three tiny CSVs, list them, and read them back into one tibble. Watch the `.id` argument, it tags every row with the file it came from, so you never lose track of source.
 
 ```r
 library(purrr)
@@ -54,10 +54,10 @@ sales_all
 #> 6      3  cup  22
 ```
 
-Three files in, one tibble out — and no loop. The `.id` column shows which file each row came from. Right now `.id` is just a position number; the next exercise turns it into a readable file name. This is the smallest possible version of "read every file in a folder," and it scales unchanged from 3 files to 300.
+Three files in, one tibble out, and no loop. The `.id` column shows which file each row came from. Right now `.id` is just a position number; the next exercise turns it into a readable file name. This is the smallest possible version of "read every file in a folder," and it scales unchanged from 3 files to 300.
 
 [TIP]
-**Use `.id` to track the source of every row.** Without it you cannot tell which file produced which row after the bind — a top-3 cause of silent data-quality bugs in monthly batch pipelines.
+**Use `.id` to track the source of every row.** Without it you cannot tell which file produced which row after the bind, a top-3 cause of silent data-quality bugs in monthly batch pipelines.
 
 **Try it:** Make the `.id` column show file names like `jan.csv` instead of `1`, `2`, `3`. Hint: `set_names()` on the file path vector, then run the same `map_dfr()` call.
 
@@ -89,13 +89,13 @@ head(ex_sales_named)
 #> 6 mar.csv  cup  22
 ```
 
-**Explanation:** `set_names()` attaches names to the file path vector. `map_dfr()` then uses those names — instead of integer positions — for the `.id` column.
+**Explanation:** `set_names()` attaches names to the file path vector. `map_dfr()` then uses those names, instead of integer positions, for the `.id` column.
 
 </details>
 
 ## How does map2() apply a function over two parallel vectors?
 
-Sometimes you have two synchronized vectors that need to march in lockstep — prices and discounts, predictions and actuals, names and scores. `map2()` is the variant for exactly that case. It walks both inputs at once, calling the function with `.x` from the first vector and `.y` from the second.
+Sometimes you have two synchronized vectors that need to march in lockstep, prices and discounts, predictions and actuals, names and scores. `map2()` is the variant for exactly that case. It walks both inputs at once, calling the function with `.x` from the first vector and `.y` from the second.
 
 We will compute final prices from a price list and a per-product discount rate. The lambda receives one price and one rate per call; `map2_dbl()` collects the answers into a numeric vector.
 
@@ -111,10 +111,10 @@ sum(final_prices)
 #> [1] 105.38
 ```
 
-Each price was multiplied by its own discount rate — not the average rate, not the wrong rate, the exact paired one. The `_dbl` suffix forces a numeric vector out (instead of a list), so the result drops cleanly into `sum()` or any downstream calculation. If `prices` and `discounts` had different lengths, `map2_dbl()` would error immediately rather than silently recycling.
+Each price was multiplied by its own discount rate, not the average rate, not the wrong rate, the exact paired one. The `_dbl` suffix forces a numeric vector out (instead of a list), so the result drops cleanly into `sum()` or any downstream calculation. If `prices` and `discounts` had different lengths, `map2_dbl()` would error immediately rather than silently recycling.
 
 [NOTE]
-**`map2()` requires equal-length inputs.** If `.x` and `.y` differ in length, the call fails fast with a clear error — saving you from the silent recycling bugs that haunt base R `*` and `+` operations on mismatched vectors.
+**`map2()` requires equal-length inputs.** If `.x` and `.y` differ in length, the call fails fast with a clear error, saving you from the silent recycling bugs that haunt base R `*` and `+` operations on mismatched vectors.
 
 **Try it:** Compute percent change between two vectors `ex_old` and `ex_new` using `map2_dbl()`. Formula: `(new - old) / old * 100`.
 
@@ -145,7 +145,7 @@ ex_pct_change
 
 ## How do you use pmap() for row-wise operations on a data frame?
 
-Two inputs become awkward fast when you have three, four, or five. That is where `pmap()` takes over. It accepts a single list (or data frame) and walks it in parallel — column by column for a data frame, slot by slot for a list. The function you supply gets one argument per element. Because a data frame is a list of equal-length vectors, this is the cleanest way to do row-wise calculations with column-name parameters.
+Two inputs become awkward fast when you have three, four, or five. That is where `pmap()` takes over. It accepts a single list (or data frame) and walks it in parallel, column by column for a data frame, slot by slot for a list. The function you supply gets one argument per element. Because a data frame is a list of equal-length vectors, this is the cleanest way to do row-wise calculations with column-name parameters.
 
 We will compute body mass index for a small tibble of people. The function declares one parameter per column it needs and a `...` to silently absorb anything else, so you can grow the tibble without breaking the function.
 
@@ -236,10 +236,10 @@ model_table
 #> 6     8 wt             -2.19     0.739     -2.97 0.0118
 ```
 
-Each cylinder group got its own regression of mileage on weight. The slope on `wt` is steepest for 4-cylinder cars (−5.65) and gentlest for 8-cylinder cars (−2.19), meaning every extra 1000 lb costs more miles per gallon in a small car than a big one. We never wrote a loop, and we never lost the cylinder label — the list-column kept everything aligned.
+Each cylinder group got its own regression of mileage on weight. The slope on `wt` is steepest for 4-cylinder cars (−5.65) and gentlest for 8-cylinder cars (−2.19), meaning every extra 1000 lb costs more miles per gallon in a small car than a big one. We never wrote a loop, and we never lost the cylinder label, the list-column kept everything aligned.
 
 [TIP]
-**Pull single statistics with `map_dbl()`.** Once `mtcars_models` exists, `map_dbl(mtcars_models$model, \(m) summary(m)$r.squared)` returns one R² value per group as a clean numeric vector — no unnesting needed.
+**Pull single statistics with `map_dbl()`.** Once `mtcars_models` exists, `map_dbl(mtcars_models$model, \(m) summary(m)$r.squared)` returns one R² value per group as a clean numeric vector, no unnesting needed.
 
 **Try it:** Add an `r2` column to `mtcars_models` containing each group's R² from `summary(model)$r.squared`.
 
@@ -298,7 +298,7 @@ region_report
 #> [3] "east: mean = 127.7, n = 3"  "west: mean = 82.3, n = 3"
 ```
 
-Every line carries its region label baked in — no parallel vector of names to manage, no risk of misaligning labels with values. `imap_chr()` returns a character vector (one per element), perfect for `writeLines()` or the body of a Slack message. If `regions` had no names, `.y` would be the integer index and you would get `"1: mean = ..."` instead.
+Every line carries its region label baked in, no parallel vector of names to manage, no risk of misaligning labels with values. `imap_chr()` returns a character vector (one per element), perfect for `writeLines()` or the body of a Slack message. If `regions` had no names, `.y` would be the integer index and you would get `"1: mean = ..."` instead.
 
 [NOTE]
 **Names default to indices.** If your input has no `names()`, `imap()` falls back to `seq_along(x)`, so you get position numbers for free. Useful when iterating over an unnamed list of files or batches and you want "row 3 failed" style messages.
@@ -334,9 +334,9 @@ ex_indexed
 
 ## How do you handle errors in pipelines with safely() and possibly()?
 
-Real data is messy — one bad row, one missing file, one malformed string can crash an entire `map()` call and lose every result that came before it. purrr's two adapters fix this. `safely(f)` wraps `f` so it returns a list of `(result, error)` for every call — failures become data, not exceptions. `possibly(f, otherwise)` is simpler: it returns `otherwise` when `f` errors, so you can ask for a numeric vector and get `NA` for the bad ones.
+Real data is messy, one bad row, one missing file, one malformed string can crash an entire `map()` call and lose every result that came before it. purrr's two adapters fix this. `safely(f)` wraps `f` so it returns a list of `(result, error)` for every call, failures become data, not exceptions. `possibly(f, otherwise)` is simpler: it returns `otherwise` when `f` errors, so you can ask for a numeric vector and get `NA` for the bad ones.
 
-We will mix valid numbers, a string, and a negative — `log()` will succeed, fail, or return `NaN` accordingly — and see both adapters in action.
+We will mix valid numbers, a string, and a negative, `log()` will succeed, fail, or return `NaN` accordingly, and see both adapters in action.
 
 ```r
 values <- list(4, 100, "oops", -2, 25)
@@ -544,7 +544,7 @@ cat(report, sep = "\n")
 #> east:  slope = 15.10, R² = 0.88
 ```
 
-Five steps, four variants, zero loops. `map_dfr()` consolidated the files, `pmap_dbl()` did the row-wise margin, `map()` fit one model per region, and `imap_chr()` produced labeled output. The exact numbers will differ each run because the sample data is random, but the shape of the answer — one tagged report line per region — is what the rest of your pipeline (Slack, email, dashboard) wants.
+Five steps, four variants, zero loops. `map_dfr()` consolidated the files, `pmap_dbl()` did the row-wise margin, `map()` fit one model per region, and `imap_chr()` produced labeled output. The exact numbers will differ each run because the sample data is random, but the shape of the answer, one tagged report line per region, is what the rest of your pipeline (Slack, email, dashboard) wants.
 
 ## Summary
 
@@ -564,16 +564,16 @@ The decision rule is mechanical: count the parallel inputs you need. One? `map()
 
 ## References
 
-1. Wickham, H. — *Advanced R*, 2nd Edition, Chapter 9: Functionals. [Link](https://adv-r.hadley.nz/functionals.html)
-2. Wickham, H. & Grolemund, G. — *R for Data Science (2e)*, Chapter 26: Iteration. [Link](https://r4ds.hadley.nz/iteration.html)
-3. tidyverse blog — *purrr 1.0.0 release notes*. [Link](https://www.tidyverse.org/blog/2022/12/purrr-1-0-0/)
-4. purrr reference — `map2()`. [Link](https://purrr.tidyverse.org/reference/map2.html)
-5. purrr reference — `pmap()`. [Link](https://purrr.tidyverse.org/reference/pmap.html)
-6. purrr reference — `safely()`. [Link](https://purrr.tidyverse.org/reference/safely.html)
+1. Wickham, H., *Advanced R*, 2nd Edition, Chapter 9: Functionals. [Link](https://adv-r.hadley.nz/functionals.html)
+2. Wickham, H. & Grolemund, G., *R for Data Science (2e)*, Chapter 26: Iteration. [Link](https://r4ds.hadley.nz/iteration.html)
+3. tidyverse blog, *purrr 1.0.0 release notes*. [Link](https://www.tidyverse.org/blog/2022/12/purrr-1-0-0/)
+4. purrr reference, `map2()`. [Link](https://purrr.tidyverse.org/reference/map2.html)
+5. purrr reference, `pmap()`. [Link](https://purrr.tidyverse.org/reference/pmap.html)
+6. purrr reference, `safely()`. [Link](https://purrr.tidyverse.org/reference/safely.html)
 7. broom package documentation. [Link](https://broom.tidymodels.org/)
 
 ## Continue Learning
 
-- [purrr map() Variants](/purrr-map-Variants.html) — every map() variant explained with the mental model that makes them click.
-- [dplyr group_by() + summarise()](/dplyr-group-by-summarise.html) — the parent post on group-wise aggregation.
-- [Reduce, Filter, Map in R](/Reduce-Filter-Map-in-R.html) — base R analogues to purrr's higher-order toolkit.
+- [purrr map() Variants](/purrr-map-Variants.html), every map() variant explained with the mental model that makes them click.
+- [dplyr group_by() + summarise()](/dplyr-group-by-summarise.html), the parent post on group-wise aggregation.
+- [Reduce, Filter, Map in R](/Reduce-Filter-Map-in-R.html), base R analogues to purrr's higher-order toolkit.

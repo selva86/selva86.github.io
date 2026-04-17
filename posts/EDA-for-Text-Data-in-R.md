@@ -16,11 +16,11 @@ fr_parent: "Univariate-EDA-in-R.html"
 
 # EDA for Text Data in R: Word Frequency, Length Distribution & Readability
 
-<p class="lead">Text EDA examines the structure of character variables — how long strings are, which words dominate, and how readable the text is — so you can clean, transform, and understand text before fitting any model.</p>
+<p class="lead">Text EDA examines the structure of character variables, how long strings are, which words dominate, and how readable the text is, so you can clean, transform, and understand text before fitting any model.</p>
 
 ## What can a quick summary tell you about text columns?
 
-When you get a dataset with text columns — product reviews, survey responses, clinical notes — you need to inspect them the same way you'd inspect numeric variables. Instead of mean and median, you ask: how long are the strings? Are any empty? What's the character count distribution? Let's build a sample dataset and run the first diagnostics.
+When you get a dataset with text columns, product reviews, survey responses, clinical notes, you need to inspect them the same way you'd inspect numeric variables. Instead of mean and median, you ask: how long are the strings? Are any empty? What's the character count distribution? Let's build a sample dataset and run the first diagnostics.
 
 ```r
 # Sample product reviews for text EDA
@@ -70,10 +70,10 @@ summary(word_counts)
 #>    0.00    5.50    8.00    7.14   10.25   15.00       1
 ```
 
-Right away, you know the dataset has 15 entries: one NA, one empty string, and character counts ranging from 0 to 84. The median review is 45 characters (about 8 words). That big gap between the shortest entry ("OK" at 2 characters) and the longest (84 characters) hints at high variability — worth visualising.
+Right away, you know the dataset has 15 entries: one NA, one empty string, and character counts ranging from 0 to 84. The median review is 45 characters (about 8 words). That big gap between the shortest entry ("OK" at 2 characters) and the longest (84 characters) hints at high variability, worth visualising.
 
 [KEY INSIGHT]
-**nchar() is to text what summary() is to numbers.** Run it first on every text column. The min, median, and max character counts instantly reveal whether you're dealing with tweets, paragraphs, or essays — and whether empty strings or outlier-length entries need handling.
+**nchar() is to text what summary() is to numbers.** Run it first on every text column. The min, median, and max character counts instantly reveal whether you're dealing with tweets, paragraphs, or essays, and whether empty strings or outlier-length entries need handling.
 
 Now let's look at which entries are empty or missing, because those need different treatment.
 
@@ -90,7 +90,7 @@ cat("Valid text entries:", sum(!is.na(reviews) & reviews != ""), "out of", lengt
 #> Valid text entries: 13 out of 15
 ```
 
-Two entries are missing or empty — that's a 13% data loss rate. In practice, you'd decide whether to drop them or flag them separately depending on your analysis goal.
+Two entries are missing or empty, that's a 13% data loss rate. In practice, you'd decide whether to drop them or flag them separately depending on your analysis goal.
 
 **Try it:** Create a vector of 5 sentences and compute the median word count. Which sentence is closest to the median?
 
@@ -139,7 +139,7 @@ legend("topright", legend = paste("Median =", median(valid)),
 #> (Histogram showing right-skewed distribution with median line at 45)
 ```
 
-The histogram shows a right skew — most reviews cluster between 25-60 characters, but a few long ones stretch the tail. The red dashed line marks the median at 45 characters. This pattern is extremely common in text data: most entries are moderate-length, but a few verbose ones pull the mean up.
+The histogram shows a right skew, most reviews cluster between 25-60 characters, but a few long ones stretch the tail. The red dashed line marks the median at 45 characters. This pattern is extremely common in text data: most entries are moderate-length, but a few verbose ones pull the mean up.
 
 A boxplot makes outlier detection even easier.
 
@@ -153,7 +153,7 @@ boxplot(valid_wc, horizontal = TRUE,
 #> (Boxplot showing IQR between ~5 and ~10 words, one long outlier at 15)
 ```
 
-The boxplot highlights that 50% of reviews fall between roughly 5 and 10 words, with one entry reaching 15 words. The zero-word entry (our empty string) shows up as a clear outlier on the left — exactly the kind of anomaly you want to catch early.
+The boxplot highlights that 50% of reviews fall between roughly 5 and 10 words, with one entry reaching 15 words. The zero-word entry (our empty string) shows up as a clear outlier on the left, exactly the kind of anomaly you want to catch early.
 
 [TIP]
 **Log-transform heavily right-skewed text lengths for clearer patterns.** When a few documents are 10x longer than the rest, a regular histogram hides detail in the short-text region. A log scale spreads that compressed region out.
@@ -182,7 +182,7 @@ par(mfrow = c(1, 1))
 #>  a more balanced bimodal pattern revealing two groups of text lengths)
 ```
 
-On the original scale, short reviews are crushed into the left edge. On the log scale, you can see two distinct clusters — one around 1.5 (roughly 30 characters: the reviews) and one around 2.5-3 (roughly 300-1000 characters: the simulated longer texts). The log transform revealed a bimodal structure that was invisible before.
+On the original scale, short reviews are crushed into the left edge. On the log scale, you can see two distinct clusters, one around 1.5 (roughly 30 characters: the reviews) and one around 2.5-3 (roughly 300-1000 characters: the simulated longer texts). The log transform revealed a bimodal structure that was invisible before.
 
 **Try it:** Create a boxplot of character counts (not word counts) for our original `reviews` vector. Does the boxplot flag any outliers?
 
@@ -235,7 +235,7 @@ head(all_words, 20)
 We have 93 word tokens and 68 unique words. But many of those will be filler words like "the", "and", "is". Let's remove stop words to find the meaningful terms.
 
 [WARNING]
-**Always remove stop words before interpreting frequency tables.** Without this step, words like "the", "and", "is" dominate every chart. They tell you nothing about the content — only that the text is written in English.
+**Always remove stop words before interpreting frequency tables.** Without this step, words like "the", "and", "is" dominate every chart. They tell you nothing about the content, only that the text is written in English.
 
 ```r
 # Define stop words (common English function words)
@@ -264,7 +264,7 @@ head(freq_table, 15)
 #>         3     2      2       2         2         1        1
 ```
 
-After removing stop words, "product" appears 3 times — the most frequent meaningful term. Words like "buy", "best", and "arrived" each appear twice. With only 13 reviews, no single term dominates heavily. In a larger corpus, these frequency differences become much more informative.
+After removing stop words, "product" appears 3 times, the most frequent meaningful term. Words like "buy", "best", and "arrived" each appear twice. With only 13 reviews, no single term dominates heavily. In a larger corpus, these frequency differences become much more informative.
 
 Now let's visualise the top words.
 
@@ -297,7 +297,7 @@ abline(lm(log10(as.numeric(freq_table)) ~ log10(ranks)),
 #> (Scatter plot showing roughly linear relationship on log-log scale)
 ```
 
-Even with only 48 unique words, you can see the approximate linear relationship on the log-log scale — the hallmark of Zipf's law. A few high-frequency words dominate, while most words appear only once. This pattern is universal across languages and corpus sizes.
+Even with only 48 unique words, you can see the approximate linear relationship on the log-log scale, the hallmark of Zipf's law. A few high-frequency words dominate, while most words appear only once. This pattern is universal across languages and corpus sizes.
 
 [KEY INSIGHT]
 **Zipf's law means most of your vocabulary is rare words.** In any text dataset, a tiny fraction of words accounts for most of the total word count. This is why stop-word removal, TF-IDF weighting, and minimum-frequency thresholds matter for downstream modelling.
@@ -400,7 +400,7 @@ print(score_df)
 #> 3  Exceeded my expectations. Superb craft    10 42.8
 ```
 
-The second review scores 90.5 (very easy — short common words), while the third scores 42.8 (harder — "expectations", "craftsmanship", and "attention" have more syllables). This matches intuition: simple words and short sentences produce higher readability scores.
+The second review scores 90.5 (very easy, short common words), while the third scores 42.8 (harder, "expectations", "craftsmanship", and "attention" have more syllables). This matches intuition: simple words and short sentences produce higher readability scores.
 
 [NOTE]
 **Syllable counting by regex is approximate.** The vowel-group method gets about 85-90% of words right. Words like "area" (3 syllables, not 2) or "beautiful" can be miscounted. For production text analysis, use the quanteda.textstats package with `textstat_readability()`, which handles edge cases better.
@@ -436,7 +436,7 @@ table(levels)
 #>         3         7         2
 ```
 
-Most reviews score as "Easy" (FRE >= 70), which makes sense — product reviews use conversational language. The three "Difficult" entries likely contain longer words or single-sentence structures. A score above 100 can happen with very short, simple texts (the formula can overshoot).
+Most reviews score as "Easy" (FRE >= 70), which makes sense, product reviews use conversational language. The three "Difficult" entries likely contain longer words or single-sentence structures. A score above 100 can happen with very short, simple texts (the formula can overshoot).
 
 [KEY INSIGHT]
 **A Flesch Reading Ease score above 60 means most adults can read the text comfortably.** Below 30 is academic or legal prose. Scores above 100 are mathematically possible for very simple text. Use this scale when comparing text sources: consumer reviews (~70-90), news articles (~50-65), scientific papers (~15-30).
@@ -467,7 +467,7 @@ ex_fkgl(ex_text)
 #> [1] -1.45
 ```
 
-**Explanation:** A negative grade level means the text is extremely simple — below first-grade reading level. Six one-syllable words in a single sentence makes this about as easy as English gets.
+**Explanation:** A negative grade level means the text is extremely simple, below first-grade reading level. Six one-syllable words in a single sentence makes this about as easy as English gets.
 
 </details>
 
@@ -802,17 +802,17 @@ This five-step pipeline (overview → lengths → frequency → readability → 
 
 ## References
 
-1. R Core Team — `nchar()` documentation. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/nchar.html)
-2. Silge, J. & Robinson, D. — *Text Mining with R: A Tidy Approach*. O'Reilly (2017). [Link](https://www.tidytextmining.com/)
-3. Flesch, R. — *How to Write Plain English*. Harper & Row (1979). Readability formula reference.
-4. Kincaid, J.P. et al. — "Derivation of New Readability Formulas for Navy Enlisted Personnel." Research Branch Report 8-75, Naval Air Station Memphis (1975).
-5. Zipf, G.K. — *Human Behavior and the Principle of Least Effort*. Addison-Wesley (1949).
-6. quanteda.io — `textstat_readability()` reference. [Link](https://quanteda.io/reference/textstat_readability.html)
-7. Wickham, H. — `stringr`: Simple, Consistent Wrappers for Common String Operations. [Link](https://stringr.tidyverse.org/)
-8. Pröllochs, N. — "Exploratory Text Analysis" lecture notes. [Link](https://nproellochs.com/wp-content/uploads/2019/09/02-Exploratory-Text-Analysis.pdf)
+1. R Core Team, `nchar()` documentation. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/nchar.html)
+2. Silge, J. & Robinson, D., *Text Mining with R: A Tidy Approach*. O'Reilly (2017). [Link](https://www.tidytextmining.com/)
+3. Flesch, R., *How to Write Plain English*. Harper & Row (1979). Readability formula reference.
+4. Kincaid, J.P. et al., "Derivation of New Readability Formulas for Navy Enlisted Personnel." Research Branch Report 8-75, Naval Air Station Memphis (1975).
+5. Zipf, G.K., *Human Behavior and the Principle of Least Effort*. Addison-Wesley (1949).
+6. quanteda.io, `textstat_readability()` reference. [Link](https://quanteda.io/reference/textstat_readability.html)
+7. Wickham, H., `stringr`: Simple, Consistent Wrappers for Common String Operations. [Link](https://stringr.tidyverse.org/)
+8. Pröllochs, N., "Exploratory Text Analysis" lecture notes. [Link](https://nproellochs.com/wp-content/uploads/2019/09/02-Exploratory-Text-Analysis.pdf)
 
 ## Continue Learning
 
-- [Univariate EDA in R](Univariate-EDA-in-R.html) — Apply the same EDA mindset to numeric variables: distributions, outliers, and transformations.
-- [stringr in R](stringr-in-R.html) — Master R's tidyverse string manipulation toolkit for cleaning and transforming text.
-- [Regex Patterns with stringr](R-Regex-stringr-Pattern-Matching.html) — Learn pattern matching to extract, detect, and replace text patterns.
+- [Univariate EDA in R](Univariate-EDA-in-R.html), Apply the same EDA mindset to numeric variables: distributions, outliers, and transformations.
+- [stringr in R](stringr-in-R.html), Master R's tidyverse string manipulation toolkit for cleaning and transforming text.
+- [Regex Patterns with stringr](R-Regex-stringr-Pattern-Matching.html), Learn pattern matching to extract, detect, and replace text patterns.

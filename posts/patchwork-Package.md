@@ -18,11 +18,11 @@ difficulty: "Intermediate"
 
 # patchwork in R: Combine Multiple ggplot2 Plots With Aligned Axes and Shared Legends
 
-<p class="lead">The patchwork package makes it ridiculously simple to combine multiple ggplot2 plots into a single figure — just add them together with <code>+</code>, stack them with <code>/</code>, or place them side-by-side with <code>|</code>, and patchwork handles alignment, spacing, and shared legends automatically.</p>
+<p class="lead">The patchwork package makes it ridiculously simple to combine multiple ggplot2 plots into a single figure, just add them together with <code>+</code>, stack them with <code>/</code>, or place them side-by-side with <code>|</code>, and patchwork handles alignment, spacing, and shared legends automatically.</p>
 
 ## How do you combine two ggplot2 plots with patchwork?
 
-Combining plots is one of the most common tasks in data visualization. Maybe you've built a scatter plot and a histogram that tell a richer story side by side, or you need a multi-panel figure for a report. patchwork lets you do this in one line of code — literally add two plots together.
+Combining plots is one of the most common tasks in data visualization. Maybe you've built a scatter plot and a histogram that tell a richer story side by side, or you need a multi-panel figure for a report. patchwork lets you do this in one line of code, literally add two plots together.
 
 ```r
 library(ggplot2)
@@ -40,7 +40,7 @@ p1 + p2
 #> [A composite figure: scatter plot on the left, histogram on the right]
 ```
 
-That `+` operator is doing all the work. patchwork overloads `+` so that when you "add" two ggplot objects, it places them side by side in a grid. No grid.arrange(), no complicated layout matrices — just `+`.
+That `+` operator is doing all the work. patchwork overloads `+` so that when you "add" two ggplot objects, it places them side by side in a grid. No grid.arrange(), no complicated layout matrices, just `+`.
 
 But `+` isn't your only option. patchwork gives you two more operators that communicate your intent more clearly.
 
@@ -54,7 +54,7 @@ p1 / p2
 #> [Scatter plot on top, histogram below]
 ```
 
-The `|` operator forces horizontal placement and `/` forces vertical stacking. Use `|` and `/` when you want to be explicit about direction — they make your layout code read like a description of the figure.
+The `|` operator forces horizontal placement and `/` forces vertical stacking. Use `|` and `/` when you want to be explicit about direction, they make your layout code read like a description of the figure.
 
 [TIP]
 **patchwork only works with ggplot2 objects.** Base R plots created with `plot()` or `hist()` won't work directly. Wrap them in `wrap_elements(~plot(...))` if you need to mix base and ggplot2 graphics.
@@ -95,7 +95,7 @@ ex_box | ex_bar
 
 ## How do you control the number of rows and columns?
 
-When you combine more than two plots, patchwork arranges them in an auto-calculated grid — trying to keep things roughly square. But often you want a specific layout, like everything in one column or a 2×3 grid.
+When you combine more than two plots, patchwork arranges them in an auto-calculated grid, trying to keep things roughly square. But often you want a specific layout, like everything in one column or a 2×3 grid.
 
 The `plot_layout()` function gives you that control. Think of it as the layout manager: it tells patchwork how many rows and columns to use.
 
@@ -207,7 +207,7 @@ p3 / (p1 | p2)
 
 ## How do you share legends and collect axes across plots?
 
-When multiple plots use the same color mapping, you end up with duplicate legends — one per plot. That wastes space and looks cluttered. patchwork's `guides = "collect"` gathers identical legends into one.
+When multiple plots use the same color mapping, you end up with duplicate legends, one per plot. That wastes space and looks cluttered. patchwork's `guides = "collect"` gathers identical legends into one.
 
 Let's build three scatter plots that all color points by the number of cylinders.
 
@@ -255,7 +255,7 @@ With `axes = "collect"`, the redundant y-axis on the right plot disappears. If y
 [KEY INSIGHT]
 **Guides are matched by visual appearance, not variable name.** If two plots use `color = factor(cyl)` with the same scale, patchwork recognizes them as duplicates. But if one uses a custom color palette and the other doesn't, patchwork treats them as different legends.
 
-**Try it:** Create two scatter plots from `mtcars` — one mapping `wt` to x and one mapping `hp` to x — both coloring by `factor(cyl)`. Combine them and collect the shared legend.
+**Try it:** Create two scatter plots from `mtcars`, one mapping `wt` to x and one mapping `hp` to x, both coloring by `factor(cyl)`. Combine them and collect the shared legend.
 
 ```r
 # Try it: collect shared legends
@@ -291,7 +291,7 @@ ex_s1 + ex_s2 + plot_layout(guides = "collect")
 
 ## How do you add titles, subtitles, and panel tags?
 
-Publication-quality figures need more than just the individual plot titles — they need an overall title that describes the entire composition and panel labels like (A), (B), (C) so you can reference specific panels in your text.
+Publication-quality figures need more than just the individual plot titles, they need an overall title that describes the entire composition and panel labels like (A), (B), (C) so you can reference specific panels in your text.
 
 `plot_annotation()` handles both. It adds metadata that sits above or below the entire combined figure.
 
@@ -345,14 +345,14 @@ You can customize how tags look by modifying the `plot.tag` theme element. The `
 
 ## How do you modify all plots at once with & and *?
 
-After combining plots, you often want to apply the same theme or modification to every panel — switching all plots to `theme_minimal()`, for instance, or changing font sizes across the board. patchwork's `&` operator does exactly this.
+After combining plots, you often want to apply the same theme or modification to every panel, switching all plots to `theme_minimal()`, for instance, or changing font sizes across the board. patchwork's `&` operator does exactly this.
 
 ```r
 (p1 | p2 | p3) & theme_minimal()
 #> [All three plots now use theme_minimal() — clean, gridline-only backgrounds]
 ```
 
-The `&` operator reaches into every plot in the composition and applies whatever modification you put after it. It's the "broadcast" operator — one change, applied everywhere.
+The `&` operator reaches into every plot in the composition and applies whatever modification you put after it. It's the "broadcast" operator, one change, applied everywhere.
 
 But what if you have nested layouts and only want to modify the outer level? That's where `*` comes in. It applies modifications only to the current nesting level, without reaching into nested sub-patchworks.
 
@@ -393,7 +393,7 @@ In practice, `&` is what you'll use 95% of the time. The `*` operator matters wh
 
 ## How do you add insets and spacers?
 
-Sometimes you need a small plot overlaid on a larger one — like a zoomed-in detail view, a summary statistic, or a mini-map. patchwork's `inset_element()` places one plot on top of another without consuming a grid cell.
+Sometimes you need a small plot overlaid on a larger one, like a zoomed-in detail view, a summary statistic, or a mini-map. patchwork's `inset_element()` places one plot on top of another without consuming a grid cell.
 
 Let's overlay a zoomed scatter plot on top of the full view.
 
@@ -413,7 +413,7 @@ p_full + inset_element(p_inset, left = 0.55, bottom = 0.55, right = 0.99, top = 
 
 The `left`, `bottom`, `right`, and `top` arguments position the inset using 0-1 coordinates relative to the panel area. So `left = 0.55, bottom = 0.55` puts the inset's lower-left corner just past the middle of both axes.
 
-For adding empty space between plots — maybe for visual breathing room or to align with a non-plot element — use `plot_spacer()`.
+For adding empty space between plots, maybe for visual breathing room or to align with a non-plot element, use `plot_spacer()`.
 
 ```r
 p1 + plot_spacer() + p2
@@ -691,16 +691,16 @@ Here's a quick reference of every key patchwork function and operator.
 
 ## References
 
-1. Pedersen, T.L. — patchwork: The Composer of Plots. Official documentation. [Link](https://patchwork.data-imaginist.com/)
-2. Pedersen, T.L. — Plot Assembly guide (patchwork). [Link](https://patchwork.data-imaginist.com/articles/guides/assembly.html)
-3. Pedersen, T.L. — Controlling Layouts (patchwork). [Link](https://patchwork.data-imaginist.com/articles/guides/layout.html)
-4. Wickham, H. — *ggplot2: Elegant Graphics for Data Analysis*, 3rd ed. Chapter 9: Arranging Plots. [Link](https://ggplot2-book.org/arranging-plots.html)
-5. CRAN — patchwork package reference manual. [Link](https://cran.r-project.org/package=patchwork)
-6. Pedersen, T.L. — "A small patch of free features" (patchwork 1.2.0 release notes). [Link](https://www.data-imaginist.com/posts/2024-01-05-patchwork-1-2-0/)
-7. R Graph Gallery — Combine Multiple Plots with patchwork. [Link](https://r-graph-gallery.com/package/patchwork.html)
+1. Pedersen, T.L., patchwork: The Composer of Plots. Official documentation. [Link](https://patchwork.data-imaginist.com/)
+2. Pedersen, T.L., Plot Assembly guide (patchwork). [Link](https://patchwork.data-imaginist.com/articles/guides/assembly.html)
+3. Pedersen, T.L., Controlling Layouts (patchwork). [Link](https://patchwork.data-imaginist.com/articles/guides/layout.html)
+4. Wickham, H., *ggplot2: Elegant Graphics for Data Analysis*, 3rd ed. Chapter 9: Arranging Plots. [Link](https://ggplot2-book.org/arranging-plots.html)
+5. CRAN, patchwork package reference manual. [Link](https://cran.r-project.org/package=patchwork)
+6. Pedersen, T.L., "A small patch of free features" (patchwork 1.2.0 release notes). [Link](https://www.data-imaginist.com/posts/2024-01-05-patchwork-1-2-0/)
+7. R Graph Gallery, Combine Multiple Plots with patchwork. [Link](https://r-graph-gallery.com/package/patchwork.html)
 
 ## Continue Learning
 
-1. [ggplot2 Facets](ggplot2-Facets.html) — When you need the same plot repeated across subgroups instead of combining different plots.
-2. [ggplot2 Legends](ggplot2-Legends-in-R.html) — Deep dive into customizing the legends that patchwork collects and aligns.
-3. [ggplot2 Labels and Annotations](ggplot2-Labels-and-Annotations.html) — Master titles, subtitles, and text annotations for individual plots before combining.
+1. [ggplot2 Facets](ggplot2-Facets.html), When you need the same plot repeated across subgroups instead of combining different plots.
+2. [ggplot2 Legends](ggplot2-Legends-in-R.html), Deep dive into customizing the legends that patchwork collects and aligns.
+3. [ggplot2 Labels and Annotations](ggplot2-Labels-and-Annotations.html), Master titles, subtitles, and text annotations for individual plots before combining.

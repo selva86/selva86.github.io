@@ -20,7 +20,7 @@ difficulty: "Intermediate"
 
 ## Which tool do economists actually use in 2026?
 
-The honest answer in 2026 is "both, depending on where you sit." Academic economics departments still run on Stata. Central banks, tech firms, and consultancies hire mostly for R or Python. Before getting into the methods, look at what the job postings actually say — because the split is sharper than most career advice admits.
+The honest answer in 2026 is "both, depending on where you sit." Academic economics departments still run on Stata. Central banks, tech firms, and consultancies hire mostly for R or Python. Before getting into the methods, look at what the job postings actually say, because the split is sharper than most career advice admits.
 
 The code below simulates a small snapshot of the 2026 economist job market and summarises tool requirements by field. Run it and you will see the story in one glance: Stata leads academia, R leads everywhere else.
 
@@ -56,10 +56,10 @@ jobs_summary
 #> 5 Policy / Think Tank        220      0.55  0.64   0.09 R
 ```
 
-Read the `r_lead` column like a scoreboard. A negative number means Stata dominates that field; a positive number means R does. Academic economics is the only strong Stata stronghold in this snapshot — and even there, 34% of postings now also list R. Every other field has flipped. That is the core tension you are navigating when you pick a primary tool.
+Read the `r_lead` column like a scoreboard. A negative number means Stata dominates that field; a positive number means R does. Academic economics is the only strong Stata stronghold in this snapshot, and even there, 34% of postings now also list R. Every other field has flipped. That is the core tension you are navigating when you pick a primary tool.
 
 [KEY INSIGHT]
-**Tool choice in economics is a network effect, not a features contest.** You pick the tool your collaborators, advisors, and reviewers already use — which is why academic economics stays on Stata even as the surrounding data world has moved on.
+**Tool choice in economics is a network effect, not a features contest.** You pick the tool your collaborators, advisors, and reviewers already use, which is why academic economics stays on Stata even as the surrounding data world has moved on.
 
 **Try it:** Filter the `jobs` tibble to the single "Academic Econ" row and compute how many *more* percentage points Stata leads R by. Store it in `ex_academia`.
 
@@ -94,7 +94,7 @@ ex_academia
 
 ## Where does R beat Stata on modern causal inference?
 
-Causal inference is the area where R has genuinely pulled ahead. New methods — staggered difference-in-differences, synthetic difference-in-differences, honest DiD, bunching estimators — almost all ship as R packages first, and many never get a Stata port at all. If you are writing a 2026 dissertation on modern DiD, you are almost certainly writing R.
+Causal inference is the area where R has genuinely pulled ahead. New methods, staggered difference-in-differences, synthetic difference-in-differences, honest DiD, bunching estimators, almost all ship as R packages first, and many never get a Stata port at all. If you are writing a 2026 dissertation on modern DiD, you are almost certainly writing R.
 
 The simplest version of DiD compares the change in outcomes between a treated group and a control group, before and after treatment. The canonical specification is:
 
@@ -105,7 +105,7 @@ Where:
 - $y_{it}$ = outcome for unit $i$ at time $t$
 - $\text{Treat}_i$ = 1 if unit $i$ is ever treated, 0 otherwise
 - $\text{Post}_t$ = 1 if period $t$ is after treatment, 0 otherwise
-- $\beta_3$ = the DiD estimate — the effect of treatment
+- $\beta_3$ = the DiD estimate, the effect of treatment
 
 The interaction coefficient $\beta_3$ is the thing you actually care about. Here is a self-contained simulation and a plain `lm()` fit so you can see the whole pipeline end to end.
 
@@ -136,9 +136,9 @@ did_tidy
 #> 4 treat:post     1.21     0.163       7.43 5.23e-13
 ```
 
-The `treat:post` row is the DiD estimate. The true effect in the simulation is `1.2`, and `lm()` recovered `1.21` — well within one standard error. The other coefficients are also doing real work: `treat` captures baseline differences between treated and control units, `post` captures the common time shock, and the interaction is what remains after stripping both out. That is the whole logic of DiD in four rows.
+The `treat:post` row is the DiD estimate. The true effect in the simulation is `1.2`, and `lm()` recovered `1.21`, well within one standard error. The other coefficients are also doing real work: `treat` captures baseline differences between treated and control units, `post` captures the common time shock, and the interaction is what remains after stripping both out. That is the whole logic of DiD in four rows.
 
-In a real project with two-way fixed effects and clustered standard errors, most economists reach for `fixest`. That package is not available in WebR, so the code below is for illustration — you would paste it into RStudio on your own machine.
+In a real project with two-way fixed effects and clustered standard errors, most economists reach for `fixest`. That package is not available in WebR, so the code below is for illustration, you would paste it into RStudio on your own machine.
 
 ```r-static
 # In RStudio: the fixest equivalent of the same DiD with two-way FE + clustered SE
@@ -154,7 +154,7 @@ reghdfe y c.treat##c.post, absorb(unit year) cluster(unit)
 ```
 
 [WARNING]
-**Default OLS standard errors are wrong for DiD.** Serial correlation and clustering within units inflate true standard errors by 2-3x in many panels. Always cluster at the unit level — in R use sandwich::vcovCL or fixest's cluster argument.
+**Default OLS standard errors are wrong for DiD.** Serial correlation and clustering within units inflate true standard errors by 2-3x in many panels. Always cluster at the unit level, in R use sandwich::vcovCL or fixest's cluster argument.
 
 **Try it:** Add a continuous control `x` to the panel (draw from rnorm) and re-fit the DiD with `y ~ treat * post + x`. Store the fitted model in `ex_did`.
 
@@ -181,13 +181,13 @@ summary(ex_did)$coefficients["treat:post", ]
 #>  1.21234567   0.16321234   7.42834567   5.5e-13
 ```
 
-**Explanation:** The `treat:post` interaction is robust to adding noise covariates like `x`, which is exactly what you want from a DiD specification — the estimate should not move when you add variables that are uncorrelated with treatment.
+**Explanation:** The `treat:post` interaction is robust to adding noise covariates like `x`, which is exactly what you want from a DiD specification, the estimate should not move when you add variables that are uncorrelated with treatment.
 
 </details>
 
 ## How does panel data and IV regression feel in R?
 
-Panel data and instrumental variables are the other two pillars of applied economics, and both have first-class R support. For fixed effects, the quick-and-dirty version is `lm()` with `factor()`; the production version is `fixest::feols()`. For IV, the two most common options are `AER::ivreg()` and `fixest::feols()` with its IV syntax. They all give you the same point estimates — the differences are speed and ergonomics.
+Panel data and instrumental variables are the other two pillars of applied economics, and both have first-class R support. For fixed effects, the quick-and-dirty version is `lm()` with `factor()`; the production version is `fixest::feols()`. For IV, the two most common options are `AER::ivreg()` and `fixest::feols()` with its IV syntax. They all give you the same point estimates, the differences are speed and ergonomics.
 
 Let's demean by unit using base R only, so every line runs in the browser. The simulation has unit-specific intercepts, and the estimator should strip them out cleanly.
 
@@ -262,7 +262,7 @@ ex_fe
 
 ## What does R's analysis workflow look like end-to-end?
 
-One of the most common worries from Stata users is "but my whole workflow is in .do files." The R equivalent is a single dplyr pipeline that reads, cleans, models, and reports — all in one readable block. The chain below takes the built-in `starwars` dataset, trims it to human characters, fits a height-vs-mass regression, and returns a tidy coefficient table.
+One of the most common worries from Stata users is "but my whole workflow is in .do files." The R equivalent is a single dplyr pipeline that reads, cleans, models, and reports, all in one readable block. The chain below takes the built-in `starwars` dataset, trims it to human characters, fits a height-vs-mass regression, and returns a tidy coefficient table.
 
 ```r
 # Full pipeline: clean → model → tidy — no intermediate scripts
@@ -283,7 +283,7 @@ sw_tidy
 #> 4 genderNA         NA        NA        NA    NA         NA         NA
 ```
 
-Read it top to bottom: height adds about 1 kg of mass per cm (close to the textbook rule of thumb), gender adds a noisy adjustment, and the tibble you get back is itself data — you can pipe it straight into `ggplot2`, `gt`, or `modelsummary` without touching the clipboard. That is the big ergonomic win over Stata's `esttab` / `outreg2` round-trip.
+Read it top to bottom: height adds about 1 kg of mass per cm (close to the textbook rule of thumb), gender adds a noisy adjustment, and the tibble you get back is itself data, you can pipe it straight into `ggplot2`, `gt`, or `modelsummary` without touching the clipboard. That is the big ergonomic win over Stata's `esttab` / `outreg2` round-trip.
 
 [NOTE]
 **broom::tidy() turns any model into a tibble you can pipe.** Every coefficient, standard error, and confidence interval lives in data you can slice, join, and plot. Nothing comparable exists in Stata without dropping into Mata.
@@ -316,7 +316,7 @@ ex_sw
 #> 2 masculine        181.    18
 ```
 
-**Explanation:** `group_by()` sets the grouping, `summarise()` collapses each group to one row, and `n()` gives you the sample size per group — a two-line replacement for Stata's `collapse (mean) height (count) n = height, by(gender)`.
+**Explanation:** `group_by()` sets the grouping, `summarise()` collapses each group to one row, and `n()` gives you the sample size per group, a two-line replacement for Stata's `collapse (mean) height (count) n = height, by(gender)`.
 
 </details>
 
@@ -356,13 +356,13 @@ recommend_tool("industry", needs_machine_learning = TRUE)
 #> [1] "R"
 ```
 
-The rubric is intentionally simple — three binary inputs and a career bucket — but the output tracks what experienced economists will usually tell you. If your advisor and coauthors live in Stata, learn Stata first and add R for figures. If you are headed anywhere else, R is the better single-tool bet.
+The rubric is intentionally simple, three binary inputs and a career bucket, but the output tracks what experienced economists will usually tell you. If your advisor and coauthors live in Stata, learn Stata first and add R for figures. If you are headed anywhere else, R is the better single-tool bet.
 
 [NOTE]
-**Python is the quiet third option.** In tech, consulting, and increasingly in central banks, Python sits alongside R on most job ads. The realistic 2026 question is rarely pure "R or Stata" — it is "R plus Python, with Stata as a read-only skill for legacy .do files."
+**Python is the quiet third option.** In tech, consulting, and increasingly in central banks, Python sits alongside R on most job ads. The realistic 2026 question is rarely pure "R or Stata", it is "R plus Python, with Stata as a read-only skill for legacy .do files."
 
 ![Decision flowchart for economists choosing between R, Stata, or both.](screenshots/R-vs-Stata-decision-flow.webp)
-*Figure 1: A quick decision flow for choosing between R, Stata, or both — anchored on career track.*
+*Figure 1: A quick decision flow for choosing between R, Stata, or both, anchored on career track.*
 
 **Try it:** Call `recommend_tool()` for a macro PhD student who needs publication graphs but doesn't collaborate with Stata users. Store the answer in `ex_rec`.
 
@@ -390,7 +390,7 @@ ex_rec
 #> [1] "R"
 ```
 
-**Explanation:** Macro and structural research has largely moved off Stata because the methods rely on custom solvers and iteration — R, Julia, and Python are all better fits.
+**Explanation:** Macro and structural research has largely moved off Stata because the methods rely on custom solvers and iteration, R, Julia, and Python are all better fits.
 
 </details>
 
@@ -434,7 +434,7 @@ my_fe
 #> 1 treat_post    0.762    0.0642      11.9 3.1e-29
 ```
 
-**Explanation:** Once unit and year fixed effects are in, the `treat_post` coefficient is the true within-unit, within-year effect of treatment — exactly the 0.75 we simulated, up to sampling noise.
+**Explanation:** Once unit and year fixed effects are in, the `treat_post` coefficient is the true within-unit, within-year effect of treatment, exactly the 0.75 we simulated, up to sampling noise.
 
 </details>
 
@@ -476,7 +476,7 @@ my_event_tidy
 #> 4 factor(year)5:treat  0.478     0.100     4.76   2.5e-6
 ```
 
-**Explanation:** The pre-period interactions (year 2) are near zero, and the post-period interactions (years 3-5) cluster around the true 0.5 effect — the shape of a classic event-study plot.
+**Explanation:** The pre-period interactions (year 2) are near zero, and the post-period interactions (years 3-5) cluster around the true 0.5 effect, the shape of a classic event-study plot.
 
 </details>
 
@@ -562,7 +562,7 @@ ggplot(final_tidy, aes(x = term, y = estimate)) +
   theme_minimal()
 ```
 
-The estimated effect (0.991) lands essentially on the true 1.0 with a tight 95% confidence interval. This is the whole empirical pipeline: data in, fixed-effects model, tidy extract, graphic out — and the code you just ran is production-shaped, not a toy.
+The estimated effect (0.991) lands essentially on the true 1.0 with a tight 95% confidence interval. This is the whole empirical pipeline: data in, fixed-effects model, tidy extract, graphic out, and the code you just ran is production-shaped, not a toy.
 
 [TIP]
 **Reach for fixest::feols() once your panels get serious.** The base-R `lm(y ~ ... + factor(unit) + factor(year))` approach is great for teaching and small samples, but it materialises every dummy column. On a 1M-row panel with two-way fixed effects, `feols()` is roughly an order of magnitude faster and keeps your laptop usable.
@@ -584,16 +584,16 @@ Here is the short version you can tape to your monitor:
 
 ## References
 
-1. Bergé, L. — *fixest: Fast Fixed-Effects Estimations*. CRAN. [Link](https://cran.r-project.org/package=fixest)
-2. Bergé, L. — *fixest* package homepage and vignettes. [Link](https://lrberge.github.io/fixest/)
-3. stata2R — *fixest cheatsheet for Stata users*. [Link](https://stata2r.github.io/fixest/)
-4. Wickham, H., Çetinkaya-Rundel, M., Grolemund, G. — *R for Data Science*, 2nd Edition (2023). [Link](https://r4ds.hadley.nz/)
-5. Robinson, D., Hayes, A., Couch, S. — *broom: Convert Statistical Objects into Tidy Tibbles*. CRAN. [Link](https://cran.r-project.org/package=broom)
-6. Correia, S. — *reghdfe: Stata module for linear and instrumental-variable/GMM regression with multiple levels of fixed effects*. [Link](https://scorreia.com/software/reghdfe/)
-7. R Core Team — *An Introduction to R*. [Link](https://cran.r-project.org/doc/manuals/r-release/R-intro.html)
-8. Angrist, J., Pischke, J-S. — *Mostly Harmless Econometrics*. Princeton University Press (2009).
+1. Bergé, L., *fixest: Fast Fixed-Effects Estimations*. CRAN. [Link](https://cran.r-project.org/package=fixest)
+2. Bergé, L., *fixest* package homepage and vignettes. [Link](https://lrberge.github.io/fixest/)
+3. stata2R, *fixest cheatsheet for Stata users*. [Link](https://stata2r.github.io/fixest/)
+4. Wickham, H., Çetinkaya-Rundel, M., Grolemund, G., *R for Data Science*, 2nd Edition (2023). [Link](https://r4ds.hadley.nz/)
+5. Robinson, D., Hayes, A., Couch, S., *broom: Convert Statistical Objects into Tidy Tibbles*. CRAN. [Link](https://cran.r-project.org/package=broom)
+6. Correia, S., *reghdfe: Stata module for linear and instrumental-variable/GMM regression with multiple levels of fixed effects*. [Link](https://scorreia.com/software/reghdfe/)
+7. R Core Team, *An Introduction to R*. [Link](https://cran.r-project.org/doc/manuals/r-release/R-intro.html)
+8. Angrist, J., Pischke, J-S., *Mostly Harmless Econometrics*. Princeton University Press (2009).
 
 ## Continue Learning
-- [R vs Python](/R-vs-Python.html) — The other major comparison economists ask about, side by side on data wrangling, stats, and ML.
-- [R vs SAS](/R-vs-SAS.html) — A similar breakdown for researchers coming from SAS in biostatistics and pharma.
-- [Is R Worth Learning in 2026?](/Is-R-Worth-Learning-in-2026.html) — The broader career case for R across all empirical fields.
+- [R vs Python](/R-vs-Python.html), The other major comparison economists ask about, side by side on data wrangling, stats, and ML.
+- [R vs SAS](/R-vs-SAS.html), A similar breakdown for researchers coming from SAS in biostatistics and pharma.
+- [Is R Worth Learning in 2026?](/Is-R-Worth-Learning-in-2026.html), The broader career case for R across all empirical fields.

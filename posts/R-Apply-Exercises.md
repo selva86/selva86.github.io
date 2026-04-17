@@ -1,5 +1,5 @@
 ---
-title: "R apply Family Exercises: 12 apply(), lapply(), sapply() Practice Problems — Solved Step-by-Step)"
+title: "R apply Family Exercises: 12 apply(), lapply(), sapply() Practice Problems, Solved Step-by-Step)"
 slug: "R-Apply-Exercises"
 description: "Practice the R apply family with 12 exercises covering apply(), lapply(), sapply(), vapply(), tapply(), and mapply(). Starter code and solutions included."
 keywords: "R apply exercises, lapply exercises, sapply exercises, R apply family practice problems, tapply exercises, vapply exercises, mapply exercises, R apply practice, apply function R exercises"
@@ -15,24 +15,24 @@ fr_parent: "R-Functions.html"
 difficulty: "Intermediate"
 ---
 
-# R apply Family Exercises: 12 apply(), lapply(), sapply() Practice Problems — Solved Step-by-Step)
+# R apply Family Exercises: 12 apply(), lapply(), sapply() Practice Problems, Solved Step-by-Step)
 
-<p class="lead">The R apply family — <code>apply()</code>, <code>lapply()</code>, <code>sapply()</code>, <code>vapply()</code>, <code>tapply()</code>, and <code>mapply()</code> — lets you run a function across rows, columns, lists, or groups without writing a single loop. These 12 exercises take you from basic row/column operations to multi-input parallel mapping, each with starter code you can run and a full worked solution.</p>
+<p class="lead">The R apply family, <code>apply()</code>, <code>lapply()</code>, <code>sapply()</code>, <code>vapply()</code>, <code>tapply()</code>, and <code>mapply()</code>, lets you run a function across rows, columns, lists, or groups without writing a single loop. These 12 exercises take you from basic row/column operations to multi-input parallel mapping, each with starter code you can run and a full worked solution.</p>
 
 ## Which apply Function Should You Use?
 
-The apply family replaces explicit for-loops with a single function call. The tricky part is choosing the right one — each takes a different input shape and returns a different output shape. Here's the cheat sheet you'll need for the exercises below.
+The apply family replaces explicit for-loops with a single function call. The tricky part is choosing the right one, each takes a different input shape and returns a different output shape. Here's the cheat sheet you'll need for the exercises below.
 
 | Function | Input | Iterates Over | Returns | Use When |
 |----------|-------|--------------|---------|----------|
 | `apply()` | matrix / data frame | rows or columns | vector / matrix | You need row-wise or column-wise operations |
 | `lapply()` | list / vector | each element | always a list | You want predictable list output |
 | `sapply()` | list / vector | each element | vector / matrix (tries to simplify) | Quick interactive exploration |
-| `vapply()` | list / vector | each element | vector / matrix (type-checked) | Production code — type safety |
+| `vapply()` | list / vector | each element | vector / matrix (type-checked) | Production code, type safety |
 | `tapply()` | vector + factor | groups | array | Summarizing data by category |
 | `mapply()` | multiple vectors/lists | elements in parallel | vector / matrix / list | Multiple corresponding inputs |
 
-Let's see how three of these handle the same task — computing column means of `mtcars` — so you can spot the output differences immediately.
+Let's see how three of these handle the same task, computing column means of `mtcars`, so you can spot the output differences immediately.
 
 ```r
 # apply(): returns a named numeric vector
@@ -60,7 +60,7 @@ col_means_sapply[1:4]
 #>  20.090625   6.187500 230.721875 146.687500
 ```
 
-Notice `apply()` and `sapply()` both returned named numeric vectors, while `lapply()` returned a list. That list output from `lapply()` is actually the safest — it never surprises you by changing shape.
+Notice `apply()` and `sapply()` both returned named numeric vectors, while `lapply()` returned a list. That list output from `lapply()` is actually the safest, it never surprises you by changing shape.
 
 [KEY INSIGHT]
 **Choose by output shape, not input shape.** If you need a list, use lapply(). If you need a vector with type guarantees, use vapply(). If you're exploring interactively and want quick results, use sapply(). Save apply() for matrices where row/column operations make sense.
@@ -92,7 +92,7 @@ ex_classes
 
 ## How Does apply() Work on Matrices? (Exercises 1–2)
 
-`apply()` is the only member of the family that takes a `MARGIN` argument — set it to 1 for rows and 2 for columns. It works best on numeric matrices or data frames where every column is the same type.
+`apply()` is the only member of the family that takes a `MARGIN` argument, set it to 1 for rows and 2 for columns. It works best on numeric matrices or data frames where every column is the same type.
 
 ### Exercise 1: Row-Wise Statistics on a Matrix
 
@@ -141,7 +141,7 @@ row_ranges
 
 ### Exercise 2: Column-Wise Custom Function
 
-Write a function that computes the **coefficient of variation** (CV) — that's the standard deviation divided by the mean, times 100 — and use `apply()` with `MARGIN = 2` to compute the CV for each column of `mtcars[, 1:4]`.
+Write a function that computes the **coefficient of variation** (CV), that's the standard deviation divided by the mean, times 100, and use `apply()` with `MARGIN = 2` to compute the CV for each column of `mtcars[, 1:4]`.
 
 ```r
 # Exercise 2: Coefficient of variation per column
@@ -243,7 +243,7 @@ city_strings
 #> [1] "Tokyo, Osaka, Kyoto, Nagoya"
 ```
 
-**Explanation:** `lapply()` feeds each element of the list (a character vector of city names) to the anonymous function. `paste(collapse = ", ")` squashes each vector into a single string. The result is a named list — one string per country.
+**Explanation:** `lapply()` feeds each element of the list (a character vector of city names) to the anonymous function. `paste(collapse = ", ")` squashes each vector into a single string. The result is a named list, one string per country.
 
 </details>
 
@@ -319,7 +319,7 @@ class(result_sapply)
 #> [1] "matrix"
 ```
 
-**Explanation:** Here `sapply()` *does* simplify — because every result has the same length (2). It stacks them into a 2×3 matrix. The surprise would come if one element returned a different length — then `sapply()` would silently fall back to a list. That inconsistency is why `vapply()` exists.
+**Explanation:** Here `sapply()` *does* simplify, because every result has the same length (2). It stacks them into a 2×3 matrix. The surprise would come if one element returned a different length, then `sapply()` would silently fall back to a list. That inconsistency is why `vapply()` exists.
 
 </details>
 
@@ -359,7 +359,7 @@ lapply(ex_split, nrow)
 #> [1] 50
 ```
 
-**Explanation:** `split()` divides a data frame by a factor and returns a named list — one data frame per level. Each species has 50 rows. This `split()` + `lapply()` pattern is the base R equivalent of `group_by()` + `summarise()`.
+**Explanation:** `split()` divides a data frame by a factor and returns a named list, one data frame per level. Each species has 50 rows. This `split()` + `lapply()` pattern is the base R equivalent of `group_by()` + `summarise()`.
 
 </details>
 
@@ -387,7 +387,7 @@ unique_safe
 #>   25    3   27   22   22   29   30    2    2    3    6
 ```
 
-**Explanation:** The result is identical to Exercise 4's `sapply()` output, but now you have a guarantee. If any column's function returned something other than a single integer — say, a character string or a vector of length 2 — R would stop with an error instead of returning a quietly broken result.
+**Explanation:** The result is identical to Exercise 4's `sapply()` output, but now you have a guarantee. If any column's function returned something other than a single integer, say, a character string or a vector of length 2, R would stop with an error instead of returning a quietly broken result.
 
 </details>
 
@@ -420,7 +420,7 @@ safe_result
 </details>
 
 [KEY INSIGHT]
-**vapply() is sapply() with a contract.** You tell R what shape to expect. If a column suddenly returns 2 values instead of 1, vapply() errors immediately rather than silently returning a list. That instant failure is a feature — it catches bugs at the source.
+**vapply() is sapply() with a contract.** You tell R what shape to expect. If a column suddenly returns 2 values instead of 1, vapply() errors immediately rather than silently returning a list. That instant failure is a feature, it catches bugs at the source.
 
 **Try it:** Use `vapply()` to extract the `class()` of every column in `mtcars`. What should `FUN.VALUE` be?
 
@@ -478,7 +478,7 @@ species_means
 
 ### Exercise 9: Two-Way tapply() Table
 
-Use `tapply()` with **two** grouping factors — `cyl` and `am` (transmission: 0 = automatic, 1 = manual) — to compute the mean `mpg` for each combination in `mtcars`. The result should be a 3×2 matrix.
+Use `tapply()` with **two** grouping factors, `cyl` and `am` (transmission: 0 = automatic, 1 = manual), to compute the mean `mpg` for each combination in `mtcars`. The result should be a 3×2 matrix.
 
 ```r
 # Exercise 9: Two-way table with tapply()
@@ -499,7 +499,7 @@ round(mpg_table, 1)
 #> 8 15.1  15.4
 ```
 
-**Explanation:** When `INDEX` is a list of two factors, `tapply()` returns a matrix. Rows are `cyl` levels (4, 6, 8), columns are `am` levels (0 = auto, 1 = manual). Manual 4-cylinder cars average 28.1 mpg — the highest group. Eight-cylinder automatics average only 15.1 mpg.
+**Explanation:** When `INDEX` is a list of two factors, `tapply()` returns a matrix. Rows are `cyl` levels (4, 6, 8), columns are `am` levels (0 = auto, 1 = manual). Manual 4-cylinder cars average 28.1 mpg, the highest group. Eight-cylinder automatics average only 15.1 mpg.
 
 </details>
 
@@ -527,13 +527,13 @@ ex_hp
 #> 8 245  NA 335
 ```
 
-**Explanation:** Some combinations don't exist in the data (e.g., no 6-cylinder cars with 3 gears), so those cells are `NA`. The 8-cylinder, 5-gear group has the most powerful car at 335 hp — that's the Maserati Bora.
+**Explanation:** Some combinations don't exist in the data (e.g., no 6-cylinder cars with 3 gears), so those cells are `NA`. The 8-cylinder, 5-gear group has the most powerful car at 335 hp, that's the Maserati Bora.
 
 </details>
 
 ## How Does mapply() Handle Multiple Inputs? (Exercises 10–11)
 
-`mapply()` is the multivariate version — it takes multiple vectors or lists and feeds corresponding elements to the function in parallel. Think of it as "zip then apply," similar to Python's `map(func, list1, list2)`.
+`mapply()` is the multivariate version, it takes multiple vectors or lists and feeds corresponding elements to the function in parallel. Think of it as "zip then apply," similar to Python's `map(func, list1, list2)`.
 
 ### Exercise 10: Pasting Parallel Vectors
 
@@ -603,7 +603,7 @@ sequences
 #> [1] 0.00 0.25 0.50 0.75 1.00
 ```
 
-**Explanation:** `mapply()` zips the three vectors element-wise: `seq(1, 5, 1)`, `seq(10, 50, 10)`, `seq(100, 300, 50)`, `seq(0, 1, 0.25)`. Since the sequences have different lengths (5, 5, 5, 5 in this case — but they could differ), `SIMPLIFY = FALSE` guarantees a list output.
+**Explanation:** `mapply()` zips the three vectors element-wise: `seq(1, 5, 1)`, `seq(10, 50, 10)`, `seq(100, 300, 50)`, `seq(0, 1, 0.25)`. Since the sequences have different lengths (5, 5, 5, 5 in this case, but they could differ), `SIMPLIFY = FALSE` guarantees a list output.
 
 </details>
 
@@ -634,15 +634,15 @@ ex_wmeans
 #> [1] 83.0 91.0 80.0
 ```
 
-**Explanation:** `mapply()` passes the first value-weight pair to `weighted.mean()`, then the second pair, then the third. The first group (80, 90, 70 with weights 0.3, 0.5, 0.2) gives 83.0 — the 90 gets the heaviest weight.
+**Explanation:** `mapply()` passes the first value-weight pair to `weighted.mean()`, then the second pair, then the third. The first group (80, 90, 70 with weights 0.3, 0.5, 0.2) gives 83.0, the 90 gets the heaviest weight.
 
 </details>
 
 ## Practice Exercises
 
-These capstone exercises combine multiple apply functions. They're harder than the exercises above — you'll need to chain concepts together.
+These capstone exercises combine multiple apply functions. They're harder than the exercises above, you'll need to chain concepts together.
 
-### Exercise 12: Full Pipeline — Split, Fit, Extract
+### Exercise 12: Full Pipeline, Split, Fit, Extract
 
 Start with the `airquality` dataset. Remove rows with any `NA`. Split by `Month`. Use `lapply()` to fit a linear model (`Ozone ~ Solar.R`) for each month. Then use `sapply()` to extract the R-squared value from each model. Return a named vector of R-squared values.
 
@@ -741,40 +741,40 @@ Each function plays to its strength: `apply()` for column-wise math, `lapply()` 
 
 ## Summary
 
-![Which apply function to use — decision flowchart](screenshots/R-Apply-Exercises-choose-function.webp)
+![Which apply function to use, decision flowchart](screenshots/R-Apply-Exercises-choose-function.webp)
 
-*Figure 1: Decision flowchart — which apply function to use based on your input data and desired output.*
+*Figure 1: Decision flowchart, which apply function to use based on your input data and desired output.*
 
 | Function | Input | MARGIN? | Returns | Best For |
 |----------|-------|---------|---------|----------|
 | `apply()` | matrix / data frame | Yes (1 = row, 2 = col) | vector / matrix | Row/column operations |
-| `lapply()` | list / vector | No | always a list | Safe iteration — predictable output |
+| `lapply()` | list / vector | No | always a list | Safe iteration, predictable output |
 | `sapply()` | list / vector | No | vector / matrix (tries) | Quick interactive exploration |
-| `vapply()` | list / vector | No | vector / matrix (type-checked) | Production code — type safety |
+| `vapply()` | list / vector | No | vector / matrix (type-checked) | Production code, type safety |
 | `tapply()` | vector + factor | No | array | Group-by statistics |
 | `mapply()` | multiple vectors | No | vector / matrix / list | Parallel iteration over inputs |
 
 Key takeaways:
 
-1. **Start with lapply()** as your default — lists are predictable and never surprise you
-2. **Use vapply()** in scripts and packages — the type contract catches bugs at the source
+1. **Start with lapply()** as your default, lists are predictable and never surprise you
+2. **Use vapply()** in scripts and packages, the type contract catches bugs at the source
 3. **Reserve apply()** for matrices and data frames where row/column operations make sense
 4. **Use tapply()** for quick group summaries; switch to dplyr for complex grouped pipelines
 5. **Use mapply() or Map()** when you need to iterate over multiple corresponding inputs
 
 ## References
 
-1. R Core Team — apply() documentation. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/apply.html)
-2. R Core Team — lapply() and sapply() documentation. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/lapply.html)
-3. R Core Team — tapply() documentation. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/tapply.html)
-4. R Core Team — mapply() documentation. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/mapply.html)
-5. Wickham, H. — *Advanced R*, 2nd Edition. Chapter 9: Functionals. [Link](https://adv-r.hadley.nz/functionals.html)
-6. Wickham, H. & Grolemund, G. — *R for Data Science*, 2nd Edition. Chapter 26: Iteration. [Link](https://r4ds.hadley.nz/iteration)
-7. Burns, P. — *The R Inferno*. Circle 4: Over-Vectorizing. [Link](https://www.burns-stat.com/pages/Tutor/R_inferno.pdf)
-8. DataCamp — R Tutorial on the Apply Family. [Link](https://www.datacamp.com/tutorial/r-tutorial-apply-family)
+1. R Core Team, apply() documentation. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/apply.html)
+2. R Core Team, lapply() and sapply() documentation. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/lapply.html)
+3. R Core Team, tapply() documentation. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/tapply.html)
+4. R Core Team, mapply() documentation. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/mapply.html)
+5. Wickham, H., *Advanced R*, 2nd Edition. Chapter 9: Functionals. [Link](https://adv-r.hadley.nz/functionals.html)
+6. Wickham, H. & Grolemund, G., *R for Data Science*, 2nd Edition. Chapter 26: Iteration. [Link](https://r4ds.hadley.nz/iteration)
+7. Burns, P., *The R Inferno*. Circle 4: Over-Vectorizing. [Link](https://www.burns-stat.com/pages/Tutor/R_inferno.pdf)
+8. DataCamp, R Tutorial on the Apply Family. [Link](https://www.datacamp.com/tutorial/r-tutorial-apply-family)
 
 ## Continue Learning
 
-1. [Writing R Functions](/R-Functions.html) — Master function arguments, defaults, scope, and return values before tackling the apply family
-2. [Functional Programming in R](/Functional-Programming-in-R.html) — Go deeper with closures, function factories, and the mindset that makes R code 10× cleaner
-3. [purrr map() in R](/purrr-map-Variants.html) — Every variant explained with the mental model that makes them click
+1. [Writing R Functions](/R-Functions.html), Master function arguments, defaults, scope, and return values before tackling the apply family
+2. [Functional Programming in R](/Functional-Programming-in-R.html), Go deeper with closures, function factories, and the mindset that makes R code 10× cleaner
+3. [purrr map() in R](/purrr-map-Variants.html), Every variant explained with the mental model that makes them click

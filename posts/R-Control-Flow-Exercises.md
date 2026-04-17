@@ -1,7 +1,7 @@
 ---
-title: "R Control Flow Exercises: 12 if/else, Loop & Function Practice Problems — Solved Step-by-Step"
+title: "R Control Flow Exercises: 12 if/else, Loop & Function Practice Problems, Solved Step-by-Step"
 slug: "R-Control-Flow-Exercises"
-description: "12 interactive R control flow exercises — if/else, for loops, while, break, next, switch and short-circuit operators. Every problem runs in the browser with a worked solution."
+description: "12 interactive R control flow exercises, if/else, for loops, while, break, next, switch and short-circuit operators. Every problem runs in the browser with a worked solution."
 keywords: "R control flow exercises, R if else exercises, R for loop exercises, R while loop exercises, R switch exercises"
 mathjax: false
 webr: true
@@ -16,13 +16,13 @@ fr_parent: "R-Control-Flow.html"
 difficulty: "Intermediate"
 ---
 
-# R Control Flow Exercises: 12 if/else, Loop & Function Practice Problems — Solved Step-by-Step
+# R Control Flow Exercises: 12 if/else, Loop & Function Practice Problems, Solved Step-by-Step
 
 <p class="lead">Twelve hands-on exercises on R's control flow: <code>if/else</code>, <code>for</code> loops, <code>while</code>, <code>break</code>, <code>next</code>, <code>switch</code>, and the short-circuit operators <code>&amp;&amp;</code> and <code>||</code>. Each problem is runnable in the page with an expandable worked solution.</p>
 
-Control flow in R is simpler than in most languages — and that simplicity hides two traps: `if` wants a single-value condition, and `for` loops are often the wrong tool when a vectorised operation would be shorter and faster. These exercises make both points concrete.
+Control flow in R is simpler than in most languages, and that simplicity hides two traps: `if` wants a single-value condition, and `for` loops are often the wrong tool when a vectorised operation would be shorter and faster. These exercises make both points concrete.
 
-## Section 1 — if, else, and short-circuit operators
+## Section 1, if, else, and short-circuit operators
 
 ### Exercise 1. A simple if/else
 
@@ -44,7 +44,7 @@ score <- 45
 if (score >= 60) "pass" else "fail"   # "fail"
 ```
 
-In R, `if` is an expression — it returns a value. You can assign its result: `grade <- if (score >= 60) "pass" else "fail"`.
+In R, `if` is an expression, it returns a value. You can assign its result: `grade <- if (score >= 60) "pass" else "fail"`.
 
 </details>
 
@@ -74,7 +74,7 @@ grade(73)  # "C"
 grade(42)  # "F"
 ```
 
-Order matters — we test from highest to lowest. Each branch is only reached when all previous conditions are false.
+Order matters, we test from highest to lowest. Each branch is only reached when all previous conditions are false.
 
 </details>
 
@@ -132,7 +132,7 @@ Nested `ifelse()` is the base R way to build more than two branches. For larger 
 
 </details>
 
-## Section 2 — for loops
+## Section 2, for loops
 
 ### Exercise 5. Sum of squares
 
@@ -193,7 +193,7 @@ head(out)  # 1 4 9 16 25 36
 tail(out)  # 994009 996004 998001 1000000
 ```
 
-Growing a vector with `c(out, x)` re-copies the whole vector on every iteration — O(n²) behaviour that becomes painful at a few thousand iterations. Pre-allocation is O(n).
+Growing a vector with `c(out, x)` re-copies the whole vector on every iteration, O(n²) behaviour that becomes painful at a few thousand iterations. Pre-allocation is O(n).
 
 </details>
 
@@ -224,7 +224,7 @@ Looping over `names()` gives you both the name and a way to extract the element 
 
 </details>
 
-## Section 3 — while, break, next
+## Section 3, while, break, next
 
 ### Exercise 8. while until convergence
 
@@ -257,7 +257,7 @@ iter          # around 5
 
 </details>
 
-### Exercise 9. next — skip odd numbers
+### Exercise 9. next, skip odd numbers
 
 Write a for loop over 1:20 that prints only the even numbers, using `next` to skip the odd ones.
 
@@ -281,7 +281,7 @@ for (i in 1:20) {
 
 </details>
 
-## Section 4 — switch and functions
+## Section 4, switch and functions
 
 ### Exercise 10. switch for named branches
 
@@ -380,7 +380,7 @@ x <- c(3, 7, -2, 8, -5)
 x[x < 0][1]  # -2 (or NA if no negatives)
 ```
 
-`return()` exits the function early. This is one of the few cases where a loop is genuinely simpler than the vectorised alternative — until you remember `x[x < 0][1]`.
+`return()` exits the function early. This is one of the few cases where a loop is genuinely simpler than the vectorised alternative, until you remember `x[x < 0][1]`.
 
 </details>
 
@@ -395,12 +395,12 @@ x[x < 0][1]  # -2 (or NA if no negatives)
 
 ## References
 
-- [Advanced R — Control flow](https://adv-r.hadley.nz/control-flow.html)
-- [R Language Definition — Flow control](https://cran.r-project.org/doc/manuals/r-release/R-lang.html#Control-structures)
+- [Advanced R, Control flow](https://adv-r.hadley.nz/control-flow.html)
+- [R Language Definition, Flow control](https://cran.r-project.org/doc/manuals/r-release/R-lang.html#Control-structures)
 - [R for Data Science (2e)](https://r4ds.hadley.nz/)
 
 ## Continue Learning
 
 - [R Control Flow: if, else, for, while and Their Pitfalls](R-Control-Flow.html)
-- [R Functions Exercises: 10 Problems — Write, Debug & Optimize Functions](R-Functions-Exercises.html)
+- [R Functions Exercises: 10 Problems, Write, Debug & Optimize Functions](R-Functions-Exercises.html)
 - [R Lists Exercises: 10 Practice Problems with Full Solutions](R-Lists-Exercises.html)

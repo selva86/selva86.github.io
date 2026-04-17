@@ -18,13 +18,13 @@ difficulty: "Intermediate"
 
 # Waffle Chart in R: Display Proportions as a Grid of Squares
 
-<p class="lead">A waffle chart (also called a square pie chart) displays proportions as a grid of unit squares — each square represents one unit or one percent. In R, the <code>waffle</code> package provides <code>geom_waffle()</code> as a ggplot2 layer.</p>
+<p class="lead">A waffle chart (also called a square pie chart) displays proportions as a grid of unit squares, each square represents one unit or one percent. In R, the <code>waffle</code> package provides <code>geom_waffle()</code> as a ggplot2 layer.</p>
 
 ## Introduction
 
 Pie charts and bar charts communicate proportions. But both have a readability limitation: the human eye struggles to compare areas (pie) or lengths (bar) precisely when differences are small.
 
-A waffle chart sidesteps this by making proportions *countable*. If each square represents 1%, a 37% category has exactly 37 squares — readers can verify the proportion by counting. This makes waffle charts particularly effective for general audiences who need to grasp "about 1 in 3" or "more than half" at a glance.
+A waffle chart sidesteps this by making proportions *countable*. If each square represents 1%, a 37% category has exactly 37 squares, readers can verify the proportion by counting. This makes waffle charts particularly effective for general audiences who need to grasp "about 1 in 3" or "more than half" at a glance.
 
 The tradeoff: waffle charts don't work well for many categories (a 10x10 grid divided among 8 slices becomes a confusing patchwork). They shine for 2-4 categories with meaningful proportional differences.
 
@@ -65,7 +65,7 @@ p_basic
 
 With `n_rows = 10` and total votes summing to 100, each square represents exactly 1%. `coord_equal()` ensures squares don't get stretched into rectangles. `theme_void()` removes axis elements that are meaningless in a grid chart.
 
-**Try it:** Change `n_rows = 10` to `n_rows = 5` — you now have a 5×20 grid instead of 10×10. The proportions are identical, but the shape changes. Which layout reads more intuitively?
+**Try it:** Change `n_rows = 10` to `n_rows = 5`, you now have a 5×20 grid instead of 10×10. The proportions are identical, but the shape changes. Which layout reads more intuitively?
 
 ## How do you make each square represent exactly 1%?
 
@@ -116,7 +116,7 @@ p_prop
 
 ## How do you compare groups with faceted waffle charts?
 
-A single waffle chart shows one snapshot. Facets create multiple grids side by side — one per group — making comparison across time periods or categories intuitive.
+A single waffle chart shows one snapshot. Facets create multiple grids side by side, one per group, making comparison across time periods or categories intuitive.
 
 ```r
 # Waffle facets: smartphone OS market share across 3 years
@@ -151,7 +151,7 @@ p_facet <- ggplot(os_df, aes(fill = os, values = pct)) +
 p_facet
 ```
 
-Each year gets its own 10×10 grid. The reader can compare Android's green area vs iOS's blue area across years. The stability of the proportions becomes immediately obvious — barely any change year over year.
+Each year gets its own 10×10 grid. The reader can compare Android's green area vs iOS's blue area across years. The stability of the proportions becomes immediately obvious, barely any change year over year.
 
 **Try it:** Change the `pct` values for 2023 to `c(68, 31, 1)` (iOS gaining share) and see how the visual change in the 2023 panel immediately communicates the shift.
 
@@ -379,7 +379,7 @@ ggplot(df, aes(fill = party, values = votes)) +
 - More than 4-5 categories (too many small squares)
 - Continuous distributions (use histogram or density plot)
 - Precise comparisons needed (use bar chart)
-- Very small proportions (< 2-3%) — too few squares to see
+- Very small proportions (< 2-3%), too few squares to see
 
 ## FAQ
 
@@ -390,10 +390,10 @@ ggplot(df, aes(fill = party, values = votes)) +
 Keep your values as multiples of the unit. If n = 10,000 employees and you want 1 square = 100 employees, divide all values by 100 before plotting. Add `xlab = "1 square = 100 employees"` to the plot.
 
 **Can I use icons instead of squares?**
-Yes — the `waffle` package supports Font Awesome icons via `geom_pictogram()`. Install font-awesome fonts and use `geom_pictogram(aes(label = icon_name))` to replace squares with people icons, cars, etc.
+Yes, the `waffle` package supports Font Awesome icons via `geom_pictogram()`. Install font-awesome fonts and use `geom_pictogram(aes(label = icon_name))` to replace squares with people icons, cars, etc.
 
 **How do I remove the gap between squares?**
-Set `size = 0` inside `geom_waffle()` — this removes the gap entirely. Squares touch each other, creating a solid block. A small gap (`size = 0.3`) usually reads better.
+Set `size = 0` inside `geom_waffle()`, this removes the gap entirely. Squares touch each other, creating a solid block. A small gap (`size = 0.3`) usually reads better.
 
 **Why are my squares rectangular instead of square?**
 You forgot `coord_equal()`. Add `+ coord_equal()` to the plot.
@@ -401,12 +401,12 @@ You forgot `coord_equal()`. Add `+ coord_equal()` to the plot.
 ## References
 
 - waffle package: github.com/hrbrmstr/waffle
-- R Graph Gallery — Waffle chart: r-graph-gallery.com/waffle.html
-- Wilke C. (2019). *Fundamentals of Data Visualization* — Chapter 10: Visualizing proportions
-- r-charts.com — Waffle chart in ggplot2
+- R Graph Gallery, Waffle chart: r-graph-gallery.com/waffle.html
+- Wilke C. (2019). *Fundamentals of Data Visualization*, Chapter 10: Visualizing proportions
+- r-charts.com, Waffle chart in ggplot2
 
 ## Continue Learning
 
-- **ggplot2 Bar Charts** — precise comparisons for categorical data
-- **Pie Chart and Donut Chart in R** — classic proportional charts for 3-5 categories
-- **Treemap in R** — hierarchical proportions for many categories
+- **ggplot2 Bar Charts**, precise comparisons for categorical data
+- **Pie Chart and Donut Chart in R**, classic proportional charts for 3-5 categories
+- **Treemap in R**, hierarchical proportions for many categories

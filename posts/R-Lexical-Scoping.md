@@ -1,7 +1,7 @@
 ---
 title: "R Lexical Scoping: Why R Finds Variables Where It Does (And Not Where You Expect)"
 slug: "R-Lexical-Scoping"
-description: "R uses lexical scoping—functions find variables where they're defined, not where called. Master the rules, search path, masking, and closures with examples."
+description: "R uses lexical scoping, functions find variables where they're defined, not where called. Master the rules, search path, masking, and closures with examples."
 keywords: "R lexical scoping, R variable lookup, lexical scoping vs dynamic scoping, R search path, R name masking, R environments lookup, R closures scoping"
 auto_link_terms: "R lexical scoping|lexical scoping|R scoping rules|R variable lookup|R search path|R name masking"
 auto_link_case_sensitive: false
@@ -18,11 +18,11 @@ difficulty: "Advanced"
 
 # R Lexical Scoping: Why R Finds Variables Where It Does (And Not Where You Expect)
 
-<p class="lead">Lexical scoping is R's rule for finding values: a function looks up a name in the environment where it was <em>defined</em>, not where it was <em>called</em>. Understanding that one rule explains most "weird" R behavior — why <code>mean()</code> just works, why closures remember their data, and why a tiny rename can silently break a function.</p>
+<p class="lead">Lexical scoping is R's rule for finding values: a function looks up a name in the environment where it was <em>defined</em>, not where it was <em>called</em>. Understanding that one rule explains most "weird" R behavior, why <code>mean()</code> just works, why closures remember their data, and why a tiny rename can silently break a function.</p>
 
 ## What is lexical scoping in R?
 
-The clearest way to see lexical scoping is to watch it at work. Below, `f()` uses a variable `x` it never defined — where does R find it? And what happens when we change `x` *after* defining `f`? This tiny example already contains two of the four rules we'll unpack below.
+The clearest way to see lexical scoping is to watch it at work. Below, `f()` uses a variable `x` it never defined, where does R find it? And what happens when we change `x` *after* defining `f`? This tiny example already contains two of the four rules we'll unpack below.
 
 ```r
 x <- 10
@@ -41,9 +41,9 @@ f()
 #> [1] 100
 ```
 
-Two things happened. First, `f()` found `x` in the environment where it was defined (the global environment) — that's the **lexical** part. Second, the value it found was `99`, not the `10` that existed when `f` was written. R looked up `x` when we *called* `f`, not when we *defined* it. That timing rule is called **dynamic lookup**, and yes, "lexical" + "dynamic lookup" sounds like a contradiction — more on that in a minute.
+Two things happened. First, `f()` found `x` in the environment where it was defined (the global environment), that's the **lexical** part. Second, the value it found was `99`, not the `10` that existed when `f` was written. R looked up `x` when we *called* `f`, not when we *defined* it. That timing rule is called **dynamic lookup**, and yes, "lexical" + "dynamic lookup" sounds like a contradiction, more on that in a minute.
 
-The word "lexical" comes from the Greek *lexis*, meaning "word." A lexically scoped language decides where to look for a name based on the textual location of the code — where the characters that make up the function literally live in the source file.
+The word "lexical" comes from the Greek *lexis*, meaning "word." A lexically scoped language decides where to look for a name based on the textual location of the code, where the characters that make up the function literally live in the source file.
 
 [KEY INSIGHT]
 **Lexical scoping decides *where* to look; dynamic lookup decides *when*.** R combines both: *where* is fixed by your source code, *when* is the moment you call the function. Every surprise covered in this post is a consequence of that split.
@@ -92,7 +92,7 @@ ex_times_k(5)
 
 When R resolves a name, it doesn't just check one place. It walks a chain of environments, stopping at the first hit or throwing `object not found` if it reaches the end.
 
-The chain starts in the function's own environment (its local variables), jumps to the **enclosing environment** (where the function was defined — usually the global env for top-level functions), then to *that* environment's parent, and so on through every attached package until it reaches base R.
+The chain starts in the function's own environment (its local variables), jumps to the **enclosing environment** (where the function was defined, usually the global env for top-level functions), then to *that* environment's parent, and so on through every attached package until it reaches base R.
 
 ![How R walks the environment chain when resolving a name.](screenshots/R-Lexical-Scoping-env-chain.webp)
 
@@ -132,7 +132,7 @@ That's why `mean()` just works without a `library()` call. Base R sits at the en
 [NOTE]
 **The search path is a runtime property, not a language feature.** Loading a package with `library()` inserts it between `.GlobalEnv` and the previously-loaded packages, so the order changes every time you attach something new.
 
-**Try it:** Predict what `ex_inner()` returns below — `"outer"` or `"global"`? Then run the code to check your answer.
+**Try it:** Predict what `ex_inner()` returns below, `"outer"` or `"global"`? Then run the code to check your answer.
 
 ```r
 # Try it: predict before running
@@ -162,13 +162,13 @@ ex_outer()
 
 ## What are the four rules of R lexical scoping?
 
-Hadley Wickham's *Advanced R* distills lexical scoping into four rules. Each one is a sentence of theory backed by a tiny example — we'll cover all four in this section.
+Hadley Wickham's *Advanced R* distills lexical scoping into four rules. Each one is a sentence of theory backed by a tiny example, we'll cover all four in this section.
 
 ![The four rules of R lexical scoping summarised as a mindmap.](screenshots/R-Lexical-Scoping-four-rules.webp)
 
 *Figure 2: The four rules of R lexical scoping summarised as a mindmap.*
 
-**Rule 1 — Name masking.** A local binding always wins over an outer one with the same name. R checks the innermost environment first.
+**Rule 1, Name masking.** A local binding always wins over an outer one with the same name. R checks the innermost environment first.
 
 ```r
 x <- "global x"
@@ -184,9 +184,9 @@ x
 #> [1] "global x"
 ```
 
-`g()` created its own `x`, so that's what the body saw. The global `x` is untouched — each function call creates a fresh, isolated environment. That's also why reassigning inside a function doesn't leak out.
+`g()` created its own `x`, so that's what the body saw. The global `x` is untouched, each function call creates a fresh, isolated environment. That's also why reassigning inside a function doesn't leak out.
 
-**Rule 2 — Functions vs variables.** R can tell whether you're calling a value or using it. When you write `foo(5)`, R walks the scope chain looking specifically for a *function* called `foo`, skipping any non-function bindings on the way.
+**Rule 2, Functions vs variables.** R can tell whether you're calling a value or using it. When you write `foo(5)`, R walks the scope chain looking specifically for a *function* called `foo`, skipping any non-function bindings on the way.
 
 ```r
 n <- function(x) x * 2
@@ -200,12 +200,12 @@ test()
 #> [1] 10
 ```
 
-The local `n` is the number `10`, but `n(5)` is unambiguous syntax for "call a function." R walked past the number and found the function `n` in the global env. This rule only applies in call position — `n + 1` inside `test()` would give `11`.
+The local `n` is the number `10`, but `n(5)` is unambiguous syntax for "call a function." R walked past the number and found the function `n` in the global env. This rule only applies in call position, `n + 1` inside `test()` would give `11`.
 
 [WARNING]
 **Don't rely on this trick in real code.** It works, but shadowing a function name with a same-named variable is hostile to readers and code-review tools. Rename one of the two.
 
-**Rule 3 — A fresh start.** Every call to a function creates a brand-new environment. Local state from one call never carries over to the next.
+**Rule 3, A fresh start.** Every call to a function creates a brand-new environment. Local state from one call never carries over to the next.
 
 ```r
 counter_naive <- function() {
@@ -222,9 +222,9 @@ counter_naive()
 #> [1] 1
 ```
 
-Every call resets `count` to `0` and increments once. That's why you need closures (coming up) or super-assignment `<<-` to actually persist state — plain function calls can't do it.
+Every call resets `count` to `0` and increments once. That's why you need closures (coming up) or super-assignment `<<-` to actually persist state, plain function calls can't do it.
 
-**Rule 4 — Dynamic lookup.** R resolves names when the function *runs*, not when it's defined. We saw this in the opening example: changing `x` after defining `f` changed what `f()` returned.
+**Rule 4, Dynamic lookup.** R resolves names when the function *runs*, not when it's defined. We saw this in the opening example: changing `x` after defining `f` changed what `f()` returned.
 
 ```r
 y <- 10
@@ -280,13 +280,13 @@ count
 #> [1] 3
 ```
 
-**Explanation:** `<<-` tells R to walk up the scope chain and assign to the first `count` it finds — here, the global one. Regular `<-` would create a new local `count` and lose it on return.
+**Explanation:** `<<-` tells R to walk up the scope chain and assign to the first `count` it finds, here, the global one. Regular `<-` would create a new local `count` and lose it on return.
 
 </details>
 
 ## How do you handle name masking safely in R?
 
-Masking becomes a real problem when a package overrides a name you were already using. The classic example: loading `dplyr` attaches `filter()`, which shadows `stats::filter()` — a base R function for linear filtering of time series. The name is identical, the behavior is wildly different.
+Masking becomes a real problem when a package overrides a name you were already using. The classic example: loading `dplyr` attaches `filter()`, which shadows `stats::filter()`, a base R function for linear filtering of time series. The name is identical, the behavior is wildly different.
 
 ```r
 library(dplyr)
@@ -333,13 +333,13 @@ nrow(ex_res)
 #> [1] 6
 ```
 
-**Explanation:** `dplyr::filter` pins the lookup to dplyr's namespace. Whatever else is on the search path — `stats::filter`, a user-defined `filter`, a rogue package — can't interfere.
+**Explanation:** `dplyr::filter` pins the lookup to dplyr's namespace. Whatever else is on the search path, `stats::filter`, a user-defined `filter`, a rogue package, can't interfere.
 
 </details>
 
 ## How does lexical scoping enable closures in R?
 
-Closures are the big payoff of lexical scoping. A **closure** is a function *plus* the environment it was defined in — captured and carried around as a single bundle. Because R resolves free variables lexically, that enclosing environment stays alive as long as the function does. The function can "remember" data even when the code that created it has long since returned.
+Closures are the big payoff of lexical scoping. A **closure** is a function *plus* the environment it was defined in, captured and carried around as a single bundle. Because R resolves free variables lexically, that enclosing environment stays alive as long as the function does. The function can "remember" data even when the code that created it has long since returned.
 
 ```r
 make_counter <- function() {
@@ -364,12 +364,12 @@ counter2()
 #> [1] 1
 ```
 
-Each call to `make_counter()` creates a fresh environment holding its own `count`. `counter1` and `counter2` each capture a *different* environment, so their counts are independent. The `<<-` inside the inner function writes to `count` in the enclosing env — that's the closure being updated.
+Each call to `make_counter()` creates a fresh environment holding its own `count`. `counter1` and `counter2` each capture a *different* environment, so their counts are independent. The `<<-` inside the inner function writes to `count` in the enclosing env, that's the closure being updated.
 
 There's no magic here, just the four rules from above: name masking (inner function's own `count` would shadow, if it existed), fresh start (each `make_counter()` call gets its own env), and dynamic lookup (the inner function reads `count` at call time from the captured env).
 
 [NOTE]
-**Closures back Shiny's reactive values, ggplot2's themes, and purrr's partial application helpers.** Once you see the pattern here, those frameworks become noticeably less mysterious — they're all lexical scoping dressed up for a specific job.
+**Closures back Shiny's reactive values, ggplot2's themes, and purrr's partial application helpers.** Once you see the pattern here, those frameworks become noticeably less mysterious, they're all lexical scoping dressed up for a specific job.
 
 **Try it:** Build `ex_make_adder(n)` that returns a function which adds `n` to its input. Then use it to create `ex_add5` and call it on `10`.
 
@@ -397,13 +397,13 @@ ex_add5(10)
 #> [1] 15
 ```
 
-**Explanation:** The returned function captures `n` from its enclosing environment — the body of `ex_make_adder`. Each call to `ex_make_adder` creates a fresh env holding its own `n`, so `ex_make_adder(5)` and `ex_make_adder(7)` produce independent adders.
+**Explanation:** The returned function captures `n` from its enclosing environment, the body of `ex_make_adder`. Each call to `ex_make_adder` creates a fresh env holding its own `n`, so `ex_make_adder(5)` and `ex_make_adder(7)` produce independent adders.
 
 </details>
 
 ## How does lexical scoping differ from dynamic scoping?
 
-**Dynamic scoping** is the opposite rule: free variables are resolved in the environment of the *caller*, not the definer. Perl (with `local`), older Lisps, and some shell languages use dynamic scoping. R does not — by default.
+**Dynamic scoping** is the opposite rule: free variables are resolved in the environment of the *caller*, not the definer. Perl (with `local`), older Lisps, and some shell languages use dynamic scoping. R does not, by default.
 
 In practice, that means a function doesn't care who called it. It only cares where it was born.
 
@@ -421,12 +421,12 @@ caller()
 #> [1] "outer a"
 ```
 
-Under dynamic scoping, `callee()` would look up `a` in `caller()`'s environment and print `"caller a"`. Under R's lexical rule, `callee()` was defined at the top level, so its enclosing env is global — and it sees the global `a`. The fact that `caller()` happens to have its own `a` is irrelevant.
+Under dynamic scoping, `callee()` would look up `a` in `caller()`'s environment and print `"caller a"`. Under R's lexical rule, `callee()` was defined at the top level, so its enclosing env is global, and it sees the global `a`. The fact that `caller()` happens to have its own `a` is irrelevant.
 
 This is why refactoring R code is relatively safe: renaming a local variable in one function can never accidentally affect another function, because that other function looks up names in *its own* lexical chain, not yours.
 
 [TIP]
-**Need to test a function in a fake environment?** Create one with `new.env()`, populate it, and rebind the function with `environment(f) <- e`. That's lexical scoping turned into a test harness — you're swapping out the "where was it defined" context on purpose.
+**Need to test a function in a fake environment?** Create one with `new.env()`, populate it, and rebind the function with `environment(f) <- e`. That's lexical scoping turned into a test harness, you're swapping out the "where was it defined" context on purpose.
 
 **Try it:** Predict what the block below prints. Does `ex_inner_fn()` see `"outer z"` or `"caller z"`?
 
@@ -538,13 +538,13 @@ exists("a", envir = globalenv(), inherits = FALSE)
 #> [1] FALSE
 ```
 
-**Explanation:** `new.env(parent = baseenv())` creates an empty environment whose only fallback is base R — global variables are cut out of the scope chain. `list2env` loads the bindings; `eval` runs `expr` there. Because the bindings live in a local env that disappears when `my_scoped_eval` returns, nothing leaks. This is exactly the trick `dplyr::mutate()` and `ggplot2::aes()` use to evaluate expressions against a data frame's columns.
+**Explanation:** `new.env(parent = baseenv())` creates an empty environment whose only fallback is base R, global variables are cut out of the scope chain. `list2env` loads the bindings; `eval` runs `expr` there. Because the bindings live in a local env that disappears when `my_scoped_eval` returns, nothing leaks. This is exactly the trick `dplyr::mutate()` and `ggplot2::aes()` use to evaluate expressions against a data frame's columns.
 
 </details>
 
 ## Complete Example: A rate-limited function factory
 
-Let's put all four rules to work. The goal: write `rate_limit(f, max_calls)` that wraps any function so it errors once it's been called more than `max_calls` times. The wrapper needs to remember how many times it's been called — a closure with private state.
+Let's put all four rules to work. The goal: write `rate_limit(f, max_calls)` that wraps any function so it errors once it's been called more than `max_calls` times. The wrapper needs to remember how many times it's been called, a closure with private state.
 
 ```r
 rate_limit <- function(f, max_calls) {
@@ -574,7 +574,7 @@ limited_print("foo")
 
 Every rule shows up here. **Name masking:** the wrapper's `call_count` doesn't collide with anything the wrapped function uses. **Fresh start:** each `rate_limit()` call creates its own `call_count`, so two wrapped functions don't share a counter. **Dynamic lookup:** `max_calls` is read at call time from the enclosing env, so the limit applies whenever the wrapper runs. **Closure:** the inner function plus the enclosing env (with `call_count` and `f`) travel together as `limited_print`.
 
-Try creating two independent wrappers — `rate_limit(print, 2)` and `rate_limit(print, 5)` — and confirm they keep separate counters. That's lexical scoping doing its job.
+Try creating two independent wrappers, `rate_limit(print, 2)` and `rate_limit(print, 5)`, and confirm they keep separate counters. That's lexical scoping doing its job.
 
 ## Summary
 
@@ -587,23 +587,23 @@ Try creating two independent wrappers — `rate_limit(print, 2)` and `rate_limit
 | Lexical rule | Free variables resolve in the env where the function was *defined*. | Refactoring inside one function can't accidentally break another. |
 | Environment chain | R walks from function env → enclosing env → … → global → packages → base. | `mean()` works without a `library()` call because base is at the end of the path. |
 | Name masking | The innermost binding wins. | Local variables can't be clobbered by globals; loading a package can shadow existing names. |
-| Fresh start | Each call creates a new environment. | Plain functions can't persist state between calls — use closures or `<<-`. |
+| Fresh start | Each call creates a new environment. | Plain functions can't persist state between calls, use closures or `<<-`. |
 | Dynamic lookup | R reads names at call time, not define time. | A function can silently change behavior if upstream names change. Audit with `codetools::findGlobals`. |
 | `::` operator | Pins a lookup to a specific package's namespace. | The only masking-proof call. Use it in library code and anywhere you can't see what's loaded. |
 | Closures | Function + captured env carried together. | Every Shiny reactive, ggplot2 theme, and purrr partial is secretly this. |
 
-Lexical scoping isn't just a rule about where R finds variables — it's the foundation for closures, namespaces, the search path, and most of R's functional-programming style. Once you internalise the distinction between *where* (lexical) and *when* (dynamic), the rest of R's environment behavior stops feeling magical and starts feeling predictable.
+Lexical scoping isn't just a rule about where R finds variables, it's the foundation for closures, namespaces, the search path, and most of R's functional-programming style. Once you internalise the distinction between *where* (lexical) and *when* (dynamic), the rest of R's environment behavior stops feeling magical and starts feeling predictable.
 
 ## References
 
-1. Wickham, H. — *Advanced R*, 2nd Edition. CRC Press (2019). Chapter 6.4: Lexical scoping, and Chapter 7: Environments. [Link](https://adv-r.hadley.nz/functions.html#lexical-scoping)
-2. R Core Team — *R Language Definition*, Section 3.5: Scope of variables. [Link](https://cran.r-project.org/doc/manuals/R-lang.html#Scope-of-variables)
-3. Peng, R. — *R Programming for Data Science*, Chapter 15: Scoping Rules of R. [Link](https://bookdown.org/rdpeng/rprogdatascience/scoping-rules-of-r.html)
-4. R Documentation — `search()` and `environmentName()`. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/search.html)
-5. codetools package — `findGlobals()` reference. [Link](https://stat.ethz.ch/R-manual/R-devel/library/codetools/html/findGlobals.html)
+1. Wickham, H., *Advanced R*, 2nd Edition. CRC Press (2019). Chapter 6.4: Lexical scoping, and Chapter 7: Environments. [Link](https://adv-r.hadley.nz/functions.html#lexical-scoping)
+2. R Core Team, *R Language Definition*, Section 3.5: Scope of variables. [Link](https://cran.r-project.org/doc/manuals/R-lang.html#Scope-of-variables)
+3. Peng, R., *R Programming for Data Science*, Chapter 15: Scoping Rules of R. [Link](https://bookdown.org/rdpeng/rprogdatascience/scoping-rules-of-r.html)
+4. R Documentation, `search()` and `environmentName()`. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/search.html)
+5. codetools package, `findGlobals()` reference. [Link](https://stat.ethz.ch/R-manual/R-devel/library/codetools/html/findGlobals.html)
 
 ## Continue Learning
 
-- [R Environments](R-Environments.html) — the data structure underneath lexical scoping. Environments are how R actually stores the bindings that scoping walks through.
-- [R Closures](R-Closures.html) — the pattern lexical scoping makes possible. Deeper dive into capture-by-reference, super-assignment, and common closure idioms.
-- [R Functions](R-Functions.html) — writing your own functions. Covers arguments, return values, defaults, and how everything you wrote above actually becomes a `function` object.
+- [R Environments](R-Environments.html), the data structure underneath lexical scoping. Environments are how R actually stores the bindings that scoping walks through.
+- [R Closures](R-Closures.html), the pattern lexical scoping makes possible. Deeper dive into capture-by-reference, super-assignment, and common closure idioms.
+- [R Functions](R-Functions.html), writing your own functions. Covers arguments, return values, defaults, and how everything you wrote above actually becomes a `function` object.

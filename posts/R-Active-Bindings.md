@@ -16,11 +16,11 @@ difficulty: "Intermediate"
 
 # Active Bindings in R: makeActiveBinding() for Computed Variables
 
-<p class="lead">An active binding is a variable that runs a function every time you read or write to it. Instead of storing a static value, the binding executes a getter (and optionally a setter) on access — like a computed property in object-oriented languages. You create them with <code>makeActiveBinding()</code> in base R, and R6 uses the same machinery for its <code>active</code> fields.</p>
+<p class="lead">An active binding is a variable that runs a function every time you read or write to it. Instead of storing a static value, the binding executes a getter (and optionally a setter) on access, like a computed property in object-oriented languages. You create them with <code>makeActiveBinding()</code> in base R, and R6 uses the same machinery for its <code>active</code> fields.</p>
 
 ## What is an active binding in R?
 
-Normal R variables are dumb storage — `x <- 42` files the number away and that's that. An active binding upgrades a name into a function call: reading the binding triggers the function, and the result is what comes back. Here is the classic demo: a `now` binding that always returns the current time without parentheses, without a helper, just the bare symbol.
+Normal R variables are dumb storage, `x <- 42` files the number away and that's that. An active binding upgrades a name into a function call: reading the binding triggers the function, and the result is what comes back. Here is the classic demo: a `now` binding that always returns the current time without parentheses, without a helper, just the bare symbol.
 
 ```r
 # Create an active binding named `now` in the global environment.
@@ -38,7 +38,7 @@ now
 rm("now", envir = globalenv())
 ```
 
-Two reads of `now`, separated by a one-second sleep, give two different timestamps. Notice we never wrote `now()` — the symbol *is* the function call. Every appearance triggers a fresh evaluation.
+Two reads of `now`, separated by a one-second sleep, give two different timestamps. Notice we never wrote `now()`, the symbol *is* the function call. Every appearance triggers a fresh evaluation.
 
 Here is a second angle: a counter that auto-increments on every access. We need to store the count somewhere, so we hide it in a dedicated environment and have the binding close over it.
 
@@ -65,7 +65,7 @@ rm("counter", envir = globalenv())
 Three reads of the same name, three different values. The getter closed over `counter_env`, so it can stash state between calls without touching the global environment.
 
 [KEY INSIGHT]
-**With an active binding, the symbol is the function call.** Every time R encounters the bare name, it re-runs the backing function from scratch — so the name can return a fresh value, a computed result, or the outcome of a side effect on each access.
+**With an active binding, the symbol is the function call.** Every time R encounters the bare name, it re-runs the backing function from scratch, so the name can return a fresh value, a computed result, or the outcome of a side effect on each access.
 
 **Try it:** Create a read-only active binding called `ex_today_is` that returns `Sys.Date()` on every access. Clean up with `rm()` when you are done.
 
@@ -88,15 +88,15 @@ ex_today_is
 rm("ex_today_is", envir = globalenv())
 ```
 
-**Explanation:** The getter takes zero arguments, so the binding is read-only. `Sys.Date()` runs on every access — if you came back tomorrow, the value would have advanced by a day.
+**Explanation:** The getter takes zero arguments, so the binding is read-only. `Sys.Date()` runs on every access, if you came back tomorrow, the value would have advanced by a day.
 
 </details>
 
 ## How do you create read-only vs read-write bindings?
 
-R inspects the function you pass to `makeActiveBinding()` and decides its behaviour based on how many arguments it takes. A zero-argument function is a pure getter: the binding becomes read-only, and assigning to it raises an error. A single-argument function doubles as both getter and setter — reads call it with no argument, writes call it with the new value as the only argument. Branch on `missing(value)` to tell the two cases apart.
+R inspects the function you pass to `makeActiveBinding()` and decides its behaviour based on how many arguments it takes. A zero-argument function is a pure getter: the binding becomes read-only, and assigning to it raises an error. A single-argument function doubles as both getter and setter, reads call it with no argument, writes call it with the new value as the only argument. Branch on `missing(value)` to tell the two cases apart.
 
-First, a read-only binding. A hidden environment holds a numeric vector, and the binding `data_mean` computes its mean on every read. Mutating the underlying vector makes the binding report a new value automatically — no refresh step, no stale cache.
+First, a read-only binding. A hidden environment holds a numeric vector, and the binding `data_mean` computes its mean on every read. Mutating the underlying vector makes the binding report a new value automatically, no refresh step, no stale cache.
 
 ```r
 # Private state: a vector of values we want to summarise
@@ -119,7 +119,7 @@ data_mean
 rm("data_mean", envir = globalenv())
 ```
 
-The binding never caches — it calls `mean()` fresh on every read. That is the defining trade-off: always correct, never free.
+The binding never caches, it calls `mean()` fresh on every read. That is the defining trade-off: always correct, never free.
 
 Now the read-write version. The binding below stores a temperature internally in Celsius but exposes it as Fahrenheit. Reading the name converts Celsius to Fahrenheit on the fly; assigning a new Fahrenheit value converts back to Celsius and stores it.
 
@@ -189,13 +189,13 @@ ex_cm_to_inches
 rm("ex_cm_to_inches", envir = globalenv())
 ```
 
-**Explanation:** The getter closes over `ex_cm_env`, so changing `ex_cm_env$.cm` is reflected on the next read. Because the function has no arguments, assigning to `ex_cm_to_inches` would raise an error — which is exactly what "read-only" means here.
+**Explanation:** The getter closes over `ex_cm_env`, so changing `ex_cm_env$.cm` is reflected on the next read. Because the function has no arguments, assigning to `ex_cm_to_inches` would raise an error, which is exactly what "read-only" means here.
 
 </details>
 
 ## How can active bindings validate assignments?
 
-When the backing function accepts `value`, it becomes a gatekeeper. Every write runs through it before anything is stored, so rejecting bad input is a matter of raising an error inside the setter. This is the cleanest way to enforce invariants in R without reaching for S4 or R6 — the user still sees a plain variable, but the variable polices itself.
+When the backing function accepts `value`, it becomes a gatekeeper. Every write runs through it before anything is stored, so rejecting bad input is a matter of raising an error inside the setter. This is the cleanest way to enforce invariants in R without reaching for S4 or R6, the user still sees a plain variable, but the variable polices itself.
 
 The example below wraps an `age` value in a binding that only accepts numbers between 0 and 150. A bad assignment raises an error; the stored value stays untouched.
 
@@ -231,10 +231,10 @@ age
 rm("age", envir = globalenv())
 ```
 
-The invalid write `age <- -5` never reaches storage: the setter raises an error, and `age` still reads `30`. Compare this with hand-rolled validator functions — readers no longer have to remember to call `set_age()` instead of `<-`. The binding makes the normal assignment syntax safe.
+The invalid write `age <- -5` never reaches storage: the setter raises an error, and `age` still reads `30`. Compare this with hand-rolled validator functions, readers no longer have to remember to call `set_age()` instead of `<-`. The binding makes the normal assignment syntax safe.
 
 [WARNING]
-**Validation only fires on assignments to the bound name.** If the reader pokes at the backing environment directly with `age_env$.age <- -5`, they bypass the gate entirely. Treat the backing environment as private — never expose it — or keep it inside a closure where it cannot be reached from outside.
+**Validation only fires on assignments to the bound name.** If the reader pokes at the backing environment directly with `age_env$.age <- -5`, they bypass the gate entirely. Treat the backing environment as private, never expose it, or keep it inside a closure where it cannot be reached from outside.
 
 **Try it:** Write a read-write active binding `ex_positive_balance` that stores a number in `ex_balance_env$.balance`, rejects negative values with `stop("balance cannot be negative")`, and returns the stored value on read.
 
@@ -289,7 +289,7 @@ rm("ex_positive_balance", envir = globalenv())
 
 R6 is the most common modern object system in R, and its `active` field is a thin wrapper around `makeActiveBinding()`. When you declare an `active` field in an R6 class, R6 installs an active binding on each instance at construction time. The upshot: fields that look like data but compute on access.
 
-The classic use case is derived attributes — values that depend on other fields and must never drift out of sync. Here is a `Rectangle` class with regular `width` and `height` fields and an `area` active field:
+The classic use case is derived attributes, values that depend on other fields and must never drift out of sync. Here is a `Rectangle` class with regular `width` and `height` fields and an `area` active field:
 
 ```r
 library(R6)
@@ -321,10 +321,10 @@ r$area
 #> [1] 40
 ```
 
-`r$area` never holds a stale value. The first read computes `3 * 4`; after we change `width`, the next read computes `10 * 4`. You did not call a method, you did not refresh anything — you accessed a field, and it did the right thing.
+`r$area` never holds a stale value. The first read computes `3 * 4`; after we change `width`, the next read computes `10 * 4`. You did not call a method, you did not refresh anything, you accessed a field, and it did the right thing.
 
 [KEY INSIGHT]
-**R6 active fields eliminate the stale-derived-attribute bug by design.** In a plain R6 class, a cached `area` field would drift every time someone updated `width` without remembering to recompute. Active fields remove the remembering — the computation *is* the field.
+**R6 active fields eliminate the stale-derived-attribute bug by design.** In a plain R6 class, a cached `area` field would drift every time someone updated `width` without remembering to recompute. Active fields remove the remembering, the computation *is* the field.
 
 **Try it:** Define an R6 class `ex_RectanglePlus` with the same `width` and `height` fields plus a read-only `perimeter` active field equal to `2 * (width + height)`.
 
@@ -373,7 +373,7 @@ ex_rp$perimeter
 
 ## When should you avoid active bindings?
 
-Active bindings look free because they read like variables, but every access is a function call under the hood. In hot paths — tight loops, scalar code inside a bigger pipeline — that cost compounds fast. A rough benchmark makes the difference visible.
+Active bindings look free because they read like variables, but every access is a function call under the hood. In hot paths, tight loops, scalar code inside a bigger pipeline, that cost compounds fast. A rough benchmark makes the difference visible.
 
 ```r
 # Set up a normal variable and an equivalent active binding
@@ -404,7 +404,7 @@ rm("bench_binding", envir = globalenv())
 The numbers on your machine will vary (WebR runs noticeably slower than native R), but the gap is typically an order of magnitude or more. For a derived value read a few dozen times, that is irrelevant. For a loop that reads the name a million times, it matters. The fix is simple: read the binding once into a local variable, then use the local inside the loop.
 
 [WARNING]
-**Active bindings are not a free replacement for variables.** Reserve them for properties you genuinely want computed on access — validated writes, R6 derived fields, reactive lookups. For values that do not change, a plain assignment is faster and clearer.
+**Active bindings are not a free replacement for variables.** Reserve them for properties you genuinely want computed on access, validated writes, R6 derived fields, reactive lookups. For values that do not change, a plain assignment is faster and clearer.
 
 **Try it:** Cache the benchmark binding into a local variable before the loop and measure the three versions (normal, active, cached). Which one closes the gap?
 
@@ -440,7 +440,7 @@ c(normal = t1[["elapsed"]], active = t2[["elapsed"]], cached = t3[["elapsed"]])
 rm("ex_bench", envir = globalenv())
 ```
 
-**Explanation:** Caching `ex_bench` into `cached` turns the loop body back into a plain variable read — no per-iteration function call, so elapsed time collapses to roughly the normal-variable baseline.
+**Explanation:** Caching `ex_bench` into `cached` turns the loop body back into a plain variable read, no per-iteration function call, so elapsed time collapses to roughly the normal-variable baseline.
 
 </details>
 
@@ -511,7 +511,7 @@ account_balance
 rm("account_balance", "account_status", envir = globalenv())
 ```
 
-**Explanation:** `account_balance` is a read-write binding that gates assignments. `account_status` is read-only and derives its value from the same backing field, so the two bindings can never disagree — updating the balance automatically updates the status.
+**Explanation:** `account_balance` is a read-write binding that gates assignments. `account_status` is read-only and derives its value from the same backing field, so the two bindings can never disagree, updating the balance automatically updates the status.
 
 </details>
 
@@ -519,8 +519,8 @@ rm("account_balance", "account_status", envir = globalenv())
 
 Create an R6 class `Thermostat` with two active fields:
 
-1. `celsius` — read-write, validated to be between `0` and `100` (error message: `"celsius must be between 0 and 100"`). Store it in a private field called `.c_`.
-2. `fahrenheit` — read-only, computed as `celsius * 9 / 5 + 32`.
+1. `celsius`, read-write, validated to be between `0` and `100` (error message: `"celsius must be between 0 and 100"`). Store it in a private field called `.c_`.
+2. `fahrenheit`, read-only, computed as `celsius * 9 / 5 + 32`.
 
 Construct a `Thermostat$new()` instance, set `celsius` to `30`, and confirm that `fahrenheit` returns `86`.
 
@@ -576,7 +576,7 @@ my_t$celsius
 
 ## Complete Example: a LiveStats class
 
-Here is everything in one piece. `LiveStats` wraps a numeric vector with active fields for `n`, `mean_val`, `sd_val`, and `range_val`. Every append automatically refreshes every statistic — no manual `update_stats()` call, no way to end up with stale numbers.
+Here is everything in one piece. `LiveStats` wraps a numeric vector with active fields for `n`, `mean_val`, `sd_val`, and `range_val`. Every append automatically refreshes every statistic, no manual `update_stats()` call, no way to end up with stale numbers.
 
 ```r
 LiveStats <- R6Class("LiveStats",
@@ -625,7 +625,7 @@ ls1$range_val
 #> [1] 10 50
 ```
 
-Every statistic is computed on read. The class exposes only what should be public — the `add()` method and the stat fields — hides the raw vector in `private`, and makes it impossible for any reader to see inconsistent values. That combination (validation, derivation, encapsulation) is the real payoff of active bindings.
+Every statistic is computed on read. The class exposes only what should be public, the `add()` method and the stat fields, hides the raw vector in `private`, and makes it impossible for any reader to see inconsistent values. That combination (validation, derivation, encapsulation) is the real payoff of active bindings.
 
 ## Summary
 
@@ -638,19 +638,19 @@ Every statistic is computed on read. The class exposes only what should be publi
 | Inspect | `bindingIsActive("name", env)` | Detect whether a name is an active binding |
 | Remove | `rm("name", envir = env)` | Delete a binding |
 
-Active bindings turn variables into function calls. That unlocks computed properties, validated assignments, and R6's active fields — at the cost of making every access slightly slower. Use them where the semantic benefit pays for the per-call overhead, and reach for plain variables everywhere else.
+Active bindings turn variables into function calls. That unlocks computed properties, validated assignments, and R6's active fields, at the cost of making every access slightly slower. Use them where the semantic benefit pays for the per-call overhead, and reach for plain variables everywhere else.
 
 ## References
 
-1. R Core Team — `bindenv {base}`: Binding and Environment Locking, Active Bindings. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/bindenv.html)
-2. Wickham, H. — *Advanced R*, 2nd Edition. Chapter 7: Environments. [Link](https://adv-r.hadley.nz/environments.html)
-3. Chang, W. — R6 package documentation: Introduction and active fields. [Link](https://r6.r-lib.org/articles/Introduction.html)
-4. Xie, Y. — "makeActiveBinding(): The Most Magical Hidden Gem in Base R". [Link](https://yihui.org/en/2018/08/make-active-binding/)
-5. Fay, C. — "R and active binding (and pizza)". [Link](https://colinfay.me/ractivebinfing/)
-6. Müller, K. — `bindr`: Parametrized Active Bindings. [Link](https://krlmlr.github.io/bindr/)
+1. R Core Team, `bindenv {base}`: Binding and Environment Locking, Active Bindings. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/bindenv.html)
+2. Wickham, H., *Advanced R*, 2nd Edition. Chapter 7: Environments. [Link](https://adv-r.hadley.nz/environments.html)
+3. Chang, W., R6 package documentation: Introduction and active fields. [Link](https://r6.r-lib.org/articles/Introduction.html)
+4. Xie, Y., "makeActiveBinding(): The Most Magical Hidden Gem in Base R". [Link](https://yihui.org/en/2018/08/make-active-binding/)
+5. Fay, C., "R and active binding (and pizza)". [Link](https://colinfay.me/ractivebinfing/)
+6. Müller, K., `bindr`: Parametrized Active Bindings. [Link](https://krlmlr.github.io/bindr/)
 
 ## Continue Learning
 
-1. **[R Environments](R-Environments.html)** — bindings live inside environments; an active binding cannot exist anywhere else.
-2. **[R6 Classes in R](R6-Classes-in-R.html)** — the `active` field slot is built directly on top of `makeActiveBinding()`.
-3. **[R Closures](R-Closures.html)** — the function you pass to `makeActiveBinding()` is almost always a closure that captures the backing state.
+1. **[R Environments](R-Environments.html)**, bindings live inside environments; an active binding cannot exist anywhere else.
+2. **[R6 Classes in R](R6-Classes-in-R.html)**, the `active` field slot is built directly on top of `makeActiveBinding()`.
+3. **[R Closures](R-Closures.html)**, the function you pass to `makeActiveBinding()` is almost always a closure that captures the backing state.

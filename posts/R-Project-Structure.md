@@ -16,7 +16,7 @@ difficulty: "Intermediate"
 
 # R Project Structure: The Setup That Eliminates setwd() Forever
 
-<p class="lead">A well-organised R project uses an RStudio <code>.Rproj</code> file as its anchor, the <code>here</code> package for file paths, and a predictable folder layout — no <code>setwd()</code>, no broken paths when a collaborator opens your code, no "it works on my machine." Get this right once and every future analysis starts on firm ground.</p>
+<p class="lead">A well-organised R project uses an RStudio <code>.Rproj</code> file as its anchor, the <code>here</code> package for file paths, and a predictable folder layout, no <code>setwd()</code>, no broken paths when a collaborator opens your code, no "it works on my machine." Get this right once and every future analysis starts on firm ground.</p>
 
 This guide shows the folder layout used by professional R developers, why `setwd()` is a bug in disguise, how `here()` replaces it, and how `renv` locks package versions so reruns actually reproduce.
 
@@ -24,7 +24,7 @@ This guide shows the folder layout used by professional R developers, why `setwd
 
 The first line of most R tutorial scripts looks like `setwd("C:/Users/selva/project")`, and the first thing that line does is guarantee the script won't run on anyone else's machine. The path is hard-coded to one laptop, one operating system, and one user account. Email the script to a colleague and they get `Error: cannot change working directory`. That's the whole anti-pattern in one sentence.
 
-The fix is not a smarter path — it's to use a project *anchor* and ask R to resolve paths relative to it. RStudio's `.Rproj` file is that anchor. Create one, and the working directory is automatically set to the project folder whenever you open the project, with no `setwd()` line in sight.
+The fix is not a smarter path, it's to use a project *anchor* and ask R to resolve paths relative to it. RStudio's `.Rproj` file is that anchor. Create one, and the working directory is automatically set to the project folder whenever you open the project, with no `setwd()` line in sight.
 
 ```r
 # Inside a proper .Rproj-anchored project, these two are equivalent
@@ -40,10 +40,10 @@ file.exists(here("data-raw", "orders.csv"))
 #> [1] TRUE
 ```
 
-`here()` walks upward from the current file until it finds a project marker (`.Rproj`, `.here`, `.git`, or a few others), then returns that directory. Every path you build with `here("subfolder", "file")` is absolute and stable no matter where the calling script lives inside the project tree — the second-biggest productivity win in R after the pipe.
+`here()` walks upward from the current file until it finds a project marker (`.Rproj`, `.here`, `.git`, or a few others), then returns that directory. Every path you build with `here("subfolder", "file")` is absolute and stable no matter where the calling script lives inside the project tree, the second-biggest productivity win in R after the pipe.
 
 [WARNING]
-**Never commit `setwd()` to a shared repository.** If your script starts with `setwd("C:/Users/selva/...")`, it will silently break on anyone else's machine and on CI runners. Use `here::here()` or `fs::path_abs()` instead — both resolve against a project anchor that travels with the code.
+**Never commit `setwd()` to a shared repository.** If your script starts with `setwd("C:/Users/selva/...")`, it will silently break on anyone else's machine and on CI runners. Use `here::here()` or `fs::path_abs()` instead, both resolve against a project anchor that travels with the code.
 
 **Try it:** Assume the project root is `~/demo`. Write one call using `here::here()` that resolves to `~/demo/scripts/plot.R`.
 
@@ -80,7 +80,7 @@ There is no single "official" layout, but a few patterns have converged across H
 
 | Folder | Contents | Commit? |
 |---|---|---|
-| `project.Rproj` | RStudio project file — the anchor | Yes |
+| `project.Rproj` | RStudio project file, the anchor | Yes |
 | `data-raw/` | Immutable raw inputs (CSV, parquet, JSON) | Usually yes (small) / LFS (big) |
 | `data/` | Cleaned/processed .rds or .parquet ready for analysis | Often gitignored if regeneratable |
 | `R/` | Reusable functions sourced from scripts | Yes |
@@ -121,7 +121,7 @@ dir_tree(".")
 #> '-- scripts/
 ```
 
-`fs::dir_tree()` prints a portable directory listing that works on Windows, macOS, and Linux. Once the skeleton exists, running `usethis::use_rstudio()` in the project root creates the `.Rproj` file and `usethis::use_git()` initialises the git repository — two commands that set up everything RStudio and git need to treat this folder as a proper project.
+`fs::dir_tree()` prints a portable directory listing that works on Windows, macOS, and Linux. Once the skeleton exists, running `usethis::use_rstudio()` in the project root creates the `.Rproj` file and `usethis::use_git()` initialises the git repository, two commands that set up everything RStudio and git need to treat this folder as a proper project.
 
 [TIP]
 **Number your scripts so execution order is obvious.** `01_import.R` → `02_clean.R` → `03_model.R` → `04_report.R` is worth its weight in gold when a colleague opens the project six months later. Even better, wire the whole pipeline through `targets` so each step only reruns when its inputs change.
@@ -183,7 +183,7 @@ saveRDS(orders, here("data", "orders.rds"))
 # (try setwd("reports") then call here() — same answer)
 ```
 
-One call per path, resolved against the project root. `read.csv(here("data-raw", "orders.csv"))` does the same thing whether you run it from the project root, from inside a `reports/` subfolder, or from a Quarto render that silently changes directories. `setwd()` can't compete with that — it only works when you're lucky enough to be in the right folder at the right time.
+One call per path, resolved against the project root. `read.csv(here("data-raw", "orders.csv"))` does the same thing whether you run it from the project root, from inside a `reports/` subfolder, or from a Quarto render that silently changes directories. `setwd()` can't compete with that, it only works when you're lucky enough to be in the right folder at the right time.
 
 If you're in a folder that doesn't contain an `.Rproj`, drop a sentinel file called `.here` in the root and `here()` will latch onto it. That's the official escape hatch for script-only projects that aren't RStudio-managed.
 
@@ -203,7 +203,7 @@ here()
 `set_here()` creates an empty file named `.here` in the current directory, and from that point forward `here()` uses it as the anchor. Works in plain R-script projects, inside Docker containers, and anywhere else RStudio isn't around.
 
 [NOTE]
-**`here` is not the only option.** `rprojroot` is the lower-level package `here` is built on, and `fs::path_abs()` works if you pass it a known-absolute root. Most R developers pick `here` because its single-function API is easier to teach new team members — but the principle (use a project anchor, never `setwd()`) is what matters, not the specific package.
+**`here` is not the only option.** `rprojroot` is the lower-level package `here` is built on, and `fs::path_abs()` works if you pass it a known-absolute root. Most R developers pick `here` because its single-function API is easier to teach new team members, but the principle (use a project anchor, never `setwd()`) is what matters, not the specific package.
 
 **Try it:** You have `root <- here::here()`. Write a one-line call that reads `data-raw/products.csv` from the project root using `here`, assuming the file exists.
 
@@ -237,7 +237,7 @@ expr
 
 `here` solves location. `renv` solves package versions. Without it, re-running your analysis six months later is a coin flip: if any package updated and introduced a breaking change, your old script is broken and you won't always know which package or which version caused it.
 
-`renv` creates a project-local package library and a lockfile (`renv.lock`) that records exact versions. When a collaborator clones the repo and runs `renv::restore()`, they get the same versions you had — including the same version of R, where possible.
+`renv` creates a project-local package library and a lockfile (`renv.lock`) that records exact versions. When a collaborator clones the repo and runs `renv::restore()`, they get the same versions you had, including the same version of R, where possible.
 
 ```r
 # The three commands that set renv up and keep it in sync
@@ -265,12 +265,12 @@ library(renv)
 #> $Version     [1] "1.1.4"
 ```
 
-The four commands — `init`, `snapshot`, `restore`, `status` — cover the whole workflow. The `renv.lock` file is human-readable JSON, which means your code review process can inspect package upgrades the same way you review any other change. Pair `renv` with a `.Rproj` and `here`, and your project is reproducible, portable, and safe to hand to a collaborator.
+The four commands, `init`, `snapshot`, `restore`, `status`, cover the whole workflow. The `renv.lock` file is human-readable JSON, which means your code review process can inspect package upgrades the same way you review any other change. Pair `renv` with a `.Rproj` and `here`, and your project is reproducible, portable, and safe to hand to a collaborator.
 
 [TIP]
 **Commit `renv.lock` but gitignore `renv/library/`.** The lockfile is the source of truth for which versions to install; the `renv/library/` folder is the actual installed copy on *your* machine and should not be in version control. `usethis::use_git_ignore("renv/library/")` sets this up in one line.
 
-**Try it:** Name the three `renv` commands — one to set it up in a fresh project, one to update the lockfile after installing a new package, and one for a collaborator to recreate the environment.
+**Try it:** Name the three `renv` commands, one to set it up in a fresh project, one to update the lockfile after installing a new package, and one for a collaborator to recreate the environment.
 
 ```r
 # Try it: name the three commands
@@ -293,7 +293,7 @@ ex_cmds
 #> [1] "renv::init()"     "renv::snapshot()" "renv::restore()"
 ```
 
-**Explanation:** `init()` creates the lockfile and the project library. `snapshot()` updates the lockfile to match the currently-installed packages. `restore()` installs exactly what's in the lockfile — the command your collaborator runs after `git clone`.
+**Explanation:** `init()` creates the lockfile and the project library. `snapshot()` updates the lockfile to match the currently-installed packages. `restore()` installs exactly what's in the lockfile, the command your collaborator runs after `git clone`.
 
 </details>
 
@@ -337,7 +337,7 @@ Five patterns cause most "this project worked yesterday" incidents. Each has a o
 #   scripts/03_report.R  -> reports/final.html
 ```
 
-Mistakes 1 and 2 are about paths and naming. Mistake 3 is the one that ends up on Twitter — committing an API key to a public repo is expensive and avoidable. Mistake 4 is reproducibility; mistake 5 is maintainability. All five are the same underlying lesson: make your project boring and predictable so future-you doesn't have to reverse-engineer it.
+Mistakes 1 and 2 are about paths and naming. Mistake 3 is the one that ends up on Twitter, committing an API key to a public repo is expensive and avoidable. Mistake 4 is reproducibility; mistake 5 is maintainability. All five are the same underlying lesson: make your project boring and predictable so future-you doesn't have to reverse-engineer it.
 
 [WARNING]
 **Never commit a file containing credentials, tokens, or passwords.** Use `.Renviron` (gitignored) or a secrets manager, read values with `Sys.getenv("NAME")`, and add `.Renviron` to your `.gitignore` on day one. Run `usethis::edit_r_environ("project")` to create a project-specific one.
@@ -362,7 +362,7 @@ ex_key
 #> [1] "unset"
 ```
 
-**Explanation:** `Sys.getenv()` accepts an `unset =` argument that returns a fallback value when the variable isn't defined. This is the right way to read secrets — the key stays in `.Renviron` (gitignored), and the code depends on a name, not a value.
+**Explanation:** `Sys.getenv()` accepts an `unset =` argument that returns a fallback value when the variable isn't defined. This is the right way to read secrets, the key stays in `.Renviron` (gitignored), and the code depends on a name, not a value.
 
 </details>
 
@@ -372,7 +372,7 @@ Two capstone exercises that combine path handling and project structure.
 
 ### Exercise 1: Build a project-relative read call
 
-Given that your project root contains a `data-raw/` folder with a CSV called `customers.csv`, write an R expression that reads it using `here` — the expression must work regardless of which subfolder the script is being run from. Capture the *expression* (not its execution) in `my_expr` using `quote()` so we can verify the shape.
+Given that your project root contains a `data-raw/` folder with a CSV called `customers.csv`, write an R expression that reads it using `here`, the expression must work regardless of which subfolder the script is being run from. Capture the *expression* (not its execution) in `my_expr` using `quote()` so we can verify the shape.
 
 ```r
 # Exercise 1: portable read expression
@@ -396,7 +396,7 @@ my_expr
 #> read.csv(here::here("data-raw", "customers.csv"))
 ```
 
-**Explanation:** `quote()` captures the expression without evaluating it — useful for demonstrations and for meta-programming. In a real script you'd drop the `quote()` and just run the read.
+**Explanation:** `quote()` captures the expression without evaluating it, useful for demonstrations and for meta-programming. In a real script you'd drop the `quote()` and just run the read.
 
 </details>
 
@@ -499,7 +499,7 @@ dir_tree(".", recurse = FALSE)
 #> '-- scripts
 ```
 
-Seven steps, all scripted: folder layout, ignore rules, project file, numbered scripts. The only "real" choices you made were which scripts to include — everything else is mechanical. Commit this as the first commit of every new analysis project and you've saved your future self a dozen small paper cuts.
+Seven steps, all scripted: folder layout, ignore rules, project file, numbered scripts. The only "real" choices you made were which scripts to include, everything else is mechanical. Commit this as the first commit of every new analysis project and you've saved your future self a dozen small paper cuts.
 
 ## Summary
 
@@ -527,6 +527,6 @@ Seven steps, all scripted: folder layout, ignore rules, project file, numbered s
 
 ## Continue Learning
 
-- **[Install R and RStudio 2026](Install-R-and-RStudio-2026.html)** — The parent post: get R and RStudio installed before setting up your first project.
-- **[RStudio IDE Tour](RStudio-IDE-Tour.html)** — A walkthrough of the four-pane RStudio interface you'll use inside every R project.
-- **[Run Multiple R Versions Side-by-Side](Multiple-R-Versions.html)** — When one project needs R 4.3 and another needs R 4.4, `renv` plus a version manager keeps them honest.
+- **[Install R and RStudio 2026](Install-R-and-RStudio-2026.html)**, The parent post: get R and RStudio installed before setting up your first project.
+- **[RStudio IDE Tour](RStudio-IDE-Tour.html)**, A walkthrough of the four-pane RStudio interface you'll use inside every R project.
+- **[Run Multiple R Versions Side-by-Side](Multiple-R-Versions.html)**, When one project needs R 4.3 and another needs R 4.4, `renv` plus a version manager keeps them honest.

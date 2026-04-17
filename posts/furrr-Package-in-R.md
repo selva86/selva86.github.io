@@ -16,7 +16,7 @@ difficulty: "Intermediate"
 
 # furrr Package in R: Parallel purrr with future Backend
 
-<p class="lead">The furrr package gives every purrr mapping function a parallel twin — swap <code>map()</code> for <code>future_map()</code>, set a <code>plan()</code>, and your code runs across multiple CPU cores with no other changes.</p>
+<p class="lead">The furrr package gives every purrr mapping function a parallel twin, swap <code>map()</code> for <code>future_map()</code>, set a <code>plan()</code>, and your code runs across multiple CPU cores with no other changes.</p>
 
 ## How do you convert a purrr workflow to furrr?
 
@@ -48,10 +48,10 @@ result
 #> [1] 35
 ```
 
-Each element of `1:5` was squared and had 10 added to it. On your local machine with `plan(multisession)`, these five computations ran across two worker processes. The output is identical to what `purrr::map()` would return — a list of results, one per input.
+Each element of `1:5` was squared and had 10 added to it. On your local machine with `plan(multisession)`, these five computations ran across two worker processes. The output is identical to what `purrr::map()` would return, a list of results, one per input.
 
 [NOTE]
-**The browser code runner is single-threaded.** The `plan(multisession)` call works but falls back to sequential execution here. Results are identical to local R — only the timing differs when you run this on your own machine.
+**The browser code runner is single-threaded.** The `plan(multisession)` call works but falls back to sequential execution here. Results are identical to local R, only the timing differs when you run this on your own machine.
 
 The naming convention is simple: take any purrr function, add `future_` in front. Here's a type-specific variant that returns a numeric vector instead of a list.
 
@@ -67,7 +67,7 @@ par_result
 #> [1] 1.000000 1.414214 1.732051 2.000000 2.236068
 ```
 
-The results match exactly. Every purrr variant has a furrr counterpart: `future_map_chr()`, `future_map_lgl()`, `future_map_int()`, `future_map_dfr()`, `future_imap()`, `future_map2()`, `future_pmap()`, and `future_walk()`. The suffix rules are the same as purrr — `_dbl` means "return a double vector," `_chr` means "return a character vector," and so on.
+The results match exactly. Every purrr variant has a furrr counterpart: `future_map_chr()`, `future_map_lgl()`, `future_map_int()`, `future_map_dfr()`, `future_imap()`, `future_map2()`, `future_pmap()`, and `future_walk()`. The suffix rules are the same as purrr, `_dbl` means "return a double vector," `_chr` means "return a character vector," and so on.
 
 **Try it:** Use `future_map_chr()` to paste "Item-" before each element of `c("A", "B", "C")`.
 
@@ -97,7 +97,7 @@ ex_labels
 
 ## What does plan() do and which backend should you choose?
 
-The `plan()` function from the future package tells R how to execute futures — the units of work that furrr creates behind the scenes. Without a plan, everything runs sequentially. With one, your iterations spread across cores.
+The `plan()` function from the future package tells R how to execute futures, the units of work that furrr creates behind the scenes. Without a plan, everything runs sequentially. With one, your iterations spread across cores.
 
 ```r
 # Check available cores on your system
@@ -168,7 +168,7 @@ weighted
 #> [1]  30 100 210 360
 ```
 
-`future_map2_dbl()` walks down both vectors in lockstep — first iteration gets `w = 0.3, v = 100`, second gets `w = 0.5, v = 200`, and so on. The `_dbl` suffix guarantees a numeric vector back.
+`future_map2_dbl()` walks down both vectors in lockstep, first iteration gets `w = 0.3, v = 100`, second gets `w = 0.5, v = 200`, and so on. The `_dbl` suffix guarantees a numeric vector back.
 
 For three or more inputs, pass them as a data frame (or named list) to `future_pmap()`.
 
@@ -190,7 +190,7 @@ labels
 Each row of the data frame becomes one function call. The column names must match the function's argument names. This is especially powerful for parameter sweeps and simulation grids.
 
 [KEY INSIGHT]
-**"Parallel" means across CPU cores, not across inputs simultaneously.** furrr splits your inputs into chunks and sends each chunk to a worker. Each worker processes its chunk sequentially. With 4 workers and 100 inputs, each worker handles ~25 items one after another — the speed gain comes from 4 workers running at the same time.
+**"Parallel" means across CPU cores, not across inputs simultaneously.** furrr splits your inputs into chunks and sends each chunk to a worker. Each worker processes its chunk sequentially. With 4 workers and 100 inputs, each worker handles ~25 items one after another, the speed gain comes from 4 workers running at the same time.
 
 **Try it:** Use `future_map2_chr()` to paste first and last names together from two vectors.
 
@@ -267,7 +267,7 @@ looked_up
 #> [1] "Alpha" "Beta"  "Gamma"
 ```
 
-By default, furrr auto-detects globals (variables your function references from the parent environment). The explicit `globals = "my_lookup"` is useful when auto-detection picks up too much — say a 2 GB data frame your function doesn't actually need.
+By default, furrr auto-detects globals (variables your function references from the parent environment). The explicit `globals = "my_lookup"` is useful when auto-detection picks up too much, say a 2 GB data frame your function doesn't actually need.
 
 Here's a quick reference for all `furrr_options()` parameters:
 
@@ -363,16 +363,16 @@ cat("Parallel:  ", heavy_par["elapsed"], "sec\n")
 With 20 bootstrap resamples of 10,000 observations each, furrr starts pulling ahead. The heavier the per-iteration work, the bigger the win.
 
 [TIP]
-**Benchmark before committing to parallel.** Wrap your sequential and parallel versions in `system.time()` and compare elapsed times. If parallel is slower, your iterations are too lightweight — keep them sequential.
+**Benchmark before committing to parallel.** Wrap your sequential and parallel versions in `system.time()` and compare elapsed times. If parallel is slower, your iterations are too lightweight, keep them sequential.
 
 Here are the rules of thumb for when parallelizing pays off:
 
-1. **Each iteration takes more than ~100 milliseconds** — model fitting, simulation, resampling, heavy I/O
-2. **You have more than ~10 iterations** — too few iterations can't amortize the startup cost
-3. **Data per iteration is small to medium** — serializing a 1 GB data frame to each worker kills the speed gain
-4. **The function has no side effects** — parallel workers can't reliably write to the same file or modify shared state
+1. **Each iteration takes more than ~100 milliseconds**, model fitting, simulation, resampling, heavy I/O
+2. **You have more than ~10 iterations**, too few iterations can't amortize the startup cost
+3. **Data per iteration is small to medium**, serializing a 1 GB data frame to each worker kills the speed gain
+4. **The function has no side effects**, parallel workers can't reliably write to the same file or modify shared state
 
-**Try it:** Predict which task benefits more from parallelization: (A) computing `sqrt()` on 500 numbers, or (B) running `lm()` on 50 subsets of 1000 rows. No code needed — just reason about iteration weight.
+**Try it:** Predict which task benefits more from parallelization: (A) computing `sqrt()` on 500 numbers, or (B) running `lm()` on 50 subsets of 1000 rows. No code needed, just reason about iteration weight.
 
 ```r
 # Try it: which benefits from furrr?
@@ -581,8 +581,8 @@ The simulation confirms what statistics predicts: the standard error of the mean
 |---------|-------------|
 | Core idea | furrr = purrr + parallel execution via future |
 | Function naming | `future_` prefix: `map()` → `future_map()`, `map2()` → `future_map2()`, etc. |
-| Setting up parallelism | `plan(multisession, workers = N)` — works on all platforms |
-| Resetting | `plan(sequential)` — releases workers and memory |
+| Setting up parallelism | `plan(multisession, workers = N)`, works on all platforms |
+| Resetting | `plan(sequential)`, releases workers and memory |
 | Multiple inputs | `future_map2()` for 2 inputs, `future_pmap()` for 3+ |
 | Reproducibility | `furrr_options(seed = N)` for deterministic random results |
 | Globals control | `furrr_options(globals = ...)` to limit data shipped to workers |
@@ -592,17 +592,17 @@ The simulation confirms what statistics predicts: the standard error of the mean
 
 ## References
 
-1. Vaughan, D. — furrr: Apply Mapping Functions in Parallel using Futures. Official package site. [Link](https://furrr.futureverse.org/)
-2. Bengtsson, H. — future: Unified Parallel and Distributed Processing in R for Everyone. [Link](https://future.futureverse.org/)
-3. Wickham, H. — purrr: Functional Programming Tools. [Link](https://purrr.tidyverse.org/)
+1. Vaughan, D., furrr: Apply Mapping Functions in Parallel using Futures. Official package site. [Link](https://furrr.futureverse.org/)
+2. Bengtsson, H., future: Unified Parallel and Distributed Processing in R for Everyone. [Link](https://future.futureverse.org/)
+3. Wickham, H., purrr: Functional Programming Tools. [Link](https://purrr.tidyverse.org/)
 4. furrr CRAN Reference Manual. [Link](https://cran.r-project.org/web/packages/furrr/furrr.pdf)
-5. Bengtsson, H. — "A Future for R: A Comprehensive Overview." The R Journal (2021). [Link](https://journal.r-project.org/archive/2021/RJ-2021-048/)
-6. Wickham, H. & Grolemund, G. — *R for Data Science*, 2nd Edition. O'Reilly (2023). Chapter 26: Iteration. [Link](https://r4ds.hadley.nz/iteration)
-7. Dancho, M. — "Tidy Parallel Processing in R with furrr." Business Science (2021). [Link](https://www.business-science.io/r/2021/09/14/parallel-processing-furrr.html)
-8. furrr GitHub repository — source code, issues, and development version. [Link](https://github.com/futureverse/furrr)
+5. Bengtsson, H., "A Future for R: A Comprehensive Overview." The R Journal (2021). [Link](https://journal.r-project.org/archive/2021/RJ-2021-048/)
+6. Wickham, H. & Grolemund, G., *R for Data Science*, 2nd Edition. O'Reilly (2023). Chapter 26: Iteration. [Link](https://r4ds.hadley.nz/iteration)
+7. Dancho, M., "Tidy Parallel Processing in R with furrr." Business Science (2021). [Link](https://www.business-science.io/r/2021/09/14/parallel-processing-furrr.html)
+8. furrr GitHub repository, source code, issues, and development version. [Link](https://github.com/futureverse/furrr)
 
 ## Continue Learning
 
-- [purrr map() in R: Every Variant Explained](purrr-map-Variants.html) — the parent tutorial covering map(), map2(), imap(), and pmap() in depth
-- [R Anonymous Functions: The \(x) Syntax](R-Anonymous-Functions.html) — the compact lambda syntax used inside map and future_map calls
-- [Functional Programming in R](Functional-Programming-in-R.html) — the broader landscape of FP concepts including closures, higher-order functions, and function factories
+- [purrr map() in R: Every Variant Explained](purrr-map-Variants.html), the parent tutorial covering map(), map2(), imap(), and pmap() in depth
+- [R Anonymous Functions: The \(x) Syntax](R-Anonymous-Functions.html), the compact lambda syntax used inside map and future_map calls
+- [Functional Programming in R](Functional-Programming-in-R.html), the broader landscape of FP concepts including closures, higher-order functions, and function factories

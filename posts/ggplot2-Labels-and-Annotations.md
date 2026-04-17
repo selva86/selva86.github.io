@@ -18,15 +18,15 @@ difficulty: "Intermediate"
 
 # ggplot2 Labels and Annotations: Add Context Without Cluttering Your Chart
 
-<p class="lead">Labels and annotations turn a raw ggplot2 chart into a self-explanatory story — use <code>labs()</code> for titles, <code>geom_text()</code> for data-driven labels, <code>ggrepel</code> for overlap-free placement, and <code>annotate()</code> for custom callouts.</p>
+<p class="lead">Labels and annotations turn a raw ggplot2 chart into a self-explanatory story, use <code>labs()</code> for titles, <code>geom_text()</code> for data-driven labels, <code>ggrepel</code> for overlap-free placement, and <code>annotate()</code> for custom callouts.</p>
 
 ## Introduction
 
 A chart without labels is like a map without street names. The axes, points, and bars may be technically accurate, but your reader has no idea what they are looking at. Good labels answer the three questions every viewer asks: "What am I seeing?", "What stands out?", and "Why does it matter?"
 
-ggplot2 gives you five labeling tools that cover every scenario. `labs()` handles the big-picture metadata — titles, subtitles, axis names, and captions. `geom_text()` and `geom_label()` attach labels directly to data points. The `ggrepel` package pushes those labels apart so they never overlap. And `annotate()` lets you drop custom text, rectangles, or arrows at any coordinate.
+ggplot2 gives you five labeling tools that cover every scenario. `labs()` handles the big-picture metadata, titles, subtitles, axis names, and captions. `geom_text()` and `geom_label()` attach labels directly to data points. The `ggrepel` package pushes those labels apart so they never overlap. And `annotate()` lets you drop custom text, rectangles, or arrows at any coordinate.
 
-In this tutorial, you will learn how each function works, when to pick one over another, and how to combine them into a polished, self-explanatory chart. All code runs directly in your browser — just hit the Run button or press Ctrl+Enter.
+In this tutorial, you will learn how each function works, when to pick one over another, and how to combine them into a polished, self-explanatory chart. All code runs directly in your browser, just hit the Run button or press Ctrl+Enter.
 
 ![Overview of ggplot2 labeling and annotation functions](screenshots/ggplot2-Labels-and-Annotations-overview-mindmap.webp)
 *Figure 1: Overview of ggplot2 labeling and annotation functions.*
@@ -66,7 +66,7 @@ p_labs <- p_base +
 p_labs
 ```
 
-The title tells the reader what the chart shows. The subtitle adds the takeaway. The caption credits the data source — a small touch that builds trust. The tag is handy when you have "Figure A", "Figure B" panels in a report.
+The title tells the reader what the chart shows. The subtitle adds the takeaway. The caption credits the data source, a small touch that builds trust. The tag is handy when you have "Figure A", "Figure B" panels in a report.
 
 [TIP]
 **Always include a caption with your data source.** Readers and reviewers trust charts more when they can trace the data back to its origin. Use `labs(caption = "Source: ...")` for this.
@@ -118,7 +118,7 @@ ex_plot
 
 ## How do geom_text() and geom_label() place data-driven labels?
 
-When you want to attach a label to each data point — the car name next to its dot, the revenue figure above a bar — you need `geom_text()` or `geom_label()`. Both map the `label` aesthetic to a column in your data. The difference is that `geom_label()` draws a filled rectangle behind the text.
+When you want to attach a label to each data point, the car name next to its dot, the revenue figure above a bar, you need `geom_text()` or `geom_label()`. Both map the `label` aesthetic to a column in your data. The difference is that `geom_label()` draws a filled rectangle behind the text.
 
 ![Decision guide: which labeling function fits your need](screenshots/ggplot2-Labels-and-Annotations-decision-flow.webp)
 *Figure 2: Decision guide: which labeling function fits your need.*
@@ -135,7 +135,7 @@ p_text <- ggplot(mtcars, aes(x = wt, y = mpg, label = rownames(mtcars))) +
 p_text
 ```
 
-The result is messy because labels overlap heavily. That is expected — we will fix it with `ggrepel` in the next section. For now, notice that `geom_text()` takes several positioning arguments.
+The result is messy because labels overlap heavily. That is expected, we will fix it with `ggrepel` in the next section. For now, notice that `geom_text()` takes several positioning arguments.
 
 Now let's compare with `geom_label()`, which adds a background rectangle.
 
@@ -315,7 +315,7 @@ p_ann <- p_base +
 p_ann
 ```
 
-The `\n` inside the label string creates a line break. The `fontface` argument accepts "plain", "bold", "italic", or "bold.italic". Notice that `annotate()` does not require an `aes()` call — you pass x, y, and label directly.
+The `\n` inside the label string creates a line break. The `fontface` argument accepts "plain", "bold", "italic", or "bold.italic". Notice that `annotate()` does not require an `aes()` call, you pass x, y, and label directly.
 
 Now let's combine a highlighted rectangle with an arrow and a label.
 
@@ -346,7 +346,7 @@ p_shapes <- p_base +
 p_shapes
 ```
 
-The gold rectangle highlights the "efficient zone" — cars that are light and get good mileage. The arrow draws the eye from the label to the region. Together, they tell a story without adding clutter.
+The gold rectangle highlights the "efficient zone", cars that are light and get good mileage. The arrow draws the eye from the label to the region. Together, they tell a story without adding clutter.
 
 [TIP]
 **Use annotate("rect") with low alpha for region highlights.** An alpha of 0.1 to 0.2 tints the background without hiding data points underneath. Pair it with a text label and arrow for maximum clarity.
@@ -401,7 +401,7 @@ ex_ann
 
 ## How do you style and position label text with theme()?
 
-Every text element on a ggplot2 chart — the title, axis labels, tick marks, legend text — can be customized through `theme()` and `element_text()`. This is where you make your labels look professional instead of default.
+Every text element on a ggplot2 chart, the title, axis labels, tick marks, legend text, can be customized through `theme()` and `element_text()`. This is where you make your labels look professional instead of default.
 
 ![How annotation layers stack onto a base plot](screenshots/ggplot2-Labels-and-Annotations-layer-stack.webp)
 *Figure 3: How annotation layers stack onto a base plot.*
@@ -783,22 +783,22 @@ Pass a filtered subset as the `data` argument to `geom_text()` or `geom_text_rep
 
 ### Why do my ggrepel labels still overlap?
 
-Increase `max.overlaps` (default is 10) to allow more labels. Increase `force` to push labels harder. Reduce label `size`. Or filter your data to label fewer points. With hundreds of points, labeling all of them is impractical — pick the top N most interesting.
+Increase `max.overlaps` (default is 10) to allow more labels. Increase `force` to push labels harder. Reduce label `size`. Or filter your data to label fewer points. With hundreds of points, labeling all of them is impractical, pick the top N most interesting.
 
 ## References
 
-1. Wickham, H. — *ggplot2: Elegant Graphics for Data Analysis*, 3rd Edition. Chapter 8: Annotations. [Link](https://ggplot2-book.org/annotations.html)
-2. ggplot2 documentation — `labs()` reference. [Link](https://ggplot2.tidyverse.org/reference/labs.html)
-3. ggplot2 documentation — `geom_text()` and `geom_label()` reference. [Link](https://ggplot2.tidyverse.org/reference/geom_text.html)
-4. Slowikowski, K. — ggrepel: Automatically Position Non-Overlapping Text Labels. CRAN. [Link](https://cran.r-project.org/package=ggrepel)
-5. R-Charts — Text annotations in ggplot2 with geom_text, geom_label, ggrepel. [Link](https://r-charts.com/ggplot2/text-annotations/)
-6. R Graph Gallery — Add text labels with ggplot2. [Link](https://r-graph-gallery.com/275-add-text-labels-with-ggplot2.html)
-7. Wickham, H. & Grolemund, G. — *R for Data Science*, 2nd Edition. Visualization chapters. [Link](https://r4ds.hadley.nz/)
+1. Wickham, H., *ggplot2: Elegant Graphics for Data Analysis*, 3rd Edition. Chapter 8: Annotations. [Link](https://ggplot2-book.org/annotations.html)
+2. ggplot2 documentation, `labs()` reference. [Link](https://ggplot2.tidyverse.org/reference/labs.html)
+3. ggplot2 documentation, `geom_text()` and `geom_label()` reference. [Link](https://ggplot2.tidyverse.org/reference/geom_text.html)
+4. Slowikowski, K., ggrepel: Automatically Position Non-Overlapping Text Labels. CRAN. [Link](https://cran.r-project.org/package=ggrepel)
+5. R-Charts, Text annotations in ggplot2 with geom_text, geom_label, ggrepel. [Link](https://r-charts.com/ggplot2/text-annotations/)
+6. R Graph Gallery, Add text labels with ggplot2. [Link](https://r-graph-gallery.com/275-add-text-labels-with-ggplot2.html)
+7. Wickham, H. & Grolemund, G., *R for Data Science*, 2nd Edition. Visualization chapters. [Link](https://r4ds.hadley.nz/)
 
 ## Continue Learning
 
 Now that your charts communicate clearly with labels and annotations, here are natural next steps on r-statistics.co:
 
-- **ggplot2 Themes** — Customize fonts, backgrounds, and spacing across the entire chart to match your brand or publication style.
-- **ggplot2 Facets** — Split one plot into a grid of subplots by category, so labels and annotations scale across groups.
-- **ggplot2 Scales and Axes** — Control how axes, colors, and legends translate data values into visual properties.
+- **ggplot2 Themes**, Customize fonts, backgrounds, and spacing across the entire chart to match your brand or publication style.
+- **ggplot2 Facets**, Split one plot into a grid of subplots by category, so labels and annotations scale across groups.
+- **ggplot2 Scales and Axes**, Control how axes, colors, and legends translate data values into visual properties.

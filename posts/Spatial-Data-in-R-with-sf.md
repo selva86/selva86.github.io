@@ -18,11 +18,11 @@ difficulty: "Intermediate"
 
 # Spatial Data in R with sf: Shapefiles, CRS Transformation, and ggplot2 Maps
 
-<p class="lead">The sf (simple features) package is R's modern standard for working with spatial data — points, lines, and polygons stored as tidy data frames. It replaces the older sp package and connects seamlessly with dplyr for data manipulation and ggplot2 for mapping.</p>
+<p class="lead">The sf (simple features) package is R's modern standard for working with spatial data, points, lines, and polygons stored as tidy data frames. It replaces the older sp package and connects seamlessly with dplyr for data manipulation and ggplot2 for mapping.</p>
 
 ## What does spatial data look like in R?
 
-Spatial data connects locations on Earth to attributes you care about — city populations, river lengths, country boundaries. In R, the sf package stores this data as a regular data frame with one special column: a geometry column that holds the coordinates.
+Spatial data connects locations on Earth to attributes you care about, city populations, river lengths, country boundaries. In R, the sf package stores this data as a regular data frame with one special column: a geometry column that holds the coordinates.
 
 Let's create a simple spatial dataset and see what that looks like.
 
@@ -59,7 +59,7 @@ cities
 #> 5     Phoenix    AZ          1.6  POINT (-112.074 33.449)
 ```
 
-Notice how it looks just like a regular data frame — except for that `geometry` column on the right. Each row stores a `POINT` with longitude and latitude. The header tells you the CRS (WGS 84, which is standard GPS coordinates) and the bounding box (the rectangle that contains all your points).
+Notice how it looks just like a regular data frame, except for that `geometry` column on the right. Each row stores a `POINT` with longitude and latitude. The header tells you the CRS (WGS 84, which is standard GPS coordinates) and the bounding box (the rectangle that contains all your points).
 
 The built-in `plot()` function gives you a quick look at the data. It creates one panel per attribute column.
 
@@ -68,10 +68,10 @@ The built-in `plot()` function gives you a quick look at the data. It creates on
 plot(cities)
 ```
 
-The plot shows three mini-maps (one for each attribute column). Each point is colored by the attribute value. This is useful for a quick sanity check, but for publication-quality maps you'll want ggplot2 — we'll get there in a later section.
+The plot shows three mini-maps (one for each attribute column). Each point is colored by the attribute value. This is useful for a quick sanity check, but for publication-quality maps you'll want ggplot2, we'll get there in a later section.
 
 [KEY INSIGHT]
-**sf objects are just data frames with a geometry column.** Every dplyr verb you already know — filter(), mutate(), summarise(), left_join() — works on sf objects. The geometry column tags along automatically.
+**sf objects are just data frames with a geometry column.** Every dplyr verb you already know, filter(), mutate(), summarise(), left_join(), works on sf objects. The geometry column tags along automatically.
 
 **Try it:** Create an sf object called `ex_places` with 3 locations you know well. Include columns for "name" and "country", plus longitude and latitude. Set the CRS to 4326 and print it.
 
@@ -146,7 +146,7 @@ river_path
 #> 1 Example River LINESTRING (-90 45, -89 43,...
 ```
 
-The river is stored as a sequence of coordinate pairs connected in order. Now let's make a POLYGON — a closed shape where the first and last coordinates must match.
+The river is stored as a sequence of coordinate pairs connected in order. Now let's make a POLYGON, a closed shape where the first and last coordinates must match.
 
 ```r
 # Create a POLYGON — a simplified lake boundary
@@ -230,13 +230,13 @@ ex_triangle <- st_sf(
 plot(ex_triangle)
 ```
 
-**Explanation:** A polygon ring must close — the last coordinate repeats the first. st_polygon() takes a list of matrices (outer ring + optional holes).
+**Explanation:** A polygon ring must close, the last coordinate repeats the first. st_polygon() takes a list of matrices (outer ring + optional holes).
 
 </details>
 
 ## How do you read spatial data files into R?
 
-In your own projects, you'll usually start by reading spatial files from disk. The sf package's st_read() function handles all major formats — shapefiles, GeoJSON, GeoPackage, KML, and more.
+In your own projects, you'll usually start by reading spatial files from disk. The sf package's st_read() function handles all major formats, shapefiles, GeoJSON, GeoPackage, KML, and more.
 
 Here's the pattern for the most common formats:
 
@@ -278,7 +278,7 @@ head(world_sf, 5)
 #> 5     Albania         MULTIPOLYGON (((20.06396 ...
 ```
 
-Now `world_sf` is a proper sf object with MULTIPOLYGON geometries for each country. You can use it exactly like data loaded from a shapefile — filter countries, transform projections, or plot with ggplot2.
+Now `world_sf` is a proper sf object with MULTIPOLYGON geometries for each country. You can use it exactly like data loaded from a shapefile, filter countries, transform projections, or plot with ggplot2.
 
 **Try it:** Convert the US state map to an sf object using `maps::map("state", plot = FALSE, fill = TRUE)` and st_as_sf(). Print the first 3 rows.
 
@@ -310,7 +310,7 @@ head(ex_states, 3)
 
 ## What is a coordinate reference system and why does it matter?
 
-Every spatial dataset needs a coordinate reference system (CRS) — the set of rules that tells R how the numbers in your geometry column relate to actual locations on Earth. Without a CRS, your coordinates are just abstract numbers.
+Every spatial dataset needs a coordinate reference system (CRS), the set of rules that tells R how the numbers in your geometry column relate to actual locations on Earth. Without a CRS, your coordinates are just abstract numbers.
 
 There are two families of CRS to know:
 
@@ -319,7 +319,7 @@ There are two families of CRS to know:
 | Geographic | Degrees (lon/lat) | WGS 84 (EPSG:4326) | Storing data, GPS coordinates, web maps |
 | Projected | Meters or feet | UTM, Albers (EPSG:5070) | Measuring distances, computing areas, US maps |
 
-Geographic CRS stores positions as longitude and latitude on the globe's curved surface. Projected CRS flattens the globe onto a 2D plane — like peeling an orange and pressing the skin flat. Each projection distorts *something* (area, shape, distance, or direction), so you pick the one that preserves what you care about.
+Geographic CRS stores positions as longitude and latitude on the globe's curved surface. Projected CRS flattens the globe onto a 2D plane, like peeling an orange and pressing the skin flat. Each projection distorts *something* (area, shape, distance, or direction), so you pick the one that preserves what you care about.
 
 Let's check the CRS on our world map.
 
@@ -333,7 +333,7 @@ st_crs(world_sf)
 #>     ID["EPSG",4326]]
 ```
 
-The output confirms this is WGS 84 (EPSG:4326) — the most common geographic CRS. If you create spatial data from coordinates and forget to set a CRS, you'll get `NA`. Let's see how to assign one.
+The output confirms this is WGS 84 (EPSG:4326), the most common geographic CRS. If you create spatial data from coordinates and forget to set a CRS, you'll get `NA`. Let's see how to assign one.
 
 ```r
 # Create points WITHOUT a CRS (common mistake)
@@ -391,15 +391,15 @@ st_crs(ex_cities_sf)
 #>   ...
 ```
 
-**Explanation:** You can set the CRS directly in st_as_sf() with the `crs` argument, or after the fact with st_set_crs(). Both work — setting it upfront is cleaner.
+**Explanation:** You can set the CRS directly in st_as_sf() with the `crs` argument, or after the fact with st_set_crs(). Both work, setting it upfront is cleaner.
 
 </details>
 
 ## How do you transform between coordinate systems?
 
-st_set_crs() *assigns* a CRS to data that doesn't have one (it labels the coordinates). st_transform() *reprojects* the data — it recalculates every coordinate into a different coordinate system. This is the function you'll use to switch between projections.
+st_set_crs() *assigns* a CRS to data that doesn't have one (it labels the coordinates). st_transform() *reprojects* the data, it recalculates every coordinate into a different coordinate system. This is the function you'll use to switch between projections.
 
-A common scenario: your data is in WGS 84 (degrees), but you need meters for distance or area calculations. Let's transform the US states from WGS 84 to Albers Equal Area — a projection designed for the contiguous US that preserves area proportions.
+A common scenario: your data is in WGS 84 (degrees), but you need meters for distance or area calculations. Let's transform the US states from WGS 84 to Albers Equal Area, a projection designed for the contiguous US that preserves area proportions.
 
 ```r
 # Create US states sf object
@@ -422,7 +422,7 @@ head(st_coordinates(us_albers[1, ]), 3)
 #> 3  761043.8 -672619  1  1
 ```
 
-The WGS 84 coordinates are in degrees (longitude, latitude). After transformation to Albers, they're in meters — much better for computing areas and distances.
+The WGS 84 coordinates are in degrees (longitude, latitude). After transformation to Albers, they're in meters, much better for computing areas and distances.
 
 Let's see the visual difference between the two projections.
 
@@ -448,7 +448,7 @@ p2
 ```
 
 [TIP]
-**Pick the right projection for your goal.** For US maps, EPSG:5070 (Albers Equal Area) preserves area proportions — ideal for choropleths. For world maps, try "+proj=robin" (Robinson) for balanced shape and area. For local measurements, UTM zones give accurate distances.
+**Pick the right projection for your goal.** For US maps, EPSG:5070 (Albers Equal Area) preserves area proportions, ideal for choropleths. For world maps, try "+proj=robin" (Robinson) for balanced shape and area. For local measurements, UTM zones give accurate distances.
 
 **Try it:** Transform `world_sf` to Mollweide projection using "+proj=moll" and plot it. The Mollweide projection is an equal-area projection often used for world maps.
 
@@ -472,13 +472,13 @@ ggplot(ex_world_moll) +
   theme_minimal()
 ```
 
-**Explanation:** st_transform() takes an sf object and reprojects it. The Mollweide projection creates the characteristic oval shape that preserves area — useful for showing relative country sizes accurately.
+**Explanation:** st_transform() takes an sf object and reprojects it. The Mollweide projection creates the characteristic oval shape that preserves area, useful for showing relative country sizes accurately.
 
 </details>
 
 ## How do you create maps with geom_sf() in ggplot2?
 
-geom_sf() is the ggplot2 layer built for sf objects. It automatically picks the right visual — polygons get filled, lines get stroked, points get plotted as dots. You use it exactly like any other ggplot layer, with aesthetic mappings for fill, color, size, and more.
+geom_sf() is the ggplot2 layer built for sf objects. It automatically picks the right visual, polygons get filled, lines get stroked, points get plotted as dots. You use it exactly like any other ggplot layer, with aesthetic mappings for fill, color, size, and more.
 
 Let's create a basic map of US states and then build up from there.
 
@@ -490,7 +490,7 @@ ggplot(us_states) +
   theme_void()
 ```
 
-theme_void() strips away axes and gridlines — perfect for maps where coordinate labels add clutter. Now let's layer two sf objects: states as polygons and cities as points on top.
+theme_void() strips away axes and gridlines, perfect for maps where coordinate labels add clutter. Now let's layer two sf objects: states as polygons and cities as points on top.
 
 ```r
 # Layer points on top of polygons
@@ -512,9 +512,9 @@ ggplot() +
   theme_void()
 ```
 
-Each geom_sf() layer can come from a different sf object. ggplot2 handles CRS alignment automatically — if the layers have different projections, it reprojects to match the first one.
+Each geom_sf() layer can come from a different sf object. ggplot2 handles CRS alignment automatically, if the layers have different projections, it reprojects to match the first one.
 
-Now let's build a choropleth map — states colored by a data variable.
+Now let's build a choropleth map, states colored by a data variable.
 
 ```r
 # Choropleth map: color states by a random variable
@@ -533,7 +533,7 @@ ggplot(us_states) +
 scale_fill_viridis_c() provides colorblind-friendly palettes that work well for maps. The `option` argument lets you pick from "viridis", "magma", "plasma", "inferno", and "cividis".
 
 [TIP]
-**Use coord_sf(xlim, ylim) to zoom without subsetting data.** This crops the view while keeping all geometry intact — great for focusing on a region while maintaining clean polygon edges at the border.
+**Use coord_sf(xlim, ylim) to zoom without subsetting data.** This crops the view while keeping all geometry intact, great for focusing on a region while maintaining clean polygon edges at the border.
 
 **Try it:** Create a map of US states filled by the `value` column, add a title "My Choropleth", and use theme_void() for a clean look. Try a different color scale like scale_fill_distiller(palette = "YlOrRd").
 
@@ -563,7 +563,7 @@ ggplot(us_states) +
 
 ## How do you use dplyr verbs with sf objects?
 
-One of sf's biggest advantages over older spatial packages is that it works natively with dplyr. You can filter(), mutate(), group_by(), and summarise() exactly like you would with a regular data frame — the geometry column comes along for the ride.
+One of sf's biggest advantages over older spatial packages is that it works natively with dplyr. You can filter(), mutate(), group_by(), and summarise() exactly like you would with a regular data frame, the geometry column comes along for the ride.
 
 Let's filter and transform our US states data.
 
@@ -597,7 +597,7 @@ ggplot(western_states) +
   theme_void()
 ```
 
-The geometry column survived the filter — no extra steps needed. Now here's the powerful part: summarise() on sf objects *dissolves* (merges) geometries by group. Individual state boundaries disappear and you get one polygon per group.
+The geometry column survived the filter, no extra steps needed. Now here's the powerful part: summarise() on sf objects *dissolves* (merges) geometries by group. Individual state boundaries disappear and you get one polygon per group.
 
 ```r
 # Dissolve states into regions with summarise()
@@ -624,7 +624,7 @@ ggplot(regions) +
   theme_void()
 ```
 
-The 49 individual state polygons merged into 4 region polygons. This is called "dissolving" in GIS terminology — sf does it automatically when you summarise by group.
+The 49 individual state polygons merged into 4 region polygons. This is called "dissolving" in GIS terminology, sf does it automatically when you summarise by group.
 
 [KEY INSIGHT]
 **summarise() on sf objects merges geometries by group.** This is how you go from detailed boundaries (counties) to aggregated regions (states) or from states to regions. The geometry dissolves and statistics aggregate in one step.
@@ -765,7 +765,7 @@ ggplot(my_europe) +
 
 ## Putting It All Together
 
-Let's walk through a complete spatial analysis workflow — from raw data to a polished, publication-ready map.
+Let's walk through a complete spatial analysis workflow, from raw data to a polished, publication-ready map.
 
 The goal: create a choropleth map of US states colored by area, with major cities overlaid as sized points, all in a proper equal-area projection.
 
@@ -835,15 +835,15 @@ Here's a quick reference for the sf functions covered in this tutorial:
 | st_area() / st_length() | Compute geometric measurements (area, length) |
 | st_coordinates() | Extract raw coordinate values |
 | st_crop() | Clip geometries to a bounding box |
-| geom_sf() | ggplot2 layer — automatically renders points, lines, or polygons |
+| geom_sf() | ggplot2 layer, automatically renders points, lines, or polygons |
 | coord_sf() | Control map projection and extent in ggplot2 |
 
 **Key takeaways:**
 
-- sf objects are data frames with a geometry column — use them with any dplyr verb
+- sf objects are data frames with a geometry column, use them with any dplyr verb
 - Always check your CRS with st_crs() before analysis or plotting
 - Use st_set_crs() to *label* coordinates; use st_transform() to *reproject* them
-- geographic CRS (WGS 84) stores degrees; projected CRS stores meters — pick projected for area/distance calculations
+- geographic CRS (WGS 84) stores degrees; projected CRS stores meters, pick projected for area/distance calculations
 - geom_sf() in ggplot2 automatically handles geometry rendering and CRS alignment
 - summarise() on sf objects dissolves (merges) geometries by group
 - The `maps` package provides built-in boundary data you can convert with st_as_sf()
@@ -854,16 +854,16 @@ Here's a quick reference for the sf functions covered in this tutorial:
 
 ## References
 
-1. Pebesma, E. — sf: Simple Features for R. CRAN. [Link](https://r-spatial.github.io/sf/)
-2. Pebesma, E. & Bivand, R. — *Spatial Data Science*. Chapter 7: Introduction to sf. [Link](https://r-spatial.org/book/07-Introsf.html)
-3. Wickham, H. — ggplot2: geom_sf() reference. [Link](https://ggplot2.tidyverse.org/reference/ggsf.html)
-4. EPSG.io — Coordinate Reference System database. [Link](https://epsg.io/)
-5. Lovelace, R., Nowosad, J., Muenchow, J. — *Geocomputation with R*. Chapter 2: Geographic data in R. [Link](https://r.geocompx.org/spatial-class)
-6. r-spatial.org — Drawing beautiful maps programmatically with R, sf and ggplot2. [Link](https://r-spatial.org/r/2018/10/25/ggplot2-sf.html)
-7. sf CRAN package documentation — Version 1.1-0. [Link](https://cran.r-project.org/web/packages/sf/sf.pdf)
+1. Pebesma, E., sf: Simple Features for R. CRAN. [Link](https://r-spatial.github.io/sf/)
+2. Pebesma, E. & Bivand, R., *Spatial Data Science*. Chapter 7: Introduction to sf. [Link](https://r-spatial.org/book/07-Introsf.html)
+3. Wickham, H., ggplot2: geom_sf() reference. [Link](https://ggplot2.tidyverse.org/reference/ggsf.html)
+4. EPSG.io, Coordinate Reference System database. [Link](https://epsg.io/)
+5. Lovelace, R., Nowosad, J., Muenchow, J., *Geocomputation with R*. Chapter 2: Geographic data in R. [Link](https://r.geocompx.org/spatial-class)
+6. r-spatial.org, Drawing beautiful maps programmatically with R, sf and ggplot2. [Link](https://r-spatial.org/r/2018/10/25/ggplot2-sf.html)
+7. sf CRAN package documentation, Version 1.1-0. [Link](https://cran.r-project.org/web/packages/sf/sf.pdf)
 
 ## Continue Learning
 
-- [ggplot2 Getting Started](ggplot2-Getting-Started.html) — Master the grammar of graphics that geom_sf() builds upon.
-- [ggplot2 Colours](ggplot2-Colours.html) — Customize color palettes for choropleth maps and themed visualizations.
-- [ggplot2 Themes](ggplot2-Themes-in-R.html) — Style your maps with custom themes for publication-quality output.
+- [ggplot2 Getting Started](ggplot2-Getting-Started.html), Master the grammar of graphics that geom_sf() builds upon.
+- [ggplot2 Colours](ggplot2-Colours.html), Customize color palettes for choropleth maps and themed visualizations.
+- [ggplot2 Themes](ggplot2-Themes-in-R.html), Style your maps with custom themes for publication-quality output.

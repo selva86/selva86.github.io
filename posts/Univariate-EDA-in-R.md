@@ -18,11 +18,11 @@ sidebar_order: 21
 
 # Univariate EDA in R: Every Variable Deserves Individual Attention Before Modelling
 
-<p class="lead">Univariate EDA is the practice of examining one variable at a time — its distribution shape, central tendency, spread, outliers, and missing values — before you combine variables or fit a model. Skip this step and you risk feeding garbage into an algorithm that won't complain until it's too late.</p>
+<p class="lead">Univariate EDA is the practice of examining one variable at a time, its distribution shape, central tendency, spread, outliers, and missing values, before you combine variables or fit a model. Skip this step and you risk feeding garbage into an algorithm that won't complain until it's too late.</p>
 
 ## What does a single variable look like before you touch it?
 
-Before you build a model, ask a simpler question: what does each column actually contain? A quick summary reveals the range, typical values, and immediate red flags — like a minimum of -999 that screams "missing data in disguise." Let's start with the `airquality` dataset, which tracks daily air measurements in New York across the summer of 1973.
+Before you build a model, ask a simpler question: what does each column actually contain? A quick summary reveals the range, typical values, and immediate red flags, like a minimum of -999 that screams "missing data in disguise." Let's start with the `airquality` dataset, which tracks daily air measurements in New York across the summer of 1973.
 
 ```r
 # Quick vital signs for every column
@@ -45,7 +45,7 @@ summary(aq)
 #>  Max.   :9.000   Max.   :31.0
 ```
 
-Right away you can see that Ozone has 37 missing values and Solar.R has 7. Ozone ranges from 1 to 168 — that's a massive spread — and its mean (42.1) is well above its median (31.5), which hints at right-skewness. You already know three things worth investigating, and you haven't drawn a single chart yet.
+Right away you can see that Ozone has 37 missing values and Solar.R has 7. Ozone ranges from 1 to 168, that's a massive spread, and its mean (42.1) is well above its median (31.5), which hints at right-skewness. You already know three things worth investigating, and you haven't drawn a single chart yet.
 
 [KEY INSIGHT]
 **summary() is your fastest diagnostic tool.** When mean is much larger than median, the variable is right-skewed. When NAs appear, you know exactly which columns need missing-data handling. One function, three findings.
@@ -64,7 +64,7 @@ str(aq)
 #>  $ Day    : int  1 2 3 4 5 6 7 8 9 10 ...
 ```
 
-Ozone, Solar.R, Temp, Month, and Day are integers. Wind is numeric (has decimals). Month and Day are technically numeric but represent calendar values — you'd treat them differently than continuous measurements. This distinction matters: you wouldn't compute skewness for Month.
+Ozone, Solar.R, Temp, Month, and Day are integers. Wind is numeric (has decimals). Month and Day are technically numeric but represent calendar values, you'd treat them differently than continuous measurements. This distinction matters: you wouldn't compute skewness for Month.
 
 **Try it:** Run `summary()` on the built-in `mtcars` dataset and identify which variable has the largest range (max minus min).
 
@@ -93,7 +93,7 @@ sapply(mtcars, function(x) max(x) - min(x))
 
 ## How do you visualize the distribution of a numeric variable?
 
-Numbers alone can't tell you whether a variable is bell-shaped, has two peaks, or trails off to the right. You need a picture. The histogram is the workhorse of univariate visualization — it chops the range into bins and counts how many observations fall in each.
+Numbers alone can't tell you whether a variable is bell-shaped, has two peaks, or trails off to the right. You need a picture. The histogram is the workhorse of univariate visualization, it chops the range into bins and counts how many observations fall in each.
 
 ```r
 # Histogram of Ozone — the shape tells the story
@@ -108,7 +108,7 @@ hist(aq$Ozone,
 
 The histogram reveals a strongly right-skewed distribution. Most days have ozone below 50 ppb, but a handful of extreme days push past 100. This shape is typical of environmental measurements and suggests that the mean is being pulled up by those high values.
 
-A density plot gives you a smoother view of the same information. Think of it as a histogram with infinitely narrow bins — it traces the underlying curve.
+A density plot gives you a smoother view of the same information. Think of it as a histogram with infinitely narrow bins, it traces the underlying curve.
 
 ```r
 # Density plot — a smoothed view of the distribution
@@ -121,7 +121,7 @@ plot(density(ozone_clean),
 #> (smooth curve displayed: single peak near 20, long right tail)
 ```
 
-The density confirms one clear peak around 20 ppb with a long right tail. There's no second peak, so we're dealing with a unimodal distribution — just a skewed one.
+The density confirms one clear peak around 20 ppb with a long right tail. There's no second peak, so we're dealing with a unimodal distribution, just a skewed one.
 
 ![Distribution shapes reference](screenshots/Univariate-EDA-in-R-distribution-shapes.webp)
 
@@ -167,13 +167,13 @@ hist(aq$Temp, breaks = 15,
 #>  peak around 80-85 F)
 ```
 
-**Explanation:** Temperature is roughly symmetric with a slight left skew — most days cluster around 75-85°F, and fewer days are cool. This is much closer to a normal distribution than Ozone.
+**Explanation:** Temperature is roughly symmetric with a slight left skew, most days cluster around 75-85°F, and fewer days are cool. This is much closer to a normal distribution than Ozone.
 
 </details>
 
 ## What do skewness and kurtosis actually tell you?
 
-You've seen the histogram, but how do you *quantify* "how skewed is this?" That's what skewness and kurtosis do — they put a number on the shape.
+You've seen the histogram, but how do you *quantify* "how skewed is this?" That's what skewness and kurtosis do, they put a number on the shape.
 
 **Skewness** measures asymmetry. A perfectly symmetric distribution (like the normal) has skewness = 0. Positive skewness means the right tail is longer (values trail off to the right). Negative skewness means the left tail is longer.
 
@@ -198,7 +198,7 @@ cat("Excess kurtosis:", round(kurt_ozone - 3, 3), "\n")
 #> Excess kurtosis: 0.844
 ```
 
-A skewness of 1.21 confirms the right-skew we saw in the histogram. The excess kurtosis of 0.84 tells us the tails are slightly heavier than a normal distribution — consistent with those high ozone days pulling the distribution rightward.
+A skewness of 1.21 confirms the right-skew we saw in the histogram. The excess kurtosis of 0.84 tells us the tails are slightly heavier than a normal distribution, consistent with those high ozone days pulling the distribution rightward.
 
 Here's a quick reference for interpreting these numbers:
 
@@ -206,7 +206,7 @@ Here's a quick reference for interpreting these numbers:
 |---|---|
 | -0.5 to 0.5 | Approximately symmetric |
 | -1 to -0.5 or 0.5 to 1 | Moderately skewed |
-| Below -1 or above 1 | Highly skewed — consider transforming |
+| Below -1 or above 1 | Highly skewed, consider transforming |
 
 | Excess kurtosis | Interpretation |
 |---|---|
@@ -241,13 +241,13 @@ cat("Skewness of Wind:", round(ex_skew, 3))
 #> Skewness of Wind: 0.341
 ```
 
-**Explanation:** A skewness of 0.34 falls in the "approximately symmetric" range (-0.5 to 0.5). Wind speed is much closer to a normal distribution than Ozone — no transformation needed.
+**Explanation:** A skewness of 0.34 falls in the "approximately symmetric" range (-0.5 to 0.5). Wind speed is much closer to a normal distribution than Ozone, no transformation needed.
 
 </details>
 
 ## How do you spot and handle outliers?
 
-Outliers aren't automatically "bad data." A temperature of 115°F in Phoenix is extreme but real. A temperature of 999°F is a data entry error. Your job during EDA is to *find* them — what you *do* about them depends on domain knowledge.
+Outliers aren't automatically "bad data." A temperature of 115°F in Phoenix is extreme but real. A temperature of 999°F is a data entry error. Your job during EDA is to *find* them, what you *do* about them depends on domain knowledge.
 
 The boxplot is the classic outlier detector. It draws a box from the 25th to 75th percentile (the IQR), with whiskers extending to 1.5 × IQR beyond each edge. Anything past the whiskers gets flagged as an outlier.
 
@@ -263,7 +263,7 @@ cat("Outlier values:", bp$out, "\n")
 #> Outlier values: 115 135 168
 ```
 
-Three values — 115, 135, and 168 — sit above the upper whisker. These are the highest ozone days in the dataset. Are they errors? Probably not — ozone can spike during heat waves. But they could distort a linear model.
+Three values, 115, 135, and 168, sit above the upper whisker. These are the highest ozone days in the dataset. Are they errors? Probably not, ozone can spike during heat waves. But they could distort a linear model.
 
 Let's identify these outliers programmatically using the IQR rule so you can apply this to any variable.
 
@@ -289,12 +289,12 @@ cat("Outlier values:", outlier_rows, "\n")
 #> Outlier values: 135 168
 ```
 
-The lower bound is negative (impossible for ozone), so there are no low-end outliers. Two values exceed the upper bound of 131.1 ppb. Notice that the boxplot flagged 115 as an outlier too — boxplot uses a slightly different calculation internally. The IQR method is more transparent and reproducible.
+The lower bound is negative (impossible for ozone), so there are no low-end outliers. Two values exceed the upper bound of 131.1 ppb. Notice that the boxplot flagged 115 as an outlier too, boxplot uses a slightly different calculation internally. The IQR method is more transparent and reproducible.
 
 [WARNING]
 **Removing outliers without investigation is one of the most common EDA mistakes.** Always ask: is this value physically possible? Could it be a measurement artefact? Blindly deleting extreme values can remove the most informative observations in your dataset.
 
-One safe alternative to deletion is **winsorizing** — capping outliers at the whisker boundaries rather than removing them.
+One safe alternative to deletion is **winsorizing**, capping outliers at the whisker boundaries rather than removing them.
 
 ```r
 # Winsorize: cap extreme values at the boundaries
@@ -312,7 +312,7 @@ cat("After capping  - Mean:", round(mean(ozone_capped), 2), "\n")
 #> After capping  - Mean: 41.59
 ```
 
-Capping brought the maximum down from 168 to 131 and barely moved the mean (42.1 → 41.6). That's the beauty of winsorizing — it reduces the influence of extremes without throwing away data points.
+Capping brought the maximum down from 168 to 131 and barely moved the mean (42.1 → 41.6). That's the beauty of winsorizing, it reduces the influence of extremes without throwing away data points.
 
 **Try it:** Use the IQR rule to find outliers in `airquality$Wind`. How many outliers does Wind have?
 
@@ -342,13 +342,13 @@ cat("Outlier values:", ex_outliers, "\n")
 #> Outlier values: 20.1 18.4 20.7
 ```
 
-**Explanation:** Wind has 3 high-end outliers — all above 17.6 mph. These are windy days but not unreasonable for summer in New York.
+**Explanation:** Wind has 3 high-end outliers, all above 17.6 mph. These are windy days but not unreasonable for summer in New York.
 
 </details>
 
 ## How much missing data is too much?
 
-Missing data is the silent problem in most datasets. A variable with 5% missing is easy to handle — impute with the median and move on. A variable with 60% missing might need to be dropped entirely, because any imputation would be more guess than data.
+Missing data is the silent problem in most datasets. A variable with 5% missing is easy to handle, impute with the median and move on. A variable with 60% missing might need to be dropped entirely, because any imputation would be more guess than data.
 
 Let's count the damage across all columns.
 
@@ -370,7 +370,7 @@ data.frame(
 #> Day       0    0.0%
 ```
 
-Ozone has 24.2% missing — that's significant but workable. Solar.R has 4.6% — easy to impute. The other four columns are complete. A visual makes the pattern even clearer.
+Ozone has 24.2% missing, that's significant but workable. Solar.R has 4.6%, easy to impute. The other four columns are complete. A visual makes the pattern even clearer.
 
 ```r
 # Visual: missing data bar plot
@@ -388,7 +388,7 @@ abline(h = c(5, 20), lty = 2, col = "gray50")
 The dashed lines mark common thresholds: below 5% is "impute and forget," 5-20% is "impute carefully," and above 20% starts raising questions about whether the variable is reliable enough to use.
 
 [NOTE]
-**The airquality dataset has real NAs in Ozone (37/153 = 24%) and Solar.R (7/153 = 5%) — making it a perfect test case for missing data analysis.** These aren't simulated gaps; the monitoring equipment genuinely failed on those days.
+**The airquality dataset has real NAs in Ozone (37/153 = 24%) and Solar.R (7/153 = 5%), making it a perfect test case for missing data analysis.** These aren't simulated gaps; the monitoring equipment genuinely failed on those days.
 
 **Try it:** Write code to find which rows have NAs in *both* Ozone and Solar.R simultaneously. How many rows have both missing?
 
@@ -411,7 +411,7 @@ ex_both_na
 #> 27    NA      NA 14.9   66     5  27
 ```
 
-**Explanation:** Only 2 rows have both columns missing simultaneously. This suggests the missingness patterns are mostly independent — equipment failures in the ozone monitor didn't usually coincide with solar radiation monitor failures.
+**Explanation:** Only 2 rows have both columns missing simultaneously. This suggests the missingness patterns are mostly independent, equipment failures in the ozone monitor didn't usually coincide with solar radiation monitor failures.
 
 </details>
 
@@ -458,7 +458,7 @@ data.frame(
 #> 3     Sqrt    0.459
 ```
 
-The log transform brought skewness from 1.21 all the way to -0.06 — nearly perfectly symmetric. The sqrt transform improved it to 0.46, which is acceptable but not as good. For Ozone, log is the clear winner.
+The log transform brought skewness from 1.21 all the way to -0.06, nearly perfectly symmetric. The sqrt transform improved it to 0.46, which is acceptable but not as good. For Ozone, log is the clear winner.
 
 [TIP]
 **Use log1p() instead of log() when your variable contains zeros.** log(0) is undefined (negative infinity in R), but log1p(0) = log(1+0) = 0. This is especially common with count data.
@@ -477,7 +477,7 @@ par(mfrow = c(1, 1))
 #>  right Q-Q plot: points follow the line closely)
 ```
 
-The original Q-Q plot shows the characteristic upward curve of right-skewed data — points peel away from the line at the high end. After the log transform, the points hug the line much more closely. This variable is now ready for methods that assume normality.
+The original Q-Q plot shows the characteristic upward curve of right-skewed data, points peel away from the line at the high end. After the log transform, the points hug the line much more closely. This variable is now ready for methods that assume normality.
 
 **Try it:** Apply a sqrt transformation to `airquality$Wind` and compare the Q-Q plots before and after. Does Wind need a transformation?
 
@@ -507,7 +507,7 @@ par(mfrow = c(1, 1))
 #> (both Q-Q plots follow the line closely)
 ```
 
-**Explanation:** Both Q-Q plots look good — the original Wind data is already close to normal (skewness was only 0.34). The sqrt transform offers minimal improvement. When the original distribution is already symmetric, don't transform — you'd just make interpretation harder.
+**Explanation:** Both Q-Q plots look good, the original Wind data is already close to normal (skewness was only 0.34). The sqrt transform offers minimal improvement. When the original distribution is already symmetric, don't transform, you'd just make interpretation harder.
 
 </details>
 
@@ -547,7 +547,7 @@ barplot(cyl_table,
 The distribution is reasonably balanced. If one level had contained 95% of observations (imagine 30 out of 32 cars being 4-cylinder), that variable would provide almost no predictive signal and you might consider dropping it or merging levels.
 
 [KEY INSIGHT]
-**A categorical variable with one level dominating 95%+ of observations provides almost no predictive signal.** If "Yes" appears 980 times and "No" only 20 times, a model can achieve 98% accuracy by always predicting "Yes" — the variable isn't helping.
+**A categorical variable with one level dominating 95%+ of observations provides almost no predictive signal.** If "Yes" appears 980 times and "No" only 20 times, a model can achieve 98% accuracy by always predicting "Yes", the variable isn't helping.
 
 **Try it:** Create a frequency table for `mtcars$gear`. Which gear count is least common?
 
@@ -568,7 +568,7 @@ ex_gear_table
 #> 15 12  5
 ```
 
-**Explanation:** 5-gear cars are least common with only 5 observations. This could make that category unreliable in a model — 5 data points is a thin basis for estimating a coefficient.
+**Explanation:** 5-gear cars are least common with only 5 observations. This could make that category unreliable in a model, 5 data points is a thin basis for estimating a coefficient.
 
 </details>
 
@@ -628,7 +628,7 @@ par(mfrow = c(1, 1))
 # Mean > median confirms the right skew.
 ```
 
-**Explanation:** This profile combines descriptive stats, shape measurement, outlier detection, and visualization — exactly the workflow you'd apply to every numeric column in a real dataset.
+**Explanation:** This profile combines descriptive stats, shape measurement, outlier detection, and visualization, exactly the workflow you'd apply to every numeric column in a real dataset.
 
 </details>
 
@@ -734,13 +734,13 @@ qqline(my_sw_log, col = "red", lwd = 2)
 par(mfrow = c(1, 1))
 ```
 
-**Explanation:** Sepal.Width has 4 outliers and a skewness of 0.32 — already close to symmetric. The log transform reduces skewness to near-zero (-0.03) and tightens the Q-Q plot slightly. In practice, the improvement is marginal — you could justify using either version.
+**Explanation:** Sepal.Width has 4 outliers and a skewness of 0.32, already close to symmetric. The log transform reduces skewness to near-zero (-0.03) and tightens the Q-Q plot slightly. In practice, the improvement is marginal, you could justify using either version.
 
 </details>
 
 ## Putting It All Together
 
-Let's walk through a complete univariate analysis on `airquality$Ozone` — the full workflow from raw data to a modelling-ready recommendation.
+Let's walk through a complete univariate analysis on `airquality$Ozone`, the full workflow from raw data to a modelling-ready recommendation.
 
 ![Univariate EDA workflow](screenshots/Univariate-EDA-in-R-workflow.webp)
 
@@ -830,16 +830,16 @@ The key takeaway: every variable you plan to use in a model deserves five minute
 
 ## References
 
-1. Tukey, J.W. — *Exploratory Data Analysis*. Addison-Wesley (1977). The foundational text on EDA philosophy and methods.
-2. Wickham, H. & Grolemund, G. — *R for Data Science*, 2nd Edition. O'Reilly (2023). Chapter 11: Exploratory Data Analysis. [Link](https://r4ds.hadley.nz/eda)
-3. R Core Team — `?summary`, `?hist`, `?boxplot` built-in documentation. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/summary.html)
-4. NIST/SEMATECH — *e-Handbook of Statistical Methods*: Exploratory Data Analysis. [Link](https://www.itl.nist.gov/div898/handbook/eda/eda.htm)
-5. Kabacoff, R. — *Modern Data Visualization with R*. Chapter 4: Univariate Graphs. [Link](https://rkabacoff.github.io/datavis/Univariate.html)
-6. Penn State STAT 500 — Lesson 1: Summarizing Data. [Link](https://online.stat.psu.edu/stat500/lesson/1)
-7. R Documentation — `airquality` dataset. [Link](https://stat.ethz.ch/R-manual/R-devel/library/datasets/html/airquality.html)
+1. Tukey, J.W., *Exploratory Data Analysis*. Addison-Wesley (1977). The foundational text on EDA philosophy and methods.
+2. Wickham, H. & Grolemund, G., *R for Data Science*, 2nd Edition. O'Reilly (2023). Chapter 11: Exploratory Data Analysis. [Link](https://r4ds.hadley.nz/eda)
+3. R Core Team, `?summary`, `?hist`, `?boxplot` built-in documentation. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/summary.html)
+4. NIST/SEMATECH, *e-Handbook of Statistical Methods*: Exploratory Data Analysis. [Link](https://www.itl.nist.gov/div898/handbook/eda/eda.htm)
+5. Kabacoff, R., *Modern Data Visualization with R*. Chapter 4: Univariate Graphs. [Link](https://rkabacoff.github.io/datavis/Univariate.html)
+6. Penn State STAT 500, Lesson 1: Summarizing Data. [Link](https://online.stat.psu.edu/stat500/lesson/1)
+7. R Documentation, `airquality` dataset. [Link](https://stat.ethz.ch/R-manual/R-devel/library/datasets/html/airquality.html)
 
 ## Continue Learning
 
-1. [Exploratory Data Analysis in R](Exploratory-Data-Analysis-in-R.html) — the full 7-step EDA framework including bivariate and multivariate analysis
-2. [Descriptive Statistics in R](Descriptive-Statistics-in-R.html) — deeper dive into summary statistics, skimr, and reporting formats
-3. [Distribution Charts with ggplot2](ggplot2-Distribution-Charts.html) — advanced histogram, density, and ridgeline plots with ggplot2
+1. [Exploratory Data Analysis in R](Exploratory-Data-Analysis-in-R.html), the full 7-step EDA framework including bivariate and multivariate analysis
+2. [Descriptive Statistics in R](Descriptive-Statistics-in-R.html), deeper dive into summary statistics, skimr, and reporting formats
+3. [Distribution Charts with ggplot2](ggplot2-Distribution-Charts.html), advanced histogram, density, and ridgeline plots with ggplot2

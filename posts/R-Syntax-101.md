@@ -1,7 +1,7 @@
 ---
 title: "R Syntax 101: Write Your First Working Script in 10 Minutes"
 slug: R-Syntax-101
-description: "Learn R's core syntax: arithmetic operators, variable assignment with <-, comments, and how to write and run your first script — with every line explained."
+description: "Learn R's core syntax: arithmetic operators, variable assignment with <-, comments, and how to write and run your first script, with every line explained."
 keywords: "R syntax, R basic syntax, R arithmetic operators, R assignment operator, R comments, first R script, R programming basics, learn R"
 auto_link_terms: "R syntax|R basic syntax|arithmetic operators in R|assignment operator in R|R comments"
 auto_link_case_sensitive: false
@@ -18,11 +18,11 @@ difficulty: "Beginner"
 
 # R Syntax 101: Write Your First Working Script in 10 Minutes
 
-<p class="lead">R's core syntax is refreshingly small. Learn five ideas — arithmetic operators, variable assignment with <code>&lt;-</code>, hash comments, naming rules, and running a <code>.R</code> script — and you can read nearly any R code you'll ever encounter.</p>
+<p class="lead">R's core syntax is refreshingly small. Learn five ideas, arithmetic operators, variable assignment with <code>&lt;-</code>, hash comments, naming rules, and running a <code>.R</code> script, and you can read nearly any R code you'll ever encounter.</p>
 
 ## How do you run your first line of R code?
 
-The fastest way to understand R is to type an expression and watch R answer back. Open RStudio, click inside the console at the bottom, and every line you type is evaluated the moment you press Enter — no compile step, no build. R is an interactive calculator that happens to also run whole scripts. Here's a three-line example that shows arithmetic, assignment, and printing in one go.
+The fastest way to understand R is to type an expression and watch R answer back. Open RStudio, click inside the console at the bottom, and every line you type is evaluated the moment you press Enter, no compile step, no build. R is an interactive calculator that happens to also run whole scripts. Here's a three-line example that shows arithmetic, assignment, and printing in one go.
 
 Try typing each of the four lines below. R prints the answer right under each expression that returns a value.
 
@@ -36,7 +36,7 @@ y
 #> [1] 30
 ```
 
-That tiny snippet already uses three of the five syntax elements we'll cover. Line 1 is pure arithmetic: R evaluates `2 + 2` and prints `4`. The strange `[1]` at the front is R's row index — R prints results as vectors, and `[1]` means "this is the first element". You can ignore it for now. Line 2 uses the `<-` operator to store the number `10` in a variable called `x`. Line 3 does the same, but reuses `x` in the calculation. Line 4 simply types `y`, and R echoes its value back.
+That tiny snippet already uses three of the five syntax elements we'll cover. Line 1 is pure arithmetic: R evaluates `2 + 2` and prints `4`. The strange `[1]` at the front is R's row index, R prints results as vectors, and `[1]` means "this is the first element". You can ignore it for now. Line 2 uses the `<-` operator to store the number `10` in a variable called `x`. Line 3 does the same, but reuses `x` in the calculation. Line 4 simply types `y`, and R echoes its value back.
 
 **Try it:** Store your age in seconds in a variable called `ex_age_seconds`. A year has roughly 31,557,600 seconds.
 
@@ -67,7 +67,7 @@ ex_age_seconds
 
 ## What arithmetic operators does R support?
 
-R supports seven arithmetic operators. Five of them are the usual suspects you'd find on a calculator — addition, subtraction, multiplication, division, and exponentiation. The other two are handy for integer math: modulo (remainder) and integer division. You'll use the first five constantly; the last two show up in loops, hashing, and date calculations.
+R supports seven arithmetic operators. Five of them are the usual suspects you'd find on a calculator, addition, subtraction, multiplication, division, and exponentiation. The other two are handy for integer math: modulo (remainder) and integer division. You'll use the first five constantly; the last two show up in loops, hashing, and date calculations.
 
 Let's run every operator in a single block so you can see the results side by side.
 
@@ -94,7 +94,7 @@ Let's run every operator in a single block so you can see the results side by si
 #> [1] 2
 ```
 
-Two things are worth noting. First, `/` in R always returns a decimal, even when both operands are whole numbers — `5 / 2` gives `2.5`, not `2`. If you want the integer part, use `%/%`. Second, `^` is the exponent operator, not `**` — that's a Python habit you'll have to drop.
+Two things are worth noting. First, `/` in R always returns a decimal, even when both operands are whole numbers, `5 / 2` gives `2.5`, not `2`. If you want the integer part, use `%/%`. Second, `^` is the exponent operator, not `**`, that's a Python habit you'll have to drop.
 
 Operator precedence in R follows standard math rules: exponentiation first, then multiplication and division, then addition and subtraction. When in doubt, use parentheses to force the order you want.
 
@@ -109,7 +109,7 @@ Operator precedence in R follows standard math rules: exponentiation first, then
 #> [1] 9
 ```
 
-The first expression evaluates `3 * 4 = 12`, then adds `2` to get `14`. The second forces the addition to happen first, so you get `5 * 4 = 20`. Small difference, big consequences — a stray missing parenthesis is a classic bug source in scientific code.
+The first expression evaluates `3 * 4 = 12`, then adds `2` to get `14`. The second forces the addition to happen first, so you get `5 * 4 = 20`. Small difference, big consequences, a stray missing parenthesis is a classic bug source in scientific code.
 
 [TIP]
 **When in doubt, parenthesize.** R does not charge extra for parentheses, and a future reader (often you, in six months) will thank you. `(x - mean(x)) / sd(x)` is clearer than trusting everyone to remember that division binds tighter than subtraction.
@@ -143,7 +143,7 @@ ex_area
 A variable is a name attached to a value. Once you've stored a number, a string, or an entire dataset in a variable, you can recall it later and use it in other calculations. R has three ways to assign values, but only one is considered good style. The figure below shows the three directions side by side.
 
 ![Three ways to assign values in R](screenshots/R-Syntax-101-assignment-directions.webp)
-*Figure 1: Three ways to assign in R — `<-` (idiomatic), `=` (valid but reserved for function arguments), and `->` (rare right-to-left form).*
+*Figure 1: Three ways to assign in R, `<-` (idiomatic), `=` (valid but reserved for function arguments), and `->` (rare right-to-left form).*
 
 Let's see all three operators in action. Every line below stores the number `10` in a variable, just using different syntax.
 
@@ -160,12 +160,12 @@ c
 #> [1] 10
 ```
 
-All three variables now hold the same value. But even though they're functionally equivalent at the top level, the R community has overwhelmingly settled on `<-`. Every style guide — tidyverse, Google, Bioconductor — prefers it, so nearly all R code you'll read uses left-arrow.
+All three variables now hold the same value. But even though they're functionally equivalent at the top level, the R community has overwhelmingly settled on `<-`. Every style guide, tidyverse, Google, Bioconductor, prefers it, so nearly all R code you'll read uses left-arrow.
 
 [KEY INSIGHT]
-**`<-` and `=` are not identical everywhere.** Inside function calls like `mean(x = 1:10)`, the `=` is *naming an argument*, not assigning a variable. If you accidentally write `<-` there, R will create a new top-level variable called `x` as a side effect. That is why R programmers reserve `=` for arguments and `<-` for everything else — it keeps the two meanings visually separate.
+**`<-` and `=` are not identical everywhere.** Inside function calls like `mean(x = 1:10)`, the `=` is *naming an argument*, not assigning a variable. If you accidentally write `<-` there, R will create a new top-level variable called `x` as a side effect. That is why R programmers reserve `=` for arguments and `<-` for everything else, it keeps the two meanings visually separate.
 
-You can reassign variables as often as you like. R does not complain; it just replaces the old value with the new one. Variable names are also case-sensitive — `counter` and `Counter` are two completely different variables.
+You can reassign variables as often as you like. R does not complain; it just replaces the old value with the new one. Variable names are also case-sensitive, `counter` and `Counter` are two completely different variables.
 
 ```r
 counter <- 0
@@ -226,7 +226,7 @@ ex_b
 
 ## How do comments make R code readable?
 
-A comment is a note to yourself (or the next reader) that R ignores while running the code. In R, the hash symbol `#` starts a comment that runs to the end of the line. Everything after the `#` is skipped by the interpreter. R has no multi-line comment syntax like `/* ... */` in C or `"""..."""` in Python — if you want a paragraph of explanation, put `#` at the start of every line.
+A comment is a note to yourself (or the next reader) that R ignores while running the code. In R, the hash symbol `#` starts a comment that runs to the end of the line. Everything after the `#` is skipped by the interpreter. R has no multi-line comment syntax like `/* ... */` in C or `"""..."""` in Python, if you want a paragraph of explanation, put `#` at the start of every line.
 
 Comments serve two purposes. First, they explain *why* a line exists, not what it does (the code itself already tells you *what*). Second, they let you temporarily disable a line of code without deleting it, which is handy when debugging.
 
@@ -241,10 +241,10 @@ total
 #> [1] 108
 ```
 
-Three kinds of comments appear here. The first line is a whole-line comment explaining the block's purpose. The next two have trailing comments describing each variable. The `# total <- price + 50` line is a *commented-out* expression — useful when you want to keep old logic around for reference or to undo a change quickly.
+Three kinds of comments appear here. The first line is a whole-line comment explaining the block's purpose. The next two have trailing comments describing each variable. The `# total <- price + 50` line is a *commented-out* expression, useful when you want to keep old logic around for reference or to undo a change quickly.
 
 [TIP]
-**Write comments for the reader six months from now.** "Use 0.08 because the office is in California and sales tax is 8%" is a great comment. "Set tax_rate to 0.08" is a useless one — the code already says that. Comments should explain intent, constraints, or anything that isn't obvious from the code itself.
+**Write comments for the reader six months from now.** "Use 0.08 because the office is in California and sales tax is 8%" is a great comment. "Set tax_rate to 0.08" is a useless one, the code already says that. Comments should explain intent, constraints, or anything that isn't obvious from the code itself.
 
 **Try it:** Add a trailing comment to each line below explaining what the line does in plain English.
 
@@ -268,7 +268,7 @@ ex_km
 #> [1] 42.1558
 ```
 
-**Explanation:** Good trailing comments explain units, sources, or the "why" behind a magic number — not just what the operator does.
+**Explanation:** Good trailing comments explain units, sources, or the "why" behind a magic number, not just what the operator does.
 
 </details>
 
@@ -290,7 +290,7 @@ my_var + userName + .hidden + score.1 + x2
 All five names work, but a few would fail. `2x <- 1` is invalid because the name starts with a digit. `my-var <- 1` is invalid because R reads the `-` as subtraction. `if <- 1` is invalid because `if` is a reserved keyword. R will throw an "unexpected symbol" or "invalid assignment" error on any of those.
 
 [NOTE]
-**Prefer snake_case for new code.** The tidyverse style guide — used by most modern R packages — recommends lowercase words separated by underscores: `user_name`, `total_sales`, `fit_model`. Avoid dots in new variable names: `my.data` looks like it might be a method call on `my`, and historically that has caused confusion in R's S3 object system. Dots in names are valid, just not recommended.
+**Prefer snake_case for new code.** The tidyverse style guide, used by most modern R packages, recommends lowercase words separated by underscores: `user_name`, `total_sales`, `fit_model`. Avoid dots in new variable names: `my.data` looks like it might be a method call on `my`, and historically that has caused confusion in R's S3 object system. Dots in names are valid, just not recommended.
 
 **Try it:** Three of the variable names below are invalid. Rewrite them so they work and store the value on the right.
 
@@ -336,10 +336,10 @@ ex_total
 
 ## How do you write and run a complete R script?
 
-Typing lines into the console is great for quick experiments, but anything you want to keep — analyses, reports, pipelines — belongs in a script file. An R script is nothing fancier than a plain text file with a `.R` extension that contains the same lines you'd type into the console. You save it, open it in RStudio, and run it.
+Typing lines into the console is great for quick experiments, but anything you want to keep, analyses, reports, pipelines, belongs in a script file. An R script is nothing fancier than a plain text file with a `.R` extension that contains the same lines you'd type into the console. You save it, open it in RStudio, and run it.
 
 ![How R evaluates a script](screenshots/R-Syntax-101-script-run-flow.webp)
-*Figure 2: How R evaluates a script — write, save, run, see output. No separate compile step.*
+*Figure 2: How R evaluates a script, write, save, run, see output. No separate compile step.*
 
 There are three common ways to run code from a script file in RStudio. You can put the cursor on any line and press **Ctrl+Enter** (Cmd+Enter on Mac) to run just that line. You can select several lines and press the same keys to run the selection. Or you can press **Ctrl+Shift+Enter** to source the entire file in one go. No matter which you pick, R evaluates the lines top to bottom in the order they appear.
 
@@ -359,7 +359,7 @@ fahrenheit
 #> [1] 77
 ```
 
-Read the script top to bottom. Comments mark each step so a future reader can follow along. The formula uses operator precedence: `celsius * 9 / 5` is computed left to right before `+ 32` is added. Change `celsius` to any number and rerun the script — that is the core workflow of almost every R analysis you'll ever write.
+Read the script top to bottom. Comments mark each step so a future reader can follow along. The formula uses operator precedence: `celsius * 9 / 5` is computed left to right before `+ 32` is added. Change `celsius` to any number and rerun the script, that is the core workflow of almost every R analysis you'll ever write.
 
 [TIP]
 **Ctrl+Enter is your best friend.** Running one line at a time lets you inspect intermediate results and catch mistakes early. Source the whole file only once you're confident each line works.
@@ -391,7 +391,7 @@ pounds
 
 ## Practice Exercises
 
-These capstone problems combine several ideas from above. Work through them without peeking at the solutions — the struggle is where the learning happens.
+These capstone problems combine several ideas from above. Work through them without peeking at the solutions, the struggle is where the learning happens.
 
 ### Exercise 1: BMI Calculator
 
@@ -451,7 +451,7 @@ my_final
 #> [1] 1628.895
 ```
 
-**Explanation:** Parentheses are essential around `1 + my_rate` — without them, R would compute `my_rate^my_years` first due to operator precedence, giving a completely wrong answer. After 10 years, `$1000` grows to about `$1628.89`.
+**Explanation:** Parentheses are essential around `1 + my_rate`, without them, R would compute `my_rate^my_years` first due to operator precedence, giving a completely wrong answer. After 10 years, `$1000` grows to about `$1628.89`.
 
 </details>
 
@@ -517,7 +517,7 @@ per_person
 #> [1] 24.9275
 ```
 
-Every line is either a comment, a variable assignment, or a printed result. The arithmetic uses `*`, `+`, and `/`. The variable names are lowercase with underscores. The script runs top to bottom, with later lines reusing values computed earlier. Change any input at the top and rerun to get new answers. That is the complete mental model for writing R scripts — you now have all five syntax elements working together to solve a real problem.
+Every line is either a comment, a variable assignment, or a printed result. The arithmetic uses `*`, `+`, and `/`. The variable names are lowercase with underscores. The script runs top to bottom, with later lines reusing values computed earlier. Change any input at the top and rerun to get new answers. That is the complete mental model for writing R scripts, you now have all five syntax elements working together to solve a real problem.
 
 ## Summary
 
@@ -534,7 +534,7 @@ The picture below is a visual recap of everything covered. Five small ideas are 
 | Naming | Start with a letter or dot; use snake_case | `my_total`, `user_name` |
 | Scripts | A `.R` file of lines R runs top to bottom | `temperature.R` above |
 
-Master these, and the rest of R — vectors, data frames, functions, packages — is just more structure built on top. You haven't learned everything, but you've learned the grammar that everything else speaks.
+Master these, and the rest of R, vectors, data frames, functions, packages, is just more structure built on top. You haven't learned everything, but you've learned the grammar that everything else speaks.
 
 ## References
 
@@ -542,12 +542,12 @@ Master these, and the rest of R — vectors, data frames, functions, packages �
 2. R Core Team. *R Language Definition*. CRAN. [Link](https://cran.r-project.org/doc/manuals/r-release/R-lang.html)
 3. Wickham, H. *Advanced R*, 2nd Edition. Chapman & Hall, 2019. Chapter 2: Names and values. [Link](https://adv-r.hadley.nz/names-values.html)
 4. Wickham, H. & Grolemund, G. *R for Data Science*, 2nd Edition. O'Reilly, 2023. Chapter 2: Workflow basics. [Link](https://r4ds.hadley.nz/workflow-basics.html)
-5. The tidyverse style guide — Syntax. [Link](https://style.tidyverse.org/syntax.html)
+5. The tidyverse style guide, Syntax. [Link](https://style.tidyverse.org/syntax.html)
 6. Posit. *RStudio IDE User Guide*. [Link](https://docs.posit.co/ide/user/)
-7. R FAQ — CRAN. [Link](https://cran.r-project.org/doc/FAQ/R-FAQ.html)
+7. R FAQ, CRAN. [Link](https://cran.r-project.org/doc/FAQ/R-FAQ.html)
 
 ## Continue Learning
 
-1. **[R Data Types](R-Data-Types.html)** — numeric, character, logical, and the other fundamental types you'll store in your newly-named variables.
-2. **[R Vectors](R-Vectors.html)** — the workhorse data structure of R. Everything you assign with `<-` is secretly a vector.
-3. **[Writing R Functions](R-Functions.html)** — package the scripts you just wrote into reusable functions you can call with a single line.
+1. **[R Data Types](R-Data-Types.html)**, numeric, character, logical, and the other fundamental types you'll store in your newly-named variables.
+2. **[R Vectors](R-Vectors.html)**, the workhorse data structure of R. Everything you assign with `<-` is secretly a vector.
+3. **[Writing R Functions](R-Functions.html)**, package the scripts you just wrote into reusable functions you can call with a single line.

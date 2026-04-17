@@ -41,7 +41,7 @@ ggplot(heights_weights, aes(x = height_cm, y = weight_kg)) +
 #> (Scatter plot with 5 steelblue points renders in the output panel.)
 ```
 
-Inside `aes()`, the bare names `height_cm` and `weight_kg` were not treated as ordinary R variables. ggplot2 looked them up as columns of `heights_weights`, found them, and drew one point per row. That silent column lookup is the feature — and also the source of every "object not found" error you are about to see.
+Inside `aes()`, the bare names `height_cm` and `weight_kg` were not treated as ordinary R variables. ggplot2 looked them up as columns of `heights_weights`, found them, and drew one point per row. That silent column lookup is the feature, and also the source of every "object not found" error you are about to see.
 
 Now let's deliberately break it. Referencing a column that does not exist throws the error, but only when the plot is *printed*, not when it is constructed. We use `tryCatch()` around `print()` to catch the error message as a string so you can inspect it without crashing the cell.
 
@@ -93,7 +93,7 @@ ex_plot
 
 ## Is the missing name supposed to be a column or an R variable?
 
-Before you reach for a fix, answer one question: should this name refer to a column inside the data frame, or to a value sitting in your workspace? The answer decides where the name belongs. Columns go *inside* `aes()` as bare names so they can be mapped to a visual property (x, y, color, size). Constants — fixed sizes, colors, thresholds — go *outside* `aes()` as plain arguments to `geom_*()`.
+Before you reach for a fix, answer one question: should this name refer to a column inside the data frame, or to a value sitting in your workspace? The answer decides where the name belongs. Columns go *inside* `aes()` as bare names so they can be mapped to a visual property (x, y, color, size). Constants, fixed sizes, colors, thresholds, go *outside* `aes()` as plain arguments to `geom_*()`.
 
 When debugging, run two quick checks at the REPL to figure out which category a name belongs to.
 
@@ -112,7 +112,7 @@ names(heights_weights)
 #> [1] "height_cm" "weight_kg" "age_years"
 ```
 
-The diagnostic says everything: `heights` is neither a column nor an environment variable, so if you used it inside `aes()`, the typo is in ggplot2's way. `threshold_val` is an environment variable — it should *never* go inside `aes()` as a bare name because ggplot2 would try to look it up as a column first.
+The diagnostic says everything: `heights` is neither a column nor an environment variable, so if you used it inside `aes()`, the typo is in ggplot2's way. `threshold_val` is an environment variable, it should *never* go inside `aes()` as a bare name because ggplot2 would try to look it up as a column first.
 
 Here is the correct pattern: map a column (`age_years`) to color *inside* `aes()`, and use a constant environment value (`point_size`) *outside* `aes()`.
 
@@ -128,7 +128,7 @@ ggplot(heights_weights, aes(x = height_cm, y = weight_kg, color = age_years)) +
 The rule is mechanical: if the value should vary across rows of the data, it belongs inside `aes()` as a column reference. If the value is constant for the whole layer, it belongs outside `aes()` as a plain argument.
 
 [NOTE]
-**aes() is only for mapping data columns to visual properties.** Anything that stays constant across every row of the plot — a fixed size, a single color, a title — belongs outside `aes()`. Putting a constant inside `aes()` doesn't just look odd; it can accidentally create a one-level legend.
+**aes() is only for mapping data columns to visual properties.** Anything that stays constant across every row of the plot, a fixed size, a single color, a title, belongs outside `aes()`. Putting a constant inside `aes()` doesn't just look odd; it can accidentally create a one-level legend.
 
 **Try it:** Build a plot from `mtcars` where point color maps to the `mpg` column (inside `aes()`) and point size is a fixed `ex_size` value set outside `aes()`.
 
@@ -162,7 +162,7 @@ ggplot(ex_cars, aes(x = wt, y = hp, color = mpg)) +
 
 ## How do you use a column name stored in a variable?
 
-If you write a function that receives a column name as a string, the natural attempt `aes(x = col_name)` fails. ggplot2 captures the expression `col_name` and looks for a column literally named "col_name" inside the data frame — which isn't there. The modern fix is `.data[[col_name]]`, a tidy-evaluation pronoun exported by ggplot2 that treats `col_name` as a *string lookup* against the current data frame. One pattern replaces every older hack.
+If you write a function that receives a column name as a string, the natural attempt `aes(x = col_name)` fails. ggplot2 captures the expression `col_name` and looks for a column literally named "col_name" inside the data frame, which isn't there. The modern fix is `.data[[col_name]]`, a tidy-evaluation pronoun exported by ggplot2 that treats `col_name` as a *string lookup* against the current data frame. One pattern replaces every older hack.
 
 ```r
 col_name <- "height_cm"
@@ -177,7 +177,7 @@ ggplot(heights_weights, aes(x = .data[[col_name]], y = weight_kg)) +
 #> (Same scatter as before, but x-axis label says "x = height_cm".)
 ```
 
-The `.data[[col_name]]` syntax is how every tidyverse package — dplyr, tidyr, ggplot2 — handles programmatic column access. Once you know this, you can build functions that accept column names as strings and pass them all the way through to the plot.
+The `.data[[col_name]]` syntax is how every tidyverse package, dplyr, tidyr, ggplot2, handles programmatic column access. Once you know this, you can build functions that accept column names as strings and pass them all the way through to the plot.
 
 ```r
 plot_pair <- function(df, x_str, y_str) {
@@ -194,7 +194,7 @@ plot_pair(heights_weights, "age_years", "height_cm")
 #> (Scatter of height_cm vs age_years with green points.)
 ```
 
-A single six-line function now handles any pair of numeric columns from any data frame. This is the payoff of understanding `.data[[]]` — your plot code becomes reusable without copy-paste.
+A single six-line function now handles any pair of numeric columns from any data frame. This is the payoff of understanding `.data[[]]`, your plot code becomes reusable without copy-paste.
 
 [WARNING]
 **aes_string() is soft-deprecated.** Older tutorials use `aes_string(x = col_name, y = "weight_kg")` for string-based column names. It still works but ggplot2 will nudge you toward `.data[[var]]`. New code should use the `.data` pronoun exclusively.
@@ -256,7 +256,7 @@ err_msg
 #> [1] "object 'region' not found"
 ```
 
-The `select(name, sales)` step kept only two columns, so by the time `aes(fill = region)` runs, there is no `region` column left in the piped data. The fix is to include `region` in the `select()` call — or drop the `select()` entirely if you need every column downstream.
+The `select(name, sales)` step kept only two columns, so by the time `aes(fill = region)` runs, there is no `region` column left in the piped data. The fix is to include `region` in the `select()` call, or drop the `select()` entirely if you need every column downstream.
 
 ```r
 # Fix: keep region in the pipeline
@@ -307,7 +307,7 @@ ex_sales |>
 
 ## How do you handle column names with spaces or dots?
 
-R lets data frames have any column name — with spaces, punctuation, even leading digits — but `aes()` parses bare tokens. Spaces split the name into two meaningless pieces, and ggplot2 then complains that neither piece exists. The fix is either backticks around the full name, or renaming columns to snake_case before plotting.
+R lets data frames have any column name, with spaces, punctuation, even leading digits, but `aes()` parses bare tokens. Spaces split the name into two meaningless pieces, and ggplot2 then complains that neither piece exists. The fix is either backticks around the full name, or renaming columns to snake_case before plotting.
 
 ```r
 scores_df <- data.frame(
@@ -326,7 +326,7 @@ ggplot(scores_df, aes(x = `First Name`, y = `Test Score`)) +
 #> (Bar chart with 4 bars, one per student.)
 ```
 
-Backticks work, but they are noisy. The cleaner habit is to rename columns once at import time — then every downstream step, including `aes()`, uses simple snake_case names with no escaping.
+Backticks work, but they are noisy. The cleaner habit is to rename columns once at import time, then every downstream step, including `aes()`, uses simple snake_case names with no escaping.
 
 ```r
 # Rename once, forget forever
@@ -340,7 +340,7 @@ ggplot(scores_df, aes(x = first_name, y = test_score)) +
 #> (Same bar chart as above.)
 ```
 
-The one-liner `names(df) <- tolower(gsub(" ", "_", names(df)))` handles spaces. For punctuation or dots, the `janitor` package exposes `clean_names()` which wraps the same idea with extra rules. Whichever tool you pick, the principle is the same: normalize names early and you avoid this error class forever. Note that dots in names (like `Solar.R` in `airquality`) are *not* a problem — R treats dots as regular name characters, so `aes(x = Solar.R)` just works.
+The one-liner `names(df) <- tolower(gsub(" ", "_", names(df)))` handles spaces. For punctuation or dots, the `janitor` package exposes `clean_names()` which wraps the same idea with extra rules. Whichever tool you pick, the principle is the same: normalize names early and you avoid this error class forever. Note that dots in names (like `Solar.R` in `airquality`) are *not* a problem, R treats dots as regular name characters, so `aes(x = Solar.R)` just works.
 
 [TIP]
 **Normalize column names once at import time.** Running `names(df) <- tolower(gsub(" ", "_", names(df)))` (or `janitor::clean_names()`) immediately after reading a CSV removes a dozen downstream backticks and prevents an entire class of aes() errors.
@@ -453,13 +453,13 @@ my_fixed_plot
 #> (Bar chart with 4 bars across 2020-2023, colored by region.)
 ```
 
-**Explanation:** Bug 1 — the original `select(year, sales)` used lowercase names, but the columns are actually `Year` and `Sales` (R column names are case-sensitive), so `select()` errored before ggplot even ran. Bug 2 — once `select()` was fixed, it still had to include `Region` or `aes(fill = Region)` would fail with "object not found". The fix addresses both: match the case and keep `Region` in the pipeline.
+**Explanation:** Bug 1, the original `select(year, sales)` used lowercase names, but the columns are actually `Year` and `Sales` (R column names are case-sensitive), so `select()` errored before ggplot even ran. Bug 2, once `select()` was fixed, it still had to include `Region` or `aes(fill = Region)` would fail with "object not found". The fix addresses both: match the case and keep `Region` in the pipeline.
 
 </details>
 
 ## Complete Example
 
-Let's pull every idea together on a real dataset. We'll use `airquality`, which ships with base R. Note that one of its columns is `Solar.R` — the dot is fine, R allows it as a regular name character, so no backticks needed.
+Let's pull every idea together on a real dataset. We'll use `airquality`, which ships with base R. Note that one of its columns is `Solar.R`, the dot is fine, R allows it as a regular name character, so no backticks needed.
 
 ```r
 aq_plot <- function(df, y_col, color_col = "Month") {
@@ -484,7 +484,7 @@ aq_plot(airquality, "Ozone")
 #> (Scatter of Ozone vs Solar.R with points colored by Month.)
 ```
 
-This one function demonstrates every lesson in the post: columns with dots work without escaping, `filter()` uses `.data[[]]` for programmatic NA handling, the pipe feeds `ggplot()` with all necessary columns intact, and `aes()` mixes a bare name (`Solar.R`) with two `.data[[]]` lookups. Swap `"Ozone"` for `"Temp"` or `"Wind"` and the same function plots a completely different view — no copy-paste needed.
+This one function demonstrates every lesson in the post: columns with dots work without escaping, `filter()` uses `.data[[]]` for programmatic NA handling, the pipe feeds `ggplot()` with all necessary columns intact, and `aes()` mixes a bare name (`Solar.R`) with two `.data[[]]` lookups. Swap `"Ozone"` for `"Temp"` or `"Wind"` and the same function plots a completely different view, no copy-paste needed.
 
 ## Summary
 
@@ -499,15 +499,15 @@ This one function demonstrates every lesson in the post: columns with dots work 
 
 ## References
 
-1. **ggplot2 reference — aes()**. [ggplot2.tidyverse.org/reference/aes.html](https://ggplot2.tidyverse.org/reference/aes.html)
-2. **rlang — `.data` pronoun documentation**. [rlang.r-lib.org/reference/dot-data.html](https://rlang.r-lib.org/reference/dot-data.html)
-3. **dplyr — Programming with dplyr vignette**. [dplyr.tidyverse.org/articles/programming.html](https://dplyr.tidyverse.org/articles/programming.html)
-4. **ggplot2 — Using ggplot2 in packages vignette**. [ggplot2.tidyverse.org/articles/ggplot2-in-packages.html](https://ggplot2.tidyverse.org/articles/ggplot2-in-packages.html)
-5. Wickham, H. — *ggplot2: Elegant Graphics for Data Analysis*, 3rd ed. Springer. [ggplot2-book.org](https://ggplot2-book.org/)
-6. **Tidy evaluation** — tidyverse blog on data masking. [tidyverse.org/blog/2020/02/glue-strings-and-tidy-eval](https://www.tidyverse.org/blog/2020/02/glue-strings-and-tidy-eval/)
+1. **ggplot2 reference, aes()**. [ggplot2.tidyverse.org/reference/aes.html](https://ggplot2.tidyverse.org/reference/aes.html)
+2. **rlang, `.data` pronoun documentation**. [rlang.r-lib.org/reference/dot-data.html](https://rlang.r-lib.org/reference/dot-data.html)
+3. **dplyr, Programming with dplyr vignette**. [dplyr.tidyverse.org/articles/programming.html](https://dplyr.tidyverse.org/articles/programming.html)
+4. **ggplot2, Using ggplot2 in packages vignette**. [ggplot2.tidyverse.org/articles/ggplot2-in-packages.html](https://ggplot2.tidyverse.org/articles/ggplot2-in-packages.html)
+5. Wickham, H., *ggplot2: Elegant Graphics for Data Analysis*, 3rd ed. Springer. [ggplot2-book.org](https://ggplot2-book.org/)
+6. **Tidy evaluation**, tidyverse blog on data masking. [tidyverse.org/blog/2020/02/glue-strings-and-tidy-eval](https://www.tidyverse.org/blog/2020/02/glue-strings-and-tidy-eval/)
 
 ## Continue Learning
 
-1. **[R Common Errors](R-Common-Errors.html)** — the full reference list of common R errors, organized by category.
-2. **R Error: object 'x' not found** — the general environment-lookup case for errors that aren't ggplot-specific.
-3. **ggplot2 Aesthetic Mappings** — a deep dive on `aes()`, what can be mapped, and why data masking exists.
+1. **[R Common Errors](R-Common-Errors.html)**, the full reference list of common R errors, organized by category.
+2. **R Error: object 'x' not found**, the general environment-lookup case for errors that aren't ggplot-specific.
+3. **ggplot2 Aesthetic Mappings**, a deep dive on `aes()`, what can be mapped, and why data masking exists.

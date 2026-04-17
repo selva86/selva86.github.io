@@ -18,11 +18,11 @@ difficulty: "Intermediate"
 
 # Import Any Data Format Into R: CSV, Excel, JSON, and 12 Others
 
-<p class="lead">Almost every real R project starts with "read this file and give me a data frame." This guide shows you the one function to reach for by format — CSV, Excel, JSON, TSV, fixed-width, SPSS, Stata, SAS, Parquet, RDS, and more — plus the arguments that rescue broken imports.</p>
+<p class="lead">Almost every real R project starts with "read this file and give me a data frame." This guide shows you the one function to reach for by format, CSV, Excel, JSON, TSV, fixed-width, SPSS, Stata, SAS, Parquet, RDS, and more, plus the arguments that rescue broken imports.</p>
 
 ## How do you import a CSV file into R?
 
-CSV is the workhorse format — flat, text-based, universal. R gives you three main choices: base `read.csv()`, tidyverse `readr::read_csv()`, and `data.table::fread()`. All three return a data frame; they differ in speed, defaults, and output class.
+CSV is the workhorse format, flat, text-based, universal. R gives you three main choices: base `read.csv()`, tidyverse `readr::read_csv()`, and `data.table::fread()`. All three return a data frame; they differ in speed, defaults, and output class.
 
 ```r
 library(readr)
@@ -70,7 +70,7 @@ spec(ex_df)
 #> )
 ```
 
-`read_csv()` accepts a literal string as input when it contains a newline, so you can test parsing without writing a file. `spec()` returns the column specification `read_csv()` inferred — use it to verify types before pointing at a large file.
+`read_csv()` accepts a literal string as input when it contains a newline, so you can test parsing without writing a file. `spec()` returns the column specification `read_csv()` inferred, use it to verify types before pointing at a large file.
 </details>
 
 ## What arguments fix broken CSV imports?
@@ -141,12 +141,12 @@ read_csv("id,score\n1,85\n2,NA\n3,NULL\n4,-",
 #> 4     4    NA
 ```
 
-Passing a character vector to `na` tells `read_csv()` to treat every one of those tokens as a missing value. Because all three sentinels resolve to `NA`, the `score` column ends up as a clean numeric — without the `na` argument the column would have been read as character.
+Passing a character vector to `na` tells `read_csv()` to treat every one of those tokens as a missing value. Because all three sentinels resolve to `NA`, the `score` column ends up as a clean numeric, without the `na` argument the column would have been read as character.
 </details>
 
 ## How do you read Excel files?
 
-Excel files (.xlsx, .xls) need the `readxl` package — installed with tidyverse, but you call it directly. It handles multi-sheet workbooks and preserves cell types better than any CSV export would.
+Excel files (.xlsx, .xls) need the `readxl` package, installed with tidyverse, but you call it directly. It handles multi-sheet workbooks and preserves cell types better than any CSV export would.
 
 ```r
 library(readxl)
@@ -164,7 +164,7 @@ excel_sheets("data.xlsx")
 q1 <- read_excel("data.xlsx", sheet = "Orders", range = "A1:E100")
 ```
 
-No external dependencies (no Java, no libreoffice) — `readxl` is pure C++ under the hood, so it works the same on Mac, Linux, and Windows.
+No external dependencies (no Java, no libreoffice), `readxl` is pure C++ under the hood, so it works the same on Mac, Linux, and Windows.
 
 > [WARNING]
 > Excel's date columns come through as numeric days-since-1900 if the cell format is wrong. `read_excel()` catches this for properly-formatted cells, but if dates arrive as numbers like 44562, convert with `as.Date(44562, origin = "1899-12-30")`.
@@ -190,7 +190,7 @@ excel_sheets(tmp)
 #> [1] "Products" "Orders"
 ```
 
-`excel_sheets()` opens the workbook and returns a character vector of sheet names in their stored order — call this before `read_excel()` whenever you don't control the file, so you can pass the right `sheet =` argument instead of guessing.
+`excel_sheets()` opens the workbook and returns a character vector of sheet names in their stored order, call this before `read_excel()` whenever you don't control the file, so you can pass the right `sheet =` argument instead of guessing.
 </details>
 
 ## How do you import JSON into R?
@@ -249,7 +249,7 @@ result
 #> 3 3
 ```
 
-`fromJSON()` auto-simplifies a JSON array of flat objects into a `data.frame` because every element shares the same keys. If any object had a different shape or a nested value, the result would fall back to a list — which is why you should always `class()` the result before piping it downstream.
+`fromJSON()` auto-simplifies a JSON array of flat objects into a `data.frame` because every element shares the same keys. If any object had a different shape or a nested value, the result would fall back to a list, which is why you should always `class()` the result before piping it downstream.
 </details>
 
 ## How do you read data from other statistical software (SPSS, Stata, SAS)?
@@ -273,7 +273,7 @@ sas_df <- read_sas("registry.sas7bdat")
 > [NOTE]
 > For old Excel `.xls`, fixed-width, and Matlab `.mat` files, use `readxl::read_xls()`, `readr::read_fwf()`, and `R.matlab::readMat()` respectively. Each format has a dedicated package; the tidyverse ecosystem keeps them consistent.
 
-**Try it:** Check what class `read_sav()` returns (conceptually — it's a tibble with `haven_labelled` columns).
+**Try it:** Check what class `read_sav()` returns (conceptually, it's a tibble with `haven_labelled` columns).
 
 ```r
 # class(read_sav("myfile.sav"))
@@ -293,7 +293,7 @@ class(read_sav(tmp))
 #> [1] "tbl_df"     "tbl"        "data.frame"
 ```
 
-`read_sav()` returns a tibble (`tbl_df`) so `dplyr` verbs work directly on it. Individual columns that carried SPSS value labels gain an extra `haven_labelled` class — check them with `class(df$col)` and convert with `haven::as_factor()` when you need plain R factors.
+`read_sav()` returns a tibble (`tbl_df`) so `dplyr` verbs work directly on it. Individual columns that carried SPSS value labels gain an extra `haven_labelled` class, check them with `class(df$col)` and convert with `haven::as_factor()` when you need plain R factors.
 </details>
 
 ## How do you handle big files with data.table::fread()?
@@ -342,7 +342,7 @@ fread(text = "x,y\n1,10\n2,20\n3,30")
 #> 3: 3 30
 ```
 
-The `text =` argument lets `fread()` parse a literal string just like it would a file path, which is the fastest way to prototype a call without touching disk. The result is a `data.table` — the leading `1:`, `2:`, `3:` on each row are the data.table row index, not a real column.
+The `text =` argument lets `fread()` parse a literal string just like it would a file path, which is the fastest way to prototype a call without touching disk. The result is a `data.table`, the leading `1:`, `2:`, `3:` on each row are the data.table row index, not a real column.
 </details>
 
 ## How do you save and load R-native formats (RDS, RData)?
@@ -366,10 +366,10 @@ x
 #> [1] 1 2 3 4 5 6 7 8 9 10
 ```
 
-`readRDS()` is the safer pattern — you control what variable the object gets bound to, so there's no risk of silently overwriting something in your workspace. Prefer it for any single-object serialization.
+`readRDS()` is the safer pattern, you control what variable the object gets bound to, so there's no risk of silently overwriting something in your workspace. Prefer it for any single-object serialization.
 
 > [TIP]
-> For very large data frames, `arrow::write_parquet()` and `arrow::read_parquet()` are worth learning. Parquet is columnar, compressed, and readable from Python, Spark, and most data tools — making it the best "exchange format" for modern data work.
+> For very large data frames, `arrow::write_parquet()` and `arrow::read_parquet()` are worth learning. Parquet is columnar, compressed, and readable from Python, Spark, and most data tools, making it the best "exchange format" for modern data work.
 
 **Try it:** Save a small vector to an RDS file and read it back.
 
@@ -389,7 +389,7 @@ readRDS(path)
 #> [1] 1 2 3
 ```
 
-Capturing the `tempfile()` path in a variable is the key move — otherwise you write the RDS to one random path and try to read from a different one. `saveRDS()` serializes exactly one object and `readRDS()` returns it so the caller can bind it to any variable name they like.
+Capturing the `tempfile()` path in a variable is the key move, otherwise you write the RDS to one random path and try to read from a different one. `saveRDS()` serializes exactly one object and `readRDS()` returns it so the caller can bind it to any variable name they like.
 </details>
 
 ## Practice Exercises
@@ -519,14 +519,14 @@ One function, six formats, zero manual branching at the call site. This is the k
 
 ## References
 
-1. [readr package documentation](https://readr.tidyverse.org/) — modern CSV/TSV/fwf reader
-2. [readxl package documentation](https://readxl.tidyverse.org/) — Excel without Java
-3. [jsonlite documentation](https://jeroen.r-universe.dev/jsonlite) — JSON parsing
-4. [haven package documentation](https://haven.tidyverse.org/) — SPSS/Stata/SAS
-5. [data.table::fread](https://rdatatable.gitlab.io/data.table/reference/fread.html) — fastest CSV reader
+1. [readr package documentation](https://readr.tidyverse.org/), modern CSV/TSV/fwf reader
+2. [readxl package documentation](https://readxl.tidyverse.org/), Excel without Java
+3. [jsonlite documentation](https://jeroen.r-universe.dev/jsonlite), JSON parsing
+4. [haven package documentation](https://haven.tidyverse.org/), SPSS/Stata/SAS
+5. [data.table::fread](https://rdatatable.gitlab.io/data.table/reference/fread.html), fastest CSV reader
 
 ## Continue Learning
 
-- [R Data Frames: Every Operation You'll Need](R-Data-Frames.html) — what to do with the data after importing.
-- [dplyr filter() and select()](dplyr-filter-select.html) — subset your imported data.
-- [R Data Types: Which Type Is Your Variable?](R-Data-Types.html) — understand the column types readers produce.
+- [R Data Frames: Every Operation You'll Need](R-Data-Frames.html), what to do with the data after importing.
+- [dplyr filter() and select()](dplyr-filter-select.html), subset your imported data.
+- [R Data Types: Which Type Is Your Variable?](R-Data-Types.html), understand the column types readers produce.

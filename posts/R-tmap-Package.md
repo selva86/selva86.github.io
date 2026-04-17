@@ -1,7 +1,7 @@
 ---
 title: "R tmap Package: Thematic Maps with ggplot2-Style Grammar"
 slug: "R-tmap-Package"
-description: "Master R's tmap package for thematic maps. Build choropleths, bubble maps, and interactive views with tm_shape() — fewer lines than raw ggplot2."
+description: "Master R's tmap package for thematic maps. Build choropleths, bubble maps, and interactive views with tm_shape(), fewer lines than raw ggplot2."
 keywords: "tmap R, tmap package R, thematic maps R, tm_shape, tm_polygons, tmap choropleth, tmap interactive map, tmap facet map, tmap bubble map, tmap vs ggplot2"
 auto_link_terms: "tmap|tmap package|tm_shape()|tm_polygons()|tm_fill()|tmap_mode()|thematic maps in R|tmap choropleth"
 auto_link_case_sensitive: true
@@ -16,7 +16,7 @@ difficulty: "Intermediate"
 
 # R tmap Package: Thematic Maps with ggplot2-Style Grammar
 
-<p class="lead">tmap is an R package that builds thematic maps — choropleths, bubble maps, and faceted panels — using a layered grammar modelled on ggplot2. You compose a map with tm_shape() plus layer functions like tm_polygons(), and tmap handles projections, legends, and colour scales automatically.</p>
+<p class="lead">tmap is an R package that builds thematic maps, choropleths, bubble maps, and faceted panels, using a layered grammar modelled on ggplot2. You compose a map with tm_shape() plus layer functions like tm_polygons(), and tmap handles projections, legends, and colour scales automatically.</p>
 
 ## What does a tmap map look like in three lines of code?
 
@@ -84,7 +84,7 @@ ex_hpi_map
 
 ## How do you control colours, breaks, and palettes?
 
-The default palette works, but real-world maps need intentional colour choices. tmap classifies continuous data into intervals — quantile, jenks, equal, or pretty — and maps each interval to a colour. You control this through the `fill.scale` argument, which accepts a tm_scale_intervals() or tm_scale_continuous() call.
+The default palette works, but real-world maps need intentional colour choices. tmap classifies continuous data into intervals, quantile, jenks, equal, or pretty, and maps each interval to a colour. You control this through the `fill.scale` argument, which accepts a tm_scale_intervals() or tm_scale_continuous() call.
 
 ```r
 # Quantile breaks with a blue-green palette
@@ -117,7 +117,7 @@ tm_shape(World) +
 The Jenks map reveals the skew: most countries cluster in the bottom two bins, while a handful of wealthy nations sit alone in the top bin. Which classification you choose depends on the story you want to tell.
 
 [TIP]
-**Use "jenks" for skewed data, "quantile" for balanced maps.** Jenks finds natural groupings so outliers get their own class. Quantile forces equal counts, which smooths over extremes. Neither is wrong — they answer different questions.
+**Use "jenks" for skewed data, "quantile" for balanced maps.** Jenks finds natural groupings so outliers get their own class. Quantile forces equal counts, which smooths over extremes. Neither is wrong, they answer different questions.
 
 For categorical variables like continent or income group, tmap automatically switches to a qualitative palette.
 
@@ -134,7 +134,7 @@ tm_shape(World) +
 ```
 
 [WARNING]
-**The default "pretty" breaks can hide outliers.** With skewed data like GDP, "pretty" rounds to tidy numbers and often puts 80-90% of observations in one bin. Always check whether the default classification tells an honest story — switch to "jenks" or "quantile" if it does not.
+**The default "pretty" breaks can hide outliers.** With skewed data like GDP, "pretty" rounds to tidy numbers and often puts 80-90% of observations in one bin. Always check whether the default classification tells an honest story, switch to "jenks" or "quantile" if it does not.
 
 **Try it:** Create a choropleth of "inequality" using the "Reds" palette with equal-interval breaks and 6 classes.
 
@@ -259,7 +259,7 @@ tm_shape(World) +
 #>  and life expectancy value in a popup tooltip.]
 ```
 
-The code is identical to the static version. The only change is tmap_mode("view"). This means you can develop a map in static mode (fast rendering, easy export) and flip to interactive mode for exploration — without rewriting a single line.
+The code is identical to the static version. The only change is tmap_mode("view"). This means you can develop a map in static mode (fast rendering, easy export) and flip to interactive mode for exploration, without rewriting a single line.
 
 ```r
 # Switch back to static mode for the rest of the tutorial
@@ -268,7 +268,7 @@ tmap_mode("plot")
 ```
 
 [KEY INSIGHT]
-**One codebase, two outputs.** tmap_mode("view") swaps the rendering engine from static PNG to interactive Leaflet — same map code, two delivery formats. Build in "plot" mode, present in "view" mode.
+**One codebase, two outputs.** tmap_mode("view") swaps the rendering engine from static PNG to interactive Leaflet, same map code, two delivery formats. Build in "plot" mode, present in "view" mode.
 
 [NOTE]
 **Interactive mode produces a Leaflet widget.** In the code editor on this page, the map renders as a static snapshot. To see the full interactive experience with zoom and hover, run the code in RStudio or an R notebook.
@@ -307,13 +307,13 @@ tmap_mode("plot")
 #> tmap mode set to plotting
 ```
 
-**Explanation:** `metro` is a built-in sf point dataset of world metropolitan areas. tm_bubbles() maps point data as proportionally sized circles — the `size` argument controls which column drives the circle radius.
+**Explanation:** `metro` is a built-in sf point dataset of world metropolitan areas. tm_bubbles() maps point data as proportionally sized circles, the `size` argument controls which column drives the circle radius.
 
 </details>
 
 ## How do you create faceted (small-multiple) maps?
 
-Faceting splits one map into panels by a grouping variable — just like ggplot2's facet_wrap() but for maps. This is powerful for comparing patterns across regions or time periods side by side, without forcing the reader to flip between separate maps.
+Faceting splits one map into panels by a grouping variable, just like ggplot2's facet_wrap() but for maps. This is powerful for comparing patterns across regions or time periods side by side, without forcing the reader to flip between separate maps.
 
 ```r
 # Faceted choropleth by continent
@@ -326,7 +326,7 @@ tm_shape(World) +
 #>  expectancy), Africa shows more variation with lighter shades.]
 ```
 
-By default, all facets share the same colour scale — a continent coloured dark green in one panel means the same value in every other panel. This makes cross-continent comparison fair. But sometimes each facet has a wildly different range, and a shared scale wastes most of the palette on unused intervals.
+By default, all facets share the same colour scale, a continent coloured dark green in one panel means the same value in every other panel. This makes cross-continent comparison fair. But sometimes each facet has a wildly different range, and a shared scale wastes most of the palette on unused intervals.
 
 ```r
 # Free scales — each continent gets its own range
@@ -375,7 +375,7 @@ ex_facet
 
 ## How do you layer bubbles, lines, and text on a map?
 
-Real maps rarely show a single variable. You might want country borders filled by GDP, city bubbles sized by population, and labels on the largest cities — all in one figure. tmap handles this with multiple tm_shape() calls, each introducing a new data layer.
+Real maps rarely show a single variable. You might want country borders filled by GDP, city bubbles sized by population, and labels on the largest cities, all in one figure. tmap handles this with multiple tm_shape() calls, each introducing a new data layer.
 
 ```r
 # Multi-layer: polygons + bubbles + text
@@ -416,7 +416,7 @@ tm_shape(big_cities) +
 ```
 
 [KEY INSIGHT]
-**Every new tm_shape() call starts a fresh data layer.** You can mix sf polygons, points, and lines in one map — each layer has its own data, aesthetics, and scale. This is tmap's equivalent of stacking multiple geom_*() calls in ggplot2.
+**Every new tm_shape() call starts a fresh data layer.** You can mix sf polygons, points, and lines in one map, each layer has its own data, aesthetics, and scale. This is tmap's equivalent of stacking multiple geom_*() calls in ggplot2.
 
 **Try it:** Overlay the built-in `rivers` dataset as blue lines on top of a world polygon base map filled in light grey.
 
@@ -641,17 +641,17 @@ This map combines five techniques from the tutorial: choropleth fill with Jenks 
 
 ## References
 
-1. Tennekes, M. — tmap: Thematic Maps in R. *Journal of Statistical Software*, 84(6), 1-39 (2018). [Link](https://doi.org/10.18637/jss.v084.i06)
+1. Tennekes, M., tmap: Thematic Maps in R. *Journal of Statistical Software*, 84(6), 1-39 (2018). [Link](https://doi.org/10.18637/jss.v084.i06)
 2. tmap official documentation. [Link](https://r-tmap.github.io/tmap/)
-3. Tennekes, M. & Nowosad, J. — *Elegant and Informative Maps with tmap*. [Link](https://tmap.geocompx.org/)
-4. Lovelace, R., Nowosad, J. & Muenchow, J. — *Geocomputation with R*, Chapter 9: Making Maps. [Link](https://r.geocompx.org/adv-map.html)
-5. CRAN — tmap package reference manual. [Link](https://cran.r-project.org/package=tmap)
+3. Tennekes, M. & Nowosad, J., *Elegant and Informative Maps with tmap*. [Link](https://tmap.geocompx.org/)
+4. Lovelace, R., Nowosad, J. & Muenchow, J., *Geocomputation with R*, Chapter 9: Making Maps. [Link](https://r.geocompx.org/adv-map.html)
+5. CRAN, tmap package reference manual. [Link](https://cran.r-project.org/package=tmap)
 6. tmap GitHub repository. [Link](https://github.com/r-tmap/tmap)
-7. R Graph Gallery — Create Beautiful Thematic Maps with tmap. [Link](https://r-graph-gallery.com/package/tmap.html)
-8. Pebesma, E. & Bivand, R. — *Spatial Data Science: With Applications in R*. [Link](https://r-spatial.org/book/)
+7. R Graph Gallery, Create Beautiful Thematic Maps with tmap. [Link](https://r-graph-gallery.com/package/tmap.html)
+8. Pebesma, E. & Bivand, R., *Spatial Data Science: With Applications in R*. [Link](https://r-spatial.org/book/)
 
 ## Continue Learning
 
-- [Choropleth Maps in R](/Choropleth-Maps-in-R.html) — Build choropleths from scratch with ggplot2 + sf, the foundational approach that tmap abstracts over
-- [Spatial Data in R with sf](/Spatial-Data-in-R-with-sf.html) — Read shapefiles, transform coordinate reference systems, and plot with geom_sf()
-- [ggplot2 Colour Scales](/ggplot2-Colours.html) — Master colour palettes, scales, and colour theory for any R visualisation
+- [Choropleth Maps in R](/Choropleth-Maps-in-R.html), Build choropleths from scratch with ggplot2 + sf, the foundational approach that tmap abstracts over
+- [Spatial Data in R with sf](/Spatial-Data-in-R-with-sf.html), Read shapefiles, transform coordinate reference systems, and plot with geom_sf()
+- [ggplot2 Colour Scales](/ggplot2-Colours.html), Master colour palettes, scales, and colour theory for any R visualisation

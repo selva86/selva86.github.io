@@ -16,7 +16,7 @@ difficulty: "Intermediate"
 
 # Pair Plots in R: GGally ggpairs() for Multivariate Exploration
 
-<p class="lead">A pair plot displays every pairwise relationship in a dataset on a single grid — scatter plots below the diagonal, correlation coefficients above, and distributions along the diagonal — so you can spot multivariate patterns without writing a separate plot for each combination.</p>
+<p class="lead">A pair plot displays every pairwise relationship in a dataset on a single grid, scatter plots below the diagonal, correlation coefficients above, and distributions along the diagonal, so you can spot multivariate patterns without writing a separate plot for each combination.</p>
 
 ## What Does a Pair Plot Show and Why Do You Need One?
 
@@ -37,10 +37,10 @@ ggpairs(iris, columns = 1:4)
 #>   Sepal.Width vs Petal.Length shows r = -0.428 (moderate negative)
 ```
 
-That single line of code produced 16 panels. The diagonal shows how each variable is distributed on its own. The lower triangle gives you scatter plots — the raw shape of each relationship. The upper triangle condenses each relationship into a correlation coefficient so you can compare strengths at a glance.
+That single line of code produced 16 panels. The diagonal shows how each variable is distributed on its own. The lower triangle gives you scatter plots, the raw shape of each relationship. The upper triangle condenses each relationship into a correlation coefficient so you can compare strengths at a glance.
 
 [KEY INSIGHT]
-**The matrix is symmetric by design.** The lower scatter plot for Variable A vs Variable B shows the same relationship as the upper correlation for that pair. One half shows shape, the other shows strength — together they tell the full story.
+**The matrix is symmetric by design.** The lower scatter plot for Variable A vs Variable B shows the same relationship as the upper correlation for that pair. One half shows shape, the other shows strength, together they tell the full story.
 
 Here's how to read each region. The diagonal tells you whether a variable is roughly normal, skewed, or bimodal. The lower scatter plots reveal linearity, clusters, and outliers. The upper correlations quantify the direction and strength: values near +1 or -1 mean a strong linear relationship, while values near 0 mean little to no linear pattern.
 
@@ -54,7 +54,7 @@ cor(iris$Sepal.Width, iris$Petal.Length)
 #> [1] -0.4284401
 ```
 
-The first pair (Petal.Length and Petal.Width) has a correlation of 0.96 — nearly a straight line. The second pair (Sepal.Width and Petal.Length) is -0.43, a moderate negative relationship. The pair plot showed both of these instantly, without you having to check each pair individually.
+The first pair (Petal.Length and Petal.Width) has a correlation of 0.96, nearly a straight line. The second pair (Sepal.Width and Petal.Length) is -0.43, a moderate negative relationship. The pair plot showed both of these instantly, without you having to check each pair individually.
 
 **Try it:** Create a pair plot of `mtcars` using columns mpg, disp, hp, and wt. Which pair has the strongest correlation?
 
@@ -76,13 +76,13 @@ ggpairs(mtcars, columns = c("mpg", "disp", "hp", "wt"))
 #>   mpg vs disp: Cor = -0.848
 ```
 
-**Explanation:** The `disp` (engine displacement) and `wt` (weight) pair shows the highest positive correlation at 0.888 — heavier cars tend to have larger engines. The strongest negative correlation is `mpg` vs `wt` at -0.868.
+**Explanation:** The `disp` (engine displacement) and `wt` (weight) pair shows the highest positive correlation at 0.888, heavier cars tend to have larger engines. The strongest negative correlation is `mpg` vs `wt` at -0.868.
 
 </details>
 
 ## How Do You Customize Which Variables Appear?
 
-Not every column belongs in a pair plot. Identifier columns, date fields, or highly correlated duplicates just add noise. The `columns` argument lets you pick exactly which variables to display — either by position or by name.
+Not every column belongs in a pair plot. Identifier columns, date fields, or highly correlated duplicates just add noise. The `columns` argument lets you pick exactly which variables to display, either by position or by name.
 
 ```r
 # Select columns by name
@@ -128,13 +128,13 @@ ggpairs(ex_aq, columns = c("Ozone", "Solar.R", "Wind", "Temp"))
 #>   Ozone vs Solar.R: Cor = 0.348
 ```
 
-**Explanation:** Ozone and Temp have the strongest correlation (0.699). Hotter days produce more ozone — a well-known atmospheric chemistry relationship. Wind shows a negative correlation with Ozone because windy days disperse pollutants.
+**Explanation:** Ozone and Temp have the strongest correlation (0.699). Hotter days produce more ozone, a well-known atmospheric chemistry relationship. Wind shows a negative correlation with Ozone because windy days disperse pollutants.
 
 </details>
 
 ## How Do You Add Color by Group to Reveal Hidden Patterns?
 
-The real power of pair plots kicks in when you map a categorical variable to color. Suddenly, what looked like one blob of data separates into distinct clusters — and relationships that seemed weak in the full data might be strong within each group.
+The real power of pair plots kicks in when you map a categorical variable to color. Suddenly, what looked like one blob of data separates into distinct clusters, and relationships that seemed weak in the full data might be strong within each group.
 
 ```r
 # Color by species — each species gets its own color
@@ -151,7 +151,7 @@ ggpairs(
 #> Upper triangle: correlation coefficients are shown per group
 ```
 
-Without color, the Sepal.Width density on the diagonal looked bimodal and confusing. With color, you can see that setosa has wider sepals than the other two species — the "two humps" were really two species overlapping.
+Without color, the Sepal.Width density on the diagonal looked bimodal and confusing. With color, you can see that setosa has wider sepals than the other two species, the "two humps" were really two species overlapping.
 
 The lower scatter plots are even more revealing. Petal.Length vs Petal.Width looked like a single strong line before. With color, you see three tight clusters arranged along that line. Each species occupies its own region of the measurement space.
 
@@ -210,7 +210,7 @@ ggpairs(
 
 ## How Do You Control Upper, Lower, and Diagonal Panels?
 
-The default panels are a great starting point, but you can swap any of them out. The `upper`, `lower`, and `diag` arguments each accept a named list with keys for `continuous`, `combo`, and `discrete` — matching the variable-type combination in that cell.
+The default panels are a great starting point, but you can swap any of them out. The `upper`, `lower`, and `diag` arguments each accept a named list with keys for `continuous`, `combo`, and `discrete`, matching the variable-type combination in that cell.
 
 ```r
 # Custom panels: correlation text above, smoothed lines below, histograms on diagonal
@@ -292,13 +292,13 @@ ggpairs(
 #> Upper triangle: correlation coefficients (default)
 ```
 
-**Explanation:** Density contours work like topographic maps — each ring encloses a region of equal data density. They're especially useful when you have overlapping points that scatter plots can't resolve.
+**Explanation:** Density contours work like topographic maps, each ring encloses a region of equal data density. They're especially useful when you have overlapping points that scatter plots can't resolve.
 
 </details>
 
 ## How Do You Handle Mixed Variable Types (Numeric + Categorical)?
 
-Real datasets almost always have a mix of numeric and categorical columns. When ggpairs encounters this mix, it automatically chooses "combo" plots — visualizations designed for one numeric and one categorical variable.
+Real datasets almost always have a mix of numeric and categorical columns. When ggpairs encounters this mix, it automatically chooses "combo" plots, visualizations designed for one numeric and one categorical variable.
 
 ```r
 # Full iris dataset including Species (categorical)
@@ -310,7 +310,7 @@ ggpairs(iris, aes(color = Species, alpha = 0.6))
 #>   Species vs numeric: grouped histograms
 ```
 
-The combo panels are the interesting ones. When a numeric variable meets a categorical one, ggpairs shows boxplots (upper) or faceted histograms (lower) by default. These immediately tell you whether groups differ — for instance, you can see that setosa petals are dramatically shorter than versicolor or virginica petals.
+The combo panels are the interesting ones. When a numeric variable meets a categorical one, ggpairs shows boxplots (upper) or faceted histograms (lower) by default. These immediately tell you whether groups differ, for instance, you can see that setosa petals are dramatically shorter than versicolor or virginica petals.
 
 You can customize these combo panels just like you customize continuous panels.
 
@@ -479,7 +479,7 @@ ggpairs(
 #> price vs table: Cor ≈ 0.13 (weak)
 ```
 
-**Explanation:** Carat is by far the strongest predictor of price (r ≈ 0.92). Depth and table have almost no linear relationship with price. The color grouping shows that Ideal and Premium cuts span the full price range — cut quality alone doesn't determine price.
+**Explanation:** Carat is by far the strongest predictor of price (r ≈ 0.92). Depth and table have almost no linear relationship with price. The color grouping shows that Ideal and Premium cuts span the full price range, cut quality alone doesn't determine price.
 
 </details>
 
@@ -548,13 +548,13 @@ ggpairs(
 #> Solar.R vs Wind: Cor ≈ -0.127 (weakest)
 ```
 
-**Explanation:** Ozone and Temperature have the strongest relationship (r ≈ 0.70). Wind has a moderating effect — high-wind days tend to be cooler and have lower ozone. The semi-transparent points make it easy to see where data concentrates, especially in the Ozone-Temp panel where most points cluster at lower ozone levels.
+**Explanation:** Ozone and Temperature have the strongest relationship (r ≈ 0.70). Wind has a moderating effect, high-wind days tend to be cooler and have lower ozone. The semi-transparent points make it easy to see where data concentrates, especially in the Ozone-Temp panel where most points cluster at lower ozone levels.
 
 </details>
 
 ## Complete Example
 
-Let's bring everything together with a real-world analysis. We'll use the `msleep` dataset from ggplot2 — mammalian sleep data — to explore how body size, brain size, and sleep patterns relate across different dietary groups.
+Let's bring everything together with a real-world analysis. We'll use the `msleep` dataset from ggplot2, mammalian sleep data, to explore how body size, brain size, and sleep patterns relate across different dietary groups.
 
 ```r
 # Complete example: mammalian sleep patterns by diet
@@ -595,7 +595,7 @@ ggpairs(
 #>   Insectivores cluster at low body weight / high sleep
 ```
 
-This single plot reveals the core story: larger animals sleep less, and diet is the hidden grouping variable. Herbivores (green) are the biggest and sleep the least — they need to spend more time eating low-calorie food. Insectivores (blue) are small and sleep the most. The `columnLabels` argument gave us clean axis labels instead of variable names, and the log transformation spread out the body/brain weight values that would otherwise be compressed by a few outliers (elephants).
+This single plot reveals the core story: larger animals sleep less, and diet is the hidden grouping variable. Herbivores (green) are the biggest and sleep the least, they need to spend more time eating low-calorie food. Insectivores (blue) are small and sleep the most. The `columnLabels` argument gave us clean axis labels instead of variable names, and the log transformation spread out the body/brain weight values that would otherwise be compressed by a few outliers (elephants).
 
 ## Summary
 
@@ -612,15 +612,15 @@ This single plot reveals the core story: larger animals sleep less, and diet is 
 
 ## References
 
-1. Schloerke, B. et al. — GGally: Extension to ggplot2. R package documentation. [Link](https://ggobi.github.io/ggally/reference/ggpairs.html)
-2. GGally package vignette — ggpairs(): Pairwise plot matrix. [Link](https://ggobi.github.io/ggally/articles/ggpairs.html)
-3. Emerson, J.W., Green, W.A., Schloerke, B. et al. — "The Generalized Pairs Plot," *Journal of Computational and Graphical Statistics*, 22(1), 79-91 (2013).
-4. Wickham, H. — *ggplot2: Elegant Graphics for Data Analysis*, 3rd Edition. Springer (2016). [Link](https://ggplot2-book.org/)
-5. Wickham, H. & Grolemund, G. — *R for Data Science*, 2nd Edition. O'Reilly (2023). [Link](https://r4ds.hadley.nz/)
-6. R Core Team — *An Introduction to R*. [Link](https://cran.r-project.org/doc/manuals/r-release/R-intro.html)
+1. Schloerke, B. et al., GGally: Extension to ggplot2. R package documentation. [Link](https://ggobi.github.io/ggally/reference/ggpairs.html)
+2. GGally package vignette, ggpairs(): Pairwise plot matrix. [Link](https://ggobi.github.io/ggally/articles/ggpairs.html)
+3. Emerson, J.W., Green, W.A., Schloerke, B. et al., "The Generalized Pairs Plot," *Journal of Computational and Graphical Statistics*, 22(1), 79-91 (2013).
+4. Wickham, H., *ggplot2: Elegant Graphics for Data Analysis*, 3rd Edition. Springer (2016). [Link](https://ggplot2-book.org/)
+5. Wickham, H. & Grolemund, G., *R for Data Science*, 2nd Edition. O'Reilly (2023). [Link](https://r4ds.hadley.nz/)
+6. R Core Team, *An Introduction to R*. [Link](https://cran.r-project.org/doc/manuals/r-release/R-intro.html)
 
 ## Continue Learning
 
-- [Bivariate EDA in R](/Bivariate-EDA-in-R.html) — The parent guide covering scatter plots, grouped boxplots, mosaic plots, and correlation tests for two-variable analysis.
-- [Correlation Matrix Plot in R](/Correlation-Matrix-Plot-in-R.html) — When you need just the numeric correlations as a heatmap, without the scatter plots and density curves.
-- [Exploratory Data Analysis in R](/Exploratory-Data-Analysis-in-R.html) — The 7-step EDA framework that shows where pair plots fit in a complete analysis workflow.
+- [Bivariate EDA in R](/Bivariate-EDA-in-R.html), The parent guide covering scatter plots, grouped boxplots, mosaic plots, and correlation tests for two-variable analysis.
+- [Correlation Matrix Plot in R](/Correlation-Matrix-Plot-in-R.html), When you need just the numeric correlations as a heatmap, without the scatter plots and density curves.
+- [Exploratory Data Analysis in R](/Exploratory-Data-Analysis-in-R.html), The 7-step EDA framework that shows where pair plots fit in a complete analysis workflow.

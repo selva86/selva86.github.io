@@ -18,15 +18,15 @@ difficulty: "Beginner"
 
 # RStudio in 15 Minutes: The Only IDE Tour You'll Ever Need
 
-<p class="lead">RStudio is the standard development environment for R. It organizes your code, console, data, and plots into four panels — and once you learn how they work together, you'll write R code twice as fast.</p>
+<p class="lead">RStudio is the standard development environment for R. It organizes your code, console, data, and plots into four panels, and once you learn how they work together, you'll write R code twice as fast.</p>
 
-You've installed R and RStudio. Now you're staring at a window with four panels, a dozen tabs, and a menu bar full of options. This tutorial shows you exactly what each part does, which keyboard shortcuts to memorize, and how a real R workflow moves through the interface — in about 15 minutes.
+You've installed R and RStudio. Now you're staring at a window with four panels, a dozen tabs, and a menu bar full of options. This tutorial shows you exactly what each part does, which keyboard shortcuts to memorize, and how a real R workflow moves through the interface, in about 15 minutes.
 
 ## Introduction
 
-RStudio is an **IDE** (Integrated Development Environment) — a single application that combines everything you need to write, run, test, and share R code. Without RStudio, you'd need separate tools for editing code, running it, viewing plots, and managing files. RStudio puts all of that in one window.
+RStudio is an **IDE** (Integrated Development Environment), a single application that combines everything you need to write, run, test, and share R code. Without RStudio, you'd need separate tools for editing code, running it, viewing plots, and managing files. RStudio puts all of that in one window.
 
-The interface has **four main panels** (called "panes"), and every action you take in RStudio happens in one of them. Learning the panels is like learning the cockpit of a car — once you know where everything is, you stop thinking about the tool and start thinking about the road.
+The interface has **four main panels** (called "panes"), and every action you take in RStudio happens in one of them. Learning the panels is like learning the cockpit of a car, once you know where everything is, you stop thinking about the tool and start thinking about the road.
 
 Here's what we'll cover:
 
@@ -47,21 +47,21 @@ When you open RStudio, you see four rectangular areas arranged in a grid. Each p
 | **Environment** | Top-right | View your data and variables |
 | **Output** | Bottom-right | View plots, files, help, and packages |
 
-> **Tip:** If you only see three panels (no Source panel), that's normal — the Source panel appears when you open or create a file. Press **Ctrl+Shift+N** (Windows/Linux) or **Cmd+Shift+N** (Mac) to create a new R script, and the Source panel will appear.
+> **Tip:** If you only see three panels (no Source panel), that's normal, the Source panel appears when you open or create a file. Press **Ctrl+Shift+N** (Windows/Linux) or **Cmd+Shift+N** (Mac) to create a new R script, and the Source panel will appear.
 
 Let's walk through each one.
 
-## Panel 1: Source (Top-Left) — Where You Write Code
+## Panel 1: Source (Top-Left), Where You Write Code
 
 The Source panel is your **code editor**. This is where you write R scripts, R Markdown documents, and any other text files. Think of it as a smart notepad that understands R.
 
 Key features:
 
-- **Syntax highlighting** — R keywords, strings, numbers, and comments are color-coded so you can read code faster
-- **Auto-completion** — start typing a function name and press **Tab** to see suggestions
-- **Multiple tabs** — open several files at once and switch between them
-- **Line numbers** — every line is numbered, making it easy to find errors
-- **Code folding** — collapse sections of code to focus on what matters
+- **Syntax highlighting**, R keywords, strings, numbers, and comments are color-coded so you can read code faster
+- **Auto-completion**, start typing a function name and press **Tab** to see suggestions
+- **Multiple tabs**, open several files at once and switch between them
+- **Line numbers**, every line is numbered, making it easy to find errors
+- **Code folding**, collapse sections of code to focus on what matters
 
 ### How to use it
 
@@ -73,7 +73,7 @@ Key features:
 
 The code runs in the Console panel below, and results appear there. This is the core workflow: **write in Source, run in Console**.
 
-Try this now — the code below shows what you'd type in the Source panel. Click Run to see the output:
+Try this now, the code below shows what you'd type in the Source panel. Click Run to see the output:
 
 ```r
 # This is an R script — you'd save this as my_analysis.R
@@ -95,17 +95,17 @@ hist(ages, main = "Age Distribution",
 
 In RStudio, the text output appears in the Console (bottom-left) and the histogram appears in the Plots tab (bottom-right). Everything runs from one place.
 
-## Panel 2: Console (Bottom-Left) — Where Code Runs
+## Panel 2: Console (Bottom-Left), Where Code Runs
 
 The Console is R's **command line**. When you run code from the Source panel, it executes here. You can also type commands directly into the Console for quick, one-off calculations.
 
 Key features:
 
-- **The `>` prompt** — this means R is ready for your next command
-- **The `+` prompt** — this means R is waiting for you to finish an incomplete command (usually a missing parenthesis or quote)
-- **Command history** — press the **Up arrow** to cycle through previous commands
-- **Red text** — errors. Read them carefully; they usually tell you exactly what went wrong
-- **Blue text** — warnings. Your code ran, but R wants you to know something
+- **The `>` prompt**, this means R is ready for your next command
+- **The `+` prompt**, this means R is waiting for you to finish an incomplete command (usually a missing parenthesis or quote)
+- **Command history**, press the **Up arrow** to cycle through previous commands
+- **Red text**, errors. Read them carefully; they usually tell you exactly what went wrong
+- **Blue text**, warnings. Your code ran, but R wants you to know something
 
 ### Console vs Source: When to use which?
 
@@ -135,9 +135,9 @@ Key features:
 help(mean)
 ```
 
-## Panel 3: Environment (Top-Right) — Your Data at a Glance
+## Panel 3: Environment (Top-Right), Your Data at a Glance
 
-The Environment panel shows you **every object currently in memory** — variables, data frames, functions, lists, and vectors. When you create a variable in R, it appears here instantly.
+The Environment panel shows you **every object currently in memory**, variables, data frames, functions, lists, and vectors. When you create a variable in R, it appears here instantly.
 
 Key tabs in this panel:
 
@@ -174,20 +174,20 @@ After running this code, your Environment panel would show: `x` (numeric, value 
 Every command you've run in the current session is logged here. You can:
 
 - **Search** through past commands
-- **Send to Console** — double-click a command to re-run it
-- **Send to Source** — select commands and click "To Source" to build a script from your exploratory work
+- **Send to Console**, double-click a command to re-run it
+- **Send to Source**, select commands and click "To Source" to build a script from your exploratory work
 
 ### Connections tab
 
 For connecting to databases (SQL Server, PostgreSQL, etc.). Beginners can ignore this for now.
 
-## Panel 4: Output (Bottom-Right) — Plots, Files, Help, and More
+## Panel 4: Output (Bottom-Right), Plots, Files, Help, and More
 
 The Output panel is the most versatile. It has five tabs that serve very different purposes:
 
 ### Files tab
 
-A built-in file browser. You can navigate your project directory, open files, rename them, and delete them — all without leaving RStudio. Click on any `.R` file to open it in the Source panel.
+A built-in file browser. You can navigate your project directory, open files, rename them, and delete them, all without leaving RStudio. Click on any `.R` file to open it in the Source panel.
 
 ### Plots tab
 
@@ -223,11 +223,11 @@ Lists all installed R packages with checkboxes to load/unload them. You can also
 
 R's built-in help system. When you type `?function_name` in the Console, the help page appears here. Help pages follow a consistent structure:
 
-- **Description** — what the function does
-- **Usage** — the function signature with all arguments
-- **Arguments** — what each argument means
-- **Value** — what the function returns
-- **Examples** — runnable code examples (the most useful part!)
+- **Description**, what the function does
+- **Usage**, the function signature with all arguments
+- **Arguments**, what each argument means
+- **Value**, what the function returns
+- **Examples**, runnable code examples (the most useful part!)
 
 ```r
 # Try these — each opens help in the Help tab
@@ -241,7 +241,7 @@ R's built-in help system. When you type `?function_name` in the Console, the hel
 
 ### Viewer tab
 
-Displays web content — Shiny apps, HTML widgets, R Markdown previews. Beginners won't use this much initially.
+Displays web content, Shiny apps, HTML widgets, R Markdown previews. Beginners won't use this much initially.
 
 ## Essential Keyboard Shortcuts
 
@@ -334,9 +334,9 @@ That's the flow: **Source → Console → Environment → Plots**. Write code in
 
 RStudio lets you rearrange everything. Go to **Tools → Global Options → Pane Layout** to:
 
-- **Move panels** — swap which panel is in which corner
-- **Choose tabs** — decide which tabs appear in which panel
-- **Dual Source columns** — split the Source panel into two side-by-side editors (great for comparing files)
+- **Move panels**, swap which panel is in which corner
+- **Choose tabs**, decide which tabs appear in which panel
+- **Dual Source columns**, split the Source panel into two side-by-side editors (great for comparing files)
 
 ### Recommended layout adjustments
 
@@ -409,7 +409,7 @@ barplot(students$score, names.arg = students$name,
         ylab = "Score", ylim = c(0, 100))
 ```
 
-**Explanation:** This exercise uses all four panels — you write in Source, output appears in Console, `students` appears in Environment, and the barplot appears in Plots.
+**Explanation:** This exercise uses all four panels, you write in Source, output appears in Console, `students` appears in Environment, and the barplot appears in Plots.
 
 </details>
 
@@ -468,11 +468,11 @@ Yes. Go to **Tools → Global Options → Pane Layout**. You can put any panel i
 
 ### What's the difference between the Console and the Terminal?
 
-The Console runs R code. The Terminal (accessible via the Terminal tab next to Console) runs system commands — bash on Mac/Linux, PowerShell on Windows. Use the Terminal for git commands, file management, or running Python scripts.
+The Console runs R code. The Terminal (accessible via the Terminal tab next to Console) runs system commands, bash on Mac/Linux, PowerShell on Windows. Use the Terminal for git commands, file management, or running Python scripts.
 
 ### How do I open multiple R scripts at once?
 
-Just open multiple files — each one gets its own tab in the Source panel. You can also split the Source panel: **View → Panes → Show Dual Source Columns** (or drag a tab to the right side of the Source panel).
+Just open multiple files, each one gets its own tab in the Source panel. You can also split the Source panel: **View → Panes → Show Dual Source Columns** (or drag a tab to the right side of the Source panel).
 
 ### Where do I find the RStudio cheat sheet?
 
@@ -486,8 +486,8 @@ Yes, since RStudio 2023+. You can create Python scripts, run them in a Python RE
 
 Now that you know your way around RStudio, it's time to start writing R code:
 
-1. **R Syntax 101** — write your first working R script with variables, operators, and functions
-2. **R Data Types** — understand the six types every R variable belongs to
-3. **R Vectors** — master the most fundamental data structure in R
+1. **R Syntax 101**, write your first working R script with variables, operators, and functions
+2. **R Data Types**, understand the six types every R variable belongs to
+3. **R Vectors**, master the most fundamental data structure in R
 
 Each tutorial builds on the previous one, and all include interactive code blocks you can run right in your browser.

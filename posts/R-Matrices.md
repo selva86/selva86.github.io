@@ -16,11 +16,11 @@ difficulty: "Intermediate"
 
 # R Matrices: Fast Linear Algebra Operations That Data Frames Can't Do
 
-<p class="lead">A **matrix in R** is a 2D container where every element has the same type — usually numeric. Unlike a data frame, a matrix lets you do real linear algebra: `%*%` for matrix multiplication, `t()` for transpose, `solve()` for inverses. If you're doing math instead of wrangling columns, you want a matrix.</p>
+<p class="lead">A **matrix in R** is a 2D container where every element has the same type, usually numeric. Unlike a data frame, a matrix lets you do real linear algebra: `%*%` for matrix multiplication, `t()` for transpose, `solve()` for inverses. If you're doing math instead of wrangling columns, you want a matrix.</p>
 
 ## What is a matrix in R and how is it different from a data frame?
 
-A matrix is a vector with a `dim` attribute that tells R "pretend this is rows and columns." Every element must be the same type — all numeric, all character, all logical. Mixing types is a data frame's job; uniform numeric arithmetic is a matrix's job.
+A matrix is a vector with a `dim` attribute that tells R "pretend this is rows and columns." Every element must be the same type, all numeric, all character, all logical. Mixing types is a data frame's job; uniform numeric arithmetic is a matrix's job.
 
 ```r
 m <- matrix(1:12, nrow = 3, ncol = 4)
@@ -38,7 +38,7 @@ dim(m)
 #> [1] 3 4
 ```
 
-Three rows, four columns, filled column by column (that's R's default — more on that in a moment). The `dim` attribute is what turns a plain vector into a matrix; strip the dim and you're back to a 12-element vector.
+Three rows, four columns, filled column by column (that's R's default, more on that in a moment). The `dim` attribute is what turns a plain vector into a matrix; strip the dim and you're back to a 12-element vector.
 
 ![Matrix vs data frame decision: all one type → matrix, mixed types → data frame](screenshots/R-Matrices-vs-dataframe.webp)
 
@@ -66,7 +66,7 @@ m2
 #> [2,]    4    5    6
 ```
 
-R fills columns first by default — a surprise if you're coming from Python's row-major NumPy. `byrow = TRUE` switches to the more intuitive left-to-right fill.
+R fills columns first by default, a surprise if you're coming from Python's row-major NumPy. `byrow = TRUE` switches to the more intuitive left-to-right fill.
 
 ```r
 # cbind() — each argument becomes a column
@@ -109,12 +109,12 @@ ex_m
 #> r2 40 50 60
 ```
 
-`byrow = TRUE` fills the values left-to-right, top-to-bottom — so `10, 20, 30` become the first row exactly as you read them. Without it, R would default to column-major order and put `10, 20` in column 1 instead, which is rarely what you want when transcribing tabular data by hand. Assigning to `rownames()` and `colnames()` after construction is equivalent to passing `dimnames = list(c("r1","r2"), c("a","b","c"))` to `matrix()` — use whichever reads more clearly in your code.
+`byrow = TRUE` fills the values left-to-right, top-to-bottom, so `10, 20, 30` become the first row exactly as you read them. Without it, R would default to column-major order and put `10, 20` in column 1 instead, which is rarely what you want when transcribing tabular data by hand. Assigning to `rownames()` and `colnames()` after construction is equivalent to passing `dimnames = list(c("r1","r2"), c("a","b","c"))` to `matrix()`, use whichever reads more clearly in your code.
 </details>
 
 ## How do you index a matrix by row, column, or both?
 
-Matrix indexing uses `[row, col]`. Leave either blank to mean "all of them." The result is another matrix — unless you ask for a single row or column, in which case R drops it to a vector (you can prevent that with `drop = FALSE`).
+Matrix indexing uses `[row, col]`. Leave either blank to mean "all of them." The result is another matrix, unless you ask for a single row or column, in which case R drops it to a vector (you can prevent that with `drop = FALSE`).
 
 ```r
 m <- matrix(1:20, nrow = 4)
@@ -137,7 +137,7 @@ m[1:2, 3:4]      # 2x2 block
 #> [2,]   10   14
 ```
 
-That third call — `m[, 2]` — returned a plain vector, not a column matrix. If you're writing code that expects a matrix back, add `drop = FALSE`:
+That third call, `m[, 2]`, returned a plain vector, not a column matrix. If you're writing code that expects a matrix back, add `drop = FALSE`:
 
 ```r
 m[, 2, drop = FALSE]
@@ -183,12 +183,12 @@ ex_block
 #> [2,]   16   20
 ```
 
-`ex_m2[3:4, 4:5]` reads as "rows 3 and 4, columns 4 and 5" — R's two-argument bracket syntax is position-based and sequences work naturally on both sides. The result is still a matrix (2×2) because you asked for more than one row *and* more than one column; R only auto-drops to a vector when one dimension collapses to length 1. If you'd written `ex_m2[3, 4:5]` you'd get a length-2 vector back; add `drop = FALSE` to keep it as a 1×2 matrix.
+`ex_m2[3:4, 4:5]` reads as "rows 3 and 4, columns 4 and 5", R's two-argument bracket syntax is position-based and sequences work naturally on both sides. The result is still a matrix (2×2) because you asked for more than one row *and* more than one column; R only auto-drops to a vector when one dimension collapses to length 1. If you'd written `ex_m2[3, 4:5]` you'd get a length-2 vector back; add `drop = FALSE` to keep it as a 1×2 matrix.
 </details>
 
 ## Why is matrix multiplication written with %*% instead of *?
 
-Because `*` does **elementwise** multiplication, not matrix multiplication. If you want the mathematical matrix product — row-dot-column — you need `%*%`. Mixing them up is one of the most common R bugs in linear algebra code.
+Because `*` does **elementwise** multiplication, not matrix multiplication. If you want the mathematical matrix product, row-dot-column, you need `%*%`. Mixing them up is one of the most common R bugs in linear algebra code.
 
 ```r
 A <- matrix(c(1, 2, 3, 4), nrow = 2)
@@ -256,14 +256,14 @@ ex_A %*% ex_x   # should recover ex_b
 #> [2,]    8
 ```
 
-`solve(A, b)` returns the vector `x` that satisfies `A %*% x == b` — here that's `c(2, 3)`. Verifying with `A %*% ex_x` recovers the original `b`, which is always worth doing when you're double-checking a linear-algebra result. Note that `solve(A, b)` is both faster and more numerically stable than computing `solve(A) %*% b` — skip the explicit inverse whenever you can, especially for larger systems where round-off error accumulates.
+`solve(A, b)` returns the vector `x` that satisfies `A %*% x == b`, here that's `c(2, 3)`. Verifying with `A %*% ex_x` recovers the original `b`, which is always worth doing when you're double-checking a linear-algebra result. Note that `solve(A, b)` is both faster and more numerically stable than computing `solve(A) %*% b`, skip the explicit inverse whenever you can, especially for larger systems where round-off error accumulates.
 </details>
 
 ## When should you reach for a matrix instead of a data frame?
 
 Three situations where matrices are the clear choice:
 
-**1. All-numeric tabular data used for math.** If you're computing correlations, covariances, PCA, or doing anything with `%*%`, use a matrix. Most statistical and ML functions in R convert data frames to matrices internally anyway — you save that cost by starting with one.
+**1. All-numeric tabular data used for math.** If you're computing correlations, covariances, PCA, or doing anything with `%*%`, use a matrix. Most statistical and ML functions in R convert data frames to matrices internally anyway, you save that cost by starting with one.
 
 ```r
 # Covariance of mtcars — need a matrix
@@ -275,7 +275,7 @@ cov(m[, c("mpg", "hp", "wt")])
 #> wt   -5.116685   44.19266  0.9573790
 ```
 
-**2. Image and grid data.** A grayscale image is naturally a matrix — `image(m)` draws it. A heatmap is a matrix. An adjacency matrix in graph code is, obviously, a matrix.
+**2. Image and grid data.** A grayscale image is naturally a matrix, `image(m)` draws it. A heatmap is a matrix. An adjacency matrix in graph code is, obviously, a matrix.
 
 **3. Memory-sensitive work on large homogeneous data.** A numeric matrix stores values contiguously in memory; a data frame stores each column separately with per-column overhead. For a million-row all-numeric table, the matrix version uses less memory and runs faster.
 
@@ -301,7 +301,7 @@ colMeans(M)
 #> [1] 5.5 6.5 7.5
 ```
 
-`rowSums`, `colSums`, `rowMeans`, and `colMeans` are vectorised and fast — use them instead of looping.
+`rowSums`, `colSums`, `rowMeans`, and `colMeans` are vectorised and fast, use them instead of looping.
 </details>
 
 ### Exercise 2: Scale a matrix
@@ -363,17 +363,17 @@ A %*% x   # should equal b
 Rules of thumb:
 
 1. **Matrices are for math.** If you need `%*%`, transpose, or inverse, don't fight with a data frame.
-2. **Watch column vs row fill order.** Default is column-major — use `byrow = TRUE` when reading row by row feels more natural.
+2. **Watch column vs row fill order.** Default is column-major, use `byrow = TRUE` when reading row by row feels more natural.
 3. **`drop = FALSE`** when you need to guarantee the result stays 2D.
 
 ## References
 
-1. Wickham, H. *Advanced R*, 2nd ed. — Vectors and attributes (matrices). <https://adv-r.hadley.nz/vectors-chap.html>
-2. R Core Team. *An Introduction to R* — Arrays and matrices. <https://cran.r-project.org/doc/manuals/r-release/R-intro.html#Arrays-and-matrices>
+1. Wickham, H. *Advanced R*, 2nd ed., Vectors and attributes (matrices). <https://adv-r.hadley.nz/vectors-chap.html>
+2. R Core Team. *An Introduction to R*, Arrays and matrices. <https://cran.r-project.org/doc/manuals/r-release/R-intro.html#Arrays-and-matrices>
 3. R Documentation: `?matrix`, `?solve`, `?%*%`, `?apply`. Run in any R session.
 
 ## Continue Learning
 
-- [R Data Frames](R-Data-Frames.html) — the other 2D container, for mixed types.
-- [R Vectors](R-Vectors.html) — matrices are vectors with a `dim` attribute.
-- [Write Better R Functions](R-Functions.html) — write functions that accept both matrices and data frames gracefully.
+- [R Data Frames](R-Data-Frames.html), the other 2D container, for mixed types.
+- [R Vectors](R-Vectors.html), matrices are vectors with a `dim` attribute.
+- [Write Better R Functions](R-Functions.html), write functions that accept both matrices and data frames gracefully.

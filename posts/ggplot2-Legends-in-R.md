@@ -18,7 +18,7 @@ difficulty: "Intermediate"
 
 # ggplot2 Legends in R: Position, Remove, Rename & Customize Completely
 
-<p class="lead">ggplot2 legends map visual aesthetics — colour, fill, shape, size — back to the data values they represent. You control them through three levers: <code>theme()</code> for position and appearance, <code>labs()</code> or <code>scale_*()</code> for titles and labels, and <code>guides()</code> for fine-grained guide behaviour.</p>
+<p class="lead">ggplot2 legends map visual aesthetics, colour, fill, shape, size, back to the data values they represent. You control them through three levers: <code>theme()</code> for position and appearance, <code>labs()</code> or <code>scale_*()</code> for titles and labels, and <code>guides()</code> for fine-grained guide behaviour.</p>
 
 ## Introduction
 
@@ -64,7 +64,7 @@ When you set `colour = "steelblue"` outside `aes()`, ggplot2 applies that colour
 [KEY INSIGHT]
 **Aesthetics inside aes() generate legends, aesthetics outside do not.** If a legend is missing, the first thing to check is whether the variable is inside `aes()`. If it is not, ggplot2 has no mapping to display.
 
-When you map the same variable to multiple aesthetics — say `colour = class` and `shape = class` — ggplot2 merges them into a single legend. If you map different variables, you get separate legends for each.
+When you map the same variable to multiple aesthetics, say `colour = class` and `shape = class`, ggplot2 merges them into a single legend. If you map different variables, you get separate legends for each.
 
 **Try it:** Create a scatter plot of `mpg` mapping `drv` to `shape`. Verify that a shape legend appears on the right.
 
@@ -165,7 +165,7 @@ p_base +
 
 There are three ways to remove legends, and each serves a different purpose. Picking the wrong one is a common source of frustration.
 
-**Method 1: Remove all legends at once.** Use `theme(legend.position = "none")`. This is the nuclear option — every legend disappears.
+**Method 1: Remove all legends at once.** Use `theme(legend.position = "none")`. This is the nuclear option, every legend disappears.
 
 ```r
 # Remove all legends
@@ -236,7 +236,7 @@ ex_remove
 
 ## How do you rename the legend title and labels?
 
-The legend title defaults to the variable name — `class`, `drv`, `cyl`. That is rarely what you want in a finished plot. There are two things to rename: the title (the heading above the legend) and the labels (the text next to each key).
+The legend title defaults to the variable name, `class`, `drv`, `cyl`. That is rarely what you want in a finished plot. There are two things to rename: the title (the heading above the legend) and the labels (the text next to each key).
 
 **Rename the title** with `labs()`. This is the quickest approach and handles most cases.
 
@@ -338,7 +338,7 @@ p_base +
 
 The `element_text()` function accepts `face` (bold, italic, bold.italic), `size`, `colour`, `family`, and `hjust`/`vjust` for alignment. Use it with any `legend.*` theme element that controls text.
 
-Next, let's customize the legend keys — the small coloured squares or circles next to each label.
+Next, let's customize the legend keys, the small coloured squares or circles next to each label.
 
 ```r
 # Change legend key background and size
@@ -727,7 +727,7 @@ This example hits every lever: `labs()` for the title, `scale_colour_discrete()`
 |---|---|---|
 | Move legend | `theme(legend.position)` | `"bottom"`, `"inside"` |
 | Place inside plot | `theme(legend.position.inside)` | `c(0.85, 0.75)` |
-| Remove all legends | `theme(legend.position = "none")` | — |
+| Remove all legends | `theme(legend.position = "none")` |, |
 | Remove one legend | `guides(aes = "none")` | `guides(size = "none")` |
 | Suppress a layer | `show.legend = FALSE` | `geom_smooth(show.legend = FALSE)` |
 | Rename title | `labs(aes = "...")` | `labs(colour = "Class")` |
@@ -747,7 +747,7 @@ Map the same variable to both aesthetics and give them the same title with `labs
 
 ### What is the difference between guide_legend() and guide_colorbar()?
 
-`guide_legend()` creates a legend with discrete keys — one per level. `guide_colorbar()` creates a continuous colour gradient bar. ggplot2 picks the right one automatically based on the scale type, but you can override it inside `guides()`.
+`guide_legend()` creates a legend with discrete keys, one per level. `guide_colorbar()` creates a continuous colour gradient bar. ggplot2 picks the right one automatically based on the scale type, but you can override it inside `guides()`.
 
 ### How do I change just the legend key shape?
 
@@ -759,14 +759,14 @@ This happens when `geom_text()` or `geom_label()` is in your plot. The text geom
 
 ## References
 
-1. ggplot2 documentation — guides() reference. [Link](https://ggplot2.tidyverse.org/reference/guides.html)
-2. ggplot2 documentation — guide_legend() reference. [Link](https://ggplot2.tidyverse.org/reference/guide_legend.html)
-3. ggplot2 documentation — theme() reference. [Link](https://ggplot2.tidyverse.org/reference/theme.html)
-4. Wickham, H. — *ggplot2: Elegant Graphics for Data Analysis*, 3rd Edition. Springer (2024). Chapter 11: Scales and Guides. [Link](https://ggplot2-book.org/scales-guides.html)
-5. Tidyverse Blog — ggplot2 3.5.0: Legends (February 2024). [Link](https://tidyverse.org/blog/2024/02/ggplot2-3-5-0-legends/)
-6. R-Charts — Legends in ggplot2. [Link](https://r-charts.com/ggplot2/legend/)
+1. ggplot2 documentation, guides() reference. [Link](https://ggplot2.tidyverse.org/reference/guides.html)
+2. ggplot2 documentation, guide_legend() reference. [Link](https://ggplot2.tidyverse.org/reference/guide_legend.html)
+3. ggplot2 documentation, theme() reference. [Link](https://ggplot2.tidyverse.org/reference/theme.html)
+4. Wickham, H., *ggplot2: Elegant Graphics for Data Analysis*, 3rd Edition. Springer (2024). Chapter 11: Scales and Guides. [Link](https://ggplot2-book.org/scales-guides.html)
+5. Tidyverse Blog, ggplot2 3.5.0: Legends (February 2024). [Link](https://tidyverse.org/blog/2024/02/ggplot2-3-5-0-legends/)
+6. R-Charts, Legends in ggplot2. [Link](https://r-charts.com/ggplot2/legend/)
 
 ## Continue Learning
 
-- **ggplot2 Themes** — Master `theme_minimal()`, `theme_classic()`, and build your own reusable custom theme. [Read more](ggplot2-Themes-in-R.html)
-- **ggplot2 Colour Scales** — Control colours with `scale_colour_manual()`, viridis, and ColorBrewer palettes for accessible, beautiful plots.
+- **ggplot2 Themes**, Master `theme_minimal()`, `theme_classic()`, and build your own reusable custom theme. [Read more](ggplot2-Themes-in-R.html)
+- **ggplot2 Colour Scales**, Control colours with `scale_colour_manual()`, viridis, and ColorBrewer palettes for accessible, beautiful plots.

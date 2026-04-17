@@ -18,9 +18,9 @@ difficulty: "Advanced"
 
 # Operator Overloading in R: Give Your S3 Objects Intuitive Behaviour
 
-<p class="lead"><strong>Operator overloading in R</strong> lets you define what <code>+</code>, <code>==</code>, <code>[</code>, and <code>print</code> do for your own S3 classes — so a length object adds in metres, a money object compares dollars, and every built-in operator keeps working the way it already looks.</p>
+<p class="lead"><strong>Operator overloading in R</strong> lets you define what <code>+</code>, <code>==</code>, <code>[</code>, and <code>print</code> do for your own S3 classes, so a length object adds in metres, a money object compares dollars, and every built-in operator keeps working the way it already looks.</p>
 
-You already use overloaded operators every day. `Sys.Date() + 1` adds a day, not the integer 1 to a number. `factor("a") == "a"` compares labels, not the underlying integer codes. Both work because R's operators are S3 generics — ordinary functions that dispatch to methods based on class. The rest of this tutorial shows you how to write those methods for your own classes.
+You already use overloaded operators every day. `Sys.Date() + 1` adds a day, not the integer 1 to a number. `factor("a") == "a"` compares labels, not the underlying integer codes. Both work because R's operators are S3 generics, ordinary functions that dispatch to methods based on class. The rest of this tutorial shows you how to write those methods for your own classes.
 
 ## What exactly is operator overloading in R?
 
@@ -49,10 +49,10 @@ a + b
 #> 5 m
 ```
 
-The constructor is a plain `list()` with a `class` attribute. `+.length_m` is a function whose name is the generic (`+`) followed by a dot and the class (`length_m`) — that's the whole recipe. When R sees `a + b` it checks the class of `a`, finds `+.length_m`, and calls it. The result is still a `length_m`, so `print()` also dispatches to our method and shows "5 m".
+The constructor is a plain `list()` with a `class` attribute. `+.length_m` is a function whose name is the generic (`+`) followed by a dot and the class (`length_m`), that's the whole recipe. When R sees `a + b` it checks the class of `a`, finds `+.length_m`, and calls it. The result is still a `length_m`, so `print()` also dispatches to our method and shows "5 m".
 
 [KEY INSIGHT]
-**R's operators are already S3 generics.** You aren't extending a language feature — you're writing one more method for a generic that base R ships with. That's why the machinery is so small: define a function with the right name and dispatch takes care of the rest.
+**R's operators are already S3 generics.** You aren't extending a language feature, you're writing one more method for a generic that base R ships with. That's why the machinery is so small: define a function with the right name and dispatch takes care of the rest.
 
 **Try it:** Write `-.length_m` so that `a - b` returns a `length_m` holding the difference. Test it on `length_m(10) - length_m(4)`.
 
@@ -77,7 +77,7 @@ length_m(10) - length_m(4)
 #> 6 m
 ```
 
-**Explanation:** Subtraction follows the exact same pattern as addition — name the method `-.length_m`, do the arithmetic on the `value` field, and wrap the result back in the constructor so `print` still fires.
+**Explanation:** Subtraction follows the exact same pattern as addition, name the method `-.length_m`, do the arithmetic on the `value` field, and wrap the result back in the constructor so `print` still fires.
 
 </details>
 
@@ -108,7 +108,7 @@ a + 3
 #> 6 m
 ```
 
-Now either side can be a plain number. This matters because double dispatch is commutative — R will call `+.length_m` for `3 + a` too, as long as at least one operand has the class. The method itself needs to stay symmetric, which is why we extract `v1` and `v2` before adding.
+Now either side can be a plain number. This matters because double dispatch is commutative, R will call `+.length_m` for `3 + a` too, as long as at least one operand has the class. The method itself needs to stay symmetric, which is why we extract `v1` and `v2` before adding.
 
 ![How R resolves a binary operator across two argument classes.](screenshots/Operator-Overloading-in-R-dispatch-flow.webp)
 *Figure 1: How R resolves a binary operator across two argument classes.*
@@ -128,7 +128,7 @@ suppressWarnings(a + length_ft(10))
 #> [1] "length_m"
 ```
 
-R saw two different methods and couldn't decide, so it stripped the class wrapper and returned a malformed object. The fix is to make one method aware of the other — either convert `length_ft` to metres inside `+.length_m`, or define a shared parent class. The warning is R's way of telling you "your two classes haven't agreed on how to meet yet."
+R saw two different methods and couldn't decide, so it stripped the class wrapper and returned a malformed object. The fix is to make one method aware of the other, either convert `length_ft` to metres inside `+.length_m`, or define a shared parent class. The warning is R's way of telling you "your two classes haven't agreed on how to meet yet."
 
 [WARNING]
 **"Incompatible methods" warnings are a silent bug magnet.** The operation still returns something, just not what you expect. If you see this warning in your own code, stop and write an explicit conversion path between the two classes instead of letting R fall back to the internal operator.
@@ -156,7 +156,7 @@ R saw two different methods and couldn't decide, so it stripped the class wrappe
 
 ## When should you use the Ops group generic instead?
 
-Writing `+`, `-`, `*`, `/`, `==`, `!=`, `<`, `<=`, `>`, `>=` one by one gets old fast — that's ten methods just for basic arithmetic and comparison. R ships a shortcut: the **Ops group generic**. Define a single function called `Ops.yourclass` and R routes every operator in the group to it, passing the operator name in the special variable `.Generic`.
+Writing `+`, `-`, `*`, `/`, `==`, `!=`, `<`, `<=`, `>`, `>=` one by one gets old fast, that's ten methods just for basic arithmetic and comparison. R ships a shortcut: the **Ops group generic**. Define a single function called `Ops.yourclass` and R routes every operator in the group to it, passing the operator name in the special variable `.Generic`.
 
 ```r
 # One method for all arithmetic + comparison
@@ -177,7 +177,7 @@ Ops.length_m <- function(e1, e2) {
 }
 ```
 
-`.Generic` is a string like `"+"` or `"=="`, and `get(.Generic)` fetches the actual base function — that's how one method handles every operator. We branch at the end: arithmetic wraps the result back into a `length_m`, comparison returns a bare logical (because asking "is 3 m less than 5 m" should give `TRUE`, not a length object).
+`.Generic` is a string like `"+"` or `"=="`, and `get(.Generic)` fetches the actual base function, that's how one method handles every operator. We branch at the end: arithmetic wraps the result back into a `length_m`, comparison returns a bare logical (because asking "is 3 m less than 5 m" should give `TRUE`, not a length object).
 
 ```r
 # Arithmetic and comparison share the same method now
@@ -191,7 +191,7 @@ a < b
 #> [1] FALSE
 ```
 
-All four call the same `Ops.length_m`. That's ten operators covered by one function — and when you need to add `%%` later, you just add it to the `if` branch. The pattern scales much better than writing individual methods.
+All four call the same `Ops.length_m`. That's ten operators covered by one function, and when you need to add `%%` later, you just add it to the `if` branch. The pattern scales much better than writing individual methods.
 
 ![The three S3 group generics that cover most math and comparison needs.](screenshots/Operator-Overloading-in-R-group-generics.webp)
 *Figure 2: The three S3 group generics that cover most math and comparison needs.*
@@ -228,7 +228,7 @@ length_m(10) %% length_m(3)
 #> 1 m
 ```
 
-**Explanation:** Adding `"%%"` to the arithmetic whitelist lets the method wrap the modulo result in a `length_m`. The whitelist is your safety net — anything outside it hits the final `stop()` branch with a clear error.
+**Explanation:** Adding `"%%"` to the arithmetic whitelist lets the method wrap the modulo result in a `length_m`. The whitelist is your safety net, anything outside it hits the final `stop()` branch with a clear error.
 
 </details>
 
@@ -255,12 +255,12 @@ paste("Distance to work:", format(a))
 #> [1] "Distance to work: 3 m"
 ```
 
-`format()` returns a string, so everything that calls `format()` under the hood — `paste`, `sprintf`, `as.character`, data-frame printing — automatically picks up our unit suffix. `print.length_m` becomes a thin wrapper: one `cat()` and an invisible return so the object isn't duplicated on screen when printing is called implicitly.
+`format()` returns a string, so everything that calls `format()` under the hood, `paste`, `sprintf`, `as.character`, data-frame printing, automatically picks up our unit suffix. `print.length_m` becomes a thin wrapper: one `cat()` and an invisible return so the object isn't duplicated on screen when printing is called implicitly.
 
 [NOTE]
 **Always return `invisible(x)` from a print method.** If you return `x` normally, calling `print(a)` from inside another function can re-trigger printing and double up the output. `invisible(x)` keeps the value available to the caller without displaying it.
 
-**Try it:** Modify `format.length_m` so the number is shown with exactly two decimal places — for example, `length_m(3)` should display as `"3.00 m"`. Use `sprintf("%.2f", x$value)`.
+**Try it:** Modify `format.length_m` so the number is shown with exactly two decimal places, for example, `length_m(3)` should display as `"3.00 m"`. Use `sprintf("%.2f", x$value)`.
 
 ```r
 # Try it: two-decimal format
@@ -285,13 +285,13 @@ format(length_m(1.5))
 #> [1] "1.50 m"
 ```
 
-**Explanation:** `sprintf("%.2f", ...)` formats a number with two decimal places as a string. Wrapping it in `paste0` glues the unit suffix on. Because `print.length_m` calls `format`, the new formatting applies to `print(a)` as well — one change, two behaviours fixed.
+**Explanation:** `sprintf("%.2f", ...)` formats a number with two decimal places as a string. Wrapping it in `paste0` glues the unit suffix on. Because `print.length_m` calls `format`, the new formatting applies to `print(a)` as well, one change, two behaviours fixed.
 
 </details>
 
 ## How do you overload `[` and `[[` for vectorised classes?
 
-So far `length_m` has stored a single number. The more useful version stores a vector of values — a whole column of lengths — and supports subsetting. The trick is that `[` is *also* a generic, so you can write `[.length_m` to keep the class attached after a slice. The implementation uses `NextMethod()`, which calls the next method in the dispatch chain (here, plain numeric subsetting).
+So far `length_m` has stored a single number. The more useful version stores a vector of values, a whole column of lengths, and supports subsetting. The trick is that `[` is *also* a generic, so you can write `[.length_m` to keep the class attached after a slice. The implementation uses `NextMethod()`, which calls the next method in the dispatch chain (here, plain numeric subsetting).
 
 ```r
 # Vectorised length class
@@ -316,7 +316,7 @@ lens
 #> 99 20 30 40 50 m
 ```
 
-`[.length_m` subsets the internal `value` vector and rewraps it — one line of real work. The replacement form `[<-.length_m` is a little more delicate because the `value` coming in might itself be a `length_m` (assigning one unit to another) or a bare number (assigning a literal). The guard checks which and extracts the underlying numbers before writing.
+`[.length_m` subsets the internal `value` vector and rewraps it, one line of real work. The replacement form `[<-.length_m` is a little more delicate because the `value` coming in might itself be a `length_m` (assigning one unit to another) or a bare number (assigning a literal). The guard checks which and extracts the underlying numbers before writing.
 
 [WARNING]
 **Never call your constructor inside `[.class` if your class can be subclassed.** Using the constructor forces the result back to the base class and strips subclass information. For single-class use the constructor is fine; if you plan to subclass, use `vctrs::vec_restore(NextMethod(), x)` instead so the subclass sticks around.
@@ -344,7 +344,7 @@ lens[[3]]
 #> 30 m
 ```
 
-**Explanation:** `[[.length_m` pulls out a single element with `x$value[[i]]` and rewraps it in the constructor. Without this method, `lens[[3]]` would strip the class and return a plain number — because `[[` dispatches on the underlying list, not the `length_m` wrapper.
+**Explanation:** `[[.length_m` pulls out a single element with `x$value[[i]]` and rewraps it in the constructor. Without this method, `lens[[3]]` would strip the class and return a plain number, because `[[` dispatches on the underlying list, not the `length_m` wrapper.
 
 </details>
 
@@ -377,7 +377,7 @@ max(lens)
 #> 99 m
 ```
 
-`Math.length_m` is almost a one-liner because every Math function takes a single vector and returns another vector of the same length. `Summary.length_m` is slightly longer because `sum(a, b, c)` is valid — you might pass several length_m objects to reduce at once, so we `unlist` everything into a single numeric vector before reducing.
+`Math.length_m` is almost a one-liner because every Math function takes a single vector and returns another vector of the same length. `Summary.length_m` is slightly longer because `sum(a, b, c)` is valid, you might pass several length_m objects to reduce at once, so we `unlist` everything into a single numeric vector before reducing.
 
 ![The method family a rich S3 class typically ships with.](screenshots/Operator-Overloading-in-R-method-map.webp)
 *Figure 3: The method family a rich S3 class typically ships with.*
@@ -395,7 +395,7 @@ range(lens)
 #> 20 99 m
 ```
 
-**Explanation:** `range()` is not in the Summary group itself, but internally it calls `min()` and `max()` — both of which *are* in Summary and have our method. So `range(lens)` hits `Summary.length_m` twice and returns a two-element `length_m`. This cascade is exactly why group generics are worth the small upfront effort.
+**Explanation:** `range()` is not in the Summary group itself, but internally it calls `min()` and `max()`, both of which *are* in Summary and have our method. So `range(lens)` hits `Summary.length_m` twice and returns a two-element `length_m`. This cascade is exactly why group generics are worth the small upfront effort.
 
 </details>
 
@@ -462,7 +462,7 @@ x1 > celsius(15)
 #> [1] TRUE
 ```
 
-**Explanation:** The structure mirrors `length_m` — the Ops method handles all operators in one place and branches on `.Generic` to decide whether the result stays wrapped (arithmetic) or collapses to a bare logical (comparison). The print method uses `cat()` with the `°C` glyph.
+**Explanation:** The structure mirrors `length_m`, the Ops method handles all operators in one place and branches on `.Generic` to decide whether the result stays wrapped (arithmetic) or collapses to a bare logical (comparison). The print method uses `cat()` with the `°C` glyph.
 
 </details>
 
@@ -526,13 +526,13 @@ m1 + m2
 # money(10, "EUR") + m1   # would error: "Cannot add EUR and USD"
 ```
 
-**Explanation:** The guard inside `+.money` is what makes the class safer than plain numbers — mixing currencies is almost always a bug, so the class refuses. `format.money` returns a string, and `print.money` delegates to it so `paste("Total:", format(m1))` also works correctly.
+**Explanation:** The guard inside `+.money` is what makes the class safer than plain numbers, mixing currencies is almost always a bug, so the class refuses. `format.money` returns a string, and `print.money` delegates to it so `paste("Total:", format(m1))` also works correctly.
 
 </details>
 
 ### Exercise 3: A 2-D point class without Ops
 
-Build a `point(x, y)` constructor, then overload `+` and `-` as *individual* methods (not `Ops`) so you can add and subtract points component-wise. Add `==.point` comparing both coordinates, and `print.point` showing `"(3, 4)"`. This exercise is the "no shortcuts" version — it shows what the group generic was hiding.
+Build a `point(x, y)` constructor, then overload `+` and `-` as *individual* methods (not `Ops`) so you can add and subtract points component-wise. Add `==.point` comparing both coordinates, and `print.point` showing `"(3, 4)"`. This exercise is the "no shortcuts" version, it shows what the group generic was hiding.
 
 ```r
 # Exercise 3: 2-D point using individual operator methods
@@ -590,7 +590,7 @@ p1 == point(3, 4)
 #> [1] TRUE
 ```
 
-**Explanation:** Writing three separate methods works fine for a small class, but notice the pattern — each one unpacks `e1` and `e2`, does the same arithmetic on both fields, and rewraps. `Ops.point` would compress all three into one `.Generic`-driven block, which is exactly why the group generic exists.
+**Explanation:** Writing three separate methods works fine for a small class, but notice the pattern, each one unpacks `e1` and `e2`, does the same arithmetic on both fields, and rewraps. `Ops.point` would compress all three into one `.Generic`-driven block, which is exactly why the group generic exists.
 
 </details>
 
@@ -665,7 +665,7 @@ distances > 200
 # distances + units(10, "kg")  # would error: Cannot combine units 'm' and 'kg'
 ```
 
-This one class shows every technique from the tutorial working together. `Ops.units` enforces unit compatibility at the boundary — trying to add metres to kilograms fails loudly instead of silently producing nonsense. `Summary.units` lets reducers like `sum` stay in "units-space". `[.units` keeps the class attached through subsetting. And the `format`/`print` pair ensures that whether you explicitly print or just paste the value into a sentence, the unit suffix travels along.
+This one class shows every technique from the tutorial working together. `Ops.units` enforces unit compatibility at the boundary, trying to add metres to kilograms fails loudly instead of silently producing nonsense. `Summary.units` lets reducers like `sum` stay in "units-space". `[.units` keeps the class attached through subsetting. And the `format`/`print` pair ensures that whether you explicitly print or just paste the value into a sentence, the unit suffix travels along.
 
 ## Summary
 
@@ -681,16 +681,16 @@ This one class shows every technique from the tutorial working together. `Ops.un
 
 ## References
 
-1. Wickham, H. — *Advanced R*, 2nd Edition. Chapter 13: S3. [Link](https://adv-r.hadley.nz/s3.html)
-2. Gagolewski, M. — *Deep R Programming*, Chapter 10: S3 classes. [Link](https://deepr.gagolewski.com/chapter/220-s3.html)
-3. R Core Team — `?groupGeneric` (base R documentation). [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/groupGeneric.html)
-4. R Core Team — `?Ops`, `?Math`, `?Summary`. [Link](https://rdrr.io/r/base/groupGeneric.html)
-5. Wickham, H. — *Advanced R*, §13.4 "Object styles" and §13.6.1 "Operators and double dispatch". [Link](https://adv-r.hadley.nz/s3.html#operators)
-6. vctrs package — `?vec_arith` for modern arithmetic dispatch. [Link](https://vctrs.r-lib.org/reference/vec_arith.html)
-7. units package — reference implementation of `Ops.units` for physical quantities. [Link](https://r-quantities.github.io/units/reference/Ops.units.html)
+1. Wickham, H., *Advanced R*, 2nd Edition. Chapter 13: S3. [Link](https://adv-r.hadley.nz/s3.html)
+2. Gagolewski, M., *Deep R Programming*, Chapter 10: S3 classes. [Link](https://deepr.gagolewski.com/chapter/220-s3.html)
+3. R Core Team, `?groupGeneric` (base R documentation). [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/groupGeneric.html)
+4. R Core Team, `?Ops`, `?Math`, `?Summary`. [Link](https://rdrr.io/r/base/groupGeneric.html)
+5. Wickham, H., *Advanced R*, §13.4 "Object styles" and §13.6.1 "Operators and double dispatch". [Link](https://adv-r.hadley.nz/s3.html#operators)
+6. vctrs package, `?vec_arith` for modern arithmetic dispatch. [Link](https://vctrs.r-lib.org/reference/vec_arith.html)
+7. units package, reference implementation of `Ops.units` for physical quantities. [Link](https://r-quantities.github.io/units/reference/Ops.units.html)
 
 ## Continue Learning
 
-1. **[S3 Classes in R](S3-Classes-in-R.html)** — how to define the class structure your operator methods dispatch on.
-2. **[S3 Method Dispatch in R](S3-Method-Dispatch-in-R.html)** — a deeper look at how R resolves a method call, including `NextMethod()` and inheritance chains.
-3. **[R6 Classes in R](R6-Classes-in-R.html)** — the reference-semantics alternative when you need mutable state and don't want double-dispatch gymnastics.
+1. **[S3 Classes in R](S3-Classes-in-R.html)**, how to define the class structure your operator methods dispatch on.
+2. **[S3 Method Dispatch in R](S3-Method-Dispatch-in-R.html)**, a deeper look at how R resolves a method call, including `NextMethod()` and inheritance chains.
+3. **[R6 Classes in R](R6-Classes-in-R.html)**, the reference-semantics alternative when you need mutable state and don't want double-dispatch gymnastics.

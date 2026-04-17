@@ -1,7 +1,7 @@
 ---
 title: "R String Manipulation Exercises: 10 stringr Practice Problems Solved"
 slug: "R-String-Exercises"
-description: "10 interactive stringr exercises with worked solutions — detect, extract, replace, split, pad, case, and regex. Every problem runs in the browser."
+description: "10 interactive stringr exercises with worked solutions, detect, extract, replace, split, pad, case, and regex. Every problem runs in the browser."
 keywords: "R string exercises, stringr exercises, R regex exercises, R string practice, stringr practice problems"
 mathjax: false
 webr: true
@@ -18,7 +18,7 @@ difficulty: "Intermediate"
 
 # R String Manipulation Exercises: 10 stringr Practice Problems Solved
 
-<p class="lead">Ten focused string exercises using the <code>stringr</code> package — detect, extract, replace, split, pad, case and regex. Every problem runs in the browser with a worked solution you can reveal. Use these to build fluency with the functions you will reach for in every data-cleaning job.</p>
+<p class="lead">Ten focused string exercises using the <code>stringr</code> package, detect, extract, replace, split, pad, case and regex. Every problem runs in the browser with a worked solution you can reveal. Use these to build fluency with the functions you will reach for in every data-cleaning job.</p>
 
 Every real dataset has messy strings: trailing whitespace, inconsistent case, dates embedded in filenames, phone numbers with parentheses. The `stringr` package gives you a small, consistent set of verbs that handle all of this. These exercises cover the ten you will use most often.
 
@@ -32,7 +32,7 @@ names_raw <- c("  Ada Lovelace ", "alan TURING", "grace Hopper",
                "Donald knuth", "  Barbara Liskov")
 ```
 
-## Section 1 — Trim, pad, and case
+## Section 1, Trim, pad, and case
 
 ### Exercise 1. Trim whitespace and fix case
 
@@ -81,7 +81,7 @@ str_pad(ids, width = 5, side = "left", pad = "0")
 
 </details>
 
-## Section 2 — Detect and count
+## Section 2, Detect and count
 
 ### Exercise 3. Detect a substring
 
@@ -127,11 +127,11 @@ str_count(names_clean, "e")
 str_count(tolower(names_clean), "e")
 ```
 
-`str_count()` returns an integer vector — one count per input string.
+`str_count()` returns an integer vector, one count per input string.
 
 </details>
 
-## Section 3 — Extract
+## Section 3, Extract
 
 ### Exercise 5. Extract the first word
 
@@ -183,7 +183,7 @@ as.numeric(str_extract_all(txt, "\\d+\\.?\\d*")[[1]])
 
 </details>
 
-## Section 4 — Replace and split
+## Section 4, Replace and split
 
 ### Exercise 7. Replace the first match
 
@@ -236,7 +236,7 @@ basename(paths)
 
 </details>
 
-## Section 5 — Light regex
+## Section 5, Light regex
 
 ### Exercise 9. Extract an email address
 
@@ -289,7 +289,7 @@ The anchors `^` and `$` force the pattern to match the *entire* string, not just
 ## Summary
 
 - Trim with `str_trim()` / `str_squish()`. Pad with `str_pad()`. Change case with `str_to_lower()`, `str_to_upper()`, `str_to_title()`.
-- Detect with `str_detect()`, count with `str_count()` — both return vectors the same length as the input.
+- Detect with `str_detect()`, count with `str_count()`, both return vectors the same length as the input.
 - Extract with `str_extract()` (first match) or `str_extract_all()` (all matches, returns a list).
 - Replace with `str_replace()` (first) or `str_replace_all()` (all). Split with `str_split()`.
 - Light regex essentials: `\\d` digit, `\\s` whitespace, `\\S` non-whitespace, `{n}` exactly n, `+` one or more, `*` zero or more, `^`/`$` anchors.
@@ -297,11 +297,11 @@ The anchors `^` and `$` force the pattern to match the *entire* string, not just
 ## References
 
 - [stringr reference](https://stringr.tidyverse.org/reference/index.html)
-- [R for Data Science (2e) — Strings](https://r4ds.hadley.nz/strings.html)
+- [R for Data Science (2e), Strings](https://r4ds.hadley.nz/strings.html)
 - [Regular Expressions in R (cheat sheet)](https://rstudio.github.io/cheatsheets/strings.pdf)
 
 ## Continue Learning
 
 - [R Syntax 101: Write Your First Working Script in 10 Minutes](R-Syntax-101.html)
 - [R Date & Time Exercises: 10 lubridate Practice Problems](R-Date-Time-Exercises.html)
-- [R Functions Exercises: 10 Problems — Write, Debug & Optimize](R-Functions-Exercises.html)
+- [R Functions Exercises: 10 Problems, Write, Debug & Optimize](R-Functions-Exercises.html)

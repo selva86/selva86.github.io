@@ -1,5 +1,5 @@
 ---
-title: "Missing Values in R: Detect, Count, Remove, and Impute NA — Complete Playbook"
+title: "Missing Values in R: Detect, Count, Remove, and Impute NA, Complete Playbook"
 slug: "Missing-Values-in-R-Detect-Count-Remove-Impute-NA"
 description: "Handle NA values in R confidently. Use is.na(), complete.cases(), na.omit(), and mice imputation with guidance on which approach each situation calls for."
 keywords: "missing values R, NA in R, is.na, complete.cases, na.omit, mice imputation R, handle missing data R"
@@ -16,9 +16,9 @@ sidebar_order: 12
 difficulty: "Intermediate"
 ---
 
-# Missing Values in R: Detect, Count, Remove, and Impute NA — Complete Playbook
+# Missing Values in R: Detect, Count, Remove, and Impute NA, Complete Playbook
 
-<p class="lead">Missing values in R show up as <code>NA</code>. They silently propagate through arithmetic, summaries, and models — so every real analysis starts by detecting them, deciding what they mean, and either removing or imputing them. This post is the complete playbook.</p>
+<p class="lead">Missing values in R show up as <code>NA</code>. They silently propagate through arithmetic, summaries, and models, so every real analysis starts by detecting them, deciding what they mean, and either removing or imputing them. This post is the complete playbook.</p>
 
 ## Why do NA values break your calculations?
 
@@ -39,7 +39,7 @@ sum(x, na.rm = TRUE)
 #> [1] 70
 ```
 
-Every R user hits this in their first week. The rule is simple: any arithmetic touching an NA produces an NA, unless you explicitly say "drop them". That propagation is a feature — it stops you from accidentally computing a mean that ignores 30% of your data without noticing.
+Every R user hits this in their first week. The rule is simple: any arithmetic touching an NA produces an NA, unless you explicitly say "drop them". That propagation is a feature, it stops you from accidentally computing a mean that ignores 30% of your data without noticing.
 
 ![How NA propagates through calculations](screenshots/Missing-Values-in-R-Detect-Count-Remove-Impute-NA-propagation-flow.webp)
 *Figure 1: NA propagation through R operations. Any expression that touches NA returns NA unless you opt out with na.rm or equivalent.*
@@ -84,7 +84,7 @@ sum(is.na(x))   # how many NAs?
 #> [1] 2
 ```
 
-`is.na(x)` returns a logical vector — one TRUE per missing element. `anyNA(x)` is a fast shortcut for "is there at least one?". Summing the logical is the standard way to count.
+`is.na(x)` returns a logical vector, one TRUE per missing element. `anyNA(x)` is a fast shortcut for "is there at least one?". Summing the logical is the standard way to count.
 
 For data frames, `complete.cases()` answers "which rows have no NAs at all?".
 
@@ -132,7 +132,7 @@ sum(!complete.cases(df))
 #> [1] 3
 ```
 
-`complete.cases(df)` returns `TRUE` only for rows that are complete across every column, so negating it flips it to "has at least one NA". Summing the logical counts those rows — here rows 1, 3, and 4 each contain exactly one NA, so 3 rows are incomplete.
+`complete.cases(df)` returns `TRUE` only for rows that are complete across every column, so negating it flips it to "has at least one NA". Summing the logical counts those rows, here rows 1, 3, and 4 each contain exactly one NA, so 3 rows are incomplete.
 </details>
 
 ## How do you count and visualize missingness?
@@ -171,7 +171,7 @@ For visualization, the `naniar` package is the go-to:
 # gg_miss_upset(df)     # intersection of missingness across variables
 ```
 
-These charts make it obvious when two columns tend to be missing together — a signal that the missingness has a structural cause (say, a follow-up question that is only shown if the first question was answered).
+These charts make it obvious when two columns tend to be missing together, a signal that the missingness has a structural cause (say, a follow-up question that is only shown if the first question was answered).
 
 ![Mechanisms of missingness: MCAR, MAR, MNAR](screenshots/Missing-Values-in-R-Detect-Count-Remove-Impute-NA-mechanisms.webp)
 *Figure 2: The three missingness mechanisms. Diagnosing which one applies drives whether you can safely remove or must impute.*
@@ -180,7 +180,7 @@ Statisticians distinguish three mechanisms:
 
 - **MCAR** (Missing Completely At Random): the reason for missingness is unrelated to any variable. Safe to delete.
 - **MAR** (Missing At Random): missingness depends on observed variables, not the missing values themselves. Imputation works.
-- **MNAR** (Missing Not At Random): missingness depends on the missing value itself. Hard — needs modeling assumptions.
+- **MNAR** (Missing Not At Random): missingness depends on the missing value itself. Hard, needs modeling assumptions.
 
 > **[NOTE]** You cannot prove MCAR statistically. You can only rule it out. In practice, assume MAR by default and verify with domain knowledge before removing rows.
 
@@ -201,12 +201,12 @@ round(colMeans(is.na(airquality)) * 100, 1)
 #>    24.2     4.6     0.0     0.0     0.0     0.0
 ```
 
-`is.na(airquality)` returns a logical matrix with `TRUE` wherever a value is missing. `colMeans()` averages each column — for a logical vector, the mean is the proportion of `TRUE`s, so multiplying by 100 gives the percent missing per variable. Here `Ozone` is missing 24% of the time and `Solar.R` under 5%.
+`is.na(airquality)` returns a logical matrix with `TRUE` wherever a value is missing. `colMeans()` averages each column, for a logical vector, the mean is the proportion of `TRUE`s, so multiplying by 100 gives the percent missing per variable. Here `Ozone` is missing 24% of the time and `Solar.R` under 5%.
 </details>
 
 ## When should you remove rows with NA?
 
-Removal — "listwise deletion" in stats jargon — is the simplest option. It works when NAs are rare, when the missingness is MCAR, and when you can afford to lose some sample size. The three main tools are `na.omit`, `complete.cases`, and `drop_na` from tidyr.
+Removal, "listwise deletion" in stats jargon, is the simplest option. It works when NAs are rare, when the missingness is MCAR, and when you can afford to lose some sample size. The three main tools are `na.omit`, `complete.cases`, and `drop_na` from tidyr.
 
 ```r
 library(tidyr)
@@ -272,7 +272,7 @@ drop_na(df, score)
 #> 2    C  25    85
 ```
 
-Passing `score` as a bare column name to `drop_na()` scopes the NA check to that column only — row "A" is dropped because its score is missing, but row "B" survives even though its age is NA. This surgical pattern is how you preserve rows that still hold useful information in unaffected columns.
+Passing `score` as a bare column name to `drop_na()` scopes the NA check to that column only, row "A" is dropped because its score is missing, but row "B" survives even though its age is NA. This surgical pattern is how you preserve rows that still hold useful information in unaffected columns.
 </details>
 
 ## When should you impute instead of remove?
@@ -280,7 +280,7 @@ Passing `score` as a bare column name to `drop_na()` scopes the NA check to that
 Imputation replaces missing values with plausible estimates. You impute when:
 
 - The **fraction missing is large** (say >20%) and deleting would gut the sample.
-- Missingness is **MAR** rather than MCAR — random deletion would bias results.
+- Missingness is **MAR** rather than MCAR, random deletion would bias results.
 - The downstream model or visualization **requires complete cases** and you cannot afford to drop rows.
 - You have enough information in other columns to **reasonably predict** the missing values.
 
@@ -334,16 +334,16 @@ df$x
 #> [1] 10 20 20 20 30
 ```
 
-`mean(df$x, na.rm = TRUE)` is `(10+20+30)/3 = 20`, and `ifelse()` substitutes that value wherever `is.na(df$x)` is TRUE while leaving observed values unchanged. Simple and fast — just remember that filling with the mean shrinks variance, which matters once you start computing standard errors.
+`mean(df$x, na.rm = TRUE)` is `(10+20+30)/3 = 20`, and `ifelse()` substitutes that value wherever `is.na(df$x)` is TRUE while leaving observed values unchanged. Simple and fast, just remember that filling with the mean shrinks variance, which matters once you start computing standard errors.
 </details>
 
 ## What imputation strategies are available in R?
 
 From simplest to most sophisticated:
 
-**1. Mean / median / mode** — one-liner with `ifelse` and `mean()` / `median()`. Fine for exploratory work; biased for inference.
+**1. Mean / median / mode**, one-liner with `ifelse` and `mean()` / `median()`. Fine for exploratory work; biased for inference.
 
-**2. Last observation carried forward (LOCF)** — useful for time series:
+**2. Last observation carried forward (LOCF)**, useful for time series:
 
 ```r
 library(zoo)
@@ -352,7 +352,7 @@ na.locf(x)
 #> [1] 10 10 10 15 15 20
 ```
 
-**3. Linear interpolation** — also for time series:
+**3. Linear interpolation**, also for time series:
 
 ```r
 library(zoo)
@@ -360,14 +360,14 @@ na.approx(c(10, NA, NA, 40))
 #> [1] 10 20 30 40
 ```
 
-**4. k-Nearest Neighbors imputation** — fills missing values using similar rows:
+**4. k-Nearest Neighbors imputation**, fills missing values using similar rows:
 
 ```r
 # library(VIM)
 # df_imputed <- kNN(df, k = 5)
 ```
 
-**5. Multiple Imputation with `mice`** — the gold standard for inference. It creates several imputed datasets, runs the analysis on each, and pools the results so standard errors correctly reflect the uncertainty added by imputation.
+**5. Multiple Imputation with `mice`**, the gold standard for inference. It creates several imputed datasets, runs the analysis on each, and pools the results so standard errors correctly reflect the uncertainty added by imputation.
 
 ```r
 # library(mice)
@@ -378,14 +378,14 @@ na.approx(c(10, NA, NA, 40))
 
 `mice` uses predictive mean matching (`"pmm"`) by default, which imputes each missing value by drawing from observed values whose predicted values are close. It handles mixed variable types (numeric, factor, binary) with sensible per-type methods.
 
-**6. Random Forest imputation** — `missForest` package. Fast and non-parametric:
+**6. Random Forest imputation**, `missForest` package. Fast and non-parametric:
 
 ```r
 # library(missForest)
 # df_imp <- missForest(df)$ximp
 ```
 
-> **[TIP]** Start with mean/median for a quick look, then upgrade to `mice` once you know the dataset matters. For most real projects, `mice` is the right default — it is correct, it is flexible, and the output format is designed for standard regression workflows.
+> **[TIP]** Start with mean/median for a quick look, then upgrade to `mice` once you know the dataset matters. For most real projects, `mice` is the right default, it is correct, it is flexible, and the output format is designed for standard regression workflows.
 
 **Try it:** Use `na.approx` from `zoo` to linearly interpolate the missing values in this time series.
 
@@ -405,12 +405,12 @@ na.approx(ts)
 #> [1]  5 10 15 20 25 30 35
 ```
 
-`na.approx()` draws a straight line between each pair of observed values and fills the gap with the intermediate points. Between 5 and 20 the two missing slots become 10 and 15 (evenly spaced), and between 25 and 35 the single gap becomes 30 — use this whenever the underlying process looks locally linear.
+`na.approx()` draws a straight line between each pair of observed values and fills the gap with the intermediate points. Between 5 and 20 the two missing slots become 10 and 15 (evenly spaced), and between 25 and 35 the single gap becomes 30, use this whenever the underlying process looks locally linear.
 </details>
 
 ## How do you avoid creating NAs accidentally?
 
-Many NAs in a dataset are your own fault — introduced by a type conversion, a failed parse, or a failed join. Four common causes and their fixes:
+Many NAs in a dataset are your own fault, introduced by a type conversion, a failed parse, or a failed join. Four common causes and their fixes:
 
 **1. Failed `as.numeric` on non-numeric strings:**
 
@@ -446,7 +446,7 @@ left_join(a, b, by = "id")
 #> 3     3 z        NA
 ```
 
-Row with `id = 3` has no match in `b`, so `extra` becomes NA. This is by design — left joins preserve all left rows and fill missing with NA. If you expected all rows to match, validate with `anti_join(a, b, by = "id")` to find the unmatched ones.
+Row with `id = 3` has no match in `b`, so `extra` becomes NA. This is by design, left joins preserve all left rows and fill missing with NA. If you expected all rows to match, validate with `anti_join(a, b, by = "id")` to find the unmatched ones.
 
 **4. Division by zero or log of zero:**
 
@@ -459,9 +459,9 @@ log(-1)
 #> [1] NaN
 ```
 
-These produce `-Inf`, `Inf`, or `NaN` — not NA. But they behave similarly in downstream calculations. `is.finite()` is stricter than `is.na()` and catches all three.
+These produce `-Inf`, `Inf`, or `NaN`, not NA. But they behave similarly in downstream calculations. `is.finite()` is stricter than `is.na()` and catches all three.
 
-> **[NOTE]** `NaN` (Not a Number) and `NA` are different. `is.na(NaN)` returns TRUE but `is.nan(NA)` returns FALSE. For most data cleaning, `is.na()` is what you want — it covers both.
+> **[NOTE]** `NaN` (Not a Number) and `NA` are different. `is.na(NaN)` returns TRUE but `is.nan(NA)` returns FALSE. For most data cleaning, `is.na()` is what you want, it covers both.
 
 **Try it:** Check the vector below for NA, NaN, and non-finite values using `is.na` and `is.finite`.
 
@@ -481,7 +481,7 @@ is.finite(vals)
 #> [1]  TRUE FALSE  TRUE FALSE FALSE FALSE  TRUE
 ```
 
-`is.na()` returns `TRUE` for both `NA` *and* `NaN` (R treats NaN as a kind of missing), but `FALSE` for `Inf` and `-Inf`. `is.finite()` is stricter: only real, non-infinite numbers pass — this is the check you want before feeding a vector to a model that will choke on infinities.
+`is.na()` returns `TRUE` for both `NA` *and* `NaN` (R treats NaN as a kind of missing), but `FALSE` for `Inf` and `-Inf`. `is.finite()` is stricter: only real, non-infinite numbers pass, this is the check you want before feeding a vector to a model that will choke on infinities.
 </details>
 
 ## Practice Exercises
@@ -614,7 +614,7 @@ Four decision rules:
 
 ## References
 
-- [Hadley Wickham and Garrett Grolemund, *R for Data Science, 2e* — Missing Values](https://r4ds.hadley.nz/missing-values.html)
+- [Hadley Wickham and Garrett Grolemund, *R for Data Science, 2e*, Missing Values](https://r4ds.hadley.nz/missing-values.html)
 - [Stef van Buuren, *Flexible Imputation of Missing Data*](https://stefvanbuuren.name/fimd/)
 - [mice package documentation](https://amices.org/mice/)
 - [naniar package documentation](https://naniar.njtierney.com/)
@@ -622,6 +622,6 @@ Four decision rules:
 
 ## Continue Learning
 
-- [Tidy Data in R](Tidy-Data-in-R.html) — tidy data makes missing value handling much simpler.
-- [dplyr filter() and select()](dplyr-filter-select.html) — pair with `is.na()` for targeted row selection.
-- [dplyr mutate() and rename()](dplyr-mutate-rename.html) — where imputation lives in a pipeline.
+- [Tidy Data in R](Tidy-Data-in-R.html), tidy data makes missing value handling much simpler.
+- [dplyr filter() and select()](dplyr-filter-select.html), pair with `is.na()` for targeted row selection.
+- [dplyr mutate() and rename()](dplyr-mutate-rename.html), where imputation lives in a pipeline.

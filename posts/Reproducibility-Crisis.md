@@ -1,7 +1,7 @@
 ---
 title: "R and the Reproducibility Crisis: 5 Habits That Make Your Research Replicable"
 slug: "Reproducibility-Crisis"
-description: "Most published research doesn't replicate. Learn 5 R habits — seeds, renv, targets, pre-specified plans, sessionInfo — that make your analysis verifiable."
+description: "Most published research doesn't replicate. Learn 5 R habits, seeds, renv, targets, pre-specified plans, sessionInfo, that make your analysis verifiable."
 keywords: "reproducibility crisis, reproducible research R, renv tutorial, targets package, p-hacking, garden of forking paths, replication crisis, set.seed, sessionInfo"
 auto_link_terms: "reproducibility crisis|reproducible research|replication crisis|p-hacking|garden of forking paths"
 auto_link_case_sensitive: false
@@ -18,11 +18,11 @@ difficulty: "Beginner"
 
 # R and the Reproducibility Crisis: 5 Habits That Make Your Research Replicable
 
-<p class="lead">Only 36% of psychology studies in the largest replication project produced significant results when re-run — yet 97% of the originals had. The fix isn't more statistics. It's five concrete R habits any researcher can adopt today.</p>
+<p class="lead">Only 36% of psychology studies in the largest replication project produced significant results when re-run, yet 97% of the originals had. The fix isn't more statistics. It's five concrete R habits any researcher can adopt today.</p>
 
 ## Why does the same dataset give five different p-values?
 
-Before we discuss fixes, look at what the problem actually feels like in code. The "garden of forking paths" is the moment you realise the same dataset can yield wildly different p-values depending on small, defensible analysis choices. Once you see it, you cannot unsee it. Let's reproduce the effect with 50 rows of pure random noise — no real effect anywhere.
+Before we discuss fixes, look at what the problem actually feels like in code. The "garden of forking paths" is the moment you realise the same dataset can yield wildly different p-values depending on small, defensible analysis choices. Once you see it, you cannot unsee it. Let's reproduce the effect with 50 rows of pure random noise, no real effect anywhere.
 
 The block below generates noise, then computes five p-values from five reasonable analysis paths a researcher might try.
 
@@ -51,13 +51,13 @@ min(c(p1, p2, p3, p4, p5))
 #> [1] 0.04284
 ```
 
-Look at the `under_40` column. With one defensible filter — restrict to participants under 40 — the p-value drops to 0.043 and crosses the magic 0.05 threshold. Nothing in the data is real. The noise just happened to align inside that subgroup. A motivated researcher trying enough paths will *always* find one that "works", and that single result is what gets published.
+Look at the `under_40` column. With one defensible filter, restrict to participants under 40, the p-value drops to 0.043 and crosses the magic 0.05 threshold. Nothing in the data is real. The noise just happened to align inside that subgroup. A motivated researcher trying enough paths will *always* find one that "works", and that single result is what gets published.
 
 ![Garden of forking paths](screenshots/Reproducibility-Crisis-forking-paths.webp)
-*Figure 1: One dataset, six defensible analysis paths — and at least one will look "significant".*
+*Figure 1: One dataset, six defensible analysis paths, and at least one will look "significant".*
 
 [WARNING]
-**Each fork doubles your chance of a false positive.** If a single test gives 5% false positives, five independent tests give roughly 23%. The flexibility itself is the bug — not the statistician.
+**Each fork doubles your chance of a false positive.** If a single test gives 5% false positives, five independent tests give roughly 23%. The flexibility itself is the bug, not the statistician.
 
 **Try it:** Change the seed to `7` to `42` in the block above and re-run. Count how many of the five p-values now fall under 0.05. The exercise drives home that the noise is doing the work, not the data.
 
@@ -95,13 +95,13 @@ ex_count_sig(42)
 #> [1] 1
 ```
 
-**Explanation:** The function rebuilds the noise dataset under a new seed and counts how many of three forks land under 0.05. Run it on a few seeds — you will see "significant" results appear and disappear with no underlying truth changing.
+**Explanation:** The function rebuilds the noise dataset under a new seed and counts how many of three forks land under 0.05. Run it on a few seeds, you will see "significant" results appear and disappear with no underlying truth changing.
 
 </details>
 
 ## How does set.seed() lock down random results?
 
-Habit one of the five is the easiest to adopt: every time your code uses randomness — simulation, train/test split, bootstrap, cross-validation — call `set.seed()` first. Without a seed, R's pseudo-random generator advances based on the system clock and process state, so two runs produce different numbers. With a seed, the generator starts from the same state and the same numbers come out.
+Habit one of the five is the easiest to adopt: every time your code uses randomness, simulation, train/test split, bootstrap, cross-validation, call `set.seed()` first. Without a seed, R's pseudo-random generator advances based on the system clock and process state, so two runs produce different numbers. With a seed, the generator starts from the same state and the same numbers come out.
 
 The block below shows the effect side by side. The first two means come from un-seeded calls, the second two from seeded calls.
 
@@ -164,7 +164,7 @@ ex_seeded_mean(99)
 
 A seed pins your randomness. Habit two pins your packages. Without it, the same `lm()` or `glm()` call can produce subtly different output a year later, because a dependency was updated and changed a default argument or a numerical routine. The `renv` package solves this by recording every package version your project uses into a `renv.lock` file that travels with your code.
 
-`renv` itself is not pre-built for the in-browser R that powers this tutorial, but the *fingerprint* it captures is the same one `sessionInfo()` already prints. The block below shows what that fingerprint looks like — `renv.lock` stores a richer JSON version of the same idea.
+`renv` itself is not pre-built for the in-browser R that powers this tutorial, but the *fingerprint* it captures is the same one `sessionInfo()` already prints. The block below shows what that fingerprint looks like, `renv.lock` stores a richer JSON version of the same idea.
 
 ```r
 # What renv would capture (here via base R)
@@ -218,7 +218,7 @@ ex_recipe
 #> [1] "stats"     "graphics"  "grDevices" "utils"     "datasets"  "methods"   "base"
 ```
 
-**Explanation:** A "recipe" is just a list of the smallest facts a future-you needs to recreate this run. Saving it next to your results means "I know what produced this number" — the literal definition of reproducible.
+**Explanation:** A "recipe" is just a list of the smallest facts a future-you needs to recreate this run. Saving it next to your results means "I know what produced this number", the literal definition of reproducible.
 
 </details>
 
@@ -255,13 +255,13 @@ smry
 #>      37.227      -0.032      -3.878
 ```
 
-Each step takes one input and returns one output. None of them peek at global state. That property — pure inputs in, pure outputs out — is what lets `targets` reason about which nodes are stale. If you change `clean_step`, only `clean_step` and its descendants re-run. If you change a plot at the end, the model isn't refit. The script becomes a contract about what depends on what, instead of a wall of code that runs top to bottom.
+Each step takes one input and returns one output. None of them peek at global state. That property, pure inputs in, pure outputs out, is what lets `targets` reason about which nodes are stale. If you change `clean_step`, only `clean_step` and its descendants re-run. If you change a plot at the end, the model isn't refit. The script becomes a contract about what depends on what, instead of a wall of code that runs top to bottom.
 
 ![Levels of reproducibility](screenshots/Reproducibility-Crisis-levels.webp)
-*Figure 2: Reproducibility is a spectrum, not a switch — pick the level your project needs.*
+*Figure 2: Reproducibility is a spectrum, not a switch, pick the level your project needs.*
 
 [KEY INSIGHT]
-**A pipeline is not just a speed trick — it is an executable map of dependencies.** When a reviewer asks "what does this number depend on?", you can point at the graph. When a future-you returns to the project after a year, you read the graph instead of re-deriving the script.
+**A pipeline is not just a speed trick, it is an executable map of dependencies.** When a reviewer asks "what does this number depend on?", you can point at the graph. When a future-you returns to the project after a year, you read the graph instead of re-deriving the script.
 
 **Try it:** Add a fourth pure function `ex_describe()` that takes the cleaned data and returns its row count plus the mean of `mpg`. Call it on `clean_data`.
 
@@ -290,7 +290,7 @@ ex_describe(clean_data)
 #> [1] 20.09062
 ```
 
-**Explanation:** Same shape as the other steps — one input, one output, no side effects. In a real `targets` pipeline you would add a `tar_target(description, ex_describe(clean_data))` line and `targets` would track it as a node in the graph.
+**Explanation:** Same shape as the other steps, one input, one output, no side effects. In a real `targets` pipeline you would add a `tar_target(description, ex_describe(clean_data))` line and `targets` would track it as a node in the graph.
 
 </details>
 
@@ -298,7 +298,7 @@ ex_describe(clean_data)
 
 Habits one through four protect the *computation*. Habit five protects the *human*. Pre-specifying your analysis means writing down the test, the sample size, the outlier rule, and the hypothesis *before* you see the data. Once written, the plan is a commitment device: if the analysis later changes, you must label that change as exploratory.
 
-The classic violation is "optional stopping" — peeking at your data and stopping data collection the moment p drops below 0.05. The block below simulates 500 such studies under a true null effect and reports the false-positive rate.
+The classic violation is "optional stopping", peeking at your data and stopping data collection the moment p drops below 0.05. The block below simulates 500 such studies under a true null effect and reports the false-positive rate.
 
 ```r
 # Optional stopping under a true null
@@ -327,10 +327,10 @@ round(fp_rate * 100, 1)
 #> [1] 14.4
 ```
 
-The expected false-positive rate for a single t-test under the null is 5%. By peeking ten times and stopping the moment we see significance, we have inflated it to roughly 14% — almost three times what we promised the reader. There is no real effect anywhere in this code; the inflation is purely a consequence of the *flexibility* of stopping when you like the result.
+The expected false-positive rate for a single t-test under the null is 5%. By peeking ten times and stopping the moment we see significance, we have inflated it to roughly 14%, almost three times what we promised the reader. There is no real effect anywhere in this code; the inflation is purely a consequence of the *flexibility* of stopping when you like the result.
 
 [WARNING]
-**Optional stopping nearly triples your false-positive rate.** A pre-specified sample size — say, "we will collect 100 observations and then test once" — closes the door on this. The plan is the protection, not the test.
+**Optional stopping nearly triples your false-positive rate.** A pre-specified sample size, say, "we will collect 100 observations and then test once", closes the door on this. The plan is the protection, not the test.
 
 **Try it:** Modify the simulation to use a fixed sample size of 100 and a single t-test. Compute the new false-positive rate and confirm it lands near 5%.
 
@@ -361,7 +361,7 @@ ex_fixed_n()
 #> [1] 0.054
 ```
 
-**Explanation:** With a pre-specified n and a single test, the false-positive rate sits where it should — about one in twenty. The discipline isn't statistical; it is procedural. Decide first, then look.
+**Explanation:** With a pre-specified n and a single test, the false-positive rate sits where it should, about one in twenty. The discipline isn't statistical; it is procedural. Decide first, then look.
 
 </details>
 
@@ -415,7 +415,7 @@ my_audit <- audit_reproducibility(2026, c("dplyr", "ggplot2", "broom"))
 #>  Date:            2026-04-14
 ```
 
-**Explanation:** The function is a checklist enforcer — it cannot make your code reproducible, but it makes it impossible to forget the steps. Drop a call to it at the top of every analysis script.
+**Explanation:** The function is a checklist enforcer, it cannot make your code reproducible, but it makes it impossible to forget the steps. Drop a call to it at the top of every analysis script.
 
 </details>
 
@@ -454,7 +454,7 @@ c(raw_significant       = sum(my_pvals < 0.05),
 
 ## Complete Example: A reproducible mini-analysis
 
-The block below ties all five habits into one short analysis. Read it as a template — every line is here for a reproducibility reason, not just a statistical one.
+The block below ties all five habits into one short analysis. Read it as a template, every line is here for a reproducibility reason, not just a statistical one.
 
 ```r
 # 1. Pin randomness
@@ -495,7 +495,7 @@ The `recipe_receipt` object is the deliverable. It carries the seed (so anyone c
 ## Summary
 
 ![The five habits at a glance](screenshots/Reproducibility-Crisis-5-habits.webp)
-*Figure 3: The five habits at a glance — adopt them in order.*
+*Figure 3: The five habits at a glance, adopt them in order.*
 
 | # | Habit | R Tool | One-line benefit |
 |---|---|---|---|
@@ -506,7 +506,7 @@ The `recipe_receipt` object is the deliverable. It carries the seed (so anyone c
 | 5 | Save an environment receipt next to results | `sessionInfo()` / `renv.lock` | Anyone can diagnose differences |
 
 [KEY INSIGHT]
-**Reproducibility is a habit pyramid, not a single tool.** Habit 1 takes a single line of code; habit 5 may take a Docker container. Climb only as high as your project actually needs — but never skip the bottom rungs.
+**Reproducibility is a habit pyramid, not a single tool.** Habit 1 takes a single line of code; habit 5 may take a Docker container. Climb only as high as your project actually needs, but never skip the bottom rungs.
 
 ## References
 
@@ -514,13 +514,13 @@ The `recipe_receipt` object is the deliverable. It carries the seed (so anyone c
 2. Gelman, A. & Loken, E. (2014). The Garden of Forking Paths. Columbia University. [Link](https://stat.columbia.edu/~gelman/research/unpublished/forking.pdf)
 3. Ushey, K. *renv: Project Environments for R*. Posit / RStudio. [Link](https://rstudio.github.io/renv/)
 4. Landau, W. M. *The targets R Package User Manual*. rOpenSci. [Link](https://books.ropensci.org/targets/)
-5. CRAN Task View — Reproducible Research. R Project. [Link](https://cran.r-project.org/view=ReproducibleResearch)
-6. Center for Open Science — Pre-registration. [Link](https://www.cos.io/initiatives/prereg)
+5. CRAN Task View, Reproducible Research. R Project. [Link](https://cran.r-project.org/view=ReproducibleResearch)
+6. Center for Open Science, Pre-registration. [Link](https://www.cos.io/initiatives/prereg)
 7. Marwick, B., Boettiger, C. & Mullen, L. (2018). Packaging Data Analytical Work Reproducibly. *The American Statistician*, 72(1). [Link](https://www.tandfonline.com/doi/full/10.1080/00031305.2017.1375986)
 8. Wickham, H. & Grolemund, G. *R for Data Science*, 2nd Edition. [Link](https://r4ds.hadley.nz/)
 
 ## Continue Learning
 
-- [Data Ethics in R](Data-Ethics-in-R.html) — the broader ethical framework around honest analysis
-- [Bias in Data and Models](Bias-in-Data-and-Models.html) — how hidden assumptions shape the answers
-- [Communicating Uncertainty](Communicating-Uncertainty.html) — how to report results honestly to a non-technical audience
+- [Data Ethics in R](Data-Ethics-in-R.html), the broader ethical framework around honest analysis
+- [Bias in Data and Models](Bias-in-Data-and-Models.html), how hidden assumptions shape the answers
+- [Communicating Uncertainty](Communicating-Uncertainty.html), how to report results honestly to a non-technical audience

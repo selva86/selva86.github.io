@@ -1,7 +1,7 @@
 ---
 title: "R Basics Exercises: 15 Practice Problems for Beginners (With Solutions)"
 slug: "R-Basics-Exercises"
-description: "15 hands-on R basics exercises with worked interactive solutions — covering variables, vectors, arithmetic, logical ops, indexing, and your first function."
+description: "15 hands-on R basics exercises with worked interactive solutions, covering variables, vectors, arithmetic, logical ops, indexing, and your first function."
 keywords: "R basics exercises, R beginner exercises, R practice problems, R exercises with solutions, learn R exercises"
 mathjax: false
 webr: true
@@ -18,7 +18,7 @@ difficulty: "Intermediate"
 
 # R Basics Exercises: 15 Practice Problems for Beginners (With Solutions)
 
-<p class="lead">15 bite-sized R exercises you can run right here in the browser. Every problem has a worked solution you can reveal, so you get immediate feedback. Work through them in order — they build on each other from your first variable to your first function.</p>
+<p class="lead">15 bite-sized R exercises you can run right here in the browser. Every problem has a worked solution you can reveal, so you get immediate feedback. Work through them in order, they build on each other from your first variable to your first function.</p>
 
 These exercises are designed for complete beginners. If you can install R and open RStudio or Positron, you are ready. Each problem takes two to five minutes. You will learn by writing code, checking the output, comparing against the solution, and then running a small variation of your own.
 
@@ -32,7 +32,7 @@ These exercises are designed for complete beginners. If you can install R and op
 [TIP]
 The code blocks share state across the whole page, just like a notebook. A variable you create in Exercise 1 is still available in Exercise 15.
 
-## Section 1 — Variables, arithmetic and types
+## Section 1, Variables, arithmetic and types
 
 ### Exercise 1. Assign and print
 
@@ -61,7 +61,7 @@ x %% y     # 2  (remainder, bonus)
 
 ### Exercise 2. Types and coercion
 
-Create `a <- 3.14`, `b <- 3L`, `c <- "3"`, `d <- TRUE`. Use `class()` on each. Then compute `b + d` — predict the result before running it.
+Create `a <- 3.14`, `b <- 3L`, `c <- "3"`, `d <- TRUE`. Use `class()` on each. Then compute `b + d`, predict the result before running it.
 
 ```r
 # Your attempt here
@@ -114,7 +114,7 @@ trunc(-3.87)  # -3 (differs from floor(-3.87) which gives -4)
 
 </details>
 
-## Section 2 — Vectors and indexing
+## Section 2, Vectors and indexing
 
 ### Exercise 4. Create and inspect a vector
 
@@ -157,7 +157,7 @@ temps[length(temps)]  # 21
 temps[3:5]            # 19 30 28
 ```
 
-`length(temps)` is the portable way to get the last element — it works regardless of how long the vector is.
+`length(temps)` is the portable way to get the last element, it works regardless of how long the vector is.
 
 </details>
 
@@ -232,7 +232,7 @@ Both return the same value with the name attached. Use name-based indexing when 
 
 </details>
 
-## Section 3 — Sequences and functions
+## Section 3, Sequences and functions
 
 ### Exercise 9. Build sequences
 
@@ -327,11 +327,11 @@ celsius_to_fahrenheit(100)   # 212
 celsius_to_fahrenheit(temps) # 71.6 77.0 66.2 86.0 82.4 75.2 69.8
 ```
 
-Notice the function works on a vector with zero modification — because the arithmetic inside it is already vectorised.
+Notice the function works on a vector with zero modification, because the arithmetic inside it is already vectorised.
 
 </details>
 
-## Section 4 — A few intentional traps
+## Section 4, A few intentional traps
 
 ### Exercise 13. Integer vs double
 
@@ -404,7 +404,7 @@ c(1, 2, 3, 4, 5) + c(10, 20)
 # 11 22 13 24 15
 ```
 
-R silently recycles when lengths divide evenly and warns when they do not. This is the source of many hard-to-find bugs — respect the warning.
+R silently recycles when lengths divide evenly and warns when they do not. This is the source of many hard-to-find bugs, respect the warning.
 
 </details>
 
@@ -412,14 +412,14 @@ R silently recycles when lengths divide evenly and warns when they do not. This 
 
 - R uses `<-` for assignment, with typed values (numeric, integer, character, logical) that coerce silently into each other.
 - Vectors support positive, negative, logical, and name-based indexing. Logical indexing is the most important.
-- Arithmetic is vectorised — operations apply element-wise with no loops.
+- Arithmetic is vectorised, operations apply element-wise with no loops.
 - `NA` propagates; always decide whether to remove it with `na.rm = TRUE`.
-- Never compare floats with `==` — use `all.equal()` instead.
+- Never compare floats with `==`, use `all.equal()` instead.
 - Vector recycling is powerful but silently dangerous when lengths do not align.
 
 ## References
 
-- [R Language Definition — Basic types](https://cran.r-project.org/doc/manuals/r-release/R-lang.html)
+- [R Language Definition, Basic types](https://cran.r-project.org/doc/manuals/r-release/R-lang.html)
 - [Advanced R: Vectors chapter](https://adv-r.hadley.nz/vectors-chap.html)
 - [R for Data Science (2e)](https://r4ds.hadley.nz/)
 

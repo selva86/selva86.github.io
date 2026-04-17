@@ -16,11 +16,11 @@ difficulty: "Intermediate"
 
 # ggforce Package in R: Zoom, Ellipses, Arcs & Advanced ggplot2 Geometries
 
-<p class="lead">The ggforce package extends ggplot2 with over 30 specialised geoms, facets, and transformations — from zooming into crowded scatter plots with <code>facet_zoom()</code> to annotating clusters with <code>geom_mark_ellipse()</code> to building donut charts with <code>geom_arc_bar()</code>.</p>
+<p class="lead">The ggforce package extends ggplot2 with over 30 specialised geoms, facets, and transformations, from zooming into crowded scatter plots with <code>facet_zoom()</code> to annotating clusters with <code>geom_mark_ellipse()</code> to building donut charts with <code>geom_arc_bar()</code>.</p>
 
 ## How Does facet_zoom() Let You Zoom into Crowded Plots?
 
-You have a scatter plot, but one cluster hides behind another. How do you zoom in without losing the big picture? That's exactly what `facet_zoom()` solves — it creates a zoomed panel alongside the full view, connected by a shaded region that shows you exactly where you're looking.
+You have a scatter plot, but one cluster hides behind another. How do you zoom in without losing the big picture? That's exactly what `facet_zoom()` solves, it creates a zoomed panel alongside the full view, connected by a shaded region that shows you exactly where you're looking.
 
 ```r
 library(ggplot2)
@@ -38,7 +38,7 @@ ggplot(iris, aes(Petal.Length, Petal.Width, colour = Species)) +
 
 The left panel shows only the setosa data at full resolution, while the right panel keeps the big picture with a highlighted rectangle showing where the zoom came from. One line of code, two perspectives.
 
-You can also zoom by specifying exact axis limits instead of a logical condition. The `zoom.size` argument controls how large the zoomed panel is relative to the context panel — bigger values give more room to the zoomed view.
+You can also zoom by specifying exact axis limits instead of a logical condition. The `zoom.size` argument controls how large the zoomed panel is relative to the context panel, bigger values give more room to the zoomed view.
 
 ```r
 ggplot(iris, aes(Petal.Length, Petal.Width, colour = Species)) +
@@ -49,7 +49,7 @@ ggplot(iris, aes(Petal.Length, Petal.Width, colour = Species)) +
 #> with the zoomed panel 1.5x the size of the context panel
 ```
 
-Sometimes you only want to show the relevant data inside the zoomed panel — not every point from the full dataset. The `zoom.data` parameter handles this. Set it to a logical expression, and only matching rows appear in the zoom panel.
+Sometimes you only want to show the relevant data inside the zoomed panel, not every point from the full dataset. The `zoom.data` parameter handles this. Set it to a logical expression, and only matching rows appear in the zoom panel.
 
 ```r
 ggplot(iris, aes(Petal.Length, Petal.Width, colour = Species)) +
@@ -98,7 +98,7 @@ ex_zoom
 
 Scatter plots often need annotations that say "these points belong together." The `geom_mark_*` family draws shapes around grouped points with optional labels and connector lines. There are four variants: `geom_mark_ellipse()`, `geom_mark_rect()`, `geom_mark_circle()`, and `geom_mark_hull()`.
 
-Let's start with the most commonly used — `geom_mark_ellipse()`. It fits an optimal ellipse around each group using the Khachiyan algorithm.
+Let's start with the most commonly used, `geom_mark_ellipse()`. It fits an optimal ellipse around each group using the Khachiyan algorithm.
 
 ```r
 ggplot(iris, aes(Petal.Length, Petal.Width)) +
@@ -112,7 +112,7 @@ ggplot(iris, aes(Petal.Length, Petal.Width)) +
 #> completely separated; versicolor and virginica overlap slightly.
 ```
 
-Each group gets a smooth ellipse with an automatically placed label. The labels move dynamically to avoid overlapping the data — you don't need to position them manually.
+Each group gets a smooth ellipse with an automatically placed label. The labels move dynamically to avoid overlapping the data, you don't need to position them manually.
 
 Now let's compare `geom_mark_rect()` and `geom_mark_hull()` side by side. Rectangles give bounding boxes, while hulls trace the tightest possible boundary around each group.
 
@@ -138,7 +138,7 @@ p_rect + p_hull
 #> points tightly, following the actual cluster shape.
 ```
 
-The hull version is much tighter. The `concavity` argument controls how closely the hull follows the points — lower values create tighter, more concave shapes.
+The hull version is much tighter. The `concavity` argument controls how closely the hull follows the points, lower values create tighter, more concave shapes.
 
 You can also add descriptions and customise connector lines. The `con.type` argument controls whether the label connects with an elbow, a straight line, or no connector at all.
 
@@ -165,10 +165,10 @@ ggplot(iris, aes(Petal.Length, Petal.Width)) +
 #> ellipse by a straight line
 ```
 
-The `con.cap` argument controls how close the connector line gets to the mark — setting it to 0 makes the line touch the ellipse boundary.
+The `con.cap` argument controls how close the connector line gets to the mark, setting it to 0 makes the line touch the ellipse boundary.
 
 ![Which mark geom to use?](screenshots/ggforce-Package-mark-decision.webp)
-*Figure 1: Decision guide — which geom_mark function to use for your cluster shape.*
+*Figure 1: Decision guide, which geom_mark function to use for your cluster shape.*
 
 [KEY INSIGHT]
 **Use mark_hull for irregular clusters and mark_ellipse for normally distributed groups.** Hulls trace the exact boundary, so they work for any shape. Ellipses assume a roughly oval distribution and will leave gaps or include outliers if the cluster is L-shaped or multi-modal.
@@ -240,7 +240,7 @@ ggplot(pie_data) +
 
 Each slice is a wedge defined by `start` and `end` angles. The `x0` and `y0` set the centre, while `r` and `r0` set the outer and inner radii. For a pie chart, `r0 = 0` means the wedges go all the way to the centre.
 
-Converting this to a donut chart is a one-character change — set `r0` to something greater than zero.
+Converting this to a donut chart is a one-character change, set `r0` to something greater than zero.
 
 ```r
 donut_data <- diamonds |>
@@ -315,7 +315,7 @@ ggplot(ex_donut) +
 
 ## What Are geom_sina() Plots and When Should You Use Them?
 
-A sina plot is a jittered strip chart where each point's horizontal spread matches the local density — like a violin plot filled with actual data points. This gives you the distribution shape of a violin plot and the individual observations of a jitter plot in one layer.
+A sina plot is a jittered strip chart where each point's horizontal spread matches the local density, like a violin plot filled with actual data points. This gives you the distribution shape of a violin plot and the individual observations of a jitter plot in one layer.
 
 ```r
 ggplot(iris, aes(Species, Petal.Width)) +
@@ -346,7 +346,7 @@ ggplot(iris, aes(Species, Sepal.Length)) +
 #> virginica shows a bimodal pattern the boxplot hides
 ```
 
-Overlaying sina on a boxplot is one of the most effective distribution plots you can make. The boxplot gives you the summary statistics, and the sina layer reveals patterns the boxplot hides — like bimodality or gaps in the data.
+Overlaying sina on a boxplot is one of the most effective distribution plots you can make. The boxplot gives you the summary statistics, and the sina layer reveals patterns the boxplot hides, like bimodality or gaps in the data.
 
 [TIP]
 **Layer sina plots over violin or boxplot for maximum information density.** Use a light fill colour on the violin/box (like grey90) so the sina points remain readable.
@@ -383,7 +383,7 @@ ex_sina
 
 ## How Do You Draw Smooth Curves with Bezier and B-Spline Geoms?
 
-Sometimes you need smooth curved lines between points — for flow diagrams, annotation connectors, or artistic plots. ggforce provides `geom_bezier()` for Bezier curves and `geom_bspline()` for B-spline curves.
+Sometimes you need smooth curved lines between points, for flow diagrams, annotation connectors, or artistic plots. ggforce provides `geom_bezier()` for Bezier curves and `geom_bspline()` for B-spline curves.
 
 A Bezier curve passes through its first and last control points, while intermediate points pull the curve toward them without touching. Let's draw one with three control points.
 
@@ -408,7 +408,7 @@ ggplot(bezier_pts, aes(x, y, group = group)) +
 #> The curve doesn't touch P2 — it only bends toward it.
 ```
 
-The red dots are the control points. Notice how the curve starts at P1, bends toward P2, and ends at P3 — but never actually touches P2. That's how Bezier curves work.
+The red dots are the control points. Notice how the curve starts at P1, bends toward P2, and ends at P3, but never actually touches P2. That's how Bezier curves work.
 
 B-splines work differently: they create a smooth curve that approximates all control points, producing a more uniformly smooth result.
 
@@ -429,7 +429,7 @@ ggplot(bspline_pts, aes(x, y, group = group)) +
 #> rather than sharp turns
 ```
 
-B-splines are smoother than Bezier curves when you have many control points. The trade-off is that they don't pass through any of the interior points — they approximate the overall shape.
+B-splines are smoother than Bezier curves when you have many control points. The trade-off is that they don't pass through any of the interior points, they approximate the overall shape.
 
 [NOTE]
 **Bezier curves pass through start and end points only; B-splines approximate all control points.** Choose Bezier when you need exact endpoints (e.g., connecting two annotations). Choose B-splines when you need a smooth flowing path through many waypoints.
@@ -475,7 +475,7 @@ ggplot(ex_bezier, aes(x, y, group = group)) +
 
 Beyond the major features above, ggforce offers several more geoms that solve specific problems. Here are the most useful ones.
 
-`geom_circle()` draws circles at specified positions with given radii — great for bubble-style annotations or creating diagrams directly in ggplot2.
+`geom_circle()` draws circles at specified positions with given radii, great for bubble-style annotations or creating diagrams directly in ggplot2.
 
 ```r
 circles_df <- tibble(
@@ -498,9 +498,9 @@ ggplot(circles_df) +
 #> keeps them circular rather than oval.
 ```
 
-`coord_fixed()` is essential when drawing circles — without it, the circles stretch into ovals depending on the plot aspect ratio.
+`coord_fixed()` is essential when drawing circles, without it, the circles stretch into ovals depending on the plot aspect ratio.
 
-`geom_voronoi_segment()` creates a Voronoi tessellation from a set of points. Each cell contains all space closer to its point than to any other — useful for spatial analysis and artistic data visualisation.
+`geom_voronoi_segment()` creates a Voronoi tessellation from a set of points. Each cell contains all space closer to its point than to any other, useful for spatial analysis and artistic data visualisation.
 
 ```r
 set.seed(42)
@@ -716,7 +716,7 @@ ggplot(diamonds_small, aes(carat, price)) +
 #> The context panel shows the full exponential price-carat curve.
 ```
 
-This plot tells a story in one frame: the full price-carat curve shows exponential growth, while the zoomed panel reveals how cut quality creates distinct clusters at smaller sizes. The ellipse annotations draw the reader's eye to the key comparison — Ideal vs Fair — without overwhelming the plot.
+This plot tells a story in one frame: the full price-carat curve shows exponential growth, while the zoomed panel reveals how cut quality creates distinct clusters at smaller sizes. The ellipse annotations draw the reader's eye to the key comparison, Ideal vs Fair, without overwhelming the plot.
 
 ## Summary
 
@@ -739,16 +739,16 @@ This plot tells a story in one frame: the full price-carat curve shows exponenti
 
 ## References
 
-1. Pedersen, T.L. — ggforce: Accelerating 'ggplot2'. Official package documentation. [Link](https://ggforce.data-imaginist.com/)
-2. CRAN — ggforce package. [Link](https://cran.r-project.org/package=ggforce)
-3. Pedersen, T.L. — "Accelerate your plots with ggforce", R Views (2019). [Link](https://rviews.rstudio.com/2019/09/19/intro-to-ggforce/)
-4. Wickham, H. — *ggplot2: Elegant Graphics for Data Analysis*, 3rd Edition. Springer (2016). [Link](https://ggplot2-book.org/)
-5. Rapp, A. — "A couple of visualizations from ggforce". [Link](https://albert-rapp.de/posts/ggplot2-tips/05_ggforce_examples/05_ggforce_examples)
-6. ggforce GitHub repository — thomasp85/ggforce. [Link](https://github.com/thomasp85/ggforce)
-7. Sidiropoulos, N. et al. — "SinaPlot: An Enhanced Chart for Simple and Truthful Representation of Single Observations over Multiple Classes", Journal of Computational and Graphical Statistics (2018). [Link](https://doi.org/10.1080/10618600.2017.1366914)
+1. Pedersen, T.L., ggforce: Accelerating 'ggplot2'. Official package documentation. [Link](https://ggforce.data-imaginist.com/)
+2. CRAN, ggforce package. [Link](https://cran.r-project.org/package=ggforce)
+3. Pedersen, T.L., "Accelerate your plots with ggforce", R Views (2019). [Link](https://rviews.rstudio.com/2019/09/19/intro-to-ggforce/)
+4. Wickham, H., *ggplot2: Elegant Graphics for Data Analysis*, 3rd Edition. Springer (2016). [Link](https://ggplot2-book.org/)
+5. Rapp, A., "A couple of visualizations from ggforce". [Link](https://albert-rapp.de/posts/ggplot2-tips/05_ggforce_examples/05_ggforce_examples)
+6. ggforce GitHub repository, thomasp85/ggforce. [Link](https://github.com/thomasp85/ggforce)
+7. Sidiropoulos, N. et al., "SinaPlot: An Enhanced Chart for Simple and Truthful Representation of Single Observations over Multiple Classes", Journal of Computational and Graphical Statistics (2018). [Link](https://doi.org/10.1080/10618600.2017.1366914)
 
 ## Continue Learning
 
-- [ggplot2 Facets](ggplot2-Facets.html) — Master facet_wrap() and facet_grid() for multi-panel plots before extending them with ggforce's advanced facets.
-- [ggplot2 Labels and Annotations](ggplot2-Labels-and-Annotations.html) — Learn ggplot2's built-in annotation tools that complement ggforce's mark geoms.
-- [ggthemes Package](ggthemes-Package.html) — Add publication-quality themes to your ggforce-enhanced plots with one line of code.
+- [ggplot2 Facets](ggplot2-Facets.html), Master facet_wrap() and facet_grid() for multi-panel plots before extending them with ggforce's advanced facets.
+- [ggplot2 Labels and Annotations](ggplot2-Labels-and-Annotations.html), Learn ggplot2's built-in annotation tools that complement ggforce's mark geoms.
+- [ggthemes Package](ggthemes-Package.html), Add publication-quality themes to your ggforce-enhanced plots with one line of code.

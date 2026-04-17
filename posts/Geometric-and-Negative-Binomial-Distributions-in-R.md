@@ -20,7 +20,7 @@ difficulty: "Intermediate"
 
 ## How do we count trials until a success?
 
-Imagine you are cold-calling prospects. Each call either lands a meeting (success) or it doesn't (failure). A natural question is: how many calls will you make before the first yes? The geometric distribution answers exactly that. In R, `dgeom(x, prob)` returns the probability of seeing exactly `x` failures before the first success — no hand-derived formula, just one function call.
+Imagine you are cold-calling prospects. Each call either lands a meeting (success) or it doesn't (failure). A natural question is: how many calls will you make before the first yes? The geometric distribution answers exactly that. In R, `dgeom(x, prob)` returns the probability of seeing exactly `x` failures before the first success, no hand-derived formula, just one function call.
 
 Let's compute the probability of three rejections then a yes when each call has a 25% chance of success, and also the long-run average number of rejections before a yes.
 
@@ -37,10 +37,10 @@ mean_failures
 #> [1] 3
 ```
 
-There is about a 10.5% chance that you face exactly three rejections before landing the first meeting. On average, you should expect three rejections before a yes at this success rate. Those two numbers — the probability of a specific wait and the expected wait — are the bread and butter of every question the geometric distribution answers.
+There is about a 10.5% chance that you face exactly three rejections before landing the first meeting. On average, you should expect three rejections before a yes at this success rate. Those two numbers, the probability of a specific wait and the expected wait, are the bread and butter of every question the geometric distribution answers.
 
 [KEY INSIGHT]
-**R's `dgeom()` counts failures, not total trials.** A value of `x = 3` means "three rejections then a success on the fourth call," so the total call count is `x + 1`. Many textbooks count the trial index instead — if you see a formula that starts at 1, translate by subtracting one before calling `dgeom()`.
+**R's `dgeom()` counts failures, not total trials.** A value of `x = 3` means "three rejections then a success on the fourth call," so the total call count is `x + 1`. Many textbooks count the trial index instead, if you see a formula that starts at 1, translate by subtracting one before calling `dgeom()`.
 
 **Try it:** Compute the probability of exactly 5 failures before the first success when each trial has `p = 0.30`. Save it to `ex_geom_prob`.
 
@@ -97,10 +97,10 @@ ggplot(geom_df, aes(x = x, y = prob, fill = p_label)) +
   theme_minimal()
 ```
 
-At `p = 0.5` the mass piles up on zero — most of the time the very first trial is the success. At `p = 0.25` the distribution has a long right tail because rare events take longer to wait for. The bigger `p`, the shorter the wait.
+At `p = 0.5` the mass piles up on zero, most of the time the very first trial is the success. At `p = 0.25` the distribution has a long right tail because rare events take longer to wait for. The bigger `p`, the shorter the wait.
 
 [NOTE]
-**Two conventions compete for "geometric distribution."** R counts failures before the first success (support starts at 0). Many probability textbooks count the trial number *of* the first success (support starts at 1). The two versions differ by exactly one — if your formula gives a mean of `1/p`, it is using the trial-number version; R's mean is `(1 - p)/p`.
+**Two conventions compete for "geometric distribution."** R counts failures before the first success (support starts at 0). Many probability textbooks count the trial number *of* the first success (support starts at 1). The two versions differ by exactly one, if your formula gives a mean of `1/p`, it is using the trial-number version; R's mean is `(1 - p)/p`.
 
 **Try it:** Use the formula to predict the mean number of failures before the first success for `p = 0.2`, then confirm it with a large simulation using `rgeom()`. Save the theoretical mean to `ex_mean_theory` and the simulated mean to `ex_mean_sim`.
 
@@ -165,10 +165,10 @@ ggplot(nb_df, aes(x = x, y = prob, colour = size_label)) +
   theme_minimal()
 ```
 
-At `size = 1`, the curve is the geometric — monotonically decreasing from zero. As `size` grows, the mode shifts right and the distribution gets wider, because waiting for more successes means enduring more rejections on the way.
+At `size = 1`, the curve is the geometric, monotonically decreasing from zero. As `size` grows, the mode shifts right and the distribution gets wider, because waiting for more successes means enduring more rejections on the way.
 
 [KEY INSIGHT]
-**`size = 1` is the geometric; larger `size` means longer waits.** Every negative binomial PMF at `size = 1` equals the geometric PMF with the same `prob`. Use that mental shortcut to sanity-check your `dnbinom()` calls — if `size = 1` and the answer doesn't match `dgeom()`, something is off.
+**`size = 1` is the geometric; larger `size` means longer waits.** Every negative binomial PMF at `size = 1` equals the geometric PMF with the same `prob`. Use that mental shortcut to sanity-check your `dnbinom()` calls, if `size = 1` and the answer doesn't match `dgeom()`, something is off.
 
 **Try it:** Compute the probability of exactly 10 failures before the 3rd success when `p = 0.4`. Save it to `ex_nb_prob`.
 
@@ -222,7 +222,7 @@ c(classic = classic_form, mu_form = mu_form)
 Both calls return the same probability. The takeaway: you can report NB results either way without changing the math. Pick `prob` if you're teaching theory, `mu` if you're matching a regression output.
 
 [WARNING]
-**Do not pass both `prob` and `mu` to `dnbinom()`.** If you supply both, R silently uses `mu` and ignores `prob` — no warning, no error, just quietly wrong numbers if you expected `prob` to win. Always set exactly one.
+**Do not pass both `prob` and `mu` to `dnbinom()`.** If you supply both, R silently uses `mu` and ignores `prob`, no warning, no error, just quietly wrong numbers if you expected `prob` to win. Always set exactly one.
 
 **Try it:** Convert `size = 5`, `mu = 12` into the matching `prob`, and verify that `dnbinom(8, size = 5, prob = <your prob>)` equals `dnbinom(8, size = 5, mu = 12)`. Save the probability to `ex_prob_convert`.
 
@@ -269,7 +269,7 @@ hist(sim_geom, breaks = 40, col = "steelblue",
      xlab = "Failures before first success")
 ```
 
-The histogram's shape matches the theoretical PMF from earlier — most runs end fast, but a long tail shows the occasional unlucky stretch of many rejections. Simulation confirms what the formula predicts.
+The histogram's shape matches the theoretical PMF from earlier, most runs end fast, but a long tail shows the occasional unlucky stretch of many rejections. Simulation confirms what the formula predicts.
 
 A quick sanity check: the empirical mean should be close to the theoretical mean `(1 - p)/p = 3`.
 
@@ -314,7 +314,7 @@ ex_sim_mean
 
 ## When should you use the negative binomial in modeling?
 
-The negative binomial earns its keep with **overdispersed counts** — real-world count data whose variance is bigger than the mean. The Poisson distribution assumes variance equals mean, which rarely holds in observational data: doctor visits per patient, insurance claims per policy, errors per session. When variance exceeds mean, Poisson confidence intervals are too narrow and p-values too optimistic.
+The negative binomial earns its keep with **overdispersed counts**, real-world count data whose variance is bigger than the mean. The Poisson distribution assumes variance equals mean, which rarely holds in observational data: doctor visits per patient, insurance claims per policy, errors per session. When variance exceeds mean, Poisson confidence intervals are too narrow and p-values too optimistic.
 
 The NB fixes this. Its variance formula is:
 
@@ -340,10 +340,10 @@ c(pois_mean = mean(pois_sim), pois_var = var(pois_sim),
 #>     4.988     4.963      4.986    17.41
 ```
 
-Both samples average near 5, but the Poisson variance is ~5 and the NB variance is ~17 — more than triple. The theoretical NB variance is `5 + 5²/2 = 17.5`, which matches the simulated 17.41. If you fit Poisson to NB data, your standard errors will be too small by roughly `sqrt(17.5 / 5) ≈ 1.87`.
+Both samples average near 5, but the Poisson variance is ~5 and the NB variance is ~17, more than triple. The theoretical NB variance is `5 + 5²/2 = 17.5`, which matches the simulated 17.41. If you fit Poisson to NB data, your standard errors will be too small by roughly `sqrt(17.5 / 5) ≈ 1.87`.
 
 [NOTE]
-**For NB regression, use `MASS::glm.nb()` or `glmmTMB`.** This post covers the distribution itself — the building block. The regression counterpart fits `size` and a model for `mu` jointly from your data; that's a separate tool built on top of this distribution.
+**For NB regression, use `MASS::glm.nb()` or `glmmTMB`.** This post covers the distribution itself, the building block. The regression counterpart fits `size` and a model for `mu` jointly from your data; that's a separate tool built on top of this distribution.
 
 **Try it:** Simulate 2,000 negative binomial draws with `mu = 5` and `size = 2`. Compute the sample variance and compare it to the theoretical `5 + 25/2 = 17.5`. Save the sample variance to `ex_nb_var`.
 
@@ -400,7 +400,7 @@ c(expected = my_expected, budget_p90 = my_budget)
 #>    5.667     14.000
 ```
 
-**Explanation:** On average you wait 5.67 rejections before a yes. But to be 90% confident you'll land at least one meeting, budget for 14 failed calls — the 90th percentile of the geometric distribution at this success rate.
+**Explanation:** On average you wait 5.67 rejections before a yes. But to be 90% confident you'll land at least one meeting, budget for 14 failed calls, the 90th percentile of the geometric distribution at this success rate.
 
 </details>
 
@@ -509,17 +509,17 @@ Remember the three anchors:
 
 ## References
 
-1. R Core Team — `Geometric` distribution, base `stats` package. [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/Geometric.html)
-2. R Core Team — `NegBinomial` distribution, base `stats` package. [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/NegBinomial.html)
-3. Wikipedia — Negative binomial distribution. [Link](https://en.wikipedia.org/wiki/Negative_binomial_distribution)
-4. Wikipedia — Geometric distribution. [Link](https://en.wikipedia.org/wiki/Geometric_distribution)
-5. Casella, G. & Berger, R. L. — *Statistical Inference* (2nd ed), Chapter 3: Common Families of Distributions. Duxbury, 2002.
-6. Hilbe, J. M. — *Negative Binomial Regression* (2nd ed). Cambridge University Press, 2011.
-7. Venables, W. N. & Ripley, B. D. — *Modern Applied Statistics with S*. Chapter 7, `MASS::glm.nb()`. Springer, 2002.
-8. Statology — A Guide to `dgeom`, `pgeom`, `qgeom`, `rgeom`. [Link](https://www.statology.org/dgeom-pgeom-qgeom-rgeom-r/)
+1. R Core Team, `Geometric` distribution, base `stats` package. [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/Geometric.html)
+2. R Core Team, `NegBinomial` distribution, base `stats` package. [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/NegBinomial.html)
+3. Wikipedia, Negative binomial distribution. [Link](https://en.wikipedia.org/wiki/Negative_binomial_distribution)
+4. Wikipedia, Geometric distribution. [Link](https://en.wikipedia.org/wiki/Geometric_distribution)
+5. Casella, G. & Berger, R. L., *Statistical Inference* (2nd ed), Chapter 3: Common Families of Distributions. Duxbury, 2002.
+6. Hilbe, J. M., *Negative Binomial Regression* (2nd ed). Cambridge University Press, 2011.
+7. Venables, W. N. & Ripley, B. D., *Modern Applied Statistics with S*. Chapter 7, `MASS::glm.nb()`. Springer, 2002.
+8. Statology, A Guide to `dgeom`, `pgeom`, `qgeom`, `rgeom`. [Link](https://www.statology.org/dgeom-pgeom-qgeom-rgeom-r/)
 
 ## Continue Learning
 
-- [Binomial vs Poisson in R](Binomial-and-Poisson-Distributions-in-R.html) — the parent tutorial on fixed-n and rare-event count distributions.
-- [The Exponential Distribution in R](The-Exponential-Distribution-in-R.html) — the continuous-time analogue of the geometric, for waiting times measured in real numbers.
-- [Fitting Distributions to Data in R](Fitting-Distributions-to-Data-in-R.html) — how to verify whether your observed counts actually follow a geometric or negative binomial shape.
+- [Binomial vs Poisson in R](Binomial-and-Poisson-Distributions-in-R.html), the parent tutorial on fixed-n and rare-event count distributions.
+- [The Exponential Distribution in R](The-Exponential-Distribution-in-R.html), the continuous-time analogue of the geometric, for waiting times measured in real numbers.
+- [Fitting Distributions to Data in R](Fitting-Distributions-to-Data-in-R.html), how to verify whether your observed counts actually follow a geometric or negative binomial shape.

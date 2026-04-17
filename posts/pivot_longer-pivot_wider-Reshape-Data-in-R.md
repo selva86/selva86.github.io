@@ -18,11 +18,11 @@ difficulty: "Intermediate"
 
 # pivot_longer() and pivot_wider(): Reshape Data in R Without Losing Your Mind
 
-<p class="lead"><code>pivot_longer()</code> stacks several columns into one name-value pair, moving data from wide to long. <code>pivot_wider()</code> does the opposite — it spreads one column's values across new columns. They are inverses of each other, and together they cover almost every reshape job you will ever meet in R.</p>
+<p class="lead"><code>pivot_longer()</code> stacks several columns into one name-value pair, moving data from wide to long. <code>pivot_wider()</code> does the opposite, it spreads one column's values across new columns. They are inverses of each other, and together they cover almost every reshape job you will ever meet in R.</p>
 
 ## What does wide vs long data actually look like?
 
-Most datasets arrive "wide" because humans like compact tables that fit on a screen. Sales by quarter, scores by subject, sensor readings by hour — the label sits in a column header and the number sits in a cell. Analysis tools, however, prefer "long" data where each row is a single observation. Let's see the same data in both shapes so the payoff is obvious before we touch arguments.
+Most datasets arrive "wide" because humans like compact tables that fit on a screen. Sales by quarter, scores by subject, sensor readings by hour, the label sits in a column header and the number sits in a cell. Analysis tools, however, prefer "long" data where each row is a single observation. Let's see the same data in both shapes so the payoff is obvious before we touch arguments.
 
 ```r
 library(tidyr)
@@ -59,12 +59,12 @@ sales_long
 #> 9 East  Q3        155
 ```
 
-The wide version has 3 rows × 4 columns. The long version has 9 rows × 3 columns. Same information, different shape. Notice how every row in the long table now describes exactly one sales figure at one store in one quarter — that is what "tidy" means.
+The wide version has 3 rows × 4 columns. The long version has 9 rows × 3 columns. Same information, different shape. Notice how every row in the long table now describes exactly one sales figure at one store in one quarter, that is what "tidy" means.
 
 ![Wide vs long shape of the same dataset](screenshots/pivot_longer-pivot_wider-wide-vs-long.webp)
 *Figure 1: The same sales data in wide and long form. Wide stores values in column headers; long stores them in a single column.*
 
-Why prefer long? Because ggplot2, dplyr's `group_by()`, and most statistical functions expect each observation on its own row. Try to plot the wide table with ggplot — you cannot map "quarter" to the x-axis because it does not exist as a column. Reshape first, plot second.
+Why prefer long? Because ggplot2, dplyr's `group_by()`, and most statistical functions expect each observation on its own row. Try to plot the wide table with ggplot, you cannot map "quarter" to the x-axis because it does not exist as a column. Reshape first, plot second.
 
 > **[TIP]** A quick test: if you find yourself writing `Q1 + Q2 + Q3` or `mean(c(col1, col2, col3))` to compute something across columns, your data is wide and you probably want it long.
 
@@ -111,7 +111,7 @@ grades_wide |>
 #> 9 Cleo    english    92
 ```
 
-`cols = math:english` selects those three subject columns by range, and pivot_longer stacks them into two new columns: `subject` (the former headers) and `grade` (the former values). `student` wasn't named in `cols`, so it's kept as an ID — each student now spans three rows, one per subject.
+`cols = math:english` selects those three subject columns by range, and pivot_longer stacks them into two new columns: `subject` (the former headers) and `grade` (the former values). `student` wasn't named in `cols`, so it's kept as an ID, each student now spans three rows, one per subject.
 </details>
 
 ## How does pivot_longer() turn wide columns into rows?
@@ -153,7 +153,7 @@ weather_long
 #> 9 Lima    2023       27
 ```
 
-Three things worth noticing. First, `cols = 2021:2023` selects a range of columns using the same tidyselect helpers as `select()` — you can also write `cols = starts_with("20")` or `cols = -city` to say "everything except city". Second, `names_transform` turns the text `"2021"` into an integer, which matters because column headers are always strings even when they look like numbers. Third, the `city` column is preserved without being named anywhere — pivot_longer keeps every column not listed in `cols`.
+Three things worth noticing. First, `cols = 2021:2023` selects a range of columns using the same tidyselect helpers as `select()`, you can also write `cols = starts_with("20")` or `cols = -city` to say "everything except city". Second, `names_transform` turns the text `"2021"` into an integer, which matters because column headers are always strings even when they look like numbers. Third, the `city` column is preserved without being named anywhere, pivot_longer keeps every column not listed in `cols`.
 
 > **[NOTE]** If your wide table has holes (NA values where a measurement is missing), add `values_drop_na = TRUE` to drop those rows automatically. Without it you get explicit NA rows in the long output.
 
@@ -225,7 +225,7 @@ sales_back
 #> 3 East    150   160   155
 ```
 
-That is the same shape as the original `sales_wide`. Round-trip confirmed — pivot_longer and pivot_wider undo each other exactly. When would you actually *want* to go long→wide? The classic case is preparing a report table for humans: a row per customer, a column per month, ready to paste into a slide. Another is computing differences across groups, like churn rate between Q1 and Q2, which is easier when each quarter is its own column.
+That is the same shape as the original `sales_wide`. Round-trip confirmed, pivot_longer and pivot_wider undo each other exactly. When would you actually *want* to go long→wide? The classic case is preparing a report table for humans: a row per customer, a column per month, ready to paste into a slide. Another is computing differences across groups, like churn rate between Q1 and Q2, which is easier when each quarter is its own column.
 
 ```r
 # A report-ready table: students as rows, subjects as columns
@@ -278,12 +278,12 @@ survey |>
 #> 2     2     2     4     5
 ```
 
-`names_from = question` promotes each distinct question label to its own column; `values_from = answer` fills those columns with the matching score. `id` isn't named in either argument, so it's treated as the row identifier — one row per respondent.
+`names_from = question` promotes each distinct question label to its own column; `values_from = answer` fills those columns with the matching score. `id` isn't named in either argument, so it's treated as the row identifier, one row per respondent.
 </details>
 
 ## How do you split compound column names with names_sep and names_pattern?
 
-Real datasets often pack two pieces of information into a single column name. Think `sales_2022_Q1`, `temp_min`, or `height_cm`. `pivot_longer()` can split these into separate columns during the reshape — no extra `separate()` step needed.
+Real datasets often pack two pieces of information into a single column name. Think `sales_2022_Q1`, `temp_min`, or `height_cm`. `pivot_longer()` can split these into separate columns during the reshape, no extra `separate()` step needed.
 
 ```r
 library(tidyr)
@@ -314,9 +314,9 @@ stocks_long
 #> ...
 ```
 
-`names_to` now takes a character vector — one name per chunk of the original header. `names_sep = "_"` splits on underscore. The result gives us a clean `ticker` and `price_type` pair that you can filter, group, or plot directly.
+`names_to` now takes a character vector, one name per chunk of the original header. `names_sep = "_"` splits on underscore. The result gives us a clean `ticker` and `price_type` pair that you can filter, group, or plot directly.
 
-When your headers follow a more complex pattern — say `sales_q1_2022` where a regex would help — use `names_pattern` with capture groups:
+When your headers follow a more complex pattern, say `sales_q1_2022` where a regex would help, use `names_pattern` with capture groups:
 
 ```r
 messy <- tibble(
@@ -396,7 +396,7 @@ pop |>
 
 ## What happens when pivot_wider() creates missing values?
 
-Going long is always safe — every row lands somewhere. Going wide is riskier. If the long table is missing a combination of `names_from` and row-ID columns, pivot_wider fills the gap with `NA`. Sometimes that is what you want. Sometimes it is a bug.
+Going long is always safe, every row lands somewhere. Going wide is riskier. If the long table is missing a combination of `names_from` and row-ID columns, pivot_wider fills the gap with `NA`. Sometimes that is what you want. Sometimes it is a bug.
 
 ```r
 attendance <- tibble(
@@ -415,7 +415,7 @@ attendance |>
 #> 3 Cleo        1    NA     0
 ```
 
-Bilal has no Tuesday record, so pivot_wider inserts NA. Often you would rather see a 0 — absence means "not present", not "unknown". Use `values_fill`:
+Bilal has no Tuesday record, so pivot_wider inserts NA. Often you would rather see a 0, absence means "not present", not "unknown". Use `values_fill`:
 
 ```r
 attendance |>
@@ -445,7 +445,7 @@ log |>
 #> 1 Asha       45    45
 ```
 
-> **[KEY INSIGHT]** `values_fill` handles missing combinations; `values_fn` handles duplicate combinations. Memorize this pair — between them they fix 95% of real pivot_wider headaches.
+> **[KEY INSIGHT]** `values_fill` handles missing combinations; `values_fn` handles duplicate combinations. Memorize this pair, between them they fix 95% of real pivot_wider headaches.
 
 **Try it:** Fix this pivot so missing months become 0 instead of NA.
 
@@ -485,7 +485,7 @@ Without `values_fill`, users `b` and `c` would get `NA` for the months they neve
 
 ## How do you reshape multiple value columns at once?
 
-Sometimes one row of long data carries several kinds of measurement. Think: per student, per subject, both a grade and a rank. You want a wide table where each subject gets *two* columns — one for grade, one for rank. `pivot_wider()` handles this naturally.
+Sometimes one row of long data carries several kinds of measurement. Think: per student, per subject, both a grade and a rank. You want a wide table where each subject gets *two* columns, one for grade, one for rank. `pivot_wider()` handles this naturally.
 
 ```r
 exam <- tibble(
@@ -525,7 +525,7 @@ exam |>
 
 `{.value}` is a placeholder for the name of the value column being spread. `{subject}` is the current value from `names_from`. This templating is a huge time-saver when you need the resulting columns in a specific order for a report.
 
-> **[TIP]** The same trick works in reverse with `pivot_longer()` — pass `names_to = c(".value", "year")` with `names_sep = "_"` and a header like `grade_2022` becomes a `grade` column with a `year` side column. The `.value` token tells pivot_longer "this chunk is the value column's new name".
+> **[TIP]** The same trick works in reverse with `pivot_longer()`, pass `names_to = c(".value", "year")` with `names_sep = "_"` and a header like `grade_2022` becomes a `grade` column with a `year` side column. The `.value` token tells pivot_longer "this chunk is the value column's new name".
 
 **Try it:** Widen this long table so each product becomes two columns, `units` and `revenue`.
 
@@ -580,7 +580,7 @@ Here are the common triggers for going long:
 Triggers for going wide:
 
 - **You are building a report table** where humans will read rows and columns side by side.
-- **You are computing ratios or differences** between specific columns — for example Q2 revenue divided by Q1 revenue is trivial when they are two columns and awkward when they share one.
+- **You are computing ratios or differences** between specific columns, for example Q2 revenue divided by Q1 revenue is trivial when they are two columns and awkward when they share one.
 - **You are exporting to a spreadsheet** where analysts expect the wide layout.
 
 ```r
@@ -595,7 +595,7 @@ sales_long |>
 #> 1      360      410      415    120 136.67 138.33
 ```
 
-> **[NOTE]** If you never plot and never export, you probably do not need to reshape at all. Shape is a means, not an end — do not pivot for fun.
+> **[NOTE]** If you never plot and never export, you probably do not need to reshape at all. Shape is a means, not an end, do not pivot for fun.
 
 **Try it:** Given this long table of temperatures, produce a wide report showing min and max temperature per city per year.
 
@@ -631,12 +631,12 @@ temps |>
 #> 2 Berlin         -5         28         -4         30
 ```
 
-Passing two columns to `names_from` asks pivot_wider to build one new column per unique `year`/`kind` combination, joining the levels with an underscore. Each city ends up with four summary columns side by side — ideal for a compact report.
+Passing two columns to `names_from` asks pivot_wider to build one new column per unique `year`/`kind` combination, joining the levels with an underscore. Each city ends up with four summary columns side by side, ideal for a compact report.
 </details>
 
 ## Practice Exercises
 
-These exercises combine multiple ideas from the post. Work through them in order — each builds on the previous.
+These exercises combine multiple ideas from the post. Work through them in order, each builds on the previous.
 
 ### Exercise 1: Clean up a messy survey
 
@@ -800,31 +800,31 @@ The `.value` token does the heavy lifting in both directions. In step 2 it captu
 |---|---|---|
 | Direction | wide → long | long → wide |
 | Main args | cols, names_to, values_to | names_from, values_from |
-| Splits names | names_sep, names_pattern | — |
-| Combines values | — | values_from = c(a, b) |
+| Splits names | names_sep, names_pattern |, |
+| Combines values |, | values_from = c(a, b) |
 | Missing combos | values_drop_na | values_fill |
-| Duplicate keys | — | values_fn |
-| Templated names | — | names_glue |
+| Duplicate keys |, | values_fn |
+| Templated names |, | names_glue |
 | Special token | `.value` (inverse) | `.value` |
 
 Four rules to remember:
 
 1. **Plot long, report wide.** Long form for analysis and ggplot; wide form for human-readable tables.
-2. **`cols` uses tidyselect.** Same helpers as `select()` — `starts_with()`, `-col`, ranges, etc.
+2. **`cols` uses tidyselect.** Same helpers as `select()`, `starts_with()`, `-col`, ranges, etc.
 3. **Missing vs duplicate are different fixes.** `values_fill` for holes, `values_fn` for collisions.
 4. **`.value` is the round-trip token.** Use it when headers encode both a variable name and a group.
 
 ## References
 
-- [tidyr pivoting vignette](https://tidyr.tidyverse.org/articles/pivot.html) — the authoritative reference from the package authors.
+- [tidyr pivoting vignette](https://tidyr.tidyverse.org/articles/pivot.html), the authoritative reference from the package authors.
 - [pivot_longer() reference](https://tidyr.tidyverse.org/reference/pivot_longer.html)
 - [pivot_wider() reference](https://tidyr.tidyverse.org/reference/pivot_wider.html)
-- [Hadley Wickham, *Tidy Data*, JSS 2014](https://www.jstatsoft.org/article/view/v059i10) — the paper that started it all.
-- [R for Data Science, 2e — Data Tidying chapter](https://r4ds.hadley.nz/data-tidy.html)
-- [tidyselect reference](https://tidyselect.r-lib.org/reference/language.html) — for the helpers `cols` accepts.
+- [Hadley Wickham, *Tidy Data*, JSS 2014](https://www.jstatsoft.org/article/view/v059i10), the paper that started it all.
+- [R for Data Science, 2e, Data Tidying chapter](https://r4ds.hadley.nz/data-tidy.html)
+- [tidyselect reference](https://tidyselect.r-lib.org/reference/language.html), for the helpers `cols` accepts.
 
 ## Continue Learning
 
-- [dplyr filter() and select()](dplyr-filter-select.html) — the row and column basics that pair with every pivot.
-- [dplyr group_by() and summarise()](dplyr-group-by-summarise.html) — long data shines here; pivot first, group second.
-- [R Joins With Visual Diagrams](R-Joins.html) — combine reshaped data with other tables.
+- [dplyr filter() and select()](dplyr-filter-select.html), the row and column basics that pair with every pivot.
+- [dplyr group_by() and summarise()](dplyr-group-by-summarise.html), long data shines here; pivot first, group second.
+- [R Joins With Visual Diagrams](R-Joins.html), combine reshaped data with other tables.

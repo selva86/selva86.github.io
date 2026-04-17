@@ -16,13 +16,13 @@ difficulty: "Intermediate"
 
 # R for Stata Users: The Command-by-Command Translation Guide
 
-<p class="lead">Stata and R both excel at statistical analysis, but their syntax is fundamentally different. This guide maps every common Stata command to its R equivalent — with side-by-side tables and runnable examples — so you can switch without losing productivity.</p>
+<p class="lead">Stata and R both excel at statistical analysis, but their syntax is fundamentally different. This guide maps every common Stata command to its R equivalent, with side-by-side tables and runnable examples, so you can switch without losing productivity.</p>
 
 ## How do you load and inspect data in R the Stata way?
 
-Most Stata users come to R looking for one thing first: "show me how to load my data and look at it." So that is exactly where this guide starts. The example below loads a built-in dataset, prints its structure, and previews the first rows — the R equivalent of `use`, `describe`, and `list in 1/6`. If this output feels familiar, the rest of the guide will be too.
+Most Stata users come to R looking for one thing first: "show me how to load my data and look at it." So that is exactly where this guide starts. The example below loads a built-in dataset, prints its structure, and previews the first rows, the R equivalent of `use`, `describe`, and `list in 1/6`. If this output feels familiar, the rest of the guide will be too.
 
-R ships with dozens of teaching datasets that are always available — no `use` needed. We will use `mtcars` (32 cars, 11 variables) throughout this guide because it is everywhere in R's documentation.
+R ships with dozens of teaching datasets that are always available, no `use` needed. We will use `mtcars` (32 cars, 11 variables) throughout this guide because it is everywhere in R's documentation.
 
 ```r
 # Stata: use "mtcars.dta", clear ; describe ; list in 1/6
@@ -46,7 +46,7 @@ head(cars, 6)                   # list in 1/6
 #> Valiant           18.1   6  225 105 2.76 2.520 16.46  0  1    4    1
 ```
 
-Three things to notice. First, `cars <- mtcars` is R's assignment — the arrow points from the value to the name. Second, `str()` is your `describe`: types on the left, sample values on the right. Third, `head(cars, 6)` is `list in 1/6` and it returns the first six rows of the data frame as a new object you could store, plot, or pass on. There is no "current dataset" — `cars` is just a variable like any other.
+Three things to notice. First, `cars <- mtcars` is R's assignment, the arrow points from the value to the name. Second, `str()` is your `describe`: types on the left, sample values on the right. Third, `head(cars, 6)` is `list in 1/6` and it returns the first six rows of the data frame as a new object you could store, plot, or pass on. There is no "current dataset", `cars` is just a variable like any other.
 
 For real-world files, R has one function per format. The most common are below.
 
@@ -94,7 +94,7 @@ nrow(ex_iris)
 
 ## How do Stata and R think about data differently?
 
-Now that you can load data, the second-biggest mental shift is how that data lives in memory. Stata holds **one dataset at a time** — the moment you `use` a new file the old one is gone. R holds **many data frames simultaneously**, each as a named object you can pass into functions, loop over, or compare side by side. Once this clicks, most of R's "weirdness" disappears.
+Now that you can load data, the second-biggest mental shift is how that data lives in memory. Stata holds **one dataset at a time**, the moment you `use` a new file the old one is gone. R holds **many data frames simultaneously**, each as a named object you can pass into functions, loop over, or compare side by side. Once this clicks, most of R's "weirdness" disappears.
 
 Here is the mental model in code: two data frames are alive at the same time, each with its own columns, and missing values are a real value called `NA` rather than Stata's dot.
 
@@ -117,7 +117,7 @@ nrow(df_a); nrow(df_b)  # both objects still exist
 #> [1] 3
 ```
 
-Two design choices to call out. The `$` operator names a single column on a specific data frame, so `df_a$score` is unambiguous even if `df_b` also has a `score` column — there is no "current variable" to confuse them. And `mean(...)` returns `NA` unless you explicitly say `na.rm = TRUE`, because R wants you to acknowledge missing data rather than silently drop it.
+Two design choices to call out. The `$` operator names a single column on a specific data frame, so `df_a$score` is unambiguous even if `df_b` also has a `score` column, there is no "current variable" to confuse them. And `mean(...)` returns `NA` unless you explicitly say `na.rm = TRUE`, because R wants you to acknowledge missing data rather than silently drop it.
 
 | Concept | Stata | R |
 |---|---|---|
@@ -130,7 +130,7 @@ Two design choices to call out. The `$` operator names a single column on a spec
 | Variable scope | Global within dataset | Local to a data frame or function |
 
 [KEY INSIGHT]
-**R is a programming language with statistics built in, not a statistics program with scripting bolted on.** That single fact explains 90% of the differences you will encounter — assignment, scope, multiple objects, function-first design — and it is also why R can do things Stata cannot, like run a simulation in a loop and store every model object in a list.
+**R is a programming language with statistics built in, not a statistics program with scripting bolted on.** That single fact explains 90% of the differences you will encounter, assignment, scope, multiple objects, function-first design, and it is also why R can do things Stata cannot, like run a simulation in a loop and store every model object in a list.
 
 **Try it:** Compute the mean of `cars$hp` while ignoring missing values (there are none in `mtcars`, but the habit is what matters). Save it to `ex_mean_hp`.
 
@@ -156,9 +156,9 @@ ex_mean_hp
 
 ## How do you create and modify variables in R?
 
-Stata's `gen`, `replace`, `egen`, `recode`, `encode`, and `destring` cover most of day-to-day variable engineering. In R, all of those collapse into three patterns: assign with `<-`, index with `[]`, and use a vectorised function. There is no separate command for creating a variable versus modifying one — both are just assignment.
+Stata's `gen`, `replace`, `egen`, `recode`, `encode`, and `destring` cover most of day-to-day variable engineering. In R, all of those collapse into three patterns: assign with `<-`, index with `[]`, and use a vectorised function. There is no separate command for creating a variable versus modifying one, both are just assignment.
 
-The example below builds an `efficiency` column, conditionally zeros it out, and computes a group-mean column — the R analogue of `gen`, `replace ... if`, and `egen ... by()`.
+The example below builds an `efficiency` column, conditionally zeros it out, and computes a group-mean column, the R analogue of `gen`, `replace ... if`, and `egen ... by()`.
 
 ```r
 # Stata: gen efficiency = mpg / wt
@@ -200,7 +200,7 @@ Read the three statements as one Stata pipeline. Line one creates a numeric colu
 | `rename old new` | `names(df)[names(df) == "old"] <- "new"` |
 
 [NOTE]
-**The dplyr package offers a pipeline alternative.** Instead of repeated `df$col <-` assignments, you can write `library(dplyr); cars <- cars |> mutate(efficiency = mpg / wt, mean_mpg = mean(mpg), .by = cyl)`. Both styles produce identical results — base R is closer to Stata's line-by-line feel, dplyr is closer to a SQL pipeline. Use whichever clicks for you first.
+**The dplyr package offers a pipeline alternative.** Instead of repeated `df$col <-` assignments, you can write `library(dplyr); cars <- cars |> mutate(efficiency = mpg / wt, mean_mpg = mean(mpg), .by = cyl)`. Both styles produce identical results, base R is closer to Stata's line-by-line feel, dplyr is closer to a SQL pipeline. Use whichever clicks for you first.
 
 **Try it:** Add a column `hp_per_cyl` to a copy of `mtcars` named `ex_cars`, defined as `hp / cyl`. Print the first 4 rows of the new column.
 
@@ -224,13 +224,13 @@ head(ex_cars$hp_per_cyl, 4)
 #> [1] 18.33333 18.33333 23.25000 18.33333
 ```
 
-**Explanation:** Same `<-` assignment pattern. Dividing two columns is element-wise — no loop required, because R is vectorised by default.
+**Explanation:** Same `<-` assignment pattern. Dividing two columns is element-wise, no loop required, because R is vectorised by default.
 
 </details>
 
 ## How do you filter, sort, and merge data in R?
 
-This is where most Stata workflows live: keep some rows, drop others, sort, and join in a lookup table. Stata has dedicated commands for each (`keep if`, `drop if`, `sort`, `merge`, `append`). R has one general-purpose tool — bracket indexing — plus a few helper functions that wrap it. Once you see the pattern, all five operations look the same.
+This is where most Stata workflows live: keep some rows, drop others, sort, and join in a lookup table. Stata has dedicated commands for each (`keep if`, `drop if`, `sort`, `merge`, `append`). R has one general-purpose tool, bracket indexing, plus a few helper functions that wrap it. Once you see the pattern, all five operations look the same.
 
 The block below filters `mtcars` to fast 4-cylinder cars, sorts the result by horsepower, and then joins two tiny tables with `merge()`.
 
@@ -264,7 +264,7 @@ joined
 #> 5  5   Eve    120
 ```
 
-The first line filters, the second sorts, the third joins. Read `subset(cars, mpg > 25 & cyl == 4)` as "give me the rows of `cars` where the condition is true." `order(-fast_cars$hp)` returns the row positions in descending order of `hp`, and the bracket `[order_vector, ]` reshuffles the data frame. The merge call uses `by = "id"` to match keys and `all.x = TRUE` to keep every customer even if they never bought anything — that is why Carol shows up with `amount = NA`.
+The first line filters, the second sorts, the third joins. Read `subset(cars, mpg > 25 & cyl == 4)` as "give me the rows of `cars` where the condition is true." `order(-fast_cars$hp)` returns the row positions in descending order of `hp`, and the bracket `[order_vector, ]` reshuffles the data frame. The merge call uses `by = "id"` to match keys and `all.x = TRUE` to keep every customer even if they never bought anything, that is why Carol shows up with `amount = NA`.
 
 | Stata | R equivalent |
 |---|---|
@@ -314,7 +314,7 @@ ex_light_fast[, c("mpg", "wt", "hp")]
 
 ## How do you run descriptive statistics and t-tests in R?
 
-This section covers the everyday analysis you would normally reach for `summarize`, `tabulate`, and `ttest` to do. R's equivalents are `summary()`, `table()`, and `t.test()` — and because they return objects (not just printed text), you can pull pieces out of them programmatically.
+This section covers the everyday analysis you would normally reach for `summarize`, `tabulate`, and `ttest` to do. R's equivalents are `summary()`, `table()`, and `t.test()`, and because they return objects (not just printed text), you can pull pieces out of them programmatically.
 
 ```r
 # Stata: summarize mpg
@@ -339,7 +339,7 @@ cat("t =", round(tt$statistic, 3),
 #> t = -3.767  p = 0.0014  mean(auto) = 17.15  mean(manual) = 24.39
 ```
 
-Three commands, three key ideas. `summary()` on a numeric vector returns Stata's six-number summary. `table()` produces a cross-tabulation that you can pass into `chisq.test()` or `prop.table()` for percentages. And `t.test(mpg ~ am, data = cars)` reads as "compare `mpg` between groups defined by `am`" — the result is an object (`tt`) whose pieces you can pull out by name. That is why the printed output here is custom-formatted instead of the default — once you have the object, you control how it looks.
+Three commands, three key ideas. `summary()` on a numeric vector returns Stata's six-number summary. `table()` produces a cross-tabulation that you can pass into `chisq.test()` or `prop.table()` for percentages. And `t.test(mpg ~ am, data = cars)` reads as "compare `mpg` between groups defined by `am`", the result is an object (`tt`) whose pieces you can pull out by name. That is why the printed output here is custom-formatted instead of the default, once you have the object, you control how it looks.
 
 | Stata | R equivalent |
 |---|---|
@@ -357,7 +357,7 @@ Three commands, three key ideas. `summary()` on a numeric vector returns Stata's
 | `anova y g1 g2` | `summary(aov(y ~ g1 * g2, data = df))` |
 
 [TIP]
-**For Stata's `summarize, detail` output, install the `psych` package and use `psych::describe(df$x)`.** It returns mean, sd, median, trimmed mean, MAD, min, max, range, skew, and kurtosis in a single row — closer to what `summarize, detail` shows than base R's `summary()`.
+**For Stata's `summarize, detail` output, install the `psych` package and use `psych::describe(df$x)`.** It returns mean, sd, median, trimmed mean, MAD, min, max, range, skew, and kurtosis in a single row, closer to what `summarize, detail` shows than base R's `summary()`.
 
 **Try it:** Run a t-test of `mpg` between 4-cylinder and 8-cylinder cars only (filter first). Save the test object to `ex_tt` and print its `p.value`.
 
@@ -378,13 +378,13 @@ ex_tt$p.value
 #> [1] 4.539622e-09
 ```
 
-**Explanation:** Filter first so only two groups remain (`%in%` is the R operator for "is one of"). Then `t.test(mpg ~ cyl, ...)` does the comparison. `ex_tt$p.value` pulls a single number out of the result object — try `ex_tt$conf.int` and `ex_tt$estimate` too.
+**Explanation:** Filter first so only two groups remain (`%in%` is the R operator for "is one of"). Then `t.test(mpg ~ cyl, ...)` does the comparison. `ex_tt$p.value` pulls a single number out of the result object, try `ex_tt$conf.int` and `ex_tt$estimate` too.
 
 </details>
 
 ## How do you run regressions and get robust standard errors in R?
 
-This is the section most Stata users care about most. Good news: `lm()` and `glm()` cover everything you used `reg`, `logit`, `probit`, and `poisson` for, and the model object they return holds far more information than Stata's results window. Bad news: there is no single `, robust` flag — you opt in to a robust covariance matrix by passing it through `lmtest::coeftest()`. The pattern is shown below.
+This is the section most Stata users care about most. Good news: `lm()` and `glm()` cover everything you used `reg`, `logit`, `probit`, and `poisson` for, and the model object they return holds far more information than Stata's results window. Bad news: there is no single `, robust` flag, you opt in to a robust covariance matrix by passing it through `lmtest::coeftest()`. The pattern is shown below.
 
 ```r
 # Stata: reg mpg wt hp i.cyl
@@ -410,7 +410,7 @@ coef(model)["wt"]                # pull one coefficient by name
 #> -3.180850
 ```
 
-Read `mpg ~ wt + hp + factor(cyl)` as Stata's `reg mpg wt hp i.cyl`. The tilde `~` is "regress LHS on RHS"; `factor(cyl)` is the equivalent of `i.cyl`, telling R to treat the variable as categorical and create dummies. `summary(model)` is the closest thing R has to Stata's `regress` output — coefficients, standard errors, t-values, p-values, R², F-statistic. And `coef(model)["wt"]` shows how easily you can grab a single coefficient by name once the model is an object.
+Read `mpg ~ wt + hp + factor(cyl)` as Stata's `reg mpg wt hp i.cyl`. The tilde `~` is "regress LHS on RHS"; `factor(cyl)` is the equivalent of `i.cyl`, telling R to treat the variable as categorical and create dummies. `summary(model)` is the closest thing R has to Stata's `regress` output, coefficients, standard errors, t-values, p-values, R², F-statistic. And `coef(model)["wt"]` shows how easily you can grab a single coefficient by name once the model is an object.
 
 | Stata | R equivalent |
 |---|---|
@@ -429,7 +429,7 @@ Read `mpg ~ wt + hp + factor(cyl)` as Stata's `reg mpg wt hp i.cyl`. The tilde `
 | `vif` | `car::vif(model)` |
 
 [KEY INSIGHT]
-**`summary(model)` is R's `regress` output, but the model itself holds far more.** A Stata `regress` prints results to the Results window and stores a few scalars in `e()`; R's `model` object stores the formula, the data, the residuals, the fitted values, the design matrix, the coefficient covariance matrix, and the QR decomposition — all reachable as `model$coefficients`, `model$residuals`, `vcov(model)`, and so on. That is why you can pass a single `model` into `predict()`, `confint()`, `anova()`, `update()`, or any other function without re-running it.
+**`summary(model)` is R's `regress` output, but the model itself holds far more.** A Stata `regress` prints results to the Results window and stores a few scalars in `e()`; R's `model` object stores the formula, the data, the residuals, the fitted values, the design matrix, the coefficient covariance matrix, and the QR decomposition, all reachable as `model$coefficients`, `model$residuals`, `vcov(model)`, and so on. That is why you can pass a single `model` into `predict()`, `confint()`, `anova()`, `update()`, or any other function without re-running it.
 
 **Try it:** Fit `lm(mpg ~ wt + am, data = cars)` and save it to `ex_model`. Print only the coefficients (not the full summary).
 
@@ -456,7 +456,7 @@ coef(ex_model)
 
 ## How do you fit panel data and fixed-effects models in R?
 
-Stata's `xtreg, fe` is one of the language's signature commands. R has two main packages for the same job — `plm` (the older, comprehensive choice) and `fixest` (faster, with built-in cluster-robust SEs) — but you do not need either for the basic case. For one-way fixed effects, plain `lm(y ~ x + factor(id))` produces identical point estimates. The example below simulates a tiny panel and fits both an OLS model and a fixed-effects model so you can see the difference.
+Stata's `xtreg, fe` is one of the language's signature commands. R has two main packages for the same job, `plm` (the older, comprehensive choice) and `fixest` (faster, with built-in cluster-robust SEs), but you do not need either for the basic case. For one-way fixed effects, plain `lm(y ~ x + factor(id))` produces identical point estimates. The example below simulates a tiny panel and fits both an OLS model and a fixed-effects model so you can see the difference.
 
 ```r
 # Stata: xtset id year ; xtreg y x, fe
@@ -479,7 +479,7 @@ cat("Fixed-effects coefficient x: ", round(coef(fe_model)["x"], 3), "\n")
 #> Fixed-effects coefficient x:  1.972
 ```
 
-Compare the two coefficients on `x`. The pooled OLS estimate is biased away from the true value of 2 because it ignores the unit-specific intercept `fe`; the fixed-effects model recovers a value much closer to 2 because `factor(id)` absorbs each unit's mean. That is exactly what `xtreg, fe` does internally — the difference is that R makes the dummies visible, which keeps you honest about how many parameters you are estimating.
+Compare the two coefficients on `x`. The pooled OLS estimate is biased away from the true value of 2 because it ignores the unit-specific intercept `fe`; the fixed-effects model recovers a value much closer to 2 because `factor(id)` absorbs each unit's mean. That is exactly what `xtreg, fe` does internally, the difference is that R makes the dummies visible, which keeps you honest about how many parameters you are estimating.
 
 | Stata | R equivalent |
 |---|---|
@@ -492,7 +492,7 @@ Compare the two coefficients on `x`. The pooled OLS estimate is biased away from
 | `xtreg y x i.year, fe` | `lm(y ~ x + factor(id) + factor(year), data = df)` |
 
 [NOTE]
-**The `plm`, `fixest`, `sandwich`, and `lmtest` packages are best run in your local R or RStudio for production work.** The `lm() + factor()` pattern shown above runs in any R environment and is enough for small to medium panels, teaching examples, and quick sanity checks. For multi-million-row panels with multiple high-dimensional fixed effects, switch to `fixest::feols()` — it can be 100× faster than `lm()`.
+**The `plm`, `fixest`, `sandwich`, and `lmtest` packages are best run in your local R or RStudio for production work.** The `lm() + factor()` pattern shown above runs in any R environment and is enough for small to medium panels, teaching examples, and quick sanity checks. For multi-million-row panels with multiple high-dimensional fixed effects, switch to `fixest::feols()`, it can be 100× faster than `lm()`.
 
 **Try it:** Fit a fixed-effects model on the same `panel` data above but extract only the coefficient on `x` (not the FE dummies). Save it to `ex_x_coef`.
 
@@ -667,16 +667,16 @@ Three things to remember as you switch:
 
 ## References
 
-1. Wickham, H. & Grolemund, G. — *R for Data Science*, 2nd edition. O'Reilly (2023). [Link](https://r4ds.hadley.nz/)
-2. Gomez, M. — *statar: R for Stata Users*. [Link](https://www.matthieugomez.com/statar/)
-3. Clanfear, C. — *R and Stata Equivalencies*. [Link](https://clanfear.github.io/Stata_R_Equivalency/docs/r_stata_commands.html)
-4. stata2R project — *Translating Stata to R*. [Link](https://stata2r.github.io/)
+1. Wickham, H. & Grolemund, G., *R for Data Science*, 2nd edition. O'Reilly (2023). [Link](https://r4ds.hadley.nz/)
+2. Gomez, M., *statar: R for Stata Users*. [Link](https://www.matthieugomez.com/statar/)
+3. Clanfear, C., *R and Stata Equivalencies*. [Link](https://clanfear.github.io/Stata_R_Equivalency/docs/r_stata_commands.html)
+4. stata2R project, *Translating Stata to R*. [Link](https://stata2r.github.io/)
 5. haven package documentation. [Link](https://haven.tidyverse.org/)
-6. Torres-Reyna, O. — *Getting started in R~Stata: notes on exploring data*. Princeton University. [Link](https://www.princeton.edu/~otorres/RStata.pdf)
-7. Muenchen, R. A. — *R for Stata Users*. Springer (2010). [Link](https://link.springer.com/book/10.1007/978-1-4419-1318-0)
+6. Torres-Reyna, O., *Getting started in R~Stata: notes on exploring data*. Princeton University. [Link](https://www.princeton.edu/~otorres/RStata.pdf)
+7. Muenchen, R. A., *R for Stata Users*. Springer (2010). [Link](https://link.springer.com/book/10.1007/978-1-4419-1318-0)
 
 ## Continue Learning
 
-- [Is R Worth Learning in 2026?](Is-R-Worth-Learning-in-2026.html) — the full case for switching to R
-- [R for SAS Users](R-for-SAS-Users.html) — the SAS-to-R migration guide in the same format
-- [R for Excel Users](R-for-Excel-Users.html) — Excel-to-R translation for spreadsheet-first analysts
+- [Is R Worth Learning in 2026?](Is-R-Worth-Learning-in-2026.html), the full case for switching to R
+- [R for SAS Users](R-for-SAS-Users.html), the SAS-to-R migration guide in the same format
+- [R for Excel Users](R-for-Excel-Users.html), Excel-to-R translation for spreadsheet-first analysts

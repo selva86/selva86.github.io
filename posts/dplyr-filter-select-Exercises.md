@@ -1,5 +1,5 @@
 ---
-title: "dplyr filter() & select() Exercises: 12 Practice Problems — Solved Step-by-Step)"
+title: "dplyr filter() & select() Exercises: 12 Practice Problems, Solved Step-by-Step)"
 slug: "dplyr-filter-select-Exercises"
 description: "Practise dplyr filter() and select() with 12 hands-on R problems and worked solutions. Master row filtering and column selection from beginner to advanced."
 keywords: "dplyr filter exercises, dplyr select exercises, filter practice R, select practice R, dplyr practice problems, tidyverse exercises, R data manipulation exercises"
@@ -37,7 +37,7 @@ mtcars |> filter(mpg > 25)
 #> Lotus Europa   30.4   4  95.1 113 3.77 1.513 16.90  1  1    5    2
 ```
 
-Six cars exceed 25 mpg, and every one of them is a 4-cylinder model. Reading `filter()` is straightforward — pass the data frame first, then a condition; rows where the condition is `TRUE` come through to the result, everything else is dropped. Now try writing two of your own.
+Six cars exceed 25 mpg, and every one of them is a 4-cylinder model. Reading `filter()` is straightforward, pass the data frame first, then a condition; rows where the condition is `TRUE` come through to the result, everything else is dropped. Now try writing two of your own.
 
 **Try it:** Filter `mtcars` to keep only 4-cylinder cars. Save the result to `ex_fours` and print the first few rows.
 
@@ -64,7 +64,7 @@ nrow(ex_fours)
 #> [1] 11
 ```
 
-**Explanation:** `filter(cyl == 4)` keeps the 11 rows where the cylinder count equals four. Note the double equals — a single `=` is R's assignment operator and would error inside `filter()`.
+**Explanation:** `filter(cyl == 4)` keeps the 11 rows where the cylinder count equals four. Note the double equals, a single `=` is R's assignment operator and would error inside `filter()`.
 
 </details>
 
@@ -117,7 +117,7 @@ mtcars |> filter(mpg > 20, cyl == 4) |> head(4)
 #> Fiat 128      32.4   4  78.7  66 4.08 2.200 19.47  1  1    4    1
 ```
 
-Ten cars meet both conditions. The comma form reads more naturally than `mpg > 20 & cyl == 4`, but the two are identical — dplyr treats a comma-separated list of conditions as an AND chain.
+Ten cars meet both conditions. The comma form reads more naturally than `mpg > 20 & cyl == 4`, but the two are identical, dplyr treats a comma-separated list of conditions as an AND chain.
 
 **Try it:** From `mtcars`, keep rows where `cyl == 4` AND `mpg > 30`. Save to `ex_econ`.
 
@@ -143,7 +143,7 @@ print(ex_econ)
 #> Lotus Europa   30.4   4 95.1 113 3.77 1.513 16.90  1  1    5    2
 ```
 
-**Explanation:** Both conditions must be `TRUE` for a row to survive. Four cars pass — all small, light, and fuel-efficient. Writing `filter(cyl == 4 & mpg > 30)` would return the same result; pick whichever form you find more readable.
+**Explanation:** Both conditions must be `TRUE` for a row to survive. Four cars pass, all small, light, and fuel-efficient. Writing `filter(cyl == 4 & mpg > 30)` would return the same result; pick whichever form you find more readable.
 
 </details>
 
@@ -167,7 +167,7 @@ nrow(ex_46)
 #> [1] 18
 ```
 
-**Explanation:** `%in%` tests whether each value appears in a vector on the right. Eighteen cars have 4 or 6 cylinders; the remaining 14 are V8s. `%in%` stays readable as the list of allowed values grows — imagine writing ten `|` clauses by hand.
+**Explanation:** `%in%` tests whether each value appears in a vector on the right. Eighteen cars have 4 or 6 cylinders; the remaining 14 are V8s. `%in%` stays readable as the list of allowed values grows, imagine writing ten `|` clauses by hand.
 
 </details>
 
@@ -184,7 +184,7 @@ starwars |> filter(!is.na(mass)) |> nrow()
 #> [1] 59
 ```
 
-Of 87 characters, 59 have a recorded mass. The 28 that don't would silently break a `mean(mass)` call unless you either filter them out first or pass `na.rm = TRUE`. Filtering first is usually clearer — your downstream code doesn't need to carry the special case.
+Of 87 characters, 59 have a recorded mass. The 28 that don't would silently break a `mean(mass)` call unless you either filter them out first or pass `na.rm = TRUE`. Filtering first is usually clearer, your downstream code doesn't need to carry the special case.
 
 **Try it:** From `starwars`, keep rows where BOTH `height` and `mass` are known. Save to `ex_measured` and report the row count.
 
@@ -206,7 +206,7 @@ nrow(ex_measured)
 #> [1] 59
 ```
 
-**Explanation:** Both negated-missing tests must hold. Comma = AND. The result matches the single-column version because every row with a known `mass` also has a known `height` in `starwars` — a pattern worth noticing before you assume the two filters are independent.
+**Explanation:** Both negated-missing tests must hold. Comma = AND. The result matches the single-column version because every row with a known `mass` also has a known `height` in `starwars`, a pattern worth noticing before you assume the two filters are independent.
 
 </details>
 
@@ -230,7 +230,7 @@ ex_unknown_hair |> pull(name)
 #> [1] "C-3PO"  "R2-D2"  "R5-D4"  "IG-88"  "R4-P17"
 ```
 
-**Explanation:** Dropping the `!` flips the test — now you keep the missing rows. Every character with missing hair is a droid, which makes biological sense. Use this pattern whenever you want to investigate why values are missing rather than discard them.
+**Explanation:** Dropping the `!` flips the test, now you keep the missing rows. Every character with missing hair is a droid, which makes biological sense. Use this pattern whenever you want to investigate why values are missing rather than discard them.
 
 </details>
 
@@ -277,7 +277,7 @@ head(ex_cols, 3)
 #> Datsun 710    22.8  93 2.320
 ```
 
-**Explanation:** Three columns, in the order you listed them. Notice the rownames carry through — `select()` touches columns only, never rows.
+**Explanation:** Three columns, in the order you listed them. Notice the rownames carry through, `select()` touches columns only, never rows.
 
 </details>
 
@@ -301,7 +301,7 @@ names(ex_kept)
 #> [1] "mpg"  "cyl"  "disp" "hp"   "drat" "wt"   "qsec" "gear"
 ```
 
-**Explanation:** A leading minus means "drop this one". The remaining eight columns stay in their original order. The equivalent vector form is `select(-c(vs, am, carb))` — use whichever reads better to you.
+**Explanation:** A leading minus means "drop this one". The remaining eight columns stay in their original order. The equivalent vector form is `select(-c(vs, am, carb))`, use whichever reads better to you.
 
 </details>
 
@@ -325,12 +325,12 @@ names(ex_s)
 #> [1] "skin_color" "species"    "starships"
 ```
 
-**Explanation:** `starts_with("s")` matches any column whose name begins with `s` (case-insensitive). Three columns qualify. Its siblings are `ends_with()`, `contains()`, and `matches()` — the last one takes a regex for when the pattern is more subtle.
+**Explanation:** `starts_with("s")` matches any column whose name begins with `s` (case-insensitive). Three columns qualify. Its siblings are `ends_with()`, `contains()`, and `matches()`, the last one takes a regex for when the pattern is more subtle.
 
 </details>
 
 [KEY INSIGHT]
-**Most analysis questions reduce to "which rows, which columns?".** Once `filter()` and `select()` are muscle memory, the rest of the tidyverse — `mutate()`, `summarise()`, `group_by()`, `arrange()` — layers on top of these two foundations without new mental models.
+**Most analysis questions reduce to "which rows, which columns?".** Once `filter()` and `select()` are muscle memory, the rest of the tidyverse, `mutate()`, `summarise()`, `group_by()`, `arrange()`, layers on top of these two foundations without new mental models.
 
 ## Practice Exercises
 
@@ -364,7 +364,7 @@ head(my_v8s, 4)
 #> Merc 450SL        17.3 180 3.730
 ```
 
-**Explanation:** Order matters — filter first, then select. Doing it the other way around works here but wastes work, because `select()` would have to carry all 32 rows through before the filter narrows them. Filtering early is a universal performance habit in dplyr.
+**Explanation:** Order matters, filter first, then select. Doing it the other way around works here but wastes work, because `select()` would have to carry all 32 rows through before the filter narrows them. Filtering early is a universal performance habit in dplyr.
 
 </details>
 
@@ -392,7 +392,7 @@ ncol(my_numeric_range)
 #> [1] 4
 ```
 
-**Explanation:** `mpg:hp` selects the four contiguous columns from `mpg` to `hp`. The `&` inside `select()` intersects two tidyselect expressions — only columns matching both stay. Every `mtcars` column is already numeric, so all four survive. On a mixed-type data frame, non-numeric columns in that range would drop out.
+**Explanation:** `mpg:hp` selects the four contiguous columns from `mpg` to `hp`. The `&` inside `select()` intersects two tidyselect expressions, only columns matching both stay. Every `mtcars` column is already numeric, so all four survive. On a mixed-type data frame, non-numeric columns in that range would drop out.
 
 </details>
 
@@ -432,7 +432,7 @@ print(my_tall_humans)
 #> 10 Gregar Typho         185  85   Naboo
 ```
 
-**Explanation:** Three filter conditions stack inside one call: species match, height not missing, height above threshold. The pipeline reads top to bottom like prose — take `starwars`, keep tall humans with known height, show these four columns. This is the dplyr pattern you will reach for constantly.
+**Explanation:** Three filter conditions stack inside one call: species match, height not missing, height above threshold. The pipeline reads top to bottom like prose, take `starwars`, keep tall humans with known height, show these four columns. This is the dplyr pattern you will reach for constantly.
 
 </details>
 
@@ -454,7 +454,7 @@ print(top_cars)
 #> Lotus Europa   30.4 113 1.513    5
 ```
 
-Reading the pipeline in plain language: take every car in `mtcars`, keep those with exactly four cylinders, more than 25 mpg, horsepower between 60 and 120, and a manual transmission (`am == 1`); then show only the mpg, hp, weight, and gear columns. Five cars match. Notice how `%in% 60:120` handled a numeric range — the `60:120` sequence is just a vector of integers, and `%in%` works on any vector, numeric or character. This is the entire template for everyday data filtering: compose a few conditions, pick the columns you want to report, and let the pipe do the rest.
+Reading the pipeline in plain language: take every car in `mtcars`, keep those with exactly four cylinders, more than 25 mpg, horsepower between 60 and 120, and a manual transmission (`am == 1`); then show only the mpg, hp, weight, and gear columns. Five cars match. Notice how `%in% 60:120` handled a numeric range, the `60:120` sequence is just a vector of integers, and `%in%` works on any vector, numeric or character. This is the entire template for everyday data filtering: compose a few conditions, pick the columns you want to report, and let the pipe do the rest.
 
 ## Summary
 
@@ -480,15 +480,15 @@ If you solved all twelve without peeking, you are ready to layer `mutate()`, `ar
 
 ## References
 
-1. Wickham, H., Çetinkaya-Rundel, M., & Grolemund, G. — *R for Data Science*, 2nd Edition. Chapter 3: Data transformation. [Link](https://r4ds.hadley.nz/data-transform.html)
-2. dplyr documentation — `filter()` reference. [Link](https://dplyr.tidyverse.org/reference/filter.html)
-3. dplyr documentation — `select()` reference. [Link](https://dplyr.tidyverse.org/reference/select.html)
-4. tidyselect — selection helpers language reference. [Link](https://tidyselect.r-lib.org/reference/language.html)
-5. Posit — Data transformation with dplyr cheatsheet. [Link](https://rstudio.github.io/cheatsheets/data-transformation.pdf)
-6. R Core Team — *An Introduction to R*, Logical vectors and NA. [Link](https://cran.r-project.org/doc/manuals/r-release/R-intro.html#Logical-vectors)
+1. Wickham, H., Çetinkaya-Rundel, M., & Grolemund, G., *R for Data Science*, 2nd Edition. Chapter 3: Data transformation. [Link](https://r4ds.hadley.nz/data-transform.html)
+2. dplyr documentation, `filter()` reference. [Link](https://dplyr.tidyverse.org/reference/filter.html)
+3. dplyr documentation, `select()` reference. [Link](https://dplyr.tidyverse.org/reference/select.html)
+4. tidyselect, selection helpers language reference. [Link](https://tidyselect.r-lib.org/reference/language.html)
+5. Posit, Data transformation with dplyr cheatsheet. [Link](https://rstudio.github.io/cheatsheets/data-transformation.pdf)
+6. R Core Team, *An Introduction to R*, Logical vectors and NA. [Link](https://cran.r-project.org/doc/manuals/r-release/R-intro.html#Logical-vectors)
 
 ## Continue Learning
 
-- [dplyr filter() and select() Tutorial](dplyr-filter-select.html) — the parent tutorial that walks through every pattern in depth with full explanations.
-- [dplyr Exercises: 15 Practice Problems](dplyr-Exercises.html) — broader practice across `mutate()`, `summarise()`, `group_by()`, joins, and `across()`.
-- [data.table vs dplyr](data-table-vs-dplyr.html) — side-by-side comparison of the two dominant R data-manipulation frameworks.
+- [dplyr filter() and select() Tutorial](dplyr-filter-select.html), the parent tutorial that walks through every pattern in depth with full explanations.
+- [dplyr Exercises: 15 Practice Problems](dplyr-Exercises.html), broader practice across `mutate()`, `summarise()`, `group_by()`, joins, and `across()`.
+- [data.table vs dplyr](data-table-vs-dplyr.html), side-by-side comparison of the two dominant R data-manipulation frameworks.

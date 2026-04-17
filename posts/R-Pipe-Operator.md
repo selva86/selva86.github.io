@@ -1,5 +1,5 @@
 ---
-title: "R Pipe Operator: %>% vs |> — The Complete Guide to Both Pipes"
+title: "R Pipe Operator: %>% vs |>, The Complete Guide to Both Pipes"
 slug: "R-Pipe-Operator"
 description: "Master both R pipes: magrittr's %>% and the native |> pipe. Learn when to use each, placeholder tricks, common pitfalls, and how they make code dramatically more readable."
 keywords: "R pipe operator, %>% R, |> R, magrittr pipe, native R pipe, R pipe vs base, pipe placeholder R"
@@ -16,9 +16,9 @@ sidebar_order: 2
 difficulty: "Intermediate"
 ---
 
-# R Pipe Operator: %>% vs |> — The Complete Guide to Both Pipes
+# R Pipe Operator: %>% vs |>, The Complete Guide to Both Pipes
 
-<p class="lead">The pipe operator takes the output of one function and feeds it as the first argument to the next, turning nested calls into a readable left-to-right sequence. R has two pipes — <code>%&gt;%</code> from magrittr and <code>|&gt;</code> built into base R — and this guide shows you exactly when to use each.</p>
+<p class="lead">The pipe operator takes the output of one function and feeds it as the first argument to the next, turning nested calls into a readable left-to-right sequence. R has two pipes, <code>%&gt;%</code> from magrittr and <code>|&gt;</code> built into base R, and this guide shows you exactly when to use each.</p>
 
 ## What problem does the pipe solve?
 
@@ -60,7 +60,7 @@ The pipeline reads left to right: start with 1..10, take the square root of each
 
 ## What's the difference between %>% and |>?
 
-The magrittr pipe `%>%` has been around since 2014 and is used by dplyr, ggplot2, and the whole tidyverse. The native pipe `|>` was added to base R in version 4.1 (May 2021). They're almost identical for day-to-day work — but there are three real differences.
+The magrittr pipe `%>%` has been around since 2014 and is used by dplyr, ggplot2, and the whole tidyverse. The native pipe `|>` was added to base R in version 4.1 (May 2021). They're almost identical for day-to-day work, but there are three real differences.
 
 ```r
 # Both pass LHS as the first argument of the RHS function
@@ -72,11 +72,11 @@ c(3, 1, 4, 1, 5) |> sort()
 #> [1] 1 1 3 4 5
 ```
 
-**Difference 1 — Parentheses required.** The native pipe requires `()` on the right-hand side: `x |> mean()` works, `x |> mean` does not. The magrittr pipe allows both.
+**Difference 1, Parentheses required.** The native pipe requires `()` on the right-hand side: `x |> mean()` works, `x |> mean` does not. The magrittr pipe allows both.
 
-**Difference 2 — No anonymous dot.** magrittr lets you use `.` as a placeholder for the piped value anywhere: `x %>% lm(y ~ z, data = .)`. The native pipe's placeholder is `_` and it only works with named arguments and only once per call.
+**Difference 2, No anonymous dot.** magrittr lets you use `.` as a placeholder for the piped value anywhere: `x %>% lm(y ~ z, data = .)`. The native pipe's placeholder is `_` and it only works with named arguments and only once per call.
 
-**Difference 3 — No dependency.** `|>` is in base R — no packages needed. `%>%` requires `magrittr` or any package that re-exports it (dplyr, tidyr, etc.).
+**Difference 3, No dependency.** `|>` is in base R, no packages needed. `%>%` requires `magrittr` or any package that re-exports it (dplyr, tidyr, etc.).
 
 ```r
 # Placeholder: magrittr
@@ -104,7 +104,7 @@ mtcars |> lm(mpg ~ hp, data = _) |> coef()
 #> 30.09886054 -0.06822828
 ```
 
-The native pipe's `_` placeholder plugs the left-hand side into any *named* argument on the right — here `data = _` puts `mtcars` into `lm()`'s second slot so the formula can stay first. It only works with named arguments and only once per call.
+The native pipe's `_` placeholder plugs the left-hand side into any *named* argument on the right, here `data = _` puts `mtcars` into `lm()`'s second slot so the formula can stay first. It only works with named arguments and only once per call.
 </details>
 
 ## How does the pipe decide where to insert the value?
@@ -141,7 +141,7 @@ That last one is the native pipe's universal escape hatch: `(\(x) ...)()` wraps 
 #> [1]  2  5 10 17 26
 ```
 
-The lambda `\(x) x^2 + 1` is created inline and then immediately called with the piped value. The trailing `()` is what makes the pipe call the function instead of just referencing it — this is the universal escape hatch when the operation doesn't already exist as a named function.
+The lambda `\(x) x^2 + 1` is created inline and then immediately called with the piped value. The trailing `()` is what makes the pipe call the function instead of just referencing it, this is the universal escape hatch when the operation doesn't already exist as a named function.
 </details>
 
 ## When is a pipeline worth using?
@@ -173,7 +173,7 @@ mtcars |>
 #> 3     3     21.5
 ```
 
-The piped version isn't shorter — it's *linear*. You can drop in a `print()` or `View()` anywhere in the chain to debug. You can comment out a line to skip a step. That flexibility is the real win.
+The piped version isn't shorter, it's *linear*. You can drop in a `print()` or `View()` anywhere in the chain to debug. You can comment out a line to skip a step. That flexibility is the real win.
 
 > [NOTE]
 > Pipelines with intermediate steps are the idiomatic style in dplyr, ggplot2 (with `+` instead of `|>`), and most of the tidyverse. Learning to read them fluently is half the battle when picking up modern R.
@@ -206,7 +206,7 @@ mtcars |>
 
 Three traps catch new pipe users most often. Knowing them saves hours of debugging.
 
-**Pitfall 1 — Forgetting `()` on the right side (native pipe only):**
+**Pitfall 1, Forgetting `()` on the right side (native pipe only):**
 
 ```r
 # Wrong — native pipe requires ()
@@ -218,7 +218,7 @@ c(1, 2, 3) |> mean()
 #> [1] 2
 ```
 
-**Pitfall 2 — Piping into `.` without thinking.** With magrittr's dot, you can accidentally double-insert the value:
+**Pitfall 2, Piping into `.` without thinking.** With magrittr's dot, you can accidentally double-insert the value:
 
 ```r
 library(magrittr)
@@ -228,7 +228,7 @@ library(magrittr)
 # This works, but it's subtle — the dot is the 10, and the LHS is also 10.
 ```
 
-**Pitfall 3 — Mixing pipe and `+` in ggplot2.** ggplot2 uses `+`, not `|>`, to add layers. Beginners routinely try `ggplot(df) |> geom_point(...)` and get confused errors. Use `|>` before `ggplot()` and `+` between layers:
+**Pitfall 3, Mixing pipe and `+` in ggplot2.** ggplot2 uses `+`, not `|>`, to add layers. Beginners routinely try `ggplot(df) |> geom_point(...)` and get confused errors. Use `|>` before `ggplot()` and `+` between layers:
 
 ```r
 # Correct pattern
@@ -241,7 +241,7 @@ library(magrittr)
 > [WARNING]
 > Don't pipe anything that has side effects (like `print()` or `write.csv()`) expecting the return value to propagate. `print(x)` returns `x` invisibly, which does propagate. But many I/O functions return `NULL`, breaking the chain.
 
-**Try it:** Spot the bug — why doesn't `c(1,2,3) %>% mean` work as expected in some environments?
+**Try it:** Spot the bug, why doesn't `c(1,2,3) %>% mean` work as expected in some environments?
 
 ```r
 # hint: magrittr accepts it, native pipe doesn't — always use () to be safe
@@ -257,7 +257,7 @@ c(1, 2, 3) |> mean()
 #> [1] 2
 ```
 
-The native pipe strictly requires a function *call* on the right-hand side — `mean` alone is just a reference to the function object, so `c(1,2,3) |> mean` errors with "The pipe operator requires a function call as RHS". Adding `()` makes it a call and the pipe can insert the LHS as its first argument. magrittr's `%>%` is looser and accepts the bare name, which is what catches people moving between the two pipes.
+The native pipe strictly requires a function *call* on the right-hand side, `mean` alone is just a reference to the function object, so `c(1,2,3) |> mean` errors with "The pipe operator requires a function call as RHS". Adding `()` makes it a call and the pipe can insert the LHS as its first argument. magrittr's `%>%` is looser and accepts the bare name, which is what catches people moving between the two pipes.
 </details>
 
 ## When should you NOT use the pipe?
@@ -296,7 +296,7 @@ sqrt(16)
 #> [1] 4
 ```
 
-For a single function call, the nested form is already left-to-right — there's nothing to flatten. `16 |> sqrt()` adds two characters and an extra reading step for zero gain. Pipes earn their keep at three or more chained steps, not one.
+For a single function call, the nested form is already left-to-right, there's nothing to flatten. `16 |> sqrt()` adds two characters and an extra reading step for zero gain. Pipes earn their keep at three or more chained steps, not one.
 </details>
 
 ## Practice Exercises
@@ -351,7 +351,7 @@ iris |>
 
 ## Putting It All Together
 
-A complete one-pipeline analysis — load, clean, transform, summarize, and visualize — on `mtcars`.
+A complete one-pipeline analysis, load, clean, transform, summarize, and visualize, on `mtcars`.
 
 ```r
 library(dplyr)
@@ -395,14 +395,14 @@ Eight pipeline stages, one result. Every step reads in natural order, and any li
 
 ## References
 
-1. [R 4.1.0 release notes — native pipe](https://stat.ethz.ch/pipermail/r-announce/2021/000670.html)
+1. [R 4.1.0 release notes, native pipe](https://stat.ethz.ch/pipermail/r-announce/2021/000670.html)
 2. [magrittr documentation](https://magrittr.tidyverse.org/)
-3. [R for Data Science — Pipes](https://r4ds.hadley.nz/workflow-style#pipes)
-4. [Advanced R — Function composition](https://adv-r.hadley.nz/functions.html#function-composition) by Hadley Wickham
-5. [Tidyverse Style Guide — Pipes](https://style.tidyverse.org/pipes.html)
+3. [R for Data Science, Pipes](https://r4ds.hadley.nz/workflow-style#pipes)
+4. [Advanced R, Function composition](https://adv-r.hadley.nz/functions.html#function-composition) by Hadley Wickham
+5. [Tidyverse Style Guide, Pipes](https://style.tidyverse.org/pipes.html)
 
 ## Continue Learning
 
-- [dplyr filter() and select()](dplyr-filter-select.html) — the most common pipeline starting point.
-- [dplyr group_by() + summarise()](dplyr-group-by-summarise.html) — the pattern at the heart of every analysis.
-- [R Data Frames: Every Operation You'll Need](R-Data-Frames.html) — the structures that flow through pipelines.
+- [dplyr filter() and select()](dplyr-filter-select.html), the most common pipeline starting point.
+- [dplyr group_by() + summarise()](dplyr-group-by-summarise.html), the pattern at the heart of every analysis.
+- [R Data Frames: Every Operation You'll Need](R-Data-Frames.html), the structures that flow through pipelines.

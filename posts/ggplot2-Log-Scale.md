@@ -683,14 +683,14 @@ Add `guide_axis_logticks()` via the `guides()` function: `guides(y = guide_axis_
 
 ## References
 
-1. Wickham, H. — *ggplot2: Elegant Graphics for Data Analysis*, 3rd Edition. Springer (2024). Chapter 15: Scales. [Link](https://ggplot2-book.org/scales-other.html)
-2. ggplot2 documentation — `scale_continuous()` reference. [Link](https://ggplot2.tidyverse.org/reference/scale_continuous.html)
-3. ggplot2 documentation — `coord_trans()` reference. [Link](https://ggplot2.tidyverse.org/reference/coord_trans.html)
-4. ggplot2 documentation — `guide_axis_logticks()` reference. [Link](https://ggplot2.tidyverse.org/reference/guide_axis_logticks.html)
-5. scales package documentation — transformation functions. [Link](https://scales.r-lib.org/reference/index.html)
-6. Heiss, A. — "How to use natural and base 10 log scales in ggplot2" (2022). [Link](https://www.andrewheiss.com/blog/2022/12/08/log10-natural-log-scales-ggplot/)
+1. Wickham, H., *ggplot2: Elegant Graphics for Data Analysis*, 3rd Edition. Springer (2024). Chapter 15: Scales. [Link](https://ggplot2-book.org/scales-other.html)
+2. ggplot2 documentation, `scale_continuous()` reference. [Link](https://ggplot2.tidyverse.org/reference/scale_continuous.html)
+3. ggplot2 documentation, `coord_trans()` reference. [Link](https://ggplot2.tidyverse.org/reference/coord_trans.html)
+4. ggplot2 documentation, `guide_axis_logticks()` reference. [Link](https://ggplot2.tidyverse.org/reference/guide_axis_logticks.html)
+5. scales package documentation, transformation functions. [Link](https://scales.r-lib.org/reference/index.html)
+6. Heiss, A., "How to use natural and base 10 log scales in ggplot2" (2022). [Link](https://www.andrewheiss.com/blog/2022/12/08/log10-natural-log-scales-ggplot/)
 
 ## Continue Learning
 
-- **[ggplot2 Scales](ggplot2-Scales.html)** — The full reference on controlling axes, colors, sizes, and all scale types in ggplot2
-- **[ggplot2 Themes](ggplot2-Themes.html)** — Customize fonts, colors, grid lines, and overall plot appearance after setting up your scales
+- **[ggplot2 Scales](ggplot2-Scales.html)**, The full reference on controlling axes, colors, sizes, and all scale types in ggplot2
+- **[ggplot2 Themes](ggplot2-Themes.html)**, Customize fonts, colors, grid lines, and overall plot appearance after setting up your scales

@@ -1,7 +1,7 @@
 ---
-title: "purrr Exercises: 10 Functional Programming Practice Problems — Solved Step-by-Step"
+title: "purrr Exercises: 10 Functional Programming Practice Problems, Solved Step-by-Step"
 slug: "purrr-Exercises"
-description: "Practise purrr with 10 functional programming problems and worked solutions — runnable R exercises from beginner warm-ups to advanced iteration patterns."
+description: "Practise purrr with 10 functional programming problems and worked solutions, runnable R exercises from beginner warm-ups to advanced iteration patterns."
 keywords: "purrr exercises, purrr practice problems, purrr map exercises, functional programming R exercises, map2 pmap exercises, tidyverse iteration practice, map_dfr exercises, safely purrr, nest map purrr"
 mathjax: false
 webr: true
@@ -18,11 +18,11 @@ difficulty: "Intermediate"
 
 # purrr Exercises: 10 Functional Programming Practice Problems
 
-<p class="lead">Reading about <code>map()</code> is fast. Writing <code>map_dfr()</code>, <code>map2()</code>, <code>pmap()</code>, <code>safely()</code>, and the <code>\(x)</code> lambda shortcut fluently takes practice — and that's what these ten runnable problems give you.</p>
+<p class="lead">Reading about <code>map()</code> is fast. Writing <code>map_dfr()</code>, <code>map2()</code>, <code>pmap()</code>, <code>safely()</code>, and the <code>\(x)</code> lambda shortcut fluently takes practice, and that's what these ten runnable problems give you.</p>
 
 ## How do you apply a function to every column of a data frame?
 
-The typed `map_*()` family is the workhorse of purrr. You hand it a list (or a data frame, which is a list of columns) and a function, and it applies the function to every element — returning a guaranteed-type atomic vector instead of a list. Reach for `map_dbl()` when the answer is numeric, `map_chr()` for text, `map_int()` for counts, and `map_lgl()` for yes/no. The first three warm-ups all fit this one idea, starting with the simplest: one number per column.
+The typed `map_*()` family is the workhorse of purrr. You hand it a list (or a data frame, which is a list of columns) and a function, and it applies the function to every element, returning a guaranteed-type atomic vector instead of a list. Reach for `map_dbl()` when the answer is numeric, `map_chr()` for text, `map_int()` for counts, and `map_lgl()` for yes/no. The first three warm-ups all fit this one idea, starting with the simplest: one number per column.
 
 ```r
 library(purrr)
@@ -35,10 +35,10 @@ map_dbl(mtcars, mean)
 #>   0.437500   0.406250   3.687500   2.812500
 ```
 
-That one line replaces `sapply(mtcars, mean)` and a ritual `as.numeric()` call. `map_dbl()` inspects each column, computes `mean()`, and guarantees the output is a named `numeric` vector — so downstream code that does `round(..., 2)` or `sort()` just works. If any column returned something non-numeric (say, you accidentally passed a character column), you'd get a clear error instead of a silent list-of-mixed-types.
+That one line replaces `sapply(mtcars, mean)` and a ritual `as.numeric()` call. `map_dbl()` inspects each column, computes `mean()`, and guarantees the output is a named `numeric` vector, so downstream code that does `round(..., 2)` or `sort()` just works. If any column returned something non-numeric (say, you accidentally passed a character column), you'd get a clear error instead of a silent list-of-mixed-types.
 
 [KEY INSIGHT]
-**Typed variants are a contract, not a convenience.** `map()` returns a list, which is flexible but unpredictable — every caller has to unpack it. `map_dbl()`, `map_chr()`, `map_int()`, and `map_lgl()` promise the exact type, so they fail loudly when the function misbehaves instead of handing you a broken list three pipes downstream.
+**Typed variants are a contract, not a convenience.** `map()` returns a list, which is flexible but unpredictable, every caller has to unpack it. `map_dbl()`, `map_chr()`, `map_int()`, and `map_lgl()` promise the exact type, so they fail loudly when the function misbehaves instead of handing you a broken list three pipes downstream.
 
 **Try it:** Compute the mean of every column in `airquality` and store it in `ex_means`. The dataset has missing values, so pass `na.rm = TRUE` through `map_dbl()` using its `...` slot.
 
@@ -82,7 +82,7 @@ ex_classes
 #>    "numeric"    "numeric"    "numeric"    "numeric"     "factor"
 ```
 
-**Explanation:** `map_chr()` enforces that every call returns exactly one character value. `class()` fits that shape for every column in `iris`. If you ran `map_chr()` against an object where `class()` returns multiple strings (some S4 objects do), you'd get a clear type error — which is better than a quietly malformed result.
+**Explanation:** `map_chr()` enforces that every call returns exactly one character value. `class()` fits that shape for every column in `iris`. If you ran `map_chr()` against an object where `class()` returns multiple strings (some S4 objects do), you'd get a clear type error, which is better than a quietly malformed result.
 
 </details>
 
@@ -114,7 +114,7 @@ ex_uniques
 
 ## How do you iterate over logic, row-bind results, and walk parallel inputs?
 
-The next tier of purrr covers four patterns that come up constantly in real analysis code. `map_lgl()` answers TRUE/FALSE questions about every element. `map_dfr()` stacks data frames returned by each iteration into one tidy frame — the purrr answer to `do.call(rbind, ...)`. `map2()` walks two inputs in parallel, useful for pairwise arithmetic. And `pmap()` generalises to three or more inputs by iterating over the rows of a data frame or list of vectors.
+The next tier of purrr covers four patterns that come up constantly in real analysis code. `map_lgl()` answers TRUE/FALSE questions about every element. `map_dfr()` stacks data frames returned by each iteration into one tidy frame, the purrr answer to `do.call(rbind, ...)`. `map2()` walks two inputs in parallel, useful for pairwise arithmetic. And `pmap()` generalises to three or more inputs by iterating over the rows of a data frame or list of vectors.
 
 ```r
 # Which columns of mtcars are strictly positive?
@@ -124,10 +124,10 @@ pos_cols
 #>  TRUE  TRUE  TRUE  TRUE  TRUE  TRUE  TRUE FALSE FALSE  TRUE  TRUE
 ```
 
-Every column gets the same check — `all(x > 0)` — and the result is a named logical vector you can immediately plug into `mtcars[, pos_cols]` to subset. `vs` and `am` come back FALSE because both contain zeros. That's the pattern: `map_lgl()` + a predicate gives you a keep/drop mask in one line, no loop required.
+Every column gets the same check, `all(x > 0)`, and the result is a named logical vector you can immediately plug into `mtcars[, pos_cols]` to subset. `vs` and `am` come back FALSE because both contain zeros. That's the pattern: `map_lgl()` + a predicate gives you a keep/drop mask in one line, no loop required.
 
 [NOTE]
-**`map2()` versus base `mapply()`.** Base R's `mapply()` does similar work but its return type depends on inputs — sometimes a vector, sometimes a matrix, sometimes a list. `map2()` and `map2_dbl()` give you the same typed contract as `map_dbl()`, so you know exactly what comes back.
+**`map2()` versus base `mapply()`.** Base R's `mapply()` does similar work but its return type depends on inputs, sometimes a vector, sometimes a matrix, sometimes a list. `map2()` and `map2_dbl()` give you the same typed contract as `map_dbl()`, so you know exactly what comes back.
 
 **Try it:** `airquality` has some values that become negative after centering. Center every numeric column (`subtract the mean`) then find which columns still contain only non-negative values. Save the result to `ex_pos`. Handle NAs with `na.rm = TRUE`.
 
@@ -150,7 +150,7 @@ ex_pos
 #>   FALSE   FALSE   FALSE   FALSE   FALSE   FALSE
 ```
 
-**Explanation:** Centering by the mean guarantees the new column sums to zero, which forces at least some values below zero. Every entry in `ex_pos` is FALSE — exactly as you'd expect from the math. The chain `map() |> map_lgl()` is very common: first transform, then test.
+**Explanation:** Centering by the mean guarantees the new column sums to zero, which forces at least some values below zero. Every entry in `ex_pos` is FALSE, exactly as you'd expect from the math. The chain `map() |> map_lgl()` is very common: first transform, then test.
 
 </details>
 
@@ -221,7 +221,7 @@ ex_paired
 #> [1]  5  8  7  6 10
 ```
 
-**Explanation:** `map2_dbl()` walks `a` and `b` together, calling `max(a[i], b[i])` for every index and returning a numeric vector. This is the same as `pmax(a, b)` in base R — `map2()` shines when the per-element function is more complex than `max()`, say a custom calculation that base R can't vectorise.
+**Explanation:** `map2_dbl()` walks `a` and `b` together, calling `max(a[i], b[i])` for every index and returning a numeric vector. This is the same as `pmax(a, b)` in base R, `map2()` shines when the per-element function is more complex than `max()`, say a custom calculation that base R can't vectorise.
 
 </details>
 
@@ -277,7 +277,7 @@ row_counts
 #> [1] 50
 ```
 
-The pipeline reads left-to-right: split `iris` into one data frame per species, then `map()` over that list applying the lambda. The result is a named list with one element per group. You'd use this shape when the per-group answer is richer than a single number — for example, a fitted model or a multi-row tidy table.
+The pipeline reads left-to-right: split `iris` into one data frame per species, then `map()` over that list applying the lambda. The result is a named list with one element per group. You'd use this shape when the per-group answer is richer than a single number, for example, a fitted model or a multi-row tidy table.
 
 **Try it:** For each cylinder group in `mtcars`, compute the Pearson correlation between `mpg` and `wt`. Nest the data frame with `tidyr::nest()`, map a correlation function over the `data` list-column, and save the result as `ex_corr`.
 
@@ -357,12 +357,12 @@ ex_safe[[2]]
 #> NULL
 ```
 
-**Explanation:** `safely()` takes a function and returns a new function that wraps every call in a try/catch. On success, `$result` holds the value and `$error` is NULL; on failure the reverse. For `log(-2)` R returns NaN with a warning (not an error), so `$error` is still NULL — a nice reminder that "warning" and "error" are different in R. Swap `log` for a function that genuinely throws (say, `readLines` on a missing file) and you'll see the error slot populated.
+**Explanation:** `safely()` takes a function and returns a new function that wraps every call in a try/catch. On success, `$result` holds the value and `$error` is NULL; on failure the reverse. For `log(-2)` R returns NaN with a warning (not an error), so `$error` is still NULL, a nice reminder that "warning" and "error" are different in R. Swap `log` for a function that genuinely throws (say, `readLines` on a missing file) and you'll see the error slot populated.
 
 </details>
 
 [WARNING]
-**`safely()` returns a list of lists — you have to pick the piece you want.** After `map(x, safely(f))` you get `list(list(result=..., error=NULL), list(result=NULL, error=...), ...)`. Use `map("result")` or `transpose()` to separate successes from failures. Forgetting this is the top purrr bug in production code.
+**`safely()` returns a list of lists, you have to pick the piece you want.** After `map(x, safely(f))` you get `list(list(result=..., error=NULL), list(result=NULL, error=...), ...)`. Use `map("result")` or `transpose()` to separate successes from failures. Forgetting this is the top purrr bug in production code.
 
 **Try it:** Z-score every numeric column of `iris` (i.e. subtract the mean, divide by the standard deviation) using a `\(x)` lambda inside `map()`. The `Species` column isn't numeric, so filter it out first with `keep(is.numeric)`. Save the result as `ex_scaled`.
 
@@ -389,7 +389,7 @@ head(ex_scaled$Sepal.Length, 6)
 #> [1] -0.8976739 -1.1392005 -1.3807271 -1.5014904 -1.0184372 -0.5353840
 ```
 
-**Explanation:** `keep(is.numeric)` drops `Species` before the iteration starts. Then `map()` applies the z-score lambda to every remaining column. The `\(x)` shortcut lets you write the formula inline without a `function(x) { ... }` wrapper — perfect for a one-off transformation you don't plan to reuse.
+**Explanation:** `keep(is.numeric)` drops `Species` before the iteration starts. Then `map()` applies the z-score lambda to every remaining column. The `\(x)` shortcut lets you write the formula inline without a `function(x) { ... }` wrapper, perfect for a one-off transformation you don't plan to reuse.
 
 </details>
 
@@ -473,13 +473,13 @@ my_parse
 #> 3 c        ok
 ```
 
-**Explanation:** `quietly()` is the sibling of `safely()` that also captures warnings — and `as.numeric()` issues a warning (not an error) when a token fails to parse. The solution uses `map()` to run the quiet version, then `map_chr()` to inspect each result's `$warnings` slot. Pattern: pick `safely()` for errors, `quietly()` for warnings, `possibly()` when you just want a default value on failure.
+**Explanation:** `quietly()` is the sibling of `safely()` that also captures warnings, and `as.numeric()` issues a warning (not an error) when a token fails to parse. The solution uses `map()` to run the quiet version, then `map_chr()` to inspect each result's `$warnings` slot. Pattern: pick `safely()` for errors, `quietly()` for warnings, `possibly()` when you just want a default value on failure.
 
 </details>
 
 ### Exercise 3: All pairwise correlations with pmap_dbl
 
-You have a tibble with three numeric columns `x`, `y`, `w`. Compute the three pairwise Pearson correlations — `cor(x,y)`, `cor(x,w)`, `cor(y,w)` — in a single `pmap_dbl()` call over a helper tibble that lists the column pairs. Save the result as `my_corrs` (named numeric vector with entries `x_y`, `x_w`, `y_w`).
+You have a tibble with three numeric columns `x`, `y`, `w`. Compute the three pairwise Pearson correlations, `cor(x,y)`, `cor(x,w)`, `cor(y,w)`, in a single `pmap_dbl()` call over a helper tibble that lists the column pairs. Save the result as `my_corrs` (named numeric vector with entries `x_y`, `x_w`, `y_w`).
 
 ```r
 # Capstone 3: your code here
@@ -517,7 +517,7 @@ my_corrs
 #> 0.1204519 0.1596373 0.1893028
 ```
 
-**Explanation:** The trick is building a small `pairs` tibble with the column names you want to correlate — then `pmap_dbl()` walks its rows, pulling out `df[[a]]` and `df[[b]]` at each step. This pattern scales: if you had 20 columns and wanted all pairs, you'd generate `pairs` with `utils::combn(names(df), 2)` and feed the same `pmap_dbl()` call unchanged.
+**Explanation:** The trick is building a small `pairs` tibble with the column names you want to correlate, then `pmap_dbl()` walks its rows, pulling out `df[[a]]` and `df[[b]]` at each step. This pattern scales: if you had 20 columns and wanted all pairs, you'd generate `pairs` with `utils::combn(names(df), 2)` and feed the same `pmap_dbl()` call unchanged.
 
 </details>
 
@@ -566,7 +566,7 @@ final_coefs
 #> 9     8 hp            -0.0130   0.0125   -1.04    0.319
 ```
 
-Three things happen in one pipeline. First, `nest()` collapses each cyl group into a list-column. Second, `map()` fits a model per group and stashes the fit object in a new column. Third, `map_dbl()` extracts R² into a plain numeric column while `map()` pulls the tidy coefficient frame into another list-column that `unnest()` expands into the final 9-row table. One read-through tells you which coefficients are significant in which groups — all without a single explicit for-loop.
+Three things happen in one pipeline. First, `nest()` collapses each cyl group into a list-column. Second, `map()` fits a model per group and stashes the fit object in a new column. Third, `map_dbl()` extracts R² into a plain numeric column while `map()` pulls the tidy coefficient frame into another list-column that `unnest()` expands into the final 9-row table. One read-through tells you which coefficients are significant in which groups, all without a single explicit for-loop.
 
 ## Summary
 
@@ -586,18 +586,18 @@ The ten problems above cover the purrr vocabulary you'll use in 90% of real anal
 | `\(x) ...` | function | One-off lambda without naming | `map(xs, \(x) (x - mean(x)) / sd(x))` |
 
 [KEY INSIGHT]
-**purrr replaces `for` loops with verbs that return predictable types.** Once you internalise that every `map_*()` is a contract — "give me a list, I'll give you exactly this shape back" — you stop writing loops and start writing pipelines.
+**purrr replaces `for` loops with verbs that return predictable types.** Once you internalise that every `map_*()` is a contract, "give me a list, I'll give you exactly this shape back", you stop writing loops and start writing pipelines.
 
 ## References
 
-1. Wickham, H. & Grolemund, G. — *R for Data Science*, 2nd ed. Chapter 27: Iteration. [Link](https://r4ds.hadley.nz/iteration.html)
+1. Wickham, H. & Grolemund, G., *R for Data Science*, 2nd ed. Chapter 27: Iteration. [Link](https://r4ds.hadley.nz/iteration.html)
 2. purrr package reference and articles. [Link](https://purrr.tidyverse.org/)
-3. Wickham, H. — *Advanced R*, 2nd ed. Chapter 9: Functionals. [Link](https://adv-r.hadley.nz/functionals.html)
+3. Wickham, H., *Advanced R*, 2nd ed. Chapter 9: Functionals. [Link](https://adv-r.hadley.nz/functionals.html)
 4. tidyr `nest()` documentation. [Link](https://tidyr.tidyverse.org/reference/nest.html)
-5. Tidyverse blog — purrr 1.0.0 release notes. [Link](https://www.tidyverse.org/blog/2022/12/purrr-1-0-0/)
+5. Tidyverse blog, purrr 1.0.0 release notes. [Link](https://www.tidyverse.org/blog/2022/12/purrr-1-0-0/)
 
 ## Continue Learning
 
-- [Functional Programming in R](Functional-Programming-in-R.html) — the parent tutorial covering why functional style works so well for data analysis.
-- [purrr map() Variants](purrr-map-Variants.html) — a function-by-function deep dive on every typed `map_*()` in the package.
-- [Reduce, Filter, Map in Base R](Reduce-Filter-Map-in-R.html) — the same ideas using only base R, useful when you can't add tidyverse as a dependency.
+- [Functional Programming in R](Functional-Programming-in-R.html), the parent tutorial covering why functional style works so well for data analysis.
+- [purrr map() Variants](purrr-map-Variants.html), a function-by-function deep dive on every typed `map_*()` in the package.
+- [Reduce, Filter, Map in Base R](Reduce-Filter-Map-in-R.html), the same ideas using only base R, useful when you can't add tidyverse as a dependency.

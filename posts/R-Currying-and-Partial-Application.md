@@ -16,7 +16,7 @@ difficulty: "Intermediate"
 
 # R Currying & Partial Application: purrr::partial() & rlang
 
-<p class="lead"><strong>Partial application</strong> creates a new function from an existing one by locking in some arguments upfront — so you call the simpler version everywhere else. In R, <code>purrr::partial()</code> is the standard tool for this, and with rlang's quasiquotation you control exactly when each pre-filled argument gets evaluated.</p>
+<p class="lead"><strong>Partial application</strong> creates a new function from an existing one by locking in some arguments upfront, so you call the simpler version everywhere else. In R, <code>purrr::partial()</code> is the standard tool for this, and with rlang's quasiquotation you control exactly when each pre-filled argument gets evaluated.</p>
 
 ## What Is Partial Application and Why Does It Matter?
 
@@ -58,10 +58,10 @@ mean_no_na(x)
 #> [1] 5.38
 ```
 
-Both approaches produce the same output. The difference is that `partial()` is declarative — you describe *what* to pre-fill rather than writing boilerplate.
+Both approaches produce the same output. The difference is that `partial()` is declarative, you describe *what* to pre-fill rather than writing boilerplate.
 
 [KEY INSIGHT]
-**Partial application isn't about saving keystrokes — it's about naming a concept.** Calling your function `mean_na` tells the reader what it does. Writing `function(x) mean(x, na.rm = TRUE)` tells them how. Names beat implementation details.
+**Partial application isn't about saving keystrokes, it's about naming a concept.** Calling your function `mean_na` tells the reader what it does. Writing `function(x) mean(x, na.rm = TRUE)` tells them how. Names beat implementation details.
 
 **Try it:** Create a partially applied function `ex_round2` that rounds to 2 decimal places, then test it on `pi`.
 
@@ -108,7 +108,7 @@ add5(-3)
 
 When you print `add5`, R shows you the partially applied call: `` `+`(5, ...) ``. The `5` is baked in, and `...` accepts whatever you pass next.
 
-Notice the `...` signature — `partial()` always returns a function with `...` as its arguments, regardless of the original function's signature. This is a deliberate design choice that lets `partial()` work with functions that use non-standard evaluation (like `dplyr::filter()` or `ggplot2::aes()`).
+Notice the `...` signature, `partial()` always returns a function with `...` as its arguments, regardless of the original function's signature. This is a deliberate design choice that lets `partial()` work with functions that use non-standard evaluation (like `dplyr::filter()` or `ggplot2::aes()`).
 
 ```r
 # The returned function always has ... formals
@@ -148,7 +148,7 @@ ex_dash_paste("R", "is", "fun")
 
 ## When Should You Use Lazy vs Eager Evaluation?
 
-By default, `partial()` evaluates pre-filled arguments *lazily* — they're re-evaluated every time you call the function. This is usually what you want, but sometimes you need to freeze a value at creation time. That's where rlang's `!!` (bang-bang) operator comes in.
+By default, `partial()` evaluates pre-filled arguments *lazily*, they're re-evaluated every time you call the function. This is usually what you want, but sometimes you need to freeze a value at creation time. That's where rlang's `!!` (bang-bang) operator comes in.
 
 Think of it this way: lazy evaluation is like checking the weather each morning before you dress. Eager evaluation is like setting your thermostat once when you move in.
 
@@ -180,7 +180,7 @@ length(f_eager())
 #> [1] 8
 ```
 
-With `!!`, the `rpois(1, 5)` call runs once — at the moment `partial()` executes — and the result (8) is baked into the function permanently.
+With `!!`, the `rpois(1, 5)` call runs once, at the moment `partial()` executes, and the result (8) is baked into the function permanently.
 
 Here's a practical scenario where the distinction matters. Suppose you want a function that stamps the current time onto a message:
 
@@ -195,7 +195,7 @@ stamp_lazy("model finished")
 #> [1] "Logged at 2026-04-12 10:30:02 -> model finished"
 ```
 
-The lazy version updates the timestamp each call — perfect for logging. But if you wanted to record when the *session* started, you'd use eager evaluation with `!!Sys.time()` to freeze the timestamp at creation time.
+The lazy version updates the timestamp each call, perfect for logging. But if you wanted to record when the *session* started, you'd use eager evaluation with `!!Sys.time()` to freeze the timestamp at creation time.
 
 [WARNING]
 **Lazy evaluation can surprise you with mutable state.** If you write `partial(rnorm, mean = my_var)` and later change `my_var`, the partial function uses the new value. Use `!!` to lock in the current value when the function is created.
@@ -241,7 +241,7 @@ prefix_paste("hello", "world")
 #> [1] ">> hello world"
 ```
 
-That works because `paste()` takes `...` — all arguments just concatenate. But what if you need to insert new arguments *between* pre-filled ones?
+That works because `paste()` takes `...`, all arguments just concatenate. But what if you need to insert new arguments *between* pre-filled ones?
 
 ```r
 # ... = inserts caller's args at that position
@@ -255,7 +255,7 @@ str(between("middle_1", "middle_2"))
 #>  $ : chr "end"
 ```
 
-The caller's arguments (`"middle_1"`, `"middle_2"`) slot in where `... = ` sits — between `"start"` and `"end"`.
+The caller's arguments (`"middle_1"`, `"middle_2"`) slot in where `... = ` sits, between `"start"` and `"end"`.
 
 Here's a practical use case. `grepl()` takes `pattern` first and `x` second, but you might want to pre-fill the options while leaving both `pattern` and `x` free:
 
@@ -303,7 +303,7 @@ ex_igrep("the", c("The End", "beginning", "THERE"))
 
 You'll often see "currying" and "partial application" used interchangeably, but they're different techniques. Partial application fixes *some* arguments and returns a function that takes the rest. Currying transforms a function of N arguments into a *chain* of N single-argument functions.
 
-In Haskell, every function is automatically curried — `add 3 5` is actually `(add 3) 5`, where `add 3` returns a function that adds 3. R doesn't do this automatically, but you can build it yourself.
+In Haskell, every function is automatically curried, `add 3 5` is actually `(add 3) 5`, where `add 3` returns a function that adds 3. R doesn't do this automatically, but you can build it yourself.
 
 ```r
 # Manual currying: a chain of single-argument functions
@@ -320,7 +320,7 @@ curry_add(10)(7)
 #> [1] 17
 ```
 
-`curry_add(3)` doesn't compute anything — it returns a new function that remembers `a = 3` and waits for `b`. This is a closure (the returned function "closes over" the value of `a`).
+`curry_add(3)` doesn't compute anything, it returns a new function that remembers `a = 3` and waits for `b`. This is a closure (the returned function "closes over" the value of `a`).
 
 You can generalise this into a helper that curries any function:
 
@@ -348,7 +348,7 @@ curried(1)(2)(3)
 This works, but it's more of a learning exercise than production code. In practice, `partial()` covers 95% of use cases more cleanly.
 
 [KEY INSIGHT]
-**R doesn't curry automatically like Haskell — and that's fine.** Partial application with partial() gives you the practical benefit (fewer arguments to pass) without restructuring your entire function. True currying is elegant in theory but rarely needed in R workflows.
+**R doesn't curry automatically like Haskell, and that's fine.** Partial application with partial() gives you the practical benefit (fewer arguments to pass) without restructuring your entire function. True currying is elegant in theory but rarely needed in R workflows.
 
 **Try it:** Write a manually curried `ex_multiply` function that takes one argument and returns a function that multiplies by it. Test that `ex_multiply(3)(7)` returns 21.
 
@@ -405,7 +405,7 @@ map_chr(messy, replace_space)
 #> [1] "hello_world"   "foo_bar"       "one_two three"
 ```
 
-Both produce the same result, but the `partial()` version names the operation — `replace_space` — making the pipeline self-documenting.
+Both produce the same result, but the `partial()` version names the operation, `replace_space`, making the pipeline self-documenting.
 
 **Pattern 2: Summarise helpers across columns.** Build a family of NA-safe summary functions and use them with `across()`:
 
@@ -621,20 +621,20 @@ Without `partial()`, the `across()` call would need three anonymous functions: `
 | Currying | Transforms N-arg function into chain of 1-arg functions | Manual closures |
 | Best use case | `map()` pipelines, `across()` helpers, repeated config | `map(x, partial(fn, arg = val))` |
 
-**Key takeaway:** reach for `partial()` whenever you catch yourself passing the same argument more than twice. It turns repetitive configuration into a named, reusable function — and that makes your code both shorter and easier to read.
+**Key takeaway:** reach for `partial()` whenever you catch yourself passing the same argument more than twice. It turns repetitive configuration into a named, reusable function, and that makes your code both shorter and easier to read.
 
 ## References
 
-1. Wickham, H. — *Advanced R*, 2nd Edition. Chapter 11: Function Operators. [Link](https://adv-r.hadley.nz/function-operators.html)
-2. purrr documentation — partial() reference. [Link](https://purrr.tidyverse.org/reference/partial.html)
-3. Pedersen, T.L. — curry package: Operator-based currying and partial application. [Link](https://github.com/thomasp85/curry)
-4. Piccolo, A. — "Delicious R Curry" (2015). [Link](https://piccolboni.info/2015/07/delicious-r-curry.html)
-5. R Core Team — *R Language Definition*, Section on Closures. [Link](https://cran.r-project.org/doc/manuals/r-release/R-lang.html)
-6. Henry, L. & Wickham, H. — rlang: quasiquotation. [Link](https://rlang.r-lib.org/reference/quasiquotation.html)
-7. purrr vignette — Functional programming in other languages. [Link](https://purrr.tidyverse.org/articles/other-langs.html)
+1. Wickham, H., *Advanced R*, 2nd Edition. Chapter 11: Function Operators. [Link](https://adv-r.hadley.nz/function-operators.html)
+2. purrr documentation, partial() reference. [Link](https://purrr.tidyverse.org/reference/partial.html)
+3. Pedersen, T.L., curry package: Operator-based currying and partial application. [Link](https://github.com/thomasp85/curry)
+4. Piccolo, A., "Delicious R Curry" (2015). [Link](https://piccolboni.info/2015/07/delicious-r-curry.html)
+5. R Core Team, *R Language Definition*, Section on Closures. [Link](https://cran.r-project.org/doc/manuals/r-release/R-lang.html)
+6. Henry, L. & Wickham, H., rlang: quasiquotation. [Link](https://rlang.r-lib.org/reference/quasiquotation.html)
+7. purrr vignette, Functional programming in other languages. [Link](https://purrr.tidyverse.org/articles/other-langs.html)
 
 ## Continue Learning
 
-- [R Function Operators](R-Function-Operators.html) — The parent tutorial covering compose(), negate(), and more function operators including partial application.
-- [purrr map() Variants](purrr-map-Variants.html) — Master map(), map2(), imap(), and pmap() — partial application's best friend for applying functions across lists and vectors.
-- [R Function Factories](R-Function-Factories.html) — Learn how functions that return functions (closures) relate to currying and when factories beat partial application.
+- [R Function Operators](R-Function-Operators.html), The parent tutorial covering compose(), negate(), and more function operators including partial application.
+- [purrr map() Variants](purrr-map-Variants.html), Master map(), map2(), imap(), and pmap(), partial application's best friend for applying functions across lists and vectors.
+- [R Function Factories](R-Function-Factories.html), Learn how functions that return functions (closures) relate to currying and when factories beat partial application.

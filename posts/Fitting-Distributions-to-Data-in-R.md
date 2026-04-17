@@ -41,7 +41,7 @@ summary(fg)
 #> rate  0.9164788 1.0000000
 ```
 
-One line and you have two parameter estimates (shape = 1.63, rate = 0.022), their standard errors, the log-likelihood, and the information criteria (AIC / BIC). The AIC value only becomes meaningful when you compare it across competing distributions — a task we tackle in section 4.
+One line and you have two parameter estimates (shape = 1.63, rate = 0.022), their standard errors, the log-likelihood, and the information criteria (AIC / BIC). The AIC value only becomes meaningful when you compare it across competing distributions, a task we tackle in section 4.
 
 With the fit object in hand, the next question is always *does it actually fit?* That's what the plot method answers.
 
@@ -52,7 +52,7 @@ plot(fg)
 The call draws four panels: a histogram with the fitted density on top, the empirical CDF next to the theoretical CDF, a Q-Q plot, and a P-P plot. The density and CDF panels answer *does the shape look right?* The Q-Q and P-P plots answer *are the tails okay?* If points hug the diagonal line in Q-Q / P-P plots across the full range, the distribution is a good match. Systematic curvature signals a mismatch, especially in the tails where it matters most.
 
 [KEY INSIGHT]
-**fitdist() accepts any distribution for which R has d*, p*, and q* functions.** That covers "norm", "lnorm", "gamma", "weibull", "beta", "exp", "unif", "logis", "cauchy", "pois", "nbinom", "geom", "binom" out of the box — plus any custom distribution you supply `dmydist()`, `pmydist()`, `qmydist()` for.
+**fitdist() accepts any distribution for which R has d*, p*, and q* functions.** That covers "norm", "lnorm", "gamma", "weibull", "beta", "exp", "unif", "logis", "cauchy", "pois", "nbinom", "geom", "binom" out of the box, plus any custom distribution you supply `dmydist()`, `pmydist()`, `qmydist()` for.
 
 **Try it:** Fit a Weibull distribution to the same `serving` vector and store it in `ex_fw`. Print its summary.
 
@@ -78,7 +78,7 @@ summary(ex_fw)
 #> Loglikelihood:  -1255.6   AIC:  2515.3   BIC:  2522.4
 ```
 
-**Explanation:** Only the distribution name changes — `fitdist()` does the rest. The Weibull AIC (2515.3) is slightly higher than the gamma's (2512.4), but the gap is small enough that the full comparison in section 4 is needed before declaring a winner.
+**Explanation:** Only the distribution name changes, `fitdist()` does the rest. The Weibull AIC (2515.3) is slightly higher than the gamma's (2512.4), but the gap is small enough that the full comparison in section 4 is needed before declaring a winner.
 
 </details>
 
@@ -132,14 +132,14 @@ descdist(ex_log_serving, boot = 300)
 
 `fitdist()` defaults to maximum likelihood (`method = "mle"`), but the package supports three alternatives:
 
-- **MME — Method of Moments Estimation** matches the sample mean and variance to the distribution's theoretical moments.
-- **QME — Quantile Matching Estimation** matches chosen sample percentiles (e.g. the 25th and 75th) to the distribution's theoretical quantiles.
-- **MGE — Maximum Goodness-of-fit Estimation** minimises a chosen distance (KS, CvM, or AD) between the empirical and theoretical CDFs.
+- **MME, Method of Moments Estimation** matches the sample mean and variance to the distribution's theoretical moments.
+- **QME, Quantile Matching Estimation** matches chosen sample percentiles (e.g. the 25th and 75th) to the distribution's theoretical quantiles.
+- **MGE, Maximum Goodness-of-fit Estimation** minimises a chosen distance (KS, CvM, or AD) between the empirical and theoretical CDFs.
 
 ![Decision tree for estimation methods in fitdistrplus](screenshots/Fitting-Distributions-to-Data-in-R-method-choice.webp)
 *Figure 1: Pick the estimation method that matches what you most want to match.*
 
-Most of the time MLE is the right default — it is statistically efficient and gives you standard errors. The alternatives earn their keep in specific situations. MME is fast and closed-form for many families, handy when MLE's optimiser struggles with pathological data. QME is useful when you specifically care about fit at certain percentiles (risk modelling, reliability). MGE is appropriate when you plan to evaluate fits by a specific distance anyway.
+Most of the time MLE is the right default, it is statistically efficient and gives you standard errors. The alternatives earn their keep in specific situations. MME is fast and closed-form for many families, handy when MLE's optimiser struggles with pathological data. QME is useful when you specifically care about fit at certain percentiles (risk modelling, reliability). MGE is appropriate when you plan to evaluate fits by a specific distance anyway.
 
 Here are MLE and MME side by side on the gamma fit:
 
@@ -165,7 +165,7 @@ fg_qme$estimate
 ```
 
 [NOTE]
-**MLE is the default for a reason.** It is statistically efficient — roughly, it uses the information in every observation — and comes with standard errors for free. Switch to MME when MLE's optimiser gets stuck, to QME when you need a specific quantile to match, or to MGE when your downstream metric is a specific goodness-of-fit distance.
+**MLE is the default for a reason.** It is statistically efficient, roughly, it uses the information in every observation, and comes with standard errors for free. Switch to MME when MLE's optimiser gets stuck, to QME when you need a specific quantile to match, or to MGE when your downstream metric is a specific goodness-of-fit distance.
 
 **Try it:** Fit `serving` with `method = "mge"` and `gof = "CvM"` (Cramer-von Mises distance). Store it in `ex_fg_mge` and print the estimate.
 
@@ -197,7 +197,7 @@ Once you have a few candidates, you need a principled way to pick a winner. The 
 ![Five-step workflow: explore, propose, fit, compare, validate](screenshots/Fitting-Distributions-to-Data-in-R-workflow.webp)
 *Figure 2: The five-step fitdistrplus workflow from raw data to a validated fit.*
 
-Let's fit the three standard candidates — Weibull, gamma, lognormal — and stack them on one plot.
+Let's fit the three standard candidates, Weibull, gamma, lognormal, and stack them on one plot.
 
 ```r
 fw <- fitdist(serving, "weibull")
@@ -228,7 +228,7 @@ gof
 #> Bayesian Information Criterion 2522.331 2519.487  2539.61
 ```
 
-All three statistics (Kolmogorov-Smirnov, Cramer-von Mises, Anderson-Darling) measure the distance between the empirical and fitted CDFs — smaller is better. Gamma wins on every statistic and also has the lowest AIC, which is why the gamma wins this race.
+All three statistics (Kolmogorov-Smirnov, Cramer-von Mises, Anderson-Darling) measure the distance between the empirical and fitted CDFs, smaller is better. Gamma wins on every statistic and also has the lowest AIC, which is why the gamma wins this race.
 
 [KEY INSIGHT]
 **Lower AIC + closer empirical-to-theoretical curves = better fit.** Never trust a single number in isolation. AIC tells you which model best balances fit and complexity on average; the visual diagnostics tell you whether the fit fails in a specific region (often the tails, where it matters most).
@@ -257,7 +257,7 @@ ex_aic_gap
 
 ## How do you fit discrete distributions like Poisson or negative binomial?
 
-Count data — number of insurance claims per policy, arrivals per hour, visits per patient — lives on the non-negative integers and needs a discrete distribution. `fitdist()` handles these identically: just pass a discrete distribution name.
+Count data, number of insurance claims per policy, arrivals per hour, visits per patient, lives on the non-negative integers and needs a discrete distribution. `fitdist()` handles these identically: just pass a discrete distribution name.
 
 ```r
 set.seed(37)
@@ -275,10 +275,10 @@ gofstat(list(fp, fnb), fitnames = c("Poisson", "NegBinom"))
 #> Bayesian Information Criterion 3253.97  2782.29
 ```
 
-The Poisson's AIC is 476 points higher than the negative binomial's — an overwhelming margin. The Chi-squared p-value (1.3e-49) also rejects Poisson outright. Why? Poisson forces variance equal to the mean. Real count data is almost always **overdispersed** (variance > mean), and the negative binomial has a second parameter (`size`) that absorbs the extra variance.
+The Poisson's AIC is 476 points higher than the negative binomial's, an overwhelming margin. The Chi-squared p-value (1.3e-49) also rejects Poisson outright. Why? Poisson forces variance equal to the mean. Real count data is almost always **overdispersed** (variance > mean), and the negative binomial has a second parameter (`size`) that absorbs the extra variance.
 
 [WARNING]
-**Poisson assumes variance equals mean — real count data rarely does.** When you see a wildly poor Poisson fit, check `var(counts) / mean(counts)`. Values above ~1.5 signal overdispersion and call for the negative binomial.
+**Poisson assumes variance equals mean, real count data rarely does.** When you see a wildly poor Poisson fit, check `var(counts) / mean(counts)`. Values above ~1.5 signal overdispersion and call for the negative binomial.
 
 **Try it:** Compute the variance-to-mean ratio of the `counts` vector. Store it in `ex_vmr`.
 
@@ -298,13 +298,13 @@ ex_vmr
 #> [1] 3.507
 ```
 
-**Explanation:** A variance-to-mean ratio of 3.5 means the sample varies 3.5× more than Poisson would allow — the negative binomial's flexibility is essential.
+**Explanation:** A variance-to-mean ratio of 3.5 means the sample varies 3.5× more than Poisson would allow, the negative binomial's flexibility is essential.
 
 </details>
 
 ## How do you estimate uncertainty in the fitted parameters?
 
-Parameter estimates are themselves random variables — a different sample from the same population would have given different numbers. The summary output reports asymptotic standard errors, but those rely on large-sample theory that can mislead for small or awkward datasets. A bootstrap gives you confidence intervals without that assumption.
+Parameter estimates are themselves random variables, a different sample from the same population would have given different numbers. The summary output reports asymptotic standard errors, but those rely on large-sample theory that can mislead for small or awkward datasets. A bootstrap gives you confidence intervals without that assumption.
 
 ```r
 boot_fg <- bootdist(fg, niter = 200)
@@ -377,7 +377,7 @@ my_best
 #> [1] "weibull"
 ```
 
-**Explanation:** Wind speeds are famously Weibull-distributed — so much so that wind-energy estimation uses the Weibull as its default model. `sapply` extracts AIC from each fit and `which.min()` names the winner.
+**Explanation:** Wind speeds are famously Weibull-distributed, so much so that wind-energy estimation uses the Weibull as its default model. `sapply` extracts AIC from each fit and `which.min()` names the winner.
 
 </details>
 
@@ -409,7 +409,7 @@ gofstat(list(fg_sim, fln_sim), fitnames = c("Gamma", "Lognormal"))
 #> Bayesian Information Criterion 3831.  3820.
 ```
 
-**Explanation:** The lognormal AIC is ~11 lower — strong evidence in its favour, and exactly what we expect since the data was generated from a lognormal. This is a good sanity check for any fitting workflow: pick a generative distribution, simulate, fit, and confirm the fitter can recover the truth.
+**Explanation:** The lognormal AIC is ~11 lower, strong evidence in its favour, and exactly what we expect since the data was generated from a lognormal. This is a good sanity check for any fitting workflow: pick a generative distribution, simulate, fit, and confirm the fitter can recover the truth.
 
 </details>
 
@@ -439,7 +439,7 @@ fp_c$aic - fnb_c$aic
 #> [1] 635.2
 ```
 
-**Explanation:** Poisson's AIC is ~635 points higher — essentially no support for it. Whenever a count AIC gap is this large, you are almost certainly dealing with overdispersion.
+**Explanation:** Poisson's AIC is ~635 points higher, essentially no support for it. Whenever a count AIC gap is this large, you are almost certainly dealing with overdispersion.
 
 </details>
 
@@ -474,7 +474,7 @@ summary(boot_sepal)
 #> sd      0.820  0.741  0.900
 ```
 
-The skewness near zero and kurtosis near 3 land the sepal data close to the Normal reference point — and sure enough, Normal wins with AIC 221.7 versus 226.4 (gamma) and 230.3 (lognormal). The bootstrap confirms the mean is tightly estimated around 5.84 with a narrow 95% CI. You could now use this fitted Normal to simulate new plausible sepal lengths, compute percentiles, or feed it into a downstream model.
+The skewness near zero and kurtosis near 3 land the sepal data close to the Normal reference point, and sure enough, Normal wins with AIC 221.7 versus 226.4 (gamma) and 230.3 (lognormal). The bootstrap confirms the mean is tightly estimated around 5.84 with a narrow 95% CI. You could now use this fitted Normal to simulate new plausible sepal lengths, compute percentiles, or feed it into a downstream model.
 
 ## Summary
 
@@ -492,15 +492,15 @@ The skewness near zero and kurtosis near 3 land the sepal data close to the Norm
 
 ## References
 
-1. Delignette-Muller, M. L. & Dutang, C. — *fitdistrplus: An R Package for Fitting Distributions.* Journal of Statistical Software 64 (4), 1–34 (2015). [Link](https://www.jstatsoft.org/v64/i04/)
-2. fitdistrplus package vignette — *Overview of the fitdistrplus package.* CRAN. [Link](https://cran.r-project.org/web/packages/fitdistrplus/vignettes/fitdistrplus_vignette.html)
-3. fitdistrplus FAQ vignette — common issues and workarounds. CRAN. [Link](https://cran.r-project.org/web/packages/fitdistrplus/vignettes/FAQ.html)
-4. Cullen, A. C. & Frey, H. C. — *Probabilistic Techniques in Exposure Assessment: A Handbook for Dealing with Variability and Uncertainty in Models and Inputs.* Plenum, New York (1999).
-5. Venables, W. N. & Ripley, B. D. — *Modern Applied Statistics with S*, 4th Edition. Springer (2002). Chapter 5: Univariate statistics.
-6. R Core Team — *An Introduction to R.* [Link](https://cran.r-project.org/doc/manuals/r-release/R-intro.html)
+1. Delignette-Muller, M. L. & Dutang, C., *fitdistrplus: An R Package for Fitting Distributions.* Journal of Statistical Software 64 (4), 1–34 (2015). [Link](https://www.jstatsoft.org/v64/i04/)
+2. fitdistrplus package vignette, *Overview of the fitdistrplus package.* CRAN. [Link](https://cran.r-project.org/web/packages/fitdistrplus/vignettes/fitdistrplus_vignette.html)
+3. fitdistrplus FAQ vignette, common issues and workarounds. CRAN. [Link](https://cran.r-project.org/web/packages/fitdistrplus/vignettes/FAQ.html)
+4. Cullen, A. C. & Frey, H. C., *Probabilistic Techniques in Exposure Assessment: A Handbook for Dealing with Variability and Uncertainty in Models and Inputs.* Plenum, New York (1999).
+5. Venables, W. N. & Ripley, B. D., *Modern Applied Statistics with S*, 4th Edition. Springer (2002). Chapter 5: Univariate statistics.
+6. R Core Team, *An Introduction to R.* [Link](https://cran.r-project.org/doc/manuals/r-release/R-intro.html)
 
 ## Continue Learning
 
-- [Binomial and Poisson Distributions in R](Binomial-and-Poisson-Distributions-in-R.html) — when to choose each of these two discrete distributions before you even reach the fitting stage.
-- [Normal, t, F and Chi-Squared Distributions in R](Normal-t-F-and-Chi-Squared-Distributions-in-R.html) — the continuous distributions you'll most often fit, and the `d*`/`p*`/`q*`/`r*` interface every fit relies on.
-- [Statistical Tests in R](Statistical-Tests-in-R.html) — once you've fit a distribution, formal tests like Shapiro-Wilk or Kolmogorov-Smirnov let you put a p-value on the fit.
+- [Binomial and Poisson Distributions in R](Binomial-and-Poisson-Distributions-in-R.html), when to choose each of these two discrete distributions before you even reach the fitting stage.
+- [Normal, t, F and Chi-Squared Distributions in R](Normal-t-F-and-Chi-Squared-Distributions-in-R.html), the continuous distributions you'll most often fit, and the `d*`/`p*`/`q*`/`r*` interface every fit relies on.
+- [Statistical Tests in R](Statistical-Tests-in-R.html), once you've fit a distribution, formal tests like Shapiro-Wilk or Kolmogorov-Smirnov let you put a p-value on the fit.

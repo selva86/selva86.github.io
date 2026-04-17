@@ -1,7 +1,7 @@
 ---
 title: "Normal, t, F, and Chi-Squared in R: Understand Each Distribution and When It Arises"
 slug: "Normal-t-F-and-Chi-Squared-Distributions-in-R"
-description: "Learn the Normal, t, F, and Chi-Squared distributions in R — their shapes, parameters, and the situations that generate them, plus R's d/p/q/r functions."
+description: "Learn the Normal, t, F, and Chi-Squared distributions in R, their shapes, parameters, and the situations that generate them, plus R's d/p/q/r functions."
 keywords: "normal distribution R, t distribution R, F distribution R, chi-squared distribution R, dnorm, dt, dchisq, df function R, pnorm qnorm, sampling distributions"
 mathjax: true
 webr: true
@@ -18,7 +18,7 @@ sidebar_order: 21
 
 # Normal, t, F, and Chi-Squared in R: Understand Each Distribution and When It Arises
 
-<p class="lead">The Normal, t, F, and Chi-Squared distributions are the four pillars of classical statistics. The Normal models continuous measurements, the Chi-Squared is the distribution of a sum of squared standard normals, the t handles a sample mean when the standard deviation is estimated, and the F compares two variances or tests group effects in ANOVA. In base R you work with all four through the same d/p/q/r function family — no packages required.</p>
+<p class="lead">The Normal, t, F, and Chi-Squared distributions are the four pillars of classical statistics. The Normal models continuous measurements, the Chi-Squared is the distribution of a sum of squared standard normals, the t handles a sample mean when the standard deviation is estimated, and the F compares two variances or tests group effects in ANOVA. In base R you work with all four through the same d/p/q/r function family, no packages required.</p>
 
 ## How do R's d/p/q/r functions work across every distribution?
 
@@ -41,7 +41,7 @@ rnorm(5)                  # 5 random draws from N(0, 1)
 #> [1] -0.6264538  0.1836433 -0.8356286  1.5952808  0.3295078
 ```
 
-In one short block you used every verb: `dnorm()` returned the density height at the peak (about 0.399), `pnorm(1.96)` gave the famous 97.5% cumulative probability, `qnorm(0.975)` inverted that to recover 1.96, and `rnorm(5)` produced five random draws. The payoff is that the exact same four-verb pattern works on the t, Chi-Squared, and F distributions below — only the stem of the function name changes.
+In one short block you used every verb: `dnorm()` returned the density height at the peak (about 0.399), `pnorm(1.96)` gave the famous 97.5% cumulative probability, `qnorm(0.975)` inverted that to recover 1.96, and `rnorm(5)` produced five random draws. The payoff is that the exact same four-verb pattern works on the t, Chi-Squared, and F distributions below, only the stem of the function name changes.
 
 ![The d/p/q/r verb pattern](screenshots/Normal-t-F-and-Chi-Squared-Distributions-in-R-dpqr-pattern.webp)
 *Figure 1: The d/p/q/r verb pattern and the four distribution stems combine to give 16 base-R functions.*
@@ -56,7 +56,7 @@ The table below pairs each prefix with its job and the kind of return value you 
 | `r` | Random sample | A sample size n | A numeric vector of length n |
 
 [TIP]
-**Upper-tail probabilities come from lower.tail = FALSE.** Instead of writing `1 - pnorm(1.96)`, call `pnorm(1.96, lower.tail = FALSE)` directly — it is more accurate for extreme values because subtraction near 1 loses precision.
+**Upper-tail probabilities come from lower.tail = FALSE.** Instead of writing `1 - pnorm(1.96)`, call `pnorm(1.96, lower.tail = FALSE)` directly, it is more accurate for extreme values because subtraction near 1 loses precision.
 
 **Try it:** Use `pnorm()` to compute the probability that a Standard Normal random variable is less than −2. Then decide whether that number is a left-tail or upper-tail probability.
 
@@ -77,7 +77,7 @@ ex_p
 #> [1] 0.02275013
 ```
 
-**Explanation:** `pnorm()` returns the left-tail probability by default — here, P(Z ≤ −2) ≈ 0.023. It is a left-tail probability.
+**Explanation:** `pnorm()` returns the left-tail probability by default, here, P(Z ≤ −2) ≈ 0.023. It is a left-tail probability.
 
 </details>
 
@@ -85,7 +85,7 @@ ex_p
 
 The Normal distribution has two parameters: a mean μ that shifts the centre and a standard deviation σ that controls the spread. Its density is bell-shaped and symmetric around μ. Because so many biological and physical measurements cluster around a typical value with smaller and smaller chances of large deviations, the Normal is the default model for continuous data in most fields.
 
-Here is the intuition: the Normal shows up because many independent small influences — genetic effects on height, rounding errors, thermal noise — add up. The Central Limit Theorem tells us that averages of almost anything look Normal once the sample size is large enough.
+Here is the intuition: the Normal shows up because many independent small influences, genetic effects on height, rounding errors, thermal noise, add up. The Central Limit Theorem tells us that averages of almost anything look Normal once the sample size is large enough.
 
 The density in its full form is:
 
@@ -114,7 +114,7 @@ qnorm(0.975)
 #> [1] 1.959964
 ```
 
-The two dashed lines at ±1.96 enclose roughly 95% of the Normal's mass, leaving about 2.5% in each tail. That is why the 95% confidence interval for a mean with a *known* σ uses z* = 1.96 — it is just `qnorm(0.975)`. A value beyond ±1.96 in standard-normal units is conventionally called "statistically unusual."
+The two dashed lines at ±1.96 enclose roughly 95% of the Normal's mass, leaving about 2.5% in each tail. That is why the 95% confidence interval for a mean with a *known* σ uses z* = 1.96, it is just `qnorm(0.975)`. A value beyond ±1.96 in standard-normal units is conventionally called "statistically unusual."
 
 [KEY INSIGHT]
 **Sample means of almost anything follow an approximate Normal.** The Central Limit Theorem makes the Normal the limiting distribution for averages, regardless of the original data's shape. That is why the Normal appears far more often in data analysis than its underlying assumptions would suggest.
@@ -149,7 +149,7 @@ ex_p_iq
 
 ## What is the Chi-Squared distribution and where does it arise?
 
-The Chi-Squared distribution with `k` degrees of freedom is the distribution of a sum of `k` squared independent standard normals. It has a single parameter — the degrees of freedom — and takes only non-negative values because you are summing squares. The shape is right-skewed for small `k` and becomes more symmetric as `k` grows.
+The Chi-Squared distribution with `k` degrees of freedom is the distribution of a sum of `k` squared independent standard normals. It has a single parameter, the degrees of freedom, and takes only non-negative values because you are summing squares. The shape is right-skewed for small `k` and becomes more symmetric as `k` grows.
 
 If $Z_1, Z_2, \ldots, Z_k$ are independent N(0, 1), then:
 
@@ -176,7 +176,7 @@ curve(dchisq(x, df = 5), from = 0, to = 25,
       add = TRUE, col = "firebrick", lwd = 2)
 ```
 
-The red curve from `dchisq()` tracks the histogram almost perfectly — confirming that the Chi-Squared really is a sum-of-squared-normals. This genesis is also why Chi-Squared appears whenever you work with sums of squared deviations, like $(n-1)s^2/\sigma^2$ or the Pearson goodness-of-fit statistic.
+The red curve from `dchisq()` tracks the histogram almost perfectly, confirming that the Chi-Squared really is a sum-of-squared-normals. This genesis is also why Chi-Squared appears whenever you work with sums of squared deviations, like $(n-1)s^2/\sigma^2$ or the Pearson goodness-of-fit statistic.
 
 Now let's compute a critical value and a p-value.
 
@@ -221,7 +221,7 @@ ex_chi_crit
 
 ## What is the t distribution and where does it arise?
 
-The t distribution looks almost like a Normal but has heavier tails — meaning large values are more likely. It arises when you scale a standard normal by an *estimated* standard deviation instead of a known one. Formally, if Z ~ N(0, 1) and W ~ χ²_k are independent:
+The t distribution looks almost like a Normal but has heavier tails, meaning large values are more likely. It arises when you scale a standard normal by an *estimated* standard deviation instead of a known one. Formally, if Z ~ N(0, 1) and W ~ χ²_k are independent:
 
 $$t_k = \frac{Z}{\sqrt{W / k}}$$
 
@@ -246,7 +246,7 @@ legend("topright",
        lwd = 2, bty = "n")
 ```
 
-The `t(df = 2)` curve has visibly fatter tails than the Normal — so the same probability mass spreads further out, inflating critical values.
+The `t(df = 2)` curve has visibly fatter tails than the Normal, so the same probability mass spreads further out, inflating critical values.
 
 Now the small-sample 95% CI critical value:
 
@@ -260,7 +260,7 @@ qnorm(0.975)
 #> [1] 1.959964
 ```
 
-For `n = 10`, the correct two-sided 95% cutoff is about 2.26, noticeably larger than 1.96. That extra width is the price you pay for not knowing σ — the t distribution protects you against under-estimating uncertainty at small sample sizes.
+For `n = 10`, the correct two-sided 95% cutoff is about 2.26, noticeably larger than 1.96. That extra width is the price you pay for not knowing σ, the t distribution protects you against under-estimating uncertainty at small sample sizes.
 
 [WARNING]
 **Don't reuse 1.96 when your sample size is small.** With `n = 5` the correct critical value is `qt(0.975, df = 4)` ≈ 2.78, and a confidence interval built on 1.96 would be roughly 30% too narrow. Call `qt()` for confidence intervals whenever σ is estimated.
@@ -284,7 +284,7 @@ ex_t_crit
 #> [1] 2.776445
 ```
 
-**Explanation:** With only 5 observations the 95% t critical value is about 2.78 — much wider than the 1.96 you would use if σ were known.
+**Explanation:** With only 5 observations the 95% t critical value is about 2.78, much wider than the 1.96 you would use if σ were known.
 
 </details>
 
@@ -321,7 +321,7 @@ curve(df(x, df1 = d1, df2 = d2), from = 0, to = 6,
       add = TRUE, col = "firebrick", lwd = 2)
 ```
 
-The theoretical curve from `df()` sits right on top of the simulated histogram — so the F really is a ratio of scaled chi-squareds. That ratio structure is what makes the F the natural yardstick for questions that compare variances.
+The theoretical curve from `df()` sits right on top of the simulated histogram, so the F really is a ratio of scaled chi-squareds. That ratio structure is what makes the F the natural yardstick for questions that compare variances.
 
 Now an ANOVA critical value. Suppose you have 3 groups (so `d1 = 3 - 1 = 2`) and 30 total observations (so `d2 = 30 - 3 = 27`).
 
@@ -359,7 +359,7 @@ ex_f_p
 #> [1] 0.03024462
 ```
 
-**Explanation:** With `lower.tail = FALSE`, `pf()` returns the probability that F exceeds 4 — exactly the p-value an ANOVA would report for this test statistic.
+**Explanation:** With `lower.tail = FALSE`, `pf()` returns the probability that F exceeds 4, exactly the p-value an ANOVA would report for this test statistic.
 
 </details>
 
@@ -372,7 +372,7 @@ Once you see the chain in Figure 2, the four distributions stop feeling like a l
 
 Read the chain like this: start with N(0, 1). Square-and-sum k of those to get χ²_k. Then divide a new Z by √(χ²_k / k) to get t_k.
 
-Take the ratio of two scaled chi-squareds to get F(d1, d2). And if you square a t_k, you land back on F(1, k) — because the numerator Z² is itself χ²_1.
+Take the ratio of two scaled chi-squareds to get F(d1, d2). And if you square a t_k, you land back on F(1, k), because the numerator Z² is itself χ²_1.
 
 | Relationship | In symbols |
 |---|---|
@@ -397,7 +397,7 @@ curve(df(x, df1 = 1, df2 = 10), from = 0, to = 10,
       add = TRUE, col = "firebrick", lwd = 2)
 ```
 
-The simulated histogram of `t_draws^2` sits right under the theoretical F(1, 10) curve — an exact algebraic identity, now visible.
+The simulated histogram of `t_draws^2` sits right under the theoretical F(1, 10) curve, an exact algebraic identity, now visible.
 
 [KEY INSIGHT]
 **Four distributions cover most classical inference because inference is about means and variances.** The Normal carries a signal, the Chi-Squared measures a sum of squared deviations, the t combines them when σ is estimated, and the F compares two of them. Almost every classical test reduces to one of these four.
@@ -535,7 +535,7 @@ c(df1 = my_d1, df2 = my_d2, fcrit = my_fcrit, fp = my_fp)
 #>  3.0000000 36.0000000  2.8662659  0.0347240
 ```
 
-**Explanation:** Since 3.2 > 2.87 and p ≈ 0.035 < 0.05, you reject the null at α = 0.05 — the group means differ.
+**Explanation:** Since 3.2 > 2.87 and p ≈ 0.035 < 0.05, you reject the null at α = 0.05, the group means differ.
 
 </details>
 
@@ -581,12 +581,12 @@ list(t_statistic   = unname(t_res$statistic),
 #> [1] 0.003892417
 ```
 
-The paired t-test's statistic of −4.06 exceeds the t(9) critical value of ±2.26, so drug 2 delivers more extra sleep than drug 1. `var.test()` returns an F statistic of 0.80 — well within the central bulk of F(9, 9), so the variances look similar. A Chi-Squared goodness-of-fit on the signs of the differences also rejects a 50/50 split, a fully non-parametric confirmation of the same conclusion. Four distributions, one dataset, one coherent story.
+The paired t-test's statistic of −4.06 exceeds the t(9) critical value of ±2.26, so drug 2 delivers more extra sleep than drug 1. `var.test()` returns an F statistic of 0.80, well within the central bulk of F(9, 9), so the variances look similar. A Chi-Squared goodness-of-fit on the signs of the differences also rejects a 50/50 split, a fully non-parametric confirmation of the same conclusion. Four distributions, one dataset, one coherent story.
 
 ## Summary
 
 ![When to use which distribution](screenshots/Normal-t-F-and-Chi-Squared-Distributions-in-R-when-to-use.webp)
-*Figure 3: A quick decision guide — which distribution matches which question.*
+*Figure 3: A quick decision guide, which distribution matches which question.*
 
 | Distribution | Parameters | Typical question | Key R functions |
 |---|---|---|---|
@@ -597,24 +597,24 @@ The paired t-test's statistic of −4.06 exceeds the t(9) critical value of ±2.
 
 Key takeaways:
 
-1. The d/p/q/r verb pattern works on every base-R distribution — learn it once, reuse it always.
+1. The d/p/q/r verb pattern works on every base-R distribution, learn it once, reuse it always.
 2. The Normal is the foundation. Chi-Squared sums its squares, t divides by a square-root of chi-squared-over-df, F ratios two chi-squareds.
-3. Use `qt()` — not 1.96 — whenever σ is estimated from the sample, especially at small `n`.
+3. Use `qt()`, not 1.96, whenever σ is estimated from the sample, especially at small `n`.
 4. An F statistic above the `qf(1 - alpha, d1, d2)` critical value says the numerator variance is unusually large compared to the denominator.
 
 ## References
 
-1. R Core Team — *An Introduction to R*, §8 "Probability distributions." [Link](https://cran.r-project.org/doc/manuals/r-release/R-intro.html#Probability-distributions)
-2. Base R `?Distributions` manual — overview of the d/p/q/r convention. [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/Distributions.html)
-3. Student (W.S. Gosset) — *The Probable Error of a Mean*, Biometrika 6(1), 1908. [Link](https://doi.org/10.1093/biomet/6.1.1)
-4. R.A. Fisher — *Statistical Methods for Research Workers*, introducing the F distribution. [Link](https://archive.org/details/statisticalmethod031937mbp)
-5. Casella, G. & Berger, R.L. — *Statistical Inference* (2nd ed., Duxbury, 2001), Chapter 5 — chi-squared, t, F genesis derivations.
-6. Venables, W.N. & Ripley, B.D. — *Modern Applied Statistics with S* (4th ed., Springer, 2002).
-7. Wikipedia — Chi-squared distribution. [Link](https://en.wikipedia.org/wiki/Chi-squared_distribution)
-8. Wikipedia — F-distribution. [Link](https://en.wikipedia.org/wiki/F-distribution)
+1. R Core Team, *An Introduction to R*, §8 "Probability distributions." [Link](https://cran.r-project.org/doc/manuals/r-release/R-intro.html#Probability-distributions)
+2. Base R `?Distributions` manual, overview of the d/p/q/r convention. [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/Distributions.html)
+3. Student (W.S. Gosset), *The Probable Error of a Mean*, Biometrika 6(1), 1908. [Link](https://doi.org/10.1093/biomet/6.1.1)
+4. R.A. Fisher, *Statistical Methods for Research Workers*, introducing the F distribution. [Link](https://archive.org/details/statisticalmethod031937mbp)
+5. Casella, G. & Berger, R.L., *Statistical Inference* (2nd ed., Duxbury, 2001), Chapter 5, chi-squared, t, F genesis derivations.
+6. Venables, W.N. & Ripley, B.D., *Modern Applied Statistics with S* (4th ed., Springer, 2002).
+7. Wikipedia, Chi-squared distribution. [Link](https://en.wikipedia.org/wiki/Chi-squared_distribution)
+8. Wikipedia, F-distribution. [Link](https://en.wikipedia.org/wiki/F-distribution)
 
 ## Continue Learning
 
-1. [Random Variables in R](Random-Variables-in-R.html) — foundation concepts for PMFs, PDFs, and expectations that power every distribution on this page.
-2. [Binomial vs Poisson in R](Binomial-and-Poisson-Distributions-in-R.html) — the discrete counterparts when you are counting events instead of measuring magnitudes.
-3. [Statistical Tests in R](Statistical-Tests-in-R.html) — put the Normal, t, F, and Chi-Squared to work in real hypothesis tests.
+1. [Random Variables in R](Random-Variables-in-R.html), foundation concepts for PMFs, PDFs, and expectations that power every distribution on this page.
+2. [Binomial vs Poisson in R](Binomial-and-Poisson-Distributions-in-R.html), the discrete counterparts when you are counting events instead of measuring magnitudes.
+3. [Statistical Tests in R](Statistical-Tests-in-R.html), put the Normal, t, F, and Chi-Squared to work in real hypothesis tests.

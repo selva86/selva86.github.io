@@ -22,7 +22,7 @@ sidebar_order: 20
 
 ## What does the binomial distribution model?
 
-Imagine you flip a coin 10 times and count the heads. You know the number of trials (10), and each flip has two outcomes — heads or tails. That setup is the binomial distribution in a nutshell. Let's see it in action with R's dbinom() function.
+Imagine you flip a coin 10 times and count the heads. You know the number of trials (10), and each flip has two outcomes, heads or tails. That setup is the binomial distribution in a nutshell. Let's see it in action with R's dbinom() function.
 
 ```r
 # Binomial PMF: probability of k heads in 10 fair coin flips
@@ -43,7 +43,7 @@ barplot(probs_binom, names.arg = k_binom,
         main = "Binomial(n=10, p=0.5)")
 ```
 
-The most likely outcome is 5 heads (probability 24.6%), and the distribution is perfectly symmetric because p = 0.5. Notice how outcomes far from 5 — like 0 or 10 heads — are extremely unlikely (about 0.1% each).
+The most likely outcome is 5 heads (probability 24.6%), and the distribution is perfectly symmetric because p = 0.5. Notice how outcomes far from 5, like 0 or 10 heads, are extremely unlikely (about 0.1% each).
 
 The binomial distribution requires four conditions: a **fixed number of trials** (n), exactly **two outcomes** per trial (success/failure), a **constant probability** of success (p) across trials, and **independence** between trials. Whenever all four hold, you're in binomial territory.
 
@@ -59,7 +59,7 @@ cat("P(X <= 3) =", round(cum_prob, 4), "\n")
 There's about a 17.2% chance of getting 3 or fewer heads in 10 fair flips. The pbinom() function sums the individual probabilities from dbinom(0) through dbinom(3) for you.
 
 [KEY INSIGHT]
-**The binomial's variance is always less than its mean.** Mean = np and Variance = np(1-p). Since (1-p) is always between 0 and 1, variance is always a fraction of the mean. This is the binomial's fingerprint — when you see variance < mean in count data, think binomial.
+**The binomial's variance is always less than its mean.** Mean = np and Variance = np(1-p). Since (1-p) is always between 0 and 1, variance is always a fraction of the mean. This is the binomial's fingerprint, when you see variance < mean in count data, think binomial.
 
 **Try it:** A new drug cures 70% of patients. If 15 patients take it, what's the probability that exactly 12 are cured? Use dbinom().
 
@@ -85,7 +85,7 @@ ex_cure_prob
 
 ## What does the Poisson distribution model?
 
-The binomial needs a fixed trial count. But what if there's no natural upper limit? A help desk might receive 0 calls in an hour, or 3, or 12 — there's no fixed number of "trials." That's where the Poisson distribution steps in. It models the count of events in a fixed interval when those events occur independently at a constant average rate.
+The binomial needs a fixed trial count. But what if there's no natural upper limit? A help desk might receive 0 calls in an hour, or 3, or 12, there's no fixed number of "trials." That's where the Poisson distribution steps in. It models the count of events in a fixed interval when those events occur independently at a constant average rate.
 
 Let's model a help desk that averages 5 calls per hour.
 
@@ -109,7 +109,7 @@ barplot(probs_pois, names.arg = k_pois,
         main = "Poisson(lambda = 5)")
 ```
 
-The distribution peaks near lambda = 5 and has a slight right skew — there's always a small probability of getting a much higher count. Unlike the binomial, there's no ceiling on k (though probabilities shrink rapidly).
+The distribution peaks near lambda = 5 and has a slight right skew, there's always a small probability of getting a much higher count. Unlike the binomial, there's no ceiling on k (though probabilities shrink rapidly).
 
 What's the chance the desk gets swamped with more than 2 calls in an hour? We can use the cumulative function ppois().
 
@@ -122,7 +122,7 @@ cat("P(X > 2)  =", round(1 - cum_pois, 4), "\n")
 #> P(X > 2)  = 0.8753
 ```
 
-There's an 87.5% chance of getting more than 2 calls per hour when the average rate is 5. The complement trick — `1 - ppois(k, lambda)` — is the standard way to compute upper-tail probabilities.
+There's an 87.5% chance of getting more than 2 calls per hour when the average rate is 5. The complement trick, `1 - ppois(k, lambda)`, is the standard way to compute upper-tail probabilities.
 
 [KEY INSIGHT]
 **For a Poisson distribution, the mean equals the variance.** Both equal lambda. This is the Poisson's defining signature. When you compute the mean and variance of real count data and they're roughly equal, that's a strong hint that Poisson is the right model.
@@ -151,7 +151,7 @@ ex_error_prob
 
 ## How do the R functions map between binomial and Poisson?
 
-R uses a consistent naming convention for all probability distributions. Every distribution gets four functions with the same prefix pattern: **d** for density (probability at a point), **p** for cumulative probability, **q** for quantile (inverse CDF), and **r** for random number generation. The suffix tells you the distribution — `binom` for binomial, `pois` for Poisson.
+R uses a consistent naming convention for all probability distributions. Every distribution gets four functions with the same prefix pattern: **d** for density (probability at a point), **p** for cumulative probability, **q** for quantile (inverse CDF), and **r** for random number generation. The suffix tells you the distribution, `binom` for binomial, `pois` for Poisson.
 
 Let's see all eight functions side by side.
 
@@ -183,7 +183,7 @@ cat("rpois(3, lambda=5)  =", rpois(3, lambda = 5), "\n")
 #> rpois(3, lambda=5)  = 5 2 7
 ```
 
-The pattern is identical: `d` computes exact probabilities, `p` accumulates, `q` inverts the CDF, and `r` simulates. Once you learn this for one distribution, you know it for all of them — dnorm, pnorm, qnorm, rnorm work the same way for the normal distribution.
+The pattern is identical: `d` computes exact probabilities, `p` accumulates, `q` inverts the CDF, and `r` simulates. Once you learn this for one distribution, you know it for all of them, dnorm, pnorm, qnorm, rnorm work the same way for the normal distribution.
 
 ![R's d/p/q/r prefix system maps identically across binomial and Poisson functions](screenshots/Binomial-and-Poisson-Distributions-in-R-r-functions.webp)
 
@@ -212,7 +212,7 @@ cat("Binomial 90th:", ex_q_binom, " Poisson 90th:", ex_q_pois, "\n")
 #> Binomial 90th: 19  Poisson 90th: 20
 ```
 
-**Explanation:** Both are close (19 vs 20), which makes sense because Binomial(50, 0.3) has mean = 15 — the same as our Poisson. But they're not identical because n=50 isn't large enough for the Poisson approximation to be perfect.
+**Explanation:** Both are close (19 vs 20), which makes sense because Binomial(50, 0.3) has mean = 15, the same as our Poisson. But they're not identical because n=50 isn't large enough for the Poisson approximation to be perfect.
 
 </details>
 
@@ -234,7 +234,7 @@ Where:
 - $\binom{n}{k}$ = "n choose k" = the number of ways to pick k successes from n trials
 - $e$ = Euler's number (approximately 2.718)
 
-*If you're not interested in the math, skip to the code below — it demonstrates the convergence visually.*
+*If you're not interested in the math, skip to the code below, it demonstrates the convergence visually.*
 
 As n grows and p shrinks while keeping lambda = np fixed, the binomial terms converge to the Poisson formula. The rule of thumb: **n >= 100 and np <= 10** makes the approximation very accurate.
 
@@ -271,7 +271,7 @@ cat("Maximum absolute difference:", round(max_diff, 6), "\n")
 #> Maximum absolute difference: 0.001237
 ```
 
-The probabilities match to three or four decimal places. The maximum difference across all k values is just 0.0012 — for practical purposes, they're interchangeable.
+The probabilities match to three or four decimal places. The maximum difference across all k values is just 0.0012, for practical purposes, they're interchangeable.
 
 Now let's see this convergence visually. As n increases (with lambda fixed at 3), the binomial PMF gets closer and closer to the Poisson PMF.
 
@@ -375,7 +375,7 @@ cat("Sample var: ", round(var_p, 2), " (theory: lambda =", 6, ")\n")
 #> Sample var:  5.96  (theory: lambda = 6 )
 ```
 
-Both mean and variance converge to lambda = 6, confirming the Poisson's defining property: mean equals variance. This is a practical way to check your distributional assumptions — simulate, compute, compare.
+Both mean and variance converge to lambda = 6, confirming the Poisson's defining property: mean equals variance. This is a practical way to check your distributional assumptions, simulate, compute, compare.
 
 [TIP]
 **Always use set.seed() before simulation for reproducibility.** Without it, every run gives different random numbers. Pick a distinct seed for each major example (not always 42) so readers can reproduce your exact output.
@@ -454,12 +454,12 @@ if (ratio < 0.8) {
 #> Verdict: Variance < Mean -> Consider Binomial
 ```
 
-The variance-to-mean ratio is 0.65, well below 1.0. This suggests the data has less spread than a Poisson model would predict, pointing toward a binomial model — perhaps each day has a fixed pool of potential complainants with some probability of complaining.
+The variance-to-mean ratio is 0.65, well below 1.0. This suggests the data has less spread than a Poisson model would predict, pointing toward a binomial model, perhaps each day has a fixed pool of potential complainants with some probability of complaining.
 
 [WARNING]
 **If variance is much larger than the mean (ratio >> 1), neither distribution fits well.** This is called overdispersion, and you should consider the Negative Binomial distribution or a quasi-Poisson model. Forcing a Poisson on overdispersed data underestimates uncertainty in any downstream analysis.
 
-**Try it:** Given weekly accident counts at an intersection — `c(4, 6, 5, 3, 7, 5, 4, 6, 5, 8, 4, 3)` — compute the mean, variance, and their ratio. Which distribution fits better?
+**Try it:** Given weekly accident counts at an intersection, `c(4, 6, 5, 3, 7, 5, 4, 6, 5, 8, 4, 3)`, compute the mean, variance, and their ratio. Which distribution fits better?
 
 ```r
 # Try it: diagnose the distribution for accident data
@@ -685,7 +685,7 @@ Here's a side-by-side comparison of the two distributions:
 - Use **Poisson** when you're counting events in continuous time or space with no natural upper bound.
 - The **Poisson approximates the binomial** when n is large (>=100) and p is small (np <= 10).
 - Check the **variance-to-mean ratio** of your data: < 1 suggests binomial, ≈ 1 suggests Poisson, >> 1 suggests negative binomial.
-- R's **d/p/q/r prefix system** works identically across all distributions — learn it once, use it everywhere.
+- R's **d/p/q/r prefix system** works identically across all distributions, learn it once, use it everywhere.
 
 ![Side-by-side comparison of binomial and Poisson parameters, with the Poisson limit bridge](screenshots/Binomial-and-Poisson-Distributions-in-R-parameters.webp)
 
@@ -693,17 +693,17 @@ Here's a side-by-side comparison of the two distributions:
 
 ## References
 
-1. R Core Team — *The Binomial Distribution*. R Documentation. [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/Binomial.html)
-2. R Core Team — *The Poisson Distribution*. R Documentation. [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/Poisson.html)
-3. Hogg, R.V., McKean, J.W., Craig, A.T. — *Introduction to Mathematical Statistics*, 8th Edition. Pearson (2019). Chapters 3-4.
-4. Casella, G., Berger, R.L. — *Statistical Inference*, 2nd Edition. Cengage (2002). Section 3.2-3.3.
-5. NIST/SEMATECH — *Binomial Distribution*. Engineering Statistics Handbook. [Link](https://www.itl.nist.gov/div898/handbook/eda/section3/eda366i.htm)
-6. NIST/SEMATECH — *Poisson Distribution*. Engineering Statistics Handbook. [Link](https://www.itl.nist.gov/div898/handbook/eda/section3/eda366j.htm)
-7. Emory University Math Center — *The Connection Between the Poisson and Binomial Distributions*. [Link](https://mathcenter.oxford.emory.edu/site/math117/connectingPoissonAndBinomial/)
-8. Wickham, H., Grolemund, G. — *R for Data Science*, 2nd Edition. O'Reilly (2023). [Link](https://r4ds.hadley.nz/)
+1. R Core Team, *The Binomial Distribution*. R Documentation. [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/Binomial.html)
+2. R Core Team, *The Poisson Distribution*. R Documentation. [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/Poisson.html)
+3. Hogg, R.V., McKean, J.W., Craig, A.T., *Introduction to Mathematical Statistics*, 8th Edition. Pearson (2019). Chapters 3-4.
+4. Casella, G., Berger, R.L., *Statistical Inference*, 2nd Edition. Cengage (2002). Section 3.2-3.3.
+5. NIST/SEMATECH, *Binomial Distribution*. Engineering Statistics Handbook. [Link](https://www.itl.nist.gov/div898/handbook/eda/section3/eda366i.htm)
+6. NIST/SEMATECH, *Poisson Distribution*. Engineering Statistics Handbook. [Link](https://www.itl.nist.gov/div898/handbook/eda/section3/eda366j.htm)
+7. Emory University Math Center, *The Connection Between the Poisson and Binomial Distributions*. [Link](https://mathcenter.oxford.emory.edu/site/math117/connectingPoissonAndBinomial/)
+8. Wickham, H., Grolemund, G., *R for Data Science*, 2nd Edition. O'Reilly (2023). [Link](https://r4ds.hadley.nz/)
 
 ## Continue Learning
 
-- [Random Variables in R](Random-Variables-in-R.html) — understand PMF, PDF, and CDF before diving into specific distributions like binomial and Poisson.
-- [Conditional Probability in R](Conditional-Probability-in-R.html) — the foundation for understanding trial-based probability and independence assumptions.
-- [Probability Axioms in R](Sample-Spaces-Events-and-Probability-Axioms-in-R-With-Monte-Carlo-Proof.html) — prove the rules of probability that underlie both distributions using Monte Carlo simulation.
+- [Random Variables in R](Random-Variables-in-R.html), understand PMF, PDF, and CDF before diving into specific distributions like binomial and Poisson.
+- [Conditional Probability in R](Conditional-Probability-in-R.html), the foundation for understanding trial-based probability and independence assumptions.
+- [Probability Axioms in R](Sample-Spaces-Events-and-Probability-Axioms-in-R-With-Monte-Carlo-Proof.html), prove the rules of probability that underlie both distributions using Monte Carlo simulation.

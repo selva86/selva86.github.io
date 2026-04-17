@@ -16,18 +16,18 @@ difficulty: "Intermediate"
 
 # UpSet Plot in R: Visualize Set Intersections Beyond Venn Diagrams
 
-<p class="lead">An UpSet plot replaces Venn diagrams for data with more than 3 sets — it shows every intersection as a bar chart, with a matrix below marking which sets belong to each intersection. In R, the <code>UpSetR</code> package creates them with a single <code>upset()</code> call.</p>
+<p class="lead">An UpSet plot replaces Venn diagrams for data with more than 3 sets, it shows every intersection as a bar chart, with a matrix below marking which sets belong to each intersection. In R, the <code>UpSetR</code> package creates them with a single <code>upset()</code> call.</p>
 
 ## Introduction
 
-Venn diagrams work beautifully for 2-3 sets. Beyond that, the overlapping circles become unreadable — try drawing a 6-set Venn diagram and you'll see why researchers needed an alternative.
+Venn diagrams work beautifully for 2-3 sets. Beyond that, the overlapping circles become unreadable, try drawing a 6-set Venn diagram and you'll see why researchers needed an alternative.
 
 UpSet plots solve this systematically. Instead of overlapping circles, they use:
-1. **A bar chart (top)** — each bar is an intersection, sized by how many elements belong to it.
-2. **A matrix (bottom)** — dots and lines show which sets are included in each intersection.
-3. **Set size bars (left)** — total size of each individual set.
+1. **A bar chart (top)**, each bar is an intersection, sized by how many elements belong to it.
+2. **A matrix (bottom)**, dots and lines show which sets are included in each intersection.
+3. **Set size bars (left)**, total size of each individual set.
 
-The result is a precise, readable display of every intersection between any number of sets — 4, 8, even 20 sets become manageable.
+The result is a precise, readable display of every intersection between any number of sets, 4, 8, even 20 sets become manageable.
 
 Common use cases: gene ontology overlaps in bioinformatics, survey respondents who chose multiple answers, product features selected by customers, or any analysis where elements can belong to multiple groups simultaneously.
 
@@ -45,7 +45,7 @@ For example, if you have movies that can be Drama, Comedy, or Action:
 
 ## How do you create a basic UpSet plot in R?
 
-`UpSetR` uses `upset()` which takes a data frame in binary format — one column per set, values 0/1.
+`UpSetR` uses `upset()` which takes a data frame in binary format, one column per set, values 0/1.
 
 ```r
 library(UpSetR)
@@ -62,13 +62,13 @@ upset(
 )
 ```
 
-`movies` is a built-in dataset in UpSetR — 3,000+ movies with binary genre columns. `sets` specifies which sets to include and their order (bottom-to-top in the matrix). `mb.ratio` controls the vertical split between the bar chart and matrix.
+`movies` is a built-in dataset in UpSetR, 3,000+ movies with binary genre columns. `sets` specifies which sets to include and their order (bottom-to-top in the matrix). `mb.ratio` controls the vertical split between the bar chart and matrix.
 
 **Try it:** Remove the `sets` argument to include all columns automatically. Then change `mb.ratio = c(0.7, 0.3)` to give more space to the bar chart.
 
 ## How do you sort intersections by size?
 
-By default, intersections are sorted by degree (number of sets in the intersection). Sorting by frequency (size) puts the most common intersections first — usually more useful.
+By default, intersections are sorted by degree (number of sets in the intersection). Sorting by frequency (size) puts the most common intersections first, usually more useful.
 
 ```r
 # Sort by frequency (most common intersections first)
@@ -83,9 +83,9 @@ upset(
 )
 ```
 
-`order.by = "freq"` sorts bars by size. `nintersects = 15` limits to the 15 largest intersections — helpful when many possible intersections exist but most are tiny.
+`order.by = "freq"` sorts bars by size. `nintersects = 15` limits to the 15 largest intersections, helpful when many possible intersections exist but most are tiny.
 
-**Try it:** Change `order.by = "freq"` to `order.by = "degree"` (default) — the bars are now sorted by how many sets each intersection spans. Is this more or less useful than frequency sorting for this dataset?
+**Try it:** Change `order.by = "freq"` to `order.by = "degree"` (default), the bars are now sorted by how many sets each intersection spans. Is this more or less useful than frequency sorting for this dataset?
 
 ## How do you customize colors in an UpSet plot?
 
@@ -113,7 +113,7 @@ upset(
 
 ## How do you highlight a specific intersection?
 
-`query` lets you highlight specific intersections — useful for calling out the most important pattern in a presentation.
+`query` lets you highlight specific intersections, useful for calling out the most important pattern in a presentation.
 
 ```r
 # Highlight the Drama-only intersection
@@ -168,7 +168,7 @@ upset(
 )
 ```
 
-The data frame just needs columns with 0/1 values — one row per element, one column per set.
+The data frame just needs columns with 0/1 values, one row per element, one column per set.
 
 **Try it:** Add `keep.order = TRUE` inside `upset()` to keep the set order as specified in `sets` instead of automatically sorting by set size.
 
@@ -221,7 +221,7 @@ upset(df, ylab = "Intersection Size", text.scale = c(1.5, 1.3, 1.2, 1, 1.5, 1))
 
 ### Exercise 1: Build your own binary matrix
 
-Create a data frame of 100 customers who purchased different product categories (Electronics, Books, Clothing, Food, Sports — each with random 0/1 membership). Create an UpSet plot sorted by frequency showing the top 10 intersections.
+Create a data frame of 100 customers who purchased different product categories (Electronics, Books, Clothing, Food, Sports, each with random 0/1 membership). Create an UpSet plot sorted by frequency showing the top 10 intersections.
 
 <details>
 <summary>Show solution</summary>
@@ -310,13 +310,13 @@ upset(
 ## FAQ
 
 **What is the difference between UpSetR and ComplexUpset?**
-`UpSetR` is the original package — simple, fast, single function call. `ComplexUpset` rebuilds UpSet plots in ggplot2, giving full ggplot2 theme and layer control but with more complex syntax. Start with UpSetR; move to ComplexUpset if you need ggplot2 integration.
+`UpSetR` is the original package, simple, fast, single function call. `ComplexUpset` rebuilds UpSet plots in ggplot2, giving full ggplot2 theme and layer control but with more complex syntax. Start with UpSetR; move to ComplexUpset if you need ggplot2 integration.
 
 **How do I convert a list of set members to binary format?**
 Use `fromList()` from UpSetR: `upset(fromList(list(SetA = c("a","b"), SetB = c("b","c"))), ...)`. This converts a list of members into the binary matrix format automatically.
 
 **Can I make interactive UpSet plots in R?**
-Yes — the `upsetjs` package creates interactive UpSet plots for R Markdown and Shiny. The `ComplexUpset` package also supports some interactivity via plotly.
+Yes, the `upsetjs` package creates interactive UpSet plots for R Markdown and Shiny. The `ComplexUpset` package also supports some interactivity via plotly.
 
 **Why does my UpSet plot not show some intersections?**
 By default `nintersects = 40`. If you have few observations, some intersections may have 0 members and are hidden. Increase `nintersects` or check your data for empty categories.
@@ -329,10 +329,10 @@ Wrap in `pdf()` / `dev.off()` or use `png()`: `png("upset.png", width=10, height
 - UpSetR CRAN package: github.com/hms-dbmi/UpSetR
 - Lex A., et al. (2014). UpSet: Visualization of Intersecting Sets. *IEEE TVCG*.
 - Conway J.R., et al. (2017). UpSetR: an R package for the visualization of intersecting sets. *Bioinformatics*.
-- upset.app — Official UpSet visualization website
+- upset.app, Official UpSet visualization website
 
 ## Continue Learning
 
-- **R Waffle Chart** — visualize counts as grids of unit squares
-- **Heatmap in R** — encode a matrix of values as a color grid
-- **R Correlation Matrix Plot** — visualize pairwise correlations across many variables
+- **R Waffle Chart**, visualize counts as grids of unit squares
+- **Heatmap in R**, encode a matrix of values as a color grid
+- **R Correlation Matrix Plot**, visualize pairwise correlations across many variables

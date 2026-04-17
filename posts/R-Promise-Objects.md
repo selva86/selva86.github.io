@@ -16,11 +16,11 @@ difficulty: "Intermediate"
 
 # R Promise Objects: Lazy Evaluation & Force() Explained
 
-<p class="lead">An <strong>R promise object</strong> is a recipe R creates for every function argument: an unevaluated expression, an environment to evaluate it in, and an empty value slot that fills on first use. This mechanism — <strong>lazy evaluation</strong> — lets R skip work it doesn't need, but it also hides a few traps that cost R programmers real hours.</p>
+<p class="lead">An <strong>R promise object</strong> is a recipe R creates for every function argument: an unevaluated expression, an environment to evaluate it in, and an empty value slot that fills on first use. This mechanism, <strong>lazy evaluation</strong>, lets R skip work it doesn't need, but it also hides a few traps that cost R programmers real hours.</p>
 
 ## What is a promise object in R?
 
-The quickest way to see a promise in action is to pass a side-effecting expression as an argument and watch *when* R decides to run it. Below, `show_when()` takes two arguments but only uses the first. Notice how the second argument — a `cat()` call that would normally print immediately — stays silent because R never needed to look at it.
+The quickest way to see a promise in action is to pass a side-effecting expression as an argument and watch *when* R decides to run it. Below, `show_when()` takes two arguments but only uses the first. Notice how the second argument, a `cat()` call that would normally print immediately, stays silent because R never needed to look at it.
 
 The function prints a marker, uses argument `a`, then exits without ever touching `b`. If R evaluated arguments *eagerly* (like Python or JavaScript), the `cat()` inside `b` would fire as soon as we called the function. It doesn't.
 
@@ -45,9 +45,9 @@ The `">> b was evaluated!"` line never appears. When R called `show_when()`, it 
 
 Every promise has three slots:
 
-1. **Expression** — the unevaluated code you wrote (`{ cat(...); 999 }`)
-2. **Environment** — where that expression should be evaluated (here, the global environment)
-3. **Value** — empty at first, filled when the promise is *forced* (first access)
+1. **Expression**, the unevaluated code you wrote (`{ cat(...); 999 }`)
+2. **Environment**, where that expression should be evaluated (here, the global environment)
+3. **Value**, empty at first, filled when the promise is *forced* (first access)
 
 [KEY INSIGHT]
 **A promise is R's IOU for a value.** Every function argument starts as an unevaluated expression paired with an environment; R only cashes the IOU when the function body actually reads the argument.
@@ -84,10 +84,10 @@ ex_lazy(5, { cat("y ran!\n"); 999 })
 
 Now that you've seen a promise stay unforced, let's trace the full lifecycle. When R encounters `f(x + 1)`, it does four things in order:
 
-1. **Wrap** — build a promise holding the expression `x + 1` plus a pointer to the caller's environment.
-2. **Bind** — attach that promise to `f`'s formal parameter name.
-3. **Force** — the *first* time `f`'s body reads the parameter, evaluate the expression in its captured environment.
-4. **Cache** — store the result in the value slot. Every subsequent read returns the cached value directly.
+1. **Wrap**, build a promise holding the expression `x + 1` plus a pointer to the caller's environment.
+2. **Bind**, attach that promise to `f`'s formal parameter name.
+3. **Force**, the *first* time `f`'s body reads the parameter, evaluate the expression in its captured environment.
+4. **Cache**, store the result in the value slot. Every subsequent read returns the cached value directly.
 
 That caching step matters. A promise is forced *at most once*, so referencing an argument five times does not recompute it five times. Here's the proof:
 
@@ -115,7 +115,7 @@ cat("noisy() ran", counter, "time(s)\n")
 Despite `x` being read twice, `noisy()` executed exactly once. On the first read, R saw an unforced promise, ran `noisy()` in the global environment, got `42`, and stored it. On the second read, the promise's value slot was already populated, so R skipped straight to the cached number.
 
 [TIP]
-**"Evaluate once, cache forever" is why lazy evaluation costs nothing at runtime.** You can reference an argument ten times in a function body without worrying about re-running expensive expressions — R memoises the first forcing automatically.
+**"Evaluate once, cache forever" is why lazy evaluation costs nothing at runtime.** You can reference an argument ten times in a function body without worrying about re-running expensive expressions, R memoises the first forcing automatically.
 
 **Try it:** Add a third read of `x` inside `use_twice()` and predict what `counter` will be after one call. Run it to check.
 
@@ -156,7 +156,7 @@ cat("noisy() ran", counter, "time(s)\n")
 
 ## Why do default arguments see other function arguments?
 
-You've probably written (or seen) a function like `function(x, n = length(x))` — a default that refers to another argument. It works because of one rule: **default arguments are evaluated in the function's own environment, not the caller's**. By the time R needs `n`, `x` is already bound in the function frame, so `length(x)` has something to look up.
+You've probably written (or seen) a function like `function(x, n = length(x))`, a default that refers to another argument. It works because of one rule: **default arguments are evaluated in the function's own environment, not the caller's**. By the time R needs `n`, `x` is already bound in the function frame, so `length(x)` has something to look up.
 
 Here's the friendly version:
 
@@ -175,7 +175,7 @@ smart_default(1:10, 3)
 #> [1] 1 2 3
 ```
 
-When you omit `n`, R wraps the default expression `length(x)` in a promise whose *environment* is the call frame of `smart_default`. The moment the body reads `n`, that promise forces, finds `x` in the same frame, and returns `10`. When you pass `n = 3`, the default is never consulted — your supplied promise takes its place.
+When you omit `n`, R wraps the default expression `length(x)` in a promise whose *environment* is the call frame of `smart_default`. The moment the body reads `n`, that promise forces, finds `x` in the same frame, and returns `10`. When you pass `n = 3`, the default is never consulted, your supplied promise takes its place.
 
 Now the unfriendly version. The same rule means a default can reference *anything* in the function's local scope, including variables created *after* the formal parameters. Hadley's classic `h05()` example shows how strange that gets:
 
@@ -194,7 +194,7 @@ h05(ls())
 #> [1] "h05"      "noisy"    "counter"  ...
 ```
 
-Same expression — `ls()` — two completely different results. The default version runs in `h05`'s frame, where the locals are `a` and `x`, so `ls()` returns `c("a", "x")`. The supplied version runs in the *caller's* frame (the global environment), where `ls()` returns whatever globals happen to exist.
+Same expression, `ls()`, two completely different results. The default version runs in `h05`'s frame, where the locals are `a` and `x`, so `ls()` returns `c("a", "x")`. The supplied version runs in the *caller's* frame (the global environment), where `ls()` returns whatever globals happen to exist.
 
 [KEY INSIGHT]
 **Default arg = lazy + function's environment. Caller-supplied arg = lazy + caller's environment.** Two different worlds. Useful for `function(x, n = length(x))` patterns, dangerous when a default references a local whose meaning the caller can't see.
@@ -282,9 +282,9 @@ adders_safe[[3]](10)
 Correct. On iteration 1, `force(n)` ran inside `make_adder_safe`'s frame, evaluated `i` (which was 1), and cached 1 in the value slot. The inner closure's reference to `n` now resolves to that frozen 1, regardless of what `i` does later. Iterations 2 and 3 froze their own promises the same way.
 
 [WARNING]
-**Function factories used inside loops must `force()` their captured argument.** It's a silent, frustrating bug — the code looks right, it doesn't error, it just returns the wrong numbers. If you're building closures that capture anything from an enclosing environment, add `force()` as a reflex.
+**Function factories used inside loops must `force()` their captured argument.** It's a silent, frustrating bug, the code looks right, it doesn't error, it just returns the wrong numbers. If you're building closures that capture anything from an enclosing environment, add `force()` as a reflex.
 
-Technically, `force(x)` is nothing more than `identity(x)` — it does not exist to do work, only to make the intent unmistakable. Writing `n` on its own line would also force the promise; `force(n)` just tells the next reader why.
+Technically, `force(x)` is nothing more than `identity(x)`, it does not exist to do work, only to make the intent unmistakable. Writing `n` on its own line would also force the promise; `force(n)` just tells the next reader why.
 
 **Try it:** The factory below builds personalised greeters but has the same bug. Add `force()` to fix it.
 
@@ -328,13 +328,13 @@ greeters$Cai()
 #> [1] "Hi, Cai!"
 ```
 
-**Explanation:** Without `force(name)`, every closure captures the same unforced promise for `name`, which later resolves to `"Cai"` — the loop's final value. Forcing inside the factory freezes each closure's copy.
+**Explanation:** Without `force(name)`, every closure captures the same unforced promise for `name`, which later resolves to `"Cai"`, the loop's final value. Forcing inside the factory freezes each closure's copy.
 
 </details>
 
 ## How does substitute() let you inspect a promise?
 
-So far we've talked about forcing a promise — getting its value. `substitute()` does the opposite: it reads the **expression** slot *without* triggering evaluation. It gives you the raw code the caller typed.
+So far we've talked about forcing a promise, getting its value. `substitute()` does the opposite: it reads the **expression** slot *without* triggering evaluation. It gives you the raw code the caller typed.
 
 ```r
 show_expression <- function(x) {
@@ -357,12 +357,12 @@ show_expression(a + 10)
 #> Value     : 15 
 ```
 
-`substitute(x)` peered inside the promise and handed back the expression slot — the exact code the caller wrote. Then `x` on the next line forced the promise normally to get the value. Both slots, one promise.
+`substitute(x)` peered inside the promise and handed back the expression slot, the exact code the caller wrote. Then `x` on the next line forced the promise normally to get the value. Both slots, one promise.
 
 This is the engine behind a lot of "magic" R functions. `plot(x, y)` labels its axes "x" and "y" because it calls `substitute()` on its arguments. `curve(sin(1/x^2), 0, 1)` captures `sin(1/x^2)` as an expression, never evaluates it in the caller, and re-evaluates it across a grid of `x` values. dplyr's `filter(cyl == 4)` works because `filter()` uses substitute-like tools to capture `cyl == 4` and evaluate it inside the data frame instead of the caller.
 
 [NOTE]
-**`substitute()` only captures the promise at *its own* argument position.** If function `outer(x)` passes `x` down to `inner(x)`, and `inner()` calls `substitute(x)`, it sees the symbol `x` — not the original expression from the outermost caller. Metaprogramming across function boundaries needs `rlang::enquo()` or manual expression passing.
+**`substitute()` only captures the promise at *its own* argument position.** If function `outer(x)` passes `x` down to `inner(x)`, and `inner()` calls `substitute(x)`, it sees the symbol `x`, not the original expression from the outermost caller. Metaprogramming across function boundaries needs `rlang::enquo()` or manual expression passing.
 
 **Try it:** Write `ex_describe(x)` that returns a named list with `expression` (a character string via `deparse`) and `value`.
 
@@ -404,7 +404,7 @@ ex_describe(10 * (3 + 2))
 
 ## Can I create promises manually with delayedAssign()?
 
-Function arguments are the usual source of promises, but you can create one at the top level too. `delayedAssign(name, expr)` binds `name` to a promise that holds `expr` unevaluated — the expression runs the first time you reference `name`, and never again.
+Function arguments are the usual source of promises, but you can create one at the top level too. `delayedAssign(name, expr)` binds `name` to a promise that holds `expr` unevaluated, the expression runs the first time you reference `name`, and never again.
 
 ```r
 # Bind a promise to the name `big_calc` without running the body
@@ -426,7 +426,7 @@ big_calc
 #> [1] 500000500000
 ```
 
-Two things to notice. First, the `cat()` message printed exactly once — exactly on the first read of `big_calc`. That's the familiar "force and cache" rule, now applied to a top-level binding instead of a function argument. Second, after the first access, `big_calc` looks like an ordinary variable holding `500000500000` — the promise has done its job.
+Two things to notice. First, the `cat()` message printed exactly once, exactly on the first read of `big_calc`. That's the familiar "force and cache" rule, now applied to a top-level binding instead of a function argument. Second, after the first access, `big_calc` looks like an ordinary variable holding `500000500000`, the promise has done its job.
 
 This is how many R packages expose large reference datasets: `delayedAssign` on package load, and the dataset stays compressed on disk until a user actually reads it.
 
@@ -462,7 +462,7 @@ identical(first, second)
 #> [1] TRUE
 ```
 
-**Explanation:** `Sys.time()` runs once, during the first access to `ex_config`. The returned time is cached in the promise's value slot, so the second read returns the same cached timestamp — not a fresh one.
+**Explanation:** `Sys.time()` runs once, during the first access to `ex_config`. The returned time is cached in the promise's value slot, so the second read returns the same cached timestamp, not a fresh one.
 
 </details>
 
@@ -472,7 +472,7 @@ These pull together several ideas from the tutorial. Use distinct variable names
 
 ### Exercise 1: A safe multiplier factory
 
-Write `make_multiplier(n)` that returns a function of `x` computing `x * n`. Build five multipliers in a `for` loop (for `n = 2` through `6`) and store them in a list called `my_mults`. Verify that each multiplier returns the correct result — `my_mults[[1]](10)` should give `20`, `my_mults[[5]](10)` should give `60`.
+Write `make_multiplier(n)` that returns a function of `x` computing `x * n`. Build five multipliers in a `for` loop (for `n = 2` through `6`) and store them in a list called `my_mults`. Verify that each multiplier returns the correct result, `my_mults[[1]](10)` should give `20`, `my_mults[[5]](10)` should give `60`.
 
 ```r
 # Exercise 1: use force() to avoid the closure-loop trap
@@ -559,7 +559,7 @@ my_once_fn()
 #> [1] 0.2655087
 ```
 
-**Explanation:** A small environment (`cache`) persists across calls because the returned closure holds a reference to it. The first call evaluates `fn()` and stores the result; later calls short-circuit to the cached value. Notice the `force(fn)` at the top — if you built multiple `once()` wrappers in a loop, you'd hit the closure-loop trap without it.
+**Explanation:** A small environment (`cache`) persists across calls because the returned closure holds a reference to it. The first call evaluates `fn()` and stores the result; later calls short-circuit to the cached value. Notice the `force(fn)` at the top, if you built multiple `once()` wrappers in a loop, you'd hit the closure-loop trap without it.
 
 </details>
 
@@ -600,13 +600,13 @@ safe_default(1:10, 3)
 #> [1] 1 2 3
 ```
 
-**Explanation:** `missing(n)` returns `TRUE` if the caller didn't supply `n` — it checks whether `n`'s promise still holds the default expression. Branching on `missing()` makes defaults explicit and prevents surprises when a default references other locals in the function body.
+**Explanation:** `missing(n)` returns `TRUE` if the caller didn't supply `n`, it checks whether `n`'s promise still holds the default expression. Branching on `missing()` makes defaults explicit and prevents surprises when a default references other locals in the function body.
 
 </details>
 
 ## Putting It All Together: a lazy config loader
 
-Here's a small real-world scenario that ties promises, `force()`, and `delayedAssign()` together. Imagine a configuration object where each value is computed on demand — reading a file, contacting a database, running an expensive calculation — and you only pay for the keys you actually touch.
+Here's a small real-world scenario that ties promises, `force()`, and `delayedAssign()` together. Imagine a configuration object where each value is computed on demand, reading a file, contacting a database, running an expensive calculation, and you only pay for the keys you actually touch.
 
 `lazy_config()` accepts a list of name → expression pairs (passed via `quote()` so the expressions don't evaluate at call time). It stores each expression as a promise inside a dedicated environment and returns that environment. Reading a key forces the corresponding promise exactly once.
 
@@ -647,9 +647,9 @@ cat("heavy_calc is never read — never computed.\n")
 #> heavy_calc is never read — never computed.
 ```
 
-Three things to observe. First, building `cfg` printed nothing — no expression was evaluated yet; each became a promise. Second, the first read of `cfg$db_host` printed the "resolving" message and returned the value; the second read printed nothing, because the promise was already forced and cached. Third, `cfg$heavy_calc` never ran at all — its expression still sits in an unforced promise inside `cfg` and will never fire unless someone reads it.
+Three things to observe. First, building `cfg` printed nothing, no expression was evaluated yet; each became a promise. Second, the first read of `cfg$db_host` printed the "resolving" message and returned the value; the second read printed nothing, because the promise was already forced and cached. Third, `cfg$heavy_calc` never ran at all, its expression still sits in an unforced promise inside `cfg` and will never fire unless someone reads it.
 
-The `force(k)` and `force(expr)` inside `local()` are the same closure-loop defence from Exercise 1 — without them, every `delayedAssign()` would capture the final loop values of `key` and `entries[[key]]`, and all three keys would resolve to the same expression.
+The `force(k)` and `force(expr)` inside `local()` are the same closure-loop defence from Exercise 1, without them, every `delayedAssign()` would capture the final loop values of `key` and `entries[[key]]`, and all three keys would resolve to the same expression.
 
 ## Summary
 
@@ -667,15 +667,15 @@ The `force(k)` and `force(expr)` inside `local()` are the same closure-loop defe
 ## References
 
 1. Wickham, H. *Advanced R* (2nd ed.), §6.5 Lazy evaluation. CRC Press, 2019. [Link](https://adv-r.hadley.nz/functions.html)
-2. R Core Team — `force()` documentation. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/force.html)
-3. R Core Team — `delayedAssign()` documentation. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/delayedAssign.html)
+2. R Core Team, `force()` documentation. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/force.html)
+3. R Core Team, `delayedAssign()` documentation. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/delayedAssign.html)
 4. Gągolewski, M. *Deep R Programming*, Chapter 17: Lazy evaluation. [Link](https://deepr.gagolewski.com/chapter/340-lazy.html)
-5. Fay, C. — *About lazy evaluation* (2018). [Link](https://colinfay.me/lazyeval/)
-6. Mailund, T. — *Promises, their environments, and how we evaluate them*. [Link](https://mailund.dk/posts/promises-and-lazy-evaluation/)
-7. R Core Team — *R Internals*, §1.3 Promise objects. [Link](https://cran.r-project.org/doc/manuals/r-release/R-ints.html)
+5. Fay, C., *About lazy evaluation* (2018). [Link](https://colinfay.me/lazyeval/)
+6. Mailund, T., *Promises, their environments, and how we evaluate them*. [Link](https://mailund.dk/posts/promises-and-lazy-evaluation/)
+7. R Core Team, *R Internals*, §1.3 Promise objects. [Link](https://cran.r-project.org/doc/manuals/r-release/R-ints.html)
 
 ## Continue Learning
 
-1. **R Lexical Scoping** — the rule that tells R *where* to look up a promise's expression. Lazy evaluation decides *when*; scoping decides *where*.
-2. **R Closures** — how functions remember the environment they were born in, which is exactly what makes the closure-loop trap bite (and what makes it fixable).
-3. **R Environments** — the containers that promises live inside, and the thing `eval.env` in `delayedAssign()` actually points to.
+1. **R Lexical Scoping**, the rule that tells R *where* to look up a promise's expression. Lazy evaluation decides *when*; scoping decides *where*.
+2. **R Closures**, how functions remember the environment they were born in, which is exactly what makes the closure-loop trap bite (and what makes it fixable).
+3. **R Environments**, the containers that promises live inside, and the thing `eval.env` in `delayedAssign()` actually points to.

@@ -1,7 +1,7 @@
 ---
 title: "Publication-Ready ggplot2 Figures: The Checklist for Journals and Theses"
 slug: "Publication-Quality-Figures-in-R"
-description: "Master the 12 ggplot2 settings — fonts, line widths, DPI, aspect ratios, and colour palettes — that turn a draft R plot into a journal-accepted figure."
+description: "Master the 12 ggplot2 settings, fonts, line widths, DPI, aspect ratios, and colour palettes, that turn a draft R plot into a journal-accepted figure."
 keywords: "publication ready ggplot2, ggplot2 journal figures, R publication quality plots, ggsave DPI, ggplot2 theme publication, academic figures R, ggplot2 font size, colorblind safe palette R"
 auto_link_terms: "publication-ready figures|publication-quality plots|ggsave()|theme_minimal()|journal figures ggplot2|academic figures in R|colorblind-safe palette"
 auto_link_case_sensitive: false
@@ -18,7 +18,7 @@ difficulty: "Intermediate"
 
 # Publication-Ready ggplot2 Figures: The Checklist for Journals and Theses
 
-<p class="lead">A publication-ready figure meets the exact typographic, dimensional, and colour requirements of a journal or thesis committee — without any manual editing in PowerPoint or Illustrator. ggplot2 can produce these figures directly from R once you adjust about a dozen settings.</p>
+<p class="lead">A publication-ready figure meets the exact typographic, dimensional, and colour requirements of a journal or thesis committee, without any manual editing in PowerPoint or Illustrator. ggplot2 can produce these figures directly from R once you adjust about a dozen settings.</p>
 
 ## Why do default ggplot2 plots fail journal requirements?
 
@@ -40,7 +40,7 @@ p_default
 #> This fails most journal guidelines.
 ```
 
-The grey background adds visual noise that doesn't belong in a printed figure. The text is too small — when the journal shrinks your figure to a 3.5-inch column, those 11pt labels drop to about 6pt, well below the 8pt minimum most publishers require.
+The grey background adds visual noise that doesn't belong in a printed figure. The text is too small, when the journal shrinks your figure to a 3.5-inch column, those 11pt labels drop to about 6pt, well below the 8pt minimum most publishers require.
 
 Now let's apply the fixes. The same data, with a clean theme, larger fonts, and a colourblind-safe palette:
 
@@ -65,10 +65,10 @@ p_pub
 #> This passes journal requirements.
 ```
 
-The difference is clear. White background, thicker axis lines, larger fonts that stay readable at print size, and colours that work for colourblind readers. Every change comes from a specific ggplot2 setting — and by the end of this tutorial, you'll know all 12.
+The difference is clear. White background, thicker axis lines, larger fonts that stay readable at print size, and colours that work for colourblind readers. Every change comes from a specific ggplot2 setting, and by the end of this tutorial, you'll know all 12.
 
 [KEY INSIGHT]
-**Default ggplot2 figures are designed for on-screen exploration, not print.** Journals need high contrast, readable fonts at small physical sizes, and specific DPI — all things you must set explicitly in your theme and ggsave() call.
+**Default ggplot2 figures are designed for on-screen exploration, not print.** Journals need high contrast, readable fonts at small physical sizes, and specific DPI, all things you must set explicitly in your theme and ggsave() call.
 
 **Try it:** Take the default plot `p_default` and add `theme_bw(base_size = 14)` to it. How does the output change compared to `theme_classic()`?
 
@@ -104,7 +104,7 @@ ex_plot
 
 Every visual element in a ggplot2 figure is controlled by four building blocks: `element_blank()` (remove it), `element_line()` (style a line), `element_text()` (style text), and `element_rect()` (style a rectangle). Mastering these four functions gives you full control over how your figure looks in print.
 
-Start with `theme_classic()` as your base. It gives you a white background, no gridlines, and axis lines — exactly what most journals want. Then layer your customizations on top.
+Start with `theme_classic()` as your base. It gives you a white background, no gridlines, and axis lines, exactly what most journals want. Then layer your customizations on top.
 
 ```r
 # Build a publication theme step by step
@@ -163,7 +163,7 @@ p_elements
 #> thick axis lines (0.6), thinner ticks (0.4), and no gridlines.
 ```
 
-The `face` argument in `element_text()` accepts "plain", "bold", "italic", and "bold.italic". Journals commonly require bold axis titles and plain axis text — this combination creates a clear visual hierarchy without competing emphasis.
+The `face` argument in `element_text()` accepts "plain", "bold", "italic", and "bold.italic". Journals commonly require bold axis titles and plain axis text, this combination creates a clear visual hierarchy without competing emphasis.
 
 **Try it:** Create a scatter plot of `iris` (Sepal.Width vs Petal.Width) using `theme_classic()`. Then remove the top and right axis lines by setting `axis.line.y.right` and `axis.line.x.top` to `element_blank()`. Hint: `theme_classic()` already does this, so try adding a panel border first with `panel.border = element_rect(fill = NA)` and then selectively removing the top/right lines.
 
@@ -198,13 +198,13 @@ ex_axes
 #> so using it as-is is the simplest solution.
 ```
 
-**Explanation:** `theme_classic()` already removes the top and right axis lines. If you want a full border, add `panel.border`. The cleanest approach for journals is usually `theme_classic()` without modification — bottom and left lines only.
+**Explanation:** `theme_classic()` already removes the top and right axis lines. If you want a full border, add `panel.border`. The cleanest approach for journals is usually `theme_classic()` without modification, bottom and left lines only.
 
 </details>
 
 ## How do you choose fonts and sizes for academic figures?
 
-Journals typically require sans-serif fonts — Arial, Helvetica, or their system equivalents — at 8-12pt when printed at final size. The tricky part: ggplot2 font sizes are absolute, but your figure gets resized during publication. A 12pt label in a 10-inch-wide plot becomes a 4pt label when the journal shrinks it to a 3.5-inch column.
+Journals typically require sans-serif fonts, Arial, Helvetica, or their system equivalents, at 8-12pt when printed at final size. The tricky part: ggplot2 font sizes are absolute, but your figure gets resized during publication. A 12pt label in a 10-inch-wide plot becomes a 4pt label when the journal shrinks it to a 3.5-inch column.
 
 The `base_size` argument in theme functions sets the body text size. All other text elements scale relative to it: the plot title gets `base_size * 1.2`, axis titles get `base_size * 0.9`, and so on.
 
@@ -230,7 +230,7 @@ p_fonts
 #> 11pt axis titles, and 9pt axis tick labels.
 ```
 
-Setting explicit sizes for each element overrides the `base_size` cascade. This gives you precise control — and it's the safer approach when you know the journal's exact size requirements.
+Setting explicit sizes for each element overrides the `base_size` cascade. This gives you precise control, and it's the safer approach when you know the journal's exact size requirements.
 
 Here's a quick reference for choosing font sizes based on your figure's final printed width.
 
@@ -299,7 +299,7 @@ ex_fonts
 
 ## Which colour palettes are journal-safe and colourblind-accessible?
 
-About 8% of males and 0.5% of females have some form of colour vision deficiency, most commonly red-green. If your figure uses a red-green palette to distinguish groups, roughly 1 in 12 readers — including potentially your reviewer — can't interpret it. Many journals also require figures that reproduce clearly in greyscale.
+About 8% of males and 0.5% of females have some form of colour vision deficiency, most commonly red-green. If your figure uses a red-green palette to distinguish groups, roughly 1 in 12 readers, including potentially your reviewer, can't interpret it. Many journals also require figures that reproduce clearly in greyscale.
 
 The viridis family of palettes was designed to be perceptually uniform, colourblind-safe, and readable in greyscale. It's available directly in ggplot2 with no extra packages.
 
@@ -337,7 +337,7 @@ p_okabe
 #> forms of colour vision deficiency.
 ```
 
-The Okabe-Ito palette uses orange, sky blue, green, yellow, deep blue, vermillion, pink, and grey — each chosen to remain distinct under all common types of colour vision deficiency. Store the hex values in a variable and reuse them across all figures in your paper for consistency.
+The Okabe-Ito palette uses orange, sky blue, green, yellow, deep blue, vermillion, pink, and grey, each chosen to remain distinct under all common types of colour vision deficiency. Store the hex values in a variable and reuse them across all figures in your paper for consistency.
 
 [KEY INSIGHT]
 **The Okabe-Ito palette was designed specifically for colourblind readers and reproduces well in greyscale.** It's the safest default for academic figures. Save the hex values once and reuse them across your entire manuscript for visual consistency.
@@ -376,7 +376,7 @@ ex_viridis
 
 ## How do you control line widths, point sizes, and element weights?
 
-Journal figures are often printed at 3.5 inches wide — roughly the width of a playing card. At that size, thin lines vanish and small points become specks. Most publishers specify minimum line weights (typically 0.5pt) and require that data points are clearly distinguishable.
+Journal figures are often printed at 3.5 inches wide, roughly the width of a playing card. At that size, thin lines vanish and small points become specks. Most publishers specify minimum line weights (typically 0.5pt) and require that data points are clearly distinguishable.
 
 In ggplot2, `linewidth` controls line thickness in geoms like `geom_line()` and `geom_smooth()`. For points, `size` sets the diameter and `stroke` controls the outline thickness. In `theme()` elements, `linewidth` similarly controls axis lines, tick marks, and borders.
 
@@ -448,7 +448,7 @@ ex_weights
 
 This is where most submissions fail. You can build a perfect figure in R, but if you export it as a low-resolution PNG or at the wrong dimensions, the journal will reject it. Most journals require 300 DPI minimum for colour figures and 600 DPI for line art (plots with no gradients or photographs).
 
-The `ggsave()` function controls everything: file format, physical dimensions, resolution, and background colour. Always specify `width`, `height`, `units`, and `dpi` explicitly — never rely on defaults.
+The `ggsave()` function controls everything: file format, physical dimensions, resolution, and background colour. Always specify `width`, `height`, `units`, and `dpi` explicitly, never rely on defaults.
 
 ```r
 # Export a TIFF at 300 DPI for journal submission
@@ -478,9 +478,9 @@ cat("  File size: ~1-3 MB depending on complexity\n")
 #>   File size: ~1-3 MB depending on complexity
 ```
 
-TIFF with LZW compression is the safest format for journal submission — it's lossless and universally accepted. Use the `compression = "lzw"` argument to keep file sizes manageable.
+TIFF with LZW compression is the safest format for journal submission, it's lossless and universally accepted. Use the `compression = "lzw"` argument to keep file sizes manageable.
 
-For vector graphics — figures that need to scale without quality loss, like line charts or diagrams — PDF is the better choice.
+For vector graphics, figures that need to scale without quality loss, like line charts or diagrams, PDF is the better choice.
 
 ```r
 # PDF export for vector graphics
@@ -548,7 +548,7 @@ cat("  Expected file size: ~5-15 MB\n")
 
 ## How do you build multi-panel figures with labels?
 
-Journals often require multi-panel figures — two or more plots arranged in a grid with (a), (b), (c) labels. The `patchwork` package makes this straightforward. It uses `+` to place plots side by side and `/` to stack them vertically.
+Journals often require multi-panel figures, two or more plots arranged in a grid with (a), (b), (c) labels. The `patchwork` package makes this straightforward. It uses `+` to place plots side by side and `/` to stack them vertically.
 
 ```r
 library(patchwork)
@@ -575,7 +575,7 @@ p_combined
 #> Both share the same theme and font sizes.
 ```
 
-The `tag_levels = "a"` argument auto-labels panels with lowercase letters. The `tag_prefix` and `tag_suffix` add parentheses — the format most journals prefer. No manual positioning or annotation required.
+The `tag_levels = "a"` argument auto-labels panels with lowercase letters. The `tag_prefix` and `tag_suffix` add parentheses, the format most journals prefer. No manual positioning or annotation required.
 
 For more complex layouts, use `plot_layout()` to control rows, columns, and relative sizes.
 
@@ -592,10 +592,10 @@ p_layout
 #> (c) spanning the full bottom row (1/3 of height).
 ```
 
-The `/` operator stacks vertically. The `heights` argument takes a ratio — `c(2, 1)` means the top row gets twice the height of the bottom row. You can mix `+` (horizontal) and `/` (vertical) freely to build any grid layout.
+The `/` operator stacks vertically. The `heights` argument takes a ratio, `c(2, 1)` means the top row gets twice the height of the bottom row. You can mix `+` (horizontal) and `/` (vertical) freely to build any grid layout.
 
 [TIP]
-**Use patchwork's plot_annotation(tag_levels = 'a') to auto-label panels.** Journals prefer lowercase letters in parentheses: (a), (b), (c). This approach is automatic and consistent — no need to manually position text annotations.
+**Use patchwork's plot_annotation(tag_levels = 'a') to auto-label panels.** Journals prefer lowercase letters in parentheses: (a), (b), (c). This approach is automatic and consistent, no need to manually position text annotations.
 
 **Try it:** Create a 3-panel figure arranged in a 1×3 row (three plots side by side) with uppercase panel tags: (A), (B), (C).
 
@@ -744,7 +744,7 @@ my_line <- ggplot(pressure, aes(x = temperature, y = pressure)) +
 #> (d) empty space. All share consistent publication theme.
 ```
 
-**Explanation:** Wrapping your theme in a function ensures every figure in your manuscript uses identical settings. The `plot_spacer()` function from patchwork creates an empty panel in the grid — useful when you have an odd number of plots.
+**Explanation:** Wrapping your theme in a function ensures every figure in your manuscript uses identical settings. The `plot_spacer()` function from patchwork creates an empty panel in the grid, useful when you have an odd number of plots.
 
 </details>
 
@@ -793,7 +793,7 @@ my_fig
 #        device = cairo_pdf)
 ```
 
-**Explanation:** Using `show.legend = FALSE` avoids a redundant legend when the x-axis already labels the groups. Error bars from `stat_summary(fun.data = mean_se)` add standard error bars automatically. The shared Okabe-Ito palette across both panels creates visual unity — a key requirement for multi-panel figures.
+**Explanation:** Using `show.legend = FALSE` avoids a redundant legend when the x-axis already labels the groups. Error bars from `stat_summary(fun.data = mean_se)` add standard error bars automatically. The shared Okabe-Ito palette across both panels creates visual unity, a key requirement for multi-panel figures.
 
 </details>
 
@@ -872,7 +872,7 @@ This figure uses every setting from the checklist: `theme_classic()` base, sans-
 
 ## Summary
 
-Here's the complete checklist — verify each setting before submitting your figure.
+Here's the complete checklist, verify each setting before submitting your figure.
 
 | # | Setting | What to check | Recommended value |
 |---|---------|---------------|-------------------|
@@ -897,17 +897,17 @@ Here's the complete checklist — verify each setting before submitting your fig
 
 ## References
 
-1. Wickham, H. — *ggplot2: Elegant Graphics for Data Analysis*, 3rd Ed. Springer (2024). Chapter 17: Themes. [Link](https://ggplot2-book.org/themes.html)
-2. ggplot2 documentation — theme() reference. [Link](https://ggplot2.tidyverse.org/reference/theme.html)
-3. Wilke, C.O. — *Fundamentals of Data Visualization*. O'Reilly (2019). Chapter 29: Telling a Story and Making a Point. [Link](https://clauswilke.com/dataviz/)
-4. Okabe, M. & Ito, K. — Color Universal Design. [Link](https://jfly.uni-koeln.de/color/)
+1. Wickham, H., *ggplot2: Elegant Graphics for Data Analysis*, 3rd Ed. Springer (2024). Chapter 17: Themes. [Link](https://ggplot2-book.org/themes.html)
+2. ggplot2 documentation, theme() reference. [Link](https://ggplot2.tidyverse.org/reference/theme.html)
+3. Wilke, C.O., *Fundamentals of Data Visualization*. O'Reilly (2019). Chapter 29: Telling a Story and Making a Point. [Link](https://clauswilke.com/dataviz/)
+4. Okabe, M. & Ito, K., Color Universal Design. [Link](https://jfly.uni-koeln.de/color/)
 5. viridis R package documentation. [Link](https://sjmgarnier.github.io/viridis/)
-6. Pedersen, T.L. — patchwork: The Composer of Plots. [Link](https://patchwork.data-imaginist.com/)
-7. ggplot2 documentation — ggsave() reference. [Link](https://ggplot2.tidyverse.org/reference/ggsave.html)
-8. Nature formatting guide — Figure preparation. [Link](https://www.nature.com/nature/for-authors/formatting-guide)
+6. Pedersen, T.L., patchwork: The Composer of Plots. [Link](https://patchwork.data-imaginist.com/)
+7. ggplot2 documentation, ggsave() reference. [Link](https://ggplot2.tidyverse.org/reference/ggsave.html)
+8. Nature formatting guide, Figure preparation. [Link](https://www.nature.com/nature/for-authors/formatting-guide)
 
 ## Continue Learning
 
-1. [ggplot2 Themes in R](ggplot2-Themes-in-R.html) — Deep dive into theme customization and creating custom themes from scratch.
-2. [ggplot2 Colours](ggplot2-Colours.html) — Comprehensive guide to colour scales, palettes, and manual colour mapping in ggplot2.
-3. [Labels & Annotations](ggplot2-Labels-and-Annotations.html) — Add polished titles, subtitles, captions, and annotations to your plots.
+1. [ggplot2 Themes in R](ggplot2-Themes-in-R.html), Deep dive into theme customization and creating custom themes from scratch.
+2. [ggplot2 Colours](ggplot2-Colours.html), Comprehensive guide to colour scales, palettes, and manual colour mapping in ggplot2.
+3. [Labels & Annotations](ggplot2-Labels-and-Annotations.html), Add polished titles, subtitles, captions, and annotations to your plots.

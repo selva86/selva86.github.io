@@ -1,5 +1,5 @@
 ---
-title: "ggplot2 aes(): Map Any Variable to Any Visual Property — The Complete Reference"
+title: "ggplot2 aes(): Map Any Variable to Any Visual Property, The Complete Reference"
 slug: "ggplot2-Aesthetics-aes-Map-Data"
 description: "aes() maps data columns to visual properties like colour, fill, size, shape, and alpha. Learn which aesthetics each geom supports and how to set vs map."
 keywords: "ggplot2 aesthetics, aes() in ggplot2, ggplot2 colour mapping, ggplot2 fill, ggplot2 shape, ggplot2 size, ggplot2 alpha, ggplot2 linetype, set vs map aesthetics, ggplot2 scale override"
@@ -17,17 +17,17 @@ difficulty: "Intermediate"
 ---
 
 
-# ggplot2 aes(): Map Any Variable to Any Visual Property — The Complete Reference
+# ggplot2 aes(): Map Any Variable to Any Visual Property, The Complete Reference
 
-<p class="lead">The <code>aes()</code> function maps columns in your data to visual properties — colour, fill, size, shape, alpha, and linetype — so ggplot2 automatically varies those properties across data values and generates a matching legend.</p>
+<p class="lead">The <code>aes()</code> function maps columns in your data to visual properties, colour, fill, size, shape, alpha, and linetype, so ggplot2 automatically varies those properties across data values and generates a matching legend.</p>
 
 ## Introduction
 
-Every ggplot2 plot starts with `aes()`, but most tutorials stop at `aes(x, y)`. That barely scratches the surface. The `aes()` function can map *any* variable to *any* visual property — colour, fill, size, shape, transparency, line type, and more.
+Every ggplot2 plot starts with `aes()`, but most tutorials stop at `aes(x, y)`. That barely scratches the surface. The `aes()` function can map *any* variable to *any* visual property, colour, fill, size, shape, transparency, line type, and more.
 
 Think of `aes()` as a translator. Your data frame speaks in column names. The plot speaks in colours, sizes, and shapes. `aes()` sits between them, telling ggplot2: "use this column to control that visual channel." Without `aes()`, ggplot2 has no idea how to connect your data to what you see on screen.
 
-In this tutorial, you will learn every major aesthetic ggplot2 supports, when to map an aesthetic to data versus set it to a fixed value, how layers inherit aesthetics from the global `ggplot()` call, and how to override default scales. Every code block runs directly in your browser — click **Run** to see results instantly.
+In this tutorial, you will learn every major aesthetic ggplot2 supports, when to map an aesthetic to data versus set it to a fixed value, how layers inherit aesthetics from the global `ggplot()` call, and how to override default scales. Every code block runs directly in your browser, click **Run** to see results instantly.
 
 ![ggplot2 Aesthetics Overview](screenshots/ggplot2-Aesthetics-aes-Map-Data-overview.webp)
 
@@ -35,7 +35,7 @@ In this tutorial, you will learn every major aesthetic ggplot2 supports, when to
 
 ## What does aes() actually do?
 
-`aes()` creates a mapping object — a set of instructions that links column names to visual properties. It does not draw anything by itself. A geom reads those instructions and decides how to render each observation.
+`aes()` creates a mapping object, a set of instructions that links column names to visual properties. It does not draw anything by itself. A geom reads those instructions and decides how to render each observation.
 
 Let's start with the simplest scatter plot. We map `displ` (engine displacement) to the x-axis and `hwy` (highway miles per gallon) to the y-axis using the built-in `mpg` dataset.
 
@@ -50,7 +50,7 @@ head(mpg, 4)
 #> 4         audi    a4   2.0 2008   4   auto(av)   f  21  30  p compact
 ```
 
-So far we have two aesthetics: x and y. Now let's add a third — colour — to reveal which vehicle class each point belongs to.
+So far we have two aesthetics: x and y. Now let's add a third, colour, to reveal which vehicle class each point belongs to.
 
 ```r
 # Map colour to the class variable
@@ -58,7 +58,7 @@ ggplot(mpg, aes(x = displ, y = hwy, colour = class)) +
   geom_point(size = 3)
 ```
 
-Each class gets a distinct colour, and ggplot2 automatically generates a legend. That is `aes()` at work — it mapped the `class` column to the `colour` visual channel.
+Each class gets a distinct colour, and ggplot2 automatically generates a legend. That is `aes()` at work, it mapped the `class` column to the `colour` visual channel.
 
 [KEY INSIGHT]
 **aes() describes intent, geoms execute it.** The aes() function never draws pixels. It creates a mapping blueprint that geoms read to decide how each observation should look.
@@ -88,7 +88,7 @@ ggplot(mpg, aes(x = displ, y = hwy, colour = class, size = cyl)) +
 
 ## How do you map colour and fill to data?
 
-`colour` and `fill` are the two most-used aesthetics after x and y, but they control different things. `colour` changes outlines and point colours. `fill` changes the interior of shapes — bars, boxplots, polygons, and area geoms.
+`colour` and `fill` are the two most-used aesthetics after x and y, but they control different things. `colour` changes outlines and point colours. `fill` changes the interior of shapes, bars, boxplots, polygons, and area geoms.
 
 Let's see `colour` on a scatter plot first. Each vehicle class gets a unique hue.
 
@@ -108,7 +108,7 @@ ggplot(mpg, aes(x = class, fill = drv)) +
   labs(title = "fill maps to bar interior colour")
 ```
 
-The bars are coloured by drivetrain (`drv`: front, rear, 4-wheel). Notice that `colour` would only change the bar outlines — `fill` is what you want for bars.
+The bars are coloured by drivetrain (`drv`: front, rear, 4-wheel). Notice that `colour` would only change the bar outlines, `fill` is what you want for bars.
 
 When you map `colour` to a continuous variable, ggplot2 switches from discrete hues to a gradient scale.
 
@@ -151,7 +151,7 @@ ggplot(mpg, aes(x = class, y = hwy, fill = drv)) +
 
 Beyond colour and fill, three more aesthetics let you encode data: `shape` for categorical distinctions, `size` for magnitude, and `alpha` for transparency.
 
-`shape` works best with categorical variables that have few levels. ggplot2 provides 6 default shapes — if your variable has more than 6 levels, extra levels won't appear.
+`shape` works best with categorical variables that have few levels. ggplot2 provides 6 default shapes, if your variable has more than 6 levels, extra levels won't appear.
 
 ```r
 # shape maps drivetrain to point symbols
@@ -171,7 +171,7 @@ ggplot(mpg, aes(x = displ, y = hwy, size = cyl)) +
   labs(title = "size reflects number of cylinders")
 ```
 
-Larger dots mean more cylinders. Notice we set `alpha = 0.6` *outside* `aes()` — a fixed transparency for all points. That is a preview of the set-vs-map distinction coming in the next section.
+Larger dots mean more cylinders. Notice we set `alpha = 0.6` *outside* `aes()`, a fixed transparency for all points. That is a preview of the set-vs-map distinction coming in the next section.
 
 `alpha` (transparency) is perfect for revealing density in overplotted scatter plots.
 
@@ -257,9 +257,9 @@ ggplot(mpg, aes(x = displ, y = hwy, colour = "red")) +
 The points are NOT red. ggplot2 treats `"red"` as a categorical variable with one level and assigns it the first colour in the default palette (usually salmon or coral). A useless legend saying "red" appears.
 
 [WARNING]
-**Putting a constant colour inside aes() creates a one-level factor.** ggplot2 does not interpret the string "red" as a colour — it treats it as a data category. Move colour constants outside aes().
+**Putting a constant colour inside aes() creates a one-level factor.** ggplot2 does not interpret the string "red" as a colour, it treats it as a data category. Move colour constants outside aes().
 
-**Try it:** The plot below has a bug — `colour = "blue"` is inside `aes()`. Move it to the correct location so all points are actually blue.
+**Try it:** The plot below has a bug, `colour = "blue"` is inside `aes()`. Move it to the correct location so all points are actually blue.
 
 ```r
 # Try it: fix this broken plot
@@ -289,7 +289,7 @@ When you place aesthetics in the `ggplot()` call, every layer inherits them. Whe
 
 *Figure 3: How layers inherit aesthetics from the global ggplot() call.*
 
-Let's build a plot with two layers — points and a smoother — that both inherit x, y, and colour from the global `aes()`.
+Let's build a plot with two layers, points and a smoother, that both inherit x, y, and colour from the global `aes()`.
 
 ```r
 # Both layers inherit colour = class from ggplot()
@@ -299,7 +299,7 @@ ggplot(mpg, aes(x = displ, y = hwy, colour = class)) +
   labs(title = "Both layers inherit global aesthetics")
 ```
 
-Both points and trend lines are coloured by class. That is inheritance at work — you wrote `colour = class` once, and both geoms use it.
+Both points and trend lines are coloured by class. That is inheritance at work, you wrote `colour = class` once, and both geoms use it.
 
 Now let's override colour in just the smoother. We want the points coloured by class, but a single grey trend line across all data.
 
@@ -378,7 +378,7 @@ ggplot(mpg, aes(x = displ, y = hwy, fill = class)) +
   geom_point(size = 3)
 ```
 
-**Why it is wrong:** Default point shape (19) has no interior to fill. The points ignore the fill aesthetic entirely — no colour change, no error, just silence.
+**Why it is wrong:** Default point shape (19) has no interior to fill. The points ignore the fill aesthetic entirely, no colour change, no error, just silence.
 
 ✅ **Correct:**
 ```r
@@ -397,7 +397,7 @@ ggplot(mpg, aes(x = displ, y = hwy, shape = cty)) +
 #> Error: A continuous variable cannot be mapped to shape
 ```
 
-**Why it is wrong:** Shapes are discrete symbols — there is no meaningful way to order them along a continuous scale. ggplot2 throws an error.
+**Why it is wrong:** Shapes are discrete symbols, there is no meaningful way to order them along a continuous scale. ggplot2 throws an error.
 
 ✅ **Correct:**
 ```r
@@ -416,7 +416,7 @@ ggplot(mpg, aes(x = displ, y = hwy, colour = class, shape = drv,
   geom_point()
 ```
 
-**Why it is wrong:** Four simultaneous aesthetics (plus x and y) overwhelm the reader. The plot becomes unreadable — too many legends, too much visual noise.
+**Why it is wrong:** Four simultaneous aesthetics (plus x and y) overwhelm the reader. The plot becomes unreadable, too many legends, too much visual noise.
 
 ✅ **Correct:**
 ```r
@@ -557,7 +557,7 @@ Because `aes()` interprets every value as a data mapping. The string "red" becom
 
 **What is the difference between colour and color in ggplot2?**
 
-Nothing. ggplot2 accepts both British (`colour`) and American (`color`) spellings. Internally, it converts `color` to `colour`. Use whichever you prefer — they produce identical results.
+Nothing. ggplot2 accepts both British (`colour`) and American (`color`) spellings. Internally, it converts `color` to `colour`. Use whichever you prefer, they produce identical results.
 
 **Can I use computed expressions inside aes()?**
 
@@ -573,15 +573,15 @@ Use a scale function. For discrete colour: `scale_colour_manual(values = c(...))
 
 ## References
 
-1. Wickham, H. — *ggplot2: Elegant Graphics for Data Analysis*, 3rd ed. Springer (2024). [Link](https://ggplot2-book.org/)
-2. ggplot2 documentation — aes() reference. [Link](https://ggplot2.tidyverse.org/reference/aes.html)
-3. ggplot2 documentation — Aesthetic specifications. [Link](https://ggplot2.tidyverse.org/articles/ggplot2-specs.html)
-4. ggplot2 documentation — Colour, fill, and alpha aesthetics. [Link](https://ggplot2.tidyverse.org/reference/aes_colour_fill_alpha.html)
-5. ggplot2 documentation — Linetype, size, and shape aesthetics. [Link](https://ggplot2.tidyverse.org/reference/aes_linetype_size_shape.html)
-6. Wilkinson, L. — *The Grammar of Graphics*, 2nd ed. Springer (2005).
-7. Wickham, H., Cetinkaya-Rundel, M., Grolemund, G. — *R for Data Science*, 2nd ed. O'Reilly (2023). Ch. 2: Data Visualization. [Link](https://r4ds.hadley.nz/data-visualize.html)
+1. Wickham, H., *ggplot2: Elegant Graphics for Data Analysis*, 3rd ed. Springer (2024). [Link](https://ggplot2-book.org/)
+2. ggplot2 documentation, aes() reference. [Link](https://ggplot2.tidyverse.org/reference/aes.html)
+3. ggplot2 documentation, Aesthetic specifications. [Link](https://ggplot2.tidyverse.org/articles/ggplot2-specs.html)
+4. ggplot2 documentation, Colour, fill, and alpha aesthetics. [Link](https://ggplot2.tidyverse.org/reference/aes_colour_fill_alpha.html)
+5. ggplot2 documentation, Linetype, size, and shape aesthetics. [Link](https://ggplot2.tidyverse.org/reference/aes_linetype_size_shape.html)
+6. Wilkinson, L., *The Grammar of Graphics*, 2nd ed. Springer (2005).
+7. Wickham, H., Cetinkaya-Rundel, M., Grolemund, G., *R for Data Science*, 2nd ed. O'Reilly (2023). Ch. 2: Data Visualization. [Link](https://r4ds.hadley.nz/data-visualize.html)
 
 ## Continue Learning
-- **[Top 50 ggplot2 Visualizations](Top50-Ggplot2-Visualizations-MasterList-R-Code.html)** — a gallery of 50 chart types with code, organized by data relationship
-- **[ggplot2 Tutorial Part 1 — Introduction](Complete-Ggplot2-Tutorial-Part1-With-R-Code.html)** — the full ggplot2 foundation including geoms, stats, and coordinates
-- **[ggplot2 Tutorial Part 2 — Customizing Theme](Complete-Ggplot2-Tutorial-Part2-Customizing-Theme-With-R-Code.html)** — how to control fonts, colours, gridlines, and every non-data element
+- **[Top 50 ggplot2 Visualizations](Top50-Ggplot2-Visualizations-MasterList-R-Code.html)**, a gallery of 50 chart types with code, organized by data relationship
+- **[ggplot2 Tutorial Part 1, Introduction](Complete-Ggplot2-Tutorial-Part1-With-R-Code.html)**, the full ggplot2 foundation including geoms, stats, and coordinates
+- **[ggplot2 Tutorial Part 2, Customizing Theme](Complete-Ggplot2-Tutorial-Part2-Customizing-Theme-With-R-Code.html)**, how to control fonts, colours, gridlines, and every non-data element

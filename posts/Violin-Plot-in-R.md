@@ -18,13 +18,13 @@ difficulty: "Intermediate"
 
 # Violin Plot in R: Draw, Customize, and Combine with Boxplots
 
-<p class="lead">A violin plot shows the full distribution of a variable using a mirrored density estimate — making it far more informative than a boxplot for data with multiple modes, heavy tails, or unusual shapes. In ggplot2, <code>geom_violin()</code> creates them in one line.</p>
+<p class="lead">A violin plot shows the full distribution of a variable using a mirrored density estimate, making it far more informative than a boxplot for data with multiple modes, heavy tails, or unusual shapes. In ggplot2, <code>geom_violin()</code> creates them in one line.</p>
 
 ## Introduction
 
-A boxplot summarises a distribution with five numbers — minimum, Q1, median, Q3, maximum. That's useful for quick comparisons, but it completely hides distribution shape. Two groups with identical boxplots can have wildly different distributions: one unimodal and symmetric, the other bimodal and skewed.
+A boxplot summarises a distribution with five numbers, minimum, Q1, median, Q3, maximum. That's useful for quick comparisons, but it completely hides distribution shape. Two groups with identical boxplots can have wildly different distributions: one unimodal and symmetric, the other bimodal and skewed.
 
-A violin plot solves this by showing the full density estimate of the data on both sides of a central axis — the "width" of the violin at any point represents how many data points fall near that value. Where the violin is widest, data clusters most densely. Where it narrows, data is sparse.
+A violin plot solves this by showing the full density estimate of the data on both sides of a central axis, the "width" of the violin at any point represents how many data points fall near that value. Where the violin is widest, data clusters most densely. Where it narrows, data is sparse.
 
 The ideal approach combines both: a violin for shape + a mini boxplot for the five-number summary + optional jitter points for the raw data. Together they give readers more information than any single plot type alone.
 
@@ -38,7 +38,7 @@ In this tutorial you will learn:
 
 ## How Does geom_violin() Show the Distribution Shape?
 
-`geom_violin()` uses kernel density estimation (KDE) — the same algorithm as `geom_density()` — but mirrors the density curve symmetrically around the group's x-position. Each side of the violin is the density curve reflected.
+`geom_violin()` uses kernel density estimation (KDE), the same algorithm as `geom_density()`, but mirrors the density curve symmetrically around the group's x-position. Each side of the violin is the density curve reflected.
 
 Let's start with the basics:
 
@@ -58,7 +58,7 @@ p_violin <- ggplot(mpg, aes(x = drv, y = hwy)) +
 p_violin
 ```
 
-The widest part of the front-wheel-drive violin — around 25-30 mpg — shows where most front-wheel-drive cars cluster. The narrower sections indicate fewer cars at those values.
+The widest part of the front-wheel-drive violin, around 25-30 mpg, shows where most front-wheel-drive cars cluster. The narrower sections indicate fewer cars at those values.
 
 Now add color and fill to distinguish groups:
 
@@ -81,7 +81,7 @@ p_fill <- ggplot(mpg, aes(x = drv, y = hwy, fill = drv)) +
 p_fill
 ```
 
-> **KEY INSIGHT:** Use `fill` for the violin interior and `color` for the outline. Setting `color = "white"` removes the default outline, giving a cleaner look. Use `alpha` to control transparency — useful when violins overlap or you add points on top.
+> **KEY INSIGHT:** Use `fill` for the violin interior and `color` for the outline. Setting `color = "white"` removes the default outline, giving a cleaner look. Use `alpha` to control transparency, useful when violins overlap or you add points on top.
 
 **Try it:** Change `palette = "Set2"` to `palette = "Dark2"`. How does the visual impact change?
 
@@ -102,7 +102,7 @@ ex_dark <- ggplot(mpg, aes(x = drv, y = hwy, fill = drv)) +
 ex_dark
 ```
 
-`Dark2` uses saturated, darker hues (forest green, orange, purple) where `Set2` uses pastel versions of similar colors. The visual impact is more assertive — Dark2 violins read as "foregrounded" and hold attention on a white background, while Set2 is better for embedding violins inside larger dashboards where they shouldn't compete with other elements. Both palettes are colorblind-safe, so it's a tone-of-voice choice rather than an accessibility one.
+`Dark2` uses saturated, darker hues (forest green, orange, purple) where `Set2` uses pastel versions of similar colors. The visual impact is more assertive, Dark2 violins read as "foregrounded" and hold attention on a white background, while Set2 is better for embedding violins inside larger dashboards where they shouldn't compete with other elements. Both palettes are colorblind-safe, so it's a tone-of-voice choice rather than an accessibility one.
 </details>
 
 ## How Do You Embed a Boxplot Inside a Violin Plot?
@@ -132,7 +132,7 @@ p_combined <- ggplot(mpg, aes(x = drv, y = hwy, fill = drv)) +
 p_combined
 ```
 
-`width = 0.12` keeps the boxplot narrow enough to read inside the violin. `outlier.shape = NA` suppresses the outlier dots — since the violin already shows the full data distribution, outlier dots add clutter without adding information.
+`width = 0.12` keeps the boxplot narrow enough to read inside the violin. `outlier.shape = NA` suppresses the outlier dots, since the violin already shows the full data distribution, outlier dots add clutter without adding information.
 
 > **TIP:** Add a median point explicitly for extra clarity: `stat_summary(fun = median, geom = "point", size = 2, color = "black")`. This adds a solid dot at the median position, making it easy to compare medians across groups even when the violin widths differ.
 
@@ -156,7 +156,7 @@ ex_outliers <- ggplot(mpg, aes(x = drv, y = hwy, fill = drv)) +
 ex_outliers
 ```
 
-The outlier dots appear as small black circles outside the boxplot whiskers — and you'll notice they clutter the chart because the violin *already* shows those outliers as thin tails of density. The information is duplicated: the narrow violin spike and the boxplot dot both say "one point way up here." That's why `outlier.shape = NA` is the standard pattern for embedded boxplots — the violin is the richer encoding, so let it carry the outlier story.
+The outlier dots appear as small black circles outside the boxplot whiskers, and you'll notice they clutter the chart because the violin *already* shows those outliers as thin tails of density. The information is duplicated: the narrow violin spike and the boxplot dot both say "one point way up here." That's why `outlier.shape = NA` is the standard pattern for embedded boxplots, the violin is the richer encoding, so let it carry the outlier story.
 </details>
 
 ## How Do You Add Raw Data Points to a Violin Plot?
@@ -189,11 +189,11 @@ p_jitter
 ```
 
 The three layers now communicate:
-1. **Violin** — shape and density of the distribution
-2. **Boxplot** — median, IQR, and whisker range
-3. **Jitter** — every individual data point
+1. **Violin**, shape and density of the distribution
+2. **Boxplot**, median, IQR, and whisker range
+3. **Jitter**, every individual data point
 
-> **WARNING:** For large datasets (>500 points per group), jitter becomes a solid mass that obscures the violin shape. Use it only with moderately sized groups. With large data, the violin + boxplot combination alone is sufficient — the density estimate already tells the full distribution story.
+> **WARNING:** For large datasets (>500 points per group), jitter becomes a solid mass that obscures the violin shape. Use it only with moderately sized groups. With large data, the violin + boxplot combination alone is sufficient, the density estimate already tells the full distribution story.
 
 **Try it:** Set `width = 0.25` in `geom_jitter()`. Do the points still sit inside the violin, or do they spill outside?
 
@@ -215,14 +215,14 @@ ex_wide_jitter <- ggplot(mpg, aes(x = drv, y = hwy, fill = drv)) +
 ex_wide_jitter
 ```
 
-At `width = 0.25` the jitter spans half a category width on each side, so a fair number of points end up *outside* the violin — especially where the violin is narrow (the tails). That breaks the visual contract: readers expect jittered points to represent observations *within* the density shown by the violin, so points floating in empty space look like either errors or outliers even though they're neither. Keep jitter width in the 0.05–0.1 range so the spread stays inside the widest part of the violin.
+At `width = 0.25` the jitter spans half a category width on each side, so a fair number of points end up *outside* the violin, especially where the violin is narrow (the tails). That breaks the visual contract: readers expect jittered points to represent observations *within* the density shown by the violin, so points floating in empty space look like either errors or outliers even though they're neither. Keep jitter width in the 0.05–0.1 range so the spread stays inside the widest part of the violin.
 </details>
 
 ## How Do the Bandwidth and Scale Parameters Work?
 
 Two parameters control the violin's shape: `adjust` (bandwidth) and `scale` (how violins are sized relative to each other).
 
-**`adjust` — bandwidth multiplier:**
+**`adjust`, bandwidth multiplier:**
 
 The bandwidth controls how smooth or detailed the density estimate is. `adjust = 1` uses the default bandwidth (chosen automatically). `adjust < 1` gives a rougher, more detailed estimate that follows local peaks. `adjust > 1` gives a smoother, more generalized estimate.
 
@@ -250,7 +250,7 @@ p_smooth_bw <- ggplot(mpg, aes(x = drv, y = hwy, fill = drv)) +
 p_smooth_bw
 ```
 
-**`scale` — how violin widths compare:**
+**`scale`, how violin widths compare:**
 
 | `scale =` | Violin width represents |
 |---|---|
@@ -275,7 +275,7 @@ p_scale <- ggplot(mpg, aes(x = drv, y = hwy, fill = drv)) +
 p_scale
 ```
 
-> **KEY INSIGHT:** `scale = "count"` is often the most honest choice — a group with 10 observations shouldn't look as prominent as a group with 100. With `scale = "area"` (the default), all violins look equally important regardless of sample size.
+> **KEY INSIGHT:** `scale = "count"` is often the most honest choice, a group with 10 observations shouldn't look as prominent as a group with 100. With `scale = "area"` (the default), all violins look equally important regardless of sample size.
 
 **Try it:** Change `scale = "count"` to `scale = "width"`. Do the three violins now have the same maximum width?
 
@@ -296,14 +296,14 @@ ex_width_scale <- ggplot(mpg, aes(x = drv, y = hwy, fill = drv)) +
 ex_width_scale
 ```
 
-Yes — with `scale = "width"` every violin hits the same maximum width regardless of how many observations back it. The 25-row rear-wheel group now looks just as prominent as the 106-row front-wheel group, which is a problem if readers interpret "bigger violin = more data." `scale = "width"` is only appropriate when you explicitly *don't* want sample size to be visible (e.g., comparing shape independent of n). Otherwise `scale = "count"` is the honest default.
+Yes, with `scale = "width"` every violin hits the same maximum width regardless of how many observations back it. The 25-row rear-wheel group now looks just as prominent as the 106-row front-wheel group, which is a problem if readers interpret "bigger violin = more data." `scale = "width"` is only appropriate when you explicitly *don't* want sample size to be visible (e.g., comparing shape independent of n). Otherwise `scale = "count"` is the honest default.
 </details>
 
 ## Common Mistakes and How to Fix Them
 
 ### Mistake 1: Using a violin plot with too few data points
 
-❌ With fewer than ~20-30 observations per group, the kernel density estimate is unreliable — the violin shows smooth curves that misrepresent sparse data:
+❌ With fewer than ~20-30 observations per group, the kernel density estimate is unreliable, the violin shows smooth curves that misrepresent sparse data:
 
 ```r
 # Only 5 points per group - violin shape is misleading
@@ -328,7 +328,7 @@ ggplot(small_df, aes(x = group, y = value)) + geom_violin()
 
 ### Mistake 4: Using the default scale = "area" when group sizes differ greatly
 
-❌ If group A has 10 observations and group B has 200, both violins appear the same size — misrepresenting how much data supports each estimate.
+❌ If group A has 10 observations and group B has 200, both violins appear the same size, misrepresenting how much data supports each estimate.
 
 ✅ Use `scale = "count"` to make violin width reflect sample size.
 
@@ -336,7 +336,7 @@ ggplot(small_df, aes(x = group, y = value)) + geom_violin()
 
 ❌ Comparing 8+ groups side-by-side with violins creates a very wide, crowded chart.
 
-✅ For many groups, use a ridgeline plot (`ggridges::geom_density_ridges()`) which stacks distributions vertically — much more readable with 5+ groups.
+✅ For many groups, use a ridgeline plot (`ggridges::geom_density_ridges()`) which stacks distributions vertically, much more readable with 5+ groups.
 
 ## Practice Exercises
 
@@ -403,7 +403,7 @@ p_final <- ggplot(mpg, aes(x = reorder(class, cty, FUN = median),
 p_final
 ```
 
-`reorder(class, cty, FUN = median)` sorts the x-axis by median city MPG — ensuring the most efficient classes appear on the right and the chart tells a clear story from left (least efficient) to right (most efficient).
+`reorder(class, cty, FUN = median)` sorts the x-axis by median city MPG, ensuring the most efficient classes appear on the right and the chart tells a clear story from left (least efficient) to right (most efficient).
 
 ## Summary
 
@@ -419,7 +419,7 @@ p_final
 | Add median dot | `stat_summary(fun = median, geom = "point")` |
 
 Key rules:
-- Use violins only with 30+ observations per group — fewer points make the density estimate unreliable
+- Use violins only with 30+ observations per group, fewer points make the density estimate unreliable
 - Combine violin + boxplot for both shape and summary
 - Set `scale = "count"` when group sizes differ meaningfully
 - Use `adjust` to control smoothness: lower = more detail, higher = smoother
@@ -428,7 +428,7 @@ Key rules:
 
 **When should I use a violin plot instead of a boxplot?**
 
-Use a violin when the distribution shape matters — for example, to detect bimodal distributions (two peaks), skewness, or heavy tails. A boxplot will never reveal that a group has two distinct sub-populations; a violin shows this immediately as two bulges. When you only need the five-number summary for a quick comparison, a boxplot is simpler and cleaner.
+Use a violin when the distribution shape matters, for example, to detect bimodal distributions (two peaks), skewness, or heavy tails. A boxplot will never reveal that a group has two distinct sub-populations; a violin shows this immediately as two bulges. When you only need the five-number summary for a quick comparison, a boxplot is simpler and cleaner.
 
 **Why does my violin look like a very thin spike?**
 
@@ -440,7 +440,7 @@ Add `coord_flip()` to rotate the chart 90°: `ggplot(...) + geom_violin() + coor
 
 **What is the difference between adjust and bw in geom_violin()?**
 
-`adjust` is a multiplier on the automatically chosen bandwidth. `bw` sets the bandwidth to an explicit value in the same units as the data. For most use cases, `adjust` is more practical — `adjust = 0.5` always means "twice as rough as the default," regardless of the data's units or scale.
+`adjust` is a multiplier on the automatically chosen bandwidth. `bw` sets the bandwidth to an explicit value in the same units as the data. For most use cases, `adjust` is more practical, `adjust = 0.5` always means "twice as rough as the default," regardless of the data's units or scale.
 
 **Can I show half-violins to save space?**
 
@@ -449,14 +449,14 @@ Yes, using the `gghalves` package: `gghalves::geom_half_violin()` draws only one
 ## References
 
 1. Hintze, J. L. & Nelson, R. D. (1998). Violin Plots: A Box Plot-Density Trace Synergism. *The American Statistician*, 52(2), 181–184.
-2. ggplot2 reference — `geom_violin()`. https://ggplot2.tidyverse.org/reference/geom_violin.html
+2. ggplot2 reference, `geom_violin()`. https://ggplot2.tidyverse.org/reference/geom_violin.html
 3. Wickham, H. (2016). *ggplot2: Elegant Graphics for Data Analysis*. Springer. https://ggplot2-book.org/
 4. Wilke, C. O. (2019). *Fundamentals of Data Visualization*, Chapter 9: Visualizing Many Distributions at Once. https://clauswilke.com/dataviz/
-5. R Graph Gallery — Violin Charts. https://r-graph-gallery.com/violin.html
+5. R Graph Gallery, Violin Charts. https://r-graph-gallery.com/violin.html
 6. gghalves package documentation. https://erocoar.github.io/gghalves/
 
 ## Continue Learning
 
-- **ggplot2 Distribution Charts** — the full guide to histograms, density plots, boxplots, and violin plots with guidance on when each type works best.
-- **Ridgeline Plot in R** — stack distributions vertically with `ggridges::geom_density_ridges()` for clean comparison of 5+ groups.
-- **ggplot2 Box Plots** — deep dive into `geom_boxplot()` with notched variants, variable-width boxplots, and grouping strategies.
+- **ggplot2 Distribution Charts**, the full guide to histograms, density plots, boxplots, and violin plots with guidance on when each type works best.
+- **Ridgeline Plot in R**, stack distributions vertically with `ggridges::geom_density_ridges()` for clean comparison of 5+ groups.
+- **ggplot2 Box Plots**, deep dive into `geom_boxplot()` with notched variants, variable-width boxplots, and grouping strategies.

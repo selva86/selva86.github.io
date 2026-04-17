@@ -1,7 +1,7 @@
 ---
-title: "Central Limit Theorem Exercises in R: 8 Simulation Practice Problems — Solved Step-by-Step"
+title: "Central Limit Theorem Exercises in R: 8 Simulation Practice Problems, Solved Step-by-Step"
 slug: Central-Limit-Theorem-Exercises-in-R
-description: "Practise 8 central limit theorem exercises in R with worked solutions. From uniform and exponential to bimodal — scaffolds, hints, reveals for each problem."
+description: "Practise 8 central limit theorem exercises in R with worked solutions. From uniform and exponential to bimodal, scaffolds, hints, reveals for each problem."
 keywords: "central limit theorem exercises R, CLT simulation R, CLT practice problems, sample mean simulation, sampling distribution R, simulate CLT in R"
 auto_link_terms: "CLT exercises|central limit theorem exercises|CLT practice problems|CLT simulation exercises|sampling distribution exercises|CLT problems in R"
 auto_link_case_sensitive: false
@@ -15,13 +15,13 @@ fr_parent: Central-Limit-Theorem-in-R.html
 difficulty: Intermediate
 ---
 
-# Central Limit Theorem Exercises in R: 8 Simulation Practice Problems — Solved Step-by-Step
+# Central Limit Theorem Exercises in R: 8 Simulation Practice Problems, Solved Step-by-Step
 
-<p class="lead">These 8 central limit theorem exercises in R let you watch sample-mean distributions converge to normal — starting from uniform, exponential, and bimodal populations — with full runnable solutions. Every problem has a scaffold, a hint, and a reveal so you can check your answer the moment you finish coding.</p>
+<p class="lead">These 8 central limit theorem exercises in R let you watch sample-mean distributions converge to normal, starting from uniform, exponential, and bimodal populations, with full runnable solutions. Every problem has a scaffold, a hint, and a reveal so you can check your answer the moment you finish coding.</p>
 
 ## How do you simulate a sampling distribution in R?
 
-Every central limit theorem problem boils down to the same five-step recipe: pick a population, draw a sample of size `n`, take its mean, repeat the draw thousands of times, then plot the collected means. One runnable block captures all five steps on a uniform population so you can see the payoff — a near-bell-shaped histogram — before tackling any of the 8 problems.
+Every central limit theorem problem boils down to the same five-step recipe: pick a population, draw a sample of size `n`, take its mean, repeat the draw thousands of times, then plot the collected means. One runnable block captures all five steps on a uniform population so you can see the payoff, a near-bell-shaped histogram, before tackling any of the 8 problems.
 
 ```r
 # Five-step CLT recipe on a uniform(0, 1) population
@@ -40,14 +40,14 @@ hist(uniform_means, breaks = 40, col = "#d8bfd8",
      xlab = "sample mean")
 ```
 
-The population is flat between 0 and 1, yet the histogram of 10,000 sample means centres on `0.5` and takes on a clean bell shape. The observed spread `0.0527` matches the CLT prediction `sqrt(1/12)/sqrt(30) = 0.0527` almost exactly. Swap the population or the `n` and only the numbers change — the shape stays normal.
+The population is flat between 0 and 1, yet the histogram of 10,000 sample means centres on `0.5` and takes on a clean bell shape. The observed spread `0.0527` matches the CLT prediction `sqrt(1/12)/sqrt(30) = 0.0527` almost exactly. Swap the population or the `n` and only the numbers change, the shape stays normal.
 
 ![The five-step CLT simulation recipe.](screenshots/Central-Limit-Theorem-Exercises-in-R-simulation-recipe.webp)
 
 *Figure 1: The five-step CLT simulation recipe used in every problem below.*
 
 [KEY INSIGHT]
-**replicate() is the workhorse of CLT simulation.** It evaluates the expression `mean(runif(n))` R times and collects the results into a vector — replacing a for-loop with a single readable line. Every exercise in this post uses the same pattern.
+**replicate() is the workhorse of CLT simulation.** It evaluates the expression `mean(runif(n))` R times and collects the results into a vector, replacing a for-loop with a single readable line. Every exercise in this post uses the same pattern.
 
 **Try it:** Generate 5000 sample means from `runif(50)` (n=50) and store them in `ex_means`. Then print `mean(ex_means)` and `sd(ex_means)`. The sd should be noticeably smaller than the n=30 case above.
 
@@ -72,7 +72,7 @@ sd(ex_means)
 #> [1] 0.04097
 ```
 
-**Explanation:** Larger `n` shrinks the sampling-distribution spread by a factor of `sqrt(n)`. Going from n=30 to n=50 scales sd by `sqrt(30/50) = 0.775`, so `0.0527 × 0.775 ≈ 0.0408` — matching the observed `0.041`.
+**Explanation:** Larger `n` shrinks the sampling-distribution spread by a factor of `sqrt(n)`. Going from n=30 to n=50 scales sd by `sqrt(30/50) = 0.775`, so `0.0527 × 0.775 ≈ 0.0408`, matching the observed `0.041`.
 
 </details>
 
@@ -99,7 +99,7 @@ qqnorm(uniform_means, main = "Q-Q plot of sample means")
 qqline(uniform_means, col = "darkblue", lwd = 2)
 ```
 
-The points trace the reference line almost perfectly, with no curvature at the ends. A Q-Q plot is the pickiest normality check you have — any U or S shape means the tails of the sample-mean distribution are not yet normal.
+The points trace the reference line almost perfectly, with no curvature at the ends. A Q-Q plot is the pickiest normality check you have, any U or S shape means the tails of the sample-mean distribution are not yet normal.
 
 [TIP]
 **Use `freq = FALSE` when overlaying a density curve.** The default `hist()` y-axis is raw counts, which will not match a density curve scaled to area 1. Pass `freq = FALSE` and the histogram becomes a density, letting you overlay `dnorm()` directly.
@@ -121,13 +121,13 @@ qqnorm(ex_means, main = "Q-Q plot of ex_means")
 qqline(ex_means, col = "darkblue", lwd = 2)
 ```
 
-**Explanation:** With n=50 from a symmetric uniform population, the Q-Q plot is essentially a straight line. Curvature at the top-right would signal a heavier-than-normal right tail — you'd then try a larger `n` before trusting CLT.
+**Explanation:** With n=50 from a symmetric uniform population, the Q-Q plot is essentially a straight line. Curvature at the top-right would signal a heavier-than-normal right tail, you'd then try a larger `n` before trusting CLT.
 
 </details>
 
 ## What standardisation pattern do all CLT problems share?
 
-Every CLT problem — probabilities, confidence intervals, hypothesis tests — reduces to a single standardisation step. If the population has mean $\mu$ and standard deviation $\sigma$, then for large `n` the sample mean $\bar{X}$ follows approximately $\text{Normal}(\mu, \sigma/\sqrt{n})$. Standardising flips that into a problem about $\text{Normal}(0, 1)$, which you solve with one `pnorm()` call.
+Every CLT problem, probabilities, confidence intervals, hypothesis tests, reduces to a single standardisation step. If the population has mean $\mu$ and standard deviation $\sigma$, then for large `n` the sample mean $\bar{X}$ follows approximately $\text{Normal}(\mu, \sigma/\sqrt{n})$. Standardising flips that into a problem about $\text{Normal}(0, 1)$, which you solve with one `pnorm()` call.
 
 $$Z = \frac{\bar{X} - \mu}{\sigma / \sqrt{n}}$$
 
@@ -153,10 +153,10 @@ hist(z_values, breaks = 40, freq = FALSE, col = "#d8bfd8",
 curve(dnorm(x), add = TRUE, col = "darkblue", lwd = 2)
 ```
 
-The standardised vector has mean near 0 and sd near 1 — exactly the target — and the histogram now matches the `dnorm(x)` curve directly, with no parameter tuning. Every exercise below reuses this trick: simulate, then standardise, then invoke `pnorm()` to extract probabilities.
+The standardised vector has mean near 0 and sd near 1, exactly the target, and the histogram now matches the `dnorm(x)` curve directly, with no parameter tuning. Every exercise below reuses this trick: simulate, then standardise, then invoke `pnorm()` to extract probabilities.
 
 [KEY INSIGHT]
-**Once you standardise, every CLT problem looks identical.** The population shape, the sample size, and the original scale all collapse into a single N(0,1) problem. That is why the 8 exercises below feel repetitive in the best way — you practise the same two lines on eight populations.
+**Once you standardise, every CLT problem looks identical.** The population shape, the sample size, and the original scale all collapse into a single N(0,1) problem. That is why the 8 exercises below feel repetitive in the best way, you practise the same two lines on eight populations.
 
 **Try it:** A population has $\mu = 100$, $\sigma = 15$. You observe a sample of `n = 25` with mean `104`. Compute the Z-score in one line.
 
@@ -182,7 +182,7 @@ ex_z
 
 ## Practice Exercises
 
-Work through the 8 problems in order — they escalate from a basic uniform simulation to writing your own reusable simulator. Each scaffold is runnable as-is so you can iterate, and each reveal shows one clean way to solve it. Your answers may differ slightly in simulation noise — that is expected.
+Work through the 8 problems in order, they escalate from a basic uniform simulation to writing your own reusable simulator. Each scaffold is runnable as-is so you can iterate, and each reveal shows one clean way to solve it. Your answers may differ slightly in simulation noise, that is expected.
 
 ### Exercise 1: CLT from a Uniform(0, 1) population
 
@@ -216,7 +216,7 @@ sqrt(1/12) / sqrt(40)           # theoretical SE
 #> [1] 0.04564
 ```
 
-**Explanation:** The simulated mean is essentially `0.5` and the simulated `sd` `0.0456` matches the theoretical `SE = 0.0456` to three decimal places. A symmetric population like Uniform(0,1) reaches the CLT regime very quickly — n=40 is overkill here.
+**Explanation:** The simulated mean is essentially `0.5` and the simulated `sd` `0.0456` matches the theoretical `SE = 0.0456` to three decimal places. A symmetric population like Uniform(0,1) reaches the CLT regime very quickly, n=40 is overkill here.
 
 </details>
 
@@ -256,7 +256,7 @@ hist(means_exp, breaks = 40, freq = FALSE, col = "#d8bfd8",
 curve(dnorm(x, mean = 1, sd = 1/sqrt(40)), add = TRUE, col = "darkblue", lwd = 2)
 ```
 
-**Explanation:** Despite the wildly skewed population, the histogram of 10,000 sample means is near-normal at n=40. The simulated SE `0.157` matches the theoretical `0.158`. Skewed populations need larger `n` than symmetric ones — but 40 is already plenty for exponential.
+**Explanation:** Despite the wildly skewed population, the histogram of 10,000 sample means is near-normal at n=40. The simulated SE `0.157` matches the theoretical `0.158`. Skewed populations need larger `n` than symmetric ones, but 40 is already plenty for exponential.
 
 </details>
 
@@ -292,12 +292,12 @@ c(sd(means_n5), sd(means_n30), sd(means_n100))
 #> [1] 0.4476 0.1824 0.0996
 ```
 
-**Explanation:** The three standard deviations `0.45`, `0.18`, `0.10` follow the `1/sqrt(n)` shrinkage law almost exactly — multiplying `n` by about 4 halves the SE. The n=5 histogram still shows the exponential's right skew bleeding through; n=30 is visibly symmetric; n=100 is textbook normal.
+**Explanation:** The three standard deviations `0.45`, `0.18`, `0.10` follow the `1/sqrt(n)` shrinkage law almost exactly, multiplying `n` by about 4 halves the SE. The n=5 histogram still shows the exponential's right skew bleeding through; n=30 is visibly symmetric; n=100 is textbook normal.
 
 </details>
 
 [WARNING]
-**Visual symmetry does not guarantee CLT has fully converged.** A histogram can look bell-shaped while its tails still deviate from normal — the Q-Q plot is the stricter test. For heavy-tailed populations like Cauchy, no finite `n` is enough because the population has no finite variance.
+**Visual symmetry does not guarantee CLT has fully converged.** A histogram can look bell-shaped while its tails still deviate from normal, the Q-Q plot is the stricter test. For heavy-tailed populations like Cauchy, no finite `n` is enough because the population has no finite variance.
 
 ### Exercise 4: CLT from a bimodal mixture population
 
@@ -342,7 +342,7 @@ hist(means_bim, breaks = 40, freq = FALSE, col = "#d8bfd8",
 curve(dnorm(x, mean = 0, sd = 0.2236), add = TRUE, col = "darkblue", lwd = 2)
 ```
 
-**Explanation:** The population has two clear peaks but the sample mean distribution is single-peaked and bell-shaped. This is CLT at its most striking — the *shape of the population is irrelevant* as long as the variance is finite. The observed `sd 0.2246` matches the theoretical `0.2236` to three decimals.
+**Explanation:** The population has two clear peaks but the sample mean distribution is single-peaked and bell-shaped. This is CLT at its most striking, the *shape of the population is irrelevant* as long as the variance is finite. The observed `sd 0.2246` matches the theoretical `0.2236` to three decimals.
 
 </details>
 
@@ -373,7 +373,7 @@ clt_prob
 #> [1] 0.1029
 ```
 
-**Explanation:** The empirical probability `0.102` and the CLT approximation `0.103` agree to three decimals. In practice you rarely simulate — you'd use `pnorm()` directly — but simulating first is how you *verify* that CLT applies to your problem before trusting the one-line formula.
+**Explanation:** The empirical probability `0.102` and the CLT approximation `0.103` agree to three decimals. In practice you rarely simulate, you'd use `pnorm()` directly, but simulating first is how you *verify* that CLT applies to your problem before trusting the one-line formula.
 
 </details>
 
@@ -419,7 +419,7 @@ coverage
 #> [1] 0.941
 ```
 
-**Explanation:** The observed coverage `0.941` is close to the nominal 95% target. The ~1-point gap comes from the exponential's skew at n=40 plus using `s` instead of true `sigma` — both effects pull coverage slightly below 95%. For t-CIs (which adjust for using `s`), coverage would land closer to 0.95.
+**Explanation:** The observed coverage `0.941` is close to the nominal 95% target. The ~1-point gap comes from the exponential's skew at n=40 plus using `s` instead of true `sigma`, both effects pull coverage slightly below 95%. For t-CIs (which adjust for using `s`), coverage would land closer to 0.95.
 
 </details>
 
@@ -466,7 +466,7 @@ curve(dnorm(x, mean = p, sd = sqrt(p*(1-p)/n)), add = TRUE,
 </details>
 
 [NOTE]
-**The proportion CLT breaks down when `p` is very close to 0 or 1.** The rule of thumb is `n*p ≥ 10` and `n*(1-p) ≥ 10`. With `p = 0.01` and `n = 100`, the expected number of successes is only 1 — too few for CLT, and you'd use the exact binomial instead.
+**The proportion CLT breaks down when `p` is very close to 0 or 1.** The rule of thumb is `n*p ≥ 10` and `n*(1-p) ≥ 10`. With `p = 0.01` and `n = 100`, the expected number of successes is only 1, too few for CLT, and you'd use the exact binomial instead.
 
 ### Exercise 8: Write a reusable CLT simulator function
 
@@ -510,7 +510,7 @@ c(mean(sim_bern), sd(sim_bern))
 #> [1] 0.2999 0.0458
 ```
 
-**Explanation:** One function, two populations. The `sampler` argument is a closure that takes a sample size and returns a sample — which lets `clt_sim()` remain agnostic about what you're simulating. Any distribution, any parameterisation, any complex mixture — all plug in behind the same one-line interface.
+**Explanation:** One function, two populations. The `sampler` argument is a closure that takes a sample size and returns a sample, which lets `clt_sim()` remain agnostic about what you're simulating. Any distribution, any parameterisation, any complex mixture, all plug in behind the same one-line interface.
 
 </details>
 
@@ -552,7 +552,7 @@ ci_coverage
 #> [1] 0.942
 ```
 
-Every number in this workflow — the sampling-distribution SE `0.79`, the tail probability `0.104`, the coverage `0.942` — comes from the same three ingredients: the population parameters, the sample size `n = 40`, and the CLT. The one 1000-line simulation and the one `pnorm()` call agree to three decimals, which is the check that tells you CLT is trustworthy for this setup.
+Every number in this workflow, the sampling-distribution SE `0.79`, the tail probability `0.104`, the coverage `0.942`, comes from the same three ingredients: the population parameters, the sample size `n = 40`, and the CLT. The one 1000-line simulation and the one `pnorm()` call agree to three decimals, which is the check that tells you CLT is trustworthy for this setup.
 
 ## Summary
 
@@ -571,15 +571,15 @@ The pattern is identical across all 8: draw → mean → replicate → inspect. 
 
 ## References
 
-1. Wackerly, D., Mendenhall, W., Scheaffer, R. — *Mathematical Statistics with Applications*, 7th Ed. Ch. 7: Sampling Distributions and the Central Limit Theorem.
-2. R Core Team — `?replicate`, `?rexp`, `?runif`, `?rbinom` reference manuals. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/lapply.html)
-3. Grinstead, C. M., Snell, J. L. — *Introduction to Probability*, Ch. 9: Central Limit Theorem. Free online. [Link](https://chance.dartmouth.edu/teaching_aids/books_articles/probability_book/book.html)
-4. Wasserman, L. — *All of Statistics*, Ch. 5: Convergence of Random Variables.
-5. Rice, J. — *Mathematical Statistics and Data Analysis*, 3rd Ed., Ch. 5.
-6. DataCamp — *Foundations of Probability in R* course materials.
+1. Wackerly, D., Mendenhall, W., Scheaffer, R., *Mathematical Statistics with Applications*, 7th Ed. Ch. 7: Sampling Distributions and the Central Limit Theorem.
+2. R Core Team, `?replicate`, `?rexp`, `?runif`, `?rbinom` reference manuals. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/lapply.html)
+3. Grinstead, C. M., Snell, J. L., *Introduction to Probability*, Ch. 9: Central Limit Theorem. Free online. [Link](https://chance.dartmouth.edu/teaching_aids/books_articles/probability_book/book.html)
+4. Wasserman, L., *All of Statistics*, Ch. 5: Convergence of Random Variables.
+5. Rice, J., *Mathematical Statistics and Data Analysis*, 3rd Ed., Ch. 5.
+6. DataCamp, *Foundations of Probability in R* course materials.
 
 ## Continue Learning
 
-1. **Central Limit Theorem in R** — the conceptual walkthrough these exercises accompany, with visual intuition and when CLT fails. [Link](Central-Limit-Theorem-in-R.html)
-2. **Probability in R Exercises** — foundational probability drills on `dbinom()`, `pnorm()`, and co. [Link](Probability-in-R-Exercises.html)
-3. **R Probability Distributions Exercises** — a broader practice set on the d/p/q/r pattern across distributions. [Link](R-Probability-Distributions-Exercises.html)
+1. **Central Limit Theorem in R**, the conceptual walkthrough these exercises accompany, with visual intuition and when CLT fails. [Link](Central-Limit-Theorem-in-R.html)
+2. **Probability in R Exercises**, foundational probability drills on `dbinom()`, `pnorm()`, and co. [Link](Probability-in-R-Exercises.html)
+3. **R Probability Distributions Exercises**, a broader practice set on the d/p/q/r pattern across distributions. [Link](R-Probability-Distributions-Exercises.html)

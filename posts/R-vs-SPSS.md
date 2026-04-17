@@ -20,7 +20,7 @@ difficulty: "Intermediate"
 
 ## Why are researchers actually switching from SPSS to R?
 
-Three pressures are pushing researchers off SPSS: a monthly licence fee that disappears the moment you leave your institution, journals demanding reproducible scripts that point-and-click workflows cannot produce, and a wave of modern methods — Bayesian models, meta-analysis, mixed-effects — that SPSS simply does not offer. The alternative is shorter than you think. Below is a complete independent-samples t-test in R: one line of code, full output, and no menu dance.
+Three pressures are pushing researchers off SPSS: a monthly licence fee that disappears the moment you leave your institution, journals demanding reproducible scripts that point-and-click workflows cannot produce, and a wave of modern methods, Bayesian models, meta-analysis, mixed-effects, that SPSS simply does not offer. The alternative is shorter than you think. Below is a complete independent-samples t-test in R: one line of code, full output, and no menu dance.
 
 ```r
 # Compare mpg between 4-cylinder and 8-cylinder cars
@@ -86,7 +86,7 @@ The headline is easy: R is free and SPSS is not. The real size of the gap only b
 | Bayesian / SEM / MLM modules | Free packages | Paid add-ons (AMOS, Complex Samples) |
 | Max users on one licence | Unlimited | Per-seat |
 
-R is open source under GPL-2: install it, use it, embed it in a commercial product, share your scripts, ship your thesis with every line of analysis intact. SPSS charges per seat per month, and several of the statistical tools SPSS users reach for most — structural equation modelling with AMOS, complex survey sampling, exact tests — are sold as separate paid modules.
+R is open source under GPL-2: install it, use it, embed it in a commercial product, share your scripts, ship your thesis with every line of analysis intact. SPSS charges per seat per month, and several of the statistical tools SPSS users reach for most, structural equation modelling with AMOS, complex survey sampling, exact tests, are sold as separate paid modules.
 
 ```r
 # 5-year SPSS vs R cost for a 10-person research lab
@@ -103,7 +103,7 @@ savings
 #> [1] 59400
 ```
 
-A 10-person lab running SPSS Standard for five years spends $59,400 on software alone, before any paid module. Switching to R recovers that entire line item — enough to fund a postdoc salary for a year, a full conference trip for the whole group, or three years of open-access publication fees. This is money you can put into actual research.
+A 10-person lab running SPSS Standard for five years spends $59,400 on software alone, before any paid module. Switching to R recovers that entire line item, enough to fund a postdoc salary for a year, a full conference trip for the whole group, or three years of open-access publication fees. This is money you can put into actual research.
 
 [WARNING]
 **Institutional SPSS access evaporates at graduation.** The `.sps` syntax files and `.spv` output files you wrote during your PhD become unreadable the moment your student licence expires. R scripts you wrote yesterday will still run in ten years.
@@ -128,13 +128,13 @@ ex_cost
 #> [1] 29700
 ```
 
-**Explanation:** Multiply headcount by monthly per-user cost, by 12 months, by 5 years. A 5-person lab pays $29,700 in software fees over five years — money that would fund a lot of research output.
+**Explanation:** Multiply headcount by monthly per-user cost, by 12 months, by 5 years. A 5-person lab pays $29,700 in software fees over five years, money that would fund a lot of research output.
 
 </details>
 
 ## Can R handle every statistical test SPSS does?
 
-R's built-in `stats` package covers everything in SPSS Base, and CRAN's 21,000+ user-contributed packages extend into territory SPSS never reaches. If a statistical method has been published in the last decade, there is almost certainly an R package for it — often written by the paper's authors themselves.
+R's built-in `stats` package covers everything in SPSS Base, and CRAN's 21,000+ user-contributed packages extend into territory SPSS never reaches. If a statistical method has been published in the last decade, there is almost certainly an R package for it, often written by the paper's authors themselves.
 
 | Method | R | SPSS |
 |---|---|---|
@@ -201,7 +201,7 @@ summary(ex_anova)
 
 ## How do you read SPSS .sav files and convert SPSS commands to R?
 
-Your existing SPSS data is not locked in. The `haven` package — part of the tidyverse — reads `.sav` files directly, preserving variable labels, value labels, and missing-value codes. Your existing `.sps` syntax files are just as portable: every `COMPUTE`, `RECODE`, and `SELECT IF` has a one-line equivalent in `dplyr`.
+Your existing SPSS data is not locked in. The `haven` package, part of the tidyverse, reads `.sav` files directly, preserving variable labels, value labels, and missing-value codes. Your existing `.sps` syntax files are just as portable: every `COMPUTE`, `RECODE`, and `SELECT IF` has a one-line equivalent in `dplyr`.
 
 Here is the `haven` call for reading an SPSS file straight off disk:
 
@@ -234,7 +234,7 @@ Every SPSS command you use regularly has a direct R counterpart:
 | `SORT CASES` | `dplyr::arrange()` |
 | `SPLIT FILE` | `dplyr::group_by()` |
 
-Here is a typical SPSS preprocessing block — recode a continuous variable into groups, keep only adults, and print descriptives — rewritten in `dplyr`:
+Here is a typical SPSS preprocessing block, recode a continuous variable into groups, keep only adults, and print descriptives, rewritten in `dplyr`:
 
 ```r
 library(dplyr)
@@ -265,7 +265,7 @@ summary(adults$age)
 #>   25.00   33.00   42.00   45.00   55.00   70.00
 ```
 
-The R version does in one pipeline what SPSS splits across three separate commands, and every intermediate dataset (`people`, `people_tagged`, `adults`) stays available for inspection. The pipe operator `|>` is the R equivalent of writing several SPSS commands in sequence — it reads top-to-bottom just like a syntax file.
+The R version does in one pipeline what SPSS splits across three separate commands, and every intermediate dataset (`people`, `people_tagged`, `adults`) stays available for inspection. The pipe operator `|>` is the R equivalent of writing several SPSS commands in sequence, it reads top-to-bottom just like a syntax file.
 
 **Try it:** Translate the SPSS commands `SELECT IF age < 40.` and `COMPUTE age_decade = age / 10.` into R using the `people_tagged` dataset from above. Save the result as `ex_young`.
 
@@ -298,7 +298,7 @@ ex_young
 
 ## Is R worth the learning curve if you come from SPSS?
 
-Be honest about the transition: SPSS takes an afternoon to feel useful; R takes four to eight weeks of regular practice. But you already know more programming than you think — every `.sps` syntax file you have ever saved is a program. The gap is narrower than it looks, and several R tools exist specifically to smooth the switch.
+Be honest about the transition: SPSS takes an afternoon to feel useful; R takes four to eight weeks of regular practice. But you already know more programming than you think, every `.sps` syntax file you have ever saved is a program. The gap is narrower than it looks, and several R tools exist specifically to smooth the switch.
 
 | Transition tool | What it is |
 |---|---|
@@ -307,7 +307,7 @@ Be honest about the transition: SPSS takes an afternoon to feel useful; R takes 
 | `BlueSky Statistics` | Another free GUI on top of R, targeted at SPSS migrants. |
 | RStudio + `dplyr` | The full R workflow once you are comfortable writing a few lines. |
 
-Here is a typical SPSS `MEANS` workflow — group means and SDs for a continuous variable — expressed in a single `dplyr` pipeline. This is the shape most of your real analyses will take in R:
+Here is a typical SPSS `MEANS` workflow, group means and SDs for a continuous variable, expressed in a single `dplyr` pipeline. This is the shape most of your real analyses will take in R:
 
 ```r
 # SPSS: MEANS TABLES = mpg BY cyl
@@ -328,7 +328,7 @@ mtcars |>
 #> 3     8    14     15.1   2.56    10.4    19.2
 ```
 
-This single pipeline produces the same grouped-statistics table SPSS gives you through `Analyze > Compare Means > Means`, with five summary statistics per group. The difference is what you can do next: pipe the result into a plot, save it as a CSV, feed it into a paper, or re-run the exact same code on updated data next month — all without re-clicking anything.
+This single pipeline produces the same grouped-statistics table SPSS gives you through `Analyze > Compare Means > Means`, with five summary statistics per group. The difference is what you can do next: pipe the result into a plot, save it as a CSV, feed it into a paper, or re-run the exact same code on updated data next month, all without re-clicking anything.
 
 [TIP]
 **Use jamovi as your stepping stone.** Install jamovi from jamovi.org, load your `.sav` files, and run your analyses in its SPSS-style interface. jamovi can export the exact R code behind every analysis, so every click teaches you a line of R you can reuse later.
@@ -476,7 +476,7 @@ cat("ANOVA F =", round(f_stat, 2), ", p =", signif(p_val, 3), "\n")
 #> ANOVA F = 39.7 , p = 4.98e-09
 ```
 
-**Explanation:** `summary(aov_fit)` returns a list whose first element is a data frame of ANOVA rows. Indexing by column name gets you the F-statistic and p-value without any screen-scraping — the kind of programmatic access SPSS output files simply do not support.
+**Explanation:** `summary(aov_fit)` returns a list whose first element is a data frame of ANOVA rows. Indexing by column name gets you the F-statistic and p-value without any screen-scraping, the kind of programmatic access SPSS output files simply do not support.
 
 </details>
 
@@ -526,7 +526,7 @@ ggplot(study, aes(x = cyl_group, y = mpg, fill = cyl_group)) +
   theme(legend.position = "none")
 ```
 
-Every step of this workflow — the data load, the recode, the descriptives, the ANOVA, the post-hoc comparisons, and the figure — lives inside a single text file. A collaborator can open that file, press Run, and reproduce your exact results. That is the workflow journals are starting to require, and it is the workflow SPSS has never been able to produce natively.
+Every step of this workflow, the data load, the recode, the descriptives, the ANOVA, the post-hoc comparisons, and the figure, lives inside a single text file. A collaborator can open that file, press Run, and reproduce your exact results. That is the workflow journals are starting to require, and it is the workflow SPSS has never been able to produce natively.
 
 ## Summary
 
@@ -541,21 +541,21 @@ Every step of this workflow — the data load, the recode, the descriptives, the
 | Career transferability | High (industry + academia) | Academia + some government |
 | Community | ~21,000 CRAN packages, active dev | Slower release cadence |
 
-The bottom line: if you pay for your own SPSS licence, need methods beyond the SPSS Base module, or want work that reviewers can re-run, switch. If you only run basic tests on small datasets through an institutional licence, the switch still pays off — just on a longer horizon.
+The bottom line: if you pay for your own SPSS licence, need methods beyond the SPSS Base module, or want work that reviewers can re-run, switch. If you only run basic tests on small datasets through an institutional licence, the switch still pays off, just on a longer horizon.
 
 ## References
 
-1. R Core Team — *The R Project for Statistical Computing*. [r-project.org](https://www.r-project.org/)
-2. Wickham, H., Miller, E., Smith, D. — *haven: Import and Export SPSS, Stata and SAS Files*. [haven.tidyverse.org](https://haven.tidyverse.org/)
-3. The jamovi project — *jamovi: Free and open statistical software*. [jamovi.org](https://www.jamovi.org/)
-4. Selker, R., Love, J., Dropmann, D., Moreno, V. — *jmv: The jamovi Analyses*. [CRAN](https://cran.r-project.org/package=jmv)
-5. Wickham, H. & Grolemund, G. — *R for Data Science (2nd ed)*. [r4ds.hadley.nz](https://r4ds.hadley.nz/)
-6. IBM — *SPSS Statistics pricing and editions*. [ibm.com/products/spss-statistics/pricing](https://www.ibm.com/products/spss-statistics/pricing)
-7. Muenchen, R. — *The Popularity of Data Science Software*. [r4stats.com](http://r4stats.com/articles/popularity/)
-8. Wickham, H. — *ggplot2: Elegant Graphics for Data Analysis (3e)*. [ggplot2-book.org](https://ggplot2-book.org/)
+1. R Core Team, *The R Project for Statistical Computing*. [r-project.org](https://www.r-project.org/)
+2. Wickham, H., Miller, E., Smith, D., *haven: Import and Export SPSS, Stata and SAS Files*. [haven.tidyverse.org](https://haven.tidyverse.org/)
+3. The jamovi project, *jamovi: Free and open statistical software*. [jamovi.org](https://www.jamovi.org/)
+4. Selker, R., Love, J., Dropmann, D., Moreno, V., *jmv: The jamovi Analyses*. [CRAN](https://cran.r-project.org/package=jmv)
+5. Wickham, H. & Grolemund, G., *R for Data Science (2nd ed)*. [r4ds.hadley.nz](https://r4ds.hadley.nz/)
+6. IBM, *SPSS Statistics pricing and editions*. [ibm.com/products/spss-statistics/pricing](https://www.ibm.com/products/spss-statistics/pricing)
+7. Muenchen, R., *The Popularity of Data Science Software*. [r4stats.com](http://r4stats.com/articles/popularity/)
+8. Wickham, H., *ggplot2: Elegant Graphics for Data Analysis (3e)*. [ggplot2-book.org](https://ggplot2-book.org/)
 
 ## Continue Learning
 
-- [Is R Worth Learning in 2026?](/Is-R-Worth-Learning-in-2026.html) — Evidence-based look at R's value for your career
-- [R vs SAS](/R-vs-SAS.html) — Compare R with the other legacy enterprise statistics platform
-- [R vs Python for Data Science](/R-vs-Python.html) — When to pick each language for applied work
+- [Is R Worth Learning in 2026?](/Is-R-Worth-Learning-in-2026.html), Evidence-based look at R's value for your career
+- [R vs SAS](/R-vs-SAS.html), Compare R with the other legacy enterprise statistics platform
+- [R vs Python for Data Science](/R-vs-Python.html), When to pick each language for applied work

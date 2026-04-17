@@ -1,5 +1,5 @@
 ---
-title: "OOP in R Exercises: 8 S3, S4 & R6 Practice Problems — Solved Step-by-Step)"
+title: "OOP in R Exercises: 8 S3, S4 & R6 Practice Problems, Solved Step-by-Step)"
 slug: "R-OOP-Exercises"
 description: "Practice R object-oriented programming with 8 hands-on exercises covering S3 classes, S4 formal validation, R6 mutable objects, and operator overloading."
 keywords: "R OOP exercises, S3 class exercises R, S4 exercises R, R6 exercises, R object-oriented programming exercises, R OOP practice problems, R UseMethod exercises, R class method dispatch exercises"
@@ -15,11 +15,11 @@ fr_parent: "OOP-in-R.html"
 difficulty: "Intermediate"
 ---
 
-# OOP in R Exercises: 8 S3, S4 & R6 Practice Problems — Solved Step-by-Step)
+# OOP in R Exercises: 8 S3, S4 & R6 Practice Problems, Solved Step-by-Step)
 
-<p class="lead">These 8 practice problems build real fluency in R's three major OOP systems — <strong>S3</strong> (informal), <strong>S4</strong> (formal, validated), and <strong>R6</strong> (mutable reference) — plus operator overloading and method dispatch. Every exercise ships with starter code and a worked solution you can run in the browser.</p>
+<p class="lead">These 8 practice problems build real fluency in R's three major OOP systems, <strong>S3</strong> (informal), <strong>S4</strong> (formal, validated), and <strong>R6</strong> (mutable reference), plus operator overloading and method dispatch. Every exercise ships with starter code and a worked solution you can run in the browser.</p>
 
-Work through them in order. Each one uses a real pattern you'd ship in production code, and the exercises get progressively harder — simple S3 first, then S4 validation, then R6 mutation, then a synthesis problem that asks *which* system fits a given scenario. If you're fuzzy on any system, the parent tutorial [OOP in R](OOP-in-R.html) is your fallback.
+Work through them in order. Each one uses a real pattern you'd ship in production code, and the exercises get progressively harder, simple S3 first, then S4 validation, then R6 mutation, then a synthesis problem that asks *which* system fits a given scenario. If you're fuzzy on any system, the parent tutorial [OOP in R](OOP-in-R.html) is your fallback.
 
 ## How Should You Use These Exercises?
 
@@ -43,7 +43,7 @@ c(S3 = class(s3_obj), S4 = class(s4_obj), R6 = class(r6_obj)[1])
 #>   "demo" "DemoS4" "DemoR6"
 ```
 
-All three systems work. Each exercise below gives you a **starter block** with a scaffold and expected output, followed by a collapsible **worked solution** with a short explanation. Type your own answer before opening the reveal — that's where the learning happens.
+All three systems work. Each exercise below gives you a **starter block** with a scaffold and expected output, followed by a collapsible **worked solution** with a short explanation. Type your own answer before opening the reveal, that's where the learning happens.
 
 [NOTE]
 **These exercises assume you already know what `class()`, `UseMethod()`, and `setClass()` do.** If those feel unfamiliar, read [OOP in R](OOP-in-R.html) first and come back.
@@ -95,12 +95,12 @@ to_celsius(temp_f)
 #> 100 C
 ```
 
-**Explanation:** The constructor wraps the inputs in a list and tags it with `class = "Temperature"`. `structure()` is the idiomatic one-liner for this. `print.Temperature` is picked up automatically when you call `print(temp_f)` because R sees class `Temperature` and looks for `print.Temperature`. The generic `to_celsius()` calls `UseMethod()`, which is S3's dispatch mechanism — it finds `to_celsius.Temperature` by matching the class of the first argument.
+**Explanation:** The constructor wraps the inputs in a list and tags it with `class = "Temperature"`. `structure()` is the idiomatic one-liner for this. `print.Temperature` is picked up automatically when you call `print(temp_f)` because R sees class `Temperature` and looks for `print.Temperature`. The generic `to_celsius()` calls `UseMethod()`, which is S3's dispatch mechanism, it finds `to_celsius.Temperature` by matching the class of the first argument.
 
 </details>
 
 [TIP]
-**Name S3 methods as `<generic>.<class>`, never the other way around.** Writing `Temperature.print` would just create a function with a dot in its name — it would not be dispatched to when you call `print(temp_f)`.
+**Name S3 methods as `<generic>.<class>`, never the other way around.** Writing `Temperature.print` would just create a function with a dot in its name, it would not be dispatched to when you call `print(temp_f)`.
 
 ## Exercise 2: Can You Write a Generic That Dispatches to Three Methods?
 
@@ -154,7 +154,7 @@ describe_ex2(TRUE)
 #> [1] "unknown type"
 ```
 
-**Explanation:** Each method takes the same argument name as the generic (`x`) and returns a string. `UseMethod("describe_ex2")` inspects `class(x)` and searches for `describe_ex2.<class>`. For `1:10`, R sees class `"integer"` and then `"numeric"` — if it finds a method for either, it dispatches there. The default handler catches anything R doesn't have a specific method for, which is how `TRUE` (class `"logical"`) ends up at `describe_ex2.default`.
+**Explanation:** Each method takes the same argument name as the generic (`x`) and returns a string. `UseMethod("describe_ex2")` inspects `class(x)` and searches for `describe_ex2.<class>`. For `1:10`, R sees class `"integer"` and then `"numeric"`, if it finds a method for either, it dispatches there. The default handler catches anything R doesn't have a specific method for, which is how `TRUE` (class `"logical"`) ends up at `describe_ex2.default`.
 
 </details>
 
@@ -214,12 +214,12 @@ deposit(acct1, 50)@balance
 # new("Account", balance = -5, owner = "Bug")
 ```
 
-**Explanation:** `representation()` lists the slots and their required types — assigning a character to `balance` would error at construction time. `setValidity()` attaches a function that runs on `new()` and on every slot update, returning `TRUE` for valid or an error string. `setGeneric()` registers `deposit` as an S4 generic, and `setMethod()` binds an implementation for objects of class `Account`. Slots are accessed with `@`, not `$`.
+**Explanation:** `representation()` lists the slots and their required types, assigning a character to `balance` would error at construction time. `setValidity()` attaches a function that runs on `new()` and on every slot update, returning `TRUE` for valid or an error string. `setGeneric()` registers `deposit` as an S4 generic, and `setMethod()` binds an implementation for objects of class `Account`. Slots are accessed with `@`, not `$`.
 
 </details>
 
 [WARNING]
-**S4 validity checks run on `new()` *and* every slot write via `@`.** That means `acct1@balance <- -5` also fails the check — S4 will not silently let you corrupt the object. This is a feature, not a bug, and is a big reason bioconductor and pharma pipelines rely on S4.
+**S4 validity checks run on `new()` *and* every slot write via `@`.** That means `acct1@balance <- -5` also fails the check, S4 will not silently let you corrupt the object. This is a feature, not a bug, and is a big reason bioconductor and pharma pipelines rely on S4.
 
 ## Exercise 4: Can You Use S4 Multiple Dispatch for Geometric Intersections?
 
@@ -276,12 +276,12 @@ intersects(rr1, rr1)
 #> [1] "rectangle meets rectangle"
 ```
 
-**Explanation:** `setGeneric("intersects", function(a, b) ...)` declares that the generic takes two arguments, and `setMethod()` uses `signature()` to declare which class combination each implementation handles. When you call `intersects(cc1, rr1)`, S4 looks at the classes of both arguments — `Circle` and `Rectangle` — and finds the exact method registered for that pair. No other OOP system in R does this natively.
+**Explanation:** `setGeneric("intersects", function(a, b) ...)` declares that the generic takes two arguments, and `setMethod()` uses `signature()` to declare which class combination each implementation handles. When you call `intersects(cc1, rr1)`, S4 looks at the classes of both arguments, `Circle` and `Rectangle`, and finds the exact method registered for that pair. No other OOP system in R does this natively.
 
 </details>
 
 [TIP]
-**Signature order matters in S4 multiple dispatch.** The method for `signature("Circle", "Rectangle")` will not fire when you call `intersects(rectangle, circle)` — you'd need to register a separate `signature("Rectangle", "Circle")` method, or make the generic commutative by sorting the inputs before dispatch.
+**Signature order matters in S4 multiple dispatch.** The method for `signature("Circle", "Rectangle")` will not fire when you call `intersects(rectangle, circle)`, you'd need to register a separate `signature("Rectangle", "Circle")` method, or make the generic commutative by sorting the inputs before dispatch.
 
 ## Exercise 5: Can You Build a Counter Class With R6?
 
@@ -340,7 +340,7 @@ my_counter$get_count()
 #> [1] 2
 ```
 
-**Explanation:** `R6Class()` returns a class generator — calling `$new()` on it creates an instance. Inside methods, `self$` refers to public fields and `private$` to private ones. Returning `invisible(self)` from `increment()` and `decrement()` is the standard R6 pattern for chainable methods: you can write `my_counter$increment()$increment()$decrement()` in a single line. Each call mutates the same object — there's no copy.
+**Explanation:** `R6Class()` returns a class generator, calling `$new()` on it creates an instance. Inside methods, `self$` refers to public fields and `private$` to private ones. Returning `invisible(self)` from `increment()` and `decrement()` is the standard R6 pattern for chainable methods: you can write `my_counter$increment()$increment()$decrement()` in a single line. Each call mutates the same object, there's no copy.
 
 </details>
 
@@ -349,7 +349,7 @@ my_counter$get_count()
 
 ## Exercise 6: Can You Extend Counter Into a BoundedCounter?
 
-R6 supports single inheritance via the `inherit =` argument. A subclass can add new fields, add new methods, or override existing ones — and when it overrides, it can still call the parent via `super$`. Extend `Counter` into `BoundedCounter` that accepts a `max` value in `initialize()` and refuses to go above `max` or below `0`. Reuse the parent's `increment()` and `decrement()` logic wherever possible.
+R6 supports single inheritance via the `inherit =` argument. A subclass can add new fields, add new methods, or override existing ones, and when it overrides, it can still call the parent via `super$`. Extend `Counter` into `BoundedCounter` that accepts a `max` value in `initialize()` and refuses to go above `max` or below `0`. Reuse the parent's `increment()` and `decrement()` logic wherever possible.
 
 ```r
 # Build BoundedCounter inheriting from Counter.
@@ -411,16 +411,16 @@ bc1$get_count()
 #> [1] 0
 ```
 
-**Explanation:** `inherit = Counter` pulls in every public and private member from the parent. We override `initialize()` to capture the `max` argument, and we override `increment()` and `decrement()` to guard against hitting the bounds. When the guard passes, we delegate to the parent's implementation with `super$increment()` — no need to reimplement `private$count <- private$count + 1` ourselves. `get_count()` wasn't overridden, so it just inherits unchanged.
+**Explanation:** `inherit = Counter` pulls in every public and private member from the parent. We override `initialize()` to capture the `max` argument, and we override `increment()` and `decrement()` to guard against hitting the bounds. When the guard passes, we delegate to the parent's implementation with `super$increment()`, no need to reimplement `private$count <- private$count + 1` ourselves. `get_count()` wasn't overridden, so it just inherits unchanged.
 
 </details>
 
 [NOTE]
-**`super$` is how you reuse parent logic even after overriding it.** Without `super$`, you'd have to re-declare `private$count <- private$count + 1` inside the subclass — a classic inheritance footgun where the child silently drifts out of sync with the parent.
+**`super$` is how you reuse parent logic even after overriding it.** Without `super$`, you'd have to re-declare `private$count <- private$count + 1` inside the subclass, a classic inheritance footgun where the child silently drifts out of sync with the parent.
 
 ## Exercise 7: Can You Overload + and - for an S3 Money Class?
 
-R lets you define methods for operators (`+`, `-`, `*`, `==`, `<`, etc.) by writing `Ops.<class>` — a single function that dispatches on the special variable `.Generic`, which tells you which operator was called. Build an S3 `Money` class that holds an amount and a currency, supports `+` and `-` between two `Money` values of the same currency, and prints as `"$100.00 USD"`.
+R lets you define methods for operators (`+`, `-`, `*`, `==`, `<`, etc.) by writing `Ops.<class>`, a single function that dispatches on the special variable `.Generic`, which tells you which operator was called. Build an S3 `Money` class that holds an amount and a currency, supports `+` and `-` between two `Money` values of the same currency, and prints as `"$100.00 USD"`.
 
 ```r
 # Build an S3 Money class with:
@@ -484,7 +484,7 @@ paycheck - wallet
 
 ## Exercise 8: Which OOP System Should You Pick for Each Scenario?
 
-There's no universally "best" OOP system in R — each solves a different problem. For the three scenarios below, pick **S3**, **S4**, or **R6** and justify why in one sentence. Then write a minimal sketch showing the class definition for each one.
+There's no universally "best" OOP system in R, each solves a different problem. For the three scenarios below, pick **S3**, **S4**, or **R6** and justify why in one sentence. Then write a minimal sketch showing the class definition for each one.
 
 **Scenarios:**
 1. You're writing `summary()` for a new model-fitting function. The object is created once, printed once, and then discarded.
@@ -547,7 +547,7 @@ c(hp = hero$hp, x = hero$x, y = hero$y)
 #>  90   3   4
 ```
 
-**Explanation:** Scenario 1 is ephemeral output with no constraints — S3 is the simplest tool that answers the need. Scenario 2 is *exactly* the case S4 was designed for: formal types, validated slots, and a predictable contract you can audit. Scenario 3 needs mutation — a fresh copy of a player every time their HP changes would break the game loop — so R6's reference semantics are the right fit.
+**Explanation:** Scenario 1 is ephemeral output with no constraints, S3 is the simplest tool that answers the need. Scenario 2 is *exactly* the case S4 was designed for: formal types, validated slots, and a predictable contract you can audit. Scenario 3 needs mutation, a fresh copy of a player every time their HP changes would break the game loop, so R6's reference semantics are the right fit.
 
 </details>
 
@@ -556,7 +556,7 @@ c(hp = hero$hp, x = hero$x, y = hero$y)
 
 ## Summary
 
-A quick cheat sheet tying the three systems together. Keep this handy while you work — most of the "which system?" questions resolve in under a minute once you know the trade-offs.
+A quick cheat sheet tying the three systems together. Keep this handy while you work, most of the "which system?" questions resolve in under a minute once you know the trade-offs.
 
 | System | Best for | Constructor | Dispatches on | Mutable? |
 |---|---|---|---|---|
@@ -564,19 +564,19 @@ A quick cheat sheet tying the three systems together. Keep this handy while you 
 | S4 | Strict validation, bioconductor, pharma, multiple dispatch | `new("ClassName", ...)` | Any number of arguments | No (copy-on-modify) |
 | R6 | Mutable state, Shiny sessions, game loops, database handles | `Generator$new(...)` | Method lookup on object | **Yes** (reference) |
 
-You now have working templates for eight real OOP patterns in R. The biggest payoff from this exercise set is not memorising syntax — it's developing the instinct to ask *"should this be S3, S4, or R6?"* before you write any class at all.
+You now have working templates for eight real OOP patterns in R. The biggest payoff from this exercise set is not memorising syntax, it's developing the instinct to ask *"should this be S3, S4, or R6?"* before you write any class at all.
 
 ## References
 
-1. Wickham, H. — *Advanced R*, 2nd Edition. Chapters 12 (S3), 15 (S4), 14 (R6). [Link](https://adv-r.hadley.nz/oo.html)
-2. R6 package vignette — *Introduction to R6*. [Link](https://r6.r-lib.org/articles/Introduction.html)
-3. `methods` package documentation — `setClass`, `setGeneric`, `setMethod`, `setValidity`. [Link](https://stat.ethz.ch/R-manual/R-devel/library/methods/html/00Index.html)
-4. sloop package — inspect and debug OOP systems at runtime with `otype()`, `s3_dispatch()`, `s4_methods_class()`. [Link](https://sloop.r-lib.org/)
-5. Chambers, J. — *Object-Oriented Programming, Functional Programming and R*. Statistical Science, 2014. [Link](https://projecteuclid.org/journals/statistical-science/volume-29/issue-2/Object-Oriented-Programming-Functional-Programming-and-R/10.1214/13-STS452.full)
-6. r-statistics.co — [OOP in R: Systems Compared](OOP-in-R.html) (parent tutorial)
+1. Wickham, H., *Advanced R*, 2nd Edition. Chapters 12 (S3), 15 (S4), 14 (R6). [Link](https://adv-r.hadley.nz/oo.html)
+2. R6 package vignette, *Introduction to R6*. [Link](https://r6.r-lib.org/articles/Introduction.html)
+3. `methods` package documentation, `setClass`, `setGeneric`, `setMethod`, `setValidity`. [Link](https://stat.ethz.ch/R-manual/R-devel/library/methods/html/00Index.html)
+4. sloop package, inspect and debug OOP systems at runtime with `otype()`, `s3_dispatch()`, `s4_methods_class()`. [Link](https://sloop.r-lib.org/)
+5. Chambers, J., *Object-Oriented Programming, Functional Programming and R*. Statistical Science, 2014. [Link](https://projecteuclid.org/journals/statistical-science/volume-29/issue-2/Object-Oriented-Programming-Functional-Programming-and-R/10.1214/13-STS452.full)
+6. r-statistics.co, [OOP in R: Systems Compared](OOP-in-R.html) (parent tutorial)
 
 ## Continue Learning
 
-- [OOP in R](OOP-in-R.html) — the parent tutorial that introduces all four systems side by side and gives you the decision framework
-- [S3 Classes in R](S3-Classes-in-R.html) — deep dive on S3 with full method dispatch internals
-- [R6 Classes in R](R6-Classes-in-R.html) — when and why to reach for mutable reference objects in Shiny and beyond
+- [OOP in R](OOP-in-R.html), the parent tutorial that introduces all four systems side by side and gives you the decision framework
+- [S3 Classes in R](S3-Classes-in-R.html), deep dive on S3 with full method dispatch internals
+- [R6 Classes in R](R6-Classes-in-R.html), when and why to reach for mutable reference objects in Shiny and beyond

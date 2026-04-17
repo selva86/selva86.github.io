@@ -18,13 +18,13 @@ difficulty: "Intermediate"
 
 # Heatmap in R: Build and Customize with ggplot2 geom_tile()
 
-<p class="lead">A heatmap encodes a numeric matrix as a grid of colored tiles — rows on one axis, columns on the other, and fill color encoding the value at each cell. In ggplot2, <code>geom_tile()</code> builds heatmaps with the same grammar as every other chart type.</p>
+<p class="lead">A heatmap encodes a numeric matrix as a grid of colored tiles, rows on one axis, columns on the other, and fill color encoding the value at each cell. In ggplot2, <code>geom_tile()</code> builds heatmaps with the same grammar as every other chart type.</p>
 
 ## Introduction
 
-Heatmaps are the right tool when you have a two-dimensional grid of values and you want readers to spot patterns — which cells are high, which are low, and where the extremes cluster. Common applications include correlation matrices (which variables move together?), time-by-category grids (which months had the highest sales in each region?), and gene expression matrices in bioinformatics.
+Heatmaps are the right tool when you have a two-dimensional grid of values and you want readers to spot patterns, which cells are high, which are low, and where the extremes cluster. Common applications include correlation matrices (which variables move together?), time-by-category grids (which months had the highest sales in each region?), and gene expression matrices in bioinformatics.
 
-The ggplot2 approach requires your data in long (tidy) format: one row per cell, with columns for the row identifier, the column identifier, and the fill value. If your data starts as a wide matrix (rows = observations, columns = variables), you need to reshape it first — and `tidyr::pivot_longer()` handles that in one line.
+The ggplot2 approach requires your data in long (tidy) format: one row per cell, with columns for the row identifier, the column identifier, and the fill value. If your data starts as a wide matrix (rows = observations, columns = variables), you need to reshape it first, and `tidyr::pivot_longer()` handles that in one line.
 
 In this tutorial you will learn:
 
@@ -38,7 +38,7 @@ In this tutorial you will learn:
 
 `geom_tile()` draws a rectangle at every combination of x and y, filled by the `fill` aesthetic. If your data has one row for each (x, y) pair, you get a complete grid with no gaps.
 
-Let's start with a direct demonstration using the `airquality` dataset — monthly averages of ozone, temperature, and wind, restructured as a grid:
+Let's start with a direct demonstration using the `airquality` dataset, monthly averages of ozone, temperature, and wind, restructured as a grid:
 
 ```r
 library(ggplot2)
@@ -70,11 +70,11 @@ p_basic <- ggplot(aq_long, aes(x = Month, y = Variable, fill = Value)) +
 p_basic
 ```
 
-Each tile's color encodes the value at that (Month, Variable) intersection. The default color scale (grey-to-dark-blue) shows higher values as darker — but we'll improve that shortly.
+Each tile's color encodes the value at that (Month, Variable) intersection. The default color scale (grey-to-dark-blue) shows higher values as darker, but we'll improve that shortly.
 
-`color = "white"` and `linewidth = 0.5` add thin white borders between tiles — making the grid structure visible and preventing adjacent colors from blending visually.
+`color = "white"` and `linewidth = 0.5` add thin white borders between tiles, making the grid structure visible and preventing adjacent colors from blending visually.
 
-> **KEY INSIGHT:** `geom_tile()` expects your data in long format — one row per cell. If you pass a wide matrix directly to `ggplot()`, you'll get a chart with only one tile per row (one y-level per observation). Always reshape to long format first.
+> **KEY INSIGHT:** `geom_tile()` expects your data in long format, one row per cell. If you pass a wide matrix directly to `ggplot()`, you'll get a chart with only one tile per row (one y-level per observation). Always reshape to long format first.
 
 **Try it:** Remove `color = "white"` from `geom_tile()`. How does the heatmap look without tile borders?
 
@@ -93,12 +93,12 @@ ex_no_border <- ggplot(aq_long, aes(x = Month, y = Variable, fill = Value)) +
 ex_no_border
 ```
 
-Without the `color = "white"` border, adjacent tiles blur into each other visually — especially when neighbours share similar values. For a small grid like this one the effect is subtle, but on a dense heatmap (50+ tiles per row) removing borders produces a smoother gradient-like look. The trade-off: you lose the clear sense of "individual cells" that borders provide.
+Without the `color = "white"` border, adjacent tiles blur into each other visually, especially when neighbours share similar values. For a small grid like this one the effect is subtle, but on a dense heatmap (50+ tiles per row) removing borders produces a smoother gradient-like look. The trade-off: you lose the clear sense of "individual cells" that borders provide.
 </details>
 
 ## How Do You Reshape Wide Data to Long Format?
 
-Most real-world data starts wide — each variable is its own column, each row is an observation. A correlation matrix is a classic example: the row and column names are the same set of variables.
+Most real-world data starts wide, each variable is its own column, each row is an observation. A correlation matrix is a classic example: the row and column names are the same set of variables.
 
 `pivot_longer()` from `tidyr` converts wide to long with three key arguments: `cols` (which columns to pivot), `names_to` (the new column that will hold the old column names), and `values_to` (the new column that will hold the values).
 
@@ -113,7 +113,7 @@ names(cor_long) <- c("Var1", "Var2", "Correlation")
 head(cor_long)
 ```
 
-`as.table()` on a matrix produces a three-column data frame automatically — a shortcut that avoids `pivot_longer()` for square matrices. For non-square wide data (e.g., a month × region sales grid), use:
+`as.table()` on a matrix produces a three-column data frame automatically, a shortcut that avoids `pivot_longer()` for square matrices. For non-square wide data (e.g., a month × region sales grid), use:
 
 ```r
 # For general wide-to-long: pivot_longer
@@ -151,7 +151,7 @@ head(ex_iris_long)
 #> 6  Sepal.Width  Sepal.Width  1.00
 ```
 
-Dropping `Species` leaves four numeric columns, so the correlation matrix is 4×4 and the long-format version has 16 rows (one per cell, including the diagonal). The `as.data.frame(as.table(...))` trick is a shortcut that only works for square matrices — it flattens the table's dimnames into factor columns automatically, which is exactly what `geom_tile()` needs.
+Dropping `Species` leaves four numeric columns, so the correlation matrix is 4×4 and the long-format version has 16 rows (one per cell, including the diagonal). The `as.data.frame(as.table(...))` trick is a shortcut that only works for square matrices, it flattens the table's dimnames into factor columns automatically, which is exactly what `geom_tile()` needs.
 </details>
 
 ## How Do You Choose the Right Color Scale for a Heatmap?
@@ -183,7 +183,7 @@ p_seq <- ggplot(air_temp, aes(x = Day, y = Month, fill = Temp)) +
 p_seq
 ```
 
-**Use a diverging scale** when your values have a meaningful midpoint — most commonly zero. Correlations range from -1 to +1 with 0 as the neutral midpoint:
+**Use a diverging scale** when your values have a meaningful midpoint, most commonly zero. Correlations range from -1 to +1 with 0 as the neutral midpoint:
 
 ```r
 # Diverging: correlation matrix of mtcars
@@ -211,7 +211,7 @@ p_corr <- ggplot(cor_long, aes(x = Var1, y = Var2, fill = Correlation)) +
 p_corr
 ```
 
-`midpoint = 0` centers the white color exactly at zero. `limits = c(-1, 1)` forces the color scale to span the full correlation range symmetrically — without this, ggplot2 sets the limits to the data's actual range, which may not be ±1 and will offset the midpoint.
+`midpoint = 0` centers the white color exactly at zero. `limits = c(-1, 1)` forces the color scale to span the full correlation range symmetrically, without this, ggplot2 sets the limits to the data's actual range, which may not be ±1 and will offset the midpoint.
 
 > **WARNING:** Never use a sequential (single-direction) color scale for correlation or any data with a meaningful zero. A sequential scale from white to blue makes -0.9 look similar to +0.1 (both pale), completely obscuring the sign of the relationship.
 
@@ -237,7 +237,7 @@ ex_green_red <- ggplot(cor_long, aes(x = Var1, y = Var2, fill = Correlation)) +
 ex_green_red
 ```
 
-The chart still reads clearly because you've preserved the *diverging structure* — a neutral midpoint with two distinct hues on either side — but the green-red combination is a classic accessibility pitfall: the most common form of colorblindness (red-green, ~8% of men) will flatten the two ends into a single muddy color. Blue-white-red is safer for publication; if you need green-red for a specific brand guideline, pair it with a colorblind simulator check.
+The chart still reads clearly because you've preserved the *diverging structure*, a neutral midpoint with two distinct hues on either side, but the green-red combination is a classic accessibility pitfall: the most common form of colorblindness (red-green, ~8% of men) will flatten the two ends into a single muddy color. Blue-white-red is safer for publication; if you need green-red for a specific brand guideline, pair it with a colorblind simulator check.
 </details>
 
 ## How Do You Add Text Labels Inside Heatmap Tiles?
@@ -274,9 +274,9 @@ p_label <- ggplot(cor_long, aes(x = Var1, y = Var2, fill = Correlation)) +
 p_label
 ```
 
-The `color = abs(Correlation) > 0.5` trick switches label color from dark grey (on pale tiles) to white (on strongly colored tiles) — ensuring labels are always readable regardless of tile intensity. `scale_color_manual()` with `guide = "none"` maps `TRUE/FALSE` to `"white"/"grey20"` without adding a legend.
+The `color = abs(Correlation) > 0.5` trick switches label color from dark grey (on pale tiles) to white (on strongly colored tiles), ensuring labels are always readable regardless of tile intensity. `scale_color_manual()` with `guide = "none"` maps `TRUE/FALSE` to `"white"/"grey20"` without adding a legend.
 
-`sprintf("%.2f", Correlation)` formats each number to exactly 2 decimal places — consistent with correlation coefficient conventions.
+`sprintf("%.2f", Correlation)` formats each number to exactly 2 decimal places, consistent with correlation coefficient conventions.
 
 > **TIP:** For large heatmaps (20×20+), text labels become too small to read and clutter the chart. Switch to a clean tile-only heatmap with a well-chosen color scale, relying on interactive tooltips (via `plotly::ggplotly()`) when readers need exact values.
 
@@ -308,32 +308,32 @@ ex_larger_labels <- ggplot(cor_long, aes(x = Var1, y = Var2, fill = Correlation)
 ex_larger_labels
 ```
 
-At `size = 4` the labels just about fit the mtcars tiles because the grid is 11×11 and each tile is reasonably large. Bump it to `size = 6` and the numbers start overflowing tile boundaries, especially for values like `-0.85` that take four characters. Rule of thumb: shrink `size` as the grid grows — at 20×20 you'll want `size = 2` or drop labels entirely.
+At `size = 4` the labels just about fit the mtcars tiles because the grid is 11×11 and each tile is reasonably large. Bump it to `size = 6` and the numbers start overflowing tile boundaries, especially for values like `-0.85` that take four characters. Rule of thumb: shrink `size` as the grid grows, at 20×20 you'll want `size = 2` or drop labels entirely.
 </details>
 
 ## Common Mistakes and How to Fix Them
 
 ### Mistake 1: Passing wide-format data directly to geom_tile()
 
-❌ `ggplot(wide_matrix, aes(x = ?, y = ?, fill = ?))` — a wide matrix doesn't have separate row/column/value columns for ggplot2 to use.
+❌ `ggplot(wide_matrix, aes(x = ?, y = ?, fill = ?))`, a wide matrix doesn't have separate row/column/value columns for ggplot2 to use.
 
 ✅ Convert to long format first: `pivot_longer()` for general wide data, or `as.data.frame(as.table(mat))` for square matrices.
 
 ### Mistake 2: Using a sequential color scale for diverging data
 
-❌ Using `scale_fill_viridis_c()` on a correlation matrix. Negative correlations (-0.8) and near-zero ones (0.05) both appear pale/cool — hiding the sign difference.
+❌ Using `scale_fill_viridis_c()` on a correlation matrix. Negative correlations (-0.8) and near-zero ones (0.05) both appear pale/cool, hiding the sign difference.
 
 ✅ Use `scale_fill_gradient2(low, mid, high, midpoint = 0)` for any data centered at zero. Always set `limits` to be symmetric: `limits = c(-1, 1)` for correlations.
 
 ### Mistake 3: Forgetting limits on the diverging scale
 
-❌ Without `limits = c(-1, 1)`, ggplot2 sets the scale limits to the data's actual range. If your highest correlation is 0.8, the midpoint (white) will appear at 0.4, not 0 — making moderate positive correlations look neutral.
+❌ Without `limits = c(-1, 1)`, ggplot2 sets the scale limits to the data's actual range. If your highest correlation is 0.8, the midpoint (white) will appear at 0.4, not 0, making moderate positive correlations look neutral.
 
 ✅ Always set `limits = c(-max_abs, max_abs)` for diverging scales to keep the midpoint at the true zero.
 
 ### Mistake 4: Grid lines showing through tile borders
 
-❌ `theme_minimal()` includes a grid by default — the grid lines sit *behind* the tiles but show through the `color = "white"` tile borders, creating a double-line effect.
+❌ `theme_minimal()` includes a grid by default, the grid lines sit *behind* the tiles but show through the `color = "white"` tile borders, creating a double-line effect.
 
 ✅ Add `theme(panel.grid = element_blank())` to remove the grid entirely. The tile borders are enough structure.
 
@@ -433,7 +433,7 @@ p_final <- ggplot(cor_final_long, aes(x = Var1, y = Var2, fill = Corr)) +
 p_final
 ```
 
-`scale_x_discrete(position = "top")` moves the x-axis labels to the top of the chart — the standard convention for correlation matrices, matching how most statistical software formats them.
+`scale_x_discrete(position = "top")` moves the x-axis labels to the top of the chart, the standard convention for correlation matrices, matching how most statistical software formats them.
 
 ## Summary
 
@@ -451,22 +451,22 @@ p_final
 | Matrix to long | `as.data.frame(as.table(cor_matrix))` |
 
 Key rules:
-- Long format (one row per cell) is required — reshape wide data first
+- Long format (one row per cell) is required, reshape wide data first
 - Sequential scale for all-positive/all-negative data; diverging scale for data centered at zero
 - Always set `limits = c(-max, max)` on diverging scales to keep the midpoint at zero
-- Remove the panel grid with `theme(panel.grid = element_blank())` — tile borders are sufficient structure
+- Remove the panel grid with `theme(panel.grid = element_blank())`, tile borders are sufficient structure
 
 ## FAQ
 
 **What is the difference between geom_tile() and geom_raster()?**
 
-Both draw rectangular tiles. `geom_tile()` accepts `width` and `height` aesthetics — tiles can be different sizes. `geom_raster()` assumes all tiles are the same size (faster for large grids). For standard heatmaps with uniform tile size, `geom_raster()` is slightly faster; for variable-size tiles, use `geom_tile()`.
+Both draw rectangular tiles. `geom_tile()` accepts `width` and `height` aesthetics, tiles can be different sizes. `geom_raster()` assumes all tiles are the same size (faster for large grids). For standard heatmaps with uniform tile size, `geom_raster()` is slightly faster; for variable-size tiles, use `geom_tile()`.
 
 **How do I reorder rows and columns by clustering?**
 
 Compute hierarchical clustering: `ord <- hclust(dist(cor_matrix))$order`. Then reorder the factor levels: `factor(var, levels = colnames(cor_matrix)[ord])`. Apply to both Var1 and Var2 to group correlated variables together.
 
-**My heatmap has missing tiles — why?**
+**My heatmap has missing tiles, why?**
 
 Missing tiles appear when your long-format data is missing some (x, y) combinations. Either your source data is incomplete, or the `pivot_longer()` call skipped some columns. Check `is.na(value)` in your long data and handle missing values before plotting.
 
@@ -480,14 +480,14 @@ Filter the long data to keep only rows where `Var1 >= Var2` (or `<=`) before plo
 
 ## References
 
-1. ggplot2 reference — `geom_tile()`. https://ggplot2.tidyverse.org/reference/geom_tile.html
+1. ggplot2 reference, `geom_tile()`. https://ggplot2.tidyverse.org/reference/geom_tile.html
 2. Wickham, H. (2016). *ggplot2: Elegant Graphics for Data Analysis*. Springer. https://ggplot2-book.org/
-3. tidyr reference — `pivot_longer()`. https://tidyr.tidyverse.org/reference/pivot_longer.html
+3. tidyr reference, `pivot_longer()`. https://tidyr.tidyverse.org/reference/pivot_longer.html
 4. Wilke, C. O. (2019). *Fundamentals of Data Visualization*, Chapter 12: Visualizing Associations. https://clauswilke.com/dataviz/
-5. R Graph Gallery — Heatmaps. https://r-graph-gallery.com/heatmap.html
+5. R Graph Gallery, Heatmaps. https://r-graph-gallery.com/heatmap.html
 
 ## Continue Learning
 
-- **ggplot2 Scatter Plots** — the parent tutorial on `geom_point()` for exploring relationships between two continuous variables.
-- **R Color Theory** — choosing sequential, diverging, and qualitative palettes with ColorBrewer and viridis.
-- **Bubble Chart in R** — add a size dimension to scatter plots, extending two-variable exploration to three.
+- **ggplot2 Scatter Plots**, the parent tutorial on `geom_point()` for exploring relationships between two continuous variables.
+- **R Color Theory**, choosing sequential, diverging, and qualitative palettes with ColorBrewer and viridis.
+- **Bubble Chart in R**, add a size dimension to scatter plots, extending two-variable exploration to three.

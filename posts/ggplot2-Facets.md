@@ -18,11 +18,11 @@ difficulty: "Intermediate"
 
 # ggplot2 Facets: Create Multi-Panel Plots That Reveal Patterns Invisible Elsewhere
 
-<p class="lead">Faceting splits a single plot into a grid of smaller panels — one per group — so you can compare patterns across categories at a glance. ggplot2's <code>facet_wrap()</code> and <code>facet_grid()</code> make this effortless: one line of code turns a crowded, overlapping chart into a clear multi-panel display that reveals differences you'd never spot in a combined view.</p>
+<p class="lead">Faceting splits a single plot into a grid of smaller panels, one per group, so you can compare patterns across categories at a glance. ggplot2's <code>facet_wrap()</code> and <code>facet_grid()</code> make this effortless: one line of code turns a crowded, overlapping chart into a clear multi-panel display that reveals differences you'd never spot in a combined view.</p>
 
 ## How does faceting turn one plot into many?
 
-When you plot multiple groups on one chart, colours and shapes start blending together. Faceting solves this by giving each group its own panel — same axes, same scale, but separate space. Let's see the difference immediately.
+When you plot multiple groups on one chart, colours and shapes start blending together. Faceting solves this by giving each group its own panel, same axes, same scale, but separate space. Let's see the difference immediately.
 
 ```r
 library(ggplot2)
@@ -43,7 +43,7 @@ ggplot(mpg, aes(x = displ, y = hwy)) +
 
 Without faceting, these seven groups would overlap into a single cloud of points. With faceting, each class gets breathing room, and the engine-size-to-efficiency relationship becomes crystal clear within each group.
 
-Now let's facet the same data by drive type (`drv`) — front-wheel, rear-wheel, or four-wheel drive.
+Now let's facet the same data by drive type (`drv`), front-wheel, rear-wheel, or four-wheel drive.
 
 ```r
 # Facet by drive type instead
@@ -96,7 +96,7 @@ ggplot(mpg, aes(x = displ, y = hwy)) +
 
 ## When should you use facet_wrap() vs facet_grid()?
 
-These two functions solve different problems. `facet_wrap()` takes a single variable, creates one panel per level, and wraps them into a flexible grid — like text wrapping in a paragraph. `facet_grid()` takes two variables and creates a strict row-by-column matrix where every combination gets a cell.
+These two functions solve different problems. `facet_wrap()` takes a single variable, creates one panel per level, and wraps them into a flexible grid, like text wrapping in a paragraph. `facet_grid()` takes two variables and creates a strict row-by-column matrix where every combination gets a cell.
 
 Let's see `facet_wrap()` first with all seven vehicle classes.
 
@@ -128,10 +128,10 @@ ggplot(mpg, aes(x = displ, y = hwy)) +
 The key difference: `facet_grid()` always shows every combination, even empty ones. This is useful when the matrix structure itself is informative (empty cells tell you something). `facet_wrap()` skips empty combos and packs panels efficiently.
 
 ![facet_wrap() vs facet_grid() decision guide](screenshots/ggplot2-Facets-wrap-vs-grid-decision.webp)
-*Figure 1: Decision guide — when to use facet_wrap() vs facet_grid().*
+*Figure 1: Decision guide, when to use facet_wrap() vs facet_grid().*
 
 [TIP]
-**Start with facet_wrap() — it handles most cases.** Switch to facet_grid() only when you have two variables and the row-column structure adds meaning. If you just want to see panels for each level of one variable, facet_wrap() is simpler and packs space better.
+**Start with facet_wrap(), it handles most cases.** Switch to facet_grid() only when you have two variables and the row-column structure adds meaning. If you just want to see panels for each level of one variable, facet_wrap() is simpler and packs space better.
 
 **Try it:** Compare `facet_grid(. ~ drv)` (drive type in columns) with `facet_grid(drv ~ .)` (drive type in rows). Which layout makes it easier to compare highway MPG across drive types?
 
@@ -202,7 +202,7 @@ ggplot(mpg, aes(x = displ, y = hwy)) +
 ```
 
 [TIP]
-**Use ncol = 2 or ncol = 3 for narrow panels** when your x-axis has many values or long labels. Use nrow = 1 for a single horizontal strip that maximises each panel's width — great for time series.
+**Use ncol = 2 or ncol = 3 for narrow panels** when your x-axis has many values or long labels. Use nrow = 1 for a single horizontal strip that maximises each panel's width, great for time series.
 
 **Try it:** Arrange the seven class facets in a single row using `nrow = 1`. Notice how it changes the aspect ratio and readability.
 
@@ -234,7 +234,7 @@ ggplot(mpg, aes(x = displ, y = hwy)) +
 
 </details>
 
-## When should you free the scales — and when shouldn't you?
+## When should you free the scales, and when shouldn't you?
 
 By default, every panel shares the same axis range (`scales = "fixed"`). This makes cross-panel comparison easy because a point at the same position means the same value everywhere. But when groups have wildly different ranges, some panels get squashed into a tiny corner while others spread out.
 
@@ -290,7 +290,7 @@ The trade-off is clear: fixed scales let you compare across panels (a bar at the
 *Figure 2: The four scale options and when to use each.*
 
 [WARNING]
-**Free scales make cross-panel comparison harder.** Use them when panels have genuinely different ranges (population vs percentage, revenue vs count). Don't use them just to "zoom in" — readers will assume same-position means same-value unless you warn them.
+**Free scales make cross-panel comparison harder.** Use them when panels have genuinely different ranges (population vs percentage, revenue vs count). Don't use them just to "zoom in", readers will assume same-position means same-value unless you warn them.
 
 **Try it:** Plot the `airquality` dataset's `Ozone` values faceted by `Month` using `scales = "free_y"`. Which month shows the most variability?
 
@@ -326,7 +326,7 @@ ggplot(ex_aq, aes(x = Day, y = Ozone)) +
 
 ## How do you customize strip labels and appearance?
 
-Strip labels are the grey text bars at the top of each panel. By default, they show the raw data value (like "4", "f", or "suv"). That's often cryptic — readers shouldn't need to decode abbreviations. The `labeller` argument and `theme()` elements let you fix this.
+Strip labels are the grey text bars at the top of each panel. By default, they show the raw data value (like "4", "f", or "suv"). That's often cryptic, readers shouldn't need to decode abbreviations. The `labeller` argument and `theme()` elements let you fix this.
 
 The simplest upgrade is `label_both`, which shows both the variable name and its value.
 
@@ -423,7 +423,7 @@ ggplot(mpg, aes(x = displ, y = hwy)) +
 
 ## How do you combine faceting with other ggplot2 layers?
 
-Faceting works with every geom and layer in ggplot2. You can add trend lines, reference lines, annotations — anything. One particularly powerful technique is overlaying background context data: show all data points faintly behind each panel's highlighted subset.
+Faceting works with every geom and layer in ggplot2. You can add trend lines, reference lines, annotations, anything. One particularly powerful technique is overlaying background context data: show all data points faintly behind each panel's highlighted subset.
 
 Let's start by adding trend lines to each faceted panel.
 
@@ -442,9 +442,9 @@ ggplot(mpg, aes(x = displ, y = hwy)) +
 #> Rear-wheel (r): moderate slope but wider spread.
 ```
 
-Each panel gets its own trend line fit to that panel's data. This makes it easy to compare slopes — you can immediately see that four-wheel drive vehicles lose more highway MPG per litre of engine displacement than front-wheel drive cars.
+Each panel gets its own trend line fit to that panel's data. This makes it easy to compare slopes, you can immediately see that four-wheel drive vehicles lose more highway MPG per litre of engine displacement than front-wheel drive cars.
 
-Now let's use the background data technique. The idea: in each panel, show all data points in light grey, then overlay the current group's points in colour. This gives context — you see how each group sits within the overall distribution.
+Now let's use the background data technique. The idea: in each panel, show all data points in light grey, then overlay the current group's points in colour. This gives context, you see how each group sits within the overall distribution.
 
 ```r
 # Background data technique
@@ -504,7 +504,7 @@ ggplot(mpg, aes(x = displ, y = hwy)) +
 
 ## What are margins in facet_grid() and how do they work?
 
-`facet_grid()` has a unique feature: margins. Setting `margins = TRUE` adds summary panels that combine all levels of a variable — like "Total" rows and columns in a pivot table. These extra panels show the overall pattern alongside the group-specific panels.
+`facet_grid()` has a unique feature: margins. Setting `margins = TRUE` adds summary panels that combine all levels of a variable, like "Total" rows and columns in a pivot table. These extra panels show the overall pattern alongside the group-specific panels.
 
 ```r
 # facet_grid with margins
@@ -521,7 +521,7 @@ ggplot(mpg, aes(x = displ, y = hwy)) +
 #> Bottom-right cell: everything combined (the overall pattern).
 ```
 
-The margin panels are labelled "(all)" by default. The bottom-right cell shows the entire dataset — the grand total. Each margin row or column aggregates across the dimension it represents.
+The margin panels are labelled "(all)" by default. The bottom-right cell shows the entire dataset, the grand total. Each margin row or column aggregates across the dimension it represents.
 
 [TIP]
 **Margins are ideal for dashboards.** Each group panel sits next to its "overall" panel, making deviations jump out visually. You can also add margins for just one variable by passing its name: margins = "drv" adds only drive-type totals.
@@ -690,7 +690,7 @@ ggplot(my_diamonds, aes(x = carat, y = price)) +
 
 ## Putting It All Together
 
-Let's build a polished, publication-ready faceted visualization from scratch. We'll combine everything — custom labels, trend lines, styled strips, and a clean theme — into one complete workflow.
+Let's build a polished, publication-ready faceted visualization from scratch. We'll combine everything, custom labels, trend lines, styled strips, and a clean theme, into one complete workflow.
 
 ```r
 # Complete example: polished faceted analysis of mpg
@@ -758,7 +758,7 @@ This single plot tells a complete story. The background data provides context, t
 |---|---|---|
 | `facet_wrap(~var)` | One variable, flexible layout | `ncol`, `nrow`, `scales`, `dir`, `labeller` |
 | `facet_grid(row ~ col)` | Two variables, structured matrix | `scales`, `space`, `margins`, `labeller` |
-| `scales = "fixed"` | Cross-panel comparison | Default — same axes everywhere |
+| `scales = "fixed"` | Cross-panel comparison | Default, same axes everywhere |
 | `scales = "free"` | Within-panel detail | `"free_x"`, `"free_y"`, or `"free"` for both |
 | `as_labeller(c(...))` | Custom strip labels | Named vector mapping data values to display text |
 | `label_both` | Show variable name + value | Strips read "cyl: 4" instead of just "4" |
@@ -767,28 +767,28 @@ This single plot tells a complete story. The background data provides context, t
 
 Key takeaways:
 
-1. **Start with facet_wrap()** for most faceting needs — it's simpler and packs space better
+1. **Start with facet_wrap()** for most faceting needs, it's simpler and packs space better
 2. **Use facet_grid()** when the row-column matrix structure adds analytical value
 3. **Keep scales fixed** for comparison; free them only when ranges genuinely differ
-4. **Always relabel strips** for publication — raw data values are rarely reader-friendly
-5. **Layer background data** for context — it's the most powerful faceting technique for storytelling
+4. **Always relabel strips** for publication, raw data values are rarely reader-friendly
+5. **Layer background data** for context, it's the most powerful faceting technique for storytelling
 
 ![ggplot2 faceting concepts at a glance](screenshots/ggplot2-Facets-overview-mindmap.webp)
 *Figure 3: ggplot2 faceting concepts at a glance.*
 
 ## References
 
-1. Wickham, H. — *ggplot2: Elegant Graphics for Data Analysis*, 3rd Edition. Chapter 16: Faceting. [Link](https://ggplot2-book.org/facet.html)
-2. ggplot2 reference — facet_wrap() documentation. [Link](https://ggplot2.tidyverse.org/reference/facet_wrap.html)
-3. ggplot2 reference — facet_grid() documentation. [Link](https://ggplot2.tidyverse.org/reference/facet_grid.html)
-4. Tufte, E. — *The Visual Display of Quantitative Information*. Graphics Press (2001). Chapter on Small Multiples.
-5. Wickham, H. & Grolemund, G. — *R for Data Science*, 2nd Edition. Chapter 2: Data Visualization. [Link](https://r4ds.hadley.nz/data-visualize)
-6. ggplot2 FAQ — Faceting. [Link](https://ggplot2.tidyverse.org/articles/faq-faceting.html)
-7. Wilke, C. — *Fundamentals of Data Visualization*. Chapter 21: Multi-panel Figures. [Link](https://clauswilke.com/dataviz/multi-panel-figures.html)
-8. R-Charts — Facets in ggplot2. [Link](https://r-charts.com/ggplot2/facets/)
+1. Wickham, H., *ggplot2: Elegant Graphics for Data Analysis*, 3rd Edition. Chapter 16: Faceting. [Link](https://ggplot2-book.org/facet.html)
+2. ggplot2 reference, facet_wrap() documentation. [Link](https://ggplot2.tidyverse.org/reference/facet_wrap.html)
+3. ggplot2 reference, facet_grid() documentation. [Link](https://ggplot2.tidyverse.org/reference/facet_grid.html)
+4. Tufte, E., *The Visual Display of Quantitative Information*. Graphics Press (2001). Chapter on Small Multiples.
+5. Wickham, H. & Grolemund, G., *R for Data Science*, 2nd Edition. Chapter 2: Data Visualization. [Link](https://r4ds.hadley.nz/data-visualize)
+6. ggplot2 FAQ, Faceting. [Link](https://ggplot2.tidyverse.org/articles/faq-faceting.html)
+7. Wilke, C., *Fundamentals of Data Visualization*. Chapter 21: Multi-panel Figures. [Link](https://clauswilke.com/dataviz/multi-panel-figures.html)
+8. R-Charts, Facets in ggplot2. [Link](https://r-charts.com/ggplot2/facets/)
 
 ## Continue Learning
 
-- [ggplot2 Themes](ggplot2-Themes-in-R.html) — Customize fonts, colours, and layout to make your faceted plots publication-ready
-- [ggplot2 Scales](ggplot2-Scales.html) — Control axis breaks, limits, and transformations that work seamlessly with faceting
-- [ggplot2 Labels & Annotations](ggplot2-Labels-and-Annotations.html) — Add titles, captions, and text annotations to enhance your multi-panel displays
+- [ggplot2 Themes](ggplot2-Themes-in-R.html), Customize fonts, colours, and layout to make your faceted plots publication-ready
+- [ggplot2 Scales](ggplot2-Scales.html), Control axis breaks, limits, and transformations that work seamlessly with faceting
+- [ggplot2 Labels & Annotations](ggplot2-Labels-and-Annotations.html), Add titles, captions, and text annotations to enhance your multi-panel displays

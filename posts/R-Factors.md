@@ -16,13 +16,13 @@ difficulty: "Intermediate"
 
 # R Factors: The Data Type That Trips Up Almost Every R Beginner
 
-<p class="lead">A factor in R is a character vector with two twists: it memorises the set of allowed values (its <strong>levels</strong>), and it stores each element as a small integer pointing into that lookup. That's why factors plot, dispatch, and sort in ways raw strings don't — and why converting them back to numbers needs two careful steps.</p>
+<p class="lead">A factor in R is a character vector with two twists: it memorises the set of allowed values (its <strong>levels</strong>), and it stores each element as a small integer pointing into that lookup. That's why factors plot, dispatch, and sort in ways raw strings don't, and why converting them back to numbers needs two careful steps.</p>
 
 This guide shows what a factor actually is, how to reorder and relabel levels, when to reach for ordered factors, how `forcats` makes factor surgery painless, and the three classic bugs that ruin beginner analyses.
 
 ## Why do R factors exist at all?
 
-Before `forcats` and modern tidyverse, R had `factor()` — and the reason it exists is statistical modelling. When you fit `lm(y ~ group)` and `group` is a character vector, R has to pick which category is the baseline, how to dummy-code the rest, and what to do at prediction time if a new category appears. Factors bake those decisions into the data: a fixed set of allowed *levels*, a known order, and a compact integer storage.
+Before `forcats` and modern tidyverse, R had `factor()`, and the reason it exists is statistical modelling. When you fit `lm(y ~ group)` and `group` is a character vector, R has to pick which category is the baseline, how to dummy-code the rest, and what to do at prediction time if a new category appears. Factors bake those decisions into the data: a fixed set of allowed *levels*, a known order, and a compact integer storage.
 
 Let's build one by hand and peek at what's inside. The underlying representation is the whole point.
 
@@ -44,7 +44,7 @@ class(f)
 #> [1] "factor"
 ```
 
-`f` prints as words, but `typeof(f)` says `"integer"` — the factor is storing `c(3, 1, 2, 3, 1)` and pointing into the alphabetised `levels` vector `c("large", "medium", "small")`. That's why `as.integer(f)` hands you level *codes*, not the original strings — a beginner trap we'll fix in the gotchas section.
+`f` prints as words, but `typeof(f)` says `"integer"`, the factor is storing `c(3, 1, 2, 3, 1)` and pointing into the alphabetised `levels` vector `c("large", "medium", "small")`. That's why `as.integer(f)` hands you level *codes*, not the original strings, a beginner trap we'll fix in the gotchas section.
 
 ![Anatomy of a factor: codes plus levels](screenshots/R-Factors-anatomy.webp)
 
@@ -72,13 +72,13 @@ levels(ex_grade)
 #> [1] "A" "B" "C"
 ```
 
-**Explanation:** Levels are alphabetical by default. `"A"` is level 1, `"B"` is level 2, `"C"` is level 3 — so the sequence `B, A, C, B, A` becomes the integer codes `2, 1, 3, 2, 1`.
+**Explanation:** Levels are alphabetical by default. `"A"` is level 1, `"B"` is level 2, `"C"` is level 3, so the sequence `B, A, C, B, A` becomes the integer codes `2, 1, 3, 2, 1`.
 
 </details>
 
 ## How do you control the order of factor levels?
 
-The default order is alphabetical, which is almost never what you want. "Low / Medium / High" should be in that order on a plot axis. "Monday / Tuesday / ... / Sunday" should be chronological. Controlling level order is where factors earn their keep, and there are four ways to do it — two in base R, two in `forcats`.
+The default order is alphabetical, which is almost never what you want. "Low / Medium / High" should be in that order on a plot axis. "Monday / Tuesday / ... / Sunday" should be chronological. Controlling level order is where factors earn their keep, and there are four ways to do it, two in base R, two in `forcats`.
 
 ![Ordered vs unordered factors](screenshots/R-Factors-ordered.webp)
 
@@ -111,7 +111,7 @@ levels(f4)
 #> [1] "high"   "low"    "medium"
 ```
 
-`factor(x, levels = ...)` at creation time is the idiom to learn first — it documents the intended order right next to the data. `fct_relevel()` is the cleanest for modifying an existing factor, and `fct_infreq()` / `fct_inorder()` handle the common cases of "most common first" and "order of appearance" without you having to type the levels out.
+`factor(x, levels = ...)` at creation time is the idiom to learn first, it documents the intended order right next to the data. `fct_relevel()` is the cleanest for modifying an existing factor, and `fct_infreq()` / `fct_inorder()` handle the common cases of "most common first" and "order of appearance" without you having to type the levels out.
 
 [TIP]
 **Set levels at creation, not after the fact.** The moment you know the allowed categories and their order, write `factor(x, levels = c(...))`. Fixing level order in a downstream step (especially after subsetting) invites silent bugs where missing categories get dropped.
@@ -145,7 +145,7 @@ levels(ex_f)
 
 An **ordered factor** (`ordered = TRUE`) adds one thing: you can compare its elements with `<`, `>`, `<=`, `>=`. `factor("low") < factor("high")` throws a warning and returns `NA`, but `ordered("low", levels = c("low","med","high")) < ordered("high", ...)` is `TRUE`.
 
-Ordered factors are the right choice for genuine ordinal variables — survey responses (`strongly disagree < disagree < neutral < agree < strongly agree`), clinical stages, letter grades. They also change how `lm()` dummy-codes the variable: ordered factors get polynomial contrasts by default, which you may or may not want.
+Ordered factors are the right choice for genuine ordinal variables, survey responses (`strongly disagree < disagree < neutral < agree < strongly agree`), clinical stages, letter grades. They also change how `lm()` dummy-codes the variable: ordered factors get polynomial contrasts by default, which you may or may not want.
 
 ```r
 # Ordered factor unlocks comparison
@@ -173,7 +173,7 @@ un[1] < un[2]
 #> [1] NA
 ```
 
-The printed `Levels: low < med < high` line is how you spot an ordered factor at a glance — the `<` separator means "these are comparable". `max(ord)` returns `"high"` because `high` has the greatest level code, which is what you want for ordinal data.
+The printed `Levels: low < med < high` line is how you spot an ordered factor at a glance, the `<` separator means "these are comparable". `max(ord)` returns `"high"` because `high` has the greatest level code, which is what you want for ordinal data.
 
 [NOTE]
 **Ordered factors change model contrasts.** When you fit `lm(y ~ ord_factor)`, R uses polynomial contrasts (linear, quadratic, ...) instead of dummy coding. If you just want level 1 as the baseline and dummies for the rest, either use an unordered factor or set `contrasts = list(ord_factor = contr.treatment)` explicitly.
@@ -201,7 +201,7 @@ min(ex_tee)
 #> Levels: S < M < L < XL
 ```
 
-**Explanation:** `ordered = TRUE` tells R the `levels` argument defines a genuine ordering. `min()` returns the element with the smallest level code — `S`, which is level 1.
+**Explanation:** `ordered = TRUE` tells R the `levels` argument defines a genuine ordering. `min()` returns the element with the smallest level code, `S`, which is level 1.
 
 </details>
 
@@ -245,7 +245,7 @@ fct_drop(sub)                      # now only the ones that appear
 #> Levels: apple banana
 ```
 
-Each function takes a factor and returns a new factor — nothing mutates in place, and chains with `|>` compose beautifully. `fct_lump()` and `fct_collapse()` are the big time-savers when your category column has a long tail of rare values you want bundled as "Other".
+Each function takes a factor and returns a new factor, nothing mutates in place, and chains with `|>` compose beautifully. `fct_lump()` and `fct_collapse()` are the big time-savers when your category column has a long tail of rare values you want bundled as "Other".
 
 [WARNING]
 **Subsetting a factor keeps unused levels.** `fruit[fruit == "apple"]` still has `"banana"`, `"cherry"`, and the rest in its `levels`, which shows up as empty bars on plots and empty rows in tables. Always follow a subset with `droplevels()` or `fct_drop()` if you don't want the ghosts.
@@ -282,7 +282,7 @@ levels(ex_grouped)
 
 ## What are the three classic factor gotchas?
 
-Three bugs account for most factor pain. Each one has a specific fix — and once you've seen them, you'll never fall for them again.
+Three bugs account for most factor pain. Each one has a specific fix, and once you've seen them, you'll never fall for them again.
 
 ```r
 # Gotcha 1: as.numeric(factor) returns the codes, not the labels
@@ -319,10 +319,10 @@ factor(c(as.character(a), as.character(b)))
 #> Levels: x y z
 ```
 
-Gotcha 1 — `as.numeric(factor)` — is the single most destructive. If you load a CSV where a year column came in as a factor and write `mean(df$year)`, you get the mean of the *level codes*, which looks like a plausible small number and is completely wrong. The fix is always `as.numeric(as.character(x))` — or better, ensure the column never becomes a factor by using `stringsAsFactors = FALSE` (the default in R 4.0+).
+Gotcha 1, `as.numeric(factor)`, is the single most destructive. If you load a CSV where a year column came in as a factor and write `mean(df$year)`, you get the mean of the *level codes*, which looks like a plausible small number and is completely wrong. The fix is always `as.numeric(as.character(x))`, or better, ensure the column never becomes a factor by using `stringsAsFactors = FALSE` (the default in R 4.0+).
 
 [WARNING]
-**`as.numeric(factor)` returns level codes, not label values.** Always use `as.numeric(as.character(f))` when the factor labels are strings of digits. The first form silently returns `1, 2, 3, ...` instead of `2019, 2020, 2021, ...` — and the bug is almost impossible to spot in a summary statistic.
+**`as.numeric(factor)` returns level codes, not label values.** Always use `as.numeric(as.character(f))` when the factor labels are strings of digits. The first form silently returns `1, 2, 3, ...` instead of `2019, 2020, 2021, ...`, and the bug is almost impossible to spot in a summary statistic.
 
 **Try it:** `ex_yr <- factor(c("2030","2028","2029","2028"))`. Compute the *correct* mean of the years using the two-step idiom.
 
@@ -345,7 +345,7 @@ ex_mean
 #> [1] 2028.75
 ```
 
-**Explanation:** `as.character(ex_yr)` rebuilds the strings `"2030","2028","2029","2028"`. `as.numeric()` then parses them to doubles. Without `as.character()` you'd get the mean of the level codes `c(3,1,2,1)` — about 1.75 — which is silently wrong.
+**Explanation:** `as.character(ex_yr)` rebuilds the strings `"2030","2028","2029","2028"`. `as.numeric()` then parses them to doubles. Without `as.character()` you'd get the mean of the level codes `c(3,1,2,1)`, about 1.75, which is silently wrong.
 
 </details>
 
@@ -388,13 +388,13 @@ levels(my_trim)
 #> [1] "Jan" "Feb" "Mar" "Dec"
 ```
 
-**Explanation:** Passing all 12 months to `levels` locks the chronological order even though the data only contains 4 of them. `droplevels()` then strips the unused levels — essential before plotting so empty months don't show up as gaps.
+**Explanation:** Passing all 12 months to `levels` locks the chronological order even though the data only contains 4 of them. `droplevels()` then strips the unused levels, essential before plotting so empty months don't show up as gaps.
 
 </details>
 
 ### Exercise 2: Safe factor-to-numeric with forcats
 
-Given `my_score <- factor(c("85","72","91","72","60"))`, build `my_num` — the numeric vector of the same scores — and `my_lumped`, a new factor where scores below 80 are recoded to `"low"` and scores 80+ are `"high"`. Use `forcats::fct_collapse` for the second part.
+Given `my_score <- factor(c("85","72","91","72","60"))`, build `my_num`, the numeric vector of the same scores, and `my_lumped`, a new factor where scores below 80 are recoded to `"low"` and scores 80+ are `"high"`. Use `forcats::fct_collapse` for the second part.
 
 ```r
 # Exercise 2: convert and collapse
@@ -439,7 +439,7 @@ my_lumped
 
 ## Complete Example
 
-A small end-to-end flow that simulates survey data, cleans the categorical column, fixes the level order, and feeds the result to `table()` and `barplot()` — no downstream surprises.
+A small end-to-end flow that simulates survey data, cleans the categorical column, fixes the level order, and feeds the result to `table()` and `barplot()`, no downstream surprises.
 
 ```r
 # Complete example: survey responses -> plot-ready factor
@@ -496,18 +496,18 @@ The full pipeline: lock the Likert order at creation, recode the sentinel `"no a
 | Concept | One-line takeaway |
 |---|---|
 | **A factor is** | an integer vector pointing into a `levels` character lookup |
-| **Default order** | alphabetical — override with `factor(x, levels = ...)` |
+| **Default order** | alphabetical, override with `factor(x, levels = ...)` |
 | **Ordered factor** | adds `<` comparisons and polynomial contrasts in `lm()` |
 | **forcats verbs** | `fct_relevel`, `fct_recode`, `fct_collapse`, `fct_lump`, `fct_drop` |
-| **Subsetting** | keeps unused levels — follow with `droplevels()` |
-| **Biggest bug** | `as.numeric(factor)` returns level codes, not labels — use `as.numeric(as.character(f))` |
+| **Subsetting** | keeps unused levels, follow with `droplevels()` |
+| **Biggest bug** | `as.numeric(factor)` returns level codes, not labels, use `as.numeric(as.character(f))` |
 
 [KEY INSIGHT]
-**Factors are not strings in a hat — they're integer vectors with a lookup table and a class attribute.** Once that clicks, every quirk (the two-step conversion, the subset level-retention, the ordered-factor contrasts) becomes a logical consequence instead of an arbitrary rule. For interactive work, prefer `forcats` verbs; for modelling, be deliberate about whether your factor is ordered.
+**Factors are not strings in a hat, they're integer vectors with a lookup table and a class attribute.** Once that clicks, every quirk (the two-step conversion, the subset level-retention, the ordered-factor contrasts) becomes a logical consequence instead of an arbitrary rule. For interactive work, prefer `forcats` verbs; for modelling, be deliberate about whether your factor is ordered.
 
 ## References
 
-1. Wickham, H. *Advanced R* (2nd ed.), §3.5 Augmented vectors — Factors. [adv-r.hadley.nz/vectors-chap.html#factors](https://adv-r.hadley.nz/vectors-chap.html#factors)
+1. Wickham, H. *Advanced R* (2nd ed.), §3.5 Augmented vectors, Factors. [adv-r.hadley.nz/vectors-chap.html#factors](https://adv-r.hadley.nz/vectors-chap.html#factors)
 2. Wickham, H. and Grolemund, G. *R for Data Science*, Chapter 15: Factors with forcats. [r4ds.had.co.nz/factors.html](https://r4ds.had.co.nz/factors.html)
 3. forcats package documentation. [forcats.tidyverse.org](https://forcats.tidyverse.org/)
 4. R documentation: `?factor`, `?levels`, `?droplevels`, `?contrasts`.
@@ -516,6 +516,6 @@ The full pipeline: lock the Likert order at creation, recode the sentinel `"no a
 
 ## Continue Learning
 
-- **[R Data Types: Which Type Is Your Variable?](R-Data-Types.html)** — The parent post on R's atomic types, of which factor is the most commonly misused augmented variant.
-- **[R Type Coercion: Why Your Numeric Columns Silently Turn Into Characters](R-Type-Coercion.html)** — The coercion rules that turn `factor → numeric` into a two-step operation.
-- **[R Attributes: The Hidden Metadata That Makes R Objects Behave Differently](R-Attributes.html)** — Factors are a textbook example of the "integer vector + class attribute + levels attribute" pattern.
+- **[R Data Types: Which Type Is Your Variable?](R-Data-Types.html)**, The parent post on R's atomic types, of which factor is the most commonly misused augmented variant.
+- **[R Type Coercion: Why Your Numeric Columns Silently Turn Into Characters](R-Type-Coercion.html)**, The coercion rules that turn `factor → numeric` into a two-step operation.
+- **[R Attributes: The Hidden Metadata That Makes R Objects Behave Differently](R-Attributes.html)**, Factors are a textbook example of the "integer vector + class attribute + levels attribute" pattern.

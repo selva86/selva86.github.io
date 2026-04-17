@@ -18,13 +18,13 @@ difficulty: "Intermediate"
 
 # Hypothesis Testing in R: Understand the Framework, Not Just the p-Value
 
-<p class="lead">Hypothesis testing is a structured decision rule for asking, "Is this pattern in my data real, or could it have appeared by chance?" — and R gives you one consistent toolkit (<code>t.test()</code>, <code>prop.test()</code>, <code>chisq.test()</code>, and friends) for running it.</p>
+<p class="lead">Hypothesis testing is a structured decision rule for asking, "Is this pattern in my data real, or could it have appeared by chance?", and R gives you one consistent toolkit (<code>t.test()</code>, <code>prop.test()</code>, <code>chisq.test()</code>, and friends) for running it.</p>
 
 ## What is the hypothesis testing framework?
 
 Most tutorials hand you a p-value and tell you "less than 0.05 means significant." That hides the actual machinery. Hypothesis testing is a five-step decision process: pick two competing claims, summarise your data into a single number, ask how surprising that number is if the boring claim were true, then decide. We'll run the whole loop in one block on the `mtcars` dataset, then unpack each step in the sections that follow.
 
-Here is a complete one-sample t-test asking, "Is the average miles-per-gallon of the 32 cars in `mtcars` different from 20?" Watch the output — every later section explains one piece of it.
+Here is a complete one-sample t-test asking, "Is the average miles-per-gallon of the 32 cars in `mtcars` different from 20?" Watch the output, every later section explains one piece of it.
 
 ```r
 # Five-step hypothesis test in one block
@@ -51,10 +51,10 @@ if (payoff_test$p.value < 0.05) {
 #> [1] "Fail to reject H0 — no evidence mean mpg differs from 20."
 ```
 
-The sample mean (20.09) is essentially on top of our hypothesised 20, the t statistic is tiny (0.085), and the p-value of 0.93 says "this difference is exactly the kind of thing you'd see all the time if H₀ were true." So we keep H₀. Notice we never *proved* H₀ — we only failed to find evidence against it. That phrasing matters and we'll come back to it.
+The sample mean (20.09) is essentially on top of our hypothesised 20, the t statistic is tiny (0.085), and the p-value of 0.93 says "this difference is exactly the kind of thing you'd see all the time if H₀ were true." So we keep H₀. Notice we never *proved* H₀, we only failed to find evidence against it. That phrasing matters and we'll come back to it.
 
 [KEY INSIGHT]
-**Every p-value is computed assuming H₀ is true.** It's the answer to "if the boring claim held, how often would I see data this extreme?" — never "what's the probability the null is true?" Get that one sentence right and 90% of statistics misreporting disappears.
+**Every p-value is computed assuming H₀ is true.** It's the answer to "if the boring claim held, how often would I see data this extreme?", never "what's the probability the null is true?" Get that one sentence right and 90% of statistics misreporting disappears.
 
 **Try it:** Re-run the same test against `mu = 25` instead of 20. Predict before running: do you expect the p-value to go up or down?
 
@@ -80,7 +80,7 @@ ex_test$p.value
 
 ## How do you state the null and alternative hypothesis?
 
-The null hypothesis (H₀) is always the boring, conservative claim — *no difference, no effect, no relationship*. The alternative hypothesis (H₁) is what you'd accept if the data forces you off H₀. You write them down *before* you look at the data, because the framework only makes sense when H₀ is the default you'd cling to without evidence.
+The null hypothesis (H₀) is always the boring, conservative claim, *no difference, no effect, no relationship*. The alternative hypothesis (H₁) is what you'd accept if the data forces you off H₀. You write them down *before* you look at the data, because the framework only makes sense when H₀ is the default you'd cling to without evidence.
 
 ![The five-step decision loop every hypothesis test follows.](screenshots/Hypothesis-Testing-in-R-framework-flow.webp)
 *Figure 1: The five-step decision loop every hypothesis test follows.*
@@ -115,7 +115,7 @@ cars_4_6_one$p.value
 #> [1] 0.0002023776
 ```
 
-The one-sided p-value is exactly half the two-sided value because the t distribution is symmetric — we're now only counting the right tail. One-sided tests have more power *when the direction is genuinely pre-specified*, but they're easy to abuse.
+The one-sided p-value is exactly half the two-sided value because the t distribution is symmetric, we're now only counting the right tail. One-sided tests have more power *when the direction is genuinely pre-specified*, but they're easy to abuse.
 
 [WARNING]
 **Never pick a one-sided test after peeking at the data direction.** If you eyeball the sample, see 4-cyl is higher, *then* declare your alternative, you've effectively doubled your false-positive rate. The direction has to come from the scientific question (theory, prior literature, registered analysis plan), not from the sample.
@@ -158,7 +158,7 @@ Where:
 - $s$ is the sample standard deviation
 - $n$ is the sample size
 
-The numerator is the raw distance between the sample and H₀. The denominator — the *standard error of the mean* — is how much that distance would fluctuate just from random sampling. Dividing by it expresses the gap "in standard-error units." A t of 2 means "twice as far from H₀ as random noise would typically push you."
+The numerator is the raw distance between the sample and H₀. The denominator, the *standard error of the mean*, is how much that distance would fluctuate just from random sampling. Dividing by it expresses the gap "in standard-error units." A t of 2 means "twice as far from H₀ as random noise would typically push you."
 
 Let's compute the t statistic by hand from `mtcars$mpg` against μ₀ = 20 and confirm it matches `t.test()`.
 
@@ -180,7 +180,7 @@ t_obj$statistic
 #> 0.08506046
 ```
 
-The two numbers agree exactly. The mean (20.09) sits 0.085 standard errors away from 20 — a hair's breadth, statistically speaking. That's why the test refuses to reject H₀.
+The two numbers agree exactly. The mean (20.09) sits 0.085 standard errors away from 20, a hair's breadth, statistically speaking. That's why the test refuses to reject H₀.
 
 [TIP]
 **The denominator is the standard error of the mean, and bigger n shrinks it.** Doubling your sample size cuts the SE by a factor of √2 ≈ 1.41, which roughly halves the p-value when the effect is real. This is why "collect more data" is often the right answer to a borderline result.
@@ -237,7 +237,7 @@ t_obj$p.value
 #> [1] 0.9327503
 ```
 
-Identical, as it must be. The p-value isn't magic — it's a direct lookup against a known distribution.
+Identical, as it must be. The p-value isn't magic, it's a direct lookup against a known distribution.
 
 To make the conditional-probability definition concrete, here's a simulation: draw 10,000 datasets where H₀ truly holds (samples from `N(0, 1)` tested against μ₀ = 0), run a t-test on each, and look at the resulting p-values. If the p-value really is "a tail probability under H₀," its distribution should be uniform on [0, 1].
 
@@ -262,10 +262,10 @@ hist(null_pvals, breaks = 20, col = "lightblue",
      xlab = "p-value")
 ```
 
-About 4.89% of p-values fall below 0.05 — exactly what "5% false-positive rate at α = 0.05" means. The histogram is flat, not piled near zero. A flat null distribution is the *whole reason* p < 0.05 means anything: under H₀ it almost never happens, so when you see it you have grounds to reject.
+About 4.89% of p-values fall below 0.05, exactly what "5% false-positive rate at α = 0.05" means. The histogram is flat, not piled near zero. A flat null distribution is the *whole reason* p < 0.05 means anything: under H₀ it almost never happens, so when you see it you have grounds to reject.
 
 [WARNING]
-**Three p-value misreads to retire forever.** (1) "p = 0.04 means H₀ has only a 4% chance of being true" — wrong, the p-value never tells you the probability of H₀. (2) "p = 0.6 means H₀ is true" — wrong, large p just means *not enough evidence*; the truth could go either way. (3) "p < 0.05 means the effect is large" — wrong, p values shrink with sample size; a tiny effect with n = 100,000 will be "significant" but trivial.
+**Three p-value misreads to retire forever.** (1) "p = 0.04 means H₀ has only a 4% chance of being true", wrong, the p-value never tells you the probability of H₀. (2) "p = 0.6 means H₀ is true", wrong, large p just means *not enough evidence*; the truth could go either way. (3) "p < 0.05 means the effect is large", wrong, p values shrink with sample size; a tiny effect with n = 100,000 will be "significant" but trivial.
 
 **Try it:** Predict the proportion of simulated p-values that fall below 0.10 when H₀ is true, then verify by running the simulation.
 
@@ -285,7 +285,7 @@ mean(null_pvals < 0.10)
 #> [1] 0.1006
 ```
 
-**Explanation:** A uniform-on-[0,1] distribution puts probability `c` in any interval of length `c`, so the fraction of p-values below 0.10 should sit near 10%. The simulation confirms it — and this is the full mechanism behind why fixed α controls false-positive rate.
+**Explanation:** A uniform-on-[0,1] distribution puts probability `c` in any interval of length `c`, so the fraction of p-values below 0.10 should sit near 10%. The simulation confirms it, and this is the full mechanism behind why fixed α controls false-positive rate.
 
 </details>
 
@@ -296,7 +296,7 @@ The decision rule is simple: pick a significance level α (typically 0.05) *befo
 ![Type I and Type II errors arise from the four cells of decision × truth.](screenshots/Hypothesis-Testing-in-R-decision-quadrant.webp)
 *Figure 2: Type I and Type II errors arise from the four cells of decision × truth.*
 
-A **Type I error** is rejecting H₀ when it's actually true — a false positive. Its long-run rate equals α, by construction. A **Type II error** is failing to reject H₀ when H₁ is true — a false negative, with rate β. **Power** = 1 − β is the probability of correctly rejecting a false H₀; it depends on the true effect size, the sample size, and α.
+A **Type I error** is rejecting H₀ when it's actually true, a false positive. Its long-run rate equals α, by construction. A **Type II error** is failing to reject H₀ when H₁ is true, a false negative, with rate β. **Power** = 1 − β is the probability of correctly rejecting a false H₀; it depends on the true effect size, the sample size, and α.
 
 Let's verify the Type I rate empirically. Simulate 1,000 t-tests under H₀ and count the false positives.
 
@@ -312,7 +312,7 @@ mean(type1_rejects)
 #> [1] 0.052
 ```
 
-Roughly 5.2% of tests rejected even though H₀ was true. That's α in action — it's the price you pay for the ability to ever reject anything.
+Roughly 5.2% of tests rejected even though H₀ was true. That's α in action, it's the price you pay for the ability to ever reject anything.
 
 Now power. Simulate the same test but with a true mean of 0.5 (so H₀: μ = 0 is false) and count the correct rejections.
 
@@ -328,10 +328,10 @@ mean(power_rejects)
 #> [1] 0.756
 ```
 
-About 76% of tests correctly rejected H₀ — that's our empirical power. The other 24% missed a real effect. Power goes up with sample size, with bigger true effects, and with looser α.
+About 76% of tests correctly rejected H₀, that's our empirical power. The other 24% missed a real effect. Power goes up with sample size, with bigger true effects, and with looser α.
 
 [NOTE]
-**α is your tolerance for false positives, picked by you.** The 0.05 default is convention, not law. For drug approvals or fraud detection where false positives are expensive, use 0.01 or smaller. For exploratory analyses where you'd rather investigate too much than miss things, 0.10 is defensible — as long as you state it up front and report it honestly.
+**α is your tolerance for false positives, picked by you.** The 0.05 default is convention, not law. For drug approvals or fraud detection where false positives are expensive, use 0.01 or smaller. For exploratory analyses where you'd rather investigate too much than miss things, 0.10 is defensible, as long as you state it up front and report it honestly.
 
 **Try it:** Re-run the power simulation with `n = 50` (instead of 30). Predict before running: does power go up or down?
 
@@ -397,7 +397,7 @@ wilcox_demo$p.value
 Notice every result object exposes `$p.value`, `$statistic`, and (for most) `$conf.int`. Once you've internalised the interface for one test, the rest follow the same shape.
 
 [KEY INSIGHT]
-**Every R test function returns a list with the same key fields: `statistic`, `p.value`, `parameter`, `conf.int`.** This is not a coincidence — it's a deliberate design that lets you write generic reporting code. `extract_results <- function(test) c(test$statistic, p = test$p.value)` works on `t.test`, `wilcox.test`, `chisq.test`, and most others.
+**Every R test function returns a list with the same key fields: `statistic`, `p.value`, `parameter`, `conf.int`.** This is not a coincidence, it's a deliberate design that lets you write generic reporting code. `extract_results <- function(test) c(test$statistic, p = test$p.value)` works on `t.test`, `wilcox.test`, `chisq.test`, and most others.
 
 **Try it:** A team A/B-tested a checkout button: 24 of 200 control users converted (12%) and 30 of 200 treatment users converted (15%). Pick the right test, justify in one line, and run it.
 
@@ -421,7 +421,7 @@ ex_ab$p.value
 #> [1] 0.4655113
 ```
 
-**Explanation:** p ≈ 0.47 — well above 0.05, so we fail to reject H₀ (no evidence the conversion rates differ). The 3-percentage-point lift could easily be sampling noise at this sample size. To detect a real 3-point lift you'd need a much larger n — that's a power-analysis question.
+**Explanation:** p ≈ 0.47, well above 0.05, so we fail to reject H₀ (no evidence the conversion rates differ). The 3-percentage-point lift could easily be sampling noise at this sample size. To detect a real 3-point lift you'd need a much larger n, that's a power-analysis question.
 
 </details>
 
@@ -494,7 +494,7 @@ power_study
 #> 4 100 0.998
 ```
 
-**Explanation:** Power climbs steeply with n — at n = 10 we'd miss a real effect about 70% of the time, while at n = 100 we'd catch it almost always. This is the table you'd consult to plan sample size for a real study.
+**Explanation:** Power climbs steeply with n, at n = 10 we'd miss a real effect about 70% of the time, while at n = 100 we'd catch it almost always. This is the table you'd consult to plan sample size for a real study.
 
 </details>
 
@@ -552,7 +552,7 @@ A paper-ready write-up of this result reads:
 
 > Mean ozone concentration in August (M = 59.1 ppb, n = 26) was significantly higher than in May (M = 23.6 ppb, n = 26), Welch's t(36.98) = -4.59, p < 0.001, 95% CI for the difference [-51.16, -19.84] ppb.
 
-That single sentence carries *every* required piece of information: the direction and magnitude of the effect (means + difference), the test used and its degrees of freedom, the p-value, and a confidence interval. Notice we report the CI alongside the p-value — together they tell the reader both "is there an effect?" and "how big and how precisely measured?"
+That single sentence carries *every* required piece of information: the direction and magnitude of the effect (means + difference), the test used and its degrees of freedom, the p-value, and a confidence interval. Notice we report the CI alongside the p-value, together they tell the reader both "is there an effect?" and "how big and how precisely measured?"
 
 ## Summary
 
@@ -563,26 +563,26 @@ The hypothesis testing framework is the same five steps no matter which test you
 
 | Step | What you do | R function / output field |
 |---|---|---|
-| 1 | State H₀ and H₁ before seeing data | (writing — your decision) |
+| 1 | State H₀ and H₁ before seeing data | (writing, your decision) |
 | 2 | Choose the right test for your data shape | `t.test()`, `prop.test()`, `chisq.test()`, `wilcox.test()` |
 | 3 | Compute the test statistic | `$statistic` |
 | 4 | Compute the p-value | `$p.value` |
 | 5 | Decide vs α, then report stat, df, p, CI, effect | compare to α; write up using all four |
 
-The single most important takeaway: a p-value is `P(data this extreme | H₀ true)`, never the probability that H₀ is true. Internalise that and you'll stop misreading results — and you'll start asking for the confidence interval and effect size that p-values can never give you.
+The single most important takeaway: a p-value is `P(data this extreme | H₀ true)`, never the probability that H₀ is true. Internalise that and you'll stop misreading results, and you'll start asking for the confidence interval and effect size that p-values can never give you.
 
 ## References
 
-1. R Core Team — *An Introduction to R*. CRAN. [Link](https://cran.r-project.org/doc/manuals/r-release/R-intro.html)
-2. Wickham, H. & Grolemund, G. — *R for Data Science*, 2nd Edition. [Link](https://r4ds.hadley.nz)
-3. Wasserstein, R.L. & Lazar, N.A. — *The ASA's Statement on p-Values: Context, Process, and Purpose*. The American Statistician, 70(2), 129-133 (2016). [Link](https://doi.org/10.1080/00031305.2016.1154108)
-4. Greenland, S. et al. — *Statistical tests, P values, confidence intervals, and power: a guide to misinterpretations*. European Journal of Epidemiology, 31, 337-350 (2016). [Link](https://doi.org/10.1007/s10654-016-0149-3)
-5. R documentation — `?t.test`, `?prop.test`, `?chisq.test`, `?wilcox.test`. Run any of these at the R console for the canonical reference.
-6. Cohen, J. — *Statistical Power Analysis for the Behavioral Sciences*, 2nd Edition. Routledge (1988).
-7. Dalpiaz, D. — *Applied Statistics with R*. [Link](https://book.stat420.org)
+1. R Core Team, *An Introduction to R*. CRAN. [Link](https://cran.r-project.org/doc/manuals/r-release/R-intro.html)
+2. Wickham, H. & Grolemund, G., *R for Data Science*, 2nd Edition. [Link](https://r4ds.hadley.nz)
+3. Wasserstein, R.L. & Lazar, N.A., *The ASA's Statement on p-Values: Context, Process, and Purpose*. The American Statistician, 70(2), 129-133 (2016). [Link](https://doi.org/10.1080/00031305.2016.1154108)
+4. Greenland, S. et al., *Statistical tests, P values, confidence intervals, and power: a guide to misinterpretations*. European Journal of Epidemiology, 31, 337-350 (2016). [Link](https://doi.org/10.1007/s10654-016-0149-3)
+5. R documentation, `?t.test`, `?prop.test`, `?chisq.test`, `?wilcox.test`. Run any of these at the R console for the canonical reference.
+6. Cohen, J., *Statistical Power Analysis for the Behavioral Sciences*, 2nd Edition. Routledge (1988).
+7. Dalpiaz, D., *Applied Statistics with R*. [Link](https://book.stat420.org)
 
 ## Continue Learning
 
-- **Confidence Intervals in R** — the partner concept to hypothesis testing. Same data, different question: instead of "reject or not?" you ask "what range of values is plausible?" Most modern statisticians prefer reporting CIs alongside p-values.
-- **Effect Size in R (Cohen's d, η², r)** — the "how big is it?" number that p-values cannot give you. Required for meta-analysis and any honest write-up.
-- **Power Analysis in R** — calculate the sample size you need *before* you collect data. Stops you running underpowered studies that fail to detect real effects.
+- **Confidence Intervals in R**, the partner concept to hypothesis testing. Same data, different question: instead of "reject or not?" you ask "what range of values is plausible?" Most modern statisticians prefer reporting CIs alongside p-values.
+- **Effect Size in R (Cohen's d, η², r)**, the "how big is it?" number that p-values cannot give you. Required for meta-analysis and any honest write-up.
+- **Power Analysis in R**, calculate the sample size you need *before* you collect data. Stops you running underpowered studies that fail to detect real effects.

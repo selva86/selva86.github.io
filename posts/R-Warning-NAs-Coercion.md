@@ -1,7 +1,7 @@
 ---
-title: "R Warning: 'NAs introduced by coercion' — Find the Non-Numeric Values Fast"
+title: "R Warning: 'NAs introduced by coercion', Find the Non-Numeric Values Fast"
 slug: "R-Warning-NAs-Coercion"
-description: "R warning 'NAs introduced by coercion' means as.numeric() hit unparseable values. Find the exact culprits — $, %, commas, spaces — and fix them fast."
+description: "R warning 'NAs introduced by coercion' means as.numeric() hit unparseable values. Find the exact culprits, $, %, commas, spaces, and fix them fast."
 keywords: "NAs introduced by coercion, R as.numeric NA, R coercion warning, R convert character to numeric, R parse number, R clean numeric column, which is.na R"
 mathjax: false
 webr: true
@@ -14,13 +14,13 @@ fr_parent: "R-Common-Errors.html"
 difficulty: "Intermediate"
 ---
 
-# R Warning: 'NAs introduced by coercion' — Find the Non-Numeric Values Fast
+# R Warning: 'NAs introduced by coercion', Find the Non-Numeric Values Fast
 
-<p class="lead">The warning <code>NAs introduced by coercion</code> fires whenever <code>as.numeric()</code> meets a value it can't parse — <code>"N/A"</code>, <code>"$1,200"</code>, <code>"3,14"</code>, or even a stray space. R silently replaces each unparseable value with <code>NA</code> and keeps running, so bad data sneaks into your analysis unnoticed. The fix is always the same shape: find the failed values, clean them, convert.</p>
+<p class="lead">The warning <code>NAs introduced by coercion</code> fires whenever <code>as.numeric()</code> meets a value it can't parse, <code>"N/A"</code>, <code>"$1,200"</code>, <code>"3,14"</code>, or even a stray space. R silently replaces each unparseable value with <code>NA</code> and keeps running, so bad data sneaks into your analysis unnoticed. The fix is always the same shape: find the failed values, clean them, convert.</p>
 
 ## Why does as.numeric() return NAs with a warning?
 
-The warning is R's way of telling you *some, but not all, of your values parsed*. R keeps the clean ones and swaps the rest with `NA`. Because it's a warning and not an error, your script keeps running — which is exactly why it's dangerous. The fastest diagnostic is to catch the coerced vector, then ask `which(is.na(...))` to print the positions that failed so you can look at the originals.
+The warning is R's way of telling you *some, but not all, of your values parsed*. R keeps the clean ones and swaps the rest with `NA`. Because it's a warning and not an error, your script keeps running, which is exactly why it's dangerous. The fastest diagnostic is to catch the coerced vector, then ask `which(is.na(...))` to print the positions that failed so you can look at the originals.
 
 ```r
 raw <- c("23.5", "18", "N/A", "31.2", "error", "27.8")
@@ -39,7 +39,7 @@ raw[bad_positions]
 #> [1] "N/A"   "error"
 ```
 
-Two values failed: `"N/A"` and `"error"`. That two-line diagnostic — `which(is.na(parsed))` then `raw[bad_positions]` — works on any length of vector and tells you *exactly* what to fix, not just that something broke. Bookmark this pattern; you'll reach for it every time the warning appears.
+Two values failed: `"N/A"` and `"error"`. That two-line diagnostic, `which(is.na(parsed))` then `raw[bad_positions]`, works on any length of vector and tells you *exactly* what to fix, not just that something broke. Bookmark this pattern; you'll reach for it every time the warning appears.
 
 [KEY INSIGHT]
 **`which(is.na(parsed))` is the fastest path from a vague warning to the exact culprits.** The warning itself tells you *something* broke; the diagnostic tells you *which positions* broke so you can print the original strings and decide whether they're typos, placeholders, or formatting noise.
@@ -66,7 +66,7 @@ ex_bad
 #> [1] "missing" "n/a"
 ```
 
-**Explanation:** `suppressWarnings(as.numeric(temps))` converts silently and returns a vector with `NA` at failing positions. `is.na(...)` gives a logical vector you can use to subset `temps` directly — no need to store intermediate results.
+**Explanation:** `suppressWarnings(as.numeric(temps))` converts silently and returns a vector with `NA` at failing positions. `is.na(...)` gives a logical vector you can use to subset `temps` directly, no need to store intermediate results.
 
 </details>
 
@@ -123,7 +123,7 @@ ex_cleaned
 
 ## How do you strip currency, commas, percent signs, and whitespace?
 
-Numbers formatted for human eyes — `"$1,200"`, `"98%"`, `" 42 "` — all look numeric but fail to parse because `as.numeric()` wants nothing but digits, a sign, a decimal point, and an optional exponent. The fix is `trimws()` for whitespace and `gsub()` with a small character class for symbols.
+Numbers formatted for human eyes, `"$1,200"`, `"98%"`, `" 42 "`, all look numeric but fail to parse because `as.numeric()` wants nothing but digits, a sign, a decimal point, and an optional exponent. The fix is `trimws()` for whitespace and `gsub()` with a small character class for symbols.
 
 ```r
 prices <- c(" $1,200 ", "$850.00", "2,100.50", "98%", "$3,400.75")
@@ -141,7 +141,7 @@ sum(prices_num)
 #> [1] 7649.25
 ```
 
-The regex `[$,%]` is a character class — it matches any *single* occurrence of `$`, `,`, or `%`. Adding more symbols later is a one-character change (`[$,%£€]`). And `trimws()` handles any whitespace R recognises — spaces, tabs, and newlines — so you don't have to enumerate them.
+The regex `[$,%]` is a character class, it matches any *single* occurrence of `$`, `,`, or `%`. Adding more symbols later is a one-character change (`[$,%£€]`). And `trimws()` handles any whitespace R recognises, spaces, tabs, and newlines, so you don't have to enumerate them.
 
 [NOTE]
 **`readr::parse_number()` is a one-liner alternative.** It's a WebR-safe package that strips non-numeric characters automatically: `readr::parse_number(prices)` returns the same numbers without writing a `gsub` regex. Reach for it when your input is messy in unpredictable ways; reach for `gsub()` when you want explicit control over what gets stripped.
@@ -174,7 +174,7 @@ ex_numbers
 
 ## Why do factors and European decimals still break as.numeric()?
 
-Two sneaky cases remain. First, calling `as.numeric()` on a factor returns the factor's *level indices*, not the values you see printed — a classic silent bug that gives wrong answers with no warning. Second, European locales use a comma as the decimal separator (`"3,14"` means 3.14), so values imported from European CSVs fail to parse until you swap the separator.
+Two sneaky cases remain. First, calling `as.numeric()` on a factor returns the factor's *level indices*, not the values you see printed, a classic silent bug that gives wrong answers with no warning. Second, European locales use a comma as the decimal separator (`"3,14"` means 3.14), so values imported from European CSVs fail to parse until you swap the separator.
 
 ```r
 # Trap 1: as.numeric() on a factor gives level indices, NOT the printed values
@@ -195,7 +195,7 @@ suppressWarnings(as.numeric(as.character(grades)))
 The first block (`3 2 1`) is the scary one: no warning, no error, just wrong numbers. It happens because factors store values as integers internally and `as.numeric()` hands you those integers. Always route through `as.character()` when you want the labels back, then coerce to numeric.
 
 [WARNING]
-**`as.numeric(factor)` returns level indices with no warning.** This is the most confusing silent bug in this family — your code runs clean, your results are wrong. Whenever a column might be a factor, use `as.numeric(as.character(x))` or `as.numeric(levels(x))[x]` (faster for big vectors).
+**`as.numeric(factor)` returns level indices with no warning.** This is the most confusing silent bug in this family, your code runs clean, your results are wrong. Whenever a column might be a factor, use `as.numeric(as.character(x))` or `as.numeric(levels(x))[x]` (faster for big vectors).
 
 Now the European-decimal case, which *does* fire the warning:
 
@@ -211,7 +211,7 @@ eu_num
 #> [1] 3.14 2.72 1.41
 ```
 
-If the whole CSV is European-formatted, it's cleaner to use `read.csv2()` (or `readr::read_csv2()`) on import — both default to `,` as decimal and `;` as field separator — rather than patching every numeric column afterwards.
+If the whole CSV is European-formatted, it's cleaner to use `read.csv2()` (or `readr::read_csv2()`) on import, both default to `,` as decimal and `;` as field separator, rather than patching every numeric column afterwards.
 
 **Try it:** Convert `ex_f <- factor(c("100", "200", "300"))` to the numeric vector `c(100, 200, 300)`.
 
@@ -235,7 +235,7 @@ ex_nums
 #> [1] 100 200 300
 ```
 
-**Explanation:** `as.character()` returns the printed labels (`"100"`, `"200"`, `"300"`), and `as.numeric()` then parses each label as a real number. Skipping the `as.character()` step would return `c(1, 2, 3)` — the level indices — with no warning at all.
+**Explanation:** `as.character()` returns the printed labels (`"100"`, `"200"`, `"300"`), and `as.numeric()` then parses each label as a real number. Skipping the `as.character()` step would return `c(1, 2, 3)`, the level indices, with no warning at all.
 
 </details>
 
@@ -291,7 +291,7 @@ my_mean
 
 ### Exercise 2: Build a safe_numeric() helper
 
-Write a function that takes a character vector and a placeholder vector, coerces the input to numeric, and prints a helpful message listing the positions that failed — so you're told *which rows* to investigate instead of guessing from a plain warning.
+Write a function that takes a character vector and a placeholder vector, coerces the input to numeric, and prints a helpful message listing the positions that failed, so you're told *which rows* to investigate instead of guessing from a plain warning.
 
 ```r
 # Exercise: write safe_numeric(x, placeholders)
@@ -337,7 +337,7 @@ my_result
 #> [1] 10.0 20.0   NA   NA 30.5
 ```
 
-**Explanation:** The function distinguishes *expected* missing values (the placeholders you listed) from *unexpected* failures (anything else that failed to parse). The `which(is.na(out) & !is.na(cleaned))` condition catches only values that were not-NA before coercion but became NA after — exactly the ones that warrant a warning message you actually read.
+**Explanation:** The function distinguishes *expected* missing values (the placeholders you listed) from *unexpected* failures (anything else that failed to parse). The `which(is.na(out) & !is.na(cleaned))` condition catches only values that were not-NA before coercion but became NA after, exactly the ones that warrant a warning message you actually read.
 
 </details>
 
@@ -392,7 +392,7 @@ summary_stats
 #> 1      8       6     2      1508.
 ```
 
-Six of eight values parsed cleanly; the two missing ones are the known placeholders, *not* silently corrupted numbers. That's the guarantee you want before handing a column off to a model or a chart — every `NA` in `price_num` is one you chose.
+Six of eight values parsed cleanly; the two missing ones are the known placeholders, *not* silently corrupted numbers. That's the guarantee you want before handing a column off to a model or a chart, every `NA` in `price_num` is one you chose.
 
 ## Summary
 
@@ -406,16 +406,16 @@ Six of eight values parsed cleanly; the two missing ones are the known placehold
 
 ## References
 
-1. R Core Team — *An Introduction to R*, Section 2.3 "Vectors" and coercion rules. [Link](https://cran.r-project.org/doc/manuals/r-release/R-intro.html#Vectors-and-assignment)
-2. R Documentation — `as.numeric` / `numeric` function reference. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/numeric.html)
-3. Wickham, H. — *Advanced R*, 2nd Edition. Chapter 3: Vectors, coercion rules. [Link](https://adv-r.hadley.nz/vectors-chap.html)
-4. Wickham, H. & Grolemund, G. — *R for Data Science*, 2nd Edition. Chapter 8: Data import and parsing. [Link](https://r4ds.hadley.nz/data-import.html)
-5. readr documentation — `parse_number()` for extracting numbers from messy strings. [Link](https://readr.tidyverse.org/reference/parse_number.html)
-6. R Documentation — `read.csv2` for European-formatted CSV files. [Link](https://stat.ethz.ch/R-manual/R-devel/library/utils/html/read.table.html)
-7. R Documentation — `warning()` and warning-handling behaviour. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/warning.html)
+1. R Core Team, *An Introduction to R*, Section 2.3 "Vectors" and coercion rules. [Link](https://cran.r-project.org/doc/manuals/r-release/R-intro.html#Vectors-and-assignment)
+2. R Documentation, `as.numeric` / `numeric` function reference. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/numeric.html)
+3. Wickham, H., *Advanced R*, 2nd Edition. Chapter 3: Vectors, coercion rules. [Link](https://adv-r.hadley.nz/vectors-chap.html)
+4. Wickham, H. & Grolemund, G., *R for Data Science*, 2nd Edition. Chapter 8: Data import and parsing. [Link](https://r4ds.hadley.nz/data-import.html)
+5. readr documentation, `parse_number()` for extracting numbers from messy strings. [Link](https://readr.tidyverse.org/reference/parse_number.html)
+6. R Documentation, `read.csv2` for European-formatted CSV files. [Link](https://stat.ethz.ch/R-manual/R-devel/library/utils/html/read.table.html)
+7. R Documentation, `warning()` and warning-handling behaviour. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/warning.html)
 
 ## Continue Learning
 
-1. **R Common Errors — the full reference** — bookmark-grade catalogue of the 50 most-seen R errors and warnings, with plain-English explanations and fixes.
-2. **R Error: non-numeric argument to binary operator** — the sibling error you hit *after* a silent coercion leaves a character column in your arithmetic.
-3. **R Error: 'cannot open the connection' — File Path Checklist** — fix the upstream import issues that often produce mixed-type columns in the first place.
+1. **R Common Errors, the full reference**, bookmark-grade catalogue of the 50 most-seen R errors and warnings, with plain-English explanations and fixes.
+2. **R Error: non-numeric argument to binary operator**, the sibling error you hit *after* a silent coercion leaves a character column in your arithmetic.
+3. **R Error: 'cannot open the connection', File Path Checklist**, fix the upstream import issues that often produce mixed-type columns in the first place.

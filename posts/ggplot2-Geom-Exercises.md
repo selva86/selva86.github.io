@@ -1,7 +1,7 @@
 ---
-title: "ggplot2 Geom Exercises: 12 Problems — Every Chart Type in R — Solved Step-by-Step"
+title: "ggplot2 Geom Exercises: 12 Problems, Every Chart Type in R, Solved Step-by-Step"
 slug: "ggplot2-Geom-Exercises"
-description: "Practice every ggplot2 geom with 12 solved exercises — scatter, bar, line, histogram, boxplot, violin, and more. Runnable starter code and step-by-step solutions."
+description: "Practice every ggplot2 geom with 12 solved exercises, scatter, bar, line, histogram, boxplot, violin, and more. Runnable starter code and step-by-step solutions."
 keywords: "ggplot2 geom exercises, ggplot2 chart types exercises, geom_point exercises, geom_bar exercises, geom_histogram exercises, ggplot2 exercises with solutions, R visualization exercises, ggplot2 solved problems, geom_boxplot exercises"
 auto_link_terms: "ggplot2 geom exercises|geom exercises R|ggplot2 chart type exercises|ggplot visualization exercises|geom practice problems|ggplot2 geom practice"
 auto_link_case_sensitive: false
@@ -15,9 +15,9 @@ fr_parent: "ggplot2-Distribution-Charts.html"
 difficulty: "Intermediate"
 ---
 
-# ggplot2 Geom Exercises: 12 Problems — Every Chart Type in R — Solved Step-by-Step
+# ggplot2 Geom Exercises: 12 Problems, Every Chart Type in R, Solved Step-by-Step
 
-<p class="lead">Every ggplot2 chart starts with a geom — the function that decides whether your data appears as points, bars, lines, or tiles. These 12 exercises cover every major chart type in R, from scatter plots to heatmaps, each with starter code you can run and a step-by-step solution.</p>
+<p class="lead">Every ggplot2 chart starts with a geom, the function that decides whether your data appears as points, bars, lines, or tiles. These 12 exercises cover every major chart type in R, from scatter plots to heatmaps, each with starter code you can run and a step-by-step solution.</p>
 
 ## What Geom Does Each Chart Type Use?
 
@@ -67,7 +67,7 @@ p_bar
 #> 4-cyl ~26.7, 6-cyl ~19.7, 8-cyl ~15.1
 ```
 
-Same 32 cars, same mpg variable — but the scatter shows a continuous relationship, the boxplot reveals spread and outliers, and the bar chart compares group averages. The geom you pick determines what question your chart answers.
+Same 32 cars, same mpg variable, but the scatter shows a continuous relationship, the boxplot reveals spread and outliers, and the bar chart compares group averages. The geom you pick determines what question your chart answers.
 
 [KEY INSIGHT]
 **The geom is the grammar.** Same data, same aes(), different geom = different chart = different insight. Choosing the right geom is more important than any color, theme, or label you'll ever add.
@@ -100,13 +100,13 @@ ex_scatter_smooth
 #> One curve with grey confidence band — the trend without the noise
 ```
 
-**Explanation:** `geom_point()` shows every observation. `geom_smooth()` replaces them with a fitted curve and confidence band — you see the trend but lose the individual data points. In practice, you layer both together.
+**Explanation:** `geom_point()` shows every observation. `geom_smooth()` replaces them with a fitted curve and confidence band, you see the trend but lose the individual data points. In practice, you layer both together.
 
 </details>
 
 ## How Do You Plot Relationships and Trends? (Exercises 1–3)
 
-Scatter plots and line charts are the workhorses of exploratory analysis. Each exercise below focuses on a specific geom's parameters — the aesthetic mappings and arguments that control how your data appears.
+Scatter plots and line charts are the workhorses of exploratory analysis. Each exercise below focuses on a specific geom's parameters, the aesthetic mappings and arguments that control how your data appears.
 
 ### Exercise 1: Multi-Aesthetic Scatter Plot (geom_point)
 
@@ -219,7 +219,7 @@ p3
 #> loess captures the steeper drop from 2–4L and the flattening above 5L
 ```
 
-**Explanation:** `method = "lm"` fits a straight line — simple but it misses the curvature visible in the data. `method = "loess"` (locally estimated scatterplot smoothing) bends to follow local trends. The loess curve reveals that mileage drops steeply from 2 to 4 liters, then levels off. For non-linear relationships, loess is almost always more informative.
+**Explanation:** `method = "lm"` fits a straight line, simple but it misses the curvature visible in the data. `method = "loess"` (locally estimated scatterplot smoothing) bends to follow local trends. The loess curve reveals that mileage drops steeply from 2 to 4 liters, then levels off. For non-linear relationships, loess is almost always more informative.
 
 </details>
 
@@ -256,7 +256,7 @@ ex_jitter
 </details>
 
 [TIP]
-**Use geom_jitter() when points overlap heavily.** It adds small random noise to spread observations apart. Set width and height to control how much — use height = 0 when the y-axis is meaningful.
+**Use geom_jitter() when points overlap heavily.** It adds small random noise to spread observations apart. Set width and height to control how much, use height = 0 when the y-axis is meaningful.
 
 ## How Do You Compare Categories with Bars? (Exercises 4–5)
 
@@ -306,7 +306,7 @@ p4
 #> audi       ~26.4
 ```
 
-**Explanation:** `geom_col()` expects pre-computed y-values — here, the mean mpg we calculated with `aggregate()`. `reorder(manufacturer, hwy)` sorts the factor levels by mpg value so bars appear in ascending order. `coord_flip()` rotates the chart so long manufacturer names read horizontally.
+**Explanation:** `geom_col()` expects pre-computed y-values, here, the mean mpg we calculated with `aggregate()`. `reorder(manufacturer, hwy)` sorts the factor levels by mpg value so bars appear in ascending order. `coord_flip()` rotates the chart so long manufacturer names read horizontally.
 
 </details>
 
@@ -360,7 +360,7 @@ p5c
 #> Ideal cut has more VS1/VVS2 (higher clarity)
 ```
 
-**Explanation:** Stacked bars show absolute counts and total size. Dodged bars let you compare individual categories across groups. Fill bars normalize each stack to 100%, revealing how the composition shifts — notice that better cuts tend to have better clarity proportions. Each position answers a different question: "how many total?", "how does each category compare?", and "what's the mix?"
+**Explanation:** Stacked bars show absolute counts and total size. Dodged bars let you compare individual categories across groups. Fill bars normalize each stack to 100%, revealing how the composition shifts, notice that better cuts tend to have better clarity proportions. Each position answers a different question: "how many total?", "how does each category compare?", and "what's the mix?"
 
 </details>
 
@@ -390,7 +390,7 @@ ex_bar_count
 # Error: geom_col requires the following missing aesthetics: y
 ```
 
-**Explanation:** `geom_bar()` uses `stat = "count"` by default — it counts rows per x-level. `geom_col()` uses `stat = "identity"` — it expects you to supply a pre-computed y-value. If you already have summary statistics, use `geom_col()`. If you want ggplot to count for you, use `geom_bar()`.
+**Explanation:** `geom_bar()` uses `stat = "count"` by default, it counts rows per x-level. `geom_col()` uses `stat = "identity"`, it expects you to supply a pre-computed y-value. If you already have summary statistics, use `geom_col()`. If you want ggplot to count for you, use `geom_bar()`.
 
 </details>
 
@@ -399,7 +399,7 @@ ex_bar_count
 
 ## How Do You Visualize Distributions? (Exercises 6–8)
 
-Distribution charts answer "how is my data spread?" — where values cluster, how wide the range is, and whether outliers lurk at the edges. Each geom reveals a different aspect of the same distribution.
+Distribution charts answer "how is my data spread?", where values cluster, how wide the range is, and whether outliers lurk at the edges. Each geom reveals a different aspect of the same distribution.
 
 ### Exercise 6: Histogram with Binwidth Tuning (geom_histogram)
 
@@ -455,7 +455,7 @@ p6_wide
 #> Only 9 bars — loses the sharp peak and secondary bump around $4000
 ```
 
-**Explanation:** `binwidth = 100` creates too many bars — noise dominates and the shape is hard to read. `binwidth = 2000` collapses everything into a few fat bars, hiding the steep peak near $1,000 and the secondary bump around $4,000. `binwidth = 500` strikes the right balance: you see the strong right skew, the peak below $1,000, and the gradual tail. The dashed red line marks the median — notice it sits well below the mean because of the skew.
+**Explanation:** `binwidth = 100` creates too many bars, noise dominates and the shape is hard to read. `binwidth = 2000` collapses everything into a few fat bars, hiding the steep peak near $1,000 and the secondary bump around $4,000. `binwidth = 500` strikes the right balance: you see the strong right skew, the peak below $1,000, and the gradual tail. The dashed red line marks the median, notice it sits well below the mean because of the skew.
 
 </details>
 
@@ -489,7 +489,7 @@ p7
 #> virginica:  widest spread, centered around 5.5 cm
 ```
 
-**Explanation:** `alpha = 0.4` makes the filled areas semi-transparent, so you can see all three distributions even where they overlap. Setosa's density curve is tall and narrow — its petal lengths are tightly clustered. Virginica has the widest spread. Density curves are better than histograms for comparing groups because they don't depend on arbitrary bin choices.
+**Explanation:** `alpha = 0.4` makes the filled areas semi-transparent, so you can see all three distributions even where they overlap. Setosa's density curve is tall and narrow, its petal lengths are tightly clustered. Virginica has the widest spread. Density curves are better than histograms for comparing groups because they don't depend on arbitrary bin choices.
 
 </details>
 
@@ -529,7 +529,7 @@ p8
 #> pickup:     median ~17, lowest group
 ```
 
-**Explanation:** `notch = TRUE` adds notches around each median — if notches of two boxes don't overlap, their medians are significantly different at roughly 95% confidence. `reorder(class, hwy, FUN = median)` sorts classes by their median mpg value, making the ranking immediately visible. The red outlier points highlight unusual observations.
+**Explanation:** `notch = TRUE` adds notches around each median, if notches of two boxes don't overlap, their medians are significantly different at roughly 95% confidence. `reorder(class, hwy, FUN = median)` sorts classes by their median mpg value, making the ranking immediately visible. The red outlier points highlight unusual observations.
 
 </details>
 
@@ -558,12 +558,12 @@ ex_rug
 #> Sparse ticks above 30 confirm the long right tail has few observations
 ```
 
-**Explanation:** `geom_rug()` draws a tiny tick mark at each observation's value along the axis edge. It reveals the actual sample size and exact positions that the smoothed density curve abstracts away — helpful for spotting gaps or clusters the curve might smooth over.
+**Explanation:** `geom_rug()` draws a tiny tick mark at each observation's value along the axis edge. It reveals the actual sample size and exact positions that the smoothed density curve abstracts away, helpful for spotting gaps or clusters the curve might smooth over.
 
 </details>
 
 [KEY INSIGHT]
-**Boxplots compress distributions into five numbers — they hide bimodality entirely.** Always pair a boxplot with a density or violin plot when the shape of the distribution matters more than the summary statistics.
+**Boxplots compress distributions into five numbers, they hide bimodality entirely.** Always pair a boxplot with a density or violin plot when the shape of the distribution matters more than the summary statistics.
 
 ## How Do You Build Specialized Charts? (Exercises 9–12)
 
@@ -602,7 +602,7 @@ p9
 #> r (rear-wheel):  wide spread, median near 25
 ```
 
-**Explanation:** The violin shows the full distribution shape — notice the front-wheel drive (`f`) has a slight bimodal bump that a boxplot alone would hide. The thin boxplot overlay adds the median, IQR, and outliers on top. This combination gives you the best of both worlds: shape from the violin, summary stats from the box.
+**Explanation:** The violin shows the full distribution shape, notice the front-wheel drive (`f`) has a slight bimodal bump that a boxplot alone would hide. The thin boxplot overlay adds the median, IQR, and outliers on top. This combination gives you the best of both worlds: shape from the violin, summary stats from the box.
 
 </details>
 
@@ -690,7 +690,7 @@ p11
 #> Diagonal is all 1.0 (each variable with itself)
 ```
 
-**Explanation:** `geom_tile()` draws one rectangle per x-y combination, colored by the correlation value. `scale_fill_gradient2()` creates a diverging color scale centered at zero — blue for negative correlations, red for positive, white for near-zero. The rotated x-axis labels prevent overlap. This heatmap instantly reveals which mtcars variables move together and which move in opposite directions.
+**Explanation:** `geom_tile()` draws one rectangle per x-y combination, colored by the correlation value. `scale_fill_gradient2()` creates a diverging color scale centered at zero, blue for negative correlations, red for positive, white for near-zero. The rotated x-axis labels prevent overlap. This heatmap instantly reveals which mtcars variables move together and which move in opposite directions.
 
 </details>
 
@@ -806,7 +806,7 @@ my_scatter
 #> They sit well above the trend line — exceptionally efficient for their engine size
 ```
 
-**Explanation:** The key technique is passing a different `data` argument to `geom_label()`. While `geom_point()` uses all 234 rows, the label layer only sees the 3 rows in `top3`. This pattern — full dataset for the background, subset for annotations — is how you highlight specific observations without cluttering the chart.
+**Explanation:** The key technique is passing a different `data` argument to `geom_label()`. While `geom_point()` uses all 234 rows, the label layer only sees the 3 rows in `top3`. This pattern, full dataset for the background, subset for annotations, is how you highlight specific observations without cluttering the chart.
 
 </details>
 
@@ -859,7 +859,7 @@ my_box
 #> Fair has the highest median — counterintuitive until you realize bigger diamonds get Fair cuts
 ```
 
-**Explanation:** Each geom tells a different part of the story. The histogram shows per-cut shape and count. The density overlay lets you compare shapes directly. The boxplot compresses everything to five numbers — revealing the surprising fact that Fair-cut diamonds have a *higher* median price (because larger diamonds are more likely to receive a Fair cut, and size drives price more than cut quality). No single chart tells the whole story.
+**Explanation:** Each geom tells a different part of the story. The histogram shows per-cut shape and count. The density overlay lets you compare shapes directly. The boxplot compresses everything to five numbers, revealing the surprising fact that Fair-cut diamonds have a *higher* median price (because larger diamonds are more likely to receive a Fair cut, and size drives price more than cut quality). No single chart tells the whole story.
 
 </details>
 
@@ -936,15 +936,15 @@ Four different geoms, same dataset, four different insights. The scatter reveals
 
 ## References
 
-1. Wickham, H. — *ggplot2: Elegant Graphics for Data Analysis*, 3rd Edition. Springer (2024). Chapter 3: Individual geoms. [Link](https://ggplot2-book.org/individual-geoms.html)
-2. ggplot2 documentation — Geom function reference. [Link](https://ggplot2.tidyverse.org/reference/index.html#geoms)
-3. R Graph Gallery — ggplot2 chart types. [Link](https://r-graph-gallery.com/ggplot2-package.html)
-4. Posit cheat sheet — Data visualization with ggplot2. [Link](https://rstudio.github.io/cheatsheets/data-visualization.pdf)
-5. Wilkinson, L. — *The Grammar of Graphics*, 2nd Edition. Springer (2005). [Link](https://link.springer.com/book/10.1007/0-387-28695-0)
-6. Healy, K. — *Data Visualization: A Practical Introduction*. Princeton University Press (2019). [Link](https://socviz.co/)
+1. Wickham, H., *ggplot2: Elegant Graphics for Data Analysis*, 3rd Edition. Springer (2024). Chapter 3: Individual geoms. [Link](https://ggplot2-book.org/individual-geoms.html)
+2. ggplot2 documentation, Geom function reference. [Link](https://ggplot2.tidyverse.org/reference/index.html#geoms)
+3. R Graph Gallery, ggplot2 chart types. [Link](https://r-graph-gallery.com/ggplot2-package.html)
+4. Posit cheat sheet, Data visualization with ggplot2. [Link](https://rstudio.github.io/cheatsheets/data-visualization.pdf)
+5. Wilkinson, L., *The Grammar of Graphics*, 2nd Edition. Springer (2005). [Link](https://link.springer.com/book/10.1007/0-387-28695-0)
+6. Healy, K., *Data Visualization: A Practical Introduction*. Princeton University Press (2019). [Link](https://socviz.co/)
 
 ## Continue Learning
 
-1. [ggplot2 Exercises (15 problems)](ggplot2-Exercises.html) — broader ggplot2 practice covering aesthetics, scales, facets, themes, and coordinate systems
-2. [ggplot2 Distribution Charts](ggplot2-Distribution-Charts.html) — deep dive on histograms, density plots, boxplots, and violin charts with parameter tuning guidance
-3. [ggplot2 Scatter Plots](ggplot2-Scatter-Plots.html) — comprehensive scatter plot tutorial covering overplotting, grouping, trend lines, and marginal plots
+1. [ggplot2 Exercises (15 problems)](ggplot2-Exercises.html), broader ggplot2 practice covering aesthetics, scales, facets, themes, and coordinate systems
+2. [ggplot2 Distribution Charts](ggplot2-Distribution-Charts.html), deep dive on histograms, density plots, boxplots, and violin charts with parameter tuning guidance
+3. [ggplot2 Scatter Plots](ggplot2-Scatter-Plots.html), comprehensive scatter plot tutorial covering overplotting, grouping, trend lines, and marginal plots

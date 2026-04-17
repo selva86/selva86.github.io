@@ -18,11 +18,11 @@ difficulty: Intermediate
 
 # Sampling Distributions in R: What Actually Varies Across Repeated Samples
 
-<p class="lead">A <strong>sampling distribution</strong> is the distribution of a statistic — like the sample mean or sample proportion — across many repeated samples of the same size from the same population. It answers one question: if you ran your study again tomorrow, how different would the answer be? That single idea is the foundation of every confidence interval and every p-value you will ever compute.</p>
+<p class="lead">A <strong>sampling distribution</strong> is the distribution of a statistic, like the sample mean or sample proportion, across many repeated samples of the same size from the same population. It answers one question: if you ran your study again tomorrow, how different would the answer be? That single idea is the foundation of every confidence interval and every p-value you will ever compute.</p>
 
 ## What actually varies across repeated samples?
 
-Most tutorials jump straight to code, but readers fail this topic for one reason: they confuse three different distributions that all involve the word *sample*. The population distribution is the unseen truth. A sample distribution is the histogram of one sample you collected. The sampling distribution is the histogram of a *statistic* — like the mean — computed across many hypothetical repeats of your study. Let's simulate 1,000 sample means from a known population and watch the third distribution appear.
+Most tutorials jump straight to code, but readers fail this topic for one reason: they confuse three different distributions that all involve the word *sample*. The population distribution is the unseen truth. A sample distribution is the histogram of one sample you collected. The sampling distribution is the histogram of a *statistic*, like the mean, computed across many hypothetical repeats of your study. Let's simulate 1,000 sample means from a known population and watch the third distribution appear.
 
 ```r
 # Population: normally distributed with mean 100 and sd 15 (think IQ scores)
@@ -48,13 +48,13 @@ hist(sample_means, breaks = 30, col = "steelblue",
 abline(v = pop_mu, col = "red", lwd = 2)
 ```
 
-What the output shows: the 1,000 sample means cluster tightly around the true population mean of 100, with a standard deviation of about 2.73. The red line sits right at the center of the histogram. No individual sample is perfectly 100, but when you look at many of them at once, a clean bell curve emerges. That bell is the sampling distribution — it is an object that exists in *statistician-land*, not in any single dataset you could collect.
+What the output shows: the 1,000 sample means cluster tightly around the true population mean of 100, with a standard deviation of about 2.73. The red line sits right at the center of the histogram. No individual sample is perfectly 100, but when you look at many of them at once, a clean bell curve emerges. That bell is the sampling distribution, it is an object that exists in *statistician-land*, not in any single dataset you could collect.
 
-![The three distributions students confuse — population, one sample, and the sampling distribution of a statistic.](screenshots/Sampling-Distributions-in-R-three-distributions.webp)
-*Figure 1: The three distributions students confuse — population, one sample, and the sampling distribution of a statistic.*
+![The three distributions students confuse, population, one sample, and the sampling distribution of a statistic.](screenshots/Sampling-Distributions-in-R-three-distributions.webp)
+*Figure 1: The three distributions students confuse, population, one sample, and the sampling distribution of a statistic.*
 
 [KEY INSIGHT]
-**Your statistic is a random variable.** The sample mean you compute is not a fixed number — it is one realization from a bell-shaped distribution whose spread tells you how much your answer would change if you repeated the study.
+**Your statistic is a random variable.** The sample mean you compute is not a fixed number, it is one realization from a bell-shaped distribution whose spread tells you how much your answer would change if you repeated the study.
 
 **Try it:** Rerun the simulation with `n = 10` instead of `n = 30`. The histogram should be visibly wider. Save the result to `ex_means_n10` and report its standard deviation.
 
@@ -82,12 +82,12 @@ sd(ex_means_n10)
 
 ## How do you simulate a sampling distribution in R?
 
-Every sampling distribution you will ever build follows the same three-step recipe: draw a sample, compute a statistic, repeat the first two steps many times. R packages this recipe into a single built-in function — `replicate()` — which runs an expression K times and collects the results into a vector. Let's rewrite the previous simulation more explicitly by pulling the "draw and compute" step into its own function.
+Every sampling distribution you will ever build follows the same three-step recipe: draw a sample, compute a statistic, repeat the first two steps many times. R packages this recipe into a single built-in function, `replicate()`, which runs an expression K times and collects the results into a vector. Let's rewrite the previous simulation more explicitly by pulling the "draw and compute" step into its own function.
 
-![The replicate() pattern — draw a sample, compute a statistic, repeat K times, plot the results.](screenshots/Sampling-Distributions-in-R-simulation-pattern.webp)
-*Figure 2: The replicate() pattern — draw a sample, compute a statistic, repeat K times, plot the results.*
+![The replicate() pattern, draw a sample, compute a statistic, repeat K times, plot the results.](screenshots/Sampling-Distributions-in-R-simulation-pattern.webp)
+*Figure 2: The replicate() pattern, draw a sample, compute a statistic, repeat K times, plot the results.*
 
-This style is slightly more verbose but becomes indispensable the moment your statistic is anything more complex than `mean()` — for example, a trimmed mean, a median, or a regression coefficient. The function carries the full recipe; `replicate()` carries the repetition.
+This style is slightly more verbose but becomes indispensable the moment your statistic is anything more complex than `mean()`, for example, a trimmed mean, a median, or a regression coefficient. The function carries the full recipe; `replicate()` carries the repetition.
 
 ```r
 # Define "one trial" as a reusable function
@@ -109,10 +109,10 @@ sd(mean_sim)
 #> [1] 2.723981
 ```
 
-What the output shows: the first six simulated sample means sit in a tight band around 100, none of them exactly 100. Averaging all 5,000 of them gives 99.996 — essentially the true population mean, confirming that the sample mean is an unbiased estimator. The standard deviation of those 5,000 means, 2.724, quantifies how much a single study's mean would typically stray from the truth.
+What the output shows: the first six simulated sample means sit in a tight band around 100, none of them exactly 100. Averaging all 5,000 of them gives 99.996, essentially the true population mean, confirming that the sample mean is an unbiased estimator. The standard deviation of those 5,000 means, 2.724, quantifies how much a single study's mean would typically stray from the truth.
 
 [TIP]
-**Use set.seed() before every simulation.** Every call to rnorm() or sample() is random. Fixing the seed means your histogram today looks the same as the one a reader sees tomorrow, which matters more than it sounds — irreproducible numbers in a tutorial undermine trust in every claim around them.
+**Use set.seed() before every simulation.** Every call to rnorm() or sample() is random. Fixing the seed means your histogram today looks the same as the one a reader sees tomorrow, which matters more than it sounds, irreproducible numbers in a tutorial undermine trust in every claim around them.
 
 **Try it:** Write a function `ex_draw_one_max()` that returns the maximum of 20 draws from the same population. Replicate it 2,000 times and report the median of the resulting distribution.
 
@@ -140,7 +140,7 @@ median(ex_max_sim)
 #> [1] 128.034
 ```
 
-**Explanation:** The maximum of 20 draws is not the population maximum — it is a random statistic whose sampling distribution is right-skewed. The median near 128 makes sense: with 20 Normal(100, 15) draws, the largest sits on average about 1.87 standard deviations above the mean, which is 100 + 1.87 × 15 ≈ 128.
+**Explanation:** The maximum of 20 draws is not the population maximum, it is a random statistic whose sampling distribution is right-skewed. The median near 128 makes sense: with 20 Normal(100, 15) draws, the largest sits on average about 1.87 standard deviations above the mean, which is 100 + 1.87 × 15 ≈ 128.
 
 </details>
 
@@ -157,7 +157,7 @@ Where:
 - $\sigma$ = the true population standard deviation
 - $n$ = the sample size
 
-The formula says: the sampling distribution of the mean stays centered on the truth, but its spread shrinks with the square root of your sample size. Doubling `n` does not halve the spread — it divides it by √2. To see all three distributions side by side, let's plot the population, one sample, and the sampling distribution of the mean on one canvas.
+The formula says: the sampling distribution of the mean stays centered on the truth, but its spread shrinks with the square root of your sample size. Doubling `n` does not halve the spread, it divides it by √2. To see all three distributions side by side, let's plot the population, one sample, and the sampling distribution of the mean on one canvas.
 
 ```r
 # Draw a very large population (stand-in for the true distribution)
@@ -179,7 +179,7 @@ hist(sample_means, breaks = 30, col = "steelblue",
 par(mfrow = c(1, 1))
 ```
 
-What the output shows: panel 1 is the population — wide bell from about 55 to 145. Panel 2 is the random mess you actually get from one sample of 30 points; its shape barely hints at normality. Panel 3 is much narrower than either of the first two, centered tightly on 100. Panel 3 is the only one of the three that tells you how accurate your study is.
+What the output shows: panel 1 is the population, wide bell from about 55 to 145. Panel 2 is the random mess you actually get from one sample of 30 points; its shape barely hints at normality. Panel 3 is much narrower than either of the first two, centered tightly on 100. Panel 3 is the only one of the three that tells you how accurate your study is.
 
 Now let's confirm the formula numerically. The theoretical standard error is σ/√n; the simulated one is just `sd(sample_means)`.
 
@@ -193,10 +193,10 @@ c(theory = theory_se_mean, simulation = sim_se_mean)
 #>   2.738613   2.731148
 ```
 
-What the output shows: the theoretical SE of 2.739 and the simulated SE of 2.731 agree to the second decimal place. That match is the whole point of simulation — you can always verify a textbook formula by generating the thing it claims to describe and measuring it directly. The tiny difference is Monte Carlo error, which shrinks as you increase the number of replications.
+What the output shows: the theoretical SE of 2.739 and the simulated SE of 2.731 agree to the second decimal place. That match is the whole point of simulation, you can always verify a textbook formula by generating the thing it claims to describe and measuring it directly. The tiny difference is Monte Carlo error, which shrinks as you increase the number of replications.
 
 [NOTE]
-**The bell shape comes from the Central Limit Theorem.** This post focuses on sampling distributions as a concept; the deeper result — that the mean's sampling distribution is *always* approximately Normal for large enough n, no matter the population shape — is covered in the Central Limit Theorem tutorial.
+**The bell shape comes from the Central Limit Theorem.** This post focuses on sampling distributions as a concept; the deeper result, that the mean's sampling distribution is *always* approximately Normal for large enough n, no matter the population shape, is covered in the Central Limit Theorem tutorial.
 
 **Try it:** Simulate 4,000 sample means at `n = 100` from the same Normal(100, 15) population, save to `ex_means_n100`, and verify its simulated SE matches σ/√100 = 1.5.
 
@@ -219,19 +219,19 @@ sd(ex_means_n100)
 #> [1] 1.503879
 ```
 
-**Explanation:** With `n = 100`, σ/√n = 15/10 = 1.5, and the simulation gives 1.504 — off by 0.004, which is Monte Carlo noise from only 4,000 replications. Push the replication count higher and the match tightens.
+**Explanation:** With `n = 100`, σ/√n = 15/10 = 1.5, and the simulation gives 1.504, off by 0.004, which is Monte Carlo noise from only 4,000 replications. Push the replication count higher and the match tightens.
 
 </details>
 
 ## What is the sampling distribution of a sample proportion?
 
-When your outcome is binary — voted yes or no, clicked or did not click, disease or no disease — the statistic you care about is the sample proportion, written $\hat{p}$. Its sampling distribution is also approximately Normal for large enough `n`, and its standard error has a closed form that depends only on the true proportion `p` and the sample size.
+When your outcome is binary, voted yes or no, clicked or did not click, disease or no disease, the statistic you care about is the sample proportion, written $\hat{p}$. Its sampling distribution is also approximately Normal for large enough `n`, and its standard error has a closed form that depends only on the true proportion `p` and the sample size.
 
 $$\hat{p} \sim \text{Normal}\!\left(p,\ \frac{p(1-p)}{n}\right) \quad\Longrightarrow\quad \text{SE}(\hat{p}) = \sqrt{\frac{p(1-p)}{n}}$$
 
 Where:
 
-- $\hat{p}$ = the sample proportion (the random variable — heads out of n flips)
+- $\hat{p}$ = the sample proportion (the random variable, heads out of n flips)
 - $p$ = the true population proportion
 - $n$ = the sample size
 
@@ -257,7 +257,7 @@ mean(prop_sim)
 #> [1] 0.300032
 ```
 
-What the output shows: the 5,000 simulated sample proportions form a bell-shaped histogram centered exactly on 0.30 — the true population proportion. The navy vertical line splits the distribution cleanly in half. So even when your individual outcomes are just 0s and 1s, averaging them over `n = 50` produces a statistic whose behavior across repeats is approximately Normal.
+What the output shows: the 5,000 simulated sample proportions form a bell-shaped histogram centered exactly on 0.30, the true population proportion. The navy vertical line splits the distribution cleanly in half. So even when your individual outcomes are just 0s and 1s, averaging them over `n = 50` produces a statistic whose behavior across repeats is approximately Normal.
 
 Now the theoretical versus simulated standard error:
 
@@ -271,12 +271,12 @@ c(theory = theory_se_p, simulation = sim_se_p)
 #>  0.0648074  0.0652198
 ```
 
-What the output shows: theory predicts 0.0648 and simulation gives 0.0652 — a 0.6% difference, indistinguishable at the precision anyone ever reports a survey margin of error. That closeness is how pollsters convert a raw survey result into a headline like "46% support, ± 3%" without ever running the election twice.
+What the output shows: theory predicts 0.0648 and simulation gives 0.0652, a 0.6% difference, indistinguishable at the precision anyone ever reports a survey margin of error. That closeness is how pollsters convert a raw survey result into a headline like "46% support, ± 3%" without ever running the election twice.
 
 [WARNING]
-**The Normal approximation fails at extreme p or small n.** The rule of thumb is both np ≥ 10 and n(1-p) ≥ 10. At p = 0.02 with n = 30 you get np = 0.6, way below 10 — the sampling distribution will be right-skewed, not bell-shaped, and the SE formula will mislead you about how rare extreme sample proportions are.
+**The Normal approximation fails at extreme p or small n.** The rule of thumb is both np ≥ 10 and n(1-p) ≥ 10. At p = 0.02 with n = 30 you get np = 0.6, way below 10, the sampling distribution will be right-skewed, not bell-shaped, and the SE formula will mislead you about how rare extreme sample proportions are.
 
-**Try it:** Rerun the simulation with `pop_p = 0.05` and `prop_n = 30` — a case that violates the rule of thumb. Plot the histogram of `ex_prop_sim` and describe its shape.
+**Try it:** Rerun the simulation with `pop_p = 0.05` and `prop_n = 30`, a case that violates the rule of thumb. Plot the histogram of `ex_prop_sim` and describe its shape.
 
 ```r
 # Try it: break the normal approximation
@@ -312,13 +312,13 @@ table(round(ex_prop_sim, 3))
 #>  1159   1831   1282    535    141     41      9      1      0      1      0
 ```
 
-**Explanation:** With np = 30 × 0.05 = 1.5 (far below 10), the discreteness of the small binomial dominates. Many samples contain zero positives, so `p-hat` equals 0 thousands of times. The histogram has a hard left wall at 0 and a long right tail — nothing like a symmetric bell. Confidence intervals built from the Normal formula here will be wrong.
+**Explanation:** With np = 30 × 0.05 = 1.5 (far below 10), the discreteness of the small binomial dominates. Many samples contain zero positives, so `p-hat` equals 0 thousands of times. The histogram has a hard left wall at 0 and a long right tail, nothing like a symmetric bell. Confidence intervals built from the Normal formula here will be wrong.
 
 </details>
 
 ## What is the sampling distribution of the sample variance?
 
-So far both statistics we have met — the sample mean and the sample proportion — have approximately Normal sampling distributions. The sample variance is the first statistic in this tutorial whose sampling distribution is *not* Normal. When the population is Normal, the scaled sample variance follows a chi-squared distribution.
+So far both statistics we have met, the sample mean and the sample proportion, have approximately Normal sampling distributions. The sample variance is the first statistic in this tutorial whose sampling distribution is *not* Normal. When the population is Normal, the scaled sample variance follows a chi-squared distribution.
 
 $$\frac{(n-1) s^2}{\sigma^2} \sim \chi^2_{n-1}$$
 
@@ -329,7 +329,7 @@ Where:
 - $n$ = the sample size
 - $\chi^2_{n-1}$ = the chi-squared distribution with n − 1 degrees of freedom
 
-The chi-squared shape is right-skewed — it has a hard left bound at zero and a long right tail. Let's simulate 5,000 sample variances from our Normal(100, 15) population with `n = 20` and see the skew directly.
+The chi-squared shape is right-skewed, it has a hard left bound at zero and a long right tail. Let's simulate 5,000 sample variances from our Normal(100, 15) population with `n = 20` and see the skew directly.
 
 ```r
 # Sampling distribution of the sample variance
@@ -346,10 +346,10 @@ c(mean_of_var_sim = mean(var_sim), true_variance = pop_sd^2)
 #>        224.8715         225.0000
 ```
 
-What the output shows: the histogram is clearly right-skewed, with a short tail on the low end and a long tail on the high end. The mean of the 5,000 simulated sample variances (224.87) nearly equals the true population variance (225), which confirms sample variance is an unbiased estimator — on average it gets the truth right, even though its distribution is not symmetric. A single sample could easily return a variance of 350 but very rarely a variance of 50.
+What the output shows: the histogram is clearly right-skewed, with a short tail on the low end and a long tail on the high end. The mean of the 5,000 simulated sample variances (224.87) nearly equals the true population variance (225), which confirms sample variance is an unbiased estimator, on average it gets the truth right, even though its distribution is not symmetric. A single sample could easily return a variance of 350 but very rarely a variance of 50.
 
 [NOTE]
-**Most statistics beyond the mean have non-normal sampling distributions.** Sample medians, sample quantiles, sample correlations, ratio estimators — each has its own characteristic shape. The normality you saw for the mean and proportion is a consequence of the CLT, not a universal rule.
+**Most statistics beyond the mean have non-normal sampling distributions.** Sample medians, sample quantiles, sample correlations, ratio estimators, each has its own characteristic shape. The normality you saw for the mean and proportion is a consequence of the CLT, not a universal rule.
 
 **Try it:** Simulate 3,000 sample *medians* from the same Normal(100, 15) population with `n = 20` and compare the histogram shape to the sample means distribution you already built. Save to `ex_median_sim`.
 
@@ -379,13 +379,13 @@ sd(sample_means) / sqrt(30) * sqrt(20)  # for comparable n
 #> (use your simulated SE of the mean at n = 20 to compare)
 ```
 
-**Explanation:** The sample median is still asymptotically Normal — its histogram is bell-shaped and centered at 100 — but its standard error is larger than the mean's at the same sample size. For Normal data the median's SE is about `1.253 × σ/√n`, roughly 25% wider than the mean's. This is why the sample mean is called the more *efficient* estimator of a Normal center.
+**Explanation:** The sample median is still asymptotically Normal, its histogram is bell-shaped and centered at 100, but its standard error is larger than the mean's at the same sample size. For Normal data the median's SE is about `1.253 × σ/√n`, roughly 25% wider than the mean's. This is why the sample mean is called the more *efficient* estimator of a Normal center.
 
 </details>
 
 ## How does sample size change the sampling distribution?
 
-Both SE formulas you have seen — σ/√n for the mean and √(p(1−p)/n) for the proportion — put sample size in a square-root denominator. The practical consequence: to cut the spread of your sampling distribution in half, you do not double `n`, you *quadruple* it. Let's see this visually by simulating 2,000 sample means at three different sample sizes and plotting them side by side.
+Both SE formulas you have seen, σ/√n for the mean and √(p(1−p)/n) for the proportion, put sample size in a square-root denominator. The practical consequence: to cut the spread of your sampling distribution in half, you do not double `n`, you *quadruple* it. Let's see this visually by simulating 2,000 sample means at three different sample sizes and plotting them side by side.
 
 ```r
 # Three sampling distributions at n = 10, 30, 100
@@ -410,10 +410,10 @@ c(sd_n10 = sd(means_n10), sd_n30 = sd(means_n30), sd_n100 = sd(means_n100))
 #>  4.710384  2.759184  1.485210
 ```
 
-What the output shows: all three histograms sit centered on 100, but the spread shrinks dramatically as `n` grows. At `n = 10`, sample means routinely land between 90 and 110; at `n = 100`, they almost all fall between 97 and 103. The standard deviations confirm the √n relationship — `sd_n10 / sd_n100` is about 3.17, nearly the theoretical √(100/10) = √10 ≈ 3.16.
+What the output shows: all three histograms sit centered on 100, but the spread shrinks dramatically as `n` grows. At `n = 10`, sample means routinely land between 90 and 110; at `n = 100`, they almost all fall between 97 and 103. The standard deviations confirm the √n relationship, `sd_n10 / sd_n100` is about 3.17, nearly the theoretical √(100/10) = √10 ≈ 3.16.
 
 [TIP]
-**To halve your standard error, quadruple your sample size.** This is why large surveys are expensive — going from a margin of error of ±3% to ±1.5% requires four times as many respondents, not twice as many. Budget for statistical precision on a square-root curve, not a linear one.
+**To halve your standard error, quadruple your sample size.** This is why large surveys are expensive, going from a margin of error of ±3% to ±1.5% requires four times as many respondents, not twice as many. Budget for statistical precision on a square-root curve, not a linear one.
 
 **Try it:** Use the simulated vectors above to verify the square-root law. Compute `sd(means_n10) / sd(means_n100)` and compare the result to `sqrt(100 / 10)`.
 
@@ -479,7 +479,7 @@ c(mean = mean(my_max_dist), sd = sd(my_max_dist))
 #> 0.96189547 0.03644894
 ```
 
-**Explanation:** The histogram is strongly left-skewed and pressed against 1 on the right — nothing like a bell. The sample max of `n` Uniform(0, 1) draws has theoretical mean `n/(n+1) = 25/26 ≈ 0.962`, matching the simulation. A Normal approximation would be badly wrong here: no Normal distribution has a hard boundary at 1. This is why extreme-value statistics need their own theory (Weibull, Gumbel) rather than borrowing from the CLT.
+**Explanation:** The histogram is strongly left-skewed and pressed against 1 on the right, nothing like a bell. The sample max of `n` Uniform(0, 1) draws has theoretical mean `n/(n+1) = 25/26 ≈ 0.962`, matching the simulation. A Normal approximation would be badly wrong here: no Normal distribution has a hard boundary at 1. This is why extreme-value statistics need their own theory (Weibull, Gumbel) rather than borrowing from the CLT.
 
 </details>
 
@@ -576,14 +576,14 @@ hist(poll_sample_props, breaks = 40, col = "steelblue",
 abline(v = poll_true_p, col = "red", lwd = 2)
 ```
 
-What the output shows: the sampling distribution is centered at 0.0399, essentially the true rate of 0.04. The simulated standard error is 0.0087, giving a 95% margin of error of 0.017, or ±1.7 percentage points. The rule-of-thumb check passes comfortably — `np = 20` ≥ 10 and `n(1-p) = 480` ≥ 10 — so the Normal approximation is safe here. The campaign's reportable answer is: "Our survey of 500 voters shows 4.0% support, with a margin of error of ±1.7 percentage points at 95% confidence." That margin came directly from the width of the sampling distribution you just built.
+What the output shows: the sampling distribution is centered at 0.0399, essentially the true rate of 0.04. The simulated standard error is 0.0087, giving a 95% margin of error of 0.017, or ±1.7 percentage points. The rule-of-thumb check passes comfortably, `np = 20` ≥ 10 and `n(1-p) = 480` ≥ 10, so the Normal approximation is safe here. The campaign's reportable answer is: "Our survey of 500 voters shows 4.0% support, with a margin of error of ±1.7 percentage points at 95% confidence." That margin came directly from the width of the sampling distribution you just built.
 
 [KEY INSIGHT]
-**Every reported margin of error is the width of an imagined sampling distribution.** When a news article says "±3%", someone, somewhere, multiplied 1.96 by the standard error that *would* arise if the survey were repeated. You have just built that object by brute-force simulation instead of formula — and they agree.
+**Every reported margin of error is the width of an imagined sampling distribution.** When a news article says "±3%", someone, somewhere, multiplied 1.96 by the standard error that *would* arise if the survey were repeated. You have just built that object by brute-force simulation instead of formula, and they agree.
 
 ## Summary
 
-Every inference in classical statistics — confidence intervals, p-values, power calculations — rests on a sampling distribution. Here are the shapes you need to know and the one R pattern that builds any of them.
+Every inference in classical statistics, confidence intervals, p-values, power calculations, rests on a sampling distribution. Here are the shapes you need to know and the one R pattern that builds any of them.
 
 ![Common statistics and the shape of their sampling distributions at a glance.](screenshots/Sampling-Distributions-in-R-statistics-overview.webp)
 *Figure 3: Common statistics and the shape of their sampling distributions at a glance.*
@@ -604,16 +604,16 @@ Three takeaways worth pinning to your wall:
 
 ## References
 
-1. Wasserman, L. — *All of Statistics: A Concise Course in Statistical Inference*. Springer (2004). Chapter 6. [Link](https://link.springer.com/book/10.1007/978-0-387-21736-9)
-2. R documentation — `replicate()` reference. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/lapply.html)
-3. Diez, D., Çetinkaya-Rundel, M., Barr, C. D. — *Introduction to Modern Statistics*. OpenIntro. [Link](https://openintro-ims.netlify.app/foundations-mathematical.html)
-4. Moore, D. S., McCabe, G. P., Craig, B. A. — *Introduction to the Practice of Statistics*, 10th edition. W. H. Freeman.
-5. Wickham, H., Çetinkaya-Rundel, M., Grolemund, G. — *R for Data Science*, 2nd edition. [Link](https://r4ds.hadley.nz/)
-6. Evans, M. J., Rosenthal, J. S. — *Probability and Statistics: The Science of Uncertainty*. [Link](http://www.utstat.toronto.edu/mikevans/jeffrosenthal/)
-7. CRAN Task View — Probability Distributions. [Link](https://cran.r-project.org/web/views/Distributions.html)
+1. Wasserman, L., *All of Statistics: A Concise Course in Statistical Inference*. Springer (2004). Chapter 6. [Link](https://link.springer.com/book/10.1007/978-0-387-21736-9)
+2. R documentation, `replicate()` reference. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/lapply.html)
+3. Diez, D., Çetinkaya-Rundel, M., Barr, C. D., *Introduction to Modern Statistics*. OpenIntro. [Link](https://openintro-ims.netlify.app/foundations-mathematical.html)
+4. Moore, D. S., McCabe, G. P., Craig, B. A., *Introduction to the Practice of Statistics*, 10th edition. W. H. Freeman.
+5. Wickham, H., Çetinkaya-Rundel, M., Grolemund, G., *R for Data Science*, 2nd edition. [Link](https://r4ds.hadley.nz/)
+6. Evans, M. J., Rosenthal, J. S., *Probability and Statistics: The Science of Uncertainty*. [Link](http://www.utstat.toronto.edu/mikevans/jeffrosenthal/)
+7. CRAN Task View, Probability Distributions. [Link](https://cran.r-project.org/web/views/Distributions.html)
 
 ## Continue Learning
 
-- [Central Limit Theorem in R](Central-Limit-Theorem-in-R.html) — the deeper why behind the Normal shape of the mean's sampling distribution.
-- [Normal, t, F, and Chi-Squared Distributions in R](Normal-t-F-and-Chi-Squared-Distributions-in-R.html) — the exact families that show up as sampling distributions in this post.
-- [Binomial and Poisson Distributions in R](Binomial-and-Poisson-Distributions-in-R.html) — the parent distributions behind the sample proportion you simulated here.
+- [Central Limit Theorem in R](Central-Limit-Theorem-in-R.html), the deeper why behind the Normal shape of the mean's sampling distribution.
+- [Normal, t, F, and Chi-Squared Distributions in R](Normal-t-F-and-Chi-Squared-Distributions-in-R.html), the exact families that show up as sampling distributions in this post.
+- [Binomial and Poisson Distributions in R](Binomial-and-Poisson-Distributions-in-R.html), the parent distributions behind the sample proportion you simulated here.

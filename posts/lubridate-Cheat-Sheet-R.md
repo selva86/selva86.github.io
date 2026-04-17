@@ -393,9 +393,9 @@ lubridate distinguishes between changing the display (clock on the wall) and cha
 |---|---|---|---|
 | `with_tz(x, tz)` | Show same instant in new zone | Yes | No |
 | `force_tz(x, tz)` | Stamp new zone on same clock reading | No | Yes |
-| `OlsonNames()` | List all valid time zone names | — | — |
-| `Sys.timezone()` | Your system's time zone | — | — |
-| `tz(x)` | Get time zone of a date-time | — | — |
+| `OlsonNames()` | List all valid time zone names |, |, |
+| `Sys.timezone()` | Your system's time zone |, |, |
+| `tz(x)` | Get time zone of a date-time |, |, |
 
 Let's convert and force time zones.
 
@@ -698,14 +698,14 @@ Call `OlsonNames()` to get a character vector of all valid time zone strings. Th
 
 ## References
 
-1. Grolemund, G. & Wickham, H. — *Dates and Times Made Easy with lubridate*. Journal of Statistical Software, 40(3), 1-25 (2011). [Link](https://www.jstatsoft.org/article/view/v040i03)
-2. lubridate documentation — tidyverse.org. [Link](https://lubridate.tidyverse.org/)
-3. lubridate CRAN vignette — *Do more with dates and times in R*. [Link](https://cran.r-project.org/web/packages/lubridate/vignettes/lubridate.html)
-4. Wickham, H. & Grolemund, G. — *R for Data Science*, Chapter 16: Dates and Times. [Link](https://r4ds.had.co.nz/dates-and-times.html)
-5. RStudio — *Dates and Times with lubridate Cheatsheet*. [Link](https://rstudio.github.io/cheatsheets/html/lubridate.html)
+1. Grolemund, G. & Wickham, H., *Dates and Times Made Easy with lubridate*. Journal of Statistical Software, 40(3), 1-25 (2011). [Link](https://www.jstatsoft.org/article/view/v040i03)
+2. lubridate documentation, tidyverse.org. [Link](https://lubridate.tidyverse.org/)
+3. lubridate CRAN vignette, *Do more with dates and times in R*. [Link](https://cran.r-project.org/web/packages/lubridate/vignettes/lubridate.html)
+4. Wickham, H. & Grolemund, G., *R for Data Science*, Chapter 16: Dates and Times. [Link](https://r4ds.had.co.nz/dates-and-times.html)
+5. RStudio, *Dates and Times with lubridate Cheatsheet*. [Link](https://rstudio.github.io/cheatsheets/html/lubridate.html)
 6. lubridate GitHub repository. [Link](https://github.com/tidyverse/lubridate)
 
 ## Continue Learning
 
-- [lubridate in R: Parse Dates Once, Stop Fighting Time Zones Forever](lubridate-in-R.html) — The full lubridate tutorial with in-depth explanations of every concept in this cheat sheet.
-- [stringr in R](stringr-in-R.html) — Master string manipulation, the other half of the strings-and-dates toolkit.
+- [lubridate in R: Parse Dates Once, Stop Fighting Time Zones Forever](lubridate-in-R.html), The full lubridate tutorial with in-depth explanations of every concept in this cheat sheet.
+- [stringr in R](stringr-in-R.html), Master string manipulation, the other half of the strings-and-dates toolkit.

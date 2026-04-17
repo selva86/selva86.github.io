@@ -18,13 +18,13 @@ difficulty: "Beginner"
 
 # Composable R Code: Design Functions That Chain Together Like Unix Pipes
 
-<p class="lead">Composable R code is built from small, single-purpose functions that take a data object as their first argument and return the same shape — so they chain effortlessly through <code>|&gt;</code>, exactly like Unix shell commands chain through <code>|</code>.</p>
+<p class="lead">Composable R code is built from small, single-purpose functions that take a data object as their first argument and return the same shape, so they chain effortlessly through <code>|&gt;</code>, exactly like Unix shell commands chain through <code>|</code>.</p>
 
-This tutorial gives you five concrete rules for writing functions that snap together cleanly, plus before-and-after refactors so you can see the difference in real R code. We will use base R and the tidyverse interchangeably — both ecosystems share the same composition idea.
+This tutorial gives you five concrete rules for writing functions that snap together cleanly, plus before-and-after refactors so you can see the difference in real R code. We will use base R and the tidyverse interchangeably, both ecosystems share the same composition idea.
 
 ## What does it mean for R code to be composable?
 
-Unix shell commands feel powerful in combination because every command reads from stdin and writes to stdout the same way. R can feel just as powerful once your functions follow a small set of shape rules. Here is a tiny end-to-end pipeline using nothing but composable building blocks — each function does one job, takes a data frame, and hands one back.
+Unix shell commands feel powerful in combination because every command reads from stdin and writes to stdout the same way. R can feel just as powerful once your functions follow a small set of shape rules. Here is a tiny end-to-end pipeline using nothing but composable building blocks, each function does one job, takes a data frame, and hands one back.
 
 ```r
 library(dplyr)
@@ -44,12 +44,12 @@ summary_by_cyl
 #> 3     8    6.71     4
 ```
 
-Look at the structure. Four functions — `filter()`, `mutate()`, `group_by()`, `summarise()` — chain through `|>` without a single intermediate variable. Each one accepts a data frame and returns a data frame. None of them print, plot, or write a file as a side effect. That is what "composable" means in practice: predictable shape in, predictable shape out, one job per function.
+Look at the structure. Four functions, `filter()`, `mutate()`, `group_by()`, `summarise()`, chain through `|>` without a single intermediate variable. Each one accepts a data frame and returns a data frame. None of them print, plot, or write a file as a side effect. That is what "composable" means in practice: predictable shape in, predictable shape out, one job per function.
 
 A function is composable when you can drop it into the middle of a pipe without thinking about it. Five rules make that possible. Each section below covers one rule, with a refactor that shows what changes when you apply it.
 
 [KEY INSIGHT]
-**The pipe is just glue — composability lives in the functions, not the operator.** `|>` only works because the functions on either side agree on a shape. Get the function shapes right and the pipe falls out naturally.
+**The pipe is just glue, composability lives in the functions, not the operator.** `|>` only works because the functions on either side agree on a shape. Get the function shapes right and the pipe falls out naturally.
 
 **Try it:** Write a 2-step pipe on `mtcars` that keeps rows where `cyl == 6` and then computes the mean `hp`. Save the result to `ex_mean_hp`.
 
@@ -81,7 +81,7 @@ ex_mean_hp
 
 ## How do you keep a function focused on one job?
 
-The first rule is the hardest one to follow because it asks you to resist convenience. When you are deep in an analysis, it is tempting to write one big function that loads, cleans, summarises, and prints results all at once. That function feels efficient — until you need to reuse half of it and discover the halves are stuck together.
+The first rule is the hardest one to follow because it asks you to resist convenience. When you are deep in an analysis, it is tempting to write one big function that loads, cleans, summarises, and prints results all at once. That function feels efficient, until you need to reuse half of it and discover the halves are stuck together.
 
 Here is a "swiss army knife" function that does too many things. Notice how many concerns are tangled inside it.
 
@@ -102,7 +102,7 @@ analyze_cars(mtcars, 18)
 #> 3   8  6.715
 ```
 
-Notice four problems jammed into seven lines. The function filters rows, derives a new column, aggregates, *and* prints the result as a side effect. If you want to filter without aggregating — or aggregate without printing — you cannot. Worse, you cannot describe the function in one sentence without using the word "and."
+Notice four problems jammed into seven lines. The function filters rows, derives a new column, aggregates, *and* prints the result as a side effect. If you want to filter without aggregating, or aggregate without printing, you cannot. Worse, you cannot describe the function in one sentence without using the word "and."
 
 Now refactor it into three small helpers that each do exactly one thing.
 
@@ -134,7 +134,7 @@ mtcars |>
 Each helper does one thing and you can describe it in a sentence: "filter rows above an mpg floor," "add a kilometres-per-litre column," "aggregate kpl by cylinder." You can reuse `filter_fast()` in twenty other contexts. You can swap `mean_kpl_by_cyl()` for `median_kpl_by_cyl()` without touching the rest. The pipeline reads top-to-bottom like a recipe.
 
 [KEY INSIGHT]
-**If you cannot describe a function in one sentence without using "and", split it.** The word "and" is the smell — it tells you the function has at least two responsibilities and at least two reasons to change.
+**If you cannot describe a function in one sentence without using "and", split it.** The word "and" is the smell, it tells you the function has at least two responsibilities and at least two reasons to change.
 
 **Try it:** Write a function `ex_clean_mpg(df)` that drops rows where `mpg` is `NA` and only that. Test it on a tweaked `mtcars` where one row has `mpg = NA`.
 
@@ -164,7 +164,7 @@ nrow(ex_clean_mpg(ex_test))
 #> [1] 31
 ```
 
-**Explanation:** One job — drop NA rows in `mpg`. Nothing else. The function is now reusable anywhere you need that exact step.
+**Explanation:** One job, drop NA rows in `mpg`. Nothing else. The function is now reusable anywhere you need that exact step.
 
 </details>
 
@@ -236,13 +236,13 @@ mtcars |> ex_top_hp(3)
 
 ## How do you keep a function free of side effects?
 
-The third rule is the one that separates "code that runs" from "code you can trust inside a pipeline." A side effect is anything a function does besides returning a value: printing, plotting, writing a file, modifying a global variable, sending an HTTP request. Side effects are not bad — they are how programs touch the real world — but they wreck composability when they are smuggled inside transform functions.
+The third rule is the one that separates "code that runs" from "code you can trust inside a pipeline." A side effect is anything a function does besides returning a value: printing, plotting, writing a file, modifying a global variable, sending an HTTP request. Side effects are not bad, they are how programs touch the real world, but they wreck composability when they are smuggled inside transform functions.
 
 ![Pure transforms feed each other; side effects sit at the edges of the pipeline.](screenshots/Writing-Composable-R-Code-side-effects.webp)
 
 *Figure 1: Pure transforms feed each other; side effects sit at the edges of the pipeline.*
 
-The picture says it: pure transforms live in the middle of the pipeline and pass shapes to each other. Side effects sit at the very edges — read at the start, write/print/plot at the end. Mixing the two zones is what creates code you cannot reuse.
+The picture says it: pure transforms live in the middle of the pipeline and pass shapes to each other. Side effects sit at the very edges, read at the start, write/print/plot at the end. Mixing the two zones is what creates code you cannot reuse.
 
 Here is a function that mutates a global variable as a side effect. It happens to "work" but it cannot be safely called twice.
 
@@ -261,7 +261,7 @@ call_count
 #> [1] 1
 ```
 
-The function does its math correctly but it secretly modifies `call_count` every time it runs. If you call it inside a pipe and then re-run the same pipe later, the counter keeps climbing — and now your "pure" data transformation has hidden state. Compare it with the pure version below.
+The function does its math correctly but it secretly modifies `call_count` every time it runs. If you call it inside a pipe and then re-run the same pipe later, the counter keeps climbing, and now your "pure" data transformation has hidden state. Compare it with the pure version below.
 
 ```r
 # Good: pure transform, no global state
@@ -314,7 +314,7 @@ ex_log(c(1, 10, 100))
 
 ## What is type stability and why does it matter?
 
-The fourth rule is about predictability. A function is *type-stable* when its output shape and type depend only on its input shape and type — never on the input *values*. Type-unstable functions are a famous footgun in base R because they sometimes return a vector, sometimes a list, sometimes a matrix — depending on what the data happens to look like that day.
+The fourth rule is about predictability. A function is *type-stable* when its output shape and type depend only on its input shape and type, never on the input *values*. Type-unstable functions are a famous footgun in base R because they sometimes return a vector, sometimes a list, sometimes a matrix, depending on what the data happens to look like that day.
 
 The classic offender is `sapply()`. It tries to "do the right thing" by simplifying its result, which means you cannot predict its return type ahead of time.
 
@@ -329,7 +329,7 @@ class(result_empty)
 #> [1] "list"
 ```
 
-Same function, two different return types — `integer` when there is data, `list` when the input is empty. If the next step in your pipe expects an integer vector, the empty case crashes with a confusing error and you spend an hour finding it. Type-stable alternatives let you declare the contract up front.
+Same function, two different return types, `integer` when there is data, `list` when the input is empty. If the next step in your pipe expects an integer vector, the empty case crashes with a confusing error and you spend an hour finding it. Type-stable alternatives let you declare the contract up front.
 
 ```r
 library(purrr)
@@ -348,7 +348,7 @@ map_dbl(numeric(0), ~ .x * 2)
 #> numeric(0)
 ```
 
-`vapply()` forces you to declare the per-element type up front, so the function either returns the type you asked for or errors immediately. `purrr::map_dbl()` does the same thing but with a cleaner name — the `_dbl` suffix tells you "always returns a double vector." Both functions guarantee a stable shape, which means downstream code can rely on them.
+`vapply()` forces you to declare the per-element type up front, so the function either returns the type you asked for or errors immediately. `purrr::map_dbl()` does the same thing but with a cleaner name, the `_dbl` suffix tells you "always returns a double vector." Both functions guarantee a stable shape, which means downstream code can rely on them.
 
 [KEY INSIGHT]
 **Type-stable functions are safe to chain; type-unstable functions are landmines.** If a function might return one of three types depending on the data, you cannot put it inside a reusable pipeline without wrapping it in defensive checks.
@@ -377,19 +377,19 @@ ex_lengths(c("apple", "banana", "kiwi"))
 #> [1] 5 6 4
 ```
 
-**Explanation:** `map_dbl()` is contractually guaranteed to return a `double` vector — even on an empty input, which would make `sapply()` return a list.
+**Explanation:** `map_dbl()` is contractually guaranteed to return a `double` vector, even on an empty input, which would make `sapply()` return a list.
 
 </details>
 
 ## How do you compose small functions into a real pipeline?
 
-The fifth rule is "small" — keep each helper short enough that you can hold it in your head all at once. Roughly twenty lines is a good ceiling. Once you have small, single-purpose, data-first, side-effect-free, type-stable functions, composing them is the easy part. You just write down the steps in order and connect them with `|>`.
+The fifth rule is "small", keep each helper short enough that you can hold it in your head all at once. Roughly twenty lines is a good ceiling. Once you have small, single-purpose, data-first, side-effect-free, type-stable functions, composing them is the easy part. You just write down the steps in order and connect them with `|>`.
 
-![Each step in a pipe takes a data frame and returns one — so the next step plugs straight in.](screenshots/Writing-Composable-R-Code-pipe-flow.webp)
+![Each step in a pipe takes a data frame and returns one, so the next step plugs straight in.](screenshots/Writing-Composable-R-Code-pipe-flow.webp)
 
-*Figure 2: Each step in a pipe takes a data frame and returns one — so the next step plugs straight in.*
+*Figure 2: Each step in a pipe takes a data frame and returns one, so the next step plugs straight in.*
 
-The diagram captures the whole idea. Each box is a function that takes a data frame and returns one. The arrows are `|>`. There is no special composition machinery — just functions that share a shape. Now let us build a real example with three small helpers and chain them on `iris`.
+The diagram captures the whole idea. Each box is a function that takes a data frame and returns one. The arrows are `|>`. There is no special composition machinery, just functions that share a shape. Now let us build a real example with three small helpers and chain them on `iris`.
 
 ```r
 # Three small composable helpers
@@ -422,13 +422,13 @@ iris_top[, c("Species", "Sepal.Length")]
 #> 136 virginica     2.241010
 ```
 
-Notice how the pipeline reads as a sentence: "drop NA rows, z-scale Sepal.Length, take the top 3." If you wanted to swap z-scaling for min-max scaling, you would write a new `minmax_scale()` helper and substitute it — none of the other steps would change. That is the leverage composability gives you: small helpers are cheap to add, swap, and combine.
+Notice how the pipeline reads as a sentence: "drop NA rows, z-scale Sepal.Length, take the top 3." If you wanted to swap z-scaling for min-max scaling, you would write a new `minmax_scale()` helper and substitute it, none of the other steps would change. That is the leverage composability gives you: small helpers are cheap to add, swap, and combine.
 
 [NOTE]
-**`purrr::compose()` lets you build a new function out of existing ones without going through data.** It is useful when you want to create a named pipeline that is itself a single function — for example, `clean_and_scale <- compose(z_scale, drop_na_rows, .dir = "forward")`.
+**`purrr::compose()` lets you build a new function out of existing ones without going through data.** It is useful when you want to create a named pipeline that is itself a single function, for example, `clean_and_scale <- compose(z_scale, drop_na_rows, .dir = "forward")`.
 
 [TIP]
-**Name composable helpers with verbs.** Verbs like `filter_`, `add_`, `scale_`, `drop_`, `summarise_` make pipelines read like English. Avoid noun-only names like `analysis()` or `stats()` — they hide what the function does.
+**Name composable helpers with verbs.** Verbs like `filter_`, `add_`, `scale_`, `drop_`, `summarise_` make pipelines read like English. Avoid noun-only names like `analysis()` or `stats()`, they hide what the function does.
 
 **Try it:** Add a fourth helper `add_id(df)` that prepends a 1-based row id column called `row_id`. Chain it into the pipeline so the final result has `row_id` plus the existing columns.
 
@@ -467,7 +467,7 @@ ex_top2[, c("row_id", "Species", "Sepal.Length")]
 #> 118    118 virginica     2.241010
 ```
 
-**Explanation:** `add_id()` follows every rule — single job, data first, no side effects, type-stable, small. So it slots into the pipeline at any position you like.
+**Explanation:** `add_id()` follows every rule, single job, data first, no side effects, type-stable, small. So it slots into the pipeline at any position you like.
 
 </details>
 
@@ -477,7 +477,7 @@ These exercises stitch the five rules together. Use distinct variable names so t
 
 ### Exercise 1: Refactor a swiss-army function
 
-Below is a 12-line function that filters, scales, summarises, and prints. Refactor it into three composable helpers — `my_filter()`, `my_scale()`, `my_summary()` — plus one orchestrator that chains them. The orchestrator should return the result, not print it.
+Below is a 12-line function that filters, scales, summarises, and prints. Refactor it into three composable helpers, `my_filter()`, `my_scale()`, `my_summary()`, plus one orchestrator that chains them. The orchestrator should return the result, not print it.
 
 ```r
 # Refactor this:
@@ -524,7 +524,7 @@ orchestrate(mtcars, 2.5)
 #> 3   8  0.5876343
 ```
 
-**Explanation:** Each helper is single-purpose, data-first, side-effect-free. The orchestrator is the only thing that knows about the order of steps — and it returns its value instead of printing.
+**Explanation:** Each helper is single-purpose, data-first, side-effect-free. The orchestrator is the only thing that knows about the order of steps, and it returns its value instead of printing.
 
 </details>
 
@@ -565,7 +565,7 @@ iris |>
 #> 3   -1.3807271         3.2    -1.392399         0.2  setosa
 ```
 
-**Explanation:** The function loops over the column names but the contract is clean — data frame in, data frame out, no globals, predictable shape.
+**Explanation:** The function loops over the column names but the contract is clean, data frame in, data frame out, no globals, predictable shape.
 
 </details>
 
@@ -643,13 +643,13 @@ quality_report
 #> 6    Wind       0             0
 ```
 
-**Explanation:** Each helper does one thing and returns a data frame. The orchestration step combines them. Adding a fourth quality check tomorrow takes one more helper — none of the existing ones change.
+**Explanation:** Each helper does one thing and returns a data frame. The orchestration step combines them. Adding a fourth quality check tomorrow takes one more helper, none of the existing ones change.
 
 </details>
 
 ## Complete Example
 
-Here is an end-to-end mini analysis on `starwars` that uses every rule. We will compute a body-mass index for human characters, summarise the average BMI by homeworld, and pull the top-3 homeworlds — using six small composable helpers.
+Here is an end-to-end mini analysis on `starwars` that uses every rule. We will compute a body-mass index for human characters, summarise the average BMI by homeworld, and pull the top-3 homeworlds, using six small composable helpers.
 
 ```r
 library(dplyr)
@@ -719,17 +719,17 @@ Apply all five and your functions will snap together with `|>` exactly the way U
 
 ## References
 
-1. Wickham, H. — *Tidyverse design principles: Unifying principles*. [Link](https://design.tidyverse.org/unifying.html)
-2. Wickham, H. — *The tidy tools manifesto*. [Link](https://tidyverse.tidyverse.org/articles/manifesto.html)
-3. Wickham, H. & Grolemund, G. — *R for Data Science*, Chapter 18: Pipes. [Link](https://r4ds.had.co.nz/pipes.html)
-4. Tidyverse style guide — Pipes. [Link](https://style.tidyverse.org/pipes.html)
-5. Wickham, H. — *Advanced R*, 2nd Edition, Chapter 6: Functions. [Link](https://adv-r.hadley.nz/functions.html)
+1. Wickham, H., *Tidyverse design principles: Unifying principles*. [Link](https://design.tidyverse.org/unifying.html)
+2. Wickham, H., *The tidy tools manifesto*. [Link](https://tidyverse.tidyverse.org/articles/manifesto.html)
+3. Wickham, H. & Grolemund, G., *R for Data Science*, Chapter 18: Pipes. [Link](https://r4ds.had.co.nz/pipes.html)
+4. Tidyverse style guide, Pipes. [Link](https://style.tidyverse.org/pipes.html)
+5. Wickham, H., *Advanced R*, 2nd Edition, Chapter 6: Functions. [Link](https://adv-r.hadley.nz/functions.html)
 6. dplyr documentation. [Link](https://dplyr.tidyverse.org/)
-7. purrr documentation — `map_dbl()` and friends. [Link](https://purrr.tidyverse.org/reference/map.html)
-8. R Core Team — *An Introduction to R*, native pipe `|>`. [Link](https://cran.r-project.org/doc/manuals/r-release/R-intro.html)
+7. purrr documentation, `map_dbl()` and friends. [Link](https://purrr.tidyverse.org/reference/map.html)
+8. R Core Team, *An Introduction to R*, native pipe `|>`. [Link](https://cran.r-project.org/doc/manuals/r-release/R-intro.html)
 
 ## Continue Learning
 
-- [Functional Programming in R](Functional-Programming-in-R.html) — the broader paradigm that composable function design fits inside.
-- [purrr map() Variants](purrr-map-Variants.html) — the type-stable workhorses (`map_dbl()`, `map_chr()`, `map_lgl()`) for replacing `sapply()`.
-- [Writing R Functions](R-Functions.html) — the foundations for writing functions before you make them composable.
+- [Functional Programming in R](Functional-Programming-in-R.html), the broader paradigm that composable function design fits inside.
+- [purrr map() Variants](purrr-map-Variants.html), the type-stable workhorses (`map_dbl()`, `map_chr()`, `map_lgl()`) for replacing `sapply()`.
+- [Writing R Functions](R-Functions.html), the foundations for writing functions before you make them composable.

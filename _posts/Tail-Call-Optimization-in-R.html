@@ -16,7 +16,7 @@ fr_parent: "Functional-Programming-in-R.html"
 <h1>Tail Call Optimization in R: Recursive Functions Without Stack Overflow</h1>
 
 
-<p class="lead">Tail call <a class="auto-link" href="Optimization-With-R.html" title="Optimization with R">optimization</a> (TCO) lets a recursive function reuse its current stack frame instead of adding a new one for each call — so your recursion runs in constant memory and never hits R's stack limit. R 4.4+ supports this natively with <code>Tailcall()</code>, and older versions can achieve the same effect with trampolines or accumulator rewrites.</p>
+<p class="lead">Tail call <a class="auto-link" href="Optimization-With-R.html" title="Optimization with R">optimization</a> (TCO) lets a recursive function reuse its current stack frame instead of adding a new one for each call, so your recursion runs in constant memory and never hits R's stack limit. R 4.4+ supports this natively with <code>Tailcall()</code>, and older versions can achieve the same effect with trampolines or accumulator rewrites.</p>
 <div class="engagement-header" data-difficulty="Intermediate" data-time="30" data-exercises="8" data-xp="120"></div>
 
 <h2>Why does recursion hit a stack limit in R?</h2>
@@ -26,7 +26,7 @@ fr_parent: "Functional-Programming-in-R.html"
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># A recursive countdown — works fine for small n
+    <div class="webr-editor" data-language="r"># A recursive countdown, works fine for small n
 countdown &lt;- function(n) {
   if (n &lt;= 0) return(&quot;done!&quot;)
   countdown(n - 1)
@@ -48,7 +48,7 @@ countdown(10)
   <div class="webr-plot-output"></div>
 </div>
 
-<p>R printed <code>&quot;done!&quot;</code> for <code>countdown(10)</code> — just 10 stack frames, no problem. But at <code>n = 10000</code>, each call stacks on top of the last until R's memory limit is hit. The exact limit varies by system (typically 1,000 to 10,000 frames), but the crash is always the same.</p>
+<p>R printed <code>&quot;done!&quot;</code> for <code>countdown(10)</code>, just 10 stack frames, no problem. But at <code>n = 10000</code>, each call stacks on top of the last until R's memory limit is hit. The exact limit varies by system (typically 1,000 to 10,000 frames), but the crash is always the same.</p>
 
 <p>To see the stack growing, let's peek inside a smaller recursion with <code>sys.nframe()</code>, which returns the current depth of the call stack.</p>
 
@@ -77,7 +77,7 @@ show_depth(5)
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Each call pushes one more frame onto the stack. Five calls, five frames. Ten thousand calls, ten thousand frames — and the stack runs out of space.</p>
+<p>Each call pushes one more frame onto the stack. Five calls, five frames. Ten thousand calls, ten thousand frames, and the stack runs out of space.</p>
 
 <div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The stack limit exists to protect your system.</strong> Without it, a runaway recursion would consume all available memory and freeze your machine. The limit is a safety net, not a bug.</div></div>
 
@@ -123,14 +123,14 @@ ex_sum_to(5)
   <div class="webr-plot-output"></div>
 </div>
 
-<p><strong>Explanation:</strong> Each call adds <code>n</code> to the result of <code>ex_sum_to(n - 1)</code> until the base case returns 1. This works for small n but would crash for large values because <code>n + ex_sum_to(n - 1)</code> means the addition happens <em>after</em> the recursive call returns — R must keep every frame alive.</p>
+<p><strong>Explanation:</strong> Each call adds <code>n</code> to the result of <code>ex_sum_to(n - 1)</code> until the base case returns 1. This works for small n but would crash for large values because <code>n + ex_sum_to(n - 1)</code> means the addition happens <em>after</em> the recursive call returns, R must keep every frame alive.</p>
 
 </details>
 </section>
 
 <h2>What makes a function tail-recursive?</h2>
 
-<p>A function is tail-recursive when the recursive call is the very last thing it does — nothing happens after the call returns. This distinction matters because only tail-recursive functions can be optimized to reuse their stack frame.</p>
+<p>A function is tail-recursive when the recursive call is the very last thing it does, nothing happens after the call returns. This distinction matters because only tail-recursive functions can be optimized to reuse their stack frame.</p>
 
 <p>Let's compare two versions of factorial. First, the standard (non-tail-recursive) version.</p>
 
@@ -154,7 +154,7 @@ factorial_bad(10)
   <div class="webr-plot-output"></div>
 </div>
 
-<p>The line <code>n * factorial_bad(n - 1)</code> means R can't discard the current frame — it needs to stick around so it can multiply <code>n</code> by whatever the recursive call returns. Every frame waits for the one below it.</p>
+<p>The line <code>n * factorial_bad(n - 1)</code> means R can't discard the current frame, it needs to stick around so it can multiply <code>n</code> by whatever the recursive call returns. Every frame waits for the one below it.</p>
 
 <p>Now here's the tail-recursive version. The trick is to move the multiplication <em>into</em> a parameter called an accumulator.</p>
 
@@ -178,7 +178,7 @@ factorial_acc(10)
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Both produce 3628800, but the second version carries the running product forward in <code>acc</code>. When <code>factorial_acc(n - 1, acc * n)</code> returns, there's nothing left to do — the current frame is truly finished. That's what makes it eligible for tail call optimization.</p>
+<p>Both produce 3628800, but the second version carries the running product forward in <code>acc</code>. When <code>factorial_acc(n - 1, acc * n)</code> returns, there's nothing left to do, the current frame is truly finished. That's what makes it eligible for tail call optimization.</p>
 
 <div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>The accumulator trick works for any "build up a result" recursion.</strong> Move the pending computation into an extra parameter with a sensible default (usually 0 for sums, 1 for products, or an empty vector for collections).</div></div>
 
@@ -237,12 +237,12 @@ ex_power(2, 10)
 
 <h2>How does Tailcall() work in base R?</h2>
 
-<p>R 4.4.0 introduced <code>Tailcall()</code>, a base R function that tells the interpreter: "replace my current stack frame with this new call." No packages needed — just wrap your recursive call in <code>Tailcall()</code> and R handles the rest.</p>
+<p>R 4.4.0 introduced <code>Tailcall()</code>, a base R function that tells the interpreter: "replace my current stack frame with this new call." No packages needed, just wrap your recursive call in <code>Tailcall()</code> and R handles the rest.</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># Factorial with Tailcall() — handles huge n without stack overflow
+    <div class="webr-editor" data-language="r"># Factorial with Tailcall(), handles huge n without stack overflow
 factorial_tc &lt;- function(n, acc = 1) {
   if (n &lt;= 1) return(acc)
   Tailcall(factorial_tc, n - 1, acc * n)
@@ -269,7 +269,7 @@ factorial_tc(10)
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># Countdown with Tailcall() — no stack overflow
+    <div class="webr-editor" data-language="r"># Countdown with Tailcall(), no stack overflow
 countdown_tc &lt;- function(n) {
   if (n &lt;= 0) return(&quot;done!&quot;)
   Tailcall(countdown_tc, n - 1)
@@ -278,7 +278,7 @@ countdown_tc &lt;- function(n) {
 countdown_tc(100)
 #&gt; [1] &quot;done!&quot;
 
-# countdown_tc(1000000)  # works on R 4.4+ — try locally</div>
+# countdown_tc(1000000)  # works on R 4.4+, try locally</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -290,7 +290,7 @@ countdown_tc(100)
 
 <p>The function is identical in structure to our original <code>countdown</code>, but wrapping the recursive call in <code>Tailcall()</code> keeps the stack flat.</p>
 
-<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Tailcall() is experimental in R 4.4.</strong> It works reliably, but stack traces from <code>traceback()</code> won't show replaced frames. This makes debugging harder — if something goes wrong inside deep recursion, you'll only see the last call, not the chain that led to it.</div></div>
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Tailcall() is experimental in R 4.4.</strong> It works reliably, but stack traces from <code>traceback()</code> won't show replaced frames. This makes debugging harder, if something goes wrong inside deep recursion, you'll only see the last call, not the chain that led to it.</div></div>
 
 <div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Tailcall() requires R >= 4.4.0.</strong> Check your version with <code>R.version.string</code>. If you're on an older version, the trampoline pattern (next section) gives you the same stack safety on any R version.</div></div>
 
@@ -343,7 +343,7 @@ ex_count_digits(123456)
 
 <h2>What is the trampoline pattern and when should you use it?</h2>
 
-<p>A trampoline wraps recursion in a while loop. Instead of calling itself directly, the function returns a description of the next call (a "thunk"). The loop keeps evaluating thunks until a final value appears. This works on any R version with no special functions — just 8 lines of setup.</p>
+<p>A trampoline wraps recursion in a while loop. Instead of calling itself directly, the function returns a description of the next call (a "thunk"). The loop keeps evaluating thunks until a final value appears. This works on any R version with no special functions, just 8 lines of setup.</p>
 
 <p>Here's a minimal trampoline implementation based on Jim Hester's elegant pattern.</p>
 
@@ -361,7 +361,7 @@ trampoline &lt;- function(f, ...) {
   }
 }
 
-# recur() marks a call as &quot;not done yet — call me again with these args&quot;
+# recur() marks a call as &quot;not done yet, call me again with these args&quot;
 recur &lt;- function(...) {
   structure(list(...), class = &quot;recursion&quot;)
 }</div>
@@ -381,7 +381,7 @@ recur &lt;- function(...) {
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># Factorial with the trampoline — works for any depth
+    <div class="webr-editor" data-language="r"># Factorial with the trampoline, works for any depth
 factorial_tramp &lt;- trampoline(function(n, acc = 1) {
   if (n &lt;= 1) acc
   else recur(n - 1, acc * n)
@@ -401,7 +401,7 @@ factorial_tramp(5000)
   <div class="webr-plot-output"></div>
 </div>
 
-<p><code>factorial_tramp(5000)</code> returns <code>Inf</code> (the number is too large for R's double-precision floating point), but it doesn't crash — the stack stays flat because the while loop does all the iteration.</p>
+<p><code>factorial_tramp(5000)</code> returns <code>Inf</code> (the number is too large for R's double-precision floating point), but it doesn't crash, the stack stays flat because the while loop does all the iteration.</p>
 
 <p>The trampoline really shines with mutual recursion, where two functions call each other. Here's a classic: checking whether a number is even or odd using only subtraction by 1.</p>
 
@@ -443,7 +443,7 @@ is_odd_t(7)
 
 <p>Each function returns a zero-argument function (a thunk) instead of calling the other directly. The trampoline loop evaluates thunks until it gets a non-function value. No stack growth, no matter how large the number.</p>
 
-<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A trampoline converts recursion into iteration without you having to rewrite the algorithm as a loop.</strong> The recursive structure stays readable — you just swap direct calls for <code>recur()</code> or thunk returns.</div></div>
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A trampoline converts recursion into iteration without you having to rewrite the algorithm as a loop.</strong> The recursive structure stays readable, you just swap direct calls for <code>recur()</code> or thunk returns.</div></div>
 
 <section class="tryit-block">
 <p><strong>Try it:</strong> Use the <code>trampoline</code> and <code>recur</code> functions defined above to write a <code>ex_collatz(n, steps = 0)</code> function that counts how many steps it takes to reach 1 in the Collatz sequence (if even, divide by 2; if odd, multiply by 3 and add 1).</p>
@@ -488,7 +488,7 @@ ex_collatz(27)
   <div class="webr-plot-output"></div>
 </div>
 
-<p><strong>Explanation:</strong> The Collatz sequence starting at 27 takes 111 steps to reach 1. Without the trampoline, this would require 111 stack frames — manageable here, but some starting values need thousands of steps.</p>
+<p><strong>Explanation:</strong> The Collatz sequence starting at 27 takes 111 steps to reach 1. Without the trampoline, this would require 111 stack frames, manageable here, but some starting values need thousands of steps.</p>
 
 </details>
 </section>
@@ -554,7 +554,7 @@ sum_loop(100)
 <tr>
 <td>Regular recursion</td>
 <td>Any</td>
-<td>O(n) — crashes</td>
+<td>O(n), crashes</td>
 <td>Fast</td>
 <td>High</td>
 <td>Yes</td>
@@ -620,7 +620,7 @@ sum_loop(100)
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
     <div class="webr-editor" data-language="r"># Answer: Trampoline
 # Reasoning:
-# - Tailcall() requires R 4.4+ — not available on R 4.2
+# - Tailcall() requires R 4.4+, not available on R 4.2
 # - Plain loops can't naturally express mutual recursion
 # - Trampolines handle mutual recursion elegantly (as shown
 #   with is_even_t / is_odd_t) and work on any R version</div>
@@ -688,7 +688,7 @@ my_gcd(48, 18)
   <div class="webr-plot-output"></div>
 </div>
 
-<p><strong>Explanation:</strong> Euclid's algorithm is naturally tail-recursive — the recursive call <code>gcd(b, a %% b)</code> is already the last operation. Wrapping in <code>Tailcall()</code> lets it handle arbitrarily large inputs without stack overflow.</p>
+<p><strong>Explanation:</strong> Euclid's algorithm is naturally tail-recursive, the recursive call <code>gcd(b, a %% b)</code> is already the last operation. Wrapping in <code>Tailcall()</code> lets it handle arbitrarily large inputs without stack overflow.</p>
 
 </details>
 
@@ -816,7 +816,7 @@ my_bsearch(1:100, 101)
   <div class="webr-plot-output"></div>
 </div>
 
-<p><strong>Explanation:</strong> Binary search is naturally tail-recursive — each call narrows the search window without needing to do anything after the recursive call returns. <code>Tailcall()</code> ensures the stack stays flat even when searching through millions of elements.</p>
+<p><strong>Explanation:</strong> Binary search is naturally tail-recursive, each call narrows the search window without needing to do anything after the recursive call returns. <code>Tailcall()</code> ensures the stack stays flat even when searching through millions of elements.</p>
 
 </details>
 
@@ -827,7 +827,7 @@ my_bsearch(1:100, 101)
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># Step 1: Naive recursion — crashes for large n
+    <div class="webr-editor" data-language="r"># Step 1: Naive recursion, crashes for large n
 repeat_str &lt;- function(s, n) {
   if (n &lt;= 0) return(&quot;&quot;)
   paste0(s, repeat_str(s, n - 1))  # NOT tail-recursive: paste0 wraps the call
@@ -836,7 +836,7 @@ repeat_str &lt;- function(s, n) {
 repeat_str(&quot;ab&quot;, 5)
 #&gt; [1] &quot;ababababab&quot;
 
-# repeat_str(&quot;ab&quot;, 10000)  # would crash — stack overflow</div>
+# repeat_str(&quot;ab&quot;, 10000)  # would crash, stack overflow</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -860,7 +860,7 @@ repeat_str_acc &lt;- function(s, n, acc = &quot;&quot;) {
 repeat_str_acc(&quot;ab&quot;, 5)
 #&gt; [1] &quot;ababababab&quot;
 
-# Still crashes for large n — R doesn't optimize automatically
+# Still crashes for large n, R doesn't optimize automatically
 # repeat_str_acc(&quot;ab&quot;, 10000)  # stack overflow</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
@@ -917,7 +917,7 @@ repeat_str_tc(&quot;ab&quot;, 5)
 <tr>
 <td>Regular recursion</td>
 <td>Any</td>
-<td>O(n) — crashes at depth limit</td>
+<td>O(n), crashes at depth limit</td>
 <td>Prototyping, small inputs only</td>
 </tr>
 <tr>
@@ -953,7 +953,7 @@ repeat_str_tc(&quot;ab&quot;, 5)
 
 <li><strong>Recursion crashes</strong> when the call stack exceeds R's limit (typically 1,000 to 10,000 frames)</li>
 
-<li><strong>Tail-recursive</strong> means the recursive call is the <em>last</em> operation — no pending work after it returns</li>
+<li><strong>Tail-recursive</strong> means the recursive call is the <em>last</em> operation, no pending work after it returns</li>
 
 <li><strong>The accumulator pattern</strong> converts non-tail-recursive functions to tail-recursive by carrying results forward</li>
 
@@ -969,19 +969,19 @@ repeat_str_tc(&quot;ab&quot;, 5)
 
 <ol>
 
-<li>R Core Team — <code>Tailcall</code> and <code>Exec</code> documentation. <a href="https://stat.ethz.ch/R-manual/R-devel/library/base/html/Tailcall.html">Link</a></li>
+<li>R Core Team, <code>Tailcall</code> and <code>Exec</code> documentation. <a href="https://stat.ethz.ch/R-manual/R-devel/library/base/html/Tailcall.html">Link</a></li>
 
-<li>Wickham, H. — <em>Advanced R</em>, 2nd Edition. Chapter 6: Functions. <a href="https://adv-r.hadley.nz/functions.html">Link</a></li>
+<li>Wickham, H., <em>Advanced R</em>, 2nd Edition. Chapter 6: Functions. <a href="https://adv-r.hadley.nz/functions.html">Link</a></li>
 
-<li>Jumping Rivers — What's New in R 4.4.0. <a href="https://www.jumpingrivers.com/blog/whats-new-r44/">Link</a></li>
+<li>Jumping Rivers, What's New in R 4.4.0. <a href="https://www.jumpingrivers.com/blog/whats-new-r44/">Link</a></li>
 
-<li>Hester, J. — Tail Recursion in R with Trampolines. <a href="https://tailrecursion.com/wondr/posts/tail-recursion-in-r.html">Link</a></li>
+<li>Hester, J., Tail Recursion in R with Trampolines. <a href="https://tailrecursion.com/wondr/posts/tail-recursion-in-r.html">Link</a></li>
 
-<li>Dinnager, R. — trampoline: Make Functions that Can Recurse Infinitely. <a href="https://rdinnager.github.io/trampoline/">Link</a></li>
+<li>Dinnager, R., trampoline: Make Functions that Can Recurse Infinitely. <a href="https://rdinnager.github.io/trampoline/">Link</a></li>
 
-<li>Mailund, T. — tailr: Automatic Tail Recursion Optimisation. <a href="https://mailund.github.io/tailr/">Link</a></li>
+<li>Mailund, T., tailr: Automatic Tail Recursion Optimisation. <a href="https://mailund.github.io/tailr/">Link</a></li>
 
-<li>Wikipedia — Tail call. <a href="https://en.wikipedia.org/wiki/Tail_call">Link</a></li>
+<li>Wikipedia, Tail call. <a href="https://en.wikipedia.org/wiki/Tail_call">Link</a></li>
 
 </ol>
 
@@ -989,11 +989,11 @@ repeat_str_tc(&quot;ab&quot;, 5)
 
 <ol>
 
-<li><a href="Functional-Programming-in-R.html">Functional Programming in R</a> — The parent guide covering closures, <a class="auto-link" href="Functional-Programming-in-R.html" title="Functional Programming in R: First-Class Functions & purrr Explained">higher-order functions</a>, and the functional mindset that makes tail recursion natural.</li>
+<li><a href="Functional-Programming-in-R.html">Functional Programming in R</a>, The parent guide covering closures, <a class="auto-link" href="Functional-Programming-in-R.html" title="Functional Programming in R: First-Class Functions & purrr Explained">higher-order functions</a>, and the functional mindset that makes tail recursion natural.</li>
 
-<li><a href="Memoization-in-R.html">Memoization in R</a> — Another technique for making recursive functions efficient — cache results so you never compute the same subproblem twice.</li>
+<li><a href="Memoization-in-R.html">Memoization in R</a>, Another technique for making recursive functions efficient, cache results so you never compute the same subproblem twice.</li>
 
-<li><a href="Reduce-Filter-Map-in-R.html">Reduce, Filter, Map in R</a> — Base R's <a class="auto-link" href="Reduce-Filter-Map-in-R.html" title="Reduce(), Filter(), Map() in Base R: Functional Trifecta Explained">functional triad</a> that often replaces explicit recursion entirely with cleaner, vectorized alternatives.</li>
+<li><a href="Reduce-Filter-Map-in-R.html">Reduce, Filter, Map in R</a>, Base R's <a class="auto-link" href="Reduce-Filter-Map-in-R.html" title="Reduce(), Filter(), Map() in Base R: Functional Trifecta Explained">functional triad</a> that often replaces explicit recursion entirely with cleaner, vectorized alternatives.</li>
 
 </ol>
 

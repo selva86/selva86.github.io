@@ -1,7 +1,7 @@
 ---
 title: "R Lists Exercises: 10 Practice Problems with Full Solutions"
 slug: "R-Lists-Exercises"
-description: "10 interactive R list exercises with worked solutions — create, subset with [ vs [[, nest, modify, iterate with lapply/sapply, flatten and convert to data frames."
+description: "10 interactive R list exercises with worked solutions, create, subset with [ vs [[, nest, modify, iterate with lapply/sapply, flatten and convert to data frames."
 keywords: "R lists exercises, R list practice, R lapply exercises, R nested list, R list subsetting"
 mathjax: false
 webr: true
@@ -18,7 +18,7 @@ difficulty: "Intermediate"
 
 # R Lists Exercises: 10 Practice Problems with Full Solutions
 
-<p class="lead">Ten hands-on exercises on R lists — the most flexible data structure in the language. You will build, nest, subset with the tricky <code>[</code> vs <code>[[</code> rule, iterate with <code>lapply</code>/<code>sapply</code>, and convert between lists and data frames. Every problem runs in the browser.</p>
+<p class="lead">Ten hands-on exercises on R lists, the most flexible data structure in the language. You will build, nest, subset with the tricky <code>[</code> vs <code>[[</code> rule, iterate with <code>lapply</code>/<code>sapply</code>, and convert between lists and data frames. Every problem runs in the browser.</p>
 
 A list in R can hold anything: numbers, strings, data frames, other lists, even functions. That flexibility makes lists both indispensable (every `lm()` result is a list) and confusing (two different subsetting operators that return different things). These exercises fix the confusion by forcing you to use both operators deliberately.
 
@@ -26,7 +26,7 @@ A list in R can hold anything: numbers, strings, data frames, other lists, even 
 
 The code blocks share state across the whole page. We will build one list in Exercise 1 and keep using it.
 
-## Section 1 — Create and inspect
+## Section 1, Create and inspect
 
 ### Exercise 1. Build a heterogeneous list
 
@@ -86,7 +86,7 @@ Almost every model object in R is a list with a class attribute. Knowing this is
 
 </details>
 
-## Section 2 — The `[` vs `[[` rule
+## Section 2, The `[` vs `[[` rule
 
 ### Exercise 3. Predict the type
 
@@ -150,7 +150,7 @@ Assigning to an index that does not exist creates the element. Setting it to `NU
 
 </details>
 
-## Section 3 — Nested lists
+## Section 3, Nested lists
 
 ### Exercise 5. Create a nested list
 
@@ -204,7 +204,7 @@ sapply(team, function(m) m$years)
 
 </details>
 
-## Section 4 — Iteration
+## Section 4, Iteration
 
 ### Exercise 7. lapply on a list of numbers
 
@@ -231,7 +231,7 @@ sapply(nums, mean)
 #  3.0  8.0 15.5
 ```
 
-`lapply()` always returns a list with the same length as its input. `sapply()` tries to simplify the list to a vector or matrix when every element has the same shape. When the shapes differ, `sapply()` quietly falls back to a list — so read your output.
+`lapply()` always returns a list with the same length as its input. `sapply()` tries to simplify the list to a vector or matrix when every element has the same shape. When the shapes differ, `sapply()` quietly falls back to a list, so read your output.
 
 </details>
 
@@ -260,7 +260,7 @@ The anonymous function gives you full control over what happens to each element.
 
 </details>
 
-## Section 5 — Conversion and flattening
+## Section 5, Conversion and flattening
 
 ### Exercise 9. Flatten to a vector
 
@@ -326,9 +326,9 @@ team_df
 
 ## References
 
-- [Advanced R — Subsetting](https://adv-r.hadley.nz/subsetting.html)
-- [R for Data Science (2e) — Iteration](https://r4ds.hadley.nz/iteration.html)
-- [R Language Definition — Lists](https://cran.r-project.org/doc/manuals/r-release/R-lang.html#List-objects)
+- [Advanced R, Subsetting](https://adv-r.hadley.nz/subsetting.html)
+- [R for Data Science (2e), Iteration](https://r4ds.hadley.nz/iteration.html)
+- [R Language Definition, Lists](https://cran.r-project.org/doc/manuals/r-release/R-lang.html#List-objects)
 
 ## Continue Learning
 

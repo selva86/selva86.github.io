@@ -18,15 +18,15 @@ difficulty: "Intermediate"
 
 # Bubble Chart in R: Add a Third Variable to Your Scatter Plot
 
-<p class="lead">A bubble chart is a scatter plot where a third numeric variable is encoded as the size of each point — letting you visualize three dimensions in a single 2D plot without faceting.</p>
+<p class="lead">A bubble chart is a scatter plot where a third numeric variable is encoded as the size of each point, letting you visualize three dimensions in a single 2D plot without faceting.</p>
 
 ## Introduction
 
-A scatter plot shows two variables. A bubble chart shows three. That third variable — population size, revenue, number of observations — is encoded as the *area* of the circle (the "bubble"), giving your data an extra dimension without adding complexity for the reader.
+A scatter plot shows two variables. A bubble chart shows three. That third variable, population size, revenue, number of observations, is encoded as the *area* of the circle (the "bubble"), giving your data an extra dimension without adding complexity for the reader.
 
 The classic use case is Hans Rosling's famous gapminder visualization: GDP on the x-axis, life expectancy on the y-axis, population as bubble size, and continent as color. Four variables, one chart, an immediately readable story.
 
-ggplot2 makes bubble charts straightforward with `geom_point()` — the only difference from a scatter plot is that you also map a numeric variable to the `size` aesthetic. But the devil is in the details: using the wrong size scale, skipping transparency, or adding labels naively can make a bubble chart unreadable. This post walks you through every step.
+ggplot2 makes bubble charts straightforward with `geom_point()`, the only difference from a scatter plot is that you also map a numeric variable to the `size` aesthetic. But the devil is in the details: using the wrong size scale, skipping transparency, or adding labels naively can make a bubble chart unreadable. This post walks you through every step.
 
 ## How do you create a basic bubble chart in R?
 
@@ -51,7 +51,7 @@ p_basic <- ggplot(mtcars, aes(x = wt, y = mpg, size = hp)) +
 p_basic
 ```
 
-`scale_size(range = c(2, 14))` maps the smallest `hp` value to 2px and the largest to 14px. Without it, the default range is tiny — all bubbles look nearly the same size.
+`scale_size(range = c(2, 14))` maps the smallest `hp` value to 2px and the largest to 14px. Without it, the default range is tiny, all bubbles look nearly the same size.
 
 **Try it:** Change `range = c(2, 14)` to `range = c(1, 20)` and see how it affects readability. Is the range too dramatic now?
 
@@ -62,7 +62,7 @@ This is the most commonly misunderstood part of bubble charts. There are two siz
 - `scale_size()` maps the data value to the **radius** of the circle.
 - `scale_size_area()` maps the data value to the **area** of the circle.
 
-Why does this matter? Human perception works in two dimensions — we perceive circle *area*, not radius. If value A is twice value B and you double the *radius*, the bubble looks four times bigger (because area = π r²). This creates a misleading chart.
+Why does this matter? Human perception works in two dimensions, we perceive circle *area*, not radius. If value A is twice value B and you double the *radius*, the bubble looks four times bigger (because area = π r²). This creates a misleading chart.
 
 ```r
 # Compare: scale_size vs scale_size_area
@@ -82,7 +82,7 @@ p_area
 ```
 
 **Rule of thumb:**
-- Use `scale_size_area()` when your size variable represents a **count or total** (population, revenue, observations) — this is the perceptually honest choice.
+- Use `scale_size_area()` when your size variable represents a **count or total** (population, revenue, observations), this is the perceptually honest choice.
 - Use `scale_size()` when you want manual control over the visual range and perceptual accuracy is less critical.
 - `scale_size_area()` also maps zero to an actual zero-sized point (invisible), which is useful when zero is a meaningful value.
 
@@ -114,7 +114,7 @@ p_color <- ggplot(mtcars, aes(x = wt, y = mpg, size = hp, color = cyl_f)) +
 p_color
 ```
 
-Four variables, one chart: weight (x), mpg (y), horsepower (size), cylinders (color). The pattern becomes immediately readable — 8-cylinder cars cluster in the bottom-right (heavy and inefficient), 4-cylinder cars in the top-left.
+Four variables, one chart: weight (x), mpg (y), horsepower (size), cylinders (color). The pattern becomes immediately readable, 8-cylinder cars cluster in the bottom-right (heavy and inefficient), 4-cylinder cars in the top-left.
 
 **Try it:** Change `color = cyl_f` to `color = hp` (continuous) and swap `scale_color_manual()` for `scale_color_viridis_c()`. How does encoding the same variable (`hp`) as both size and color change what you notice?
 
@@ -148,7 +148,7 @@ p_label <- ggplot(mtcars, aes(x = wt, y = mpg, size = hp, color = cyl_f)) +
 p_label
 ```
 
-`geom_text_repel()` draws connecting lines from each label to its point when the label has been pushed away. The `max.overlaps` argument controls how aggressively labels are placed — increase it if some labels disappear.
+`geom_text_repel()` draws connecting lines from each label to its point when the label has been pushed away. The `max.overlaps` argument controls how aggressively labels are placed, increase it if some labels disappear.
 
 **Try it:** Replace `geom_text_repel()` with plain `geom_text(aes(label = rownames(mtcars)), size = 2.8)` and see the difference. This is why ggrepel exists.
 
@@ -156,8 +156,8 @@ p_label
 
 When bubbles overlap, smaller ones get hidden behind larger ones. Two fixes work together:
 
-1. **Alpha transparency** — lets you see buried bubbles through the ones on top.
-2. **Reorder by size descending** — plot large bubbles first so small ones render on top.
+1. **Alpha transparency**, lets you see buried bubbles through the ones on top.
+2. **Reorder by size descending**, plot large bubbles first so small ones render on top.
 
 ```r
 # Sort so large bubbles are drawn first (small bubbles stay visible on top)
@@ -180,7 +180,7 @@ p_overlap <- ggplot(mtcars_sorted, aes(x = wt, y = mpg, size = hp, color = cyl_f
 p_overlap
 ```
 
-The double `geom_point()` trick: the first call draws a white-bordered ghost (using `color = "white"` with low alpha), the second draws the filled colored bubble on top. The white border acts as a visual separator between touching bubbles — a classic bubble chart technique.
+The double `geom_point()` trick: the first call draws a white-bordered ghost (using `color = "white"` with low alpha), the second draws the filled colored bubble on top. The white border acts as a visual separator between touching bubbles, a classic bubble chart technique.
 
 **Try it:** Remove the first `geom_point()` call (the white border layer) and compare. The effect is subtle but makes crowded regions much easier to read.
 
@@ -287,7 +287,7 @@ geom_text_repel(aes(label = car), size = 3, max.overlaps = 15)
 
 ### Mistake 4: Skipping transparency
 
-Without `alpha`, overlapping bubbles are completely opaque — you lose the information underneath.
+Without `alpha`, overlapping bubbles are completely opaque, you lose the information underneath.
 
 ```r
 # Wrong
@@ -299,7 +299,7 @@ geom_point(alpha = 0.65, color = "steelblue")
 
 ### Mistake 5: Encoding too many variables
 
-Four variables (x, y, size, color) is the comfortable maximum for a bubble chart. Adding a fifth (shape, label for every point, facet grid, AND color) creates cognitive overload. Simplify — pick the most important story.
+Four variables (x, y, size, color) is the comfortable maximum for a bubble chart. Adding a fifth (shape, label for every point, facet grid, AND color) creates cognitive overload. Simplify, pick the most important story.
 
 ## Practice Exercises
 
@@ -388,7 +388,7 @@ ggplot(df_sorted, aes(x = dpi, y = sr, size = pop75)) +
 **When to use bubble charts:**
 - You have 3-4 numeric or mixed variables to show simultaneously
 - The size variable has a natural zero (counts, totals, populations)
-- Your audience can read size differences accurately (differences must be substantial — humans struggle to distinguish 10% size differences)
+- Your audience can read size differences accurately (differences must be substantial, humans struggle to distinguish 10% size differences)
 
 **When NOT to use bubble charts:**
 - More than 20-30 data points (overplotting becomes unmanageable)
@@ -398,10 +398,10 @@ ggplot(df_sorted, aes(x = dpi, y = sr, size = pop75)) +
 ## FAQ
 
 **What is the difference between a bubble chart and a scatter plot?**
-A scatter plot shows two variables (x and y). A bubble chart adds a third — the size of each point encodes a numeric variable. Color can add a fourth.
+A scatter plot shows two variables (x and y). A bubble chart adds a third, the size of each point encodes a numeric variable. Color can add a fourth.
 
 **Should I use scale_size() or scale_size_area()?**
-Use `scale_size_area()` when size represents a count or total (population, revenue, frequency) — it maps values to *area*, which is what we perceive. Use `scale_size()` when you need manual control over the visual range and perceptual accuracy matters less.
+Use `scale_size_area()` when size represents a count or total (population, revenue, frequency), it maps values to *area*, which is what we perceive. Use `scale_size()` when you need manual control over the visual range and perceptual accuracy matters less.
 
 **Why are some labels missing when I use geom_text_repel()?**
 ggrepel gives up on placing labels that would overlap too much. Increase `max.overlaps` (e.g., `max.overlaps = 30`) or reduce the number of labels by setting most to `NA` and only labeling notable points.
@@ -416,12 +416,12 @@ ggplot2 doesn't support true 3D. For interactive 3D, use the `plotly` package wi
 
 - Wickham H. (2016). *ggplot2: Elegant Graphics for Data Analysis*. Springer.
 - ggrepel documentation: overlapping text labels for ggplot2
-- R Graph Gallery — Bubble chart: r-graph-gallery.com/bubble-chart.html
-- r-charts.com — Bubble chart in ggplot2
-- Wilke C. (2019). *Fundamentals of Data Visualization* — Chapter 12: Visualizing associations
+- R Graph Gallery, Bubble chart: r-graph-gallery.com/bubble-chart.html
+- r-charts.com, Bubble chart in ggplot2
+- Wilke C. (2019). *Fundamentals of Data Visualization*, Chapter 12: Visualizing associations
 
 ## Continue Learning
 
-- **ggplot2 Scatter Plots** — the foundation: geom_point(), trend lines, overplotting, and annotations
-- **Heatmap in R** — encode a matrix of values as a color grid with geom_tile()
-- **R Correlation Matrix Plot** — visualize pairwise correlations with corrplot and ggplot2
+- **ggplot2 Scatter Plots**, the foundation: geom_point(), trend lines, overplotting, and annotations
+- **Heatmap in R**, encode a matrix of values as a color grid with geom_tile()
+- **R Correlation Matrix Plot**, visualize pairwise correlations with corrplot and ggplot2

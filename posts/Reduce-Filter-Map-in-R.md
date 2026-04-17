@@ -1,5 +1,5 @@
 ---
-title: "Base R's Functional Triad: Reduce(), Filter(), Map() — Without purrr"
+title: "Base R's Functional Triad: Reduce(), Filter(), Map(), Without purrr"
 slug: Reduce-Filter-Map-in-R
 description: "Before purrr, base R had Reduce(), Filter(), and Map(). Learn how they work, compare to purrr equivalents, and when base R's versions are the right choice."
 keywords: "Reduce in R, Filter in R, Map in R, base R functional programming, R higher-order functions, R Reduce accumulate, R purrr alternatives"
@@ -16,13 +16,13 @@ sidebar_order: 6
 difficulty: "Advanced"
 ---
 
-# Base R's Functional Triad: Reduce(), Filter(), Map() — Without purrr
+# Base R's Functional Triad: Reduce(), Filter(), Map(), Without purrr
 
-<p class="lead">R has three dependency-free higher-order functions — <code>Reduce()</code>, <code>Filter()</code>, and <code>Map()</code> — that handle the core patterns of functional programming without loading a single package.</p>
+<p class="lead">R has three dependency-free higher-order functions, <code>Reduce()</code>, <code>Filter()</code>, and <code>Map()</code>, that handle the core patterns of functional programming without loading a single package.</p>
 
 ## Why use Reduce(), Filter(), Map() when purrr exists?
 
-You've probably seen purrr's `map()`, `keep()`, and `reduce()` in tutorials. Base R ships with the same ideas — spelled `Map()`, `Filter()`, and `Reduce()` — and they work on a fresh R install with zero packages loaded. When you're writing a utility script, authoring a package that wants minimal dependencies, or teaching the language, the base versions pull their weight. Here's what the triad actually does, shown on one tiny vector so you can see all three at once.
+You've probably seen purrr's `map()`, `keep()`, and `reduce()` in tutorials. Base R ships with the same ideas, spelled `Map()`, `Filter()`, and `Reduce()`, and they work on a fresh R install with zero packages loaded. When you're writing a utility script, authoring a package that wants minimal dependencies, or teaching the language, the base versions pull their weight. Here's what the triad actually does, shown on one tiny vector so you can see all three at once.
 
 We'll apply each function to the same input `nums <- 1:5` so the difference in what they produce is obvious from the output.
 
@@ -49,7 +49,7 @@ Map(function(x) x^2, 1:3)
 #> [1] 9
 ```
 
-Three functions, three distinct shapes of result. `Reduce` gave back one number, `Filter` gave back a shorter vector of the same type, and `Map` gave back a list — even though the input was a plain vector. That list-output from `Map` is the first surprise most learners hit; we'll unpack it in its own section below.
+Three functions, three distinct shapes of result. `Reduce` gave back one number, `Filter` gave back a shorter vector of the same type, and `Map` gave back a list, even though the input was a plain vector. That list-output from `Map` is the first surprise most learners hit; we'll unpack it in its own section below.
 
 [NOTE]
 **None of this requires installing anything.** Reduce, Filter, and Map live in the base package, so they are available on any R session. If you see them called "higher-order functions," that just means they take another function as an argument.
@@ -88,7 +88,7 @@ Map(function(x) x * 2, ex_nums)
 #> [1] 16
 ```
 
-**Explanation:** Each function takes the same input but returns a different shape — scalar, vector, list.
+**Explanation:** Each function takes the same input but returns a different shape, scalar, vector, list.
 
 </details>
 
@@ -107,7 +107,7 @@ Reduce("+", 1:4)
 #> [1] 10
 ```
 
-That single line does the work of a for-loop with an accumulator. `Reduce` called `+` on 1 and 2, got 3, then called `+` on 3 and 3, got 6, then called `+` on 6 and 4, got 10. The same machinery works for any two-argument function — including ones that don't look like math.
+That single line does the work of a for-loop with an accumulator. `Reduce` called `+` on 1 and 2, got 3, then called `+` on 3 and 3, got 6, then called `+` on 6 and 4, got 10. The same machinery works for any two-argument function, including ones that don't look like math.
 
 ```r
 # Glue characters into one string
@@ -116,7 +116,7 @@ Reduce(paste, letters_vec)
 #> [1] "a b c d"
 ```
 
-Here `Reduce` folded `paste` across the letters, building up `"a b"`, then `"a b c"`, then `"a b c d"`. Notice we never wrote a loop or tracked an index — the sequencing is implicit.
+Here `Reduce` folded `paste` across the letters, building up `"a b"`, then `"a b c"`, then `"a b c d"`. Notice we never wrote a loop or tracked an index, the sequencing is implicit.
 
 The real-world payoff is operations that need to combine *many* things pairwise. Intersecting three or more vectors is a classic case: `intersect` only takes two arguments at a time, so you'd have to chain it manually. `Reduce` handles the chaining for you.
 
@@ -129,10 +129,10 @@ Reduce(intersect, sets)
 #> [1] 3 4
 ```
 
-`Reduce` called `intersect` on the first two vectors to get `c(2, 3, 4)`, then called `intersect` on that result and the third vector to get `c(3, 4)`. With one more element in `sets` the answer would shrink further — the code doesn't change.
+`Reduce` called `intersect` on the first two vectors to get `c(2, 3, 4)`, then called `intersect` on that result and the third vector to get `c(3, 4)`. With one more element in `sets` the answer would shrink further, the code doesn't change.
 
 [TIP]
-**Pass init= when the vector could be empty.** `Reduce("+", integer(0))` returns `NULL`, which breaks any code that expects a number. Writing `Reduce("+", integer(0), init = 0)` returns `0` instead — a safer default whenever the input length isn't guaranteed.
+**Pass init= when the vector could be empty.** `Reduce("+", integer(0))` returns `NULL`, which breaks any code that expects a number. Writing `Reduce("+", integer(0), init = 0)` returns `0` instead, a safer default whenever the input length isn't guaranteed.
 
 **Try it:** Use Reduce to compute the product of `1:5` without calling `prod()`.
 
@@ -159,7 +159,7 @@ ex_result
 
 ## How does Filter() keep elements that match a predicate?
 
-`Filter` takes a *predicate* — a function that returns `TRUE` or `FALSE` for each element — and hands back only the elements where the predicate was `TRUE`. Think of it as the functional cousin of `x[condition]`. It shines when the condition is easier to express as a function than as a boolean expression.
+`Filter` takes a *predicate*, a function that returns `TRUE` or `FALSE` for each element, and hands back only the elements where the predicate was `TRUE`. Think of it as the functional cousin of `x[condition]`. It shines when the condition is easier to express as a function than as a boolean expression.
 
 ```r
 # Keep only even numbers
@@ -167,7 +167,7 @@ Filter(function(x) x %% 2 == 0, 1:10)
 #>  [1]  2  4  6  8 10
 ```
 
-The predicate here is `function(x) x %% 2 == 0`. `Filter` ran it on every element of `1:10` and kept the ones where it returned `TRUE`. You could do the same with `x[x %% 2 == 0]` — but the moment your condition gets complex, a named predicate is far more readable.
+The predicate here is `function(x) x %% 2 == 0`. `Filter` ran it on every element of `1:10` and kept the ones where it returned `TRUE`. You could do the same with `x[x %% 2 == 0]`, but the moment your condition gets complex, a named predicate is far more readable.
 
 Filter is especially handy with heterogeneous lists, where writing a single boolean expression wouldn't even work because the elements aren't all the same type.
 
@@ -185,7 +185,7 @@ Filter(is.numeric, mixed)
 #> [1] 7
 ```
 
-Notice that `is.numeric` caught the integer `7L` as well as the double `3.14`. `Filter` kept the list structure intact — it returned a *list*, not a vector — because the input was a list. That type-preservation is what makes `Filter` useful in pipelines handling ragged data.
+Notice that `is.numeric` caught the integer `7L` as well as the double `3.14`. `Filter` kept the list structure intact, it returned a *list*, not a vector, because the input was a list. That type-preservation is what makes `Filter` useful in pipelines handling ragged data.
 
 A practical example from everyday R work: suppose you've split a data frame into a list of sub-data-frames and want to discard the ones that are too small to analyse.
 
@@ -197,7 +197,7 @@ names(big_dfs)
 #> [1] "setosa"     "versicolor" "virginica"
 ```
 
-All three species groups survived the filter because `iris` has 50 rows per species. If one group were tiny, `Filter` would silently drop it — the downstream code wouldn't need to know anything changed.
+All three species groups survived the filter because `iris` has 50 rows per species. If one group were tiny, `Filter` would silently drop it, the downstream code wouldn't need to know anything changed.
 
 [KEY INSIGHT]
 **Filter preserves the input's type.** Give it a vector, it returns a vector. Give it a list, it returns a list. That symmetry means you can chain Filter into any pipeline without worrying that the next step will choke on a surprise type change.
@@ -267,7 +267,7 @@ sapply(1:4, function(x) x^2)
 #> [1]  1  4  9 16
 ```
 
-Same computation, different packaging. `sapply` collapsed the four scalars into a length-4 vector because it could; `Map` left them as a list. The trade-off is predictability — `sapply`'s return type depends on the function's output (sometimes a vector, sometimes a matrix, sometimes still a list), while `Map`'s return type is always a list no matter what. When you need that stability, `Map` wins.
+Same computation, different packaging. `sapply` collapsed the four scalars into a length-4 vector because it could; `Map` left them as a list. The trade-off is predictability, `sapply`'s return type depends on the function's output (sometimes a vector, sometimes a matrix, sometimes still a list), while `Map`'s return type is always a list no matter what. When you need that stability, `Map` wins.
 
 A natural fit for `Map` is applying a summary function to every column of a data frame at once.
 
@@ -329,7 +329,7 @@ ex_names
 
 ## How does accumulate=TRUE show every intermediate step?
 
-By default `Reduce` throws away the running result and gives you only the final value. Set `accumulate = TRUE` and it returns the running result at each step — a cumulative trace of the reduction. This unlocks a whole family of "running totals" without writing a loop.
+By default `Reduce` throws away the running result and gives you only the final value. Set `accumulate = TRUE` and it returns the running result at each step, a cumulative trace of the reduction. This unlocks a whole family of "running totals" without writing a loop.
 
 ```r
 # Running sum of 1..5
@@ -337,7 +337,7 @@ Reduce("+", 1:5, accumulate = TRUE)
 #> [1]  1  3  6 10 15
 ```
 
-The first entry is `1` (just the first element), the second is `1+2=3`, the third is `3+3=6`, and so on until the final `15`. That's exactly what `cumsum(1:5)` produces — and for sums, products, mins, and maxes, the `cum*` shortcuts are shorter. `Reduce(accumulate=TRUE)` earns its keep when the step function is custom, like a running max:
+The first entry is `1` (just the first element), the second is `1+2=3`, the third is `3+3=6`, and so on until the final `15`. That's exactly what `cumsum(1:5)` produces, and for sums, products, mins, and maxes, the `cum*` shortcuts are shorter. `Reduce(accumulate=TRUE)` earns its keep when the step function is custom, like a running max:
 
 ```r
 # Running max via Reduce + accumulate
@@ -403,7 +403,7 @@ Here is the direct mapping between the two families:
 | `Reduce(f, x, accumulate = TRUE)` | `accumulate(x, f)` | purrr splits this into a separate function |
 | `Filter(p, x)` | `keep(x, p)` / `discard(x, p)` | purrr has both "keep" and the inverse |
 | `Map(f, x, y)` | `map2(x, y, f)` | purrr has map, map2, pmap by arity |
-| (none) | `map_dbl`, `map_chr`, `map_int` | typed variants — base R has no direct equivalent |
+| (none) | `map_dbl`, `map_chr`, `map_int` | typed variants, base R has no direct equivalent |
 
 The side-by-side below shows the same task written both ways. They produce the same answer, but the reading experience is different.
 
@@ -425,10 +425,10 @@ So when does base R's triad win? In three situations:
 
 1. **Package authoring.** If you're writing an R package and want zero imports beyond base, the triad gives you real functional programming without adding purrr to Imports.
 2. **Small scripts and utilities.** A 30-line script doesn't need a library load just to combine three vectors with intersect.
-3. **Teaching.** Learners can call Reduce, Filter, and Map on day one without installing anything — crucial in classrooms or online environments.
+3. **Teaching.** Learners can call Reduce, Filter, and Map on day one without installing anything, crucial in classrooms or online environments.
 
 [KEY INSIGHT]
-**purrr is a re-design of the same core ideas.** Once you understand what base R's triad does under the hood, the purrr functions will feel obvious — you already know what they're computing, you're just learning nicer names and argument orders.
+**purrr is a re-design of the same core ideas.** Once you understand what base R's triad does under the hood, the purrr functions will feel obvious, you already know what they're computing, you're just learning nicer names and argument orders.
 
 **Try it:** Rewrite the purrr expression `keep(1:10, function(x) x > 5)` using base R's Filter.
 
@@ -448,7 +448,7 @@ ex_big
 #> [1]  6  7  8  9 10
 ```
 
-**Explanation:** `keep` and `Filter` both take a predicate and return the matching elements — only the argument order differs.
+**Explanation:** `keep` and `Filter` both take a predicate and return the matching elements, only the argument order differs.
 
 </details>
 
@@ -583,12 +583,12 @@ overall_mean
 #> [1] 5.843333
 ```
 
-Every step used a different member of the triad. Filter handled "drop what we don't want," Map handled "compute per-group," and Reduce handled "combine everything back." Together they solved a split-apply-combine problem with no loops and no packages beyond base R — the kind of thing you'd typically reach for dplyr or purrr to do.
+Every step used a different member of the triad. Filter handled "drop what we don't want," Map handled "compute per-group," and Reduce handled "combine everything back." Together they solved a split-apply-combine problem with no loops and no packages beyond base R, the kind of thing you'd typically reach for dplyr or purrr to do.
 
 ## Summary
 
-![The functional triad at a glance — what each one does and why.](screenshots/Reduce-Filter-Map-in-R-triad-overview.webp)
-*Figure 3: The functional triad at a glance — what each one does and why.*
+![The functional triad at a glance, what each one does and why.](screenshots/Reduce-Filter-Map-in-R-triad-overview.webp)
+*Figure 3: The functional triad at a glance, what each one does and why.*
 
 | Function | Purpose | Input | Output | purrr equivalent |
 |---|---|---|---|---|
@@ -602,19 +602,19 @@ Every step used a different member of the triad. Filter handled "drop what we do
 2. **Filter preserves type**, returning vectors from vectors and lists from lists. Its predicate is any function returning TRUE or FALSE.
 3. **Map always returns a list**, even when the values look like they could be a vector. Wrap with `unlist()` or use `vapply` when you need a specific type.
 4. The triad is **dependency-free**, making it the right pick for packages, scripts, and teaching.
-5. purrr re-designs the same ideas with nicer ergonomics — learning base first makes purrr feel natural.
+5. purrr re-designs the same ideas with nicer ergonomics, learning base first makes purrr feel natural.
 
 ## References
 
-1. R Core Team — *Common Higher-Order Functions in Functional Programming Languages* (`base::funprog`). [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/funprog.html)
-2. Wickham, H. — *Advanced R*, 2nd edition, Chapter 9: Functionals. CRC Press (2019). [Link](https://adv-r.hadley.nz/functionals.html)
-3. purrr documentation — `reduce()`, `map()`, `keep()` reference pages. [Link](https://purrr.tidyverse.org/reference/index.html)
-4. R Core Team — *An Introduction to R*, Section 10: Writing your own functions. [Link](https://cran.r-project.org/doc/manuals/r-release/R-intro.html)
-5. Hohenfeld, J. — *Reduce, Filter, Find and more: R's unknown heroes*. [Link](https://hohenfeld.is/posts/reduce-filter-find-and-more-r-s-unknown-heroes/)
-6. Monroe, B. L. — *Split-Apply-Combine and Map-Reduce in R*, SoDA 501 course notes. [Link](https://burtmonroe.github.io/SoDA501/Materials/SplitApplyCombine_R/)
+1. R Core Team, *Common Higher-Order Functions in Functional Programming Languages* (`base::funprog`). [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/funprog.html)
+2. Wickham, H., *Advanced R*, 2nd edition, Chapter 9: Functionals. CRC Press (2019). [Link](https://adv-r.hadley.nz/functionals.html)
+3. purrr documentation, `reduce()`, `map()`, `keep()` reference pages. [Link](https://purrr.tidyverse.org/reference/index.html)
+4. R Core Team, *An Introduction to R*, Section 10: Writing your own functions. [Link](https://cran.r-project.org/doc/manuals/r-release/R-intro.html)
+5. Hohenfeld, J., *Reduce, Filter, Find and more: R's unknown heroes*. [Link](https://hohenfeld.is/posts/reduce-filter-find-and-more-r-s-unknown-heroes/)
+6. Monroe, B. L., *Split-Apply-Combine and Map-Reduce in R*, SoDA 501 course notes. [Link](https://burtmonroe.github.io/SoDA501/Materials/SplitApplyCombine_R/)
 
 ## Continue Learning
 
-- [Functional Programming in R](Functional-Programming-in-R.html) — the big-picture overview of functional style in R, including pure functions and closures.
-- [R Anonymous Functions](R-Anonymous-Functions.html) — the lambda-style functions you just passed into Reduce, Filter, and Map.
-- [purrr map() Variants](purrr-map-Variants.html) — the typed cousins (map_dbl, map_chr, map_int) that return vectors instead of lists.
+- [Functional Programming in R](Functional-Programming-in-R.html), the big-picture overview of functional style in R, including pure functions and closures.
+- [R Anonymous Functions](R-Anonymous-Functions.html), the lambda-style functions you just passed into Reduce, Filter, and Map.
+- [purrr map() Variants](purrr-map-Variants.html), the typed cousins (map_dbl, map_chr, map_int) that return vectors instead of lists.

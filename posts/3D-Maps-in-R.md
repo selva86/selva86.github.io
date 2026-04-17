@@ -20,7 +20,7 @@ difficulty: "Intermediate"
 
 ## What can rayshader produce from a single elevation matrix?
 
-R's built-in `volcano` dataset is an 87-by-61 matrix of elevation values from Auckland's Maunga Whau crater. That is everything rayshader needs — a plain numeric matrix where each cell is a height in metres. Let's turn it into a shaded terrain and then a full 3D scene in under ten lines.
+R's built-in `volcano` dataset is an 87-by-61 matrix of elevation values from Auckland's Maunga Whau crater. That is everything rayshader needs, a plain numeric matrix where each cell is a height in metres. Let's turn it into a shaded terrain and then a full 3D scene in under ten lines.
 
 ```r
 # Install once: install.packages("rayshader")
@@ -51,7 +51,7 @@ render_snapshot()
 #>  The terrain tilts towards the viewer at roughly 45 degrees.]
 ```
 
-plot_3d() takes the 2D shaded texture and drapes it over the elevation matrix to build a 3D surface. The `zscale` parameter controls vertical exaggeration — lower values make peaks taller relative to the base. The rgl window that opens is fully interactive: click and drag to rotate, scroll to zoom.
+plot_3d() takes the 2D shaded texture and drapes it over the elevation matrix to build a 3D surface. The `zscale` parameter controls vertical exaggeration, lower values make peaks taller relative to the base. The rgl window that opens is fully interactive: click and drag to rotate, scroll to zoom.
 
 Let's look at what the raw data behind this looks like.
 
@@ -69,7 +69,7 @@ volcano[1:5, 1:5]
 #> [5,]  103  103  104  104  104
 ```
 
-Each cell holds a single number — the elevation at that grid point. Row and column positions define the x and y coordinates; the cell value is the z (height). Any numeric matrix in this format works with rayshader, whether it comes from a raster file, a satellite DEM, or values you generate yourself.
+Each cell holds a single number, the elevation at that grid point. Row and column positions define the x and y coordinates; the cell value is the z (height). Any numeric matrix in this format works with rayshader, whether it comes from a raster file, a satellite DEM, or values you generate yourself.
 
 [NOTE]
 **rayshader requires rgl (OpenGL) for 3D rendering.** The code in this tutorial runs in a local R session (RStudio or terminal). Copy each block and run it locally to see the interactive 3D scenes and rendered images.
@@ -101,7 +101,7 @@ volcano |>
 
 ## How does sphere_shade() turn heights into colours?
 
-Sphere shading works by simulating sunlight striking a smooth surface. For each cell in the elevation matrix, rayshader calculates the angle between the surface normal (the direction the slope faces) and the light source. Cells facing the sun get bright colours; cells angled away get dark ones. The result is a colour matrix — same dimensions as the input — that you can display with plot_map() or drape over a 3D surface.
+Sphere shading works by simulating sunlight striking a smooth surface. For each cell in the elevation matrix, rayshader calculates the angle between the surface normal (the direction the slope faces) and the light source. Cells facing the sun get bright colours; cells angled away get dark ones. The result is a colour matrix, same dimensions as the input, that you can display with plot_map() or drape over a 3D surface.
 
 rayshader ships with seven built-in texture palettes. Each palette is a gradient of five anchor colours that blend across the light-to-shadow range.
 
@@ -122,7 +122,7 @@ for (tex in textures) {
 #>  earth tones), unicorn (pastel rainbow), bw (greyscale).]
 ```
 
-The `"desert"` and `"imhof"` palettes suit geographic maps. `"unicorn"` is playful — good for presentations. `"bw"` strips colour entirely and shows pure light-shadow contrast, which is useful when you plan to overlay your own colours later.
+The `"desert"` and `"imhof"` palettes suit geographic maps. `"unicorn"` is playful, good for presentations. `"bw"` strips colour entirely and shows pure light-shadow contrast, which is useful when you plan to overlay your own colours later.
 
 When you want direct elevation-to-colour mapping (darker at sea level, brighter at peaks) instead of light-angle shading, use height_shade().
 
@@ -166,7 +166,7 @@ volcano |>
 
 The five colours you pass to create_texture() map to five light-intensity levels, not five elevation bands. Colour 1 appears on the darkest (most shadowed) slopes and colour 5 on the brightest (most sunlit). This means your palette interacts with the sun angle: rotating the light source changes which slopes get which colours.
 
-**Try it:** Create a custom texture using five shades of blue — from deep navy to pale sky blue — to simulate an ocean floor. Apply it to the volcano matrix with sphere_shade().
+**Try it:** Create a custom texture using five shades of blue, from deep navy to pale sky blue, to simulate an ocean floor. Apply it to the volcano matrix with sphere_shade().
 
 ```r
 # Try it: ocean floor palette
@@ -211,7 +211,7 @@ volcano |>
 
 The base texture from sphere_shade() is just the starting layer. rayshader builds photorealistic maps by stacking additional layers on top: water bodies, directional sun shadows, and soft ambient shadows. Each layer is a separate function, and you compose them with the pipe operator.
 
-First, detect_water() identifies flat, low-lying regions using a flood-fill algorithm. It returns a logical matrix — TRUE where water is detected, FALSE elsewhere.
+First, detect_water() identifies flat, low-lying regions using a flood-fill algorithm. It returns a logical matrix, TRUE where water is detected, FALSE elsewhere.
 
 ```r
 # Detect and add water to the volcano map
@@ -228,7 +228,7 @@ volcano |>
 
 detect_water() works best on terrains with clear elevation differences between land and water. For volcano, it catches the low-lying edges. The `color` argument accepts the same palette names as sphere_shade(), keeping the visual style consistent.
 
-Next, add shadows. ray_shade() computes hard directional shadows based on sun position — the kind of shadows you see on a sunny day. ambient_shade() computes soft ambient-occlusion shadows — the subtle darkening in crevices and valleys even when no direct sunlight is blocked.
+Next, add shadows. ray_shade() computes hard directional shadows based on sun position, the kind of shadows you see on a sunny day. ambient_shade() computes soft ambient-occlusion shadows, the subtle darkening in crevices and valleys even when no direct sunlight is blocked.
 
 ```r
 # Compute both shadow types
@@ -257,14 +257,14 @@ volcano |>
 ```
 
 ![rayshader rendering pipeline](screenshots/3D-Maps-in-R-pipeline.webp)
-*Figure 1: The rayshader rendering pipeline — elevation data flows through shading, water detection, shadow layers, and into a 3D scene or image export.*
+*Figure 1: The rayshader rendering pipeline, elevation data flows through shading, water detection, shadow layers, and into a 3D scene or image export.*
 
 [KEY INSIGHT]
 **The order of add_shadow() calls matters.** Apply the strongest shadow (ray_shade) first, then the softer ambient_shade. If you reverse the order, the ambient layer's max_darkness cap flattens the directional detail before it can be applied.
 
-The `max_darkness` parameter in add_shadow() sets the darkest value the shadow can produce. A value of 0.5 means shadows never go below 50% brightness — useful for preventing completely black areas. Lower values create more dramatic contrast; higher values create softer, more subtle shading.
+The `max_darkness` parameter in add_shadow() sets the darkest value the shadow can produce. A value of 0.5 means shadows never go below 50% brightness, useful for preventing completely black areas. Lower values create more dramatic contrast; higher values create softer, more subtle shading.
 
-**Try it:** Change the sun altitude in ray_shade() from the default (45) to 15 — a low sun near the horizon — and compare how the shadow intensity changes.
+**Try it:** Change the sun altitude in ray_shade() from the default (45) to 15, a low sun near the horizon, and compare how the shadow intensity changes.
 
 ```r
 # Try it: low sun angle shadows
@@ -292,7 +292,7 @@ volcano |>
 #>  invisible at sunaltitude = 45.]
 ```
 
-**Explanation:** Lower sun altitudes produce longer shadows because rays hit the terrain at a shallow angle. This is the "golden hour" effect — great for revealing subtle elevation changes.
+**Explanation:** Lower sun altitudes produce longer shadows because rays hit the terrain at a shallow angle. This is the "golden hour" effect, great for revealing subtle elevation changes.
 
 </details>
 
@@ -304,7 +304,7 @@ Think of the camera on a tripod aimed at the centre of the map:
 - **theta** spins the turntable that the map sits on. 0 = north-facing, 90 = east-facing, 180 = south-facing.
 - **phi** tilts the camera from ground level (0) to directly overhead (90). A phi of 45 gives a classic three-quarter view.
 - **zoom** moves the camera closer (values > 1) or farther away (values < 1).
-- **fov** controls the lens — 0 is orthographic (no perspective distortion), 70+ is wide-angle with strong perspective.
+- **fov** controls the lens, 0 is orthographic (no perspective distortion), 70+ is wide-angle with strong perspective.
 
 ```r
 # Default 3D view with explicit camera settings
@@ -356,7 +356,7 @@ render_snapshot(title_text = "Wide Angle (fov=70)")
 #>  barrel-like perspective distortion.]
 ```
 
-The `zscale` parameter deserves special attention. It controls vertical exaggeration — the ratio between horizontal and vertical units. A smaller zscale makes peaks taller relative to the base.
+The `zscale` parameter deserves special attention. It controls vertical exaggeration, the ratio between horizontal and vertical units. A smaller zscale makes peaks taller relative to the base.
 
 ```r
 # zscale comparison: realistic vs exaggerated
@@ -411,7 +411,7 @@ render_snapshot("birds_eye.png")
 
 The interactive rgl window is great for exploration, but you need static images and videos for reports, papers, and websites. rayshader offers three export functions at different quality levels.
 
-render_snapshot() captures the current rgl view as a PNG. It's fast — essentially a screenshot of the 3D window.
+render_snapshot() captures the current rgl view as a PNG. It's fast, essentially a screenshot of the 3D window.
 
 ```r
 # Basic snapshot export
@@ -427,7 +427,7 @@ render_snapshot("volcano_basic.png", clear = TRUE)
 #>  window after capturing.]
 ```
 
-For publication or presentation quality, render_highquality() uses the rayrender package to raytrace the scene with physically realistic lighting. The result is dramatically better — soft shadows, ambient lighting, and anti-aliased edges — but it takes longer to compute.
+For publication or presentation quality, render_highquality() uses the rayrender package to raytrace the scene with physically realistic lighting. The result is dramatically better, soft shadows, ambient lighting, and anti-aliased edges, but it takes longer to compute.
 
 ```r
 # High-quality pathtraced render
@@ -452,7 +452,7 @@ render_highquality(
 #>  30-90 seconds depending on hardware.]
 ```
 
-The `samples` parameter controls quality — more samples mean less noise in the shadows but longer render times. Use 200 for drafts, 400-600 for final output, and 800+ for print-resolution work.
+The `samples` parameter controls quality, more samples mean less noise in the shadows but longer render times. Use 200 for drafts, 400-600 for final output, and 800+ for print-resolution work.
 
 [NOTE]
 **render_highquality() can take minutes for complex scenes.** Start with samples=200 for fast drafts, then increase to 400+ for your final export. The lightdirection parameter takes a compass bearing (0=north, 90=east, 180=south, 270=west).
@@ -749,16 +749,16 @@ The core workflow is always the same: elevation matrix → shade → layer effec
 
 ## References
 
-1. Morgan-Wall, T. — rayshader: Create Maps and Visualize Data in 2D and 3D. Official documentation. [Link](https://www.rayshader.com/)
-2. Morgan-Wall, T. — rayshader GitHub repository. Source code and examples. [Link](https://github.com/tylermorganwall/rayshader)
-3. CRAN — rayshader reference manual. Complete function documentation. [Link](https://cran.r-project.org/web/packages/rayshader/rayshader.pdf)
+1. Morgan-Wall, T., rayshader: Create Maps and Visualize Data in 2D and 3D. Official documentation. [Link](https://www.rayshader.com/)
+2. Morgan-Wall, T., rayshader GitHub repository. Source code and examples. [Link](https://github.com/tylermorganwall/rayshader)
+3. CRAN, rayshader reference manual. Complete function documentation. [Link](https://cran.r-project.org/web/packages/rayshader/rayshader.pdf)
 4. Morgan-Wall, T. & Kross, S. (2021). rayshader: Create Maps and Visualize Data in 2D and 3D. R package version 0.37.3.
-5. R Graph Gallery — 3D maps with rayshader. Step-by-step examples. [Link](https://r-graph-gallery.com/411-map-3d-with-rayshader.html)
-6. R Core Team — volcano dataset documentation. [Link](https://stat.ethz.ch/R-manual/R-devel/library/datasets/html/volcano.html)
+5. R Graph Gallery, 3D maps with rayshader. Step-by-step examples. [Link](https://r-graph-gallery.com/411-map-3d-with-rayshader.html)
+6. R Core Team, volcano dataset documentation. [Link](https://stat.ethz.ch/R-manual/R-devel/library/datasets/html/volcano.html)
 7. Imhof, E. (1982). *Cartographic Relief Presentation*. ESRI Press. The cartographic colour theory behind rayshader's "imhof" texture palettes.
 
 ## Continue Learning
 
-- [Choropleth Maps in R](Choropleth-Maps-in-R.html) — Fill countries, states, or districts by value with ggplot2 + sf. The parent post covering 2D geographic visualisation.
-- [Interactive Maps in R with leaflet](Interactive-Maps-in-R-with-leaflet.html) — Build pan-and-zoom web maps with markers, popups, and tile layers for browser-based exploration.
-- [R tmap Package](R-tmap-Package.html) — Create thematic maps with a ggplot2-style grammar in fewer lines of code than raw ggplot2 + sf.
+- [Choropleth Maps in R](Choropleth-Maps-in-R.html), Fill countries, states, or districts by value with ggplot2 + sf. The parent post covering 2D geographic visualisation.
+- [Interactive Maps in R with leaflet](Interactive-Maps-in-R-with-leaflet.html), Build pan-and-zoom web maps with markers, popups, and tile layers for browser-based exploration.
+- [R tmap Package](R-tmap-Package.html), Create thematic maps with a ggplot2-style grammar in fewer lines of code than raw ggplot2 + sf.

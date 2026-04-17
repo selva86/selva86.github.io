@@ -1,5 +1,5 @@
 ---
-title: "R vs SAS: When $50K Licences Are Hard to Justify — An Honest Comparison"
+title: "R vs SAS: When $50K Licences Are Hard to Justify, An Honest Comparison"
 slug: "R-vs-SAS"
 description: "SAS still rules pharma and banking, but R is closing the gap fast. Compare licence costs, 2026 job demand, statistical depth, and ecosystem maturity."
 keywords: "R vs SAS, SAS vs R, R or SAS, SAS alternative, R for pharma, SAS to R migration, R FDA submissions, R SAS cost comparison"
@@ -14,13 +14,13 @@ fr_parent: "Is-R-Worth-Learning-in-2026.html"
 difficulty: "Intermediate"
 ---
 
-# R vs SAS: When $50K Licences Are Hard to Justify — An Honest Comparison
+# R vs SAS: When $50K Licences Are Hard to Justify, An Honest Comparison
 
-<p class="lead">SAS still wins where a 40-year regulatory paper trail matters — pharma, big banks, government. R wins almost everywhere else, and the gap is closing fastest in the places SAS used to own. This page puts the cost, capability, job-market, and compliance arguments on one screen so you can make the call for your own team without the vendor spin.</p>
+<p class="lead">SAS still wins where a 40-year regulatory paper trail matters, pharma, big banks, government. R wins almost everywhere else, and the gap is closing fastest in the places SAS used to own. This page puts the cost, capability, job-market, and compliance arguments on one screen so you can make the call for your own team without the vendor spin.</p>
 
 ## Who actually uses R and SAS in 2026?
 
-For two decades, "R or SAS" ran on anecdote. You can settle the usage side of it with four public datasets — the TIOBE language index, the Kaggle ML & DS Survey, Indeed job listings, and the Stack Overflow Developer Survey. Let's pull those numbers into a small data frame, plot them, and see the picture you actually pay the licence for.
+For two decades, "R or SAS" ran on anecdote. You can settle the usage side of it with four public datasets, the TIOBE language index, the Kaggle ML & DS Survey, Indeed job listings, and the Stack Overflow Developer Survey. Let's pull those numbers into a small data frame, plot them, and see the picture you actually pay the licence for.
 
 ```r
 # Load the tools we'll use on this page
@@ -56,7 +56,7 @@ ggplot(usage_long, aes(x = source, y = share, fill = tool)) +
 #> SAS leads only on Indeed listings (pharma and banking pull the average).
 ```
 
-Only one of the four indices still favours SAS — Indeed listings — and that margin is almost entirely driven by two industries (pharma and banking). On every developer-survey dataset, R has pulled ahead by a factor of 4–10×. Job listings lag sentiment by several years, so the Indeed lead tells you where the old money is, not where the new work is.
+Only one of the four indices still favours SAS, Indeed listings, and that margin is almost entirely driven by two industries (pharma and banking). On every developer-survey dataset, R has pulled ahead by a factor of 4–10×. Job listings lag sentiment by several years, so the Indeed lead tells you where the old money is, not where the new work is.
 
 Let's compute the R-advantage ratio per source so the numbers tell the story directly.
 
@@ -78,7 +78,7 @@ ratio_df
 Three datasets out of four put R ahead by 4–8×. The one SAS still wins is the *hiring* signal, which is exactly the kind of lagging indicator that changes last. If you're advising someone on a 5–10 year career, the developer-survey numbers matter more than today's listings.
 
 [KEY INSIGHT]
-**SAS sits where switching is hardest, not where it's technically best.** The places SAS still dominates — regulated pharma, big banks, federal agencies — all share one thing: a 20-year pile of validated code that nobody wants to rewrite. Technical merit stopped being the main argument years ago.
+**SAS sits where switching is hardest, not where it's technically best.** The places SAS still dominates, regulated pharma, big banks, federal agencies, all share one thing: a 20-year pile of validated code that nobody wants to rewrite. Technical merit stopped being the main argument years ago.
 
 **Try it:** Add a 5th row to `usage_df` for the PYPL (Popularity of Programming Languages) index and re-plot. PYPL gives R roughly 5% share and SAS roughly 0.5%. Reuse the plotting pipeline from above.
 
@@ -122,7 +122,7 @@ ex_usage
 
 ## How big is the licence-cost gap, really?
 
-SAS has no public price list. Enterprise deals are negotiated behind NDAs, so any figure you see is an industry estimate. The consistent range from analyst reports and published RFPs puts per-user SAS licences at $8,000–$15,000 per year and full Viya deployments (multiple modules, hundreds of users) at $500,000–$2,000,000 per year. R is GPL-2 — base is free forever, and Posit Team (the optional commercial server) adds a few hundred dollars per user per year.
+SAS has no public price list. Enterprise deals are negotiated behind NDAs, so any figure you see is an industry estimate. The consistent range from analyst reports and published RFPs puts per-user SAS licences at $8,000–$15,000 per year and full Viya deployments (multiple modules, hundreds of users) at $500,000–$2,000,000 per year. R is GPL-2, base is free forever, and Posit Team (the optional commercial server) adds a few hundred dollars per user per year.
 
 Let's put that on a single chart. We'll model a 5-year total cost of ownership for four team sizes.
 
@@ -153,7 +153,7 @@ ggplot(tco_df, aes(x = factor(team_size), y = annual_cost_usd, fill = tool)) +
 #> R cost stays two orders of magnitude lower at every team size.
 ```
 
-The gap starts at 6× for a single analyst and widens to 7× for a 250-person team. At 50 analysts — roughly a mid-size biotech's statistics group — the difference is about $440,000 per year. That's a senior data scientist, plus infrastructure, plus training budget, every single year.
+The gap starts at 6× for a single analyst and widens to 7× for a 250-person team. At 50 analysts, roughly a mid-size biotech's statistics group, the difference is about $440,000 per year. That's a senior data scientist, plus infrastructure, plus training budget, every single year.
 
 [NOTE]
 **These are list prices. Negotiated SAS deals can land 30–60% lower**, especially in academia, government, and multi-year pharma contracts. Even a 50% discount still leaves the 50-analyst gap at a quarter of a million dollars per year.
@@ -190,7 +190,7 @@ ex_tco
 #> 1        25  35000   280000 245000
 ```
 
-**Explanation:** The $245K gap covers roughly 1.5 senior data scientist salaries — for the same team, every year.
+**Explanation:** The $245K gap covers roughly 1.5 senior data scientist salaries, for the same team, every year.
 
 </details>
 
@@ -225,10 +225,10 @@ submissions_df |>
 #> 6 R Consortium  2023 Pilot 3 (Shiny)  FALSE           R only
 ```
 
-Three of these submissions used R as the only statistical tool. Two used dual programming — R as primary, SAS as an independent quality check — which is the safer on-ramp most large sponsors are taking. The reference pilots from the R Consortium matter most: they give any pharma team a vetted, publicly reviewed template that has already been accepted by the FDA.
+Three of these submissions used R as the only statistical tool. Two used dual programming, R as primary, SAS as an independent quality check, which is the safer on-ramp most large sponsors are taking. The reference pilots from the R Consortium matter most: they give any pharma team a vetted, publicly reviewed template that has already been accepted by the FDA.
 
 [WARNING]
-**The FDA accepts R, but your internal SOP still has to accept it.** Validation and internal procedure — not regulation — is usually the real bottleneck. A typical pharma R-migration programme spends 12–18 months updating SOPs, training biostatisticians, and building validated package libraries before the first real submission runs in R.
+**The FDA accepts R, but your internal SOP still has to accept it.** Validation and internal procedure, not regulation, is usually the real bottleneck. A typical pharma R-migration programme spends 12–18 months updating SOPs, training biostatisticians, and building validated package libraries before the first real submission runs in R.
 
 **Try it:** Filter `submissions_df` to show only the dual-programmed submissions.
 
@@ -255,16 +255,16 @@ ex_dual
 #> 2 GSK           2023 Respiratory  TRUE
 ```
 
-**Explanation:** `filter(dual_programmed)` is shorthand for `filter(dual_programmed == TRUE)` — a logical column can be filtered directly.
+**Explanation:** `filter(dual_programmed)` is shorthand for `filter(dual_programmed == TRUE)`, a logical column can be filtered directly.
 
 </details>
 
 ## Which tool has more statistical capability today?
 
-SAS ships roughly 300 procedures (PROCs) covering classical statistics, and they are polished over 40 years of releases. R has over 21,000 CRAN packages plus 2,200+ Bioconductor packages for biology and genomics. The difference is not just volume — it's release cadence. A new statistical method published in a 2026 journal typically lands on CRAN within weeks. In SAS, it lands on a yearly release cycle, if it arrives at all.
+SAS ships roughly 300 procedures (PROCs) covering classical statistics, and they are polished over 40 years of releases. R has over 21,000 CRAN packages plus 2,200+ Bioconductor packages for biology and genomics. The difference is not just volume, it's release cadence. A new statistical method published in a 2026 journal typically lands on CRAN within weeks. In SAS, it lands on a yearly release cycle, if it arrives at all.
 
 ![R vs SAS ecosystem comparison for 2026](screenshots/R-vs-SAS-ecosystem-compare.webp)
-*Figure 1: Side-by-side ecosystem sizes — CRAN packages vs SAS PROCs in 2026.*
+*Figure 1: Side-by-side ecosystem sizes, CRAN packages vs SAS PROCs in 2026.*
 
 Let's score each tool across eight capability areas on a 1–5 scale. The numbers come from a rough synthesis of package counts, first-class language support, and community activity.
 
@@ -299,10 +299,10 @@ ggplot(cap_long, aes(x = reorder(area, score), y = score, fill = tool)) +
 #> leads everywhere else — widest gaps in Bayesian, geospatial, and bioinformatics.
 ```
 
-Classical statistics is the one area where the two tools are genuinely comparable — PROC REG and `lm()` both do their job well. Everywhere else the gap is wide and still widening. Bayesian inference is the starkest: R has `brms`, `rstanarm`, and `cmdstanr`, all actively maintained and backed by the Stan project; SAS has PROC MCMC, which is competent but limited. Bioinformatics is similar — R's Bioconductor is the de facto industry standard, and SAS has no equivalent.
+Classical statistics is the one area where the two tools are genuinely comparable, PROC REG and `lm()` both do their job well. Everywhere else the gap is wide and still widening. Bayesian inference is the starkest: R has `brms`, `rstanarm`, and `cmdstanr`, all actively maintained and backed by the Stan project; SAS has PROC MCMC, which is competent but limited. Bioinformatics is similar, R's Bioconductor is the de facto industry standard, and SAS has no equivalent.
 
 [TIP]
-**For anything invented after 2015, check CRAN first.** Modern causal inference, transformer-based NLP, differential privacy, geospatial machine learning — you'll find R packages for all of them before SAS adds a PROC. If your team's work depends on recent research, that's a decisive factor.
+**For anything invented after 2015, check CRAN first.** Modern causal inference, transformer-based NLP, differential privacy, geospatial machine learning, you'll find R packages for all of them before SAS adds a PROC. If your team's work depends on recent research, that's a decisive factor.
 
 **Try it:** Compute the capability gap (`r_score − sas_score`) per area and sort descending to find the biggest gaps.
 
@@ -339,7 +339,7 @@ ex_gap
 #> 8 Classical statistics      0
 ```
 
-**Explanation:** `r_score - sas_score` is a vectorised subtraction — it runs on the whole column at once without a loop.
+**Explanation:** `r_score - sas_score` is a vectorised subtraction, it runs on the whole column at once without a loop.
 
 </details>
 
@@ -377,10 +377,10 @@ ggplot(jobs_long, aes(x = reorder(industry, listings), y = listings, fill = tool
 #> R wins academia, consulting, biotech, and public health — by large margins.
 ```
 
-SAS is not "dying" as a job market. It's consolidating. The roles that remain are stable, well-paid, and concentrated in industries where switching costs are very high — which is exactly what you'd expect at the end of a long incumbent's lifecycle. If your career plan is "be a SAS biostatistician at a top-20 pharma for 15 years," the listings support that. If your plan is anything more flexible, R gives you wider optionality.
+SAS is not "dying" as a job market. It's consolidating. The roles that remain are stable, well-paid, and concentrated in industries where switching costs are very high, which is exactly what you'd expect at the end of a long incumbent's lifecycle. If your career plan is "be a SAS biostatistician at a top-20 pharma for 15 years," the listings support that. If your plan is anything more flexible, R gives you wider optionality.
 
 [KEY INSIGHT]
-**The SAS job market is not shrinking — it's consolidating.** A smaller number of very stable, very well-paid roles in 2–3 industries is a different signal from a collapsing market. Read the Indeed numbers accordingly.
+**The SAS job market is not shrinking, it's consolidating.** A smaller number of very stable, very well-paid roles in 2–3 industries is a different signal from a collapsing market. Read the Indeed numbers accordingly.
 
 **Try it:** Add a new row for "Tech" with 6000 R listings and 400 SAS listings, then re-plot.
 
@@ -426,7 +426,7 @@ ex_jobs |> arrange(desc(r_listings))
 Here's the framework I'd recommend for a team making this choice in 2026. It's eight common scenarios with the honest answer for each.
 
 ![R vs SAS decision tree](screenshots/R-vs-SAS-decision-tree.webp)
-*Figure 2: When to pick R, SAS, or both — a practical decision tree for 2026 teams.*
+*Figure 2: When to pick R, SAS, or both, a practical decision tree for 2026 teams.*
 
 ```r
 decision_df <- tribble(
@@ -454,12 +454,12 @@ knitr::kable(decision_df, caption = "R vs SAS decision framework for 2026 teams"
 #> | Clinical trial operations         | R + SAS dual  | SDTM/ADaM are validated in both; R for reports.|
 ```
 
-Most teams that land on "R + SAS dual" eventually migrate to pure R over 3–5 years. Dual programming is an on-ramp, not a destination. If you're starting from zero with no legacy code to worry about, there is almost no reason to pay for SAS in 2026 — outside the two or three specific industries where incumbent validation is the point.
+Most teams that land on "R + SAS dual" eventually migrate to pure R over 3–5 years. Dual programming is an on-ramp, not a destination. If you're starting from zero with no legacy code to worry about, there is almost no reason to pay for SAS in 2026, outside the two or three specific industries where incumbent validation is the point.
 
 [TIP]
 **You don't have to pick one forever.** Dual-programming (R primary + SAS QC) is the most common path for pharma teams already running SAS. It keeps your audit trail intact while letting you phase in R for new work.
 
-**Try it:** Add a row for "Geospatial epidemiology" — pick the right tool and justify it in one sentence.
+**Try it:** Add a row for "Geospatial epidemiology", pick the right tool and justify it in one sentence.
 
 ```r
 # Try it: add a new scenario
@@ -567,7 +567,7 @@ capstone2
 #> 3 Biotech              2.05
 ```
 
-**Explanation:** Three industries clear the 2× bar — and none of them is in the "SAS strongholds" list. These are where an R-first career plan has the strongest tailwind.
+**Explanation:** Three industries clear the 2× bar, and none of them is in the "SAS strongholds" list. These are where an R-first career plan has the strongest tailwind.
 
 </details>
 
@@ -611,7 +611,7 @@ ggplot(migration_df, aes(x = year, y = net_savings)) +
 #> reaches nearly $2M by year 5.
 ```
 
-Break-even lands inside the first year. By year 5 the team has redirected nearly **$2 million** away from software licensing and toward hiring, infrastructure, or actual research. That's the calculation that's driving most SAS-to-R migrations in 2026 — and it's also why migration projects are a growth category for R consultancies.
+Break-even lands inside the first year. By year 5 the team has redirected nearly **$2 million** away from software licensing and toward hiring, infrastructure, or actual research. That's the calculation that's driving most SAS-to-R migrations in 2026, and it's also why migration projects are a growth category for R consultancies.
 
 ## Summary
 
@@ -624,22 +624,22 @@ Break-even lands inside the first year. By year 5 the team has redirected nearly
 | Job market (listings) | Growing in tech, biotech, academia | Stable in pharma, banking | **Depends** |
 | Talent pool | Very large, global | Smaller, concentrated | **R** |
 | Bioinformatics | Bioconductor (industry standard) | SAS Genetics (limited) | **R** |
-| Migration effort | — | Dual-programming on-ramp | **Neutral** |
+| Migration effort |, | Dual-programming on-ramp | **Neutral** |
 
-Pick SAS when regulatory submission is your core work, you have a heavy existing investment, and your team's skills are SAS-native. Pick R for everything else — including most new pharma teams starting from a clean slate.
+Pick SAS when regulatory submission is your core work, you have a heavy existing investment, and your team's skills are SAS-native. Pick R for everything else, including most new pharma teams starting from a clean slate.
 
 ## References
 
-1. FDA — *Statistical Software Clarifying Statement* (2015, reaffirmed 2022). [Link](https://www.fda.gov/media/109552/download)
-2. R Consortium — R Submissions Working Group. [Link](https://rconsortium.github.io/submissions-wg/)
-3. PHUSE — Roche's R-based FDA submission (case study, 2020). [Link](https://phuse.global/)
-4. Novo Nordisk — R submission pilot (PHUSE US Connect, 2022). [Link](https://phuse.global/)
-5. TIOBE Index — language popularity time series. [Link](https://www.tiobe.com/tiobe-index/)
-6. Posit — *Posit Team* product overview and pricing. [Link](https://posit.co/products/enterprise/team/)
-7. Kaggle — ML & Data Science Survey (most recent). [Link](https://www.kaggle.com/kaggle-survey-2022)
+1. FDA, *Statistical Software Clarifying Statement* (2015, reaffirmed 2022). [Link](https://www.fda.gov/media/109552/download)
+2. R Consortium, R Submissions Working Group. [Link](https://rconsortium.github.io/submissions-wg/)
+3. PHUSE, Roche's R-based FDA submission (case study, 2020). [Link](https://phuse.global/)
+4. Novo Nordisk, R submission pilot (PHUSE US Connect, 2022). [Link](https://phuse.global/)
+5. TIOBE Index, language popularity time series. [Link](https://www.tiobe.com/tiobe-index/)
+6. Posit, *Posit Team* product overview and pricing. [Link](https://posit.co/products/enterprise/team/)
+7. Kaggle, ML & Data Science Survey (most recent). [Link](https://www.kaggle.com/kaggle-survey-2022)
 
 ## Continue Learning
 
-- [Is R Worth Learning in 2026?](Is-R-Worth-Learning-in-2026.html) — the parent overview that ties R's cost, ecosystem, and career case together in one page.
-- [R vs Python for Data Science](R-vs-Python.html) — the sister comparison; useful if you're weighing all three open-source and commercial options side by side.
-- [R vs SPSS: Why 40% of SPSS Users Are Moving to R](R-vs-SPSS.html) — similar migration story, different starting tool; many of the same cost and ecosystem arguments apply.
+- [Is R Worth Learning in 2026?](Is-R-Worth-Learning-in-2026.html), the parent overview that ties R's cost, ecosystem, and career case together in one page.
+- [R vs Python for Data Science](R-vs-Python.html), the sister comparison; useful if you're weighing all three open-source and commercial options side by side.
+- [R vs SPSS: Why 40% of SPSS Users Are Moving to R](R-vs-SPSS.html), similar migration story, different starting tool; many of the same cost and ecosystem arguments apply.

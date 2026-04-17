@@ -782,16 +782,16 @@ They serve opposite purposes. `get_dupes()` shows you which rows are duplicated 
 
 ## References
 
-1. Firke, S. — janitor: Simple Tools for Examining and Cleaning Dirty Data. CRAN vignette. [Link](https://cran.r-project.org/web/packages/janitor/vignettes/janitor.html)
-2. Firke, S. — janitor GitHub repository. [Link](https://github.com/sfirke/janitor)
-3. CRAN — janitor package reference manual (v2.2.1). [Link](https://cran.r-project.org/web/packages/janitor/janitor.pdf)
-4. Wickham, H. & Grolemund, G. — *R for Data Science*, 2nd Edition. O'Reilly (2023). Chapter 6: Data Tidying. [Link](https://r4ds.hadley.nz/data-tidy)
-5. Rapp, A. — Easy data cleaning with the janitor package. [Link](https://albert-rapp.de/posts/07_janitor_showcase/07_janitor_showcase)
-6. rdrr.io — clean_names() function reference. [Link](https://rdrr.io/cran/janitor/man/clean_names.html)
-7. R-bloggers — Easy data cleaning with the janitor package (2024). [Link](https://www.r-bloggers.com/2024/05/easy-data-cleaning-with-the-janitor-package/)
+1. Firke, S., janitor: Simple Tools for Examining and Cleaning Dirty Data. CRAN vignette. [Link](https://cran.r-project.org/web/packages/janitor/vignettes/janitor.html)
+2. Firke, S., janitor GitHub repository. [Link](https://github.com/sfirke/janitor)
+3. CRAN, janitor package reference manual (v2.2.1). [Link](https://cran.r-project.org/web/packages/janitor/janitor.pdf)
+4. Wickham, H. & Grolemund, G., *R for Data Science*, 2nd Edition. O'Reilly (2023). Chapter 6: Data Tidying. [Link](https://r4ds.hadley.nz/data-tidy)
+5. Rapp, A., Easy data cleaning with the janitor package. [Link](https://albert-rapp.de/posts/07_janitor_showcase/07_janitor_showcase)
+6. rdrr.io, clean_names() function reference. [Link](https://rdrr.io/cran/janitor/man/clean_names.html)
+7. R-bloggers, Easy data cleaning with the janitor package (2024). [Link](https://www.r-bloggers.com/2024/05/easy-data-cleaning-with-the-janitor-package/)
 
 ## Continue Learning
 
-- **[Data Quality Checking in R](Data-Quality-Checking-in-R.html)** — The parent guide covering the full data quality workflow, from missing values to outlier detection.
-- **[Missing Values in R](Missing-Values-in-R-Detect-Count-Remove-Impute-NA.html)** — How to detect, count, remove, and impute NA values in your datasets.
-- **[dplyr Tutorial](dplyr-tutorial.html)** — Master the core data transformation verbs that pair perfectly with janitor's cleaning functions.
+- **[Data Quality Checking in R](Data-Quality-Checking-in-R.html)**, The parent guide covering the full data quality workflow, from missing values to outlier detection.
+- **[Missing Values in R](Missing-Values-in-R-Detect-Count-Remove-Impute-NA.html)**, How to detect, count, remove, and impute NA values in your datasets.
+- **[dplyr Tutorial](dplyr-tutorial.html)**, Master the core data transformation verbs that pair perfectly with janitor's cleaning functions.

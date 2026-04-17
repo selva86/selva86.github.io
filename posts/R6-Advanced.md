@@ -18,11 +18,11 @@ difficulty: "Advanced"
 
 # Advanced R6 in R: Inheritance, Private Fields, and Computed Properties
 
-<p class="lead">R6 inheritance lets a child class reuse and extend a parent's methods, private fields hide internal state from outside code, and active bindings (computed properties) run a function every time you read or write a field — giving you validation, caching, and derived values with simple <code>obj$field</code> syntax.</p>
+<p class="lead">R6 inheritance lets a child class reuse and extend a parent's methods, private fields hide internal state from outside code, and active bindings (computed properties) run a function every time you read or write a field, giving you validation, caching, and derived values with simple <code>obj$field</code> syntax.</p>
 
 ## How does R6 inheritance work?
 
-When two classes share logic — say a DataSource and a CsvSource — copying code between them breaks the moment you fix a bug in one but forget the other. Inheritance solves this: define shared behavior once in a parent, then let children specialize. Let's build a parent-child pair and see how `super$` delegates back to the parent.
+When two classes share logic, say a DataSource and a CsvSource, copying code between them breaks the moment you fix a bug in one but forget the other. Inheritance solves this: define shared behavior once in a parent, then let children specialize. Let's build a parent-child pair and see how `super$` delegates back to the parent.
 
 ```r
 library(R6)
@@ -72,10 +72,10 @@ rex$show_tricks()
 #> Rex can: sit, shake, roll over
 ```
 
-Dog never defines `speak()` — it inherits the method from Animal. The `inherit = Animal` argument passes down all public and private members. Inside Dog's `initialize`, `super$initialize(name, sound = "Woof")` calls the parent constructor so the `name` and `sound` fields get set properly.
+Dog never defines `speak()`, it inherits the method from Animal. The `inherit = Animal` argument passes down all public and private members. Inside Dog's `initialize`, `super$initialize(name, sound = "Woof")` calls the parent constructor so the `name` and `sound` fields get set properly.
 
 [KEY INSIGHT]
-**R6 uses single inheritance — each class has at most one parent.** If you need behavior from multiple sources, hold other R6 objects as fields (composition). This keeps the class hierarchy simple and avoids the "diamond problem" that plagues multiple inheritance in other languages.
+**R6 uses single inheritance, each class has at most one parent.** If you need behavior from multiple sources, hold other R6 objects as fields (composition). This keeps the class hierarchy simple and avoids the "diamond problem" that plagues multiple inheritance in other languages.
 
 Now let's create another child to confirm the parent stays independent from each child's additions.
 
@@ -100,7 +100,7 @@ whiskers$purr()
 #> Whiskers purrs contentedly.
 ```
 
-Cat adds `purr()` without affecting Dog. Each child specializes the parent in its own direction — Dog adds tricks, Cat adds purring. The parent `speak()` method works for both because it reads `self$sound`, which each child sets differently via `super$initialize()`.
+Cat adds `purr()` without affecting Dog. Each child specializes the parent in its own direction, Dog adds tricks, Cat adds purring. The parent `speak()` method works for both because it reads `self$sound`, which each child sets differently via `super$initialize()`.
 
 **Try it:** Create a Bird child class that inherits from Animal, sets its sound to "Tweet", and adds a `fly()` method that prints "[name] takes flight!". Create one and call both `speak()` and `fly()`.
 
@@ -157,7 +157,7 @@ ex_bird$fly()
 
 ## How do you override and extend parent methods with super$?
 
-Sometimes a child needs to change what a parent method does — not just add new methods, but replace or wrap existing ones. This is **method overriding**. The `super$` reference lets the child call the parent's version when it still wants the original behavior as part of its own logic.
+Sometimes a child needs to change what a parent method does, not just add new methods, but replace or wrap existing ones. This is **method overriding**. The `super$` reference lets the child call the parent's version when it still wants the original behavior as part of its own logic.
 
 ```r
 Shape <- R6Class("Shape",
@@ -218,10 +218,10 @@ sq$describe()
 #>   (also a square with side 5 )
 ```
 
-Each `describe()` calls `super$describe()` first, then adds its own line. The call cascades up the chain: Square → Rectangle → Shape. This is the **template method pattern** — the parent sets the structure, children add details.
+Each `describe()` calls `super$describe()` first, then adds its own line. The call cascades up the chain: Square → Rectangle → Shape. This is the **template method pattern**, the parent sets the structure, children add details.
 
 [TIP]
-**Always call super$initialize() first in child constructors.** The parent may set up state that the child depends on. Calling it last (or not at all) risks using uninitialized fields. Think of it like building a house — pour the foundation (parent) before framing the walls (child).
+**Always call super$initialize() first in child constructors.** The parent may set up state that the child depends on. Calling it last (or not at all) risks using uninitialized fields. Think of it like building a house, pour the foundation (parent) before framing the walls (child).
 
 Let's see that the child can also add entirely new methods that use inherited state without any overriding.
 
@@ -233,7 +233,7 @@ cat("Square color:", sq$color, "\n")
 #> Square color: green
 ```
 
-Square never defines `area()` or `color` — both come from Rectangle and Shape respectively. The child gains the full method and field set of every ancestor.
+Square never defines `area()` or `color`, both come from Rectangle and Shape respectively. The child gains the full method and field set of every ancestor.
 
 **Try it:** Add a `perimeter()` method to Rectangle (it should return `2 * (width + height)`), then call it on `sq` to confirm Square inherits it automatically.
 
@@ -260,13 +260,13 @@ sq$perimeter()
 #> [1] 20
 ```
 
-**Explanation:** `$set()` adds methods to an existing class dynamically. Since Square inherits from Rectangle, the new method is immediately available on all Square instances — even ones already created.
+**Explanation:** `$set()` adds methods to an existing class dynamically. Since Square inherits from Rectangle, the new method is immediately available on all Square instances, even ones already created.
 
 </details>
 
 ## What are private fields and methods in R6?
 
-When you build a class for others to use, not every piece of internal state should be accessible. Private fields and methods are hidden from code outside the class — only methods inside the class (using `private$`) can touch them. This means you can refactor internals later without breaking anyone's code.
+When you build a class for others to use, not every piece of internal state should be accessible. Private fields and methods are hidden from code outside the class, only methods inside the class (using `private$`) can touch them. This means you can refactor internals later without breaking anyone's code.
 
 ```r
 BankAccount <- R6Class("BankAccount",
@@ -323,7 +323,7 @@ acct$get_statement()
 #> Transactions: 3
 ```
 
-The `balance` and `history` fields live in `private` — outside code cannot read or write them directly. The only way to change the balance is through `deposit()` and `withdraw()`, which enforce rules (positive amounts, sufficient funds). The `log_transaction()` private method keeps an audit trail without exposing it.
+The `balance` and `history` fields live in `private`, outside code cannot read or write them directly. The only way to change the balance is through `deposit()` and `withdraw()`, which enforce rules (positive amounts, sufficient funds). The `log_transaction()` private method keeps an audit trail without exposing it.
 
 Let's confirm that direct access from outside fails.
 
@@ -344,10 +344,10 @@ tryCatch(
 #> Error: Cannot access private field/method 'log_transaction' ...
 ```
 
-R6 enforces the boundary — private members simply don't exist from the outside. The error message is clear: you cannot access private fields or methods externally.
+R6 enforces the boundary, private members simply don't exist from the outside. The error message is clear: you cannot access private fields or methods externally.
 
 [WARNING]
-**R6 subclasses CAN access parent private methods via super$, but NOT private fields.** If a child calls `super$log_transaction()`, that works. But `super$balance` fails — private fields belong to the defining class only. If a child needs the balance, the parent should expose a public or active method for it.
+**R6 subclasses CAN access parent private methods via super$, but NOT private fields.** If a child calls `super$log_transaction()`, that works. But `super$balance` fails, private fields belong to the defining class only. If a child needs the balance, the parent should expose a public or active method for it.
 
 **Try it:** Add a private field `transaction_count` (starting at 0) to BankAccount that increments in `log_transaction`, then add a public `get_tx_count()` method that returns it.
 
@@ -424,7 +424,7 @@ ex_acct$get_tx_count()
 
 ## How do active bindings create computed properties?
 
-Active bindings are the R6 equivalent of Python's `@property` decorator. They look like regular fields from the outside (`obj$area`), but behind the scenes they run a function. This lets you compute values on the fly, validate assignments, or cache expensive calculations — all invisible to the user of the class.
+Active bindings are the R6 equivalent of Python's `@property` decorator. They look like regular fields from the outside (`obj$area`), but behind the scenes they run a function. This lets you compute values on the fly, validate assignments, or cache expensive calculations, all invisible to the user of the class.
 
 ```r
 Circle <- R6Class("Circle",
@@ -467,13 +467,13 @@ cat("Diameter:", c1$diameter, "\n")
 #> Diameter: 10
 ```
 
-Three active bindings, three different behaviors: `radius` is read-write with validation, `area` is read-only and computed, `diameter` is read-write and syncs back to radius. The user never calls a function — they just read and assign fields.
+Three active bindings, three different behaviors: `radius` is read-write with validation, `area` is read-only and computed, `diameter` is read-write and syncs back to radius. The user never calls a function, they just read and assign fields.
 
 ![How an active binding dispatches between GET and SET](screenshots/R6-Advanced-active-binding-flow.webp)
 
 *Figure 3: How an active binding dispatches between GET (compute) and SET (validate & store).*
 
-The secret is the `missing(value)` check. When R evaluates `c1$area`, it calls the binding function with no argument — `value` is missing, so the function returns the computed result. When you write `c1$diameter <- 14`, the function receives `14` as `value` and stores it.
+The secret is the `missing(value)` check. When R evaluates `c1$area`, it calls the binding function with no argument, `value` is missing, so the function returns the computed result. When you write `c1$diameter <- 14`, the function receives `14` as `value` and stores it.
 
 Let's see the validation in action.
 
@@ -503,7 +503,7 @@ tryCatch(
 Setting `diameter` to 14 automatically updates `radius` to 7, and `area` recalculates to ~153.94. The validation catches negative values before they corrupt internal state. Read-only bindings reject assignment entirely.
 
 [KEY INSIGHT]
-**Active bindings let you add validation and computation without changing the external interface.** If you start with a plain public field and later need validation, convert it to an active binding — every piece of code that does `obj$field` still works, but now a function runs behind the scenes. This is why the convention uses `.radius` (private, prefixed with dot) as storage and `radius` (active) as the public face.
+**Active bindings let you add validation and computation without changing the external interface.** If you start with a plain public field and later need validation, convert it to an active binding, every piece of code that does `obj$field` still works, but now a function runs behind the scenes. This is why the convention uses `.radius` (private, prefixed with dot) as storage and `radius` (active) as the public face.
 
 **Try it:** Add a `circumference` active binding to the Circle class that returns `2 * pi * radius`. Make it read-only.
 
@@ -557,13 +557,13 @@ ex_c$circumference
 #> [1] 62.83185
 ```
 
-**Explanation:** The binding checks `missing(value)` — if someone tries to assign, it errors. Otherwise it computes and returns `2 * pi * radius`.
+**Explanation:** The binding checks `missing(value)`, if someone tries to assign, it errors. Otherwise it computes and returns `2 * pi * radius`.
 
 </details>
 
 ## How does finalize() clean up resources?
 
-When an R6 object manages external resources — a database connection, a temporary file, a network socket — you need a way to release them when the object is no longer needed. The `finalize()` method runs automatically when R's garbage collector reclaims the object.
+When an R6 object manages external resources, a database connection, a temporary file, a network socket, you need a way to release them when the object is no longer needed. The `finalize()` method runs automatically when R's garbage collector reclaims the object.
 
 ```r
 TempFile <- R6Class("TempFile",
@@ -607,7 +607,7 @@ gc()
 When `rm(tf)` removes the last reference and `gc()` runs, R6 calls `finalize()` which deletes the temp file. Without a finalizer, temp files would accumulate until the R session ends.
 
 [NOTE]
-**Make finalize() private — there's no reason for external code to call it directly.** If someone needs to release resources early (before garbage collection), provide a public `close()` or `disconnect()` method that calls the same cleanup logic, then set a flag so `finalize()` skips already-cleaned objects.
+**Make finalize() private, there's no reason for external code to call it directly.** If someone needs to release resources early (before garbage collection), provide a public `close()` or `disconnect()` method that calls the same cleanup logic, then set a flag so `finalize()` skips already-cleaned objects.
 
 **Try it:** Modify the TempFile class to add a public `close()` method that calls the cleanup logic and a private `.closed` flag that prevents double-cleanup in `finalize()`.
 
@@ -723,7 +723,7 @@ cat("Non-portable:", np$get_x(), np$get_secret(), "\n")
 #> Non-portable: 10 42
 ```
 
-Both produce the same result. The difference is readability and cross-package compatibility. In portable classes, `self$x` makes it explicit that you're reading a field, not a local variable. In non-portable classes, bare `x` is ambiguous — is it a field or something from an outer scope?
+Both produce the same result. The difference is readability and cross-package compatibility. In portable classes, `self$x` makes it explicit that you're reading a field, not a local variable. In non-portable classes, bare `x` is ambiguous, is it a field or something from an outer scope?
 
 [TIP]
 **Always use portable classes (the default). Non-portable exists for backward compatibility only.** Portable classes work correctly across package boundaries, are explicit about field access, and avoid name collisions between local variables and fields. There's no performance difference.
@@ -957,7 +957,7 @@ ci$describe()
 #> A green shape — Circle r = 5 , area = 78.54
 ```
 
-**Explanation:** Both children override `describe()` and define their own `area` active binding. The polymorphism means `obj$area` works on any shape — the correct formula runs based on the actual class.
+**Explanation:** Both children override `describe()` and define their own `area` active binding. The polymorphism means `obj$area` works on any shape, the correct formula runs based on the actual class.
 
 </details>
 
@@ -1039,7 +1039,7 @@ tryCatch(cfg$timeout <- 99, error = function(e) cat("Blocked:", e$message, "\n")
 
 ## Putting It All Together
 
-Let's combine inheritance, private fields, active bindings, and finalize into a realistic class hierarchy — a data pipeline system.
+Let's combine inheritance, private fields, active bindings, and finalize into a realistic class hierarchy, a data pipeline system.
 
 ```r
 # Parent: base data source with connection management
@@ -1193,12 +1193,12 @@ This example brings together every concept from the tutorial. DataSource defines
 
 | Feature | Syntax | When to use | Watch out for |
 |---------|--------|-------------|---------------|
-| Inheritance | `R6Class("Child", inherit = Parent)` | Share logic across related classes | Single inheritance only — use composition for multi-source behavior |
+| Inheritance | `R6Class("Child", inherit = Parent)` | Share logic across related classes | Single inheritance only, use composition for multi-source behavior |
 | super$ | `super$method()` or `super$initialize()` | Call parent implementation from override | super$ can't access parent's private *fields*, only methods |
 | Private fields | `private = list(x = ...)`, access via `private$x` | Hide internal state from external code | Subclasses access private *methods* but not *fields* |
 | Active bindings | `active = list(field = function(value) {...})` | Computed properties, validation, read-only fields | Check `missing(value)` to distinguish get from set |
-| Finalize | `private = list(finalize = function() {...})` | Release external resources (files, connections) | Runs during GC — timing is unpredictable; provide a public close() too |
-| Portable | `portable = TRUE` (default) | Always — cross-package compatible, explicit | Non-portable exists for legacy reasons only |
+| Finalize | `private = list(finalize = function() {...})` | Release external resources (files, connections) | Runs during GC, timing is unpredictable; provide a public close() too |
+| Portable | `portable = TRUE` (default) | Always, cross-package compatible, explicit | Non-portable exists for legacy reasons only |
 
 ![How R6 inheritance links parent, child, and grandchild classes via inherit and super$](screenshots/R6-Advanced-inheritance-chain.webp)
 
@@ -1210,15 +1210,15 @@ This example brings together every concept from the tutorial. DataSource defines
 
 ## References
 
-1. Wickham, H. — *Advanced R*, 2nd Edition. CRC Press (2019). Chapter 14: R6. [Link](https://adv-r.hadley.nz/r6.html)
-2. Chang, W. — R6: Encapsulated Classes with Reference Semantics (package vignette). [Link](https://r6.r-lib.org/articles/Introduction.html)
-3. R6 CRAN documentation — R6Class reference. [Link](https://cran.r-project.org/web/packages/R6/R6.pdf)
-4. Chang, W. — R6 package GitHub repository. [Link](https://github.com/r-lib/R6)
-5. R6 GitHub Issue #45 — Accessing private methods of superclass (discussion on field vs method access). [Link](https://github.com/r-lib/R6/issues/45)
-6. Wickham, H. & Grolemund, G. — *R for Data Science*, 2nd Edition. O'Reilly (2023). [Link](https://r4ds.hadley.nz/)
+1. Wickham, H., *Advanced R*, 2nd Edition. CRC Press (2019). Chapter 14: R6. [Link](https://adv-r.hadley.nz/r6.html)
+2. Chang, W., R6: Encapsulated Classes with Reference Semantics (package vignette). [Link](https://r6.r-lib.org/articles/Introduction.html)
+3. R6 CRAN documentation, R6Class reference. [Link](https://cran.r-project.org/web/packages/R6/R6.pdf)
+4. Chang, W., R6 package GitHub repository. [Link](https://github.com/r-lib/R6)
+5. R6 GitHub Issue #45, Accessing private methods of superclass (discussion on field vs method access). [Link](https://github.com/r-lib/R6/issues/45)
+6. Wickham, H. & Grolemund, G., *R for Data Science*, 2nd Edition. O'Reilly (2023). [Link](https://r4ds.hadley.nz/)
 
 ## Continue Learning
 
-- [R6 Classes in R](R6-Classes-in-R.html) — R6 fundamentals: creating classes, public fields, reference semantics, and basic active bindings.
-- [OOP in R: S3, S4, and R6](OOP-in-R.html) — Compare all three OOP systems side by side and learn when to use each.
-- [S4 Classes in R](S4-Classes-in-R.html) — Formal OOP with multiple dispatch, validity checking, and the method/generic system.
+- [R6 Classes in R](R6-Classes-in-R.html), R6 fundamentals: creating classes, public fields, reference semantics, and basic active bindings.
+- [OOP in R: S3, S4, and R6](OOP-in-R.html), Compare all three OOP systems side by side and learn when to use each.
+- [S4 Classes in R](S4-Classes-in-R.html), Formal OOP with multiple dispatch, validity checking, and the method/generic system.

@@ -18,7 +18,7 @@ difficulty: "Beginner"
 
 # R's Condition System: Handle Errors, Warnings & Messages Like a Pro
 
-<p class="lead">R's condition system is the mechanism R uses to signal and handle errors, warnings, and messages while code is running. Unlike a simple <code>try/catch</code> in other languages, it lets you decide — per signal, per line — whether a problem should stop you, warn you, or just be noted.</p>
+<p class="lead">R's condition system is the mechanism R uses to signal and handle errors, warnings, and messages while code is running. Unlike a simple <code>try/catch</code> in other languages, it lets you decide, per signal, per line, whether a problem should stop you, warn you, or just be noted.</p>
 
 ## Why do you need R's condition system at all?
 
@@ -45,7 +45,7 @@ results
 #> [1] 50.0 25.0   NA 20.0   NA 12.5
 ```
 
-The loop completes. Row 3 and row 5 would have crashed a naive version, but `tryCatch()` intercepted each `stop()`, returned `NA`, and let the loop move on. The *signaler* (`safe_divide`) doesn't know or care what the caller wants to do — it just raises the flag. The *handler* makes the policy decision.
+The loop completes. Row 3 and row 5 would have crashed a naive version, but `tryCatch()` intercepted each `stop()`, returned `NA`, and let the loop move on. The *signaler* (`safe_divide`) doesn't know or care what the caller wants to do, it just raises the flag. The *handler* makes the policy decision.
 
 [KEY INSIGHT]
 **Conditions decouple signaling from policy.** The function that detects a problem doesn't need to know whether the caller wants to crash, log, retry, or substitute a default. That decision lives with the caller, exactly where it belongs.
@@ -84,7 +84,7 @@ sapply(c(10, -1, 0, 2.5), ex_safe_call)
 
 ## How do message(), warning(), and stop() differ?
 
-R gives you three built-in ways to signal something unusual. They sit on a ladder of severity: `message()` is a gentle note, `warning()` flags a real problem that didn't stop progress, and `stop()` hard-aborts. Picking the right one is a communication decision — are you informing, cautioning, or refusing?
+R gives you three built-in ways to signal something unusual. They sit on a ladder of severity: `message()` is a gentle note, `warning()` flags a real problem that didn't stop progress, and `stop()` hard-aborts. Picking the right one is a communication decision, are you informing, cautioning, or refusing?
 
 ![Severity ladder from message to stop](screenshots/R-Conditions-System-signal-severity.webp)
 *Figure 1: message(), warning(), and stop() form a ladder of increasing severity. All three can be handled.*
@@ -102,7 +102,7 @@ greet("Selva")
 #> [1] "Hello, Selva!"
 ```
 
-The message appears, then the returned string appears — execution never paused. Messages are the right tool for progress updates, "I'm using the default" notices, or debug tracing.
+The message appears, then the returned string appears, execution never paused. Messages are the right tool for progress updates, "I'm using the default" notices, or debug tracing.
 
 Next, `warning()`. A warning says "I did the thing you asked, but you should probably know about this":
 
@@ -136,7 +136,7 @@ require_positive(16)
 #> Error in require_positive(-4): x must be non-negative, got -4
 ```
 
-`stop()` unwinds the call stack until something handles it. If nothing does, the whole top-level expression fails — that's what you see at the console when your script crashes.
+`stop()` unwinds the call stack until something handles it. If nothing does, the whole top-level expression fails, that's what you see at the console when your script crashes.
 
 [NOTE]
 **message() writes to stderr, not stdout.** If you try to capture the greeting with `capture.output()`, you get the return value but not the message text. Use `capture.output(..., type = "message")` to capture the message stream instead.
@@ -182,7 +182,7 @@ ex_check_age(30)
 
 ## How does tryCatch() catch errors and warnings?
 
-`tryCatch()` is the workhorse handler. You wrap an expression in it and pass named arguments — `error`, `warning`, `message`, `finally` — that say what to do when each kind of condition fires. The handler is a function that takes the condition object and returns a value that *replaces* the original expression's value.
+`tryCatch()` is the workhorse handler. You wrap an expression in it and pass named arguments, `error`, `warning`, `message`, `finally`, that say what to do when each kind of condition fires. The handler is a function that takes the condition object and returns a value that *replaces* the original expression's value.
 
 Let's start with the error branch. A common pattern is "try to parse this, and give me a default if it fails":
 
@@ -219,12 +219,12 @@ strict_parse(c("1", "2", "oops"))
 #> [1] NA
 ```
 
-The function `coerce_numeric()` (from earlier) raises a warning; `strict_parse()` catches it, logs the reason, and returns `NA_real_`. Notice we're using the condition's own message via `conditionMessage()` — the standard way to read what a signaler said.
+The function `coerce_numeric()` (from earlier) raises a warning; `strict_parse()` catches it, logs the reason, and returns `NA_real_`. Notice we're using the condition's own message via `conditionMessage()`, the standard way to read what a signaler said.
 
 [TIP]
-**List handlers from specific to general.** `tryCatch()` dispatches on the first matching handler. Put narrow classes (like a custom `validation_error`) *before* the generic `error` handler, or your custom class will never be seen — the generic one will swallow it first.
+**List handlers from specific to general.** `tryCatch()` dispatches on the first matching handler. Put narrow classes (like a custom `validation_error`) *before* the generic `error` handler, or your custom class will never be seen, the generic one will swallow it first.
 
-The `finally` argument runs no matter what — success, error, or warning. That makes it the right place for cleanup code:
+The `finally` argument runs no matter what, success, error, or warning. That makes it the right place for cleanup code:
 
 ```r
 with_temp_file <- function() {
@@ -290,7 +290,7 @@ ex_result
 ![tryCatch unwinds; withCallingHandlers resumes](screenshots/R-Conditions-System-handler-flow.webp)
 *Figure 2: tryCatch() unwinds the stack and returns the handler's value. withCallingHandlers() runs the handler and resumes the original code.*
 
-Think of a car alarm. `tryCatch()` is the kind that kills the ignition when something's wrong — the car stops moving. `withCallingHandlers()` is the kind that beeps: you hear the warning, but the car keeps driving. For *logging*, auditing, or counting, you almost always want the beeping version.
+Think of a car alarm. `tryCatch()` is the kind that kills the ignition when something's wrong, the car stops moving. `withCallingHandlers()` is the kind that beeps: you hear the warning, but the car keeps driving. For *logging*, auditing, or counting, you almost always want the beeping version.
 
 ```r
 noisy_sum <- function(x) {
@@ -314,7 +314,7 @@ warn_log
 
 `noisy_sum()` raises a warning. The calling handler appends the message to `warn_log`, returns, and then the original `sum()` expression resumes and produces `9`. Both things happen: the log has the warning *and* the computation finishes.
 
-There's a subtle catch, though. By default, a warning signaled via `withCallingHandlers()` still prints to the console after the handler runs — R considers the handler and the default print as independent steps. To silence the original warning after handling it, use `invokeRestart("muffleWarning")`:
+There's a subtle catch, though. By default, a warning signaled via `withCallingHandlers()` still prints to the console after the handler runs, R considers the handler and the default print as independent steps. To silence the original warning after handling it, use `invokeRestart("muffleWarning")`:
 
 ```r
 warn_log <- character()
@@ -332,10 +332,10 @@ warn_log
 #> [1] "NAs present, they will be dropped"
 ```
 
-Same result, but the warning is now captured in `warn_log` only — nothing extra prints. For messages, use `invokeRestart("muffleMessage")`. These "muffle" restarts are built into R's warning and message signaling; custom conditions won't have them unless you wire them up yourself.
+Same result, but the warning is now captured in `warn_log` only, nothing extra prints. For messages, use `invokeRestart("muffleMessage")`. These "muffle" restarts are built into R's warning and message signaling; custom conditions won't have them unless you wire them up yourself.
 
 [WARNING]
-**Calling handlers cannot fix an error.** If the signal is an error, the stack has to unwind somewhere — the only question is where. `withCallingHandlers()` on an `error` will run your handler, then R still unwinds to the nearest `tryCatch()` (or the top level). Pair the two when you need "log *and* recover": outer `tryCatch()` for the recovery, inner `withCallingHandlers()` for the logging.
+**Calling handlers cannot fix an error.** If the signal is an error, the stack has to unwind somewhere, the only question is where. `withCallingHandlers()` on an `error` will run your handler, then R still unwinds to the nearest `tryCatch()` (or the top level). Pair the two when you need "log *and* recover": outer `tryCatch()` for the recovery, inner `withCallingHandlers()` for the logging.
 
 **Try it:** Use `withCallingHandlers()` to count how many warnings `noisy_sum()` raises while still getting the sum.
 
@@ -375,7 +375,7 @@ list(total = ex_total, count = ex_warn_count)
 
 ## How do you build custom condition classes?
 
-So far every condition has been a generic `simpleError`, `simpleWarning`, or `simpleMessage`. That works, but it forces handlers to match on the error *message string* — which is brittle, locale-dependent, and breaks the moment you reword a sentence. The cleaner approach is to give each kind of condition its own class and match on the class.
+So far every condition has been a generic `simpleError`, `simpleWarning`, or `simpleMessage`. That works, but it forces handlers to match on the error *message string*, which is brittle, locale-dependent, and breaks the moment you reword a sentence. The cleaner approach is to give each kind of condition its own class and match on the class.
 
 R's conditions are just lists with a `class` attribute. The helpers `errorCondition()` and `warningCondition()` let you attach both a human message and structured fields that handlers can read programmatically.
 
@@ -403,7 +403,7 @@ tryCatch(
 #> [1] "caught: invalid value for age: forty"
 ```
 
-`bad_input_error()` builds an error object with class `bad_input_error` (chained with `error` and `condition` by `errorCondition()`). `validate()` signals it via `stop()`. The handler sees an `error` and catches it like any other — but now the condition object carries `field` and `value` attributes the handler can inspect without parsing text.
+`bad_input_error()` builds an error object with class `bad_input_error` (chained with `error` and `condition` by `errorCondition()`). `validate()` signals it via `stop()`. The handler sees an `error` and catches it like any other, but now the condition object carries `field` and `value` attributes the handler can inspect without parsing text.
 
 The real win comes when you dispatch on the class. `tryCatch()` walks its named handlers and matches *by S3 class*, so you can handle `bad_input_error` differently from a plain `error`:
 
@@ -430,7 +430,7 @@ handle_one(stop("something else broke"))
 #> [1] NA
 ```
 
-Both errors end up at `NA_real_`, but the *handling* is different. The custom class lets you pretty-print, log structured fields, or retry selectively — all without ever reading the message text.
+Both errors end up at `NA_real_`, but the *handling* is different. The custom class lets you pretty-print, log structured fields, or retry selectively, all without ever reading the message text.
 
 [KEY INSIGHT]
 **Classing conditions turns error handling from string-matching into type-matching.** You stop asking "what does the message say?" and start asking "what kind of problem is this?" That's the exact same shift that exception types give you in Java or Python, available in base R without any extra package.
@@ -603,13 +603,13 @@ pretty_validate("Selva", 30)
 #> [1] 30
 ```
 
-**Explanation:** Each failure mode raises the same class but carries different `field`/`reason` fields. The caller dispatches once on `validation_error` and reads the structured fields — no string parsing, no fragility if the message text changes.
+**Explanation:** Each failure mode raises the same class but carries different `field`/`reason` fields. The caller dispatches once on `validation_error` and reads the structured fields, no string parsing, no fragility if the message text changes.
 
 </details>
 
 ## Complete Example: a robust record loader
 
-Let's put it all together. We'll build `safe_loader(records)` that walks a list of hand-built records (simulating parsed CSV rows), skips the bad ones, logs every warning, and returns both the good data and a list of per-row errors — the kind of function you'd actually ship in a data pipeline.
+Let's put it all together. We'll build `safe_loader(records)` that walks a list of hand-built records (simulating parsed CSV rows), skips the bad ones, logs every warning, and returns both the good data and a list of per-row errors, the kind of function you'd actually ship in a data pipeline.
 
 ```r
 # A custom class so we can tell parse errors apart from programmer bugs
@@ -698,24 +698,24 @@ Three records survive, three are captured as structured errors, one warning is l
 | `warning()` | Problem, kept going | No | Silent bugs you want surfaced |
 | `stop()` | Error, refuses to continue | Yes | Unrecoverable problems |
 | `tryCatch()` | Exiting handler | Unwinds the stack | Replace the value, recover, run cleanup |
-| `withCallingHandlers()` | Calling handler | Resumes | Log, count, audit — without disturbing the result |
-| `errorCondition()` | Build a classed condition | — | Structured, typed errors with fields |
-| `invokeRestart("muffleWarning")` | Silence the default print | — | Inside a calling handler, after you've logged |
+| `withCallingHandlers()` | Calling handler | Resumes | Log, count, audit, without disturbing the result |
+| `errorCondition()` | Build a classed condition |, | Structured, typed errors with fields |
+| `invokeRestart("muffleWarning")` | Silence the default print |, | Inside a calling handler, after you've logged |
 
-The key mental model: *signaling* is one thing (the function that finds the problem) and *handling* is a separate decision (what the caller wants to do about it). Picking the right signal — message, warning, stop — is a communication choice. Picking the right handler — `tryCatch()` vs `withCallingHandlers()` — is a control-flow choice. Custom condition classes make both ends less brittle.
+The key mental model: *signaling* is one thing (the function that finds the problem) and *handling* is a separate decision (what the caller wants to do about it). Picking the right signal, message, warning, stop, is a communication choice. Picking the right handler, `tryCatch()` vs `withCallingHandlers()`, is a control-flow choice. Custom condition classes make both ends less brittle.
 
 ## References
 
-1. Wickham, H. — *Advanced R*, 2nd Edition. Chapter 8: Conditions. [Link](https://adv-r.hadley.nz/conditions.html)
-2. R Core Team — `conditions` help page. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/conditions.html)
-3. rlang documentation — `abort()`, `warn()`, `inform()`. [Link](https://rlang.r-lib.org/reference/abort.html)
-4. Peng, R. D. — *Mastering Software Development in R*, §2.5 Error Handling and Generation. [Link](https://bookdown.org/rdpeng/RProgDA/error-handling-and-generation.html)
-5. Advanced R Solutions — Chapter 8 exercises. [Link](https://advanced-r-solutions.rbind.io/conditions)
-6. tryCatchLog vignette — structured logging around tryCatch. [Link](https://cran.r-project.org/web/packages/tryCatchLog/vignettes/tryCatchLog-intro.html)
-7. Seibel, P. — *Beyond Exception Handling: Conditions and Restarts* (ported to R by Wickham). [Link](http://adv-r.had.co.nz/beyond-exception-handling.html)
+1. Wickham, H., *Advanced R*, 2nd Edition. Chapter 8: Conditions. [Link](https://adv-r.hadley.nz/conditions.html)
+2. R Core Team, `conditions` help page. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/conditions.html)
+3. rlang documentation, `abort()`, `warn()`, `inform()`. [Link](https://rlang.r-lib.org/reference/abort.html)
+4. Peng, R. D., *Mastering Software Development in R*, §2.5 Error Handling and Generation. [Link](https://bookdown.org/rdpeng/RProgDA/error-handling-and-generation.html)
+5. Advanced R Solutions, Chapter 8 exercises. [Link](https://advanced-r-solutions.rbind.io/conditions)
+6. tryCatchLog vignette, structured logging around tryCatch. [Link](https://cran.r-project.org/web/packages/tryCatchLog/vignettes/tryCatchLog-intro.html)
+7. Seibel, P., *Beyond Exception Handling: Conditions and Restarts* (ported to R by Wickham). [Link](http://adv-r.had.co.nz/beyond-exception-handling.html)
 
 ## Continue Learning
 
-- [Writing R Functions](R-Functions.html) — the anatomy of the functions where conditions get signaled.
-- [R Control Flow](R-Control-Flow.html) — how `if`, `for`, and `while` interact with `stop()` and `break`.
-- [R Special Values](R-Special-Values.html) — `NA`, `NULL`, `NaN`, `Inf`, and when to return each from a handler.
+- [Writing R Functions](R-Functions.html), the anatomy of the functions where conditions get signaled.
+- [R Control Flow](R-Control-Flow.html), how `if`, `for`, and `while` interact with `stop()` and `break`.
+- [R Special Values](R-Special-Values.html), `NA`, `NULL`, `NaN`, `Inf`, and when to return each from a handler.

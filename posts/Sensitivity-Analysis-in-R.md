@@ -20,11 +20,11 @@ difficulty: "Intermediate"
 
 ## Introduction
 
-You run a regression, get a significant p-value, and write up your results. But would that result survive if you dropped three outliers? Used a different set of control variables? Switched to a non-parametric model? If you cannot answer those questions, your finding is fragile — and fragile findings embarrass researchers, mislead clients, and fail peer review.
+You run a regression, get a significant p-value, and write up your results. But would that result survive if you dropped three outliers? Used a different set of control variables? Switched to a non-parametric model? If you cannot answer those questions, your finding is fragile, and fragile findings embarrass researchers, mislead clients, and fail peer review.
 
 Sensitivity analysis is a structured approach to answering these questions. Instead of reporting a single model and hoping nobody asks "what if," you systematically vary your analytical decisions and check whether your main conclusion persists. Think of it as stress-testing a bridge. A bridge that holds under perfect conditions is not impressive. A bridge that holds under wind, rain, and heavy traffic is trustworthy.
 
-In this tutorial, you will learn five practical approaches to sensitivity analysis — all in base R with no external packages required. By the end, you will be able to take any regression result and determine whether it is robust or fragile.
+In this tutorial, you will learn five practical approaches to sensitivity analysis, all in base R with no external packages required. By the end, you will be able to take any regression result and determine whether it is robust or fragile.
 
 ![Sensitivity Analysis Workflow](screenshots/Sensitivity-Analysis-in-R-workflow.webp)
 
@@ -34,7 +34,7 @@ In this tutorial, you will learn five practical approaches to sensitivity analys
 
 Every statistical analysis involves dozens of decisions: which observations to include, which variables to control for, which model to fit, how to handle missing data. Each decision is defensible on its own, but different analysts making different defensible choices can reach different conclusions from the same data. This is the "garden of forking paths" problem.
 
-Sensitivity analysis makes this problem explicit. You systematically vary your decisions and observe whether your main finding — the sign, magnitude, and significance of your key coefficient — remains stable.
+Sensitivity analysis makes this problem explicit. You systematically vary your decisions and observe whether your main finding, the sign, magnitude, and significance of your key coefficient, remains stable.
 
 [KEY INSIGHT]
 **A robust finding persists across reasonable alternative specifications.** If your result only holds under one specific set of choices, it is a statistical coincidence, not a scientific discovery.
@@ -111,7 +111,7 @@ summary(ex_interaction)$coefficients["training_hours", ]
 
 ## How Do You Test Sensitivity to Outliers?
 
-Outliers can inflate or deflate your estimated effects. A single extreme observation can pull a regression line dramatically, turning a non-significant result into a significant one — or vice versa. The question is not "are there outliers?" (there almost always are), but "do my conclusions change if I remove them?"
+Outliers can inflate or deflate your estimated effects. A single extreme observation can pull a regression line dramatically, turning a non-significant result into a significant one, or vice versa. The question is not "are there outliers?" (there almost always are), but "do my conclusions change if I remove them?"
 
 Cook's distance is the standard measure for identifying influential observations. It quantifies how much all predicted values change when a single observation is removed. The common threshold is 4/n, where n is the sample size.
 
@@ -163,7 +163,7 @@ print(comparison_outlier)
 The training hours coefficient drops by about 8.5% when we remove outliers, but it remains positive and statistically significant. This is reassuring. A coefficient that flips sign or loses significance after removing a handful of observations is a red flag.
 
 [WARNING]
-**Never remove outliers just to improve p-values.** Sensitivity analysis checks whether outliers drive your conclusion. Removing them from the final reported model requires documented substantive justification — not statistical convenience.
+**Never remove outliers just to improve p-values.** Sensitivity analysis checks whether outliers drive your conclusion. Removing them from the final reported model requires documented substantive justification, not statistical convenience.
 
 **Try it:** How many observations have a Cook's distance greater than 1? This extreme threshold identifies observations that single-handedly shift the entire regression.
 
@@ -195,7 +195,7 @@ A specification curve tests whether your conclusion holds across multiple defens
 
 The idea is simple: different analysts might reasonably include different covariates, use different samples, or apply different transformations. If your finding is robust, it should hold across most of these choices.
 
-Let's define four specifications — each representing a defensible analytical choice — and compare the effect of training hours across all of them.
+Let's define four specifications, each representing a defensible analytical choice, and compare the effect of training hours across all of them.
 
 ```r
 # Define 4 model specifications
@@ -235,7 +235,7 @@ print(spec_results)
 The training hours coefficient stays between 0.31 and 0.35 across all four specifications. It is significant in every one. This is strong evidence of robustness.
 
 [TIP]
-**Start with the simplest specification and add complexity.** If the coefficient flips sign when you add a covariate, that covariate is likely a confounder or mediator — and you need to think carefully about your causal model before proceeding.
+**Start with the simplest specification and add complexity.** If the coefficient flips sign when you add a covariate, that covariate is likely a confounder or mediator, and you need to think carefully about your causal model before proceeding.
 
 Now let's visualize this as a specification curve. A dotchart makes the pattern immediately clear.
 
@@ -348,7 +348,7 @@ print(comparison)
 All three methods agree: the relationship between training hours and satisfaction is positive and significant. When OLS and a non-parametric approach agree, your finding is robust to distributional assumptions.
 
 [KEY INSIGHT]
-**Agreement across model types is stronger evidence than any single model.** If OLS says "positive and significant" but a rank-based test says "not significant," your finding depends on distributional assumptions — and you need to figure out which model is more appropriate for your data.
+**Agreement across model types is stronger evidence than any single model.** If OLS says "positive and significant" but a rank-based test says "not significant," your finding depends on distributional assumptions, and you need to figure out which model is more appropriate for your data.
 
 **Try it:** Fit a model using `log(satisfaction)` as the outcome and compare the sign of the `training_hours` coefficient to the OLS result.
 
@@ -434,7 +434,7 @@ cat("Zero inside 95% CI:", boot_ci[1] < 0 & boot_ci[2] > 0, "\n")
 Zero percent of bootstrap samples flipped sign, and zero is not inside the 95% confidence interval. This is a highly stable finding. By contrast, a fragile finding might show 10-20% sign flips.
 
 [TIP]
-**If more than 5% of bootstrap samples flip the sign, treat the finding as fragile.** Report the sign-flip percentage alongside your confidence interval — it gives readers an intuitive measure of stability that p-values alone cannot provide.
+**If more than 5% of bootstrap samples flip the sign, treat the finding as fragile.** Report the sign-flip percentage alongside your confidence interval, it gives readers an intuitive measure of stability that p-values alone cannot provide.
 
 **Try it:** Reduce the bootstrap to 500 iterations. Does the confidence interval width change noticeably?
 
@@ -493,7 +493,7 @@ cat("2000-sample width:", round(diff(boot_ci), 4), "\n")
 
 **Wrong:** You fit OLS, get a significant result, and write "our findings are robust."
 
-**Why it is wrong:** Robustness requires evidence of stability across alternatives, not a declaration. One model is one specification — not a sensitivity analysis.
+**Why it is wrong:** Robustness requires evidence of stability across alternatives, not a declaration. One model is one specification, not a sensitivity analysis.
 
 **Correct:** Test at least 3-4 specifications (different covariates, different models, with/without outliers) and report the range of results.
 
@@ -565,7 +565,7 @@ cat("\nRange as % of mean:", round(my_range_pct, 1), "%\n")
 #> Range as % of mean: ~25-40%
 ```
 
-**Explanation:** The experience coefficient is less stable than training_hours — it varies more across specifications because it is a weaker predictor. This is itself a useful finding: training_hours is robustly significant, while experience is sensitive to specification.
+**Explanation:** The experience coefficient is less stable than training_hours, it varies more across specifications because it is a weaker predictor. This is itself a useful finding: training_hours is robustly significant, while experience is sensitive to specification.
 
 </details>
 
@@ -680,7 +680,7 @@ cat(rep("=", 52), "\n")
 #> ====================================================
 ```
 
-This report gives you — and your reader, reviewer, or client — complete confidence that the finding is not an artifact of one specific modeling choice.
+This report gives you, and your reader, reviewer, or client, complete confidence that the finding is not an artifact of one specific modeling choice.
 
 ## Summary
 
@@ -698,7 +698,7 @@ The core principle is simple: if your finding survives all five tests, report it
 
 **How many specifications should I test in a specification curve?**
 
-At least 4-6 is a good minimum for a consulting report. Published specification curve analyses often test 20-100+ specifications. The key is that every specification must be defensible — don't include absurd models just to pad the count.
+At least 4-6 is a good minimum for a consulting report. Published specification curve analyses often test 20-100+ specifications. The key is that every specification must be defensible, don't include absurd models just to pad the count.
 
 **Is sensitivity analysis the same as power analysis?**
 
@@ -706,7 +706,7 @@ No. Power analysis asks "do I have enough data to detect an effect?" before you 
 
 **Should I always remove outliers flagged by Cook's distance?**
 
-No. Cook's distance identifies influential observations — it does not label them as "wrong." An influential observation might be perfectly valid data from an unusual case. Sensitivity analysis shows you whether outliers matter, but the decision to remove them requires substantive justification (data entry error, measurement malfunction, etc.), not statistical convenience.
+No. Cook's distance identifies influential observations, it does not label them as "wrong." An influential observation might be perfectly valid data from an unusual case. Sensitivity analysis shows you whether outliers matter, but the decision to remove them requires substantive justification (data entry error, measurement malfunction, etc.), not statistical convenience.
 
 **How many bootstrap iterations are enough?**
 
@@ -714,14 +714,14 @@ For confidence intervals, 2000 is the standard recommendation. For simple sign-f
 
 ## References
 
-1. Simonsohn, U., Simmons, J., & Nelson, L. — Specification Curve Analysis. *Nature Human Behaviour* (2020). [Link](https://doi.org/10.1038/s41562-020-0912-z)
-2. Cinelli, C. & Hazlett, C. — Making Sense of Sensitivity: Extending Omitted Variable Bias. *Journal of the Royal Statistical Society: Series B* (2020). [Link](https://doi.org/10.1111/rssb.12348)
-3. R Core Team — *R: A Language and Environment for Statistical Computing*. R Foundation for Statistical Computing. [Link](https://www.R-project.org/)
-4. Efron, B. & Tibshirani, R. — *An Introduction to the Bootstrap*. Chapman & Hall/CRC (1993). [Link](https://doi.org/10.1201/9780429246593)
-5. Cook, R.D. — Detection of Influential Observation in Linear Regression. *Technometrics*, 19(1), 15-18 (1977). [Link](https://doi.org/10.2307/1268249)
-6. Steegen, S., Tuerlinckx, F., Gelman, A., & Vanpaemel, W. — Increasing Transparency Through a Multiverse Analysis. *Perspectives on Psychological Science*, 11(5), 702-712 (2016). [Link](https://doi.org/10.1177/1745691616658637)
+1. Simonsohn, U., Simmons, J., & Nelson, L., Specification Curve Analysis. *Nature Human Behaviour* (2020). [Link](https://doi.org/10.1038/s41562-020-0912-z)
+2. Cinelli, C. & Hazlett, C., Making Sense of Sensitivity: Extending Omitted Variable Bias. *Journal of the Royal Statistical Society: Series B* (2020). [Link](https://doi.org/10.1111/rssb.12348)
+3. R Core Team, *R: A Language and Environment for Statistical Computing*. R Foundation for Statistical Computing. [Link](https://www.R-project.org/)
+4. Efron, B. & Tibshirani, R., *An Introduction to the Bootstrap*. Chapman & Hall/CRC (1993). [Link](https://doi.org/10.1201/9780429246593)
+5. Cook, R.D., Detection of Influential Observation in Linear Regression. *Technometrics*, 19(1), 15-18 (1977). [Link](https://doi.org/10.2307/1268249)
+6. Steegen, S., Tuerlinckx, F., Gelman, A., & Vanpaemel, W., Increasing Transparency Through a Multiverse Analysis. *Perspectives on Psychological Science*, 11(5), 702-712 (2016). [Link](https://doi.org/10.1177/1745691616658637)
 
 ## Continue Learning
 
-- **[Outlier Detection in R](Outlier-Detection-in-R.html)** — A deep dive into identifying outliers using statistical methods, from z-scores to isolation forests.
-- **[Pre-Analysis Plans in R](Pre-Analysis-Plans-in-R.html)** — Learn to commit your hypotheses and analysis plan before seeing data, preventing the garden of forking paths.
+- **[Outlier Detection in R](Outlier-Detection-in-R.html)**, A deep dive into identifying outliers using statistical methods, from z-scores to isolation forests.
+- **[Pre-Analysis Plans in R](Pre-Analysis-Plans-in-R.html)**, Learn to commit your hypotheses and analysis plan before seeing data, preventing the garden of forking paths.

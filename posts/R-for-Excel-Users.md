@@ -1,7 +1,7 @@
 ---
 title: "R for Excel Users: Your Entire Excel Workflow, Translated to R"
 slug: "R-for-Excel-Users"
-description: "Every common Excel operation — VLOOKUP, pivot tables, IF formulas, filters, and charts — mapped to its exact R equivalent with runnable side-by-side code."
+description: "Every common Excel operation, VLOOKUP, pivot tables, IF formulas, filters, and charts, mapped to its exact R equivalent with runnable side-by-side code."
 keywords: "R for Excel users, Excel to R, VLOOKUP in R, pivot table in R, dplyr for Excel users, Excel functions in R, IF formula R, SUMIF R, Excel to dplyr"
 auto_link_terms: "R for Excel users|Excel to R|VLOOKUP in R|pivot table in R|Excel to dplyr|R for spreadsheet users"
 auto_link_case_sensitive: false
@@ -16,13 +16,13 @@ difficulty: "Intermediate"
 
 # R for Excel Users: Your Entire Excel Workflow, Translated to R
 
-<p class="lead">Every VLOOKUP, pivot table, IF formula, filter, sort, and chart you use in Excel has a direct one-line equivalent in R — and this guide maps each one, with runnable code you can edit in place.</p>
+<p class="lead">Every VLOOKUP, pivot table, IF formula, filter, sort, and chart you use in Excel has a direct one-line equivalent in R, and this guide maps each one, with runnable code you can edit in place.</p>
 
-You already think in data. Every filter, sort, formula, and pivot you build in Excel is real analysis. R does the same jobs with code instead of clicks, which means the same logic runs again next week, next quarter, and on a dataset ten times the size — without rebuilding anything by hand.
+You already think in data. Every filter, sort, formula, and pivot you build in Excel is real analysis. R does the same jobs with code instead of clicks, which means the same logic runs again next week, next quarter, and on a dataset ten times the size, without rebuilding anything by hand.
 
 ## How do you replace Excel's AutoFilter and sorting in R?
 
-AutoFilter and Sort are where Excel users spend their mornings. In R both collapse into one readable line per operation. You don't click a dropdown, tick boxes, and lose the state next time the file opens — you write `filter()` and `arrange()` once, and the same logic runs every time on any dataset with the same columns. Here is the exact translation on a small sales dataset we will reuse throughout the guide.
+AutoFilter and Sort are where Excel users spend their mornings. In R both collapse into one readable line per operation. You don't click a dropdown, tick boxes, and lose the state next time the file opens, you write `filter()` and `arrange()` once, and the same logic runs every time on any dataset with the same columns. Here is the exact translation on a small sales dataset we will reuse throughout the guide.
 
 ```r
 # Load the three packages we'll use throughout
@@ -52,7 +52,7 @@ east_bulk
 #> 3       10 East   Monitor         6        249
 ```
 
-Three rows come back — the same three that would stay visible if you clicked Region = East and typed `>5` into the Quantity filter. The difference is that this line is re-runnable tomorrow on a million rows, and it will never silently "forget" the filter because someone re-opened the file.
+Three rows come back, the same three that would stay visible if you clicked Region = East and typed `>5` into the Quantity filter. The difference is that this line is re-runnable tomorrow on a million rows, and it will never silently "forget" the filter because someone re-opened the file.
 
 Sorting is just as direct. `arrange()` takes one or more columns, and `desc()` flips the order.
 
@@ -69,10 +69,10 @@ head(sorted_sales, 4)
 #> 4        1 East   Laptop         8        999
 ```
 
-`arrange()` doesn't touch `sales` itself — it returns a sorted copy. That's a nice safety net: in Excel you have to remember to click "Sort" again on the original data to undo it. In R there is nothing to undo.
+`arrange()` doesn't touch `sales` itself, it returns a sorted copy. That's a nice safety net: in Excel you have to remember to click "Sort" again on the original data to undo it. In R there is nothing to undo.
 
 [KEY INSIGHT]
-**Filter picks rows, arrange reorders them.** Two verbs, one grammar — and both are re-runnable, which is what Excel sorts and filters are not.
+**Filter picks rows, arrange reorders them.** Two verbs, one grammar, and both are re-runnable, which is what Excel sorts and filters are not.
 
 **Try it:** Write a pipeline that keeps only West region rows where `quantity >= 10`, and save it to `ex_west_bulk`.
 
@@ -98,13 +98,13 @@ ex_west_bulk
 #> 1        7 West   Laptop        15        999
 ```
 
-**Explanation:** `&` is the "AND" operator — both conditions must be true. Excel writes this as two separate AutoFilter dropdowns; R writes it as one line.
+**Explanation:** `&` is the "AND" operator, both conditions must be true. Excel writes this as two separate AutoFilter dropdowns; R writes it as one line.
 
 </details>
 
 ## How do you write Excel formulas as R columns?
 
-In Excel you add a calculated column by typing a formula into cell `F2` and dragging it down. In R you add calculated columns with `mutate()`. The formula is written once — not once per row.
+In Excel you add a calculated column by typing a formula into cell `F2` and dragging it down. In R you add calculated columns with `mutate()`. The formula is written once, not once per row.
 
 Let's compute a revenue column (`quantity * unit_price`) and a total with 8% sales tax.
 
@@ -126,7 +126,7 @@ head(sales_rev, 3)
 
 Notice how `total_with_tax` is computed from `revenue` in the *same* `mutate()` call. Excel can't do that without referencing another cell. R evaluates left-to-right inside one `mutate()`, so the second line sees the first.
 
-Nested IFs are the other classic Excel formula headache. The R replacement is `case_when()`, which reads top to bottom and returns the value for the first condition that matches — exactly the same semantics as a chain of IFs, but you can actually read it a week later.
+Nested IFs are the other classic Excel formula headache. The R replacement is `case_when()`, which reads top to bottom and returns the value for the first condition that matches, exactly the same semantics as a chain of IFs, but you can actually read it a week later.
 
 ```r
 # Excel: =IF(revenue>10000,"High",IF(revenue>3000,"Medium","Low"))
@@ -154,10 +154,10 @@ sales_tiered |> select(order_id, region, product, revenue, tier)
 #> 10       10 East   Monitor     1494 Low
 ```
 
-The `TRUE ~ "Low"` line is the "everything else" catch-all — the same role as the final `ELSE` in a nested `IF`. Three clear rows beat one illegible `IF(IF(IF(...)))`.
+The `TRUE ~ "Low"` line is the "everything else" catch-all, the same role as the final `ELSE` in a nested `IF`. Three clear rows beat one illegible `IF(IF(IF(...)))`.
 
 [TIP]
-**case_when reads top to bottom — first match wins.** Order your conditions from most specific to most general, or the general rule will eat the specific ones before they get a chance to match.
+**case_when reads top to bottom, first match wins.** Order your conditions from most specific to most general, or the general rule will eat the specific ones before they get a chance to match.
 
 **Try it:** Add an `ex_order_size` column using `case_when` that labels each row as `"Bulk"` when `quantity > 10` and `"Single"` otherwise.
 
@@ -223,7 +223,7 @@ sales_joined |> select(order_id, product, category, brand, tier) |> head(4)
 #> 4        4 Tablet  Mobile    Zenon Low
 ```
 
-Two VLOOKUP formulas compressed into one `left_join()`. Every column from `product_info` comes across in a single call. And if a product in `sales` has no match in `product_info`, the joined row gets `NA` for the new columns — that's the exact behaviour Excel shows as `#N/A`.
+Two VLOOKUP formulas compressed into one `left_join()`. Every column from `product_info` comes across in a single call. And if a product in `sales` has no match in `product_info`, the joined row gets `NA` for the new columns, that's the exact behaviour Excel shows as `#N/A`.
 
 [WARNING]
 **Duplicate keys in the lookup silently inflate rows.** If `product_info` had two rows for "Laptop", every "Laptop" row in `sales` would be duplicated after the join. VLOOKUP hides this (it returns the first match only). `left_join()` shows you the truth. To mimic VLOOKUP, call `distinct(product_info, product, .keep_all = TRUE)` before the join.
@@ -264,7 +264,7 @@ ex_sales_mgr |> select(order_id, region, manager) |> head(3)
 #> 3        3 East   Ava
 ```
 
-**Explanation:** `left_join()` keeps every row from `sales` (the left side) and attaches the matching `manager` from the lookup. No match? You would get `NA` — exactly what `#N/A` means in Excel.
+**Explanation:** `left_join()` keeps every row from `sales` (the left side) and attaches the matching `manager` from the lookup. No match? You would get `NA`, exactly what `#N/A` means in Excel.
 
 </details>
 
@@ -272,7 +272,7 @@ ex_sales_mgr |> select(order_id, region, manager) |> head(3)
 
 An Excel pivot table has three drag zones: Rows, Columns, and Values. The R equivalents are `group_by()` (rows and columns), `summarise()` (values), and `pivot_wider()` if you want the "Columns" zone to actually spread across the page.
 
-Start with the simple case — total revenue and order count per region. That's SUMIF and COUNTIF in one pass.
+Start with the simple case, total revenue and order count per region. That's SUMIF and COUNTIF in one pass.
 
 ```r
 # Excel: Pivot table with Region in Rows, sum(revenue) and count in Values
@@ -295,7 +295,7 @@ region_summary
 
 One pipeline, four rows back, and the same answer a 30-second pivot table trip would give you in Excel. Need to do this every Monday morning? Save the script. Need to do it on a new quarter's data? Change the input, re-run.
 
-Now the full crosstab — regions as rows, products as columns, revenue in the cells. In Excel this is "drag Product into Columns". In R it's `pivot_wider()` after the group.
+Now the full crosstab, regions as rows, products as columns, revenue in the cells. In Excel this is "drag Product into Columns". In R it's `pivot_wider()` after the group.
 
 ```r
 # Excel: Pivot with Region in Rows, Product in Columns, sum(revenue) in Values
@@ -313,7 +313,7 @@ region_product_crosstab
 #> 4 West    14985       0  1797      0
 ```
 
-`values_fill = 0` does the same job as ticking "Show zero for empty cells" in Excel's pivot options — the difference is that the setting lives inside the code, so it never gets lost.
+`values_fill = 0` does the same job as ticking "Show zero for empty cells" in Excel's pivot options, the difference is that the setting lives inside the code, so it never gets lost.
 
 [KEY INSIGHT]
 **Pivot table = group_by + summarise + pivot_wider.** The first verb is the Rows box, the second is the Values box, and the third is the Columns box. Three verbs, and your pivot is reproducible forever.
@@ -345,13 +345,13 @@ ex_order_counts
 #> 4 West        2
 ```
 
-**Explanation:** `n()` inside `summarise()` counts the rows in each group — that's COUNTIF with the "criteria" already split out by `group_by`.
+**Explanation:** `n()` inside `summarise()` counts the rows in each group, that's COUNTIF with the "criteria" already split out by `group_by`.
 
 </details>
 
 ## How do you reshape Excel data without copy-paste?
 
-Reshaping is the Excel operation people dread most. In Excel you either live with a wide layout, or you use Power Query's Unpivot (and hope it still works next week). In R, reshaping is just two functions: `pivot_longer()` takes wide data to long, `pivot_wider()` goes the other way. Here's a quarterly sales frame — the shape a finance team would email you — getting turned on its side.
+Reshaping is the Excel operation people dread most. In Excel you either live with a wide layout, or you use Power Query's Unpivot (and hope it still works next week). In R, reshaping is just two functions: `pivot_longer()` takes wide data to long, `pivot_wider()` goes the other way. Here's a quarterly sales frame, the shape a finance team would email you, getting turned on its side.
 
 ```r
 # Wide quarterly layout — typical Excel shape
@@ -381,7 +381,7 @@ head(quarterly_long, 5)
 #> 5 West   Q1         8000
 ```
 
-Sixteen rows (four regions × four quarters), one row per quarter per region. Once data is in this "long" shape, every dplyr verb you already know works on it — and every ggplot2 chart expects it.
+Sixteen rows (four regions × four quarters), one row per quarter per region. Once data is in this "long" shape, every dplyr verb you already know works on it, and every ggplot2 chart expects it.
 
 [TIP]
 **Long format is the shape dplyr and ggplot2 want.** When a pipeline feels awkward, there's a good chance the data is still wide. A single `pivot_longer()` at the top usually makes the next five lines write themselves.
@@ -411,7 +411,7 @@ combo_split
 #> 3 North  Tablet     1995
 ```
 
-One function, one line, exactly the same result — and the next time a colleague sends you a sheet with the same layout, you re-run the same script.
+One function, one line, exactly the same result, and the next time a colleague sends you a sheet with the same layout, you re-run the same script.
 
 **Try it:** Given this wide two-month frame, reshape it to long format and save to `ex_long`.
 
@@ -453,7 +453,7 @@ ex_long
 
 ## How do you replace Excel charts and conditional formatting?
 
-Excel charts are tied to the shape of a selection: click a range, pick a chart type, and hope the defaults are reasonable. ggplot2 is the opposite — you describe what you want (which columns, which geometry, which aesthetic) and the chart shape follows. The payoff is that you never have to rebuild a chart when the underlying data changes.
+Excel charts are tied to the shape of a selection: click a range, pick a chart type, and hope the defaults are reasonable. ggplot2 is the opposite, you describe what you want (which columns, which geometry, which aesthetic) and the chart shape follows. The payoff is that you never have to rebuild a chart when the underlying data changes.
 
 ```r
 # Excel: Insert → Bar Chart on the pivot table
@@ -469,12 +469,12 @@ region_chart <- ggplot(region_summary, aes(x = region, y = total_revenue)) +
 region_chart
 ```
 
-Read the code as a sentence: "Plot `region_summary`, map `region` to the x-axis and `total_revenue` to the y-axis, draw columns, label them." Swap `geom_col()` for `geom_point()` and you get a dot plot. Swap `x = region` for `x = product` and you get a totally different chart — no rebuild, no resizing, no broken formulas.
+Read the code as a sentence: "Plot `region_summary`, map `region` to the x-axis and `total_revenue` to the y-axis, draw columns, label them." Swap `geom_col()` for `geom_point()` and you get a dot plot. Swap `x = region` for `x = product` and you get a totally different chart, no rebuild, no resizing, no broken formulas.
 
-Conditional formatting — the colour-by-value heatmap Excel gives you when you highlight a range and pick "Color Scales" — is just a fill aesthetic on a `geom_tile()` in ggplot2. The `gt` package does the same thing inside a table. Both are one-liners once you see the pattern.
+Conditional formatting, the colour-by-value heatmap Excel gives you when you highlight a range and pick "Color Scales", is just a fill aesthetic on a `geom_tile()` in ggplot2. The `gt` package does the same thing inside a table. Both are one-liners once you see the pattern.
 
 [NOTE]
-**Plots render directly below the code block.** Click Run and the chart appears in the output area — no PNG export, no file save, no "update linked chart" dialog.
+**Plots render directly below the code block.** Click Run and the chart appears in the output area, no PNG export, no file save, no "update linked chart" dialog.
 
 **Try it:** Build a bar chart of `total_revenue` per **product** (not region) using `sales_joined`. Hint: `group_by(product) |> summarise(total_revenue = sum(revenue))` first, then feed the result into `ggplot()`.
 
@@ -503,7 +503,7 @@ ex_product_chart <- sales_joined |>
 ex_product_chart
 ```
 
-**Explanation:** The pipe carries the summarised tibble straight into `ggplot()`. The same three-step pattern — group, summarise, plot — handles nearly every chart you'd draw in Excel.
+**Explanation:** The pipe carries the summarised tibble straight into `ggplot()`. The same three-step pattern, group, summarise, plot, handles nearly every chart you'd draw in Excel.
 
 </details>
 
@@ -547,7 +547,7 @@ my_tax_by_region
 #> 4 West      1174.7
 ```
 
-**Explanation:** Five verbs in one pipeline — filter, mutate, left_join, mutate, summarise. That's one "morning in Excel" compressed into a paragraph of code.
+**Explanation:** Five verbs in one pipeline, filter, mutate, left_join, mutate, summarise. That's one "morning in Excel" compressed into a paragraph of code.
 
 </details>
 
@@ -589,11 +589,11 @@ my_crosstab
 #> 4 West     1797      0  14985
 ```
 
-**Explanation:** The full Excel pivot table — rows, values, columns — lives in one re-runnable pipeline. Drop in a different input next quarter and the crosstab rebuilds itself.
+**Explanation:** The full Excel pivot table, rows, values, columns, lives in one re-runnable pipeline. Drop in a different input next quarter and the crosstab rebuilds itself.
 
 </details>
 
-## Complete Example — A Monthly Sales Report in One Pipe
+## Complete Example, A Monthly Sales Report in One Pipe
 
 Here is the point of doing all this: the whole report, in one pipeline. Filter, compute, tier, join, group, summarise, spread into a crosstab, and draw a chart. What takes a practised Excel user twenty minutes of clicking, copying, and re-formatting is twelve lines of code that run instantly on ten rows or ten million.
 
@@ -638,14 +638,14 @@ monthly_report |>
   theme_minimal()
 ```
 
-Two things worth noticing. First, the report and the chart share the same pipeline — no copy-paste between sheets, no "link broken" dialogs. Second, everything upstream of `monthly_report` is reusable: swap in fresh data and the report rebuilds with zero manual work.
+Two things worth noticing. First, the report and the chart share the same pipeline, no copy-paste between sheets, no "link broken" dialogs. Second, everything upstream of `monthly_report` is reusable: swap in fresh data and the report rebuilds with zero manual work.
 
 [WARNING]
 **Save your script, not the output.** The Excel habit is "save the workbook"; the R habit is "save the script that produces the output". Ship the code, rerun it on tomorrow's data, and the report regenerates itself. Hand-editing cells in the output breaks this the moment you rerun.
 
 ## Summary
 
-Here is the full Excel-to-R translation table in one place. Bookmark this section — it's the fastest cheat-sheet you'll reach for in the first week.
+Here is the full Excel-to-R translation table in one place. Bookmark this section, it's the fastest cheat-sheet you'll reach for in the first week.
 
 | Excel operation | R equivalent | Package |
 |---|---|---|
@@ -664,21 +664,21 @@ Here is the full Excel-to-R translation table in one place. Bookmark this sectio
 
 Three reasons the trip is worth it, once you have the map:
 
-1. **Reproducibility** — the same script runs the same way next week, next quarter, on next year's data. No "the filters got lost when I reopened it."
-2. **Scale** — dplyr handles millions of rows without freezing; Excel usually gives up around a hundred thousand.
-3. **Version control** — a script is a text file. Git can tell you exactly what changed, when, and by whom. A spreadsheet can't.
+1. **Reproducibility**, the same script runs the same way next week, next quarter, on next year's data. No "the filters got lost when I reopened it."
+2. **Scale**, dplyr handles millions of rows without freezing; Excel usually gives up around a hundred thousand.
+3. **Version control**, a script is a text file. Git can tell you exactly what changed, when, and by whom. A spreadsheet can't.
 
 ## References
 
-1. dplyr documentation — verbs for data transformation. [Link](https://dplyr.tidyverse.org/)
-2. tidyr documentation — `pivot_longer()`, `pivot_wider()`, `separate_wider_delim()`. [Link](https://tidyr.tidyverse.org/)
-3. Wickham, H., Çetinkaya-Rundel, M., & Grolemund, G. — *R for Data Science* (2nd ed.), chapters on data transformation and relational data. [Link](https://r4ds.hadley.nz/)
-4. Bryan, J. et al. — *R for Excel Users* (RStudio workshop materials). [Link](https://rstudio-conf-2020.github.io/r-for-excel/)
-5. ggplot2 documentation — the grammar of graphics in R. [Link](https://ggplot2.tidyverse.org/)
-6. Microsoft — Excel functions (by category) reference. [Link](https://support.microsoft.com/en-us/office/excel-functions-by-category-5f91f4e9-7b42-46d2-9bd1-63f26a86c0eb)
+1. dplyr documentation, verbs for data transformation. [Link](https://dplyr.tidyverse.org/)
+2. tidyr documentation, `pivot_longer()`, `pivot_wider()`, `separate_wider_delim()`. [Link](https://tidyr.tidyverse.org/)
+3. Wickham, H., Çetinkaya-Rundel, M., & Grolemund, G., *R for Data Science* (2nd ed.), chapters on data transformation and relational data. [Link](https://r4ds.hadley.nz/)
+4. Bryan, J. et al., *R for Excel Users* (RStudio workshop materials). [Link](https://rstudio-conf-2020.github.io/r-for-excel/)
+5. ggplot2 documentation, the grammar of graphics in R. [Link](https://ggplot2.tidyverse.org/)
+6. Microsoft, Excel functions (by category) reference. [Link](https://support.microsoft.com/en-us/office/excel-functions-by-category-5f91f4e9-7b42-46d2-9bd1-63f26a86c0eb)
 
 ## Continue Learning
 
-- **[dplyr filter() and select()](dplyr-filter-select.html)** — the two verbs that replace Excel's AutoFilter and column-hiding, explained in depth.
-- **[dplyr joins](dplyr-joins.html)** — every join type (inner, left, right, full, semi, anti) with the cases where each one beats VLOOKUP.
-- **[Is R Worth Learning in 2026?](Is-R-Worth-Learning-in-2026.html)** — the bigger case for moving off spreadsheets, with data on where R pays off and where Excel still wins.
+- **[dplyr filter() and select()](dplyr-filter-select.html)**, the two verbs that replace Excel's AutoFilter and column-hiding, explained in depth.
+- **[dplyr joins](dplyr-joins.html)**, every join type (inner, left, right, full, semi, anti) with the cases where each one beats VLOOKUP.
+- **[Is R Worth Learning in 2026?](Is-R-Worth-Learning-in-2026.html)**, the bigger case for moving off spreadsheets, with data on where R pays off and where Excel still wins.

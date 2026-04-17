@@ -1,5 +1,5 @@
 ---
-title: "Choropleth Maps in R: ggplot2 + sf — Fill Countries, States, or Districts by Value"
+title: "Choropleth Maps in R: ggplot2 + sf, Fill Countries, States, or Districts by Value"
 slug: "Choropleth-Maps-in-R"
 description: "Choropleth maps shade regions by a data variable. Learn to join data to sf geometry, choose perceptually correct colour scales, and avoid area-size bias."
 keywords: "choropleth map R, choropleth map ggplot2, sf choropleth R, geom_sf fill, map color by value R, US state choropleth R, world choropleth R, scale_fill_viridis, chloropleth R, geographic data visualization R"
@@ -16,9 +16,9 @@ sidebar_order: 38
 difficulty: "Intermediate"
 ---
 
-# Choropleth Maps in R: ggplot2 + sf — Fill Countries, States, or Districts by Value
+# Choropleth Maps in R: ggplot2 + sf, Fill Countries, States, or Districts by Value
 
-<p class="lead">A choropleth map shades geographic regions — countries, states, or districts — by a data variable so you can spot spatial patterns at a glance. In R, the sf package supplies the polygon geometry and ggplot2's geom_sf() turns any numeric or categorical column into a colour-filled map.</p>
+<p class="lead">A choropleth map shades geographic regions, countries, states, or districts, by a data variable so you can spot spatial patterns at a glance. In R, the sf package supplies the polygon geometry and ggplot2's geom_sf() turns any numeric or categorical column into a colour-filled map.</p>
 
 ## How do you build a choropleth map in R?
 
@@ -62,7 +62,7 @@ ggplot(world_gdp) +
 #>  to bright yellow (high GDP). Countries without data appear light grey.]
 ```
 
-The map instantly reveals the wealth gap: Norway, the US, and Australia light up in yellow while India and Nigeria sit in deep purple. Countries without data stay grey — a visual reminder of missing observations.
+The map instantly reveals the wealth gap: Norway, the US, and Australia light up in yellow while India and Nigeria sit in deep purple. Countries without data stay grey, a visual reminder of missing observations.
 
 [KEY INSIGHT]
 **The join is what turns a plain map into a choropleth.** Without it, you have outlines. After the left_join(), every polygon row carries a data value that geom_sf() maps to a fill colour. Get the join key right and the rest is cosmetic.
@@ -83,7 +83,7 @@ world_gdp |>
 #> 5   Argentina          13650 MULTIPOLYGON (((-68.63401 -...
 ```
 
-Each row holds a country name, the GDP value, and a geometry column containing the polygon coordinates. This is just a regular data frame with a spatial twist — you can filter, mutate, and summarise it like any other tibble.
+Each row holds a country name, the GDP value, and a geometry column containing the polygon coordinates. This is just a regular data frame with a spatial twist, you can filter, mutate, and summarise it like any other tibble.
 
 **Try it:** Add a `population` column to `gdp_data` for any 5 countries and join it to `world_sf`. Plot a choropleth filled by population instead of GDP per capita.
 
@@ -122,13 +122,13 @@ ggplot(ex_world_pop) +
 #>  mid-range, Japan in darker shade, rest grey.]
 ```
 
-**Explanation:** The same workflow applies — create a data frame, join to world_sf, and map the new column to fill.
+**Explanation:** The same workflow applies, create a data frame, join to world_sf, and map the new column to fill.
 
 </details>
 
 ## How do you create a US state choropleth?
 
-The `maps` package includes US state boundaries ready to convert. The main gotcha is that state names come back in lowercase — your data source might use title case or abbreviations, so you need to normalise before joining.
+The `maps` package includes US state boundaries ready to convert. The main gotcha is that state names come back in lowercase, your data source might use title case or abbreviations, so you need to normalise before joining.
 
 ```r
 # Build US state geometry
@@ -172,7 +172,7 @@ ggplot(us_income) +
 #>  bright yellow (Maryland, Massachusetts ~$90K).]
 ```
 
-The coastal wealth corridor jumps out immediately — Maryland, New Jersey, Massachusetts, and Connecticut cluster at the top, while Mississippi and West Virginia sit at the bottom. That spatial pattern would be invisible in a bar chart.
+The coastal wealth corridor jumps out immediately, Maryland, New Jersey, Massachusetts, and Connecticut cluster at the top, while Mississippi and West Virginia sit at the bottom. That spatial pattern would be invisible in a bar chart.
 
 [WARNING]
 **State names in maps::map() are lowercase, but most data sources use title case.** If your join returns all NA fills, check for case mismatches. Use tolower() on your data before joining: `my_data$state <- tolower(my_data$state)`.
@@ -200,7 +200,7 @@ ggplot(highlighted) +
 #> [Same income map but the top 5 states have bold red outlines.]
 ```
 
-The trick is layering a second geom_sf() with `fill = NA` and a bold border colour on top of the choropleth. This works because ggplot2 draws layers in order — the red outlines sit on top of the filled polygons.
+The trick is layering a second geom_sf() with `fill = NA` and a bold border colour on top of the choropleth. This works because ggplot2 draws layers in order, the red outlines sit on top of the filled polygons.
 
 **Try it:** Highlight the 5 *lowest*-income states with a blue border instead of red.
 
@@ -238,7 +238,7 @@ ggplot(ex_highlighted) +
 #>  and Alabama outlined in blue.]
 ```
 
-**Explanation:** Same layering technique — filter to the bottom 5 and overlay geom_sf() with blue borders.
+**Explanation:** Same layering technique, filter to the bottom 5 and overlay geom_sf() with blue borders.
 
 </details>
 
@@ -284,7 +284,7 @@ Each rectangle is an st_polygon built from five coordinate pairs (the fifth clos
 [NOTE]
 **In real projects, you'd load shapefiles with st_read() or GeoJSON with st_read("file.geojson").** The code pattern is identical: load geometry, attach data, join, plot. We build polygons manually here because the browser-based R environment doesn't have access to local files.
 
-Adding labels with geom_sf_text() makes the map self-explanatory — readers don't need to cross-reference the legend for every region.
+Adding labels with geom_sf_text() makes the map self-explanatory, readers don't need to cross-reference the legend for every region.
 
 **Try it:** Add a seventh district polygon at position (3, 0) with a score of 73 and label it "District G".
 
@@ -331,7 +331,7 @@ Colour choices can make or break a choropleth. A poor palette hides patterns or 
 
 *Figure 1: Decision tree for choosing sequential, diverging, or qualitative colour scales.*
 
-**Sequential scales** work for data that goes from low to high — income, temperature, population density. The viridis family (viridis, plasma, inferno, mako) is the gold standard because the colours are perceptually uniform: equal steps in data produce equal steps in perceived brightness.
+**Sequential scales** work for data that goes from low to high, income, temperature, population density. The viridis family (viridis, plasma, inferno, mako) is the gold standard because the colours are perceptually uniform: equal steps in data produce equal steps in perceived brightness.
 
 ```r
 # Sequential: viridis on US state income
@@ -346,7 +346,7 @@ ggplot(us_income) +
 [TIP]
 **Viridis is colourblind-friendly and prints well in greyscale.** About 8% of men have some form of colour vision deficiency. Viridis was designed so that every step is distinguishable regardless of colour vision type.
 
-**Diverging scales** are for data with a meaningful centre point — temperature anomalies (above/below average), election margins (red vs blue), or deviation from a target.
+**Diverging scales** are for data with a meaningful centre point, temperature anomalies (above/below average), election margins (red vs blue), or deviation from a target.
 
 ```r
 # Diverging: show deviation from national median
@@ -368,7 +368,7 @@ ggplot(us_diverge) +
 
 Red states fall below the national median, blue states sit above it, and the pale middle band shows states near the centre. The eye immediately groups the map into "above" and "below" camps.
 
-**Categorical scales** suit grouped data — regions, political parties, climate zones.
+**Categorical scales** suit grouped data, regions, political parties, climate zones.
 
 ```r
 # Categorical: colour US states by Census region
@@ -397,7 +397,7 @@ ggplot(us_regions) +
 ```
 
 [KEY INSIGHT]
-**Sequential scales show magnitude, diverging scales show deviation from a centre point, and qualitative scales show group membership.** Choosing the wrong type makes your map misleading — a rainbow scale on sequential data implies boundaries that don't exist.
+**Sequential scales show magnitude, diverging scales show deviation from a centre point, and qualitative scales show group membership.** Choosing the wrong type makes your map misleading, a rainbow scale on sequential data implies boundaries that don't exist.
 
 **Try it:** Apply the "inferno" viridis palette to the US income map and reverse its direction so that high income appears dark instead of bright.
 
@@ -473,7 +473,7 @@ p2
 #>  despite huge raw GDP. This tells the per-person story.]
 ```
 
-The raw GDP map screams "USA and China are dominant" — but that just reflects population size. The per-capita version reveals that Norway and Australia outperform on a per-person basis. Always ask: "Am I mapping a rate or a raw count?"
+The raw GDP map screams "USA and China are dominant", but that just reflects population size. The per-capita version reveals that Norway and Australia outperform on a per-person basis. Always ask: "Am I mapping a rate or a raw count?"
 
 ![Common choropleth pitfalls: area-size bias and skewed-data compression, with fixes.](screenshots/Choropleth-Maps-in-R-pitfalls.webp)
 
@@ -505,7 +505,7 @@ ggplot(world_binned) +
 #>  the same number of countries, making regional patterns clearer.]
 ```
 
-Binning into quantiles ensures each colour band contains roughly the same number of regions. This is fairer than equal-width bins when the data is skewed — you wouldn't want 18 of 20 countries in the same "low" bucket.
+Binning into quantiles ensures each colour band contains roughly the same number of regions. This is fairer than equal-width bins when the data is skewed, you wouldn't want 18 of 20 countries in the same "low" bucket.
 
 **Try it:** Bin GDP per capita into 5 quantile groups using cut() and map them with scale_fill_manual() using your own 5-colour palette.
 
@@ -575,7 +575,7 @@ ggplot(us_income) +
 ```
 
 [TIP]
-**theme_void() removes axes, gridlines, and background, letting the map be the sole visual focus.** For choropleths, geographic boundaries carry all the structural information — axis tick marks add nothing.
+**theme_void() removes axes, gridlines, and background, letting the map be the sole visual focus.** For choropleths, geographic boundaries carry all the structural information, axis tick marks add nothing.
 
 Sometimes you need to crop the view. For US maps, Alaska and Hawaii throw off the continental layout. Use coord_sf() with longitude/latitude limits to zoom in.
 
@@ -669,7 +669,7 @@ ggplot(world_life) +
 #>  Nigeria deep purple (~53 years). Clear North-South divide visible.]
 ```
 
-**Explanation:** Same choropleth workflow — data frame, left_join to geometry, geom_sf with fill. Japan and Australia have the highest life expectancy; Nigeria and South Africa the lowest among these 12 countries.
+**Explanation:** Same choropleth workflow, data frame, left_join to geometry, geom_sf with fill. Japan and Australia have the highest life expectancy; Nigeria and South Africa the lowest among these 12 countries.
 
 </details>
 
@@ -769,7 +769,7 @@ ggplot(my_districts) +
 
 ## Complete Example
 
-Let's bring everything together into a publication-ready US state choropleth of simulated unemployment rates — with normalised data, a viridis colour scale, clean theme, and proper annotations.
+Let's bring everything together into a publication-ready US state choropleth of simulated unemployment rates, with normalised data, a viridis colour scale, clean theme, and proper annotations.
 
 ```r
 # --- Complete Example: US Unemployment Rate Choropleth ---
@@ -823,7 +823,7 @@ unemp_map
 #>  centred title and subtitle, subtle source caption at bottom-right.]
 ```
 
-This example follows the complete choropleth workflow: geometry from maps::map(), data joined by state name, viridis colour scale for perceptual uniformity, coord_sf() to frame the view, and theme_void() with custom text for a clean presentation. Every element serves a purpose — the colour bar shows the scale, the subtitle clarifies the data source, and the caption credits the origin.
+This example follows the complete choropleth workflow: geometry from maps::map(), data joined by state name, viridis colour scale for perceptual uniformity, coord_sf() to frame the view, and theme_void() with custom text for a clean presentation. Every element serves a purpose, the colour bar shows the scale, the subtitle clarifies the data source, and the caption credits the origin.
 
 ## Summary
 
@@ -844,9 +844,9 @@ This example follows the complete choropleth workflow: geometry from maps::map()
 
 The three rules that prevent misleading choropleths:
 
-1. **Normalise** — map rates or per-capita values, not raw counts
-2. **Choose the right scale type** — sequential for magnitude, diverging for deviation, qualitative for categories
-3. **Bin skewed data** — use quantile breaks so each colour band holds roughly equal numbers of regions
+1. **Normalise**, map rates or per-capita values, not raw counts
+2. **Choose the right scale type**, sequential for magnitude, diverging for deviation, qualitative for categories
+3. **Bin skewed data**, use quantile breaks so each colour band holds roughly equal numbers of regions
 
 ![The choropleth map workflow: geometry + data → join → geom_sf() → colour scale → map.](screenshots/Choropleth-Maps-in-R-workflow.webp)
 
@@ -854,16 +854,16 @@ The three rules that prevent misleading choropleths:
 
 ## References
 
-1. Pebesma, E. — "Simple Features for R: Standardized Support for Spatial Vector Data." The R Journal 10(1), 439-446 (2018). [Link](https://journal.r-project.org/archive/2018/RJ-2018-009/)
-2. sf package documentation — geom_sf() and sf plotting. [Link](https://r-spatial.github.io/sf/)
-3. ggplot2 documentation — scale_fill_viridis_c() reference. [Link](https://ggplot2.tidyverse.org/reference/scale_viridis.html)
-4. Wickham, H. — *ggplot2: Elegant Graphics for Data Analysis*, 3rd Edition. Springer (2024). [Link](https://ggplot2-book.org/)
-5. maps package — CRAN documentation for built-in map data. [Link](https://cran.r-project.org/package=maps)
-6. Brewer, C.A. — ColorBrewer 2.0: Color Advice for Cartography. [Link](https://colorbrewer2.org/)
-7. Lovelace, R., Nowosad, J., Muenchow, J. — *Geocomputation with R*. CRC Press (2019). [Link](https://r.geocompx.org/)
+1. Pebesma, E., "Simple Features for R: Standardized Support for Spatial Vector Data." The R Journal 10(1), 439-446 (2018). [Link](https://journal.r-project.org/archive/2018/RJ-2018-009/)
+2. sf package documentation, geom_sf() and sf plotting. [Link](https://r-spatial.github.io/sf/)
+3. ggplot2 documentation, scale_fill_viridis_c() reference. [Link](https://ggplot2.tidyverse.org/reference/scale_viridis.html)
+4. Wickham, H., *ggplot2: Elegant Graphics for Data Analysis*, 3rd Edition. Springer (2024). [Link](https://ggplot2-book.org/)
+5. maps package, CRAN documentation for built-in map data. [Link](https://cran.r-project.org/package=maps)
+6. Brewer, C.A., ColorBrewer 2.0: Color Advice for Cartography. [Link](https://colorbrewer2.org/)
+7. Lovelace, R., Nowosad, J., Muenchow, J., *Geocomputation with R*. CRC Press (2019). [Link](https://r.geocompx.org/)
 
 ## Continue Learning
 
-1. [Spatial Data in R with sf](Spatial-Data-in-R-with-sf.html) — Learn the sf fundamentals this post builds on: reading shapefiles, CRS transformations, and geometry types.
-2. [R Color Theory for ggplot2](R-Color-Theory-ggplot2.html) — A deep dive into colour scales, palettes, and why perceptual uniformity matters for data visualisation.
-3. [ggplot2 Aesthetics: Map Data to Visual Properties](ggplot2-Aesthetics-aes-Map-Data.html) — Understand how aes() maps data columns to fill, colour, size, and shape in any ggplot2 plot.
+1. [Spatial Data in R with sf](Spatial-Data-in-R-with-sf.html), Learn the sf fundamentals this post builds on: reading shapefiles, CRS transformations, and geometry types.
+2. [R Color Theory for ggplot2](R-Color-Theory-ggplot2.html), A deep dive into colour scales, palettes, and why perceptual uniformity matters for data visualisation.
+3. [ggplot2 Aesthetics: Map Data to Visual Properties](ggplot2-Aesthetics-aes-Map-Data.html), Understand how aes() maps data columns to fill, colour, size, and shape in any ggplot2 plot.

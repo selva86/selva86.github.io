@@ -18,11 +18,11 @@ difficulty: "Intermediate"
 
 # Open Science with R: OSF Integration, Preprints & Sharing Code
 
-<p class="lead">Open science with R means publishing your code and data alongside your paper so anyone can re-run, verify, and extend your work. The <strong>osfr</strong> package lets you do all of that from R itself — create projects on the Open Science Framework (OSF), upload data and scripts, and link them to a citable preprint with a permanent DOI.</p>
+<p class="lead">Open science with R means publishing your code and data alongside your paper so anyone can re-run, verify, and extend your work. The <strong>osfr</strong> package lets you do all of that from R itself, create projects on the Open Science Framework (OSF), upload data and scripts, and link them to a citable preprint with a permanent DOI.</p>
 
 ## What does an open science R workflow look like?
 
-Before we touch the OSF API, picture the artifact you'll end up sharing: a small directory holding your script, the data, and a manifest that lists every file with a fingerprint. That bundle is what reviewers — and future-you — actually need. Let's build one in R right now so you see what we're aiming at. Every later section just maps a piece of this bundle onto OSF.
+Before we touch the OSF API, picture the artifact you'll end up sharing: a small directory holding your script, the data, and a manifest that lists every file with a fingerprint. That bundle is what reviewers, and future-you, actually need. Let's build one in R right now so you see what we're aiming at. Every later section just maps a piece of this bundle onto OSF.
 
 We'll write a tiny analysis to a temporary directory, then summarise it as a manifest tibble. The manifest is the contract: filename, byte size, and an MD5 fingerprint anyone can recompute to confirm nothing was tampered with.
 
@@ -61,10 +61,10 @@ manifest
 #> 3 mt_summary.csv    72 b8e1d4c7a2f5b9e3c6a0d3f6b9e2c5a8
 ```
 
-That's the whole point of open science in three columns — you've got the files, you've got their sizes, and you've got fingerprints anyone can recompute to confirm nothing was tampered with. The OSF workflow we'll build next simply takes this bundle and gives it a permanent home on the public web.
+That's the whole point of open science in three columns, you've got the files, you've got their sizes, and you've got fingerprints anyone can recompute to confirm nothing was tampered with. The OSF workflow we'll build next simply takes this bundle and gives it a permanent home on the public web.
 
 ![Open Science Workflow with R](screenshots/Open-Science-with-R-pipeline.webp)
-*Figure 1: The open science loop — an R analysis becomes an OSF project, earns a DOI, links to a preprint, and travels back as a replication.*
+*Figure 1: The open science loop, an R analysis becomes an OSF project, earns a DOI, links to a preprint, and travels back as a replication.*
 
 [KEY INSIGHT]
 **The bundle is the unit of sharing, not the script alone.** A standalone .R file is unreproducible the moment its input data goes missing. Pair the script with its inputs and a manifest, and you've created a self-verifying artifact that survives the next OS upgrade.
@@ -93,7 +93,7 @@ ex_manifest
 #> 3 mt_summary.csv    72 b8e1d4c7a2f5b9e3c6a0d3f6b9e2c5a8 derived data
 ```
 
-**Explanation:** Adding a column to a data.frame is as simple as `df$new_col <- values`. The order in `c(...)` must match the row order of `manifest` — alphabetical by filename here.
+**Explanation:** Adding a column to a data.frame is as simple as `df$new_col <- values`. The order in `c(...)` must match the row order of `manifest`, alphabetical by filename here.
 
 </details>
 
@@ -101,7 +101,7 @@ ex_manifest
 
 OSF is the public web service we'll push that bundle to. The R interface is **osfr**, maintained by rOpenSci. Installing it is one line; the only setup that takes thought is authentication, and it pays off forever once it's done.
 
-OSF uses a **personal access token** (PAT) — a long string you generate in your account settings and store as an environment variable named `OSF_PAT`. The package looks for that variable on load, so you never have to paste the token into your scripts.
+OSF uses a **personal access token** (PAT), a long string you generate in your account settings and store as an environment variable named `OSF_PAT`. The package looks for that variable on load, so you never have to paste the token into your scripts.
 
 ```r
 # install.packages("osfr")     # one-time install
@@ -146,15 +146,15 @@ ex_token("OSF_PAT")
 #> [1] "<not set>"
 ```
 
-**Explanation:** `Sys.getenv()` returns `""` (an empty string) when a variable is missing, so `nzchar()` is the safe test — `is.null()` would never fire here.
+**Explanation:** `Sys.getenv()` returns `""` (an empty string) when a variable is missing, so `nzchar()` is the safe test, `is.null()` would never fire here.
 
 </details>
 
 ## How do you create an OSF project from R?
 
-A "project" is OSF's top-level container — it has a title, a description, an optional license, and a permanent URL. Sub-divide it with **components** (sub-projects for raw data, scripts, and results) and **directories** (folders inside a component). All three live behind one verb each in osfr, and they pipe together.
+A "project" is OSF's top-level container, it has a title, a description, an optional license, and a permanent URL. Sub-divide it with **components** (sub-projects for raw data, scripts, and results) and **directories** (folders inside a component). All three live behind one verb each in osfr, and they pipe together.
 
-The pipeline below creates a project, adds a "Raw data" component, and puts a `scripts/` folder inside it — everything in five lines.
+The pipeline below creates a project, adds a "Raw data" component, and puts a `scripts/` folder inside it, everything in five lines.
 
 ```r
 # Run in your local R session (needs OSF_PAT)
@@ -176,12 +176,12 @@ osf_mkdir(raw_data, path = "scripts")
 #> 1 scripts a8b3c <named list [3]>
 ```
 
-Each call returns an `osf_tbl` — a tibble with one row per OSF entity, an `id` column holding the OSF GUID, and a `meta` column with the API response. You don't usually inspect `meta`; you just chain the next call onto the row, exactly like any other tidyverse pipeline.
+Each call returns an `osf_tbl`, a tibble with one row per OSF entity, an `id` column holding the OSF GUID, and a `meta` column with the API response. You don't usually inspect `meta`; you just chain the next call onto the row, exactly like any other tidyverse pipeline.
 
 [TIP]
 **Set the license at creation time, not later.** Picking a CC-BY 4.0 license up front signals to readers that they may reuse your data without asking, and OSF embeds that license in the project's metadata and any DOI you mint. Adding it months later is harder because you have to re-notify every collaborator.
 
-**Try it:** Build a named list called `ex_meta` with three fields — `title`, `description`, and `license` — that you would pass to a project-creation call. Use any project of your own.
+**Try it:** Build a named list called `ex_meta` with three fields, `title`, `description`, and `license`, that you would pass to a project-creation call. Use any project of your own.
 
 ```r
 # Try it: build the metadata list
@@ -214,13 +214,13 @@ ex_meta
 #> [1] "CC-By Attribution 4.0 International"
 ```
 
-**Explanation:** Named lists are how R handles labelled metadata — they map cleanly onto JSON, which is what the OSF API expects under the hood.
+**Explanation:** Named lists are how R handles labelled metadata, they map cleanly onto JSON, which is what the OSF API expects under the hood.
 
 </details>
 
 ## How do you upload data and code to OSF and download it back?
 
-With the project skeleton in place, sharing files turns into one verb each: `osf_upload()` to push, `osf_download()` to pull. Both accept the destination as the first argument and the file path as the second, so they pipe naturally from any project or component reference. Versioning is automatic — every re-upload of the same filename is stored as a new version, with the old one one click away.
+With the project skeleton in place, sharing files turns into one verb each: `osf_upload()` to push, `osf_download()` to pull. Both accept the destination as the first argument and the file path as the second, so they pipe naturally from any project or component reference. Versioning is automatic, every re-upload of the same filename is stored as a new version, with the old one one click away.
 
 The block below uploads two files into the `Raw data` component, lists what's there, then pulls one back into a fresh local directory.
 
@@ -260,12 +260,12 @@ osf_ls_files(raw_data) |>
 #> 2 mt_summary.csv 5d2f2 /tmp/mt_download/mt_summary.csv  <named list [3]>
 ```
 
-The pipeline lists the component's files and hands them straight to `osf_download()`. The returned tibble adds a `local_path` column so you know exactly where the bytes landed — that's the path your downstream code should read from.
+The pipeline lists the component's files and hands them straight to `osf_download()`. The returned tibble adds a `local_path` column so you know exactly where the bytes landed, that's the path your downstream code should read from.
 
 [TIP]
 **Use `conflicts = "overwrite"` for re-runs of the same script.** The default is to error when a file with the same name already exists on OSF, which protects you from silent overwrites in interactive use but breaks unattended re-runs. Set it explicitly when you want idempotent uploads.
 
-**Try it:** Build a file manifest data.frame called `ex_files` from any directory, with three columns — `path`, `bytes`, and `modified`. Use `file.info()`.
+**Try it:** Build a file manifest data.frame called `ex_files` from any directory, with three columns, `path`, `bytes`, and `modified`. Use `file.info()`.
 
 ```r
 # Try it: build a local file manifest
@@ -296,13 +296,13 @@ ex_files
 #> 3 mt_summary.csv    72 2026-04-14 09:12
 ```
 
-**Explanation:** `file.info()` returns one row per path with size and modification time — perfect raw material for a manifest. Wrapping the timestamp in `format()` keeps the column readable when you print the data.frame.
+**Explanation:** `file.info()` returns one row per path with size and modification time, perfect raw material for a manifest. Wrapping the timestamp in `format()` keeps the column readable when you print the data.frame.
 
 </details>
 
 ## How do you turn an OSF project into a citable preprint with a DOI?
 
-Once your data and code live on OSF, the project page already has a stable URL — that's enough for a colleague to clone your work today. To turn it into something a journal can cite, mint a DOI for the project from the OSF web interface (Project Settings → "Create DOI"), then publish a matching **OSF preprint** that links back to it. From R, your job is to keep the metadata you'll quote in the manuscript and the citation in perfect agreement with the project page.
+Once your data and code live on OSF, the project page already has a stable URL, that's enough for a colleague to clone your work today. To turn it into something a journal can cite, mint a DOI for the project from the OSF web interface (Project Settings → "Create DOI"), then publish a matching **OSF preprint** that links back to it. From R, your job is to keep the metadata you'll quote in the manuscript and the citation in perfect agreement with the project page.
 
 The block below builds a metadata list and a single citation string with `glue::glue()`. Re-run it whenever the project metadata changes and you'll never have a stale citation in your draft.
 
@@ -326,7 +326,7 @@ citation_text
 #> Prabhakaran, S. (2026). Motor Trend Reproducibility Demo. OSF. https://doi.org/10.17605/OSF.IO/JGYXM
 ```
 
-The `glue()` call interpolates each list field into a citation that matches the OSF page word-for-word. Now anyone — your future self, a reviewer, a citation manager — can paste that string into a manuscript and the DOI resolves straight to the project that contains the data and code.
+The `glue()` call interpolates each list field into a citation that matches the OSF page word-for-word. Now anyone, your future self, a reviewer, a citation manager, can paste that string into a manuscript and the DOI resolves straight to the project that contains the data and code.
 
 [KEY INSIGHT]
 **A preprint without linked data is just a faster PDF.** With a linked OSF project plus a DOI, the same preprint becomes a reproducible artifact: the manuscript, the data, the code, and a permanent address all travel together. That's the difference between "available on request" and actually open.
@@ -367,7 +367,7 @@ cat(ex_bib)
 #> }
 ```
 
-**Explanation:** `glue()` uses single curly braces for interpolation, so literal braces (the kind BibTeX needs) must be doubled — `{{` and `}}` — to escape them.
+**Explanation:** `glue()` uses single curly braces for interpolation, so literal braces (the kind BibTeX needs) must be doubled, `{{` and `}}`, to escape them.
 
 </details>
 
@@ -422,13 +422,13 @@ my_bundle$manifest
 #> 2 summary.csv    72 b8e1d4c7a2f5b9e3c6a0d3f6b9e2c5a8
 ```
 
-**Explanation:** A `for` loop is the simplest way to walk a named list when you need both the name (to build a filename) and the value (to write to disk). Returning everything in one named list keeps the helper composable — pass it to a future `upload_bundle()` and the call site reads cleanly.
+**Explanation:** A `for` loop is the simplest way to walk a named list when you need both the name (to build a filename) and the value (to write to disk). Returning everything in one named list keeps the helper composable, pass it to a future `upload_bundle()` and the call site reads cleanly.
 
 </details>
 
 ### Exercise 2: Build a citation-and-BibTeX helper
 
-Write a function `bundle_citation(meta)` that takes a project metadata list (same shape as `proj_meta`) and returns a list with two fields — `text` (a plain-text citation) and `bibtex` (a `@misc{}` BibTeX entry). Test it on `proj_meta`.
+Write a function `bundle_citation(meta)` that takes a project metadata list (same shape as `proj_meta`) and returns a list with two fields, `text` (a plain-text citation) and `bibtex` (a `@misc{}` BibTeX entry). Test it on `proj_meta`.
 
 ```r
 # Exercise 2: citation + BibTeX helper
@@ -483,7 +483,7 @@ cat(my_cite$text, "\n\n", my_cite$bibtex)
 
 ## Complete Example
 
-Putting the pieces together, here's the entire open science loop in a single block — bundle, list metadata, prepare the upload calls (commented because they need your PAT), and emit a citation. Run it as-is for the parts that don't need OSF; uncomment the osfr lines in your local R session to actually push to OSF.
+Putting the pieces together, here's the entire open science loop in a single block, bundle, list metadata, prepare the upload calls (commented because they need your PAT), and emit a citation. Run it as-is for the parts that don't need OSF; uncomment the osfr lines in your local R session to actually push to OSF.
 
 ```r
 # 1. Build the artifact
@@ -515,11 +515,11 @@ cat(final_cite$text)
 #> Prabhakaran, S. (2026). Motor Trend Reproducibility Demo. OSF. https://doi.org/10.17605/OSF.IO/JGYXM
 ```
 
-That's the full loop end-to-end. The bundle is reproducible, the metadata is structured, the upload is one verb away, and the citation is built from the same source of truth as the project page — so you can never accidentally cite a stale title.
+That's the full loop end-to-end. The bundle is reproducible, the metadata is structured, the upload is one verb away, and the citation is built from the same source of truth as the project page, so you can never accidentally cite a stale title.
 
 ## Summary
 
-The osfr package collapses open science into four building blocks. Once they're second nature you can publish a reproducible artifact — script, data, manifest, and citation — in a single R session.
+The osfr package collapses open science into four building blocks. Once they're second nature you can publish a reproducible artifact, script, data, manifest, and citation, in a single R session.
 
 | Verb | osfr function | What it does |
 |---|---|---|
@@ -531,23 +531,23 @@ The osfr package collapses open science into four building blocks. Once they're 
 Pair that with a one-time PAT in your `.Renviron`, a CC-BY license at project creation, and a `glue()`-built citation string, and you've turned an R script into a citable, replicable research object.
 
 ![The osfr Function Map](screenshots/Open-Science-with-R-osfr-map.webp)
-*Figure 2: The four osfr building blocks — projects, components, files, and folders — and the functions you reach for in each.*
+*Figure 2: The four osfr building blocks, projects, components, files, and folders, and the functions you reach for in each.*
 
 ## References
 
-1. rOpenSci — `osfr` package documentation. [Link](https://docs.ropensci.org/osfr/)
-2. CRAN — Getting Started with osfr (vignette). [Link](https://cran.r-project.org/web/packages/osfr/vignettes/getting_started.html)
-3. CRAN — Authenticating osfr (vignette). [Link](https://cran.r-project.org/web/packages/osfr/vignettes/auth.html)
+1. rOpenSci, `osfr` package documentation. [Link](https://docs.ropensci.org/osfr/)
+2. CRAN, Getting Started with osfr (vignette). [Link](https://cran.r-project.org/web/packages/osfr/vignettes/getting_started.html)
+3. CRAN, Authenticating osfr (vignette). [Link](https://cran.r-project.org/web/packages/osfr/vignettes/auth.html)
 4. ropensci/osfr GitHub repository. [Link](https://github.com/ropensci/osfr)
-5. OSF Help — Upload a Preprint. [Link](https://help.osf.io/article/177-upload-a-preprint)
-6. OSF Help — Preprint FAQs. [Link](https://help.osf.io/article/230-preprint-faqs)
-7. Center for Open Science — OSF Product Information. [Link](https://www.cos.io/products/osf)
-8. The Open Science Manual — Chapter 2: The Open Science Framework. [Link](https://arca-dpss.github.io/manual-open-science/osf-chapter.html)
+5. OSF Help, Upload a Preprint. [Link](https://help.osf.io/article/177-upload-a-preprint)
+6. OSF Help, Preprint FAQs. [Link](https://help.osf.io/article/230-preprint-faqs)
+7. Center for Open Science, OSF Product Information. [Link](https://www.cos.io/products/osf)
+8. The Open Science Manual, Chapter 2: The Open Science Framework. [Link](https://arca-dpss.github.io/manual-open-science/osf-chapter.html)
 
 ## Continue Learning
 
-- [R and the Reproducibility Crisis: 5 Habits That Make Your Research Replicable](Reproducibility-Crisis.html) — the parent post on why open science matters and the five habits behind it.
-- [Reproducible R Projects with renv and here](Reproducible-R-Projects.html) — pin your package versions and project paths so the bundle you upload to OSF actually re-runs on someone else's machine.
-- [Sharing R Code on GitHub](Sharing-R-Code-GitHub.html) — the version-control side of the same story, complementary to OSF for code-only releases.
+- [R and the Reproducibility Crisis: 5 Habits That Make Your Research Replicable](Reproducibility-Crisis.html), the parent post on why open science matters and the five habits behind it.
+- [Reproducible R Projects with renv and here](Reproducible-R-Projects.html), pin your package versions and project paths so the bundle you upload to OSF actually re-runs on someone else's machine.
+- [Sharing R Code on GitHub](Sharing-R-Code-GitHub.html), the version-control side of the same story, complementary to OSF for code-only releases.
 
 {% endraw %}

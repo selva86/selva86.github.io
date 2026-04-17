@@ -16,13 +16,13 @@ difficulty: "Intermediate"
 
 # R Attributes: The Hidden Metadata That Makes R Objects Behave Differently
 
-<p class="lead">Every R object carries a dictionary of <strong>attributes</strong> — invisible name/value pairs like <code>names</code>, <code>dim</code>, and <code>class</code>. They're why the same numeric vector can print as a matrix, a data frame, or a fitted model. Learn to set, read, and strip them, and half of R's "mysterious" behaviour becomes obvious.</p>
+<p class="lead">Every R object carries a dictionary of <strong>attributes</strong>, invisible name/value pairs like <code>names</code>, <code>dim</code>, and <code>class</code>. They're why the same numeric vector can print as a matrix, a data frame, or a fitted model. Learn to set, read, and strip them, and half of R's "mysterious" behaviour becomes obvious.</p>
 
 This post explains what attributes actually are, how the special ones (`names`, `dim`, `class`) transform the same underlying data, how to set attributes with `attr()`, `structure()`, and `setNames()`, and the surprising gotcha where arithmetic silently drops them.
 
 ## Why does the same R vector print in completely different ways?
 
-Let's start with a puzzle: the exact same twelve numbers, printed three different ways, depending on one attribute. `1:12` is a plain integer vector. Attach a `dim` attribute and R prints it as a matrix. Attach a `class` of `"Date"` and it prints as dates. The underlying memory is identical — only the metadata changes.
+Let's start with a puzzle: the exact same twelve numbers, printed three different ways, depending on one attribute. `1:12` is a plain integer vector. Attach a `dim` attribute and R prints it as a matrix. Attach a `class` of `"Date"` and it prints as dates. The underlying memory is identical, only the metadata changes.
 
 This is the single idea the post rests on: **an R object is its values *plus* its attributes**, and attributes are the lever you pull to change how any function (print, subset, `mean`, `summary`) treats that object.
 
@@ -48,7 +48,7 @@ class(x)
 #> [1] "integer"
 ```
 
-The values `1:12` never moved. Adding `dim(x) <- c(3, 4)` attached a 2-element integer vector as a single attribute, and the `print` method for matrices kicked in. Setting the same attribute to `NULL` removed it, and the plain integer printer returned. This is exactly how matrices and arrays are implemented in base R — they're just vectors with a `dim` attribute.
+The values `1:12` never moved. Adding `dim(x) <- c(3, 4)` attached a 2-element integer vector as a single attribute, and the `print` method for matrices kicked in. Setting the same attribute to `NULL` removed it, and the plain integer printer returned. This is exactly how matrices and arrays are implemented in base R, they're just vectors with a `dim` attribute.
 
 **Try it:** Given `y <- 1:24`, turn `y` into a 2x3x4 three-dimensional array in one line, then check its class.
 
@@ -117,7 +117,7 @@ v
 #> [1] 1 2 3
 ```
 
-The cleanest way to build an object with several attributes at once is `structure()`, which wraps value-plus-attributes into one call — the idiom you'll see in most package source code.
+The cleanest way to build an object with several attributes at once is `structure()`, which wraps value-plus-attributes into one call, the idiom you'll see in most package source code.
 
 ```r
 # structure() = create a value and attach attributes in one call
@@ -142,9 +142,9 @@ attributes(m)
 `structure()` builds an object, attaches a `dim` attribute (so it prints as a matrix) and a `dimnames` attribute (so rows and columns are labelled), all in a single expression. Any function that accepts `.Data` and `...` attribute pairs is a clean way to document what an object "is" at the point where it's created.
 
 [KEY INSIGHT]
-**An R object is data + attributes, nothing more.** Matrices, arrays, factors, data frames, Dates, and S3 objects of every kind are all ordinary atomic vectors or lists with the right attributes attached. Once you see through the wrapper you can build any of them by hand — and debug them when they break.
+**An R object is data + attributes, nothing more.** Matrices, arrays, factors, data frames, Dates, and S3 objects of every kind are all ordinary atomic vectors or lists with the right attributes attached. Once you see through the wrapper you can build any of them by hand, and debug them when they break.
 
-**Try it:** Create a 2x3 matrix `ex_m` whose values are `1:6` and which has row names `"row1", "row2"` and column names `"A", "B", "C"` — all via a single `structure()` call.
+**Try it:** Create a 2x3 matrix `ex_m` whose values are `1:6` and which has row names `"row1", "row2"` and column names `"A", "B", "C"`, all via a single `structure()` call.
 
 ```r
 # Try it: one-shot matrix with dimnames
@@ -176,7 +176,7 @@ ex_m
 
 ## What makes names, dim, and class so special?
 
-Any attribute can carry any R value — `attr(x, "author") <- "Selva"` is perfectly legal. But R treats a small set of attributes as **special**: they come with dedicated accessor functions, they're preserved or rebuilt by many operations, and setting them triggers downstream behaviour (like switching which `print` method runs). The big three are `names`, `dim`, and `class`.
+Any attribute can carry any R value, `attr(x, "author") <- "Selva"` is perfectly legal. But R treats a small set of attributes as **special**: they come with dedicated accessor functions, they're preserved or rebuilt by many operations, and setting them triggers downstream behaviour (like switching which `print` method runs). The big three are `names`, `dim`, and `class`.
 
 | Attribute | Accessor | What it does |
 |---|---|---|
@@ -218,7 +218,7 @@ The `Date` example is the classic revelation: a `Date` is just a double counting
 [WARNING]
 **Setting class to a bogus value breaks method dispatch.** `class(x) <- "banana"` is syntactically legal but now every generic (`print`, `summary`, `[`) will fail to find a method and fall back to the default. If you're inventing a class, implement at least `print.banana()` first, or use `oldClass(x) <- NULL` to reset.
 
-**Try it:** Build a three-element factor `ex_f` with values `"S", "M", "L"` in that order — but do it by hand with `structure()`, not with `factor()`.
+**Try it:** Build a three-element factor `ex_f` with values `"S", "M", "L"` in that order, but do it by hand with `structure()`, not with `factor()`.
 
 ```r
 # Try it: build a factor from scratch
@@ -252,7 +252,7 @@ class(ex_f)
 
 ## Why do attributes silently disappear after arithmetic?
 
-Here is the foot-gun that catches almost everyone: most arithmetic and coercion operations **drop** attributes. If you attach a `units` attribute to a numeric vector and then multiply it by 2, the attribute is gone. R's rule is that only "structural" attributes (the special ones: `names`, `dim`, `dimnames`) are preserved — everything else is discarded unless an operation has been written to carry it through.
+Here is the foot-gun that catches almost everyone: most arithmetic and coercion operations **drop** attributes. If you attach a `units` attribute to a numeric vector and then multiply it by 2, the attribute is gone. R's rule is that only "structural" attributes (the special ones: `names`, `dim`, `dimnames`) are preserved, everything else is discarded unless an operation has been written to carry it through.
 
 ```r
 # Custom attributes get dropped by arithmetic
@@ -278,7 +278,7 @@ w * 10
 #> 10 20 30
 ```
 
-`v` loses both `units` and `source` the moment it's multiplied. `w`, whose only attribute is `names`, keeps them because `names` is on the "special" list that R deliberately preserves through vectorised arithmetic. This is why rolling your own attribute-carrying types usually means wrapping them in an S3 class and writing arithmetic methods yourself — or living with manual re-attachment.
+`v` loses both `units` and `source` the moment it's multiplied. `w`, whose only attribute is `names`, keeps them because `names` is on the "special" list that R deliberately preserves through vectorised arithmetic. This is why rolling your own attribute-carrying types usually means wrapping them in an S3 class and writing arithmetic methods yourself, or living with manual re-attachment.
 
 [TIP]
 **If you need attributes to survive arithmetic, wrap them in an S3 class.** Add a `class` attribute (e.g. `"measurement"`) and define `Ops.measurement` (the S3 group generic for arithmetic). That's exactly what packages like `units`, `hms`, and `Matrix` do.
@@ -307,7 +307,7 @@ attributes(ex_after)
 #> [1] "x" "y" "z"
 ```
 
-**Explanation:** `names` is a structural attribute and is preserved by arithmetic. `source` is a custom attribute and is silently dropped. The value vector `c(2, 3, 4)` is unchanged — only the metadata differs.
+**Explanation:** `names` is a structural attribute and is preserved by arithmetic. `source` is a custom attribute and is silently dropped. The value vector `c(2, 3, 4)` is unchanged, only the metadata differs.
 
 </details>
 
@@ -350,10 +350,10 @@ attributes(b)
 #> [1] "cloned"
 ```
 
-Pitfalls 1 and 2 are about using the right accessor and validating length. Pitfalls 3 and 4 are about knowing which attribute each stripping helper removes (`as.vector` removes everything; `unname` removes only names/dimnames). Pitfall 5 is a reminder that R's copy-on-modify semantics mean attaching an attribute to one variable never affects another — a feature when you understand it, a puzzle when you don't.
+Pitfalls 1 and 2 are about using the right accessor and validating length. Pitfalls 3 and 4 are about knowing which attribute each stripping helper removes (`as.vector` removes everything; `unname` removes only names/dimnames). Pitfall 5 is a reminder that R's copy-on-modify semantics mean attaching an attribute to one variable never affects another, a feature when you understand it, a puzzle when you don't.
 
 [NOTE]
-**`as.vector()` removes all attributes except `names`.** If you want to really flatten an object including names, call `unname(as.vector(x))`. Conversely, `unlist()` preserves names by prefixing them with the parent list name — useful for flattening nested lists into labelled vectors.
+**`as.vector()` removes all attributes except `names`.** If you want to really flatten an object including names, call `unname(as.vector(x))`. Conversely, `unlist()` preserves names by prefixing them with the parent list name, useful for flattening nested lists into labelled vectors.
 
 **Try it:** You have `m <- matrix(1:6, 2, 3, dimnames = list(c("r1","r2"), c("a","b","c")))`. Strip the `dimnames` but keep the `dim`, so it still prints as a 2x3 matrix but without row/column labels.
 
@@ -394,7 +394,7 @@ Two capstone exercises that combine attribute handling with real vector work.
 
 ### Exercise 1: Build a labelled 3x3 matrix from scratch
 
-Starting from `1:9`, build `my_mat` — a 3x3 matrix whose rows are labelled `"r1","r2","r3"`, whose columns are labelled `"c1","c2","c3"`, and which has an extra custom attribute `experiment = "batch-01"`. All of it in a single `structure()` call.
+Starting from `1:9`, build `my_mat`, a 3x3 matrix whose rows are labelled `"r1","r2","r3"`, whose columns are labelled `"c1","c2","c3"`, and which has an extra custom attribute `experiment = "batch-01"`. All of it in a single `structure()` call.
 
 ```r
 # Exercise 1: labelled matrix + custom attribute
@@ -470,13 +470,13 @@ class(my_days)
 #> [1] "numeric"
 ```
 
-**Explanation:** `unclass()` removes the `class` attribute but touches nothing else. What's left is the underlying double — the number of days since 1970-01-01. Setting `class(d) <- NULL` would also work and is equivalent.
+**Explanation:** `unclass()` removes the `class` attribute but touches nothing else. What's left is the underlying double, the number of days since 1970-01-01. Setting `class(d) <- NULL` would also work and is equivalent.
 
 </details>
 
 ## Complete Example
 
-A small end-to-end flow that uses attributes to turn a numeric summary into a self-describing labelled object — the kind of pattern real R packages use to return results.
+A small end-to-end flow that uses attributes to turn a numeric summary into a self-describing labelled object, the kind of pattern real R packages use to return results.
 
 ```r
 # Complete example: a self-describing summary object
@@ -524,7 +524,7 @@ paste0("n=", attr(summary_obj, "n"), " (", attr(summary_obj, "unit"), ")")
 #> 52.2333333  3.3266215
 ```
 
-The `summary_obj` carries four pieces of metadata — unit, sample size, generation date, and a custom class — right next to its values. That's enough to make downstream code robust: `if (!inherits(x, "lab_summary")) stop(...)`, `attr(x, "unit")`, `attr(x, "n")`. And because arithmetic still works (R ignores the class for `+`), you can treat it as a plain numeric vector when convenient.
+The `summary_obj` carries four pieces of metadata, unit, sample size, generation date, and a custom class, right next to its values. That's enough to make downstream code robust: `if (!inherits(x, "lab_summary")) stop(...)`, `attr(x, "unit")`, `attr(x, "n")`. And because arithmetic still works (R ignores the class for `+`), you can treat it as a plain numeric vector when convenient.
 
 ## Summary
 
@@ -542,7 +542,7 @@ The `summary_obj` carries four pieces of metadata — unit, sample size, generat
 
 ## References
 
-1. Wickham, H. *Advanced R* (2nd ed.), Chapter 3: Vectors — §3.3 Attributes. [adv-r.hadley.nz/vectors-chap.html#attributes](https://adv-r.hadley.nz/vectors-chap.html#attributes)
+1. Wickham, H. *Advanced R* (2nd ed.), Chapter 3: Vectors, §3.3 Attributes. [adv-r.hadley.nz/vectors-chap.html#attributes](https://adv-r.hadley.nz/vectors-chap.html#attributes)
 2. R Core Team. *R Language Definition*, §2.1 Basic types and attributes. [cran.r-project.org/doc/manuals/r-release/R-lang.html](https://cran.r-project.org/doc/manuals/r-release/R-lang.html)
 3. R documentation: `?attr`, `?attributes`, `?structure`, `?setNames`, `?class`, `?oldClass`.
 4. StatisticsGlobe. *attr, attributes & structure Functions in R.* [statisticsglobe.com/attr-attributes-structure](https://statisticsglobe.com/attr-attributes-structure)
@@ -551,6 +551,6 @@ The `summary_obj` carries four pieces of metadata — unit, sample size, generat
 
 ## Continue Learning
 
-- **[R Data Types: Which Type Is Your Variable?](R-Data-Types.html)** — The parent post explaining R's four base atomic types, which attributes then decorate.
-- **[R Vectors: The Foundation of Everything in R](R-Vectors.html)** — Vectors are the chassis that attributes attach to.
-- **[R Lists Explained](R-Lists.html)** — Lists carry attributes too, and are the internal representation of every data frame.
+- **[R Data Types: Which Type Is Your Variable?](R-Data-Types.html)**, The parent post explaining R's four base atomic types, which attributes then decorate.
+- **[R Vectors: The Foundation of Everything in R](R-Vectors.html)**, Vectors are the chassis that attributes attach to.
+- **[R Lists Explained](R-Lists.html)**, Lists carry attributes too, and are the internal representation of every data frame.

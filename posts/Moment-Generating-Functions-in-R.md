@@ -16,11 +16,11 @@ difficulty: "Intermediate"
 
 # Moment Generating Functions in R: Theory, Computation & Applications
 
-<p class="lead">The **moment generating function (MGF)** of a random variable $X$ is $M_X(t) = E[e^{tX}]$. When it exists in a neighbourhood of $t=0$, every moment of $X$ — mean, variance, skewness, kurtosis — can be read off by differentiating $M_X(t)$ at $t=0$. MGFs also turn convolutions of independent random variables into plain products, and their uniqueness property lets you identify a distribution from its MGF alone.</p>
+<p class="lead">The **moment generating function (MGF)** of a random variable $X$ is $M_X(t) = E[e^{tX}]$. When it exists in a neighbourhood of $t=0$, every moment of $X$, mean, variance, skewness, kurtosis, can be read off by differentiating $M_X(t)$ at $t=0$. MGFs also turn convolutions of independent random variables into plain products, and their uniqueness property lets you identify a distribution from its MGF alone.</p>
 
 ## What is a moment generating function in R?
 
-The MGF is a *transform*: it repackages everything a random variable knows about itself into a single function of a dummy variable $t$. The payoff is that routine questions like "what is $E[X]$?" or "what is $Var(X)$?" become derivative evaluations — no integrals required once you have the MGF. Let's compute the MGF of an Exponential($\lambda = 2$) random variable at a few values of $t$ and check it matches the closed form $\lambda / (\lambda - t)$.
+The MGF is a *transform*: it repackages everything a random variable knows about itself into a single function of a dummy variable $t$. The payoff is that routine questions like "what is $E[X]$?" or "what is $Var(X)$?" become derivative evaluations, no integrals required once you have the MGF. Let's compute the MGF of an Exponential($\lambda = 2$) random variable at a few values of $t$ and check it matches the closed form $\lambda / (\lambda - t)$.
 
 ```r
 # MGF of Exponential(rate = lambda): M(t) = lambda / (lambda - t), valid for t < lambda
@@ -36,7 +36,7 @@ data.frame(t = t_grid, M_t = mgf_vals)
 #> 4 1.5 4.0
 ```
 
-Three things to notice. First, $M_X(0) = 1$ — this is always true for any MGF, since $E[e^0] = E[1] = 1$. It's a useful sanity check. Second, the function grows fast as $t$ approaches $\lambda = 2$ (the boundary); at $t = 2$ it blows up. Third, we can only evaluate the MGF for $t < \lambda$ — outside that window the expectation diverges. Every MGF has such a *region of convergence* around zero.
+Three things to notice. First, $M_X(0) = 1$, this is always true for any MGF, since $E[e^0] = E[1] = 1$. It's a useful sanity check. Second, the function grows fast as $t$ approaches $\lambda = 2$ (the boundary); at $t = 2$ it blows up. Third, we can only evaluate the MGF for $t < \lambda$, outside that window the expectation diverges. Every MGF has such a *region of convergence* around zero.
 
 That's the formula, but does it match reality? Let's draw samples from the distribution and approximate $E[e^{tX}]$ by the sample average.
 
@@ -54,13 +54,13 @@ data.frame(t = t_grid, theoretical = mgf_vals, monte_carlo = round(mc_vals, 4))
 #> 4 1.5    4.000000      3.9672
 ```
 
-The Monte Carlo estimates track the theoretical values to three decimal places — exactly what the law of large numbers predicts. This is the reassurance we need before trusting MGF-based derivations later in the post: the formula $M_X(t) = E[e^{tX}]$ is not an abstract identity, it's a real expectation that you can sample against.
+The Monte Carlo estimates track the theoretical values to three decimal places, exactly what the law of large numbers predicts. This is the reassurance we need before trusting MGF-based derivations later in the post: the formula $M_X(t) = E[e^{tX}]$ is not an abstract identity, it's a real expectation that you can sample against.
 
 ![From Random Variable to Moments via MGF](screenshots/Moment-Generating-Functions-in-R-mgf-workflow.webp)
 *Figure 1: How an MGF converts a random variable into its moments via derivatives at zero.*
 
 [KEY INSIGHT]
-**An MGF is the DNA test of a distribution.** If two random variables have the same MGF on an open interval around zero, they have the same distribution — period. No two distributions share an MGF.
+**An MGF is the DNA test of a distribution.** If two random variables have the same MGF on an open interval around zero, they have the same distribution, period. No two distributions share an MGF.
 
 **Try it:** Write a function `ex_mgf_exp3(t)` for the MGF of Exponential(rate = 3). Evaluate it at t = 1, then confirm by Monte Carlo using 1e5 samples.
 
@@ -100,7 +100,7 @@ ex_mc_val
 
 ## How do you extract moments from an MGF?
 
-This is the "generating" part of "moment generating function". The $k$-th moment of $X$ — that is, $E[X^k]$ — equals the $k$-th derivative of $M_X(t)$ evaluated at $t=0$:
+This is the "generating" part of "moment generating function". The $k$-th moment of $X$, that is, $E[X^k]$, equals the $k$-th derivative of $M_X(t)$ evaluated at $t=0$:
 
 $$E[X^k] = \left.\frac{d^k}{dt^k} M_X(t)\right|_{t=0}$$
 
@@ -108,7 +108,7 @@ The intuition comes from Taylor expanding $e^{tX}$:
 
 $$M_X(t) = E\left[1 + tX + \frac{t^2 X^2}{2!} + \cdots\right] = 1 + t\, E[X] + \frac{t^2}{2!} E[X^2] + \cdots$$
 
-Differentiating $k$ times and setting $t=0$ pops out $E[X^k]$ and kills every other term. In R, we don't even have to do the calculus by hand — base R's `D()` function performs symbolic differentiation on expressions.
+Differentiating $k$ times and setting $t=0$ pops out $E[X^k]$ and kills every other term. In R, we don't even have to do the calculus by hand, base R's `D()` function performs symbolic differentiation on expressions.
 
 ```r
 # MGF of Exp(lambda=2) as a symbolic expression, then differentiate
@@ -131,7 +131,7 @@ c(mean = mean_x, second_moment = second_moment_x, variance = var_x)
 The numbers line up with the textbook formulas for Exp($\lambda$): mean is $1/\lambda = 0.5$, variance is $1/\lambda^2 = 0.25$. We never wrote an integral. The `D()` call did the symbolic work; `eval()` just plugged $t = 0$ into the resulting expressions. For any MGF you can write as a single R `expression()`, this two-line recipe recovers every moment.
 
 [TIP]
-**Prefer symbolic differentiation over finite differences.** Finite-difference approximations of derivatives accumulate floating-point error near $t = 0$ — exactly where you need to evaluate. `D()` returns an exact symbolic derivative, so there's no truncation bias to tune.
+**Prefer symbolic differentiation over finite differences.** Finite-difference approximations of derivatives accumulate floating-point error near $t = 0$, exactly where you need to evaluate. `D()` returns an exact symbolic derivative, so there's no truncation bias to tune.
 
 **Try it:** Use `D()` to compute the second moment $E[X^2]$ and variance of an Exponential(rate = 3) random variable. Compare your variance to the formula $1/\lambda^2$.
 
@@ -165,7 +165,7 @@ c(mean = ex_mean, second_moment = ex_second, variance = ex_var)
 
 ## What are the MGFs of common distributions?
 
-Most named distributions have simple closed-form MGFs. The table below is the single most useful piece of reference material in this post — bookmark it.
+Most named distributions have simple closed-form MGFs. The table below is the single most useful piece of reference material in this post, bookmark it.
 
 | Distribution | MGF $M_X(t)$ | Domain of $t$ | Mean | Variance |
 |---|---|---|---|---|
@@ -176,7 +176,7 @@ Most named distributions have simple closed-form MGFs. The table below is the si
 | Normal($\mu, \sigma^2$) | $\exp(\mu t + \sigma^2 t^2 / 2)$ | all $t$ | $\mu$ | $\sigma^2$ |
 | Gamma($k, \lambda$) | $(\lambda / (\lambda - t))^k$ | $t < \lambda$ | $k/\lambda$ | $k/\lambda^2$ |
 
-Seeing the formulas side-by-side tells you something deep: the Gamma MGF is the Exponential MGF to a power, hinting that a Gamma($k, \lambda$) is a sum of $k$ independent Exp($\lambda$) variables — we'll prove exactly that in the capstone exercises. Let's encode the six MGFs in R and plot them.
+Seeing the formulas side-by-side tells you something deep: the Gamma MGF is the Exponential MGF to a power, hinting that a Gamma($k, \lambda$) is a sum of $k$ independent Exp($\lambda$) variables, we'll prove exactly that in the capstone exercises. Let's encode the six MGFs in R and plot them.
 
 ```r
 library(ggplot2)
@@ -206,7 +206,7 @@ ggplot(df_mgf, aes(t, M_t, colour = distribution)) +
   theme_minimal(base_size = 12)
 ```
 
-All six MGFs pass through $(0, 1)$, as they must. Near $t = 0$ they all curve gently upward — the slope at zero is the mean of the distribution, and the curvature is related to the variance. The Binomial(10, 0.3) climbs fastest because it has the largest mean among the six (mean = 3), while Bernoulli(0.3) — with mean 0.3 — barely rises.
+All six MGFs pass through $(0, 1)$, as they must. Near $t = 0$ they all curve gently upward, the slope at zero is the mean of the distribution, and the curvature is related to the variance. The Binomial(10, 0.3) climbs fastest because it has the largest mean among the six (mean = 3), while Bernoulli(0.3), with mean 0.3, barely rises.
 
 [NOTE]
 **The Normal MGF is the most-used formula in this table.** $\exp(\mu t + \sigma^2 t^2 / 2)$ is a quadratic in the exponent, and every higher cumulant (third, fourth...) is zero. That single fact is why sums of Normals stay Normal and why the Central Limit Theorem feels natural.
@@ -242,9 +242,9 @@ ex_mgf_pois(0.5, 5)
 
 ## Why do MGFs uniquely identify distributions?
 
-The uniqueness theorem says: if $M_X(t)$ and $M_Y(t)$ exist and agree on any open interval around $t = 0$, then $X$ and $Y$ have the same distribution. This is striking because two distributions can share a *mean* and *variance* yet disagree on everything else — but they cannot share an MGF unless they are truly the same.
+The uniqueness theorem says: if $M_X(t)$ and $M_Y(t)$ exist and agree on any open interval around $t = 0$, then $X$ and $Y$ have the same distribution. This is striking because two distributions can share a *mean* and *variance* yet disagree on everything else, but they cannot share an MGF unless they are truly the same.
 
-Let's see this visually. Exp(2) has mean 0.5 and variance 0.25. A Normal($\mu = 0.5$, $\sigma^2 = 0.25$) also has mean 0.5 and variance 0.25. Identical first two moments — so a moment-matching check would declare them equivalent. Their MGFs, however, diverge sharply.
+Let's see this visually. Exp(2) has mean 0.5 and variance 0.25. A Normal($\mu = 0.5$, $\sigma^2 = 0.25$) also has mean 0.5 and variance 0.25. Identical first two moments, so a moment-matching check would declare them equivalent. Their MGFs, however, diverge sharply.
 
 ```r
 # Exp(2) and Normal(0.5, 0.25) share mean and variance but not distribution
@@ -263,12 +263,12 @@ ggplot(df_compare, aes(t, M_t, colour = dist)) +
   theme_minimal(base_size = 12)
 ```
 
-The two curves are tangent at $t = 0$ (both have value 1 and slope 0.5) and they have the same curvature there (both equal to the variance, 0.25 plus a first-derivative-squared term). But as $t$ moves away from zero, the Exp(2) MGF races toward infinity at $t = 2$ while the Normal's MGF grows like a Gaussian bell turned inside-out. Their third, fourth, and higher derivatives at zero — the higher moments — disagree. That's what the uniqueness theorem is really saying: the *full shape* of $M_X$ near zero encodes *all* moments, and all moments together pin down the distribution.
+The two curves are tangent at $t = 0$ (both have value 1 and slope 0.5) and they have the same curvature there (both equal to the variance, 0.25 plus a first-derivative-squared term). But as $t$ moves away from zero, the Exp(2) MGF races toward infinity at $t = 2$ while the Normal's MGF grows like a Gaussian bell turned inside-out. Their third, fourth, and higher derivatives at zero, the higher moments, disagree. That's what the uniqueness theorem is really saying: the *full shape* of $M_X$ near zero encodes *all* moments, and all moments together pin down the distribution.
 
 [KEY INSIGHT]
 **Matching mean and variance is not matching a distribution.** The first two moments are only two numbers out of an infinite sequence. Only the full MGF (or equivalently, all moments taken together) characterizes the distribution.
 
-**Try it:** Plot the MGF of Poisson(1) versus the MGF of a Normal with mean 1 and variance 1 on `t` in $[-1, 1]$. They share mean and variance — do their MGFs agree?
+**Try it:** Plot the MGF of Poisson(1) versus the MGF of a Normal with mean 1 and variance 1 on `t` in $[-1, 1]$. They share mean and variance, do their MGFs agree?
 
 ```r
 # Try it: Poisson(1) vs Normal(1, 1)
@@ -305,10 +305,10 @@ Here is the property that makes MGFs genuinely practical. If $X$ and $Y$ are **i
 
 $$M_{X+Y}(t) = M_X(t) \cdot M_Y(t)$$
 
-In one line this turns a convolution integral — the direct way to compute the distribution of $X+Y$ — into plain multiplication. When the product matches a known MGF, uniqueness tells us the sum is that distribution.
+In one line this turns a convolution integral, the direct way to compute the distribution of $X+Y$, into plain multiplication. When the product matches a known MGF, uniqueness tells us the sum is that distribution.
 
 ![MGF of a Sum of Independent Variables](screenshots/Moment-Generating-Functions-in-R-sum-independent.webp)
-*Figure 2: For independent variables, the MGF of a sum equals the product of MGFs — convolutions become multiplications.*
+*Figure 2: For independent variables, the MGF of a sum equals the product of MGFs, convolutions become multiplications.*
 
 The textbook application: a Binomial($n, p$) is a sum of $n$ independent Bernoulli($p$) variables. So its MGF should be the Bernoulli MGF raised to the $n$-th power. Let's check numerically.
 
@@ -324,7 +324,7 @@ c(direct = direct_binom, from_bernoulli_product = from_bern)
 #>               2.810885               2.810885
 ```
 
-Identical to machine precision, as expected — $[(1-p) + p e^t]^{10}$ is literally $[mgf\_bern(t,p)]^{10}$. This is how Binomial-as-sum-of-Bernoullis is proved in textbooks. Let's stretch the idea further: the sum of two independent Poissons should itself be Poisson, with rate equal to the sum of the rates.
+Identical to machine precision, as expected, $[(1-p) + p e^t]^{10}$ is literally $[mgf\_bern(t,p)]^{10}$. This is how Binomial-as-sum-of-Bernoullis is proved in textbooks. Let's stretch the idea further: the sum of two independent Poissons should itself be Poisson, with rate equal to the sum of the rates.
 
 ```r
 # Sum of independent Poisson(3) and Poisson(2) should be Poisson(5)
@@ -344,10 +344,10 @@ c(simulated_sum = mc_mgf_sum, theoretical_Poisson5 = theo_mgf_sum)
 #>             9.380102             9.356469
 ```
 
-Agreement to three significant figures — and the match would tighten as `n` grows. The product of two Poisson MGFs $\exp(\lambda_1(e^t-1)) \cdot \exp(\lambda_2(e^t-1)) = \exp((\lambda_1+\lambda_2)(e^t-1))$ is the MGF of Poisson($\lambda_1 + \lambda_2$). By uniqueness, the sum *is* Poisson($\lambda_1 + \lambda_2$). No convolution sum required.
+Agreement to three significant figures, and the match would tighten as `n` grows. The product of two Poisson MGFs $\exp(\lambda_1(e^t-1)) \cdot \exp(\lambda_2(e^t-1)) = \exp((\lambda_1+\lambda_2)(e^t-1))$ is the MGF of Poisson($\lambda_1 + \lambda_2$). By uniqueness, the sum *is* Poisson($\lambda_1 + \lambda_2$). No convolution sum required.
 
 [TIP]
-**Reach for MGFs whenever you see "sum of independent random variables".** It turns convolution — slow and error-prone — into multiplication, which is algebraic and painless.
+**Reach for MGFs whenever you see "sum of independent random variables".** It turns convolution, slow and error-prone, into multiplication, which is algebraic and painless.
 
 **Try it:** Using MGFs alone, identify the distribution of $X + Y$ where $X \sim \text{Normal}(\mu_1, \sigma_1^2)$ and $Y \sim \text{Normal}(\mu_2, \sigma_2^2)$ are independent. Write out the MGF product.
 
@@ -381,7 +381,7 @@ Empirical mean ≈ 4, variance ≈ 5, matching Normal(4, 5).
 
 ## When does the MGF fail to exist?
 
-An MGF requires $E[e^{tX}]$ to be finite for $t$ in an open interval around zero. Heavy-tailed distributions don't cooperate. The Cauchy distribution — the canonical example — has no MGF at any $t \neq 0$ because the integral $\int e^{tx} \frac{1}{\pi (1 + x^2)} dx$ diverges.
+An MGF requires $E[e^{tX}]$ to be finite for $t$ in an open interval around zero. Heavy-tailed distributions don't cooperate. The Cauchy distribution, the canonical example, has no MGF at any $t \neq 0$ because the integral $\int e^{tx} \frac{1}{\pi (1 + x^2)} dx$ diverges.
 
 Let's see the non-existence empirically. If the MGF doesn't exist, the sample-average approximation should be unstable: it will not converge as `n` grows, and different sample sizes give wildly different values.
 
@@ -401,10 +401,10 @@ c(n_100 = mc_small, n_100000 = mc_large)
 #>     1.231e+00    4.872e+08
 ```
 
-The exact numbers will differ between runs — that's the whole point. Because extreme Cauchy draws (arbitrarily far out in the tails) dominate the sum $\sum \exp(t x_i)$, the sample average is effectively driven by one or two huge outliers. The "estimate" never settles to a finite limit. Contrast this with the Exponential MGF earlier, where 100,000 samples gave agreement to three decimals.
+The exact numbers will differ between runs, that's the whole point. Because extreme Cauchy draws (arbitrarily far out in the tails) dominate the sum $\sum \exp(t x_i)$, the sample average is effectively driven by one or two huge outliers. The "estimate" never settles to a finite limit. Contrast this with the Exponential MGF earlier, where 100,000 samples gave agreement to three decimals.
 
 [WARNING]
-**No MGF doesn't mean no distribution.** Cauchy is a perfectly valid distribution — it just cannot be characterized by an MGF. Use the **characteristic function** $\phi_X(t) = E[e^{itX}]$ instead. It always exists because $|e^{itX}| = 1$, and it plays the same role as the MGF for uniqueness and sum-of-RV arguments.
+**No MGF doesn't mean no distribution.** Cauchy is a perfectly valid distribution, it just cannot be characterized by an MGF. Use the **characteristic function** $\phi_X(t) = E[e^{itX}]$ instead. It always exists because $|e^{itX}| = 1$, and it plays the same role as the MGF for uniqueness and sum-of-RV arguments.
 
 **Try it:** Run the Cauchy Monte Carlo MGF estimate twice with different seeds and `n = 500`. Do you get similar values?
 
@@ -426,7 +426,7 @@ c(run1 = ex_run1, run2 = ex_run2)
 #>    7.23e00    5.12e12   # example values — yours will differ
 ```
 
-**Explanation:** The two runs disagree by orders of magnitude. A single Cauchy draw of, say, 250 contributes $e^{0.1 \times 250} \approx 7 \times 10^{10}$ to the average — one extreme sample dominates the whole estimate. This instability is empirical proof that the MGF doesn't exist.
+**Explanation:** The two runs disagree by orders of magnitude. A single Cauchy draw of, say, 250 contributes $e^{0.1 \times 250} \approx 7 \times 10^{10}$ to the average, one extreme sample dominates the whole estimate. This instability is empirical proof that the MGF doesn't exist.
 
 </details>
 
@@ -502,7 +502,7 @@ ggplot(my_df, aes(t, M_t, colour = source)) +
   theme_minimal(base_size = 12)
 ```
 
-**Explanation:** Curves overlap closely for $t < 1.5$, then the empirical estimate becomes noisy near the domain boundary $t = 2$ because very few samples have extreme enough values to approximate the blow-up. Typical — empirical MGFs are most reliable well inside the convergence region.
+**Explanation:** Curves overlap closely for $t < 1.5$, then the empirical estimate becomes noisy near the domain boundary $t = 2$ because very few samples have extreme enough values to approximate the blow-up. Typical, empirical MGFs are most reliable well inside the convergence region.
 
 </details>
 
@@ -545,7 +545,7 @@ c(empirical_mean = mean(exp_sum), theoretical_mean = k / lambda,
 
 ## Complete Example
 
-A small insurance book writes 5 independent claims per year, with each claim size following Exp(rate = 0.01) — that is, mean \$100 per claim. What is the distribution of the total annual payout, and how do we summarise it?
+A small insurance book writes 5 independent claims per year, with each claim size following Exp(rate = 0.01), that is, mean \$100 per claim. What is the distribution of the total annual payout, and how do we summarise it?
 
 Using the result from Exercise 3, the sum of 5 iid Exp(0.01) variables is Gamma(5, 0.01). We can derive the mean and variance directly from the MGF using `D()`, then sanity-check by simulation.
 
@@ -573,7 +573,7 @@ data.frame(
 #> 2  simulation      498.72   49614.2
 ```
 
-The MGF derivation gives expected annual payout of \$500 with variance 50,000 (standard deviation ≈ \$224). Simulation agrees. An actuary would use the Gamma distribution's quantile function `qgamma(0.99, shape=5, rate=0.01)` to size reserves — the entire pricing workflow flows from recognizing the payout as Gamma via an MGF product.
+The MGF derivation gives expected annual payout of \$500 with variance 50,000 (standard deviation ≈ \$224). Simulation agrees. An actuary would use the Gamma distribution's quantile function `qgamma(0.99, shape=5, rate=0.01)` to size reserves, the entire pricing workflow flows from recognizing the payout as Gamma via an MGF product.
 
 ## Summary
 
@@ -589,23 +589,23 @@ Here's what MGFs buy you, at a glance.
 **Key takeaways:**
 
 1. $M_X(t) = E[e^{tX}]$, always equal to 1 at $t=0$, defined on an open interval around 0 (when it exists).
-2. In R, write the MGF as an `expression()` and use base R `D()` to get moments exactly — no calculus by hand.
+2. In R, write the MGF as an `expression()` and use base R `D()` to get moments exactly, no calculus by hand.
 3. For independent sums, MGFs multiply. This is the shortcut behind "Binomial is sum of Bernoullis" and "Sum of Poissons is Poisson".
 4. Uniqueness: identical MGFs ⇒ identical distributions. Matching just the mean and variance is not enough.
 5. Heavy-tailed distributions (Cauchy, some Paretos) have no MGF. Fall back to the characteristic function.
 
 ## References
 
-1. Casella, G. & Berger, R. L. — *Statistical Inference*, 2nd Edition. Duxbury (2002). Chapter 2: Transformations and Expectations.
-2. Wikipedia — Moment-generating function. [Link](https://en.wikipedia.org/wiki/Moment-generating_function)
-3. StatLect — Moment generating function: Definition, properties, examples. [Link](https://www.statlect.com/fundamentals-of-probability/moment-generating-function)
-4. Pishro-Nik, H. — *Introduction to Probability, Statistics, and Random Processes*, Ch. 6.1.3. ProbabilityCourse. [Link](https://www.probabilitycourse.com/chapter6/6_1_3_moment_functions.php)
-5. Stanford CS109 — MGF Lecture Notes. [Link](https://web.stanford.edu/class/archive/cs/cs109/cs109.1218/files/student_drive/5.6.pdf)
-6. Wolfram MathWorld — Moment-Generating Function. [Link](https://mathworld.wolfram.com/Moment-GeneratingFunction.html)
-7. R Core Team — `?D` — The `stats` package reference on symbolic differentiation. [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/deriv.html)
+1. Casella, G. & Berger, R. L., *Statistical Inference*, 2nd Edition. Duxbury (2002). Chapter 2: Transformations and Expectations.
+2. Wikipedia, Moment-generating function. [Link](https://en.wikipedia.org/wiki/Moment-generating_function)
+3. StatLect, Moment generating function: Definition, properties, examples. [Link](https://www.statlect.com/fundamentals-of-probability/moment-generating-function)
+4. Pishro-Nik, H., *Introduction to Probability, Statistics, and Random Processes*, Ch. 6.1.3. ProbabilityCourse. [Link](https://www.probabilitycourse.com/chapter6/6_1_3_moment_functions.php)
+5. Stanford CS109, MGF Lecture Notes. [Link](https://web.stanford.edu/class/archive/cs/cs109/cs109.1218/files/student_drive/5.6.pdf)
+6. Wolfram MathWorld, Moment-Generating Function. [Link](https://mathworld.wolfram.com/Moment-GeneratingFunction.html)
+7. R Core Team, `?D`, The `stats` package reference on symbolic differentiation. [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/deriv.html)
 
 ## Continue Learning
 
-- [Expected Value and Variance in R](Expected-Value-and-Variance-in-R.html) — The parent tutorial; derives mean and variance directly by integration, setting up the MGF shortcut used here.
-- [Normal, t, F and Chi-Squared Distributions in R](Normal-t-F-and-Chi-Squared-Distributions-in-R.html) — Home of the Normal MGF and its derivatives, plus the chi-square that shows up in sums of squared Normals.
-- [Central Limit Theorem in R](Central-Limit-Theorem-in-R.html) — MGFs give a clean proof sketch of why sample means converge to Normal as $n \to \infty$.
+- [Expected Value and Variance in R](Expected-Value-and-Variance-in-R.html), The parent tutorial; derives mean and variance directly by integration, setting up the MGF shortcut used here.
+- [Normal, t, F and Chi-Squared Distributions in R](Normal-t-F-and-Chi-Squared-Distributions-in-R.html), Home of the Normal MGF and its derivatives, plus the chi-square that shows up in sums of squared Normals.
+- [Central Limit Theorem in R](Central-Limit-Theorem-in-R.html), MGFs give a clean proof sketch of why sample means converge to Normal as $n \to \infty$.

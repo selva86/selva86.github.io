@@ -18,13 +18,13 @@ difficulty: "Beginner"
 
 # purrr map() in R: Every Variant Explained With the Mental Model That Makes Them Click
 
-<p class="lead">purrr's <strong>map family</strong> replaces <code>for</code> loops with composable one-liners — <code>map()</code> handles one input, <code>map2()</code> pairs two, <code>pmap()</code> scales to any number, and <code>_dbl</code>/<code>_chr</code>/<code>_lgl</code> suffixes guarantee the output type you expect.</p>
+<p class="lead">purrr's <strong>map family</strong> replaces <code>for</code> loops with composable one-liners, <code>map()</code> handles one input, <code>map2()</code> pairs two, <code>pmap()</code> scales to any number, and <code>_dbl</code>/<code>_chr</code>/<code>_lgl</code> suffixes guarantee the output type you expect.</p>
 
-There are roughly 30 functions in the `map` family, but you don't need to memorise them. Once you see the two-dimensional grid behind the names — **how many inputs** on one axis, **what output type** on the other — every variant becomes obvious. This tutorial walks every useful member of the family with runnable examples so you leave with a working mental model, not a cheat-sheet.
+There are roughly 30 functions in the `map` family, but you don't need to memorise them. Once you see the two-dimensional grid behind the names, **how many inputs** on one axis, **what output type** on the other, every variant becomes obvious. This tutorial walks every useful member of the family with runnable examples so you leave with a working mental model, not a cheat-sheet.
 
 ## What does map() actually do, and why replace for loops?
 
-If you've ever written a `for` loop just to build up a list of results, `map()` is the cleaner replacement. It takes a vector, applies a function to every element, and collects the answers into a list — in one line, with no counter variable and no pre-allocation. Here's the side-by-side: compute the mean of every column in `mtcars`, first the long way, then the `map()` way.
+If you've ever written a `for` loop just to build up a list of results, `map()` is the cleaner replacement. It takes a vector, applies a function to every element, and collects the answers into a list, in one line, with no counter variable and no pre-allocation. Here's the side-by-side: compute the mean of every column in `mtcars`, first the long way, then the `map()` way.
 
 ```r
 library(purrr)
@@ -45,10 +45,10 @@ col_means_list$mpg
 #> [1] 20.09062
 ```
 
-Both expressions produce the same named list of column means, but `map()` removes every piece of loop ceremony. You don't pre-allocate the container, you don't track an index, and you don't copy the result into a slot — `map()` returns the assembled list as its value, so you can pipe it straight into the next step.
+Both expressions produce the same named list of column means, but `map()` removes every piece of loop ceremony. You don't pre-allocate the container, you don't track an index, and you don't copy the result into a slot, `map()` returns the assembled list as its value, so you can pipe it straight into the next step.
 
-![From a hand-rolled for loop to map(), map_dbl(), and walk() — same iteration pattern, different return types.](screenshots/purrr-map-Variants-for-loop-to-map.webp)
-*Figure 1: The same iteration pattern — apply a function to every element — expressed three ways. The return type changes; the logic doesn't.*
+![From a hand-rolled for loop to map(), map_dbl(), and walk(), same iteration pattern, different return types.](screenshots/purrr-map-Variants-for-loop-to-map.webp)
+*Figure 1: The same iteration pattern, apply a function to every element, expressed three ways. The return type changes; the logic doesn't.*
 
 The second argument to `map()` is a function. You can pass a named function like `mean`, or inline a tiny one with R 4.1's backslash-lambda `\(x) ...`, or with purrr's formula shorthand `~ .x * 2` (where `.x` is the current element).
 
@@ -103,13 +103,13 @@ ex_squares
 #> [1] 25
 ```
 
-**Explanation:** `map()` applies `\(x) x ^ 2` to each element and wraps the five results in a list. If you want a plain numeric vector instead of a list, use `map_dbl()` — that's the next section.
+**Explanation:** `map()` applies `\(x) x ^ 2` to each element and wraps the five results in a list. If you want a plain numeric vector instead of a list, use `map_dbl()`, that's the next section.
 
 </details>
 
 ## How do the map_*() type suffixes guarantee the output you expect?
 
-`map()` always returns a list. Most of the time you actually want a plain atomic vector — a numeric, a character, or a logical. That's what the type-suffix variants are for. `map_dbl()` returns a double vector, `map_int()` an integer, `map_chr()` a character, `map_lgl()` a logical. They do the same iteration as `map()`, but they unwrap the result and check that every piece matches the promised type.
+`map()` always returns a list. Most of the time you actually want a plain atomic vector, a numeric, a character, or a logical. That's what the type-suffix variants are for. `map_dbl()` returns a double vector, `map_int()` an integer, `map_chr()` a character, `map_lgl()` a logical. They do the same iteration as `map()`, but they unwrap the result and check that every piece matches the promised type.
 
 ```r
 # map_dbl returns a named numeric vector
@@ -121,7 +121,7 @@ col_means
 #>   0.437500   0.406250   3.687500   2.812500
 ```
 
-Compare that to the list you got in the last section — same numbers, but now you can drop the result straight into `sort()`, `plot()`, or arithmetic without unlisting first. The named-vector format also makes `col_means["mpg"]` work cleanly.
+Compare that to the list you got in the last section, same numbers, but now you can drop the result straight into `sort()`, `plot()`, or arithmetic without unlisting first. The named-vector format also makes `col_means["mpg"]` work cleanly.
 
 ```r
 # map_chr returns a character vector — great for formatted labels
@@ -133,12 +133,12 @@ rounded_means
 #>   "3.7"   "2.8"
 ```
 
-`map_chr()` ran `sprintf()` on each column's mean and collected the 11 strings into a single named character vector — ready for a plot legend, a report heading, or a `paste0()` concatenation.
+`map_chr()` ran `sprintf()` on each column's mean and collected the 11 strings into a single named character vector, ready for a plot legend, a report heading, or a `paste0()` concatenation.
 
 ![The purrr map family arranged by input arity (rows) and output type (columns).](screenshots/purrr-map-Variants-type-suffix-grid.webp)
 *Figure 2: The map family is a 2D grid. Pick a row (how many inputs) and a column (output type) and the function name writes itself.*
 
-The suffix isn't cosmetic — it's a promise the function enforces. If your function returns something that isn't the promised type, `map_dbl()` errors loudly rather than silently returning garbage.
+The suffix isn't cosmetic, it's a promise the function enforces. If your function returns something that isn't the promised type, `map_dbl()` errors loudly rather than silently returning garbage.
 
 ```r
 # map_dbl fails fast when types don't match
@@ -153,10 +153,10 @@ result
 Instead of quietly coercing `"two"` into `NA` or a number, `map_dbl()` stops and tells you exactly which element broke the contract. That's a feature: an explicit failure beats a silent wrong answer every time.
 
 [WARNING]
-**The typed map variants are strict by design.** If your function returns values of mixed or unpredictable type, use plain `map()` and convert afterwards. Don't wrap `map_dbl()` in `tryCatch()` to paper over type mismatches — fix the upstream function instead.
+**The typed map variants are strict by design.** If your function returns values of mixed or unpredictable type, use plain `map()` and convert afterwards. Don't wrap `map_dbl()` in `tryCatch()` to paper over type mismatches, fix the upstream function instead.
 
 [KEY INSIGHT]
-**Pick the suffix that matches your known output, not the loosest one that works.** Using `map()` everywhere because "it always works" defeats the point — the suffixes exist so type errors surface at the iteration site, not three functions downstream where they're hard to debug.
+**Pick the suffix that matches your known output, not the loosest one that works.** Using `map()` everywhere because "it always works" defeats the point, the suffixes exist so type errors surface at the iteration site, not three functions downstream where they're hard to debug.
 
 **Try it:** Use `map_int()` to return the number of characters in each element of `c("dog", "horse", "bee")`. The answer should be an integer vector of length 3.
 
@@ -181,13 +181,13 @@ ex_lengths
 #> [1] 3 5 3
 ```
 
-**Explanation:** `nchar()` returns an integer for each string, and `map_int()` collects the three answers into an integer vector. You could also write this as `map_int(ex_words, nchar)` — when the function is a one-argument named function, you can drop the lambda entirely.
+**Explanation:** `nchar()` returns an integer for each string, and `map_int()` collects the three answers into an integer vector. You could also write this as `map_int(ex_words, nchar)`, when the function is a one-argument named function, you can drop the lambda entirely.
 
 </details>
 
 ## When do you need map2() to iterate over two inputs in parallel?
 
-`map()` works beautifully when you're iterating over one vector. But plenty of problems pair two vectors — sample sizes with seeds, means with standard deviations, column names with column values. `map2()` is the version that walks two inputs in lockstep, feeding the `i`-th element of each to your function on every step.
+`map()` works beautifully when you're iterating over one vector. But plenty of problems pair two vectors, sample sizes with seeds, means with standard deviations, column names with column values. `map2()` is the version that walks two inputs in lockstep, feeding the `i`-th element of each to your function on every step.
 
 ```r
 # Simulate 4 samples, each with its own mean and sd
@@ -202,7 +202,7 @@ sim_samples[[4]]
 #> [1] 14.73944 22.18163 18.81113 17.92391 18.38659
 ```
 
-Each call to `rnorm()` uses the matching element from both vectors — the first call gets `mean = 0, sd = 1`, the second gets `mean = 5, sd = 2`, and so on. The result is a length-4 list where each slot holds a 5-number sample from a different normal distribution.
+Each call to `rnorm()` uses the matching element from both vectors, the first call gets `mean = 0, sd = 1`, the second gets `mean = 5, sd = 2`, and so on. The result is a length-4 list where each slot holds a 5-number sample from a different normal distribution.
 
 Inside the lambda, you can name the arguments anything (`m` and `s` here) or use purrr's formula shorthand where `.x` is the first input and `.y` is the second.
 
@@ -213,10 +213,10 @@ elem_prod
 #> [1]  10  40  90 160
 ```
 
-`map2_dbl()` works exactly like `map2()` but promises a double vector output — the same contract as `map_dbl()`, extended to two inputs. Every type suffix from the previous section has a `map2_` cousin.
+`map2_dbl()` works exactly like `map2()` but promises a double vector output, the same contract as `map_dbl()`, extended to two inputs. Every type suffix from the previous section has a `map2_` cousin.
 
 [NOTE]
-**For simple elementwise arithmetic, plain R vectorisation is faster.** `c(1,2,3,4) * c(10,20,30,40)` returns the same answer without purrr. Reach for `map2()` when the per-element operation is a function call that isn't already vectorised — random draws, model fits, custom transformations.
+**For simple elementwise arithmetic, plain R vectorisation is faster.** `c(1,2,3,4) * c(10,20,30,40)` returns the same answer without purrr. Reach for `map2()` when the per-element operation is a function call that isn't already vectorised, random draws, model fits, custom transformations.
 
 **Try it:** Multiply `c(2, 4, 6)` by `c(10, 100, 1000)` elementwise and return the result as a double vector.
 
@@ -249,7 +249,7 @@ ex_prod
 
 ## How does pmap() scale iteration to any number of arguments?
 
-There's no `map3()` or `map4()` — because `pmap()` generalises the whole idea. Instead of accepting 2, 3, or 4 separate vectors, `pmap()` takes **one list** whose elements are the vectors you want to iterate over in parallel. Three inputs, ten inputs — same syntax.
+There's no `map3()` or `map4()`, because `pmap()` generalises the whole idea. Instead of accepting 2, 3, or 4 separate vectors, `pmap()` takes **one list** whose elements are the vectors you want to iterate over in parallel. Three inputs, ten inputs, same syntax.
 
 The cleanest pattern is to name the list elements to match your function's argument names. purrr will wire them up for you automatically.
 
@@ -271,7 +271,7 @@ sim_list
 #> [1] 18.20688 24.50030 18.71374 21.45382 19.94457
 ```
 
-The first `rnorm()` call got `n = 3, mean = 0, sd = 1`; the second got `n = 4, mean = 10, sd = 2`; the third got `n = 5, mean = 20, sd = 3`. Because the list names match `rnorm`'s argument names, you didn't need a lambda at all — `pmap` passed them through directly.
+The first `rnorm()` call got `n = 3, mean = 0, sd = 1`; the second got `n = 4, mean = 10, sd = 2`; the third got `n = 5, mean = 20, sd = 3`. Because the list names match `rnorm`'s argument names, you didn't need a lambda at all, `pmap` passed them through directly.
 
 [TIP]
 **Name your pmap input list to match the target function's arguments.** It eliminates lambdas, makes the code self-documenting, and lets you reorder inputs safely. If your list elements aren't named, pmap falls back to positional matching (first list element → first function argument), which is more fragile.
@@ -294,7 +294,7 @@ mean_results
 #> [1] 0.2194892 5.3821048 9.9112164
 ```
 
-Each row of `spec_tbl` became one call to the lambda; the lambda drew `n` random values from a normal with the row's `mean` and `sd`, then returned their observed mean. `pmap_dbl()` collected the three observed means into a numeric vector — and because it's `_dbl`, you get a flat atomic vector instead of a list of doubles.
+Each row of `spec_tbl` became one call to the lambda; the lambda drew `n` random values from a normal with the row's `mean` and `sd`, then returned their observed mean. `pmap_dbl()` collected the three observed means into a numeric vector, and because it's `_dbl`, you get a flat atomic vector instead of a list of doubles.
 
 If you don't want to name arguments, purrr's formula shorthand supports positional placeholders `..1`, `..2`, `..3` for any number of inputs.
 
@@ -353,7 +353,7 @@ ex_sentences
 
 ## What is imap() for, and why use it instead of manual indices?
 
-Sometimes the function you're applying needs to know **where** each element came from — its position, its name, or both. You could do that with `map2()` by passing `seq_along(x)` as the second input, but `imap()` does it for you. It's exactly equivalent to `map2(.x, names(.x), .f)` when the input has names, and `map2(.x, seq_along(.x), .f)` when it doesn't.
+Sometimes the function you're applying needs to know **where** each element came from, its position, its name, or both. You could do that with `map2()` by passing `seq_along(x)` as the second input, but `imap()` does it for you. It's exactly equivalent to `map2(.x, names(.x), .f)` when the input has names, and `map2(.x, seq_along(.x), .f)` when it doesn't.
 
 ```r
 # Named input → .y is the name
@@ -364,7 +364,7 @@ kv_strings
 #>    "tokyo: 37.4M"    "delhi: 32.9M"  "shanghai: 28.5M"
 ```
 
-The lambda received two arguments: `val` (the list element) and `key` (the name). `imap_chr()` pasted them together and returned a named character vector. You didn't have to extract `names(populations)` or track an index counter — `imap` did it for you.
+The lambda received two arguments: `val` (the list element) and `key` (the name). `imap_chr()` pasted them together and returned a named character vector. You didn't have to extract `names(populations)` or track an index counter, `imap` did it for you.
 
 If the input has no names, `imap()` uses the integer position instead.
 
@@ -375,7 +375,7 @@ idx_strings
 #> [1] "1=red"   "2=green" "3=blue"
 ```
 
-Same pattern, different second argument. `imap()` silently switches between "use names" and "use indices" depending on whether the input is named — so your code reads the same whether you're looping a named list or a plain vector.
+Same pattern, different second argument. `imap()` silently switches between "use names" and "use indices" depending on whether the input is named, so your code reads the same whether you're looping a named list or a plain vector.
 
 [KEY INSIGHT]
 **`imap()` is the R equivalent of Python's `enumerate()`.** Any time you find yourself writing `for (i in seq_along(x))` to get both the element and its position, reach for `imap` instead. It's one function call, it respects names when they exist, and it plugs straight into a tidyverse pipeline.
@@ -410,7 +410,7 @@ ex_labels
 
 ## When should you use walk() instead of map()?
 
-Sometimes you iterate purely for a side effect — printing, saving a plot, writing a file, logging a message — and you don't care about the return value. Using `map()` for that works, but it allocates a list of `NULL`s you'll throw away and it prints that list if you run it at the console. `walk()` is the "for its side effects" variant: it calls the function on every element, ignores the return values, and returns the **input** invisibly so pipelines keep flowing.
+Sometimes you iterate purely for a side effect, printing, saving a plot, writing a file, logging a message, and you don't care about the return value. Using `map()` for that works, but it allocates a list of `NULL`s you'll throw away and it prints that list if you run it at the console. `walk()` is the "for its side effects" variant: it calls the function on every element, ignores the return values, and returns the **input** invisibly so pipelines keep flowing.
 
 ```r
 # Print a per-cylinder summary of mpg — side effect only
@@ -424,7 +424,7 @@ walk(mtcars_by_cyl, \(df) {
 #> cyl = 8 — mean mpg = 15.1
 ```
 
-Three lines of output, no list of `NULL`s cluttering your console. `walk()` evaluated the lambda for its printing effect, discarded the return values, and invisibly returned `mtcars_by_cyl` — so you could even pipe the result into another step if you wanted to.
+Three lines of output, no list of `NULL`s cluttering your console. `walk()` evaluated the lambda for its printing effect, discarded the return values, and invisibly returned `mtcars_by_cyl`, so you could even pipe the result into another step if you wanted to.
 
 Like `map2()` and `pmap()`, `walk()` has `walk2()` and `pwalk()` siblings for two or n inputs.
 
@@ -446,7 +446,7 @@ walk2(report_names, mtcars_by_cyl, \(fname, df) {
 #> Rows: 14 | Mean mpg: 15.1
 ```
 
-In a real R session you'd call `write.csv(df, fname)` or `ggsave(fname, plot)` inside the lambda. Here we print what would happen so you can see the pairing — each filename lines up with its matching data frame, exactly as `map2()` would.
+In a real R session you'd call `write.csv(df, fname)` or `ggsave(fname, plot)` inside the lambda. Here we print what would happen so you can see the pairing, each filename lines up with its matching data frame, exactly as `map2()` would.
 
 [NOTE]
 **This page runs R in a browser sandbox with an in-memory virtual filesystem.** Functions like `write.csv()` technically execute but the files vanish on page reload and there's no "Downloads" folder to find them in. That's why the example above prints instead of writing. In your local RStudio, `walk2(filenames, data_list, write.csv)` is the real thing.
@@ -477,7 +477,7 @@ walk(ex_greetings, \(g) cat("—", g, "\n"))
 #> — Bonjour, Curie
 ```
 
-**Explanation:** `cat()` prints to the console and returns `NULL` — exactly the side-effect-only pattern `walk()` is designed for. Using `map()` here would work but would also print a useless list of three `NULL`s below the greetings.
+**Explanation:** `cat()` prints to the console and returns `NULL`, exactly the side-effect-only pattern `walk()` is designed for. Using `map()` here would work but would also print a useless list of three `NULL`s below the greetings.
 
 </details>
 
@@ -529,7 +529,7 @@ walk(my_summaries, \(line) cat(line, "\n"))
 
 ### Exercise 2: Monte Carlo experiment grid with pmap()
 
-You have a tibble of experiment specifications — six combinations of sample size, distribution mean, and standard deviation. For each row, draw a random sample from a normal distribution, compute its observed mean, and return all six observed means alongside the original specs.
+You have a tibble of experiment specifications, six combinations of sample size, distribution mean, and standard deviation. For each row, draw a random sample from a normal distribution, compute its observed mean, and return all six observed means alongside the original specs.
 
 ```r
 # Exercise 2: pmap + mutate for a Monte Carlo grid
@@ -580,7 +580,7 @@ my_results
 #> 6   100    10     1        9.99
 ```
 
-**Explanation:** Inside `mutate()`, `pmap_dbl()` walks the three column vectors in parallel. On each iteration the lambda draws `n` values from `rnorm(mean, sd)` and returns the observed mean. With `n = 100` rows the observed means are much closer to the true means — the classic law-of-large-numbers effect.
+**Explanation:** Inside `mutate()`, `pmap_dbl()` walks the three column vectors in parallel. On each iteration the lambda draws `n` values from `rnorm(mean, sd)` and returns the observed mean. With `n = 100` rows the observed means are much closer to the true means, the classic law-of-large-numbers effect.
 
 </details>
 
@@ -682,7 +682,7 @@ experiments |> select(-sample)
 #> 6 exponential   200         1         1.06        1.04     0.0605
 ```
 
-Every column in the results tibble came from a different map variant. `pmap()` ran the experiments, `map_dbl()` extracted the observed mean and SD from each sample, and plain vectorised arithmetic handled `abs_error`. Notice the `sample` column — it's a **list-column**, one random sample per row, preserved for inspection. That's the tidyverse's native way of holding "one object per row."
+Every column in the results tibble came from a different map variant. `pmap()` ran the experiments, `map_dbl()` extracted the observed mean and SD from each sample, and plain vectorised arithmetic handled `abs_error`. Notice the `sample` column, it's a **list-column**, one random sample per row, preserved for inspection. That's the tidyverse's native way of holding "one object per row."
 
 Finally, print a per-distribution summary using `walk()` on a split of the tibble.
 
@@ -708,7 +708,7 @@ walk(split(experiments, experiments$dist), \(df) {
 #>     n = 200 : abs_error = 0.0282
 ```
 
-This is the kind of workflow `purrr` is built for. Each map variant has one job — `pmap` for the experiment grid, `map_dbl` for the scalar summaries, `walk` for the side-effect printing — and they all compose into a single readable pipeline.
+This is the kind of workflow `purrr` is built for. Each map variant has one job, `pmap` for the experiment grid, `map_dbl` for the scalar summaries, `walk` for the side-effect printing, and they all compose into a single readable pipeline.
 
 ## Summary
 
@@ -727,29 +727,29 @@ Pick the variant by asking three questions: **how many inputs?**, **do I need th
 | `map2()` / `map2_*` | 2 | list or typed vector | Iterating two paired vectors |
 | `pmap()` / `pmap_*` | n (list) | list or typed vector | 3+ inputs, or a tibble of specs |
 | `imap()` / `imap_*` | 1 + index | list or typed vector | You need the name or position alongside the value |
-| `walk()` | 1 | input (invisibly) | Side effects only — printing, saving, logging |
+| `walk()` | 1 | input (invisibly) | Side effects only, printing, saving, logging |
 | `walk2()` / `pwalk()` | 2 or n | input (invisibly) | Multi-input side effects |
 
 **Key takeaways**
 
 1. `map()` is for one input; `map2()` pairs two; `pmap()` scales to any number.
-2. The `_dbl`/`_int`/`_chr`/`_lgl` suffix turns the list output into a flat atomic vector — and enforces the type.
-3. `imap()` is the R equivalent of "enumerate" — use it whenever you'd reach for `seq_along()` or `names()` inside a manual loop.
+2. The `_dbl`/`_int`/`_chr`/`_lgl` suffix turns the list output into a flat atomic vector, and enforces the type.
+3. `imap()` is the R equivalent of "enumerate", use it whenever you'd reach for `seq_along()` or `names()` inside a manual loop.
 4. `walk()` is for side effects: no list of `NULL`s, returns the input invisibly so pipelines keep flowing.
-5. When in doubt, name your `pmap()` list elements to match the target function's argument names — it eliminates lambdas entirely.
+5. When in doubt, name your `pmap()` list elements to match the target function's argument names, it eliminates lambdas entirely.
 
 ## References
 
-1. Wickham, H. — *Advanced R*, 2nd Edition. Chapter 9: Functionals. [Link](https://adv-r.hadley.nz/functionals.html)
-2. Wickham, H. & Grolemund, G. — *R for Data Science*, 2nd Edition. Chapter 27: Iteration. [Link](https://r4ds.hadley.nz/iteration)
-3. purrr documentation — `map()` reference. [Link](https://purrr.tidyverse.org/reference/map.html)
-4. purrr documentation — `map2()` and `pmap()` reference. [Link](https://purrr.tidyverse.org/reference/map2.html)
-5. purrr documentation — `imap()` reference. [Link](https://purrr.tidyverse.org/reference/imap.html)
-6. Stanford DCL — *Functional Programming with purrr*, parallel iteration chapter. [Link](https://dcl-prog.stanford.edu/purrr-parallel.html)
-7. Wickham, H. — *Advanced R*, 1st Edition archive on functional style. [Link](http://adv-r.had.co.nz/Functional-programming.html)
+1. Wickham, H., *Advanced R*, 2nd Edition. Chapter 9: Functionals. [Link](https://adv-r.hadley.nz/functionals.html)
+2. Wickham, H. & Grolemund, G., *R for Data Science*, 2nd Edition. Chapter 27: Iteration. [Link](https://r4ds.hadley.nz/iteration)
+3. purrr documentation, `map()` reference. [Link](https://purrr.tidyverse.org/reference/map.html)
+4. purrr documentation, `map2()` and `pmap()` reference. [Link](https://purrr.tidyverse.org/reference/map2.html)
+5. purrr documentation, `imap()` reference. [Link](https://purrr.tidyverse.org/reference/imap.html)
+6. Stanford DCL, *Functional Programming with purrr*, parallel iteration chapter. [Link](https://dcl-prog.stanford.edu/purrr-parallel.html)
+7. Wickham, H., *Advanced R*, 1st Edition archive on functional style. [Link](http://adv-r.had.co.nz/Functional-programming.html)
 
 ## Continue Learning
 
-- [Functional Programming in R](Functional-Programming-in-R.html) — the broader paradigm that makes `map` feel natural: first-class functions, pure functions, and composition.
-- [Writing R Functions](R-Functions.html) — how to write clean functions for the `.f` argument you keep passing to every map variant.
-- [dplyr Basics](dplyr-Basics.html) — the natural companion to purrr; `mutate()` + `pmap()` is the workflow for per-row computations on tibbles.
+- [Functional Programming in R](Functional-Programming-in-R.html), the broader paradigm that makes `map` feel natural: first-class functions, pure functions, and composition.
+- [Writing R Functions](R-Functions.html), how to write clean functions for the `.f` argument you keep passing to every map variant.
+- [dplyr Basics](dplyr-Basics.html), the natural companion to purrr; `mutate()` + `pmap()` is the workflow for per-row computations on tibbles.

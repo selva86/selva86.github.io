@@ -1,5 +1,5 @@
 ---
-title: "Conditional Probability in R: P(A|B), Independence, and Bayes — With Real Examples"
+title: "Conditional Probability in R: P(A|B), Independence, and Bayes, With Real Examples"
 slug: "Conditional-Probability-in-R"
 description: "Simulate conditional probability in R, prove independence with dice rolls, and apply Bayes' theorem to medical testing. Runnable code in your browser."
 keywords: "conditional probability in R, P(A|B) R, Bayes theorem R, independence test R, conditional probability simulation, Bayes rule R example, joint probability R, chi-squared independence test R"
@@ -16,13 +16,13 @@ auto_link_terms: "conditional probability|P(A|B)|Bayes theorem|Bayes' theorem|Ba
 auto_link_case_sensitive: false
 ---
 
-# Conditional Probability in R: P(A|B), Independence, and Bayes — With Real Examples
+# Conditional Probability in R: P(A|B), Independence, and Bayes, With Real Examples
 
-<p class="lead">Conditional probability measures how the chance of one event changes when you know another event already happened — written P(A|B) and read "the probability of A given B." In this tutorial you'll simulate conditional probabilities in R, prove when events are independent, and apply Bayes' theorem to a medical-testing scenario where the "obvious" answer is wrong.</p>
+<p class="lead">Conditional probability measures how the chance of one event changes when you know another event already happened, written P(A|B) and read "the probability of A given B." In this tutorial you'll simulate conditional probabilities in R, prove when events are independent, and apply Bayes' theorem to a medical-testing scenario where the "obvious" answer is wrong.</p>
 
 ## What is conditional probability and how do you calculate P(A|B)?
 
-Imagine you roll a fair die and it lands on an even number. What's the probability the roll is also greater than 4? Knowing the die is even shrinks the possible outcomes from six to three — {2, 4, 6} — and only one of those (6) is greater than 4. That gives us 1/3 instead of the unconditional 2/6.
+Imagine you roll a fair die and it lands on an even number. What's the probability the roll is also greater than 4? Knowing the die is even shrinks the possible outcomes from six to three, {2, 4, 6}, and only one of those (6) is greater than 4. That gives us 1/3 instead of the unconditional 2/6.
 
 Let's confirm this with a simulation of 100,000 rolls.
 
@@ -45,7 +45,7 @@ p_gt4
 #> [1] 0.3336
 ```
 
-The simulation gives us roughly 0.333 — exactly 1/3. Notice that P(>4) unconditionally is also about 1/3 in this case, but that's a coincidence of these particular events. The key idea is that we restricted our universe to even rolls before asking the question.
+The simulation gives us roughly 0.333, exactly 1/3. Notice that P(>4) unconditionally is also about 1/3 in this case, but that's a coincidence of these particular events. The key idea is that we restricted our universe to even rolls before asking the question.
 
 The formal formula captures this "restrict and re-normalise" logic:
 
@@ -70,10 +70,10 @@ p_formula
 #> [1] 0.3332
 ```
 
-Both approaches — simulation and formula — give the same answer. That's the power of Monte Carlo: you can always check a formula by simulating the experiment thousands of times.
+Both approaches, simulation and formula, give the same answer. That's the power of Monte Carlo: you can always check a formula by simulating the experiment thousands of times.
 
 [KEY INSIGHT]
-**Conditioning shrinks the sample space.** P(A|B) doesn't change event A — it changes the universe of outcomes you're considering. You throw away everything where B didn't happen, then ask "what fraction of what's left is A?"
+**Conditioning shrinks the sample space.** P(A|B) doesn't change event A, it changes the universe of outcomes you're considering. You throw away everything where B didn't happen, then ask "what fraction of what's left is A?"
 
 **Try it:** Given a die roll is odd, what's the probability it's less than or equal to 3? Simulate with 100,000 rolls and verify the answer is 2/3.
 
@@ -105,11 +105,11 @@ mean(ex_odd <= 3)
 
 ## How does joint probability connect to conditional probability?
 
-The conditional probability formula can be rearranged into the **multiplication rule** — a way to compute the probability that two events both happen:
+The conditional probability formula can be rearranged into the **multiplication rule**, a way to compute the probability that two events both happen:
 
 $$P(A \cap B) = P(A|B) \times P(B)$$
 
-This says: the chance of A *and* B equals the chance of B times the chance of A *given* B. Think of it as a two-step process — first B happens, then A happens in that restricted world.
+This says: the chance of A *and* B equals the chance of B times the chance of A *given* B. Think of it as a two-step process, first B happens, then A happens in that restricted world.
 
 Let's test this with playing cards. What's the probability of drawing a card that is both red and a face card?
 
@@ -150,7 +150,7 @@ The simulation, the multiplication rule, and the theoretical calculation all con
 [TIP]
 **The multiplication rule is just the conditional probability formula rearranged.** If you know P(A|B) and P(B), multiply them to get P(A ∩ B). If you know P(A ∩ B) and P(B), divide to get P(A|B). One formula, two directions.
 
-**Try it:** In a standard 52-card deck, what's P(Heart ∩ King)? There's exactly 1 King of Hearts. Compute it using the multiplication rule — P(King|Heart) × P(Heart) — and verify with simulation.
+**Try it:** In a standard 52-card deck, what's P(Heart ∩ King)? There's exactly 1 King of Hearts. Compute it using the multiplication rule, P(King|Heart) × P(Heart), and verify with simulation.
 
 ```r
 # Try it: P(Heart ∩ King)
@@ -188,13 +188,13 @@ mean(ex_is_king[ex_is_heart]) * mean(ex_is_heart)
 
 </details>
 
-## When are two events independent — and how can you prove it in R?
+## When are two events independent, and how can you prove it in R?
 
 Two events are **independent** when knowing one tells you nothing about the other. Formally:
 
 $$P(A|B) = P(A)$$
 
-This is equivalent to saying $P(A \cap B) = P(A) \times P(B)$ — the joint probability equals the product of the individual probabilities.
+This is equivalent to saying $P(A \cap B) = P(A) \times P(B)$, the joint probability equals the product of the individual probabilities.
 
 The classic example: rolling two separate dice. The outcome of die 1 can't possibly influence die 2.
 
@@ -221,7 +221,7 @@ cat("P(die1 = 6 | die2=6) =", round(p_die1_six_given_die2_six, 4), "\n")
 
 The two probabilities are nearly identical (both around 0.167 = 1/6). Knowing die 2 landed on 6 tells you nothing about die 1. That's independence.
 
-Now here's the contrast — **dependent events**. When you draw cards *without* replacement, the first draw changes the deck for the second draw.
+Now here's the contrast, **dependent events**. When you draw cards *without* replacement, the first draw changes the deck for the second draw.
 
 ```r
 # Dependent events: cards without replacement
@@ -255,13 +255,13 @@ cat("P(2nd Ace | 1st Ace) =", round(second_ace_given_first / first_ace, 4), "\n"
 # Theoretical: 3/51 ≈ 0.0588 vs 4/52 ≈ 0.0769
 ```
 
-When the first card is an Ace, only 3 Aces remain among 51 cards, so P(2nd Ace | 1st Ace) = 3/51 ≈ 0.059 — noticeably lower than the unconditional 4/52 ≈ 0.077. The first draw changed the odds. These events are dependent.
+When the first card is an Ace, only 3 Aces remain among 51 cards, so P(2nd Ace | 1st Ace) = 3/51 ≈ 0.059, noticeably lower than the unconditional 4/52 ≈ 0.077. The first draw changed the odds. These events are dependent.
 
 ![How to check whether two events are independent in R.](screenshots/Conditional-Probability-in-R-independence-check.webp)
 *Figure 1: How to check whether two events are independent in R.*
 
 [WARNING]
-**Don't confuse "independent" with "mutually exclusive."** Mutually exclusive events (like rolling a 2 and rolling a 5 on one die) can't happen together — they are *maximally dependent*. If one happens, the other definitely didn't. Independent events can and do happen together; they just don't influence each other's probabilities.
+**Don't confuse "independent" with "mutually exclusive."** Mutually exclusive events (like rolling a 2 and rolling a 5 on one die) can't happen together, they are *maximally dependent*. If one happens, the other definitely didn't. Independent events can and do happen together; they just don't influence each other's probabilities.
 
 **Try it:** Roll two dice. Are the events "sum equals 7" and "die 1 equals 3" independent? Simulate 100,000 rolls and compare P(sum = 7) with P(sum = 7 | die1 = 3).
 
@@ -298,7 +298,7 @@ cat("P(sum = 7 | d1 = 3) =", mean(ex_sum[ex_d1 == 3] == 7), "\n")
 
 ## How do you test independence statistically with the chi-squared test?
 
-The simulations above work when you know the exact probability model. But with real-world data — survey responses, medical records, experiment results — you have a contingency table and need a formal test.
+The simulations above work when you know the exact probability model. But with real-world data, survey responses, medical records, experiment results, you have a contingency table and need a formal test.
 
 The **chi-squared test of independence** asks: "Could the pattern in this table have arisen by chance if the two variables were truly independent?" The null hypothesis is independence; a small p-value means you reject it.
 
@@ -331,7 +331,7 @@ chi_result
 #> X-squared = 33.849, df = 4, p-value = 7.994e-07
 ```
 
-The p-value is extremely small (less than 0.001), so we reject the null hypothesis. Smoking status and exercise frequency are **not independent** in this sample — they are associated.
+The p-value is extremely small (less than 0.001), so we reject the null hypothesis. Smoking status and exercise frequency are **not independent** in this sample, they are associated.
 
 Now let's see what happens when we test two variables that we *know* are independent: two separate coin flips.
 
@@ -353,7 +353,7 @@ chi_indep$p.value
 #> [1] 0.4301
 ```
 
-The p-value is 0.43 — far above any reasonable threshold (0.05). We fail to reject the null. The test correctly finds no evidence of association, because the two coin flips really are independent.
+The p-value is 0.43, far above any reasonable threshold (0.05). We fail to reject the null. The test correctly finds no evidence of association, because the two coin flips really are independent.
 
 [NOTE]
 **The chi-squared test needs expected cell counts of at least 5.** If your contingency table has very small counts (sparse data), use Fisher's exact test instead: `fisher.test(your_table)`. It gives exact p-values without relying on the chi-squared approximation.
@@ -413,19 +413,19 @@ Solving both for $P(A \cap B)$ and setting them equal gives us **Bayes' theorem*
 $$P(A|B) = \frac{P(B|A) \times P(A)}{P(B)}$$
 
 Where:
-- $P(A|B)$ = **posterior** — what we want (updated belief after seeing B)
-- $P(B|A)$ = **likelihood** — how likely is B if A is true
-- $P(A)$ = **prior** — our belief before seeing B
-- $P(B)$ = **evidence** — the total probability of B across all scenarios
+- $P(A|B)$ = **posterior**, what we want (updated belief after seeing B)
+- $P(B|A)$ = **likelihood**, how likely is B if A is true
+- $P(A)$ = **prior**, our belief before seeing B
+- $P(B)$ = **evidence**, the total probability of B across all scenarios
 
-*If you're not interested in the derivation, the formula above is all you need — let's see it in action.*
+*If you're not interested in the derivation, the formula above is all you need, let's see it in action.*
 
 ![How Bayes' theorem flips a conditional probability from P(B|A) to P(A|B).](screenshots/Conditional-Probability-in-R-bayes-flow.webp)
 *Figure 2: How Bayes' theorem flips a conditional probability from P(B|A) to P(A|B).*
 
 Here's where Bayes gets counter-intuitive. Suppose a disease affects 1% of the population. A test for this disease has 90% sensitivity (correctly detects 90% of sick people) and 95% specificity (correctly clears 95% of healthy people). You test positive. What's the probability you actually have the disease?
 
-Most people guess 90% — after all, the test is 90% accurate. The real answer is shockingly low.
+Most people guess 90%, after all, the test is 90% accurate. The real answer is shockingly low.
 
 ```r
 # Bayes' theorem: medical testing
@@ -442,15 +442,15 @@ round(p_disease_given_pos, 4)
 #> [1] 0.1538
 ```
 
-Only about **15.4%** — not 90%. A positive result means you're far more likely to be healthy than sick. How is that possible?
+Only about **15.4%**, not 90%. A positive result means you're far more likely to be healthy than sick. How is that possible?
 
 ![A probability tree for 1,000 people: most positive tests are false positives when the disease is rare.](screenshots/Conditional-Probability-in-R-medical-test.webp)
-*Figure 3: A probability tree for 1,000 people — most positive tests are false positives when the disease is rare.*
+*Figure 3: A probability tree for 1,000 people, most positive tests are false positives when the disease is rare.*
 
 The tree makes it clear. Out of 1,000 people, only 10 have the disease (1%). The test catches 9 of them (true positives). But among the 990 healthy people, the 5% false positive rate produces 50 false alarms. So out of 59 total positives, only 9 actually have the disease: 9/59 ≈ 15.3%.
 
 [KEY INSIGHT]
-**When a disease is rare, even a good test produces mostly false positives.** The base rate (prior probability) dominates. A test with 90% sensitivity and 95% specificity sounds great — but against a 1% prevalence, false positives outnumber true positives 5-to-1. Always consider prevalence before interpreting a test result.
+**When a disease is rare, even a good test produces mostly false positives.** The base rate (prior probability) dominates. A test with 90% sensitivity and 95% specificity sounds great, but against a 1% prevalence, false positives outnumber true positives 5-to-1. Always consider prevalence before interpreting a test result.
 
 **Try it:** Re-compute P(Disease | Positive) with a prevalence of 10% instead of 1%. How much does the posterior change?
 
@@ -474,7 +474,7 @@ round(ex_posterior, 4)
 #> [1] 0.6667
 ```
 
-**Explanation:** With 10% prevalence, a positive test now means a 66.7% chance of disease — up from 15.4%. The higher base rate means true positives far outnumber false positives. The same test performs dramatically differently depending on how common the disease is.
+**Explanation:** With 10% prevalence, a positive test now means a 66.7% chance of disease, up from 15.4%. The higher base rate means true positives far outnumber false positives. The same test performs dramatically differently depending on how common the disease is.
 
 </details>
 
@@ -531,7 +531,7 @@ text(x = seq(0.7, by = 1.2, length.out = 4), y = probs + 0.04,
 The dashed line at 0.5 is the "more likely than not" threshold. After one test, we're still below it (15.4%). After two tests, we cross it decisively (76.6%). By the third test, we're nearly certain (98.3%).
 
 [TIP]
-**Bayesian updating is everywhere in practice.** Spam filters update P(spam) with each word they see in an email. Recommendation engines refine your preference profile with each click. Clinical decision tools combine multiple test results exactly this way — each new data point updates the prior, one step at a time.
+**Bayesian updating is everywhere in practice.** Spam filters update P(spam) with each word they see in an email. Recommendation engines refine your preference profile with each click. Clinical decision tools combine multiple test results exactly this way, each new data point updates the prior, one step at a time.
 
 **Try it:** Starting from the `posterior3` value above (after 3 positive tests), what happens after a **negative** test result? Compute the posterior using P(Negative | Disease) = 1 - sensitivity.
 
@@ -560,7 +560,7 @@ round(ex_posterior4, 4)
 #> [1] 0.8613
 ```
 
-**Explanation:** Even after a negative test, the posterior is still 86% — three prior positives built up so much evidence that one negative test only drops the belief from 98.3% to 86.1%. Bayesian updating works in both directions, but strong prior evidence takes multiple contrary observations to overcome.
+**Explanation:** Even after a negative test, the posterior is still 86%, three prior positives built up so much evidence that one negative test only drops the belief from 98.3% to 86.1%. Bayesian updating works in both directions, but strong prior evidence takes multiple contrary observations to overcome.
 
 </details>
 
@@ -613,7 +613,7 @@ cat("Simulated P(A | Def) =", round(mean(machine[defective] == "A"), 4), "\n")
 
 </details>
 
-### Exercise 2: The Monty Hall problem — simulated
+### Exercise 2: The Monty Hall problem, simulated
 
 In the classic Monty Hall problem, you pick one of three doors. Behind one door is a car; behind the other two are goats. The host (who knows what's behind the doors) opens a different door showing a goat, then asks if you want to switch.
 
@@ -696,13 +696,13 @@ cat("After seeing 'free' + 'win': P(Spam) =", round(post_after_win, 4), "\n")
 #> After seeing 'free' + 'win': P(Spam) = 0.9903
 ```
 
-**Explanation:** The word "free" alone pushes P(Spam) from 30% to 83.7%. Adding "win" pushes it to 99.0%. Each word is a piece of evidence processed through Bayes' theorem. This is exactly how naive Bayes classifiers work — they multiply likelihood ratios for each feature, which is equivalent to sequential Bayesian updating under the conditional independence assumption.
+**Explanation:** The word "free" alone pushes P(Spam) from 30% to 83.7%. Adding "win" pushes it to 99.0%. Each word is a piece of evidence processed through Bayes' theorem. This is exactly how naive Bayes classifiers work, they multiply likelihood ratios for each feature, which is equivalent to sequential Bayesian updating under the conditional independence assumption.
 
 </details>
 
 ## Putting It All Together
 
-Let's walk through a complete medical screening scenario from start to finish — defining the problem, applying Bayes' theorem, updating with multiple tests, and visualising the decision process.
+Let's walk through a complete medical screening scenario from start to finish, defining the problem, applying Bayes' theorem, updating with multiple tests, and visualising the decision process.
 
 ```r
 # === Complete Example: Screening for a Rare Genetic Condition ===
@@ -784,7 +784,7 @@ cat(sprintf("Formula P(Condition | 4 positives)   = %.2f%%\n",
 #> Formula P(Condition | 4 positives)   = 97.61%
 ```
 
-This example shows the complete Bayesian workflow: start with a prior (0.5%), apply evidence one piece at a time through Bayes' theorem, and watch the posterior evolve. The Monte Carlo simulation confirms the analytical answer, giving confidence in both methods. Clinically, a doctor wouldn't act on a single positive screening result for a rare condition — the 4.6% posterior is too low. But after four consecutive positives, the 97.6% posterior justifies further diagnostic steps.
+This example shows the complete Bayesian workflow: start with a prior (0.5%), apply evidence one piece at a time through Bayes' theorem, and watch the posterior evolve. The Monte Carlo simulation confirms the analytical answer, giving confidence in both methods. Clinically, a doctor wouldn't act on a single positive screening result for a rare condition, the 4.6% posterior is too low. But after four consecutive positives, the 97.6% posterior justifies further diagnostic steps.
 
 ## Summary
 
@@ -805,16 +805,16 @@ This example shows the complete Bayesian workflow: start with a prior (0.5%), ap
 
 ## References
 
-1. R Core Team — `sample()`, `table()`, `chisq.test()` documentation. [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/chisq.test.html)
-2. Blitzstein, J. & Hwang, J. — *Introduction to Probability*, 2nd Edition. CRC Press (2019). Chapters 2-3: Conditional Probability and Bayes. [Link](https://projects.iq.harvard.edu/stat110/home)
-3. Wickham, H. & Grolemund, G. — *R for Data Science*, 2nd Edition (2023). [Link](https://r4ds.hadley.nz/)
-4. Wikipedia — Bayes' theorem: formal derivation and historical context. [Link](https://en.wikipedia.org/wiki/Bayes%27_theorem)
-5. NIST/SEMATECH — e-Handbook of Statistical Methods: Chi-squared test of independence. [Link](https://www.itl.nist.gov/div898/handbook/eda/section3/eda35f.htm)
-6. LaplacesDemon R package — `BayesTheorem()` function documentation. [Link](https://search.r-project.org/CRAN/refmans/LaplacesDemon/html/BayesTheorem.html)
-7. r-statistics.co — Sample Spaces, Events, and Probability Axioms in R. [Link](/Sample-Spaces-Events-and-Probability-Axioms-in-R-With-Monte-Carlo-Proof.html)
+1. R Core Team, `sample()`, `table()`, `chisq.test()` documentation. [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/chisq.test.html)
+2. Blitzstein, J. & Hwang, J., *Introduction to Probability*, 2nd Edition. CRC Press (2019). Chapters 2-3: Conditional Probability and Bayes. [Link](https://projects.iq.harvard.edu/stat110/home)
+3. Wickham, H. & Grolemund, G., *R for Data Science*, 2nd Edition (2023). [Link](https://r4ds.hadley.nz/)
+4. Wikipedia, Bayes' theorem: formal derivation and historical context. [Link](https://en.wikipedia.org/wiki/Bayes%27_theorem)
+5. NIST/SEMATECH, e-Handbook of Statistical Methods: Chi-squared test of independence. [Link](https://www.itl.nist.gov/div898/handbook/eda/section3/eda35f.htm)
+6. LaplacesDemon R package, `BayesTheorem()` function documentation. [Link](https://search.r-project.org/CRAN/refmans/LaplacesDemon/html/BayesTheorem.html)
+7. r-statistics.co, Sample Spaces, Events, and Probability Axioms in R. [Link](/Sample-Spaces-Events-and-Probability-Axioms-in-R-With-Monte-Carlo-Proof.html)
 
 ## Continue Learning
 
-1. [Sample Spaces, Events, and Probability Axioms in R](/Sample-Spaces-Events-and-Probability-Axioms-in-R-With-Monte-Carlo-Proof.html) — the prerequisite covering P(A), sample spaces, and the three probability axioms with Monte Carlo proofs
-2. [Which Statistical Test in R](/Which-Statistical-Test-in-R.html) — a comprehensive decision guide for choosing the right statistical test, including chi-squared and Fisher's exact
-3. [Descriptive Statistics in R](/Descriptive-Statistics-in-R.html) — how to summarise your data with measures of centre, spread, and shape before modelling
+1. [Sample Spaces, Events, and Probability Axioms in R](/Sample-Spaces-Events-and-Probability-Axioms-in-R-With-Monte-Carlo-Proof.html), the prerequisite covering P(A), sample spaces, and the three probability axioms with Monte Carlo proofs
+2. [Which Statistical Test in R](/Which-Statistical-Test-in-R.html), a comprehensive decision guide for choosing the right statistical test, including chi-squared and Fisher's exact
+3. [Descriptive Statistics in R](/Descriptive-Statistics-in-R.html), how to summarise your data with measures of centre, spread, and shape before modelling

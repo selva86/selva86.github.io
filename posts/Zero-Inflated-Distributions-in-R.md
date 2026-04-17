@@ -20,7 +20,7 @@ difficulty: "Intermediate"
 
 ## When do you need a zero-inflated model?
 
-Lots of real count data is weird in one specific way: there are way more zeros than any standard model predicts. Insurance claims per policy, articles published per PhD student, fish caught per park visitor — each has a cluster of people who produce zero no matter what. The fastest check is quantitative: fit a plain Poisson, ask how many zeros it *would* predict, and compare that to what you actually see. When the gap is large, the plain Poisson is not just wrong about the zeros — it's biased across the whole fitted curve.
+Lots of real count data is weird in one specific way: there are way more zeros than any standard model predicts. Insurance claims per policy, articles published per PhD student, fish caught per park visitor, each has a cluster of people who produce zero no matter what. The fastest check is quantitative: fit a plain Poisson, ask how many zeros it *would* predict, and compare that to what you actually see. When the gap is large, the plain Poisson is not just wrong about the zeros, it's biased across the whole fitted curve.
 
 ```r
 # Simulate counts with excess zeros, then compare to a plain Poisson's expectation.
@@ -44,10 +44,10 @@ cat("Zero-excess ratio:        ", round(observed_zeros / expected_zeros_poisson,
 #> Zero-excess ratio:         2.12
 ```
 
-The data has 308 zeros, but a plain Poisson fitted to the same mean expects only about 146. The ratio is roughly 2x — clear zero inflation. Keep that ratio in mind: anything above ~1.5 should make you reach for a zero-inflated or hurdle model rather than a vanilla Poisson fit.
+The data has 308 zeros, but a plain Poisson fitted to the same mean expects only about 146. The ratio is roughly 2x, clear zero inflation. Keep that ratio in mind: anything above ~1.5 should make you reach for a zero-inflated or hurdle model rather than a vanilla Poisson fit.
 
 [KEY INSIGHT]
-**Zero inflation is a distributional diagnosis, not just "a lot of zeros."** A Poisson with mean 0.1 *should* produce mostly zeros — that's not zero inflation. What makes it inflation is that the number of zeros exceeds what the fitted count distribution predicts at its own best rate.
+**Zero inflation is a distributional diagnosis, not just "a lot of zeros."** A Poisson with mean 0.1 *should* produce mostly zeros, that's not zero inflation. What makes it inflation is that the number of zeros exceeds what the fitted count distribution predicts at its own best rate.
 
 **Try it:** Drop the structural-zero probability from 0.6 to 0.3 and re-measure the zero-excess ratio. You should see the ratio fall but still sit clearly above 1.
 
@@ -78,13 +78,13 @@ round(ex_obs_zeros / ex_exp_zeros, 2)
 #> [1] 1.52
 ```
 
-**Explanation:** Fewer structural zeros means less inflation. The ratio tracks the structural probability directly — it shrinks toward 1 as that probability goes to 0.
+**Explanation:** Fewer structural zeros means less inflation. The ratio tracks the structural probability directly, it shrinks toward 1 as that probability goes to 0.
 
 </details>
 
-## What causes excess zeros — structural vs sampling?
+## What causes excess zeros, structural vs sampling?
 
-A zero-inflated distribution assumes two separate mechanisms produce zeros. Some observations are **structural zeros** — they can never produce a positive count. A subscriber who doesn't own the product will report zero purchases this month *and* every other month. Other observations go through the count process and happen to draw zero — these are **sampling zeros**. A subscriber who does own the product may simply not have purchased anything this month.
+A zero-inflated distribution assumes two separate mechanisms produce zeros. Some observations are **structural zeros**, they can never produce a positive count. A subscriber who doesn't own the product will report zero purchases this month *and* every other month. Other observations go through the count process and happen to draw zero, these are **sampling zeros**. A subscriber who does own the product may simply not have purchased anything this month.
 
 Mathematically, the mixture is:
 
@@ -122,7 +122,7 @@ cat("Total zeros observed:     ", sum(y == 0), "\n")
 #> Total zeros observed:      382
 ```
 
-The 382 observed zeros are made up of 284 structural (about 28% of the sample) plus 98 that came from the count process drawing zero. Crucially, after the indicator collapses, you can't tell them apart by eye — the structural zero and the sampling zero look identical in `y`. That's exactly what the model has to estimate.
+The 382 observed zeros are made up of 284 structural (about 28% of the sample) plus 98 that came from the count process drawing zero. Crucially, after the indicator collapses, you can't tell them apart by eye, the structural zero and the sampling zero look identical in `y`. That's exactly what the model has to estimate.
 
 ![Two sources of zeros](screenshots/Zero-Inflated-Distributions-in-R-two-zero-sources.webp)
 
@@ -170,7 +170,7 @@ c(structural = sum(ex_struct == 1),
 
 ## How do you fit zero-inflated Poisson with zeroinfl()?
 
-The pscl package ships the `bioChemists` dataset — publication counts for 915 biochemistry PhD students in their last three years of the program — which is the canonical teaching dataset for zero-inflated models. Many students published zero articles. The predictors include gender (`fem`), marital status (`mar`), number of young children (`kid5`), PhD prestige (`phd`), and mentor productivity (`ment`).
+The pscl package ships the `bioChemists` dataset, publication counts for 915 biochemistry PhD students in their last three years of the program, which is the canonical teaching dataset for zero-inflated models. Many students published zero articles. The predictors include gender (`fem`), marital status (`mar`), number of young children (`kid5`), PhD prestige (`phd`), and mentor productivity (`ment`).
 
 ```r
 # Load bioChemists and check the zero pile-up.
@@ -189,7 +189,7 @@ table(bioChemists$art)
 #> 275 246 178 104  54  24  11   5   1   2   1   1   2   1   1
 ```
 
-About 30% of the sample published zero articles — an obvious candidate for zero inflation. Now fit the ZIP model. The formula uses a pipe (`|`) separator: predictors to the left drive the count process, predictors to the right drive the zero-inflation process.
+About 30% of the sample published zero articles, an obvious candidate for zero inflation. Now fit the ZIP model. The formula uses a pipe (`|`) separator: predictors to the left drive the count process, predictors to the right drive the zero-inflation process.
 
 ```r
 # Fit ZIP with the same predictors on both components.
@@ -220,7 +220,7 @@ summary(m_zip)
 #> Log-likelihood: -1605 on 12 Df
 ```
 
-The output has two blocks. The **count model** describes what drives the Poisson rate among non-structural observations: being a woman lowers the rate, young kids lower the rate, and mentor publications raise it. The **zero-inflation model** describes what makes an observation more likely to be a structural zero: only `ment` is significant — students with less-productive mentors are far more likely to be in the "will not publish at all" group. Intercepts are on the log and logit scales respectively.
+The output has two blocks. The **count model** describes what drives the Poisson rate among non-structural observations: being a woman lowers the rate, young kids lower the rate, and mentor publications raise it. The **zero-inflation model** describes what makes an observation more likely to be a structural zero: only `ment` is significant, students with less-productive mentors are far more likely to be in the "will not publish at all" group. Intercepts are on the log and logit scales respectively.
 
 [TIP]
 **Use different predictors for the two components when theory warrants it.** The `|` separator lets you specify a minimal zero-inflation model (say, just `ment`) alongside a fuller count model. That often fits better and is easier to interpret.
@@ -240,7 +240,7 @@ round(zero_or, 3)
 #>       0.561       1.116       0.702       1.242      1.001      0.875
 ```
 
-Among publishing students, women publish at 0.81x the rate of men (a 19% lower rate); each additional child under five drops the rate by 13%; each extra mentor publication adds 1.8% to the rate. On the zero side, each extra mentor publication multiplies the odds of being a structural zero by 0.875 — about a 13% drop per unit — which matches the intuition that productive mentors pull students out of the "never publishes" group entirely.
+Among publishing students, women publish at 0.81x the rate of men (a 19% lower rate); each additional child under five drops the rate by 13%; each extra mentor publication adds 1.8% to the rate. On the zero side, each extra mentor publication multiplies the odds of being a structural zero by 0.875, about a 13% drop per unit, which matches the intuition that productive mentors pull students out of the "never publishes" group entirely.
 
 **Try it:** Fit a ZIP model where the zero-inflation side uses only `ment`, while the count side keeps all five predictors. Compare the log-likelihood to `m_zip`.
 
@@ -267,13 +267,13 @@ c(full = as.numeric(logLik(m_zip)),
 #> -1605.0  -1606.8
 ```
 
-**Explanation:** Dropping four non-significant zero-inflation predictors costs ~2 log-likelihood units across 4 degrees of freedom — no worse by AIC. The sparser model is the right choice here.
+**Explanation:** Dropping four non-significant zero-inflation predictors costs ~2 log-likelihood units across 4 degrees of freedom, no worse by AIC. The sparser model is the right choice here.
 
 </details>
 
 ## How do you choose between ZIP, ZINB, and hurdle models?
 
-Zero inflation and **overdispersion** (variance larger than the mean) are different problems that often show up together. A ZIP model handles excess zeros but still assumes the non-structural counts are Poisson — so variance equals mean. When the non-zero counts are overdispersed too, you want a **zero-inflated negative binomial (ZINB)** instead. If you suspect the zero-generating process is categorically different from the count process (think: visiting a park at all vs how many fish you caught *given* you went), a **hurdle model** may fit better.
+Zero inflation and **overdispersion** (variance larger than the mean) are different problems that often show up together. A ZIP model handles excess zeros but still assumes the non-structural counts are Poisson, so variance equals mean. When the non-zero counts are overdispersed too, you want a **zero-inflated negative binomial (ZINB)** instead. If you suspect the zero-generating process is categorically different from the count process (think: visiting a park at all vs how many fish you caught *given* you went), a **hurdle model** may fit better.
 
 ```r
 # Fit plain Poisson, ZIP, and ZINB on bioChemists and compare by AIC.
@@ -316,7 +316,7 @@ round(c(observed = observed_zero_n,
 #>    275.0    213.3    275.0    275.1
 ```
 
-Plain Poisson under-predicts by 60+ zeros. Both ZIP and ZINB nail the observed count — as expected, since both have an explicit zero-inflation component. AIC then breaks the tie in favor of ZINB because of the non-zero counts.
+Plain Poisson under-predicts by 60+ zeros. Both ZIP and ZINB nail the observed count, as expected, since both have an explicit zero-inflation component. AIC then breaks the tie in favor of ZINB because of the non-zero counts.
 
 [WARNING]
 **Don't pick ZIP just because you see zeros.** Fit the plain Poisson first. If its predicted zero count is close to what you observe, you don't need zero inflation at all. Zero-inflated models are more complex, harder to interpret, and can over-fit when the zero-inflation component is weakly identified.
@@ -346,7 +346,7 @@ bioChemists[ex_idx, ]
 #> 914   0 Women Married    3 3.59    0
 ```
 
-**Explanation:** Highest structural-zero probability (~67%) is a woman with three young children and a mentor with zero publications — exactly the profile the model flagged via the `ment` coefficient.
+**Explanation:** Highest structural-zero probability (~67%) is a woman with three young children and a mentor with zero publications, exactly the profile the model flagged via the `ment` coefficient.
 
 </details>
 
@@ -376,7 +376,7 @@ AIC(m_zinb, my_zinb_trim)
 #> my_zinb_trim 9 3167.223
 ```
 
-**Explanation:** Dropping three non-significant zero-inflation predictors saved four degrees of freedom and lowered AIC by ~4. Simpler wins — that's what AIC rewards.
+**Explanation:** Dropping three non-significant zero-inflation predictors saved four degrees of freedom and lowered AIC by ~4. Simpler wins, that's what AIC rewards.
 
 </details>
 
@@ -420,7 +420,7 @@ AIC(my_zip, my_zinb_fit)
 
 ## Complete Example: Park Fishing Counts
 
-Here's a full walkthrough — simulate, explore, fit, diagnose, interpret — on a fishing-visitor dataset. Some groups never fished (structural zero), some fished but caught nothing (sampling zero), and a few did well.
+Here's a full walkthrough, simulate, explore, fit, diagnose, interpret, on a fishing-visitor dataset. Some groups never fished (structural zero), some fished but caught nothing (sampling zero), and a few did well.
 
 ```r
 # End-to-end: fishing counts at a park.
@@ -470,7 +470,7 @@ summary(fish_zip)
 #> kids         1.16541    0.28554   4.082 4.47e-05 ***
 ```
 
-ZIP wins by ~2 AIC units over ZINB — the non-zero counts are Poisson-dispersed enough that the extra parameter in ZINB isn't worth it. Both the count and zero components recover the simulation truth: the `kids` coefficient is negative on the count side and positive on the zero side, meaning families with children both fish less and are more likely to never fish at all. That's the value of the two-part model — one variable can affect both "will this happen at all?" and "how much if it does?" with different effect sizes.
+ZIP wins by ~2 AIC units over ZINB, the non-zero counts are Poisson-dispersed enough that the extra parameter in ZINB isn't worth it. Both the count and zero components recover the simulation truth: the `kids` coefficient is negative on the count side and positive on the zero side, meaning families with children both fish less and are more likely to never fish at all. That's the value of the two-part model, one variable can affect both "will this happen at all?" and "how much if it does?" with different effect sizes.
 
 ## Summary
 
@@ -486,16 +486,16 @@ ZIP wins by ~2 AIC units over ZINB — the non-zero counts are Poisson-dispersed
 
 ## References
 
-1. Zeileis, A., Kleiber, C., Jackman, S. — *Regression Models for Count Data in R*. Journal of Statistical Software (2008). [Link](https://www.jstatsoft.org/article/view/v027i08)
-2. Lambert, D. — *Zero-Inflated Poisson Regression, with an Application to Defects in Manufacturing*. Technometrics (1992). [Link](https://www.jstor.org/stable/1269547)
-3. pscl package — `zeroinfl` reference documentation. [Link](https://www.rdocumentation.org/packages/pscl/topics/zeroinfl)
-4. UCLA OARC — *Zero-Inflated Poisson Regression (R Data Analysis Examples)*. [Link](https://stats.oarc.ucla.edu/r/dae/zip/)
-5. Cameron, A. C., Trivedi, P. K. — *Regression Analysis of Count Data*, 2nd ed. Cambridge University Press (2013).
-6. Hartig, F. — DHARMa package, *Residual diagnostics for hierarchical (multi-level / mixed) regression models*. [Link](https://cran.r-project.org/package=DHARMa)
-7. R Core Team — `stats::glm` reference. [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/glm.html)
+1. Zeileis, A., Kleiber, C., Jackman, S., *Regression Models for Count Data in R*. Journal of Statistical Software (2008). [Link](https://www.jstatsoft.org/article/view/v027i08)
+2. Lambert, D., *Zero-Inflated Poisson Regression, with an Application to Defects in Manufacturing*. Technometrics (1992). [Link](https://www.jstor.org/stable/1269547)
+3. pscl package, `zeroinfl` reference documentation. [Link](https://www.rdocumentation.org/packages/pscl/topics/zeroinfl)
+4. UCLA OARC, *Zero-Inflated Poisson Regression (R Data Analysis Examples)*. [Link](https://stats.oarc.ucla.edu/r/dae/zip/)
+5. Cameron, A. C., Trivedi, P. K., *Regression Analysis of Count Data*, 2nd ed. Cambridge University Press (2013).
+6. Hartig, F., DHARMa package, *Residual diagnostics for hierarchical (multi-level / mixed) regression models*. [Link](https://cran.r-project.org/package=DHARMa)
+7. R Core Team, `stats::glm` reference. [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/glm.html)
 
 ## Continue Learning
 
-1. [Binomial & Poisson Distributions in R](Binomial-and-Poisson-Distributions-in-R.html) — the count models that zero inflation extends.
-2. [Geometric & Negative Binomial Distributions in R](Geometric-and-Negative-Binomial-Distributions-in-R.html) — the overdispersion-friendly count family behind ZINB.
-3. [Logistic Regression With R](Logistic-Regression-With-R.html) — the logit model that drives the zero-inflation component.
+1. [Binomial & Poisson Distributions in R](Binomial-and-Poisson-Distributions-in-R.html), the count models that zero inflation extends.
+2. [Geometric & Negative Binomial Distributions in R](Geometric-and-Negative-Binomial-Distributions-in-R.html), the overdispersion-friendly count family behind ZINB.
+3. [Logistic Regression With R](Logistic-Regression-With-R.html), the logit model that drives the zero-inflation component.

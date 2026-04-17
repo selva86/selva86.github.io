@@ -19,7 +19,7 @@ difficulty: "Intermediate"
 
 # Data Quality Checking in R: 10 Things to Verify Before You Analyze
 
-<p class="lead">Data quality checking is the process of verifying your dataset's structure, types, values, and relationships before analysis — catching problems that would silently corrupt every downstream result.</p>
+<p class="lead">Data quality checking is the process of verifying your dataset's structure, types, values, and relationships before analysis, catching problems that would silently corrupt every downstream result.</p>
 
 Every data analysis rests on one assumption: the data is trustworthy. Skip the quality check and you discover the broken column at 2 AM, after two days of modeling. A single mistyped column, a batch of duplicate rows, or a few impossible values can turn your regression coefficients into fiction.
 
@@ -34,7 +34,7 @@ This tutorial gives you a reusable 10-step checklist for data quality checking i
 
 The ten checks fall into three groups. First, you verify structure: dimensions, column names, and data types. Second, you verify content: duplicates, missing values, numeric ranges, and categorical levels. Third, you verify relationships: cross-column consistency and derived-column accuracy. By the end, you will have a clear process that catches the vast majority of data problems before they reach your analysis.
 
-## What should you check first — dimensions and structure?
+## What should you check first, dimensions and structure?
 
 Before looking at individual values, confirm that the data frame has the right shape. If you expected 10,000 rows and got 200, something went wrong during import. If you expected 15 columns and got 16, there is an extra column hiding a problem.
 
@@ -90,7 +90,7 @@ glimpse(messy_df)
 #> $ end_date   <chr> NA, NA, "2017-01-01", NA, ...
 ```
 
-Notice that `age` is character, not numeric. That single detail tells you something went wrong — there is a non-numeric value hiding in that column. Also notice `dim()` returns 10 rows and 7 columns. If your source promised 10 employees and 7 fields, you are on track. If not, investigate before going further.
+Notice that `age` is character, not numeric. That single detail tells you something went wrong, there is a non-numeric value hiding in that column. Also notice `dim()` returns 10 rows and 7 columns. If your source promised 10 employees and 7 fields, you are on track. If not, investigate before going further.
 
 [TIP]
 **Use glimpse() instead of str() for wide data frames.** When your data has 50+ columns, `str()` floods the console. `glimpse()` from dplyr shows one column per line in a compact format that fits on screen.
@@ -156,7 +156,7 @@ sapply(messy_df, class)
 #>  "numeric""character"  "numeric"  "numeric""character"     "Date"     "Date"
 ```
 
-After conversion, `age` is numeric and both date columns are proper Date objects. The value "thirty" became NA, which is correct — we will deal with that missing value in a later check. The important thing is that the column is now the right type for calculations.
+After conversion, `age` is numeric and both date columns are proper Date objects. The value "thirty" became NA, which is correct, we will deal with that missing value in a later check. The important thing is that the column is now the right type for calculations.
 
 [WARNING]
 **as.numeric() on a factor converts internal codes, not labels.** If you have a factor with levels "10", "20", "30", calling `as.numeric()` returns 1, 2, 3 (the internal codes). Always convert factor to character first: `as.numeric(as.character(my_factor))`.
@@ -193,7 +193,7 @@ sum(is.na(ex_ages_num))
 
 Duplicate rows inflate counts, bias averages, and break unique-key assumptions. The `duplicated()` function returns TRUE for every row that matches an earlier row. Use `sum()` to count them and `distinct()` to remove them.
 
-In our dataset, employee 5 (Eve) appears twice — a classic sign of a faulty join or double-loaded data.
+In our dataset, employee 5 (Eve) appears twice, a classic sign of a faulty join or double-loaded data.
 
 ```r
 # Count duplicates
@@ -270,7 +270,7 @@ names(na_pct[na_pct > 50])
 #> [1] "end_date"
 ```
 
-The `end_date` column is 77.8% missing. That makes sense if most employees are still active (no end date). But for analysis purposes, this column is mostly empty and may need to be dropped or handled specially. The `age` column has 22.2% missing — two values, one from the original NA and one from the "thirty" coercion.
+The `end_date` column is 77.8% missing. That makes sense if most employees are still active (no end date). But for analysis purposes, this column is mostly empty and may need to be dropped or handled specially. The `age` column has 22.2% missing, two values, one from the original NA and one from the "thirty" coercion.
 
 ![When a quality issue is found, the fix depends on the type of problem.](screenshots/Data-Quality-Checking-in-R-issue-decision.webp)
 *Figure 2: When a quality issue is found, the fix depends on the type of problem.*
@@ -352,7 +352,7 @@ summary(clean_df[, c("age", "salary")])
 #>  NA's   :4      NA's   :2
 ```
 
-Now all ages fall between 28 and 52, and all salaries are positive. We traded impossible values for NAs, which is the right move. An NA is honest — it says "we don't know." A value of -999 pretending to be a salary is a lie.
+Now all ages fall between 28 and 52, and all salaries are positive. We traded impossible values for NAs, which is the right move. An NA is honest, it says "we don't know." A value of -999 pretending to be a salary is a lie.
 
 [WARNING]
 **Negative ages and future dates are silent model killers.** A linear model will happily use age = -3 in its calculations. It will not warn you. Always check min/max of numeric columns against domain-reasonable bounds before fitting any model.
@@ -411,7 +411,7 @@ table(clean_df$department)
 #>           2           2           2           3
 ```
 
-Now four clean categories, no duplicates, no case mismatches. The `case_when()` approach is readable and extensible — you can add more rules as you discover more variations.
+Now four clean categories, no duplicates, no case mismatches. The `case_when()` approach is readable and extensible, you can add more rules as you discover more variations.
 
 [TIP]
 **Sort unique values alphabetically to spot near-duplicates.** When a column has 50 categories, `sort(unique(x))` places "Marketing" and "Mktg" near each other in the list, making them easy to catch visually.
@@ -460,7 +460,7 @@ cross_check[, c("name", "start_date", "end_date", "date_ok")]
 #> 1 Charlie 2018-03-22 2017-01-01   FALSE
 ```
 
-Charlie's end date (2017-01-01) is before his start date (2018-03-22). Either the dates are swapped or one of them is wrong. This is the kind of error that single-column range checks would never catch — both dates are individually valid, but together they are impossible.
+Charlie's end date (2017-01-01) is before his start date (2018-03-22). Either the dates are swapped or one of them is wrong. This is the kind of error that single-column range checks would never catch, both dates are individually valid, but together they are impossible.
 
 ![The full pipeline from raw data to analysis-ready data.](screenshots/Data-Quality-Checking-in-R-dirty-to-clean.webp)
 *Figure 3: The full pipeline from raw data to analysis-ready data.*
@@ -849,18 +849,18 @@ Document them. Create a log that records which values were flagged, what the iss
 
 ## References
 
-1. R Core Team — `is.na()`, `duplicated()`, `summary()` documentation. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/NA.html)
-2. Wickham, H. & Grolemund, G. — *R for Data Science*, 2nd Edition. Chapter 18: Missing Values. [Link](https://r4ds.hadley.nz/missing-values)
-3. dplyr documentation — `distinct()`, `filter()`, `case_when()`. [Link](https://dplyr.tidyverse.org/reference/distinct.html)
-4. van der Loo, M. & de Jonge, E. — *Data Validation Infrastructure for R*. arXiv:1912.09759 (2019). [Link](https://arxiv.org/abs/1912.09759)
-5. validate package — The Data Validation Cookbook. [Link](https://data-cleaning.github.io/validate/)
-6. Peng, R.D. — *Exploratory Data Analysis with R*, Chapter 4: EDA Checklist. [Link](https://bookdown.org/rdpeng/exdata/exploratory-data-analysis-checklist.html)
-7. dlookr package — Data Quality Diagnosis. [Link](https://cran.r-project.org/web/packages/dlookr/vignettes/diagonosis.html)
+1. R Core Team, `is.na()`, `duplicated()`, `summary()` documentation. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/NA.html)
+2. Wickham, H. & Grolemund, G., *R for Data Science*, 2nd Edition. Chapter 18: Missing Values. [Link](https://r4ds.hadley.nz/missing-values)
+3. dplyr documentation, `distinct()`, `filter()`, `case_when()`. [Link](https://dplyr.tidyverse.org/reference/distinct.html)
+4. van der Loo, M. & de Jonge, E., *Data Validation Infrastructure for R*. arXiv:1912.09759 (2019). [Link](https://arxiv.org/abs/1912.09759)
+5. validate package, The Data Validation Cookbook. [Link](https://data-cleaning.github.io/validate/)
+6. Peng, R.D., *Exploratory Data Analysis with R*, Chapter 4: EDA Checklist. [Link](https://bookdown.org/rdpeng/exdata/exploratory-data-analysis-checklist.html)
+7. dlookr package, Data Quality Diagnosis. [Link](https://cran.r-project.org/web/packages/dlookr/vignettes/diagonosis.html)
 
 ## Continue Learning
 
 Now that you can check and clean your data, explore these related tutorials on r-statistics.co:
 
-- **[Missing Values in R](Missing-Values-in-R-Detect-Count-Remove-Impute-NA.html)** — deep dive into NA detection, counting, removal, and imputation strategies including mice and median replacement.
-- **[Tidy Data in R](Tidy-Data-in-R.html)** — reshape messy data into analysis-ready format using pivot_longer and pivot_wider.
-- **[Importing Data in R](Importing-Data-in-R.html)** — get data into R from CSV, Excel, databases, and the web, with common import pitfalls solved.
+- **[Missing Values in R](Missing-Values-in-R-Detect-Count-Remove-Impute-NA.html)**, deep dive into NA detection, counting, removal, and imputation strategies including mice and median replacement.
+- **[Tidy Data in R](Tidy-Data-in-R.html)**, reshape messy data into analysis-ready format using pivot_longer and pivot_wider.
+- **[Importing Data in R](Importing-Data-in-R.html)**, get data into R from CSV, Excel, databases, and the web, with common import pitfalls solved.

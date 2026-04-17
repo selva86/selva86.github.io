@@ -1,5 +1,5 @@
 ---
-title: "ggplot2 Scales: Control Every Axis, Colour, and Size — The Full Reference"
+title: "ggplot2 Scales: Control Every Axis, Colour, and Size, The Full Reference"
 slug: "ggplot2-Scales"
 description: "Scales control how data maps to visuals in ggplot2. Master scale_x_log10(), scale_color_brewer(), scale_fill_manual(), axis limits, breaks, and labels."
 keywords: "ggplot2 scales, scale_x_continuous, scale_color_brewer, scale_fill_manual, scale_x_log10, ggplot2 axis limits, ggplot2 breaks labels, ggplot2 color scale, ggplot2 size scale, expand ggplot2"
@@ -16,7 +16,7 @@ sidebar_order: 6
 difficulty: "Intermediate"
 ---
 
-# ggplot2 Scales: Control Every Axis, Colour, and Size — The Full Reference
+# ggplot2 Scales: Control Every Axis, Colour, and Size, The Full Reference
 
 <p class="lead">Scales control how ggplot2 maps data values to visual properties like position, colour, size, and transparency. Mastering them gives you complete control over every axis, legend, and colour palette in your plots.</p>
 
@@ -26,7 +26,7 @@ Every time you write `aes(x = ..., y = ...)`, ggplot2 silently picks a default s
 
 Scales are the bridge between your data and the visual output. They translate a numeric column into an x-axis position, a factor column into a colour, or a continuous variable into point size. Every aesthetic you map inside `aes()` has a corresponding scale, whether you see it or not.
 
-In this tutorial, you will learn the scale naming convention, position scales for continuous and discrete axes, log and sqrt transformations, colour and fill scales (Brewer, manual, gradient, viridis), size and alpha scales, and the shared components that all scales have in common: breaks, labels, limits, and expand. All code runs directly in your browser — no setup required.
+In this tutorial, you will learn the scale naming convention, position scales for continuous and discrete axes, log and sqrt transformations, colour and fill scales (Brewer, manual, gradient, viridis), size and alpha scales, and the shared components that all scales have in common: breaks, labels, limits, and expand. All code runs directly in your browser, no setup required.
 
 ![ggplot2 scales overview](screenshots/ggplot2-Scales-overview-mindmap.webp)
 *Figure 1: The four families of ggplot2 scales and their shared components.*
@@ -70,7 +70,7 @@ p_explicit
 #> (same scatter plot as before — explicit scales match the defaults)
 ```
 
-The explicit version does nothing new here, but it shows you exactly where to plug in customisations. Every argument you pass to `scale_x_continuous()` — breaks, labels, limits, expand — overrides the defaults.
+The explicit version does nothing new here, but it shows you exactly where to plug in customisations. Every argument you pass to `scale_x_continuous()`, breaks, labels, limits, expand, overrides the defaults.
 
 [KEY INSIGHT]
 **The naming convention is your cheat sheet.** If you know the aesthetic (x, y, color, fill, size, alpha) and the data type (continuous, discrete, manual, brewer, log10), you can construct the function name: `scale_color_viridis_d()`, `scale_y_log10()`, `scale_fill_gradient2()`. No memorisation needed.
@@ -175,7 +175,7 @@ ggplot(price_data, aes(x = item, y = price)) +
 The `mult` argument adds proportional padding. Setting the lower bound to 0 removes the gap below the bars, while keeping a small 5% cushion at the top.
 
 [WARNING]
-**Setting limits removes data outside the range.** When you use `limits = c(15, 30)` in a scale, ggplot2 converts out-of-bounds points to NA before computing statistics. If you just want to zoom in visually, use `coord_cartesian(ylim = c(15, 30))` instead — it keeps all data intact.
+**Setting limits removes data outside the range.** When you use `limits = c(15, 30)` in a scale, ggplot2 converts out-of-bounds points to NA before computing statistics. If you just want to zoom in visually, use `coord_cartesian(ylim = c(15, 30))` instead, it keeps all data intact.
 
 ![Limits vs coord zoom](screenshots/ggplot2-Scales-limits-vs-zoom.webp)
 *Figure 3: Setting limits removes data; coord_cartesian() zooms without data loss.*
@@ -234,7 +234,7 @@ p_log
 #> (scatter with even spread across both axes, clear linear trend on log-log)
 ```
 
-On the log-log scale, the relationship between carat and price looks nearly linear. This tells you that price scales as a power of carat weight — something the linear plot hides.
+On the log-log scale, the relationship between carat and price looks nearly linear. This tells you that price scales as a power of carat weight, something the linear plot hides.
 
 You can also use `scale_x_sqrt()` for a milder transformation, or `scale_x_reverse()` to flip the axis direction.
 
@@ -394,7 +394,7 @@ ex_fill
 
 Size and alpha (transparency) scales map continuous values to point size or opacity. They are less common than colour scales but essential for bubble charts and overplotted scatter plots.
 
-The key distinction is between `scale_size()` and `scale_size_area()`. The default `scale_size()` maps values to the point radius. This means a value twice as large gets a circle with twice the radius — but four times the area. That distorts perception. Use `scale_size_area()` instead, which maps values to circle area so that visual proportions are honest.
+The key distinction is between `scale_size()` and `scale_size_area()`. The default `scale_size()` maps values to the point radius. This means a value twice as large gets a circle with twice the radius, but four times the area. That distorts perception. Use `scale_size_area()` instead, which maps values to circle area so that visual proportions are honest.
 
 ```r
 # Bubble chart with area-proportional sizing
@@ -719,7 +719,7 @@ The golden rule: every aesthetic you map in `aes()` has a corresponding scale. L
 
 **What is the difference between limits in a scale and coord_cartesian()?**
 
-Setting `limits` inside a scale function (e.g., `scale_y_continuous(limits = c(10, 30))`) removes data outside the range before stats are computed. `coord_cartesian(ylim = c(10, 30))` performs a visual zoom — all data is kept, and stats are computed on the full dataset. Use `coord_cartesian()` when you want to zoom without affecting fitted lines or summaries.
+Setting `limits` inside a scale function (e.g., `scale_y_continuous(limits = c(10, 30))`) removes data outside the range before stats are computed. `coord_cartesian(ylim = c(10, 30))` performs a visual zoom, all data is kept, and stats are computed on the full dataset. Use `coord_cartesian()` when you want to zoom without affecting fitted lines or summaries.
 
 **How do I remove the gap between my data and the axes?**
 
@@ -739,19 +739,19 @@ Use `direction = -1` inside Brewer or viridis scales: `scale_color_brewer(direct
 
 ## References
 
-1. Wickham, H. — *ggplot2: Elegant Graphics for Data Analysis*, 3rd Edition. Chapters 10-11: Position Scales and Colour Scales. [Link](https://ggplot2-book.org/scales-position.html)
-2. ggplot2 documentation — scale_continuous reference. [Link](https://ggplot2.tidyverse.org/reference/scale_continuous.html)
-3. ggplot2 documentation — scale_colour_brewer reference. [Link](https://ggplot2.tidyverse.org/reference/scale_brewer.html)
-4. scales package documentation — Label functions reference. [Link](https://scales.r-lib.org/reference/index.html)
-5. Brewer, C. — ColorBrewer: Color Advice for Cartography. [Link](https://colorbrewer2.org/)
-6. Wilke, C. — *Fundamentals of Data Visualization*. Chapter 4: Color Scales. [Link](https://clauswilke.com/dataviz/color-basics.html)
-7. Wickham, H. & Grolemund, G. — *R for Data Science*, 2nd Edition. Chapter 12: Communication. [Link](https://r4ds.hadley.nz/communication.html)
-8. ggplot2 documentation — scale_manual reference. [Link](https://ggplot2.tidyverse.org/reference/scale_manual.html)
+1. Wickham, H., *ggplot2: Elegant Graphics for Data Analysis*, 3rd Edition. Chapters 10-11: Position Scales and Colour Scales. [Link](https://ggplot2-book.org/scales-position.html)
+2. ggplot2 documentation, scale_continuous reference. [Link](https://ggplot2.tidyverse.org/reference/scale_continuous.html)
+3. ggplot2 documentation, scale_colour_brewer reference. [Link](https://ggplot2.tidyverse.org/reference/scale_brewer.html)
+4. scales package documentation, Label functions reference. [Link](https://scales.r-lib.org/reference/index.html)
+5. Brewer, C., ColorBrewer: Color Advice for Cartography. [Link](https://colorbrewer2.org/)
+6. Wilke, C., *Fundamentals of Data Visualization*. Chapter 4: Color Scales. [Link](https://clauswilke.com/dataviz/color-basics.html)
+7. Wickham, H. & Grolemund, G., *R for Data Science*, 2nd Edition. Chapter 12: Communication. [Link](https://r4ds.hadley.nz/communication.html)
+8. ggplot2 documentation, scale_manual reference. [Link](https://ggplot2.tidyverse.org/reference/scale_manual.html)
 
 ## Continue Learning
 
 Now that you can control every axis, colour, and size in your plots, explore these related tutorials:
 
-- **[ggplot2 Theme Customisation](Complete-Ggplot2-Tutorial-Part2-Customizing-Theme-With-R-Code.html)** — Change fonts, backgrounds, gridlines, and overall plot appearance
-- **[Top 50 ggplot2 Visualisations](Top50-Ggplot2-Visualizations-MasterList-R-Code.html)** — The masterlist of chart types with complete code for each
-- **[ggplot2 Quick Reference](ggplot2-cheatsheet.html)** — A compact cheat sheet of the most common ggplot2 functions
+- **[ggplot2 Theme Customisation](Complete-Ggplot2-Tutorial-Part2-Customizing-Theme-With-R-Code.html)**, Change fonts, backgrounds, gridlines, and overall plot appearance
+- **[Top 50 ggplot2 Visualisations](Top50-Ggplot2-Visualizations-MasterList-R-Code.html)**, The masterlist of chart types with complete code for each
+- **[ggplot2 Quick Reference](ggplot2-cheatsheet.html)**, A compact cheat sheet of the most common ggplot2 functions

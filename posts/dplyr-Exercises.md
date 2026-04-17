@@ -1,7 +1,7 @@
 ---
 title: "dplyr Exercises: 15 Data Manipulation Practice Problems (With Solutions)"
 slug: "dplyr-Exercises"
-description: "Practise dplyr with 15 data manipulation exercises. filter, mutate, summarise, group_by, joins, and across — runnable solutions from beginner to advanced."
+description: "Practise dplyr with 15 data manipulation exercises. filter, mutate, summarise, group_by, joins, and across, runnable solutions from beginner to advanced."
 keywords: "dplyr exercises, dplyr practice problems, data manipulation exercises R, tidyverse exercises, dplyr practice, dplyr tutorial problems"
 mathjax: false
 webr: true
@@ -17,11 +17,11 @@ difficulty: "Intermediate"
 
 # dplyr Exercises: 15 Data Manipulation Practice Problems
 
-<p class="lead">A set of 15 hands-on dplyr problems — <code>filter()</code>, <code>mutate()</code>, <code>summarise()</code>, <code>group_by()</code>, joins, and <code>across()</code> — each with a runnable solution you can execute on this page. Difficulty progresses from beginner to advanced so you can stop where you get comfortable and come back for the harder problems later.</p>
+<p class="lead">A set of 15 hands-on dplyr problems, <code>filter()</code>, <code>mutate()</code>, <code>summarise()</code>, <code>group_by()</code>, joins, and <code>across()</code>, each with a runnable solution you can execute on this page. Difficulty progresses from beginner to advanced so you can stop where you get comfortable and come back for the harder problems later.</p>
 
 ## How should you tackle these 15 dplyr problems?
 
-The 15 problems below are grouped into three blocks of five. Exercises 1-5 cover one or two verbs at a time. Exercises 6-10 mix conditions, `across()`, `case_when()`, and joins. Exercises 11-15 stitch three or more concepts into real pipelines like grouped ranking and share of total. Every exercise gives you a starter block, hides the solution behind a reveal, and explains the result. Solve, compare, read the explanation, and move on. All code runs in a single shared R session, so the warm-up below loads `dplyr` once — the exercises after it do not need to reload it.
+The 15 problems below are grouped into three blocks of five. Exercises 1-5 cover one or two verbs at a time. Exercises 6-10 mix conditions, `across()`, `case_when()`, and joins. Exercises 11-15 stitch three or more concepts into real pipelines like grouped ranking and share of total. Every exercise gives you a starter block, hides the solution behind a reveal, and explains the result. Solve, compare, read the explanation, and move on. All code runs in a single shared R session, so the warm-up below loads `dplyr` once, the exercises after it do not need to reload it.
 
 ```r
 # Warm-up: one dplyr pipeline you should feel comfortable writing by Exercise 5
@@ -37,7 +37,7 @@ mtcars |>
 Read the pipe top-to-bottom: take `mtcars`, keep only 4-cylinder cars, then reduce the 11 surviving rows into a single row showing the count and the rounded mean mpg. If that pipeline looks natural to you, Exercises 1-5 should feel fast. If it does not, that is exactly what the first five problems are for.
 
 [TIP]
-**Load dplyr once — every block on this page shares the same R session.** The warm-up above calls `library(dplyr)`; none of the 15 exercise blocks repeat it. Variables you create in one block are visible in every later block, just like cells in a Jupyter notebook. Use `my_` prefixed names in your own exercise code so you do not accidentally overwrite warm-up variables.
+**Load dplyr once, every block on this page shares the same R session.** The warm-up above calls `library(dplyr)`; none of the 15 exercise blocks repeat it. Variables you create in one block are visible in every later block, just like cells in a Jupyter notebook. Use `my_` prefixed names in your own exercise code so you do not accidentally overwrite warm-up variables.
 
 ## Easy (1-5): filter, select, mutate, summarise basics
 
@@ -45,7 +45,7 @@ These five exercises use one or two verbs each. If you have read the [dplyr filt
 
 ### Exercise 1: Filter and select the fuel-efficient cars
 
-Keep the cars with `mpg > 25` and show only `mpg`, `cyl`, `hp`, and the car name. `mtcars` stores the name as a row name, not a column — you will need to lift it into a column before `select()` can see it.
+Keep the cars with `mpg > 25` and show only `mpg`, `cyl`, `hp`, and the car name. `mtcars` stores the name as a row name, not a column, you will need to lift it into a column before `select()` can see it.
 
 ```r
 # Exercise 1: filter mpg > 25, show car name + mpg + cyl + hp
@@ -70,7 +70,7 @@ mtcars |>
 #> 6  Lotus Europa   30.4   4 113
 ```
 
-**Explanation:** `mutate(car = rownames(mtcars))` copies the row names into a regular column so `select()` can include them. Six cars clear the 25-mpg bar, and all six are 4-cylinder — no surprise given a 1974 dataset.
+**Explanation:** `mutate(car = rownames(mtcars))` copies the row names into a regular column so `select()` can include them. Six cars clear the 25-mpg bar, and all six are 4-cylinder, no surprise given a 1974 dataset.
 
 </details>
 
@@ -100,12 +100,12 @@ mtcars |>
 #> Hornet Sportabout 18.7 175 3.440   50.9
 ```
 
-**Explanation:** `mutate()` adds the new column; `select()` picks the reporting set; `head()` trims to the first five rows. The `pwr_wt` column measures horsepower per unit of car weight — a cleaner "how punchy is this car" index than raw `hp`.
+**Explanation:** `mutate()` adds the new column; `select()` picks the reporting set; `head()` trims to the first five rows. The `pwr_wt` column measures horsepower per unit of car weight, a cleaner "how punchy is this car" index than raw `hp`.
 
 </details>
 
 [WARNING]
-**Inside `filter()` and `mutate()`, `=` is assignment — equality is `==`.** Writing `filter(mtcars, mpg = 20)` attempts to assign `20` to an argument called `mpg` and fails with a confusing error. Always use `filter(mtcars, mpg == 20)` when testing equality. The same rule applies to any condition in `case_when()` or `if_else()`.
+**Inside `filter()` and `mutate()`, `=` is assignment, equality is `==`.** Writing `filter(mtcars, mpg = 20)` attempts to assign `20` to an argument called `mpg` and fails with a confusing error. Always use `filter(mtcars, mpg == 20)` when testing equality. The same rule applies to any condition in `case_when()` or `if_else()`.
 
 ### Exercise 3: Sort by mpg and show the top 5
 
@@ -134,7 +134,7 @@ mtcars |>
 #> 5     Fiat X1-9  27.3   4
 ```
 
-**Explanation:** `arrange(desc(mpg))` sorts in descending order — without `desc()` you would get the least efficient cars first. The Toyota Corolla wins the 1974 fuel-economy crown, and every car in the top 5 is 4-cylinder.
+**Explanation:** `arrange(desc(mpg))` sorts in descending order, without `desc()` you would get the least efficient cars first. The Toyota Corolla wins the 1974 fuel-economy crown, and every car in the top 5 is 4-cylinder.
 
 </details>
 
@@ -163,7 +163,7 @@ mtcars |>
 #> 3     8    14    15.1
 ```
 
-**Explanation:** `group_by(cyl)` creates three implicit sub-tables; `summarise()` collapses each into a single row. The `.groups = "drop"` argument returns a plain tibble instead of a still-grouped one — saves you an `ungroup()` step later. As expected, fewer cylinders mean better mileage: 26.7 mpg for 4-cyl, 15.1 mpg for 8-cyl.
+**Explanation:** `group_by(cyl)` creates three implicit sub-tables; `summarise()` collapses each into a single row. The `.groups = "drop"` argument returns a plain tibble instead of a still-grouped one, saves you an `ungroup()` step later. As expected, fewer cylinders mean better mileage: 26.7 mpg for 4-cyl, 15.1 mpg for 8-cyl.
 
 </details>
 
@@ -190,7 +190,7 @@ iris |>
 #> 3  virginica 50 33.3
 ```
 
-**Explanation:** `count(Species)` is shorthand for `group_by(Species) |> summarise(n = n())`. The `iris` dataset is perfectly balanced — each species has exactly 50 observations, so each is 33.3% of the total. In an unbalanced real-world dataset this same pattern is how you spot class imbalance for a classifier.
+**Explanation:** `count(Species)` is shorthand for `group_by(Species) |> summarise(n = n())`. The `iris` dataset is perfectly balanced, each species has exactly 50 observations, so each is 33.3% of the total. In an unbalanced real-world dataset this same pattern is how you spot class imbalance for a classifier.
 
 </details>
 
@@ -259,7 +259,7 @@ mtcars |>
 #> 3  Guzzler  6
 ```
 
-**Explanation:** `case_when()` checks each condition top to bottom and assigns the first matching label. Because a car with `mpg = 30` matches both `mpg > 25` and `mpg >= 15`, the order matters — putting `mpg >= 15` first would classify every Economy car as Standard. The final `TRUE ~ "Guzzler"` is the catch-all default.
+**Explanation:** `case_when()` checks each condition top to bottom and assigns the first matching label. Because a car with `mpg = 30` matches both `mpg > 25` and `mpg >= 15`, the order matters, putting `mpg >= 15` first would classify every Economy car as Standard. The final `TRUE ~ "Guzzler"` is the catch-all default.
 
 </details>
 
@@ -299,7 +299,7 @@ iris |>
 #> # ... plus 4 more columns for Petal.Length and Petal.Width
 ```
 
-**Explanation:** `across(where(is.numeric), ...)` picks every numeric column, then the named list applies both `mean` and `sd` to each. The `.names = "{.col}_{.fn}"` glue template produces tidy column names you can read directly. This single call replaces four separate `summarise(mean_...)`/`summarise(sd_...)` lines — one of the biggest ergonomic wins in modern dplyr.
+**Explanation:** `across(where(is.numeric), ...)` picks every numeric column, then the named list applies both `mean` and `sd` to each. The `.names = "{.col}_{.fn}"` glue template produces tidy column names you can read directly. This single call replaces four separate `summarise(mean_...)`/`summarise(sd_...)` lines, one of the biggest ergonomic wins in modern dplyr.
 
 </details>
 
@@ -331,7 +331,7 @@ iris |>
 #> 4  setosa          4.6         3.1          1.5         0.2
 ```
 
-**Explanation:** `rename_with()` takes a function and applies it to every column name. The lambda `~ tolower(gsub("\\.", "_", .x))` lowercases the name and swaps the literal dot for an underscore — the backslash-dot escapes the regex metacharacter. `select(species, everything())` is the standard idiom for "move this column first, keep the rest as-is."
+**Explanation:** `rename_with()` takes a function and applies it to every column name. The lambda `~ tolower(gsub("\\.", "_", .x))` lowercases the name and swaps the literal dot for an underscore, the backslash-dot escapes the regex metacharacter. `select(species, everything())` is the standard idiom for "move this column first, keep the rest as-is."
 
 </details>
 
@@ -370,7 +370,7 @@ anti_join(employees, departments, by = "dept")
 #> 1 David   HR
 ```
 
-**Explanation:** `left_join()` keeps every employee and attaches their department budget when available — David has no matching department, so `budget` comes back as `NA`. `anti_join()` answers the same question inverted: give me only the rows from the left table that have *no* match in the right table. It is the standard dplyr tool for "find the orphans."
+**Explanation:** `left_join()` keeps every employee and attaches their department budget when available, David has no matching department, so `budget` comes back as `NA`. `anti_join()` answers the same question inverted: give me only the rows from the left table that have *no* match in the right table. It is the standard dplyr tool for "find the orphans."
 
 </details>
 
@@ -380,7 +380,7 @@ These five stitch three or more concepts into the kind of pipelines you actually
 
 ### Exercise 11: Rank cars by mpg within each cylinder group
 
-For each cylinder group, rank the cars by mpg (rank 1 = most efficient), keep the top 3 per group, and show the car name, cylinder count, mpg, and rank — sorted by cyl then rank.
+For each cylinder group, rank the cars by mpg (rank 1 = most efficient), keep the top 3 per group, and show the car name, cylinder count, mpg, and rank, sorted by cyl then rank.
 
 ```r
 # Exercise 11: rank(-mpg) inside a grouped mutate, then filter(rank <= 3)
@@ -414,7 +414,7 @@ mtcars |>
 #> 9 Hornet Sportabout   8  18.7     2
 ```
 
-**Explanation:** `rank(-mpg)` ranks by negative mpg so the highest mpg gets rank 1. The grouped `mutate()` keeps the 32 rows but numbers each within its cylinder sub-table; `filter(rank <= 3)` then trims to the top 3 per group. Honda Civic and Lotus Europa tie at mpg 30.4, so both receive the average rank 3.5 — swap to `min_rank()` or `dense_rank()` if you prefer integer ranks with ties broken differently.
+**Explanation:** `rank(-mpg)` ranks by negative mpg so the highest mpg gets rank 1. The grouped `mutate()` keeps the 32 rows but numbers each within its cylinder sub-table; `filter(rank <= 3)` then trims to the top 3 per group. Honda Civic and Lotus Europa tie at mpg 30.4, so both receive the average rank 3.5, swap to `min_rank()` or `dense_rank()` if you prefer integer ranks with ties broken differently.
 
 </details>
 
@@ -455,7 +455,7 @@ mtcars |>
 #> 10 Toyota Corolla     4    65    7.8
 ```
 
-**Explanation:** Inside a grouped `mutate()`, aggregate functions like `sum()` operate on the current group, not the whole table. So `sum(hp)` for 4-cylinder cars returns the total hp across the 11 4-cyl cars, and dividing each car's hp by that total gives its share of the group. This is the canonical "share of total" pattern in dplyr — re-use it for market share, portfolio weight, or any per-group proportion.
+**Explanation:** Inside a grouped `mutate()`, aggregate functions like `sum()` operate on the current group, not the whole table. So `sum(hp)` for 4-cylinder cars returns the total hp across the 11 4-cyl cars, and dividing each car's hp by that total gives its share of the group. This is the canonical "share of total" pattern in dplyr, re-use it for market share, portfolio weight, or any per-group proportion.
 
 </details>
 
@@ -498,9 +498,9 @@ mtcars |>
 </details>
 
 [TIP]
-**Prefer `slice_max(col, n = k)` over the older `top_n(k, col)`.** `slice_max()` is the current dplyr idiom and has a matching `slice_min()` for the opposite end. `top_n()` still works but is marked "superseded" in the dplyr reference — new code should use `slice_max`/`slice_min`/`slice_sample`/`slice_head`/`slice_tail`.
+**Prefer `slice_max(col, n = k)` over the older `top_n(k, col)`.** `slice_max()` is the current dplyr idiom and has a matching `slice_min()` for the opposite end. `top_n()` still works but is marked "superseded" in the dplyr reference, new code should use `slice_max`/`slice_min`/`slice_sample`/`slice_head`/`slice_tail`.
 
-### Exercise 14: A five-step real pipeline — manual-transmission fuel economy
+### Exercise 14: A five-step real pipeline, manual-transmission fuel economy
 
 Chain this five-step pipeline:
 
@@ -565,7 +565,7 @@ iris |>
 #> 3  virginica 15
 ```
 
-**Explanation:** Inside a grouped pipeline, `slice_sample(prop = 0.3)` takes 30% of each group independently — that is what "stratified sampling" means. Without `group_by()`, you would get 45 rows drawn uniformly from the full 150-row table, with no guarantee of species balance. `set.seed(42)` fixes the random draw so every reader sees identical counts. This is the standard dplyr recipe for building a stratified train/test split for classification.
+**Explanation:** Inside a grouped pipeline, `slice_sample(prop = 0.3)` takes 30% of each group independently, that is what "stratified sampling" means. Without `group_by()`, you would get 45 rows drawn uniformly from the full 150-row table, with no guarantee of species balance. `set.seed(42)` fixes the random draw so every reader sees identical counts. This is the standard dplyr recipe for building a stratified train/test split for classification.
 
 </details>
 
@@ -588,40 +588,40 @@ The 15 problems together exercise every core dplyr verb and the two most common 
 | `rank()` / `slice_max()` / `slice_sample()` | 11, 13, 15 |
 | Grouped share of total | 12 |
 
-If you solved Exercises 1-10 without peeking, you are comfortable with everyday dplyr. If you solved 11-15 as well, you are ready for window functions, complex joins, and real analytical pipelines. Come back to the failed ones tomorrow — spaced practice beats cramming every time.
+If you solved Exercises 1-10 without peeking, you are comfortable with everyday dplyr. If you solved 11-15 as well, you are ready for window functions, complex joins, and real analytical pipelines. Come back to the failed ones tomorrow, spaced practice beats cramming every time.
 
 ## FAQ
 
 **Q: Should I use the native pipe `|>` or the magrittr pipe `%>%`?**
-Both work. The native `|>` is built into base R from version 4.1 and is the current recommendation — no package needed, marginally faster, and the syntax is simpler. Use `%>%` only when you need the dot placeholder (`df %>% lm(y ~ x, data = .)`) or the assignment pipe `%<>%` — neither is in the native pipe yet. Every solution above uses `|>`.
+Both work. The native `|>` is built into base R from version 4.1 and is the current recommendation, no package needed, marginally faster, and the syntax is simpler. Use `%>%` only when you need the dot placeholder (`df %>% lm(y ~ x, data = .)`) or the assignment pipe `%<>%`, neither is in the native pipe yet. Every solution above uses `|>`.
 
 **Q: Does dplyr change my data frame in place?**
 No. dplyr verbs always return a new tibble; they never modify the original. If you want to keep a transformed version, assign it to a variable: `my_clean <- mtcars |> mutate(...)`. This immutability is what makes pipelines safe to compose and debug.
 
 **Q: Does `group_by()` stay active after `summarise()`?**
-`summarise()` peels off one level of grouping. If you grouped by one variable, the result is ungrouped; if you grouped by two variables, the result is still grouped by the first. To be explicit — and to avoid surprising later verbs — pass `.groups = "drop"` to `summarise()` or add `ungroup()` after it. Every grouped solution above uses one of these.
+`summarise()` peels off one level of grouping. If you grouped by one variable, the result is ungrouped; if you grouped by two variables, the result is still grouped by the first. To be explicit, and to avoid surprising later verbs, pass `.groups = "drop"` to `summarise()` or add `ungroup()` after it. Every grouped solution above uses one of these.
 
 **Q: How does dplyr handle `NA` inside `filter()`?**
 `filter()` drops any row where the condition evaluates to `NA`. So `filter(df, col > 5)` silently removes both `col <= 5` rows and `col == NA` rows. If you want to keep `NA` rows explicitly, write `filter(df, col > 5 | is.na(col))`. For aggregate functions like `mean()` and `sum()`, pass `na.rm = TRUE` to ignore missing values.
 
 **Q: What is the difference between `slice_max(col, n = k)` and `top_n(k, col)`?**
-`slice_max()` is the modern replacement for `top_n()`. Both keep the `k` rows with the largest value of `col`, but `slice_max()` has clearer argument order (column first, `n` second), a companion `slice_min()` for the opposite end, and a `with_ties` argument. `top_n()` still works but is marked "superseded" — prefer `slice_max()` in new code.
+`slice_max()` is the modern replacement for `top_n()`. Both keep the `k` rows with the largest value of `col`, but `slice_max()` has clearer argument order (column first, `n` second), a companion `slice_min()` for the opposite end, and a `with_ties` argument. `top_n()` still works but is marked "superseded", prefer `slice_max()` in new code.
 
 ## References
 
-1. Wickham, H., Çetinkaya-Rundel, M., & Grolemund, G. — *R for Data Science*, 2nd Edition. Chapter 3: Data transformation. [Link](https://r4ds.hadley.nz/data-transform.html)
-2. dplyr documentation — `filter()` reference. [Link](https://dplyr.tidyverse.org/reference/filter.html)
-3. dplyr documentation — `mutate()` reference. [Link](https://dplyr.tidyverse.org/reference/mutate.html)
-4. dplyr documentation — `summarise()` reference. [Link](https://dplyr.tidyverse.org/reference/summarise.html)
-5. dplyr documentation — `across()` for multi-column operations. [Link](https://dplyr.tidyverse.org/reference/across.html)
-6. dplyr documentation — mutating joins (`left_join`, `inner_join`, etc.) and filtering joins (`anti_join`, `semi_join`). [Link](https://dplyr.tidyverse.org/reference/mutate-joins.html)
-7. dplyr documentation — `slice_max()`, `slice_min()`, `slice_sample()`. [Link](https://dplyr.tidyverse.org/reference/slice.html)
-8. Posit — Data transformation with dplyr cheatsheet. [Link](https://rstudio.github.io/cheatsheets/data-transformation.pdf)
-9. R Core Team — *An Introduction to R*. [Link](https://cran.r-project.org/doc/manuals/r-release/R-intro.html)
+1. Wickham, H., Çetinkaya-Rundel, M., & Grolemund, G., *R for Data Science*, 2nd Edition. Chapter 3: Data transformation. [Link](https://r4ds.hadley.nz/data-transform.html)
+2. dplyr documentation, `filter()` reference. [Link](https://dplyr.tidyverse.org/reference/filter.html)
+3. dplyr documentation, `mutate()` reference. [Link](https://dplyr.tidyverse.org/reference/mutate.html)
+4. dplyr documentation, `summarise()` reference. [Link](https://dplyr.tidyverse.org/reference/summarise.html)
+5. dplyr documentation, `across()` for multi-column operations. [Link](https://dplyr.tidyverse.org/reference/across.html)
+6. dplyr documentation, mutating joins (`left_join`, `inner_join`, etc.) and filtering joins (`anti_join`, `semi_join`). [Link](https://dplyr.tidyverse.org/reference/mutate-joins.html)
+7. dplyr documentation, `slice_max()`, `slice_min()`, `slice_sample()`. [Link](https://dplyr.tidyverse.org/reference/slice.html)
+8. Posit, Data transformation with dplyr cheatsheet. [Link](https://rstudio.github.io/cheatsheets/data-transformation.pdf)
+9. R Core Team, *An Introduction to R*. [Link](https://cran.r-project.org/doc/manuals/r-release/R-intro.html)
 
 ## Continue Learning
 
-- [dplyr filter() and select()](dplyr-filter-select.html) — the parent tutorial with every filtering and selection pattern explained in depth
-- [dplyr group_by and summarise](dplyr-group-by-summarise.html) — the full story on grouped reductions, `.groups`, and multi-column summaries
-- [dplyr filter & select Exercises](dplyr-filter-select-Exercises.html) — a narrower 12-problem set focused just on filter() and select()
-- [R Joins](R-Joins.html) — reference for `inner_join`, `left_join`, `anti_join`, and the rest of the join family
+- [dplyr filter() and select()](dplyr-filter-select.html), the parent tutorial with every filtering and selection pattern explained in depth
+- [dplyr group_by and summarise](dplyr-group-by-summarise.html), the full story on grouped reductions, `.groups`, and multi-column summaries
+- [dplyr filter & select Exercises](dplyr-filter-select-Exercises.html), a narrower 12-problem set focused just on filter() and select()
+- [R Joins](R-Joins.html), reference for `inner_join`, `left_join`, `anti_join`, and the rest of the join family

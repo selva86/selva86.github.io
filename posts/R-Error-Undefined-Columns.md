@@ -1,7 +1,7 @@
 ---
-title: "R Error: 'undefined columns selected' — 3 Column-Subsetting Mistakes Fixed"
+title: "R Error: 'undefined columns selected', 3 Column-Subsetting Mistakes Fixed"
 slug: "R-Error-Undefined-Columns"
-description: "Fix R's 'undefined columns selected' error fast. Learn the 3 mistakes that trigger it — missing comma, column name typos, stale vectors — and the fix for each."
+description: "Fix R's 'undefined columns selected' error fast. Learn the 3 mistakes that trigger it, missing comma, column name typos, stale vectors, and the fix for each."
 keywords: "R undefined columns selected, R column subsetting error, R data frame subsetting, R missing comma error, R column name typo, R subsetting errors, safe_select R"
 auto_link_terms: "undefined columns selected|R undefined columns|undefined columns error|undefined columns selected in R"
 auto_link_case_sensitive: false
@@ -14,9 +14,9 @@ fr_parent: "R-Common-Errors.html"
 difficulty: "Intermediate"
 ---
 
-# R Error: 'undefined columns selected' — 3 Column-Subsetting Mistakes Fixed
+# R Error: 'undefined columns selected', 3 Column-Subsetting Mistakes Fixed
 
-<p class="lead"><code>Error in [.data.frame(df, , cols) : undefined columns selected</code> means R looked for a column name you requested inside a data frame and could not find it — or the subsetting call confused a row condition with a column vector. Three small mistakes cause almost every occurrence, and each one has a fast fix.</p>
+<p class="lead"><code>Error in [.data.frame(df, , cols) : undefined columns selected</code> means R looked for a column name you requested inside a data frame and could not find it, or the subsetting call confused a row condition with a column vector. Three small mistakes cause almost every occurrence, and each one has a fast fix.</p>
 
 ## What does 'undefined columns selected' actually mean?
 
@@ -41,10 +41,10 @@ mt[mt$mpg > 20, ]
 #> Datsun 710    22.8   4  93
 ```
 
-The first call fails because R interprets `mt$mpg > 20` as a column selector — a length-5 logical vector that does not line up with three columns. The second call uses the comma to mark it as a row filter, and R returns the matching rows cleanly. That is the core model: R always expects `[rows, cols]`, and it treats any single-argument bracket as column selection.
+The first call fails because R interprets `mt$mpg > 20` as a column selector, a length-5 logical vector that does not line up with three columns. The second call uses the comma to mark it as a row filter, and R returns the matching rows cleanly. That is the core model: R always expects `[rows, cols]`, and it treats any single-argument bracket as column selection.
 
 [KEY INSIGHT]
-**Single brackets on a data frame always assume `[rows, cols]`, and a missing comma makes R read your row filter as a column vector.** Every single trigger for "undefined columns selected" comes from violating that rule — either by dropping the comma, by passing a name that is not in `names(df)`, or by passing a stale character vector that used to match but no longer does.
+**Single brackets on a data frame always assume `[rows, cols]`, and a missing comma makes R read your row filter as a column vector.** Every single trigger for "undefined columns selected" comes from violating that rule, either by dropping the comma, by passing a name that is not in `names(df)`, or by passing a stale character vector that used to match but no longer does.
 
 **Try it:** Reproduce the error on a five-row slice of `iris`, then fix it so you get rows where `Sepal.Length > 5`. Capture the error message with `tryCatch()` so the notebook keeps running.
 
@@ -91,7 +91,7 @@ ex1_ok
 
 ## Mistake #1: Why does a missing comma crash single-bracket subsetting?
 
-The missing comma is the single most common cause, and it has a surprising explanation. When you write `df[condition]`, R does not throw a syntax error — it tries to be helpful by treating `condition` as a column selector. If the logical vector's length matches the column count exactly, you get a silent wrong answer. If it does not match (the usual case), you get "undefined columns selected."
+The missing comma is the single most common cause, and it has a surprising explanation. When you write `df[condition]`, R does not throw a syntax error, it tries to be helpful by treating `condition` as a column selector. If the logical vector's length matches the column count exactly, you get a silent wrong answer. If it does not match (the usual case), you get "undefined columns selected."
 
 ```r
 # Three columns in our slice
@@ -119,10 +119,10 @@ cars_small[cars_small$mpg > 20, ]
 #> Datsun 710    22.8   4  93
 ```
 
-The length mismatch is the smoking gun. A length-6 logical cannot be mapped onto 3 columns, so R rejects the call. Whenever you see "undefined columns selected" on a seemingly simple filter, check the bracket for a missing comma first — it is the fastest box to tick.
+The length mismatch is the smoking gun. A length-6 logical cannot be mapped onto 3 columns, so R rejects the call. Whenever you see "undefined columns selected" on a seemingly simple filter, check the bracket for a missing comma first, it is the fastest box to tick.
 
 [WARNING]
-**dplyr::filter() removes this entire class of bug.** `filter(cars_small, mpg > 20)` is unambiguous because it has no second argument to miss. If you are doing row filtering inside a long pipeline, reach for `filter()` rather than base `[` — you will never see this error from that code path again.
+**dplyr::filter() removes this entire class of bug.** `filter(cars_small, mpg > 20)` is unambiguous because it has no second argument to miss. If you are doing row filtering inside a long pipeline, reach for `filter()` rather than base `[`, you will never see this error from that code path again.
 
 **Try it:** Fix the broken call below so it returns rows where `cyl == 4`. The comma is missing in one specific place.
 
@@ -186,7 +186,7 @@ dirty[, "mpg"]
 #> [1] 21 22 23
 ```
 
-`names(mtcars)` is your friend whenever the error hints at a name mismatch — print it and eyeball the spelling. For whitespace bugs, `trimws(names(df))` is the one-liner that clears them. Case bugs usually come from typing `Mpg` or `MPG` out of habit; a quick `grep("^mpg$", names(df), ignore.case = TRUE)` confirms the column exists under a different casing.
+`names(mtcars)` is your friend whenever the error hints at a name mismatch, print it and eyeball the spelling. For whitespace bugs, `trimws(names(df))` is the one-liner that clears them. Case bugs usually come from typing `Mpg` or `MPG` out of habit; a quick `grep("^mpg$", names(df), ignore.case = TRUE)` confirms the column exists under a different casing.
 
 [TIP]
 **Run janitor::clean_names(df) once right after import.** It snake-cases every column, strips whitespace, and removes special characters in a single call. Dropped into the top of a cleaning pipeline, it kills the whole typo-and-whitespace class of this error before downstream code sees the data.
@@ -221,7 +221,7 @@ ex3_val
 
 ## Mistake #3: Why do stale column vectors break programmatic subsetting?
 
-The third mistake hits real pipelines hardest. You build a character vector of column names earlier in the code — maybe read it from a config file, maybe computed it from `setdiff()`, maybe let a user pass it in — and then use it to subset. Somewhere upstream, the data frame loses a column or picks up a typo, and the vector drifts out of sync. Base `[` has no forgiving mode here: one unknown name in the vector, and the whole call throws.
+The third mistake hits real pipelines hardest. You build a character vector of column names earlier in the code, maybe read it from a config file, maybe computed it from `setdiff()`, maybe let a user pass it in, and then use it to subset. Somewhere upstream, the data frame loses a column or picks up a typo, and the vector drifts out of sync. Base `[` has no forgiving mode here: one unknown name in the vector, and the whole call throws.
 
 ```r
 # A vector that looks plausible but has a typo — "hpw" should be "hp"
@@ -316,7 +316,7 @@ tryCatch(
 #> [1] "Columns not found in data frame: hpw.  Available: mpg, cyl, disp, hp, drat, wt, qsec, vs, am, gear, carb"
 ```
 
-Notice how the error now tells you exactly what went wrong. `gear` is fine (it exists in `mtcars`), but `hpw` is flagged with the full list of valid names for cross-reference. This transforms "undefined columns selected" from a mystery into a pointed, actionable message — and adds `drop = FALSE` for free so single-column selections stay as data frames.
+Notice how the error now tells you exactly what went wrong. `gear` is fine (it exists in `mtcars`), but `hpw` is flagged with the full list of valid names for cross-reference. This transforms "undefined columns selected" from a mystery into a pointed, actionable message, and adds `drop = FALSE` for free so single-column selections stay as data frames.
 
 [KEY INSIGHT]
 **Fail loudly at the boundary, not silently deep in a pipeline.** The moment a character vector of column names enters your function, validate it with `setdiff()`. That one check surfaces the bad name where the user can see the context, instead of letting R throw ten stack frames later with no hint of which column was wrong.
@@ -391,7 +391,7 @@ tryCatch(
 #> [1] "Missing columns: nonexistent"
 ```
 
-**Explanation:** The `setdiff()` check runs before `[`, so a bad name is caught at the function boundary with an informative message. The happy path is unchanged — `[` runs only when all names are valid.
+**Explanation:** The `setdiff()` check runs before `[`, so a bad name is caught at the function boundary with an informative message. The happy path is unchanged, `[` runs only when all names are valid.
 
 </details>
 
@@ -440,7 +440,7 @@ diagnose_undef(mtcars, mtcars$mpg > 20)
 #> [1] "missing_comma"
 ```
 
-**Explanation:** The two-argument form `df[, cols_expr]` succeeds only when `cols_expr` is a valid column selector. When the call succeeds and the expression is a logical vector of length `nrow(df)`, the real intent was a row filter — so the diagnosis is "missing_comma." Otherwise the call failed and the cause is a name mismatch.
+**Explanation:** The two-argument form `df[, cols_expr]` succeeds only when `cols_expr` is a valid column selector. When the call succeeds and the expression is a logical vector of length `nrow(df)`, the real intent was a row filter, so the diagnosis is "missing_comma." Otherwise the call failed and the cause is a name mismatch.
 
 </details>
 
@@ -484,7 +484,7 @@ result
 #> 3  19   6        105
 ```
 
-Two root causes layered on top of each other — mangled headers from the CSV and a typo in the user vector — are a realistic real-world combination. Cleaning names plus `setdiff()` untangle them in two lines, and `safe_select()` makes the final subset both safe and informative if another typo shows up tomorrow.
+Two root causes layered on top of each other, mangled headers from the CSV and a typo in the user vector, are a realistic real-world combination. Cleaning names plus `setdiff()` untangle them in two lines, and `safe_select()` makes the final subset both safe and informative if another typo shows up tomorrow.
 
 ## Summary
 
@@ -497,16 +497,16 @@ Two root causes layered on top of each other — mangled headers from the CSV an
 
 ## References
 
-1. R Documentation — `[.data.frame` method reference. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/Extract.data.frame.html)
-2. Wickham, H. — *Advanced R*, 2nd Edition. Chapter 4: Subsetting. [Link](https://adv-r.hadley.nz/subsetting.html)
-3. tidyselect documentation — `any_of()` and `all_of()` reference. [Link](https://tidyselect.r-lib.org/reference/all_of.html)
-4. dplyr documentation — `filter()` reference. [Link](https://dplyr.tidyverse.org/reference/filter.html)
-5. janitor package — `clean_names()` function reference. [Link](https://sfirke.github.io/janitor/reference/clean_names.html)
-6. Statistics Globe — "Undefined Columns Selected When Subsetting Data Frame in R." [Link](https://statisticsglobe.com/undefined-columns-selected-when-subsetting-data-frame-in-r)
-7. Statology — "How to Handle 'undefined columns selected' in R." [Link](https://www.statology.org/undefined-columns-selected-r/)
+1. R Documentation, `[.data.frame` method reference. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/Extract.data.frame.html)
+2. Wickham, H., *Advanced R*, 2nd Edition. Chapter 4: Subsetting. [Link](https://adv-r.hadley.nz/subsetting.html)
+3. tidyselect documentation, `any_of()` and `all_of()` reference. [Link](https://tidyselect.r-lib.org/reference/all_of.html)
+4. dplyr documentation, `filter()` reference. [Link](https://dplyr.tidyverse.org/reference/filter.html)
+5. janitor package, `clean_names()` function reference. [Link](https://sfirke.github.io/janitor/reference/clean_names.html)
+6. Statistics Globe, "Undefined Columns Selected When Subsetting Data Frame in R." [Link](https://statisticsglobe.com/undefined-columns-selected-when-subsetting-data-frame-in-r)
+7. Statology, "How to Handle 'undefined columns selected' in R." [Link](https://www.statology.org/undefined-columns-selected-r/)
 
 ## Continue Learning
 
-- **[50 R Errors Decoded](R-Common-Errors.html)** — the master list of R's most common error messages with plain-English explanations and exact fixes.
-- **[R Subsetting](R-Subsetting.html)** — the definitive rule for when to reach for `[`, `[[`, `$`, and `@` in base R, with every trade-off laid out.
-- **[R Error: 'object not found'](R-Error-Object-Not-Found.html)** — the companion guide covering the other most-hit lookup error and its seven root causes.
+- **[50 R Errors Decoded](R-Common-Errors.html)**, the master list of R's most common error messages with plain-English explanations and exact fixes.
+- **[R Subsetting](R-Subsetting.html)**, the definitive rule for when to reach for `[`, `[[`, `$`, and `@` in base R, with every trade-off laid out.
+- **[R Error: 'object not found'](R-Error-Object-Not-Found.html)**, the companion guide covering the other most-hit lookup error and its seven root causes.

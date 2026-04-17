@@ -18,11 +18,11 @@ difficulty: "Intermediate"
 
 # dplyr filter() and select(): Subset Exactly the Data You Need, Every Time
 
-<p class="lead">In dplyr, <code>filter()</code> keeps the <em>rows</em> that match a condition, and <code>select()</code> keeps the <em>columns</em> you name. Together they're the first two verbs you'll reach for in any data analysis — and they replace half a dozen clunky base-R patterns with two clean, composable calls.</p>
+<p class="lead">In dplyr, <code>filter()</code> keeps the <em>rows</em> that match a condition, and <code>select()</code> keeps the <em>columns</em> you name. Together they're the first two verbs you'll reach for in any data analysis, and they replace half a dozen clunky base-R patterns with two clean, composable calls.</p>
 
 ## How do you filter rows with dplyr::filter()?
 
-`filter()` takes a data frame and one or more conditions. It keeps the rows where every condition evaluates to `TRUE`. You refer to columns by their bare names — no `$`, no quotes.
+`filter()` takes a data frame and one or more conditions. It keeps the rows where every condition evaluates to `TRUE`. You refer to columns by their bare names, no `$`, no quotes.
 
 ```r
 library(dplyr)
@@ -52,7 +52,7 @@ mtcars |> filter(mpg > 20, cyl == 4)
 Commas between conditions mean "and." Every row must satisfy all of them. This is the single most readable way to write multi-condition filters in R.
 
 > [KEY INSIGHT]
-> Inside `filter()`, dplyr uses *tidy evaluation*: column names are bare identifiers. That's why `filter(mtcars, mpg > 25)` works but `filter(mtcars, "mpg" > 25)` doesn't — the second is comparing a string to a number.
+> Inside `filter()`, dplyr uses *tidy evaluation*: column names are bare identifiers. That's why `filter(mtcars, mpg > 25)` works but `filter(mtcars, "mpg" > 25)` doesn't, the second is comparing a string to a number.
 
 **Try it:** Filter `mtcars` to rows where `gear == 4` and `carb == 4`.
 
@@ -76,12 +76,12 @@ mtcars |> filter(gear == 4, carb == 4)
 #> Volvo 142E    21.4   4 121.0 109 4.11 2.78 18.60  1  1    4    2
 ```
 
-Each comma-separated condition is ANDed together, so only rows with both `gear == 4` and `carb == 4` survive. Both column names resolve by tidy evaluation inside `filter()`, which is why you don't need `mtcars$gear` — dplyr scopes the names to the data frame on the left of the pipe.
+Each comma-separated condition is ANDed together, so only rows with both `gear == 4` and `carb == 4` survive. Both column names resolve by tidy evaluation inside `filter()`, which is why you don't need `mtcars$gear`, dplyr scopes the names to the data frame on the left of the pipe.
 </details>
 
 ## How do you combine filter conditions with `&`, `|`, and `!`?
 
-Commas mean "and" — that's the common case. For "or" and "not," use the standard logical operators: `|` for or, `!` for not.
+Commas mean "and", that's the common case. For "or" and "not," use the standard logical operators: `|` for or, `!` for not.
 
 ```r
 # OR — either condition matches
@@ -94,7 +94,7 @@ mtcars |> filter(!(cyl == 8))
 mtcars |> filter(cyl %in% c(4, 6), mpg > 25)
 ```
 
-The `%in%` operator is your friend for "is this value one of these values" checks — cleaner than chaining `==` with `|`.
+The `%in%` operator is your friend for "is this value one of these values" checks, cleaner than chaining `==` with `|`.
 
 ```r
 # Between — numeric range
@@ -109,7 +109,7 @@ starwars |> filter(str_detect(name, "Luke"))
 ```
 
 > [WARNING]
-> Don't use `&&` or `||` inside `filter()`. Those are scalar operators — they return one value even if you give them vectors, and they'll silently filter wrong. Always use the vectorized `&` and `|`.
+> Don't use `&&` or `||` inside `filter()`. Those are scalar operators, they return one value even if you give them vectors, and they'll silently filter wrong. Always use the vectorized `&` and `|`.
 
 **Try it:** Filter to rows where `am == 1` OR `gear == 5`.
 
@@ -127,12 +127,12 @@ mtcars |> filter(am == 1 | gear == 5) |> nrow()
 #> [1] 13
 ```
 
-`|` is the vectorised OR — each row is kept if either side is `TRUE`. Because every manual car (`am == 1`) also has `gear` of 4 or 5, the OR mostly matches the same rows as `am == 1`, giving 13 cars. Don't swap `|` for `||`: `||` is the scalar shortcut used in `if` statements and it'll only look at the first row.
+`|` is the vectorised OR, each row is kept if either side is `TRUE`. Because every manual car (`am == 1`) also has `gear` of 4 or 5, the OR mostly matches the same rows as `am == 1`, giving 13 cars. Don't swap `|` for `||`: `||` is the scalar shortcut used in `if` statements and it'll only look at the first row.
 </details>
 
 ## How do you handle NA in filters?
 
-`NA` propagates through comparisons: `NA > 5` is `NA`, not `FALSE`. `filter()` drops rows where the condition is `NA` — safer than base R, which sometimes returns mystery `NA` rows. But you still need `is.na()` to explicitly select missing rows.
+`NA` propagates through comparisons: `NA > 5` is `NA`, not `FALSE`. `filter()` drops rows where the condition is `NA`, safer than base R, which sometimes returns mystery `NA` rows. But you still need `is.na()` to explicitly select missing rows.
 
 ```r
 df <- tibble(x = c(1, 2, NA, 4, NA))
@@ -177,7 +177,7 @@ starwars |> filter(!is.na(mass)) |> nrow()
 #> [1] 59
 ```
 
-`!is.na(mass)` is a logical vector that's `TRUE` wherever `mass` has a value, and `filter()` keeps exactly those rows. Of the 87 characters in `starwars`, 59 have a recorded mass — the other 28 drop out. This pattern is the cleanest way to guarantee downstream numeric work won't choke on NAs.
+`!is.na(mass)` is a logical vector that's `TRUE` wherever `mass` has a value, and `filter()` keeps exactly those rows. Of the 87 characters in `starwars`, 59 have a recorded mass, the other 28 drop out. This pattern is the cleanest way to guarantee downstream numeric work won't choke on NAs.
 </details>
 
 ## How do you pick columns with select()?
@@ -202,7 +202,7 @@ mtcars |> select(-vs, -am, -gear, -carb) |> head(3)
 #> Datsun 710    22.8   4  108  93 3.85 2.320 18.61
 ```
 
-Ranges work with `:` — the colon operator picks every column between two names inclusive:
+Ranges work with `:`, the colon operator picks every column between two names inclusive:
 
 ```r
 mtcars |> select(mpg:drat) |> head(3)
@@ -234,7 +234,7 @@ mtcars |> select(mpg, wt, hp) |> head()
 #> Valiant           18.1 3.460 105
 ```
 
-`select()` keeps columns in the order you list them, so you can reorder while subsetting — the output shows `mpg` first, then `wt`, then `hp`, even though the original data frame has `wt` after `hp`. Row names (`Mazda RX4`, ...) travel with the rows.
+`select()` keeps columns in the order you list them, so you can reorder while subsetting, the output shows `mpg` first, then `wt`, then `hp`, even though the original data frame has `wt` after `hp`. Row names (`Mazda RX4`, ...) travel with the rows.
 </details>
 
 ## What are the column selection helpers (starts_with, ends_with, contains)?
@@ -272,7 +272,7 @@ iris |> select(where(is.numeric)) |> head(3)
 ```
 
 > [TIP]
-> `select(where(is.numeric))` plus `summarise(across(everything(), mean))` is how you compute summary stats on every numeric column in one line. Memorize this pattern — you'll use it constantly.
+> `select(where(is.numeric))` plus `summarise(across(everything(), mean))` is how you compute summary stats on every numeric column in one line. Memorize this pattern, you'll use it constantly.
 
 **Try it:** From `iris`, select all columns whose name starts with "Petal".
 
@@ -342,12 +342,12 @@ mtcars |> rename(weight = wt) |> head()
 #> ...
 ```
 
-`rename()` takes `new_name = old_name` pairs and changes the name in place — every other column stays put. Unlike `select(weight = wt)`, you don't have to list every column you want to keep, which is exactly what you want when you only need to retitle one thing.
+`rename()` takes `new_name = old_name` pairs and changes the name in place, every other column stays put. Unlike `select(weight = wt)`, you don't have to list every column you want to keep, which is exactly what you want when you only need to retitle one thing.
 </details>
 
 ## How do you combine filter() and select() in a pipeline?
 
-The pair composes naturally. Filter first (reduce rows), then select (reduce columns) — or vice versa, it doesn't affect the result but it can affect memory for huge tables.
+The pair composes naturally. Filter first (reduce rows), then select (reduce columns), or vice versa, it doesn't affect the result but it can affect memory for huge tables.
 
 ```r
 mtcars |>
@@ -366,7 +366,7 @@ mtcars |>
 Three verbs, four lines, and you've answered "which 4-cylinder cars have the best mileage, showing just the relevant columns." That's dplyr at its best.
 
 > [NOTE]
-> The order `filter() |> select()` is the conventional one — keep it even when either order works. Consistency makes pipelines faster to read for the next person (or future you).
+> The order `filter() |> select()` is the conventional one, keep it even when either order works. Consistency makes pipelines faster to read for the next person (or future you).
 
 **Try it:** From `mtcars`, filter to `gear == 4`, then keep only `mpg`, `hp`, and `wt`.
 
@@ -394,7 +394,7 @@ mtcars |>
 #> ...
 ```
 
-The pipe hands the filtered data frame to `select()`, so the column pick operates only on the 12 four-gear cars — not the full 32 rows. Doing `filter()` before `select()` is the conventional order because it usually shrinks the row count first, which is cheaper and matches how you'd describe the query in English.
+The pipe hands the filtered data frame to `select()`, so the column pick operates only on the 12 four-gear cars, not the full 32 rows. Doing `filter()` before `select()` is the conventional order because it usually shrinks the row count first, which is cheaper and matches how you'd describe the query in English.
 </details>
 
 ## Practice Exercises
@@ -490,13 +490,13 @@ Three filters (species, no NA height, no NA homeworld), a column selection, a so
 ## References
 
 1. [dplyr package documentation](https://dplyr.tidyverse.org/)
-2. [R for Data Science — Data Transformation](https://r4ds.hadley.nz/data-transform)
+2. [R for Data Science, Data Transformation](https://r4ds.hadley.nz/data-transform)
 3. [tidyselect helpers reference](https://tidyselect.r-lib.org/reference/language.html)
 4. [dplyr cheat sheet (RStudio)](https://rstudio.github.io/cheatsheets/data-transformation.pdf)
 5. [Tidyverse Style Guide](https://style.tidyverse.org/)
 
 ## Continue Learning
 
-- [dplyr mutate(): Create New Columns](dplyr-mutate-rename.html) — the natural next verb after filter/select.
-- [dplyr group_by() + summarise()](dplyr-group-by-summarise.html) — aggregate filtered data.
-- [R Pipe Operator: %>% vs |>](R-Pipe-Operator.html) — the glue that connects dplyr verbs.
+- [dplyr mutate(): Create New Columns](dplyr-mutate-rename.html), the natural next verb after filter/select.
+- [dplyr group_by() + summarise()](dplyr-group-by-summarise.html), aggregate filtered data.
+- [R Pipe Operator: %>% vs |>](R-Pipe-Operator.html), the glue that connects dplyr verbs.

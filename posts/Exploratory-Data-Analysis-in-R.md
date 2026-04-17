@@ -1,7 +1,7 @@
 ---
 title: "EDA in R: A 7-Step Framework That Works on Every Dataset You'll Encounter"
 slug: "Exploratory-Data-Analysis-in-R"
-description: "Good EDA prevents bad analyses. Follow this 7-step framework — structure, missingness, distributions, outliers, correlations, and more — with R code."
+description: "Good EDA prevents bad analyses. Follow this 7-step framework, structure, missingness, distributions, outliers, correlations, and more, with R code."
 keywords: "exploratory data analysis in R, EDA in R, data exploration R, EDA framework R, summary statistics R, missing data R, outlier detection R, correlation analysis R, group comparison R"
 mathjax: false
 webr: true
@@ -18,7 +18,7 @@ auto_link_case_sensitive: false
 
 # EDA in R: A 7-Step Framework That Works on Every Dataset You'll Encounter
 
-<p class="lead">Exploratory Data Analysis (EDA) is the process of examining a dataset before building any model or running any test — you look at structure, spot missing values, check distributions, flag outliers, and uncover relationships so that every downstream decision rests on evidence, not assumptions.</p>
+<p class="lead">Exploratory Data Analysis (EDA) is the process of examining a dataset before building any model or running any test, you look at structure, spot missing values, check distributions, flag outliers, and uncover relationships so that every downstream decision rests on evidence, not assumptions.</p>
 
 Most tutorials treat EDA as a grab bag of random plots and summary tables. This tutorial gives you a repeatable 7-step framework you can apply to *any* dataset: structure, missingness, distributions, outliers, correlations, group comparisons, and time patterns. We'll work through every step with R's built-in `airquality` dataset and the tidyverse.
 
@@ -43,7 +43,7 @@ glimpse(aq)
 #> $ Day     <int> 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, ...
 ```
 
-Right away you can see three important things. First, the dataset has 153 rows and 6 columns — a manageable size for learning. Second, Ozone and Solar.R already show `NA` values, which tells you missing data will matter. Third, Month and Day are stored as integers, not as date or factor types — something you might want to fix later.
+Right away you can see three important things. First, the dataset has 153 rows and 6 columns, a manageable size for learning. Second, Ozone and Solar.R already show `NA` values, which tells you missing data will matter. Third, Month and Day are stored as integers, not as date or factor types, something you might want to fix later.
 
 The `str()` function gives you a more compact view that emphasises storage types and shows the first few values of each column.
 
@@ -62,12 +62,12 @@ str(aq)
 aq$Month <- factor(aq$Month, labels = c("May", "Jun", "Jul", "Aug", "Sep"))
 ```
 
-Now Month is a factor with readable labels instead of bare integers. This small fix pays off in every plot and summary from here on — ggplot2 will label axes automatically instead of showing "5, 6, 7, 8, 9".
+Now Month is a factor with readable labels instead of bare integers. This small fix pays off in every plot and summary from here on, ggplot2 will label axes automatically instead of showing "5, 6, 7, 8, 9".
 
 [TIP]
 **Prefer glimpse() over str() for wide datasets.** When a dataset has dozens of columns, str() prints one line per variable that can scroll off screen. glimpse() fits everything into the console width, making it easier to scan.
 
-**Try it:** Convert the Day column to a factor too — but this time, keep the numeric labels (1-31). Store the result back in `aq$Day` and verify with `class(aq$Day)`.
+**Try it:** Convert the Day column to a factor too, but this time, keep the numeric labels (1-31). Store the result back in `aq$Day` and verify with `class(aq$Day)`.
 
 ```r
 # Try it: convert Day to factor
@@ -88,13 +88,13 @@ class(aq$Day)
 #> [1] "factor"
 ```
 
-**Explanation:** Since Day values are already integers 1-31, you can pass them directly to `factor()` without specifying labels — R uses the values as labels automatically.
+**Explanation:** Since Day values are already integers 1-31, you can pass them directly to `factor()` without specifying labels, R uses the values as labels automatically.
 
 </details>
 
-## Where Is Your Data Missing — and Does It Matter?
+## Where Is Your Data Missing, and Does It Matter?
 
-Missing data isn't just an inconvenience — it can silently bias every analysis you run. A correlation computed on only complete cases might overrepresent certain months. A mean calculated after dropping NAs might miss the fact that values are missing *because* they were extreme. The pattern of missingness matters as much as the amount.
+Missing data isn't just an inconvenience, it can silently bias every analysis you run. A correlation computed on only complete cases might overrepresent certain months. A mean calculated after dropping NAs might miss the fact that values are missing *because* they were extreme. The pattern of missingness matters as much as the amount.
 
 Let's start by counting exactly how many values are missing in each column.
 
@@ -105,7 +105,7 @@ colSums(is.na(aq))
 #>      37       7       0       0       0       0
 ```
 
-Ozone has 37 missing values — that's 24% of the dataset. Solar.R has 7 (5%). Wind, Temp, Month, and Day are complete. This immediately tells you that any analysis involving Ozone needs to handle missing values carefully.
+Ozone has 37 missing values, that's 24% of the dataset. Solar.R has 7 (5%). Wind, Temp, Month, and Day are complete. This immediately tells you that any analysis involving Ozone needs to handle missing values carefully.
 
 Next, let's see *where* those gaps fall. Are they random, or do they cluster in certain months?
 
@@ -127,7 +127,7 @@ ggplot(missing_df |> filter(col %in% c("Ozone", "Solar.R")),
 #> [A heatmap showing missing values clustered in certain row ranges]
 ```
 
-The heatmap reveals that Ozone's missing values aren't perfectly random — there are clusters, especially around rows 25-30 and rows 95-100. This kind of pattern might indicate sensor failures on consecutive days.
+The heatmap reveals that Ozone's missing values aren't perfectly random, there are clusters, especially around rows 25-30 and rows 95-100. This kind of pattern might indicate sensor failures on consecutive days.
 
 ```r
 # How many rows are fully complete?
@@ -138,7 +138,7 @@ cat("Complete cases:", complete_count, "out of", total_rows,
 #> Complete cases: 111 out of 153 (72.5%)
 ```
 
-About 72.5% of rows are complete. If you naively dropped all incomplete rows, you'd lose over a quarter of your data. That's a steep price — especially if the missing data is concentrated in certain months, which would bias your seasonal analysis.
+About 72.5% of rows are complete. If you naively dropped all incomplete rows, you'd lose over a quarter of your data. That's a steep price, especially if the missing data is concentrated in certain months, which would bias your seasonal analysis.
 
 [WARNING]
 **Dropping all rows with NAs can silently remove 25%+ of your data.** Always quantify missingness first with colSums(is.na()) and inspect the pattern before deciding how to handle it. Consider using na.rm = TRUE in calculations or imputation instead of deletion.
@@ -179,7 +179,7 @@ ex_missing_by_month
 
 ## How Are Your Variables Distributed?
 
-Distributions tell you the shape of your data — is it symmetric, skewed, spread out, or concentrated? This matters because many statistical methods assume a particular shape (often a bell curve), and blindly applying them to skewed data gives misleading results.
+Distributions tell you the shape of your data, is it symmetric, skewed, spread out, or concentrated? This matters because many statistical methods assume a particular shape (often a bell curve), and blindly applying them to skewed data gives misleading results.
 
 Let's start with a histogram of Ozone, the variable with the most interesting behaviour.
 
@@ -194,7 +194,7 @@ ggplot(aq, aes(x = Ozone)) +
 #> [A right-skewed histogram with most values between 0-50 and a long right tail]
 ```
 
-The histogram shows a clear right skew — most days have low Ozone (under 50 ppb), but some days spike above 100 ppb. This skew means the mean will be pulled higher than the median, and any method assuming normality will be off.
+The histogram shows a clear right skew, most days have low Ozone (under 50 ppb), but some days spike above 100 ppb. This skew means the mean will be pulled higher than the median, and any method assuming normality will be off.
 
 ![Distribution choice decision tree](screenshots/Exploratory-Data-Analysis-in-R-distribution-choice.webp)
 
@@ -212,7 +212,7 @@ ggplot(aq, aes(x = Temp, fill = Month)) +
 #> [Overlapping density curves shifting right from May to August]
 ```
 
-The density plot reveals a clear seasonal shift — May's distribution sits around 60-70F, while July and August peak around 80-85F. September's distribution is wider, reflecting the transition from summer to autumn.
+The density plot reveals a clear seasonal shift, May's distribution sits around 60-70F, while July and August peak around 80-85F. September's distribution is wider, reflecting the transition from summer to autumn.
 
 The `summary()` function gives you the five-number summary (min, Q1, median, Q3, max) plus the mean in one call.
 
@@ -229,7 +229,7 @@ summary(aq[, c("Ozone", "Solar.R", "Wind", "Temp")])
 #>  NA's   :37       NA's   :7
 ```
 
-Notice how Ozone's mean (42.1) is well above its median (31.5) — that confirms the right skew we saw in the histogram. When mean and median diverge like this, always report the median as the "typical" value.
+Notice how Ozone's mean (42.1) is well above its median (31.5), that confirms the right skew we saw in the histogram. When mean and median diverge like this, always report the median as the "typical" value.
 
 [KEY INSIGHT]
 **A skewed distribution means the mean and median tell different stories.** For right-skewed data like Ozone, the median is a better measure of "typical" because the mean is inflated by extreme values. Always check both before reporting a single number.
@@ -259,13 +259,13 @@ ggplot(aq, aes(x = Solar.R)) +
 #> [A roughly uniform/slightly left-skewed distribution with values spread across 0-340]
 ```
 
-**Explanation:** Solar.R is roughly uniform with a slight left skew — values are spread fairly evenly across the range, unlike Ozone's strong right skew. This suggests solar radiation doesn't have a single "typical" value.
+**Explanation:** Solar.R is roughly uniform with a slight left skew, values are spread fairly evenly across the range, unlike Ozone's strong right skew. This suggests solar radiation doesn't have a single "typical" value.
 
 </details>
 
-## Which Values Are Outliers — and What Should You Do About Them?
+## Which Values Are Outliers, and What Should You Do About Them?
 
-An outlier is a data point that sits far from the rest. It might be a sensor malfunction, a data entry mistake, or a genuinely extreme event (like a heat wave). The important question isn't "is it an outlier?" but "why is it an outlier?" — because the answer determines what you do about it.
+An outlier is a data point that sits far from the rest. It might be a sensor malfunction, a data entry mistake, or a genuinely extreme event (like a heat wave). The important question isn't "is it an outlier?" but "why is it an outlier?", because the answer determines what you do about it.
 
 The boxplot is the classic outlier detection tool. Points beyond the whiskers (1.5 times the interquartile range) are flagged automatically.
 
@@ -303,7 +303,7 @@ cat("Values:", sort(outliers))
 #> Values: 135 168
 ```
 
-Only two values (135 and 168 ppb) exceed the upper bound of 131.1. These aren't impossible — real Ozone spikes happen during heat waves. But let's see how much they affect the mean.
+Only two values (135 and 168 ppb) exceed the upper bound of 131.1. These aren't impossible, real Ozone spikes happen during heat waves. But let's see how much they affect the mean.
 
 ![Outlier handling decision flow](screenshots/Exploratory-Data-Analysis-in-R-outlier-decision.webp)
 
@@ -321,7 +321,7 @@ cat("Difference:           ", round(mean_with - mean_without, 1))
 #> Difference:             1.7
 ```
 
-The two outliers shift the mean by only 1.7 ppb — a small effect. In this case, keeping them is reasonable because they represent real atmospheric events, not errors. If the difference were much larger, you'd want to run your downstream analysis both ways and report the sensitivity.
+The two outliers shift the mean by only 1.7 ppb, a small effect. In this case, keeping them is reasonable because they represent real atmospheric events, not errors. If the difference were much larger, you'd want to run your downstream analysis both ways and report the sensitivity.
 
 [WARNING]
 **Never remove outliers just because they're extreme.** Remove them because you have a specific reason: a known data entry error, a sensor malfunction, or an impossible value (like negative height). "It's far from the mean" is not a reason.
@@ -355,13 +355,13 @@ cat("Values:", sort(ex_outliers))
 #> Values: 1.7 2.3 20.7
 ```
 
-**Explanation:** Wind has 3 outliers — two unusually calm days (1.7 and 2.3 mph) and one very windy day (20.7 mph). These are extreme but plausible weather events.
+**Explanation:** Wind has 3 outliers, two unusually calm days (1.7 and 2.3 mph) and one very windy day (20.7 mph). These are extreme but plausible weather events.
 
 </details>
 
 ## Which Variables Are Related to Each Other?
 
-Correlation measures the strength and direction of a linear relationship between two numeric variables. It ranges from -1 (perfect negative — as one goes up, the other goes down) to +1 (perfect positive — they move together). A value near 0 means no *linear* relationship, but there might still be a curved one.
+Correlation measures the strength and direction of a linear relationship between two numeric variables. It ranges from -1 (perfect negative, as one goes up, the other goes down) to +1 (perfect positive, they move together). A value near 0 means no *linear* relationship, but there might still be a curved one.
 
 Let's compute the correlation matrix for all numeric columns.
 
@@ -377,7 +377,7 @@ round(cor_matrix, 2)
 #> Temp     0.70    0.28 -0.50  1.00
 ```
 
-Three relationships jump out. Ozone and Temp have a strong positive correlation (0.70) — hotter days produce more Ozone. Ozone and Wind show a moderate negative correlation (-0.60) — windier days have lower Ozone, likely because wind disperses pollutants. Solar.R has a weak positive link to Ozone (0.35), which makes physical sense since sunlight drives Ozone formation.
+Three relationships jump out. Ozone and Temp have a strong positive correlation (0.70), hotter days produce more Ozone. Ozone and Wind show a moderate negative correlation (-0.60), windier days have lower Ozone, likely because wind disperses pollutants. Solar.R has a weak positive link to Ozone (0.35), which makes physical sense since sunlight drives Ozone formation.
 
 Let's visualize the strongest relationship with a scatter plot.
 
@@ -394,7 +394,7 @@ ggplot(aq, aes(x = Temp, y = Ozone)) +
 
 The scatter plot confirms the positive relationship, but the loess smoother reveals something the correlation number hides: the relationship isn't perfectly linear. Below 75F, Ozone is relatively flat. Above 80F, it accelerates sharply. This non-linearity means a simple correlation of 0.70 actually *understates* how strongly temperature drives Ozone on hot days.
 
-A pairs plot gives you every pairwise scatter plot at once — useful for quickly scanning all relationships.
+A pairs plot gives you every pairwise scatter plot at once, useful for quickly scanning all relationships.
 
 ```r
 # Quick overview of all pairwise relationships
@@ -432,13 +432,13 @@ ggplot(aq, aes(x = Wind, y = Ozone)) +
 #> [Scatter plot showing a clear negative, slightly curved relationship]
 ```
 
-**Explanation:** The relationship is negative and somewhat curved — Ozone drops steeply as Wind increases from 5 to 12 mph, then levels off. Wind disperses ground-level Ozone, and once it's strong enough, additional wind has diminishing effect.
+**Explanation:** The relationship is negative and somewhat curved, Ozone drops steeply as Wind increases from 5 to 12 mph, then levels off. Wind disperses ground-level Ozone, and once it's strong enough, additional wind has diminishing effect.
 
 </details>
 
 ## How Do Groups Differ Across Your Variables?
 
-Grouping reveals structure that global summaries hide. A variable that looks well-behaved overall might behave completely differently in subgroups. In the `airquality` data, Month is the natural grouping variable — summer months behave differently from spring and autumn.
+Grouping reveals structure that global summaries hide. A variable that looks well-behaved overall might behave completely differently in subgroups. In the `airquality` data, Month is the natural grouping variable, summer months behave differently from spring and autumn.
 
 Let's start with a grouped summary of Ozone by Month.
 
@@ -464,7 +464,7 @@ monthly_summary
 #> 5 Sep      30       31.4         23       24.1      76.9
 ```
 
-July and August have Ozone levels roughly double those of May and September. The standard deviation is also much higher in summer — not only is Ozone worse on average, but it's more unpredictable. September drops back down, roughly matching June despite higher temperatures. This suggests temperature alone doesn't explain Ozone patterns.
+July and August have Ozone levels roughly double those of May and September. The standard deviation is also much higher in summer, not only is Ozone worse on average, but it's more unpredictable. September drops back down, roughly matching June despite higher temperatures. This suggests temperature alone doesn't explain Ozone patterns.
 
 Side-by-side boxplots make these group differences visually immediate.
 
@@ -478,7 +478,7 @@ ggplot(aq, aes(x = Month, y = Temp, fill = Month)) +
 #> [Five boxplots showing steady rise from May to August, slight drop in Sep]
 ```
 
-The boxplot reveals a clear seasonal arc — temperatures climb steadily from May through August, then drop slightly in September. The spread (box height) is similar across months, meaning temperature variability is roughly constant regardless of season.
+The boxplot reveals a clear seasonal arc, temperatures climb steadily from May through August, then drop slightly in September. The spread (box height) is similar across months, meaning temperature variability is roughly constant regardless of season.
 
 Faceted histograms let you compare the *shape* of distributions across groups, not just their centres.
 
@@ -529,7 +529,7 @@ ex_wind_summary
 #> 5 Sep          10.3
 ```
 
-**Explanation:** May is the windiest month (median 11.5 mph) and July/August are the calmest (8.6 mph). This makes physical sense — spring tends to be windier, and still summer air traps more pollutants (which also explains the high Ozone in summer).
+**Explanation:** May is the windiest month (median 11.5 mph) and July/August are the calmest (8.6 mph). This makes physical sense, spring tends to be windier, and still summer air traps more pollutants (which also explains the high Ozone in summer).
 
 </details>
 
@@ -552,7 +552,7 @@ ggplot(aq, aes(x = Date, y = Ozone)) +
 #> [Line chart showing irregular Ozone with peak values in Jul-Aug]
 ```
 
-The time series shows high day-to-day variability, but a clear seasonal envelope — Ozone peaks in July and August, then drops in September. The gaps in the line correspond to the missing values we identified in Step 2.
+The time series shows high day-to-day variability, but a clear seasonal envelope, Ozone peaks in July and August, then drops in September. The gaps in the line correspond to the missing values we identified in Step 2.
 
 Adding a smoothed trend line makes the seasonal pattern easier to see.
 
@@ -567,7 +567,7 @@ ggplot(aq, aes(x = Date, y = Temp)) +
 #> [Scatter with smooth curve peaking around late July]
 ```
 
-Temperature follows a smooth seasonal arc — rising steadily from May through late July, plateauing in August, then declining in September. Compare this shape to the Ozone time series above: they move together, confirming the strong positive correlation we found in Step 5.
+Temperature follows a smooth seasonal arc, rising steadily from May through late July, plateauing in August, then declining in September. Compare this shape to the Ozone time series above: they move together, confirming the strong positive correlation we found in Step 5.
 
 To compare multiple variables on the same time scale, reshape the data and facet.
 
@@ -589,10 +589,10 @@ ggplot(aq_long, aes(x = Date, y = Value)) +
 #> [Three stacked panels: Ozone (spiky, peaks Jul-Aug), Temp (smooth arc), Wind (no clear trend)]
 ```
 
-The multi-panel view delivers the final insight: Ozone and Temperature share a seasonal pattern (both peak mid-summer), but Wind shows no clear seasonal trend — it's variable throughout the entire period. This tells you that Wind's negative correlation with Ozone is driven by day-to-day weather, not seasonal cycles.
+The multi-panel view delivers the final insight: Ozone and Temperature share a seasonal pattern (both peak mid-summer), but Wind shows no clear seasonal trend, it's variable throughout the entire period. This tells you that Wind's negative correlation with Ozone is driven by day-to-day weather, not seasonal cycles.
 
 [NOTE]
-**Not every dataset has a time dimension.** If yours doesn't, skip this step entirely. The 7-step framework is a checklist — use the steps that apply and skip the ones that don't. A cross-sectional survey has no Step 7, and that's fine.
+**Not every dataset has a time dimension.** If yours doesn't, skip this step entirely. The 7-step framework is a checklist, use the steps that apply and skip the ones that don't. A cross-sectional survey has no Step 7, and that's fine.
 
 **Try it:** Plot Wind speed over time as a line chart. Is there a seasonal pattern, or is Wind more random day-to-day?
 
@@ -659,7 +659,7 @@ ggplot(mtcars, aes(x = mpg)) +
 #> [Right-skewed histogram with most cars between 15-25 mpg]
 ```
 
-**Findings:** (1) mtcars has 32 rows and 11 columns, all numeric. (2) There are zero missing values — unusual for real data. (3) MPG is right-skewed with most cars clustered between 15-25 mpg and a few fuel-efficient outliers above 30.
+**Findings:** (1) mtcars has 32 rows and 11 columns, all numeric. (2) There are zero missing values, unusual for real data. (3) MPG is right-skewed with most cars clustered between 15-25 mpg and a few fuel-efficient outliers above 30.
 
 </details>
 
@@ -774,7 +774,7 @@ iris |>
 #> 3 virginica              6.59          0.636
 ```
 
-**Explanation:** The mini report reveals that iris species differ substantially in size (setosa is smallest), petal dimensions are very highly correlated (0.96), and Sepal.Width is negatively correlated with petal measurements — a classic ecological pattern where wider sepals accompany smaller petals.
+**Explanation:** The mini report reveals that iris species differ substantially in size (setosa is smallest), petal dimensions are very highly correlated (0.96), and Sepal.Width is negatively correlated with petal measurements, a classic ecological pattern where wider sepals accompany smaller petals.
 
 </details>
 
@@ -886,16 +886,16 @@ The framework is a checklist, not a strict sequence. Skip Step 7 if there's no t
 
 ## References
 
-1. Tukey, J.W. — *Exploratory Data Analysis*. Addison-Wesley (1977). The foundational text that introduced EDA as a discipline.
-2. Wickham, H. & Grolemund, G. — *R for Data Science* (2e), Chapter 10: Exploratory Data Analysis. [Link](https://r4ds.hadley.nz/EDA.html)
-3. R Core Team — airquality dataset documentation. [Link](https://stat.ethz.ch/R-manual/R-devel/library/datasets/html/airquality.html)
-4. Wickham, H. — *ggplot2: Elegant Graphics for Data Analysis* (3e). Springer (2024). [Link](https://ggplot2-book.org/)
-5. dplyr documentation — group_by() and summarise(). [Link](https://dplyr.tidyverse.org/reference/group_by.html)
-6. NIST/SEMATECH — *e-Handbook of Statistical Methods: Exploratory Data Analysis*. [Link](https://www.itl.nist.gov/div898/handbook/eda/eda.htm)
-7. Grolemund, G. — *Hands-On Programming with R*. O'Reilly (2014). [Link](https://rstudio-education.github.io/hopr/)
+1. Tukey, J.W., *Exploratory Data Analysis*. Addison-Wesley (1977). The foundational text that introduced EDA as a discipline.
+2. Wickham, H. & Grolemund, G., *R for Data Science* (2e), Chapter 10: Exploratory Data Analysis. [Link](https://r4ds.hadley.nz/EDA.html)
+3. R Core Team, airquality dataset documentation. [Link](https://stat.ethz.ch/R-manual/R-devel/library/datasets/html/airquality.html)
+4. Wickham, H., *ggplot2: Elegant Graphics for Data Analysis* (3e). Springer (2024). [Link](https://ggplot2-book.org/)
+5. dplyr documentation, group_by() and summarise(). [Link](https://dplyr.tidyverse.org/reference/group_by.html)
+6. NIST/SEMATECH, *e-Handbook of Statistical Methods: Exploratory Data Analysis*. [Link](https://www.itl.nist.gov/div898/handbook/eda/eda.htm)
+7. Grolemund, G., *Hands-On Programming with R*. O'Reilly (2014). [Link](https://rstudio-education.github.io/hopr/)
 
 ## Continue Learning
 
-- **[Automated EDA in R](Automated-EDA-in-R.html)** — Packages that generate EDA reports automatically, so you can compare hand-coded EDA with automated output.
-- **[Missing Data Visualization with naniar](Missing-Data-Visualization-in-R-naniar.html)** — Deep dive into visualizing and understanding missing data patterns beyond what base R offers.
-- **[Outlier Detection in R](Outlier-Detection-in-R.html)** — Statistical and visual methods for outlier detection, expanding on Step 4 of this framework.
+- **[Automated EDA in R](Automated-EDA-in-R.html)**, Packages that generate EDA reports automatically, so you can compare hand-coded EDA with automated output.
+- **[Missing Data Visualization with naniar](Missing-Data-Visualization-in-R-naniar.html)**, Deep dive into visualizing and understanding missing data patterns beyond what base R offers.
+- **[Outlier Detection in R](Outlier-Detection-in-R.html)**, Statistical and visual methods for outlier detection, expanding on Step 4 of this framework.

@@ -1,5 +1,5 @@
 ---
-title: "R5 Reference Classes in R: setRefClass() — Legacy OOP"
+title: "R5 Reference Classes in R: setRefClass(), Legacy OOP"
 slug: "R5-Reference-Classes"
 description: "R5 Reference Classes (setRefClass) are base R's first mutable OOP system. Learn the syntax, the <<- rule, why R6 superseded it, and how to migrate code."
 keywords: "R5 reference classes, setRefClass R, R reference classes, R5 vs R6, legacy OOP R, mutable objects R, callSuper R, reference semantics R"
@@ -14,13 +14,13 @@ fr_parent: "OOP-in-R.html"
 difficulty: "Intermediate"
 ---
 
-# R5 Reference Classes in R: setRefClass() — Legacy OOP
+# R5 Reference Classes in R: setRefClass(), Legacy OOP
 
-<p class="lead"><strong>R5 Reference Classes</strong> — also called Reference Classes or just R5 — are base R's first OOP system where objects can change their own state in place instead of returning a new copy on every update. They are defined with <code>setRefClass()</code> and ship with base R, but the R6 package has largely replaced them in modern code.</p>
+<p class="lead"><strong>R5 Reference Classes</strong>, also called Reference Classes or just R5, are base R's first OOP system where objects can change their own state in place instead of returning a new copy on every update. They are defined with <code>setRefClass()</code> and ship with base R, but the R6 package has largely replaced them in modern code.</p>
 
 ## What are R5 Reference Classes in R?
 
-R5 lets a single object hold state and update itself in place. That mutability is the whole point — a counter can tick up, a config can change settings, and every variable pointing at the object sees the same update. Let's build a tiny `Person` class so the shape is concrete before we unpack any rules.
+R5 lets a single object hold state and update itself in place. That mutability is the whole point, a counter can tick up, a config can change settings, and every variable pointing at the object sees the same update. Let's build a tiny `Person` class so the shape is concrete before we unpack any rules.
 
 The class declares its data in a `fields` list and its behaviour in a `methods` list. Calling `Person$new(...)` creates an instance you talk to with `$`.
 
@@ -54,10 +54,10 @@ alice$greet()
 #> Hi, I'm Alice and I'm 31 years old.
 ```
 
-Notice that we never reassigned `alice`. A single call to `have_birthday()` changed `alice$age` from 30 to 31, and the second `greet()` call sees the new value. That in-place update is the entire reason R5 exists — every other R object would have forced you to write `alice <- update(alice)` and pass the new copy around.
+Notice that we never reassigned `alice`. A single call to `have_birthday()` changed `alice$age` from 30 to 31, and the second `greet()` call sees the new value. That in-place update is the entire reason R5 exists, every other R object would have forced you to write `alice <- update(alice)` and pass the new copy around.
 
 [NOTE]
-**R5 ships in base R via the `methods` package.** No install or `library()` call is needed — `setRefClass()` is available the moment you start R.
+**R5 ships in base R via the `methods` package.** No install or `library()` call is needed, `setRefClass()` is available the moment you start R.
 
 **Try it:** Define an `ex_Car` class with `make` and `model` fields and a `describe()` method that prints `"<make> <model>"`. Test it on a Toyota Corolla.
 
@@ -107,7 +107,7 @@ ex_car$describe()
 
 ## Why does R5 use <<- instead of <- inside methods?
 
-R5 methods run in their own little environment. A plain `<-` creates a *local* variable inside that environment, which vanishes the moment the method returns. To actually update the field stored on the object, you have to reach up the scope chain — and that's what `<<-` does.
+R5 methods run in their own little environment. A plain `<-` creates a *local* variable inside that environment, which vanishes the moment the method returns. To actually update the field stored on the object, you have to reach up the scope chain, and that's what `<<-` does.
 
 Skip `<<-` and your "setter" looks fine but quietly does nothing. Let's prove it.
 
@@ -145,7 +145,7 @@ gc$count
 #> [1] 2
 ```
 
-`BadCounter$increment()` runs without complaint, but two calls leave `count` at 0 because each call wrote to a throwaway local. `GoodCounter` uses `<<-`, so each call reaches up and rewrites the field — two calls, count of two.
+`BadCounter$increment()` runs without complaint, but two calls leave `count` at 0 because each call wrote to a throwaway local. `GoodCounter` uses `<<-`, so each call reaches up and rewrites the field, two calls, count of two.
 
 [WARNING]
 **Forgetting `<<-` is a silent bug.** R5 will not warn you that your setter did nothing. Any method that updates a field MUST use `<<-`, or you'll spend an hour debugging a "stuck" object.
@@ -194,7 +194,7 @@ ex_tag$label
 
 ## How do reference semantics work in R5?
 
-Most R objects follow copy-on-modify: assign a vector to a new name, change one, and the other is untouched. R5 objects deliberately break that rule. Assigning an R5 object to a new name creates an *alias*, not a copy — both names point to the same underlying object, and every change is visible to both.
+Most R objects follow copy-on-modify: assign a vector to a new name, change one, and the other is untouched. R5 objects deliberately break that rule. Assigning an R5 object to a new name creates an *alias*, not a copy, both names point to the same underlying object, and every change is visible to both.
 
 If you genuinely want an independent snapshot, R5 gives you a built-in `$copy()` method.
 
@@ -229,10 +229,10 @@ c3$count
 #> [1] 2
 ```
 
-`c2 <- c1` did not duplicate anything — both names point at the same object, so incrementing `c1` was the same as incrementing `c2`. `c3 <- c1$copy()` did duplicate, so `c3` froze at 2 while `c1` carried on.
+`c2 <- c1` did not duplicate anything, both names point at the same object, so incrementing `c1` was the same as incrementing `c2`. `c3 <- c1$copy()` did duplicate, so `c3` froze at 2 while `c1` carried on.
 
 [KEY INSIGHT]
-**Reference semantics is the entire point of R5.** Once you assign an R5 object to a new name, you are sharing state, not data — that's a feature for stateful systems and a footgun if you forget.
+**Reference semantics is the entire point of R5.** Once you assign an R5 object to a new name, you are sharing state, not data, that's a feature for stateful systems and a footgun if you forget.
 
 **Try it:** Predict what `ex_b$value` will print after the increment, then run it to check.
 
@@ -269,7 +269,7 @@ ex_b$value
 
 ## How does inheritance work with setRefClass()?
 
-A child class declares its parent with `contains = "Parent"`. Inside the child's `initialize` method, you call `callSuper(...)` to run the parent's constructor first, then add the child's own fields. Every method defined on the parent is automatically available on the child — and the child can override or extend any of them.
+A child class declares its parent with `contains = "Parent"`. Inside the child's `initialize` method, you call `callSuper(...)` to run the parent's constructor first, then add the child's own fields. Every method defined on the parent is automatically available on the child, and the child can override or extend any of them.
 
 ```r
 Animal <- setRefClass("Animal",
@@ -312,7 +312,7 @@ rex$speak()
 #> Rex says: Woof
 ```
 
-`callSuper()` runs `Animal$initialize` first, which populates `name` and `sound`, then the rest of `Dog$initialize` sets `breed`. When `rex$describe()` calls `speak()`, it's calling the inherited method on the same object — that's why it sees `name = "Rex"`.
+`callSuper()` runs `Animal$initialize` first, which populates `name` and `sound`, then the rest of `Dog$initialize` sets `breed`. When `rex$describe()` calls `speak()`, it's calling the inherited method on the same object, that's why it sees `name = "Rex"`.
 
 **Try it:** Add a `Cat` subclass of `Animal` with a `purr()` method that prints `"<name> purrs."`. Constructor should hard-code the sound to `"Meow"`.
 
@@ -411,7 +411,7 @@ alice_r6$age
 #> [1] 31
 ```
 
-The behaviour is identical — what changed is only the surface syntax. `self$age` is more verbose than `age <<-`, but it removes the entire class of "I forgot the second arrow" silent bugs.
+The behaviour is identical, what changed is only the surface syntax. `self$age` is more verbose than `age <<-`, but it removes the entire class of "I forgot the second arrow" silent bugs.
 
 | R5 syntax | R6 syntax |
 |---|---|
@@ -422,7 +422,7 @@ The behaviour is identical — what changed is only the surface syntax. `self$ag
 | `obj$copy()` | `obj$clone()` |
 
 [TIP]
-**Convert R5 code one class at a time.** Translate, run your tests, commit. The substitutions are mechanical but typos are easy — small steps make any breakage trivial to find.
+**Convert R5 code one class at a time.** Translate, run your tests, commit. The substitutions are mechanical but typos are easy, small steps make any breakage trivial to find.
 
 **Try it:** Convert this R5 `Greeter` to R6 as `ex_GreeterR6`.
 
@@ -539,7 +539,7 @@ my_account$show_balance()
 #> Balance: 70
 ```
 
-**Explanation:** Every state change uses `<<-`. The overdraft branch returns silently after printing instead of throwing — keeps the test clean and the balance untouched.
+**Explanation:** Every state change uses `<<-`. The overdraft branch returns silently after printing instead of throwing, keeps the test clean and the balance untouched.
 
 </details>
 
@@ -613,13 +613,13 @@ my_savings$show_balance()
 #> Balance: 1050
 ```
 
-**Explanation:** R6 inheritance uses `inherit = BankAccountR6`. The subclass automatically picks up `deposit`, `withdraw`, and `show_balance` — we only add the new `add_interest` method.
+**Explanation:** R6 inheritance uses `inherit = BankAccountR6`. The subclass automatically picks up `deposit`, `withdraw`, and `show_balance`, we only add the new `add_interest` method.
 
 </details>
 
 ## Complete Example: A small experiment logger
 
-Here is everything in one place. We'll build a `Logger` class that holds a list of timestamped log entries, exposes a `log(msg)` method to append to it, a `last()` method to read the most recent message, and a `count()` method for the total. Then we'll pass the logger to a helper function and watch it accumulate entries — proof that reference semantics actually work the way the earlier sections claimed.
+Here is everything in one place. We'll build a `Logger` class that holds a list of timestamped log entries, exposes a `log(msg)` method to append to it, a `last()` method to read the most recent message, and a `count()` method for the total. Then we'll pass the logger to a helper function and watch it accumulate entries, proof that reference semantics actually work the way the earlier sections claimed.
 
 ```r
 Logger <- setRefClass("Logger",
@@ -657,7 +657,7 @@ lg$last()
 #> [1] "done"
 ```
 
-The helper function received `lg` by reference, not by copy, so its three `log()` calls landed on the same object the caller still holds. After the function returns, `lg$count()` is 3 and `lg$last()` is `"done"`. With ordinary R semantics you would have had to return the modified logger and reassign it — R5 makes that ceremony unnecessary.
+The helper function received `lg` by reference, not by copy, so its three `log()` calls landed on the same object the caller still holds. After the function returns, `lg$count()` is 3 and `lg$last()` is `"done"`. With ordinary R semantics you would have had to return the modified logger and reassign it, R5 makes that ceremony unnecessary.
 
 ## Summary
 
@@ -668,24 +668,24 @@ The helper function received `lg` by reference, not by copy, so its three `log()
 |---|---|---|
 | Define a class | `setRefClass("Name", fields = ..., methods = ...)` | Schema for a stateful object |
 | Update a field inside a method | `field <<- value` | `<<-` walks up to the field's scope |
-| Share an instance | `b <- a` | Alias, not copy — both point at the same object |
+| Share an instance | `b <- a` | Alias, not copy, both point at the same object |
 | Make an independent copy | `a$copy()` | Snapshot of the current state |
 | Inherit from a parent | `contains = "Parent"` + `callSuper(...)` | Parent constructor runs first, then child |
 | Migrate to R6 | `R6Class(..., public = list(...))` + `self$field` | Same semantics, cleaner syntax |
 
-R5 is worth knowing because you will meet it in legacy packages — Bioconductor, older shiny internals, and several network-analysis libraries still ship classes built with `setRefClass()`. For new code, reach for R6 instead: faster, more explicit, and free of the `<<-` silent-bug trap.
+R5 is worth knowing because you will meet it in legacy packages, Bioconductor, older shiny internals, and several network-analysis libraries still ship classes built with `setRefClass()`. For new code, reach for R6 instead: faster, more explicit, and free of the `<<-` silent-bug trap.
 
 ## References
 
-1. R Core Team — `?setRefClass` (base R `methods` package). Run `?methods::setRefClass` in any R session.
-2. Wickham, H. — *Advanced R*, 2nd ed. Chapter on R's OO systems. [Link](https://adv-r.hadley.nz/oo.html)
-3. Chang, W. — *R6 package documentation*. [Link](https://r6.r-lib.org/)
-4. R6 vignette — "Performance" comparison vs Reference Classes. [Link](https://r6.r-lib.org/articles/Performance.html)
-5. Chambers, J. M. — *Software for Data Analysis: Programming with R*. Springer (2008). The reference text on R's formal class systems.
-6. Bioconductor Project — *Common Bioconductor Methods and Classes* (illustrates real-world R5/S4 use). [Link](https://bioconductor.org/developers/how-to/commonMethodsAndClasses/)
+1. R Core Team, `?setRefClass` (base R `methods` package). Run `?methods::setRefClass` in any R session.
+2. Wickham, H., *Advanced R*, 2nd ed. Chapter on R's OO systems. [Link](https://adv-r.hadley.nz/oo.html)
+3. Chang, W., *R6 package documentation*. [Link](https://r6.r-lib.org/)
+4. R6 vignette, "Performance" comparison vs Reference Classes. [Link](https://r6.r-lib.org/articles/Performance.html)
+5. Chambers, J. M., *Software for Data Analysis: Programming with R*. Springer (2008). The reference text on R's formal class systems.
+6. Bioconductor Project, *Common Bioconductor Methods and Classes* (illustrates real-world R5/S4 use). [Link](https://bioconductor.org/developers/how-to/commonMethodsAndClasses/)
 
 ## Continue Learning
 
-- [R6 Classes in R](R6-Classes-in-R.html) — the modern replacement for R5, with cleaner syntax and proper private fields.
-- [OOP in R: S3, S4, R5, R6 compared](OOP-in-R.html) — how all four R OOP systems stack up and when to pick each.
-- [sloop Package in R](sloop-Package-in-R.html) — inspect any R object to find out which OOP system it belongs to.
+- [R6 Classes in R](R6-Classes-in-R.html), the modern replacement for R5, with cleaner syntax and proper private fields.
+- [OOP in R: S3, S4, R5, R6 compared](OOP-in-R.html), how all four R OOP systems stack up and when to pick each.
+- [sloop Package in R](sloop-Package-in-R.html), inspect any R object to find out which OOP system it belongs to.

@@ -17,7 +17,7 @@ sidebar_order: 33
 
 # Interactive Maps in R with leaflet: Markers, Popups, Tile Layers, and Heatmaps
 
-<p class="lead"><code>leaflet</code> is the most popular R package for creating interactive web maps — you can pan, zoom, click markers, and toggle layers right in the browser, all without writing a single line of JavaScript.</p>
+<p class="lead"><code>leaflet</code> is the most popular R package for creating interactive web maps, you can pan, zoom, click markers, and toggle layers right in the browser, all without writing a single line of JavaScript.</p>
 
 ## How Do You Create Your First Interactive Map with leaflet?
 
@@ -36,7 +36,7 @@ m
 #> - OpenStreetMap tiles load automatically
 ```
 
-`leaflet()` creates an empty map widget. `addTiles()` layers the default OpenStreetMap basemap on top. `setView()` centres the camera at longitude/latitude coordinates with a zoom level — lower numbers show more of the world (zoom = 2 shows continents), higher numbers zoom in (zoom = 15 shows individual streets).
+`leaflet()` creates an empty map widget. `addTiles()` layers the default OpenStreetMap basemap on top. `setView()` centres the camera at longitude/latitude coordinates with a zoom level, lower numbers show more of the world (zoom = 2 shows continents), higher numbers zoom in (zoom = 15 shows individual streets).
 
 [TIP]
 **Use fitBounds() when you don't know the right zoom level.** Instead of guessing a zoom number, pass the corners of your data's bounding box: `fitBounds(lng1, lat1, lng2, lat2)`. leaflet calculates the perfect zoom automatically.
@@ -80,7 +80,7 @@ ex_map
 
 ## How Do You Switch Tile Layers (Basemaps)?
 
-Tile layers are the background images that give your map its visual style. OpenStreetMap is the default, but leaflet gives you access to over 100 provider tile sets — satellite imagery, minimalist designs for data dashboards, topographic maps, and dark themes.
+Tile layers are the background images that give your map its visual style. OpenStreetMap is the default, but leaflet gives you access to over 100 provider tile sets, satellite imagery, minimalist designs for data dashboards, topographic maps, and dark themes.
 
 ```r
 # CartoDB Positron: clean, minimal — great for data overlays
@@ -121,7 +121,7 @@ leaflet() |>
 #> Radio buttons let the user toggle: Streets / Minimal / Satellite
 ```
 
-The `baseGroups` parameter creates radio buttons — only one basemap shows at a time. Setting `collapsed = FALSE` keeps the control panel visible instead of hidden behind an icon.
+The `baseGroups` parameter creates radio buttons, only one basemap shows at a time. Setting `collapsed = FALSE` keeps the control panel visible instead of hidden behind an icon.
 
 [NOTE]
 **Some tile providers require API keys.** Mapbox and Thunderforest need a free registration key. CartoDB, OpenStreetMap, and Esri tiles work without any registration.
@@ -160,7 +160,7 @@ ex_tiles
 
 ## How Do You Add Markers and Popups to a Map?
 
-Markers pin specific locations on the map. Popups appear when a user clicks a marker — they can contain plain text, formatted HTML, or even images. Labels appear on hover without clicking, giving users a quick preview.
+Markers pin specific locations on the map. Popups appear when a user clicks a marker, they can contain plain text, formatted HTML, or even images. Labels appear on hover without clicking, giving users a quick preview.
 
 ```r
 m_markers <- leaflet() |>
@@ -182,7 +182,7 @@ m_markers
 
 Each `addMarkers()` call places one pin. The `popup` text appears in a speech-bubble when clicked; the `label` text appears on hover. You can chain as many markers as you need.
 
-Popups aren't limited to plain text. You can pass HTML for rich formatting — bold text, links, line breaks, even images.
+Popups aren't limited to plain text. You can pass HTML for rich formatting, bold text, links, line breaks, even images.
 
 ```r
 m_html <- leaflet() |>
@@ -205,7 +205,7 @@ m_html
 
 The `paste0()` function concatenates HTML strings. Use `<b>` for bold, `<br>` for line breaks, and `<a href='...'>` for clickable links. leaflet renders the HTML inside the popup bubble.
 
-When you have many points, icon markers (the blue pins) slow down the map because each one loads a PNG image. Circle markers are much faster — they render as lightweight SVG circles.
+When you have many points, icon markers (the blue pins) slow down the map because each one loads a PNG image. Circle markers are much faster, they render as lightweight SVG circles.
 
 ```r
 m_circles <- leaflet() |>
@@ -269,7 +269,7 @@ ex_markers
 
 ## How Do You Map Data from a Data Frame?
 
-Real-world mapping means plotting data from a data frame, not typing coordinates by hand. leaflet accepts data frames with longitude and latitude columns — you reference columns using the tilde (`~`) syntax, similar to formula notation in R.
+Real-world mapping means plotting data from a data frame, not typing coordinates by hand. leaflet accepts data frames with longitude and latitude columns, you reference columns using the tilde (`~`) syntax, similar to formula notation in R.
 
 ```r
 cities <- data.frame(
@@ -293,7 +293,7 @@ leaflet(data = cities) |>
 #> Hover shows city name; click shows name + population
 ```
 
-The `~` prefix tells leaflet to look up column names from the `data` argument. `~lng` means "use the lng column," `~population` means "use population as the radius." This is leaflet's formula interface — the same pattern R uses in `lm()` and `ggplot2`.
+The `~` prefix tells leaflet to look up column names from the `data` argument. `~lng` means "use the lng column," `~population` means "use population as the radius." This is leaflet's formula interface, the same pattern R uses in `lm()` and `ggplot2`.
 
 [TIP]
 **Use the tilde (~) syntax to reference data frame columns.** Writing `~lng` is equivalent to `cities$lng` but cleaner inside leaflet pipes. It also means you can pass different data frames to different layers.
@@ -391,7 +391,7 @@ ex_label_map
 #> Clicking shows the city name in a popup
 ```
 
-**Explanation:** The `label` argument works just like `popup` — use `~column_name` to reference a data frame column. Labels appear on hover; popups appear on click.
+**Explanation:** The `label` argument works just like `popup`, use `~column_name` to reference a data frame column. Labels appear on hover; popups appear on click.
 
 </details>
 
@@ -422,9 +422,9 @@ m_poly
 #> Click the polygon → popup says "Central London zone"
 ```
 
-Polygons need a closed path — the last coordinate pair should match the first. The `weight` parameter controls border thickness, `fillOpacity` controls how see-through the fill colour is (0 = invisible, 1 = solid).
+Polygons need a closed path, the last coordinate pair should match the first. The `weight` parameter controls border thickness, `fillOpacity` controls how see-through the fill colour is (0 = invisible, 1 = solid).
 
-Polylines draw open paths — useful for showing routes, rivers, or transit lines.
+Polylines draw open paths, useful for showing routes, rivers, or transit lines.
 
 ```r
 # Draw a route: London → Paris → Berlin
@@ -451,7 +451,7 @@ m_route
 #> Circle markers at each city with hover labels
 ```
 
-You can combine polylines with markers on the same map — each `add*()` call is a new layer stacked on top of the previous one.
+You can combine polylines with markers on the same map, each `add*()` call is a new layer stacked on top of the previous one.
 
 [WARNING]
 **addCircles() draws geographic circles (radius in metres). addCircleMarkers() draws screen-pixel circles.** If you use `addCircles(radius = 10)`, the circle is 10 metres on the ground and changes size as you zoom. `addCircleMarkers(radius = 10)` is always 10 pixels on screen. Mixing them up gives unexpected sizes at different zoom levels.
@@ -482,7 +482,7 @@ m_shapes
 #> Both shapes are semi-transparent overlays
 ```
 
-`addRectangles()` takes two corner points (`lng1/lat1` and `lng2/lat2`). `addCircles()` takes a centre point and a `radius` in metres — this is a geographic circle that scales with zoom.
+`addRectangles()` takes two corner points (`lng1/lat1` and `lng2/lat2`). `addCircles()` takes a centre point and a `radius` in metres, this is a geographic circle that scales with zoom.
 
 **Try it:** Draw a rectangle bounding box around a region of your choice using `addRectangles()`.
 
@@ -519,7 +519,7 @@ ex_bbox
 
 ## How Do You Create a Heatmap with leaflet?
 
-Heatmaps show density patterns — where points cluster together. Instead of plotting individual markers, a heatmap draws a smooth colour gradient from cool (sparse) to hot (dense). The `leaflet.extras` package adds `addHeatmap()` to your leaflet toolkit.
+Heatmaps show density patterns, where points cluster together. Instead of plotting individual markers, a heatmap draws a smooth colour gradient from cool (sparse) to hot (dense). The `leaflet.extras` package adds `addHeatmap()` to your leaflet toolkit.
 
 ```r
 library(leaflet.extras)
@@ -570,7 +570,7 @@ m_heat2
 #> max = 0.6 boosts contrast for sparse data
 ```
 
-The `gradient` parameter maps intensity values (0 to 1) to colours. The `max` parameter caps the intensity scale — lower values increase contrast when your data is sparse, making clusters stand out more.
+The `gradient` parameter maps intensity values (0 to 1) to colours. The `max` parameter caps the intensity scale, lower values increase contrast when your data is sparse, making clusters stand out more.
 
 You can also weight points using an `intensity` column in your data. Points with higher intensity contribute more to the heatmap density.
 
@@ -679,10 +679,10 @@ m_dashboard |>
 #> Users can check the "Heatmap" box to reveal it
 ```
 
-`hideGroup()` takes a group name and unchecks it in the layer control. The layer is still available — users just need to click the checkbox to show it.
+`hideGroup()` takes a group name and unchecks it in the layer control. The layer is still available, users just need to click the checkbox to show it.
 
 [KEY INSIGHT]
-**Layer groups are the backbone of interactive map dashboards.** Name your groups clearly — "Restaurants", "Hotels", "Transit" — because these names appear in the control panel your users see. Meaningful names make the map self-documenting.
+**Layer groups are the backbone of interactive map dashboards.** Name your groups clearly, "Restaurants", "Hotels", "Transit", because these names appear in the control panel your users see. Meaningful names make the map self-documenting.
 
 For even more control, you can add multiple legends that update with layer visibility.
 
@@ -716,9 +716,9 @@ m_full
 #> Legend always visible in bottom-right corner
 ```
 
-This pattern — basemap options + data overlays + legend + layer control — is the standard recipe for leaflet dashboards. Each piece snaps together through the pipe operator.
+This pattern, basemap options + data overlays + legend + layer control, is the standard recipe for leaflet dashboards. Each piece snaps together through the pipe operator.
 
-**Try it:** Create a map with two overlay groups — one for circle markers and one for rectangles — and a layer control to toggle each.
+**Try it:** Create a map with two overlay groups, one for circle markers and one for rectangles, and a layer control to toggle each.
 
 ```r
 # Try it: two overlay groups with layer control
@@ -945,7 +945,7 @@ leaflet(data = stores) |>
 
 ## Putting It All Together
 
-Let's build a complete "World City Explorer" — a polished interactive dashboard combining everything from this tutorial. This map features 10 cities with population-sized markers, continent colours, HTML popups, a heatmap layer, multiple basemaps, a legend, and full layer control.
+Let's build a complete "World City Explorer", a polished interactive dashboard combining everything from this tutorial. This map features 10 cities with population-sized markers, continent colours, HTML popups, a heatmap layer, multiple basemaps, a legend, and full layer control.
 
 ```r
 # World City Explorer — complete interactive dashboard
@@ -1026,7 +1026,7 @@ m_explorer
 #>   Legend in bottom-right corner
 ```
 
-This dashboard uses every major leaflet feature: tile provider selection, circle markers with data-driven styling, HTML popups, hover labels, a population-weighted heatmap, colour legends, and a full layer control with hidden-by-default layers. The `sqrt(pop) * 3` formula prevents the largest cities from dominating the map — square root scaling compresses the range while preserving relative differences.
+This dashboard uses every major leaflet feature: tile provider selection, circle markers with data-driven styling, HTML popups, hover labels, a population-weighted heatmap, colour legends, and a full layer control with hidden-by-default layers. The `sqrt(pop) * 3` formula prevents the largest cities from dominating the map, square root scaling compresses the range while preserving relative differences.
 
 ## Summary
 
@@ -1056,16 +1056,16 @@ Here's a quick reference table of every leaflet function covered in this tutoria
 
 ## References
 
-1. Cheng, J., Karambelkar, B., Xie, Y. — leaflet: Create Interactive Web Maps with the JavaScript 'Leaflet' Library. CRAN. [Link](https://cran.r-project.org/package=leaflet)
-2. RStudio — Leaflet for R documentation. [Link](https://rstudio.github.io/leaflet/)
-3. Agafonkin, V. — Leaflet.js reference documentation (v1.9). [Link](https://leafletjs.com/reference.html)
-4. leaflet.extras — Extra Functionality for 'leaflet' Package. CRAN. [Link](https://cran.r-project.org/package=leaflet.extras)
-5. Leaflet Provider Tiles Preview — complete gallery of available tile providers. [Link](https://leaflet-extras.github.io/leaflet-providers/preview/)
-6. Lovelace, R., Nowosad, J., Muenchow, J. — *Geocomputation with R*, Chapter 8: Making Maps with R. [Link](https://r.geocompx.org/adv-map.html)
-7. R-Charts — Interactive Maps with leaflet in R. [Link](https://r-charts.com/spatial/interactive-maps-leaflet/)
+1. Cheng, J., Karambelkar, B., Xie, Y., leaflet: Create Interactive Web Maps with the JavaScript 'Leaflet' Library. CRAN. [Link](https://cran.r-project.org/package=leaflet)
+2. RStudio, Leaflet for R documentation. [Link](https://rstudio.github.io/leaflet/)
+3. Agafonkin, V., Leaflet.js reference documentation (v1.9). [Link](https://leafletjs.com/reference.html)
+4. leaflet.extras, Extra Functionality for 'leaflet' Package. CRAN. [Link](https://cran.r-project.org/package=leaflet.extras)
+5. Leaflet Provider Tiles Preview, complete gallery of available tile providers. [Link](https://leaflet-extras.github.io/leaflet-providers/preview/)
+6. Lovelace, R., Nowosad, J., Muenchow, J., *Geocomputation with R*, Chapter 8: Making Maps with R. [Link](https://r.geocompx.org/adv-map.html)
+7. R-Charts, Interactive Maps with leaflet in R. [Link](https://r-charts.com/spatial/interactive-maps-leaflet/)
 
 ## Continue Learning
 
-- **[Spatial Data in R with sf](Spatial-Data-in-R-with-sf.html)** — Load shapefiles, transform coordinate systems, and prepare spatial data for mapping with the sf package.
-- **[Choropleth Maps in R](Choropleth-Maps-in-R.html)** — Colour regions by data values using ggplot2 + sf for static, publication-quality geographic visualisations.
-- **[ggplot2 + plotly Interactive](Combining-ggplot2-with-plotly.html)** — Add hover tooltips, zoom, and click-to-filter to any ggplot2 chart with a single function call.
+- **[Spatial Data in R with sf](Spatial-Data-in-R-with-sf.html)**, Load shapefiles, transform coordinate systems, and prepare spatial data for mapping with the sf package.
+- **[Choropleth Maps in R](Choropleth-Maps-in-R.html)**, Colour regions by data values using ggplot2 + sf for static, publication-quality geographic visualisations.
+- **[ggplot2 + plotly Interactive](Combining-ggplot2-with-plotly.html)**, Add hover tooltips, zoom, and click-to-filter to any ggplot2 chart with a single function call.
