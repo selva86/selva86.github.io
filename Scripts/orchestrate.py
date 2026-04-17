@@ -26,6 +26,14 @@ import platform
 from pathlib import Path
 from datetime import datetime
 
+# Windows cp1252 stdout can't encode unicode (e.g. α in post titles).
+# Log file is already utf-8; only stdout needs patching.
+try:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+except AttributeError:
+    pass
+
 # --- Configuration ---
 REPO_ROOT = Path(__file__).resolve().parent.parent
 PROJECT_ROOT = REPO_ROOT.parent  # D:/09_rstatisticsco — where .claude/ lives
