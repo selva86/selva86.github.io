@@ -52,6 +52,70 @@ def file_content_hash(filepath, length=8):
         return ''
 
 
+# ---------------------------------------------------------------------------
+# Build-time syntax highlighting for <div class="webr-editor"> blocks.
+#
+# Readers see colored, line-numbered R code from the first paint — without
+# waiting for CodeMirror to load. CodeMirror only takes over if a reader
+# actually edits. Pygments classes are mapped to CM theme colors in webr.css
+# so hydration swap is visually seamless.
+# ---------------------------------------------------------------------------
+try:
+    import html as _html_mod
+    from pygments import highlight as _pyg_highlight
+    from pygments.lexers import get_lexer_by_name as _pyg_get_lexer
+    from pygments.formatters import HtmlFormatter as _PygHtmlFormatter
+    _R_LEXER = _pyg_get_lexer('r')
+    _R_FORMATTER = _PygHtmlFormatter(nowrap=True)
+    _PYGMENTS_AVAILABLE = True
+except ImportError:
+    _PYGMENTS_AVAILABLE = False
+
+_WEBR_EDITOR_RE = re.compile(
+    r'(<div class="webr-editor"[^>]*>)([\s\S]*?)(</div>)',
+    re.IGNORECASE,
+)
+
+
+# Classes Pygments emits that we don't style (whitespace, default-color
+# punctuation/names). Unwrapping them is safe and cuts ~10-15 KB on a
+# typical tutorial page.
+_PYG_NO_STYLE_RE = re.compile(r'<span class="(?:w|p|n|nn|nx|nl)">([^<]*)</span>')
+
+
+def _pygmentize_editor(match):
+    """Pygments-highlight the R code inside a .webr-editor block and wrap
+    each line in <span class="cl"> for CSS-driven line numbering.
+
+    Strips the zero-value span wrappers Pygments emits for whitespace (.w)
+    and un-colored punctuation (.p) — the parent has `white-space: pre` so
+    raw whitespace paints identically, and .p maps to the default color in
+    CSS. Dropping these wrappers reduces the per-page HTML by ~30-50 KB on
+    tutorials with many code blocks."""
+    open_tag = match.group(1)
+    body = match.group(2)
+    close_tag = match.group(3)
+    raw = _html_mod.unescape(body).strip('\n\r')
+    if not raw:
+        return match.group(0)
+    try:
+        highlighted = _pyg_highlight(raw, _R_LEXER, _R_FORMATTER).rstrip('\n')
+    except Exception:
+        return match.group(0)  # on any failure, leave the block untouched
+    highlighted = _PYG_NO_STYLE_RE.sub(r'\1', highlighted)
+    lines = highlighted.split('\n')
+    wrapped = '\n'.join(f'<span class="cl">{ln}</span>' for ln in lines)
+    return f'{open_tag}{wrapped}{close_tag}'
+
+
+def pygmentize_webr_editors(content):
+    """Replace raw R inside every .webr-editor with Pygments-highlighted
+    spans. No-op if Pygments isn't installed or no editor blocks exist."""
+    if not _PYGMENTS_AVAILABLE or 'webr-editor' not in content:
+        return content
+    return _WEBR_EDITOR_RE.sub(_pygmentize_editor, content)
+
+
 def ensure_vendor_assets():
     """Download vendor files if missing. Idempotent."""
     os.makedirs(VENDOR_DIR, exist_ok=True)
@@ -457,24 +521,23 @@ def make_webr_head_block(asset_hrefs):
     cm_css = asset_hrefs.get('codemirror.css', 'www/vendor/codemirror-5.65.16.min.css')
     cm_js = asset_hrefs.get('codemirror.js', 'www/vendor/codemirror-5.65.16.min.js')
     webr_css = asset_hrefs.get('webr.css', 'www/webr.css')
+    # webr.css is render-blocking: the static (pre-hydration) editor relies on it
+    # for the dark theme and pre-like layout, so the first paint must have it.
+    # CodeMirror CSS + JS load lazily on first user interaction (click/focus/Run);
+    # the meta tags below hand webr-init.js the hashed URLs so it can fetch them.
     return (
-        '    <!-- CodeMirror + WebR CSS — render-blocking so CM5 measurements are correct\n'
-        '         and code blocks render styled from the first paint (18 KB total). -->\n'
-        f'    <link rel="stylesheet" href="{cm_css}">\n'
         f'    <link rel="stylesheet" href="{webr_css}">\n'
-        '    <!-- Preload CodeMirror JS so download starts during head parsing -->\n'
-        f'    <link rel="preload" href="{cm_js}" as="script">\n'
+        f'    <meta name="cm-js-href" content="{cm_js}">\n'
+        f'    <meta name="cm-css-href" content="{cm_css}">\n'
     )
 
 
 def make_webr_body_block(asset_hrefs):
-    cm_js = asset_hrefs.get('codemirror.js', 'www/vendor/codemirror-5.65.16.min.js')
     webr_js = asset_hrefs.get('webr-init.js', 'www/webr-init.js')
-    return (
-        f'  <!-- WebR Engine — CodeMirror (self-hosted bundle) -->\n'
-        f'  <script defer src="{cm_js}"></script>\n'
-        f'  <script type="module" src="{webr_js}"></script>\n'
-    )
+    # CodeMirror is loaded on-demand by webr-init.js. Shipping the 184 KB CM
+    # bundle to every reader — most of whom never click Run — was the biggest
+    # source of main-thread blocking on this site.
+    return f'  <script type="module" src="{webr_js}"></script>\n'
 
 
 def make_engagement_head_block(asset_hrefs):
@@ -625,6 +688,11 @@ def build_post(
     title = meta.get('title', 'Untitled')
     mathjax = meta.get('mathjax', 'true').lower() != 'false'
     webr = meta.get('webr', 'false').lower() == 'true'
+
+    # Build-time syntax highlighting for the static (pre-CodeMirror) editor.
+    # Runs only for pages that actually have webr blocks.
+    if webr:
+        content = pygmentize_webr_editors(content)
     description = meta.get('description', DEFAULT_DESCRIPTION)
     keywords = meta.get('keywords', DEFAULT_KEYWORDS)
 

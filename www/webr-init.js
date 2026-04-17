@@ -535,10 +535,10 @@
       const editorEl = container.querySelector('.webr-editor');
       const outputEl = container.querySelector('.webr-output');
       const plotEl = container.querySelector('.webr-plot-output');
-      // Ensure the editor for this block is hydrated — first Run may be on a
-      // block the user never clicked, so CodeMirror isn't loaded yet. Running
-      // with the static textContent is also OK, but we upgrade for parity.
-      if (!editorEl.dataset.cmInit) await hydrateEditor(editorEl, false);
+      // Run reads the code directly — if the reader hasn't edited the block,
+      // we use its textContent (static Pygments markup still gives clean raw
+      // R). That avoids forcing a 2.3 s CodeMirror load on first Run, which
+      // was the single biggest delay on first interaction.
       const idx = _editorIndexMap.get(editorEl);
       let code = (editors[idx] && editors[idx].cm) ? editors[idx].cm.getValue() : editorEl.textContent;
 

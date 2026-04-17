@@ -86,12 +86,11 @@
 
     var pills = document.createElement('div');
     pills.className = 'engagement-progress-pills';
+    var pillsHtml = '';
     for (var i = 0; i < total; i++) {
-      var p = document.createElement('div');
-      p.className = 'engagement-progress-pill';
-      p.setAttribute('data-index', String(i));
-      pills.appendChild(p);
+      pillsHtml += '<div class="engagement-progress-pill" data-index="' + i + '"></div>';
     }
+    pills.innerHTML = pillsHtml;
 
     wrap.appendChild(label);
     wrap.appendChild(pills);
@@ -253,25 +252,40 @@
       injectPrediction(blocks[idx], PREDICTIONS[idx]);
     });
 
-    // Observe output class changes to detect a successful run.
-    blocks.forEach(function (block, idx) {
-      var output = block.querySelector('.webr-output');
-      if (!output) return;
-      var obs = new MutationObserver(function (mutations) {
+    // Single shared observer for all webr-output class changes. One observer
+    // with a WeakMap lookup is dramatically cheaper than 32 individual
+    // observers at init time.
+    var outputIndex = new WeakMap();
+    var outputs = [];
+    for (var oi = 0; oi < blocks.length; oi++) {
+      var out = blocks[oi].querySelector('.webr-output');
+      if (out) { outputIndex.set(out, oi); outputs.push(out); }
+    }
+    function setupSharedObserver() {
+      var sharedObs = new MutationObserver(function (mutations) {
         for (var i = 0; i < mutations.length; i++) {
           var m = mutations[i];
           if (m.type !== 'attributes' || m.attributeName !== 'class') continue;
-          var cls = output.className || '';
+          var t = m.target;
+          var idx = outputIndex.get(t);
+          if (idx === undefined) continue;
+          var cls = t.className || '';
           if (cls.indexOf('has-content') !== -1 ||
               cls.indexOf('has-error') !== -1 ||
               cls.indexOf('has-message') !== -1) {
             markRun(idx);
-            return;
           }
         }
       });
-      obs.observe(output, { attributes: true, attributeFilter: ['class'] });
-    });
+      for (var j = 0; j < outputs.length; j++) {
+        sharedObs.observe(outputs[j], { attributes: true, attributeFilter: ['class'] });
+      }
+    }
+    if (window.requestIdleCallback) {
+      requestIdleCallback(setupSharedObserver, { timeout: 1500 });
+    } else {
+      setTimeout(setupSharedObserver, 50);
+    }
 
     // Delegated click on Run button → fade prediction out, mark as seen.
     document.addEventListener('click', function (e) {
