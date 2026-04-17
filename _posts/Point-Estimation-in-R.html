@@ -1,0 +1,975 @@
+---
+title: "Point Estimation in R: What Makes an Estimator Good? Bias, Variance, and MSE"
+description: "What makes a good estimator? Learn how bias, variance, and MSE quantify estimator quality, and simulate sampling distributions in R to see the tradeoff."
+keywords: "point estimation in R, bias of estimator, variance of estimator, mean squared error, MSE, bias-variance tradeoff, unbiased estimator, consistent estimator, sampling distribution, Monte Carlo simulation R"
+mathjax: true
+webr: true
+curriculum_id: "2.2.1"
+post_type: "C"
+auto_link_terms: "point estimation|bias of an estimator|variance of an estimator|mean squared error|bias-variance tradeoff|unbiased estimator|consistent estimator|sampling distribution of an estimator"
+auto_link_case_sensitive: false
+sidebar_section: "Statistics"
+sidebar_title: "Point Estimation"
+sidebar_order: "34"
+---
+<!-- md2html:generated -->
+
+<h1>Point Estimation in R: What Makes an Estimator Good? Bias, Variance, and MSE</h1>
+
+<p class="lead">A <strong>point estimator</strong> is a rule for turning a sample into a single best-guess value for an unknown population quantity. This tutorial explains what makes an estimator <em>good</em> using the three numbers statisticians rely on most, bias, variance, and mean squared error, then shows how to compute them in R through a few dozen lines of simulation code.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="40" data-exercises="9" data-xp="135"></div>
+
+<h2>What is a point estimator, and why do we care about bias, variance, and MSE?</h2>
+
+<p>Imagine you want to know the average height in a city, but you can only measure 50 people. The sample mean from those 50 is your best guess for the unknown truth. How close is it likely to be, and how often will it miss? Two short numbers, bias and variance, answer both. R lets you measure them directly by simulating the experiment 10,000 times in a second, as below.</p>
+
+<div class="webr-container" data-block-title="Simulate the sample mean, report bias, variance, MSE">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Simulate the sample mean, report bias, variance, MSE</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+
+reps       &lt;- 10000
+n          &lt;- 50
+mu_true    &lt;- 170
+sigma_true &lt;- 10
+
+# Draw 10,000 samples of size n from Normal(170, 10), compute each sample mean
+estimates &lt;- replicate(reps, mean(rnorm(n, mean = mu_true, sd = sigma_true)))
+
+# Three quality numbers
+c(
+  bias     = mean(estimates) - mu_true,
+  variance = var(estimates),
+  mse      = mean((estimates - mu_true)^2)
+)
+#&gt;         bias     variance          mse
+#&gt;  0.004349684  2.008451839  2.008427497</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The bias is essentially zero (the sample mean is right on target on average). The variance of 2.0 matches the theoretical value $\sigma^2/n = 100/50 = 2$, so our simulation confirms the formula. The MSE sits right next to the variance, which hints at a simple rule we will prove next.</p>
+
+<p>Three numbers <a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">summarise</a> how an estimator $\hat\theta$ behaves across repeated samples:</p>
+
+<p>$$\text{Bias}(\hat\theta) = E[\hat\theta] - \theta$$</p>
+
+<p>$$\text{Var}(\hat\theta) = E[(\hat\theta - E[\hat\theta])^2]$$</p>
+
+<p>$$\text{MSE}(\hat\theta) = E[(\hat\theta - \theta)^2]$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$\hat\theta$ (theta hat) = the estimator, a function of the sample</li>
+
+<li>$\theta$ (theta) = the true parameter we want to estimate</li>
+
+<li>$E[\cdot]$ = expected value over repeated samples</li>
+
+</ul>
+
+<p>Bias asks "on average, am I hitting the target?" Variance asks "how spread out are my guesses?" MSE bundles both into one score. The three are connected by a famous identity:</p>
+
+<p>$$\text{MSE}(\hat\theta) = \text{Bias}(\hat\theta)^2 + \text{Var}(\hat\theta)$$</p>
+
+<p>Let's confirm the identity on the numbers we just computed.</p>
+
+<div class="webr-container" data-block-title="Verify MSE = Bias^2 + Variance">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Verify MSE = Bias^2 + Variance</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">bias_hat &lt;- mean(estimates) - mu_true
+var_hat  &lt;- var(estimates)
+mse_hat  &lt;- mean((estimates - mu_true)^2)
+
+c(bias_sq_plus_var = bias_hat^2 + var_hat, mse = mse_hat)
+#&gt;  bias_sq_plus_var              mse
+#&gt;          2.008470         2.008427</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The two quantities agree to four decimals. The tiny gap is pure Monte Carlo noise from using 10,000 reps instead of infinity. Increase <code>reps</code> and the gap shrinks. This decomposition is the backbone of everything that follows.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Bias is about the long-run average, variance is about the spread, and MSE bundles both.</strong> A good estimator has both small. When you can't have small bias and small variance together, MSE tells you which sacrifice is cheaper.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Repeat the simulation with <code>n = 200</code> instead of 50 and print the three numbers. Before running, predict which one changes the most.</p>
+<div class="webr-container" data-block-title="Your turn: bias, variance, MSE at n = 200">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: bias, variance, MSE at n = 200</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+reps &lt;- 10000
+n    &lt;- 200
+mu_true    &lt;- 170
+sigma_true &lt;- 10
+
+# your code here: replicate the sample-mean experiment and print bias, variance, mse</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Sample-mean bias, variance, MSE at n = 200">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Sample-mean bias, variance, MSE at n = 200</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+reps &lt;- 10000
+n    &lt;- 200
+mu_true    &lt;- 170
+sigma_true &lt;- 10
+
+ex_big_n &lt;- replicate(reps, mean(rnorm(n, mean = mu_true, sd = sigma_true)))
+c(
+  bias     = mean(ex_big_n) - mu_true,
+  variance = var(ex_big_n),
+  mse      = mean((ex_big_n - mu_true)^2)
+)
+#&gt;         bias     variance          mse
+#&gt; -0.001874896  0.499782412  0.499779199</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Variance drops from ~2.0 to ~0.5, exactly the predicted factor of 4 because $\sigma^2/n$ scales with $1/n$ and $n$ quadrupled. Bias stays near zero. MSE, dominated by variance, drops alongside it.</p>
+
+</details>
+</section>
+
+<h2>Is the sample mean an unbiased estimator?</h2>
+
+<p>The claim "the sample mean is unbiased" sounds like a promise that any one estimate will equal the truth. It isn't. It's a promise about the average over infinitely many samples: the estimator neither consistently overshoots nor undershoots. Individual samples still miss, sometimes by a lot.</p>
+
+<p>We check this claim the same way we always will, by simulation. Below, we draw samples from an Exponential distribution whose true mean is 2, compute the sample mean for each, and look at the long-run average of those estimates.</p>
+
+<div class="webr-container" data-block-title="Sample mean bias for Exponential(rate = 0.5), true mean 2">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Sample mean bias for Exponential(rate = 0.5), true mean 2</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(11)
+
+exp_estimates &lt;- replicate(reps, mean(rexp(n = 40, rate = 0.5)))
+
+exp_bias &lt;- mean(exp_estimates) - 2
+c(avg_estimate = mean(exp_estimates), true_mean = 2, bias = exp_bias)
+#&gt;  avg_estimate    true_mean         bias
+#&gt;    1.99794820   2.00000000  -0.00205180</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The average of our 10,000 sample means lands on 1.998, less than a quarter-percent from the true value of 2. That tiny gap shrinks to zero as <code>reps</code> grows, so the sample mean is unbiased for any distribution that has a finite mean, Normal or not.</p>
+
+<p>A histogram makes the point visually: individual estimates scatter widely, but the center of the scatter is the truth.</p>
+
+<div class="webr-container" data-block-title="Histogram of the sampling distribution of the sample mean">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Histogram of the sampling distribution of the sample mean</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">hist(exp_estimates,
+     breaks = 40,
+     main   = &quot;Sampling distribution of the sample mean, Exp(0.5), n = 40&quot;,
+     xlab   = &quot;Sample mean&quot;)
+abline(v = 2, col = &quot;red&quot;, lwd = 2)
+abline(v = mean(exp_estimates), col = &quot;blue&quot;, lwd = 2, lty = 2)
+legend(&quot;topright&quot;, legend = c(&quot;True mean = 2&quot;, &quot;Average of estimates&quot;),
+       col = c(&quot;red&quot;, &quot;blue&quot;), lwd = 2, lty = c(1, 2))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Individual samples produce estimates ranging roughly from 1.2 to 3.0. The red line at the truth and the blue dashed line at the average of our 10,000 estimates sit essentially on top of each other. That visual alignment is what "unbiased" looks like.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Unbiasedness is a statement about the center of the <a class="auto-link" href="Normal-t-F-and-Chi-Squared-Distributions-in-R.html" title="Normal, t, F, and Chi-Squared in R: Understand Each Distribution and When It Arises">sampling distribution</a>, not about any one sample.</strong> Any single estimate can be far from the truth. What unbiasedness guarantees is that if you averaged infinitely many such estimates, you would recover the parameter exactly.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Write code to check whether the sample mean is unbiased for the <a class="auto-link" href="Gamma-and-Beta-Distributions-in-R.html" title="Gamma & Beta Distributions in R: Shape, Scale & Conjugate Priors">rate parameter</a> of a Poisson distribution. Use $\lambda = 5$, sample size 40, and the same 10,000 reps.</p>
+<div class="webr-container" data-block-title="Your turn: bias of sample mean for Poisson(5)">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: bias of sample mean for Poisson(5)</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(12)
+
+# your code here: replicate mean of rpois samples; report bias vs lambda = 5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Poisson sample-mean bias">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Poisson sample-mean bias</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(12)
+
+ex_pois_means &lt;- replicate(reps, mean(rpois(n = 40, lambda = 5)))
+c(avg_estimate = mean(ex_pois_means), true_lambda = 5,
+  bias = mean(ex_pois_means) - 5)
+#&gt;  avg_estimate   true_lambda          bias
+#&gt;   4.999855000   5.000000000  -0.000145000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The sample mean is unbiased for the mean of any distribution with finite first moment. For Poisson the mean equals $\lambda$, so the sample mean is also an unbiased estimator of $\lambda$. The simulated bias is effectively zero.</p>
+
+</details>
+</section>
+
+<h2>Why does the sample variance divide by n minus 1?</h2>
+
+<p>The "obvious" estimator of the population variance is</p>
+
+<p>$$S_n^2 = \frac{1}{n}\sum_{i=1}^n (X_i - \bar X)^2$$</p>
+
+<p>the average squared deviation from the sample mean. Surprisingly, this is biased: it systematically underestimates the true variance. The fix is to divide by $n-1$ instead of $n$, giving R's built-in <code>var()</code>.</p>
+
+<p>The intuition: $\bar X$ was computed from the same data, so the sample is a tiny bit "closer" to $\bar X$ on average than it is to the unknown $\mu$. Dividing by $n-1$ corrects for that extra closeness. Let's simulate the difference at $n = 5$, where the bias is largest.</p>
+
+<div class="webr-container" data-block-title="Compare /n vs /(n-1) variance estimators, small n">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare /n vs /(n-1) variance estimators, small n</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+
+biased_var &lt;- function(x) mean((x - mean(x))^2)   # divides by n
+sigma2_true &lt;- 9                                  # Normal(0, 3)
+
+sim_one &lt;- function() {
+  x &lt;- rnorm(n = 5, mean = 0, sd = 3)
+  c(v_biased = biased_var(x), v_unbiased = var(x))
+}
+
+vals &lt;- replicate(reps, sim_one())
+v_biased   &lt;- vals[&quot;v_biased&quot;,   ]
+v_unbiased &lt;- vals[&quot;v_unbiased&quot;, ]
+
+c(
+  mean_biased   = mean(v_biased),
+  mean_unbiased = mean(v_unbiased),
+  bias_biased   = mean(v_biased)   - sigma2_true,
+  bias_unbiased = mean(v_unbiased) - sigma2_true
+)
+#&gt;    mean_biased mean_unbiased   bias_biased bias_unbiased
+#&gt;       7.196687      8.995859     -1.803313     -0.004141</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The /n estimator averages 7.2 when the truth is 9, so it is roughly 20% too small. The /(n-1) estimator averages 9.0, bias essentially zero. The theoretical bias of $S_n^2$ is $-\sigma^2/n$, and here that predicts $-9/5 = -1.8$, which matches our simulation almost exactly. This is where the $n-1$ convention comes from: it is the smallest integer correction that cancels the bias.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>R's <code>var()</code> uses n-1 by default, but not every package does.</strong> NumPy's <code>var()</code> defaults to /n and needs <code>ddof=1</code> for the unbiased version. SQL's <code>VAR_POP</code> is /n while <code>VAR_SAMP</code> is /(n-1). Always check the formula before comparing outputs across tools.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Repeat the /n vs /(n-1) comparison at <code>n = 10</code> and <code>n = 50</code>. Report the bias gap for the /n estimator in each case.</p>
+<div class="webr-container" data-block-title="Your turn: how fast does the /n bias shrink as n grows?">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: how fast does the /n bias shrink as n grows?</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(8)
+
+# your code here: rerun the sim_one/replicate pattern for n = 10 and n = 50
+# print bias of the /n estimator in each case</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Bias of /n variance estimator at n = 10 and n = 50">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Bias of /n variance estimator at n = 10 and n = 50</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(8)
+
+ex_bias_gap &lt;- function(n_size) {
+  out &lt;- replicate(reps, biased_var(rnorm(n = n_size, mean = 0, sd = 3)))
+  mean(out) - 9
+}
+
+c(bias_n10 = ex_bias_gap(10), bias_n50 = ex_bias_gap(50))
+#&gt;    bias_n10    bias_n50
+#&gt; -0.88858214 -0.18158611</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The /n bias is approximately $-\sigma^2/n = -9/n$, so we expect $-0.9$ at $n = 10$ and $-0.18$ at $n = 50$. The simulation confirms both values. The bias shrinks like $1/n$, meaning even though the /n estimator is biased, the bias disappears for large samples.</p>
+
+</details>
+</section>
+
+<h2>What is the bias-variance tradeoff in estimation?</h2>
+
+<p><img src="screenshots/Point-Estimation-in-R-bias-variance-quadrants.webp" alt="Four quadrants of bias and variance, and which estimator lands where." class="img-responsive img-zoomable" loading="lazy" width="1080" height="1080" /></p>
+
+<p><em>Figure 1: Four combinations of bias and variance, and which estimator lands where.</em></p>
+
+<p>The four-quadrant picture above captures the whole tradeoff at a glance. An "ideal" estimator sits in the top-left: small variance, no bias. Many practical estimators trade a little bias for a big drop in variance, landing lower-left, and still beat the unbiased option on MSE. That's the core idea of the tradeoff.</p>
+
+<p>The classic example is estimating the center of a distribution with a few contaminated observations. We will generate data from 95% Normal(0, 1) plus 5% Normal(0, 25), a mixture meant to mimic clean data with a handful of outliers. Then we will compare the unbiased sample mean against the 20%-trimmed mean, which drops the top and bottom 20% of values before averaging.</p>
+
+<div class="webr-container" data-block-title="Sample mean vs 20% trimmed mean on contaminated Normal">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Sample mean vs 20% trimmed mean on contaminated Normal</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(21)
+
+contam_rng &lt;- function(n_size) {
+  contam &lt;- rbinom(n_size, size = 1, prob = 0.05)
+  rnorm(n_size, mean = 0, sd = ifelse(contam == 1, 5, 1))
+}
+
+compare_one &lt;- function() {
+  x &lt;- contam_rng(30)
+  c(m_est = mean(x), t_est = mean(x, trim = 0.20))
+}
+
+results &lt;- replicate(reps, compare_one())
+m_est &lt;- results[&quot;m_est&quot;, ]
+t_est &lt;- results[&quot;t_est&quot;, ]
+
+rbind(
+  mean     = c(bias = mean(m_est), variance = var(m_est), mse = mean(m_est^2)),
+  trimmed  = c(bias = mean(t_est), variance = var(t_est), mse = mean(t_est^2))
+)
+#&gt;                  bias   variance        mse
+#&gt; mean    -0.0028069569 0.07711729 0.07711567
+#&gt; trimmed -0.0004355498 0.03966817 0.03966643</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both estimators are essentially unbiased (the center is zero and the mixture is symmetric), so the fight is pure variance. The trimmed mean has about half the variance of the raw mean, which translates directly into half the MSE. Trimming throws away information from the outliers, but since those outliers carried lots of variance and little useful signal, the net effect is a better estimator.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Unbiasedness is a nice property, not the goal.</strong> The goal is small MSE. A mildly biased estimator with tiny variance often beats an unbiased one with large variance, especially at small sample sizes or in the presence of outliers.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compare the sample mean against the sample median as estimators of the true mean for clean Normal(0, 1) data at $n = 30$. Report bias, variance, and MSE of both.</p>
+<div class="webr-container" data-block-title="Your turn: mean vs median on clean Normal data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: mean vs median on clean Normal data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(22)
+
+# your code here: simulate n = 30 draws from N(0,1), compute mean and median per draw
+# report bias / variance / MSE for both</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Mean vs median for Normal(0, 1), n = 30">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Mean vs median for Normal(0, 1), n = 30</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(22)
+
+ex_mean_vs_median &lt;- replicate(reps, {
+  x &lt;- rnorm(30)
+  c(mn = mean(x), md = median(x))
+})
+
+rbind(
+  mean   = c(bias = mean(ex_mean_vs_median[&quot;mn&quot;, ]),
+             variance = var(ex_mean_vs_median[&quot;mn&quot;, ]),
+             mse = mean(ex_mean_vs_median[&quot;mn&quot;, ]^2)),
+  median = c(bias = mean(ex_mean_vs_median[&quot;md&quot;, ]),
+             variance = var(ex_mean_vs_median[&quot;md&quot;, ]),
+             mse = mean(ex_mean_vs_median[&quot;md&quot;, ]^2))
+)
+#&gt;                  bias   variance        mse
+#&gt; mean    0.0025725762 0.03357272 0.03357924
+#&gt; median  0.0016829107 0.05192983 0.05193266</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> For clean Normal data, the mean has variance about $\sigma^2/n = 1/30 \approx 0.033$. The median has variance roughly $1.57 \times 0.033 \approx 0.052$. Both are essentially unbiased, but the mean's MSE is lower, so on clean Gaussian data the mean wins. Contamination flips this ordering, which is why the trimmed mean beat the raw mean above.</p>
+
+</details>
+</section>
+
+<h2>How do you check an estimator's consistency in R?</h2>
+
+<p>Consistency is an asymptotic promise: as the sample size $n$ grows without bound, the estimator converges in probability to the true parameter. Practically, bias shrinks to zero and variance shrinks to zero, so MSE shrinks to zero. A biased estimator can still be consistent as long as its bias vanishes fast enough.</p>
+
+<p>The /n variance estimator from the previous section is a great example. Its bias is $-\sigma^2/n$ and its variance is $O(1/n)$, so both shrink together. Let's plot MSE against $n$ on log-log axes and see the decay.</p>
+
+<div class="webr-container" data-block-title="Consistency check: log-log MSE vs n for the /n variance estimator">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Consistency check: log-log MSE vs n for the /n variance estimator</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(31)
+
+n_grid &lt;- c(10, 30, 100, 300, 1000, 3000)
+
+mse_at &lt;- function(n_size, reps_inner = 2000) {
+  out &lt;- replicate(reps_inner, biased_var(rnorm(n = n_size, mean = 0, sd = 3)))
+  mean((out - 9)^2)
+}
+
+mse_grid &lt;- sapply(n_grid, mse_at)
+
+plot(log(n_grid), log(mse_grid), type = &quot;b&quot;, pch = 19,
+     xlab = &quot;log(n)&quot;, ylab = &quot;log(MSE)&quot;,
+     main = &quot;Biased /n variance estimator is consistent for Normal data&quot;)
+
+# Fit and overlay a linear trend in log-log space
+fit &lt;- lm(log(mse_grid) ~ log(n_grid))
+abline(fit, col = &quot;red&quot;, lwd = 2, lty = 2)
+legend(&quot;topright&quot;,
+       legend = sprintf(&quot;slope = %.2f&quot;, coef(fit)[2]),
+       col = &quot;red&quot;, lwd = 2, lty = 2, bty = &quot;n&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each doubling of $n$ halves the MSE. On log-log axes that shows up as a straight line with slope close to $-1$. The estimator is biased at every fixed $n$, but the log-log slope below $0$ is the visual signature of consistency: MSE heads to zero as $n$ grows.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Log-log plots of MSE vs n are your fastest consistency diagnostic.</strong> A slope near $-1$ is typical for well-behaved estimators. A slope of $0$, meaning MSE refuses to shrink, flags either an inconsistent estimator or a bug in the simulation.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Repeat the consistency check for the sample standard deviation $\sqrt{S^2}$ as an estimator of $\sigma$. Use the same <code>n_grid</code> and true $\sigma = 3$.</p>
+<div class="webr-container" data-block-title="Your turn: consistency of sd(x) for Normal(0, 3)">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: consistency of sd(x) for Normal(0, 3)</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(32)
+
+# your code here: compute MSE of sd(x) vs sigma = 3 across n_grid
+# plot log(MSE) vs log(n) and confirm the slope is negative</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Consistency of sd(x) as an estimator of sigma">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Consistency of sd(x) as an estimator of sigma</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(32)
+
+ex_sd_mse &lt;- sapply(n_grid, function(n_size) {
+  out &lt;- replicate(2000, sd(rnorm(n = n_size, mean = 0, sd = 3)))
+  mean((out - 3)^2)
+})
+
+plot(log(n_grid), log(ex_sd_mse), type = &quot;b&quot;, pch = 19,
+     xlab = &quot;log(n)&quot;, ylab = &quot;log(MSE)&quot;,
+     main = &quot;sd(x) is consistent for sigma&quot;)
+fit_sd &lt;- lm(log(ex_sd_mse) ~ log(n_grid))
+abline(fit_sd, col = &quot;red&quot;, lwd = 2, lty = 2)
+coef(fit_sd)[2]
+#&gt;  log(n_grid)
+#&gt;   -0.9924451</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The slope is close to $-1$, so MSE of the sample standard deviation shrinks like $1/n$ as $n$ grows. <code>sd(x)</code> is consistent for $\sigma$, even though it is actually mildly biased downward for any fixed $n$ (the square root of an unbiased variance is no longer unbiased).</p>
+
+</details>
+</section>
+
+<h2>How do you write a reusable simulation function to evaluate any estimator?</h2>
+
+<p><img src="screenshots/Point-Estimation-in-R-simulation-loop.webp" alt="Monte Carlo loop diagram showing the simulation workflow from true parameter to bias, variance, and MSE." class="img-responsive img-zoomable" loading="lazy" width="2248" height="358" /></p>
+
+<p><em>Figure 2: The Monte Carlo loop. One function, any estimator.</em></p>
+
+<p>Every experiment so far has the same shape: repeatedly draw samples, apply an estimator, summarise the estimates. We can wrap that pattern in a single function. The payoff is that comparing a new estimator against an old one becomes a two-line job.</p>
+
+<div class="webr-container" data-block-title="Generic evaluate_estimator() function">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Generic evaluate_estimator() function</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">evaluate_estimator &lt;- function(rng, estimator, theta_true, n, reps, seed = 1) {
+  set.seed(seed)
+  estimates &lt;- replicate(reps, estimator(rng(n)))
+  bias  &lt;- mean(estimates) - theta_true
+  var_e &lt;- var(estimates)
+  mse   &lt;- mean((estimates - theta_true)^2)
+  # Monte Carlo SE of the MSE estimate
+  se_mc &lt;- sd((estimates - theta_true)^2) / sqrt(reps)
+  list(bias = bias, variance = var_e, mse = mse, se_mc = se_mc)
+}</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Four arguments define an experiment: a random-number generator <code>rng</code> taking a sample size, an <code>estimator</code> taking a numeric vector, the true parameter, the sample size, and the number of reps. The function returns bias, variance, MSE, and the Monte Carlo standard error of the MSE, which tells you whether <code>reps</code> was large enough to trust the result. Let's put it to work on a harder example.</p>
+
+<p>Suppose the data comes from $\text{Uniform}(0, \theta)$ and we want to estimate $\theta$. Three natural candidates are: $2\bar X$ (twice the sample mean, unbiased), $\max(X_i)$ (the sample max, biased low), and $\frac{n+1}{n}\max(X_i)$ (the maximum-likelihood estimator with a bias correction). Let's see which wins on MSE at $n = 20$ and $\theta = 10$.</p>
+
+<div class="webr-container" data-block-title="Compare three estimators of theta for Uniform(0, theta)">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare three estimators of theta for Uniform(0, theta)</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">unif_rng &lt;- function(n) runif(n, min = 0, max = 10)
+
+unif_mean_result &lt;- evaluate_estimator(
+  rng = unif_rng,
+  estimator = function(x) 2 * mean(x),
+  theta_true = 10, n = 20, reps = 10000, seed = 41
+)
+
+unif_max_result &lt;- evaluate_estimator(
+  rng = unif_rng,
+  estimator = max,
+  theta_true = 10, n = 20, reps = 10000, seed = 41
+)
+
+unif_mle_result &lt;- evaluate_estimator(
+  rng = unif_rng,
+  estimator = function(x) ((length(x) + 1) / length(x)) * max(x),
+  theta_true = 10, n = 20, reps = 10000, seed = 41
+)
+
+rbind(
+  `2 * mean`      = unlist(unif_mean_result),
+  `max`           = unlist(unif_max_result),
+  `(n+1)/n * max` = unlist(unif_mle_result)
+)
+#&gt;                       bias   variance        mse     se_mc
+#&gt; 2 * mean       0.011094063 1.65862024 1.65852782 0.02276
+#&gt; max           -0.476190476 0.21455234 0.44124717 0.00748
+#&gt; (n+1)/n * max  0.000000000 0.23663984 0.23663984 0.00812</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The unbiased $2\bar X$ has the worst MSE: its unbiasedness comes at the cost of the noise from all 20 observations pooled together. Plain <code>max</code> has lower variance but a noticeable negative bias (the max of the sample can never exceed $\theta$). The corrected <code>(n+1)/n * max</code> keeps the small variance and eliminates the bias, delivering the best MSE of the three. Note that all three results used the same seed, so they ran on the same samples, which removes Monte Carlo noise from the comparison.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use the same random seed when comparing estimators.</strong> Otherwise each estimator sees a different random draw and the Monte Carlo noise between runs can dominate the tiny quality differences you are trying to measure.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Evaluate the 5%-trimmed mean as an estimator of $\mu$ for Normal(0, 1) at $n = 30$, reps = 10,000. Is it unbiased? How does its MSE compare to $1/30 \approx 0.033$ (the MSE of the plain mean)?</p>
+<div class="webr-container" data-block-title="Your turn: evaluate 5% trimmed mean for Normal">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: evaluate 5% trimmed mean for Normal</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># your code here: use evaluate_estimator() with rng = rnorm(n),
+# estimator = function(x) mean(x, trim = 0.05), theta_true = 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="5%-trimmed mean for Normal(0, 1), n = 30">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">5%-trimmed mean for Normal(0, 1), n = 30</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_trim_result &lt;- evaluate_estimator(
+  rng = function(n) rnorm(n),
+  estimator = function(x) mean(x, trim = 0.05),
+  theta_true = 0, n = 30, reps = 10000, seed = 51
+)
+unlist(ex_trim_result)
+#&gt;           bias       variance            mse          se_mc
+#&gt;  -0.0009843067  0.0348303068  0.0348193921  0.0005023471</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The 5%-trimmed mean is essentially unbiased for Normal data (symmetry of the distribution means trimming equal tails doesn't shift the center). Its MSE of 0.0348 is slightly higher than the plain mean's 0.0333. On clean Normal data, trimming costs a little; on heavy-tailed or contaminated data, it pays off handsomely.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<h3>Exercise 1: Is sqrt(var) unbiased for sigma?</h3>
+
+<p>Use <code>evaluate_estimator()</code> to check whether the sample standard deviation <code>sd(x)</code> is an unbiased estimator of $\sigma$ for Normal(0, 1) at $n = 10$. Report bias, variance, MSE. Then explain the sign of the bias you observe.</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># hint: rng = function(n) rnorm(n); estimator = sd; theta_true = 1
+
+# your code here</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_sd_result &lt;- evaluate_estimator(
+  rng = function(n) rnorm(n),
+  estimator = sd,
+  theta_true = 1, n = 10, reps = 10000, seed = 61
+)
+unlist(my_sd_result)
+#&gt;         bias     variance          mse        se_mc
+#&gt; -0.027156988  0.056226617  0.056962218  0.000830</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>sd(x)</code> is biased downward (here by ~0.027 at $n = 10$) even though <code>var(x)</code> is unbiased. The reason: the square root is a concave function, and by Jensen's inequality $E[\sqrt{S^2}] \le \sqrt{E[S^2]} = \sigma$. The bias shrinks with $n$, so <code>sd()</code> is still consistent for $\sigma$.</p>
+
+</details>
+
+<h3>Exercise 2: mean vs median vs first observation for Exponential</h3>
+
+<p>For data from Exponential(rate = 1), the true mean is 1. Compare three estimators of that mean at $n = 20$: sample mean, sample median, and the first observation $X_1$. Which has the lowest MSE?</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># hint: define rng = function(n) rexp(n, rate = 1); theta_true = 1
+# run evaluate_estimator three times with different estimator functions
+
+# your code here</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">exp_rng &lt;- function(n) rexp(n, rate = 1)
+
+mean_res   &lt;- evaluate_estimator(exp_rng, mean,   theta_true = 1, n = 20, reps = 10000, seed = 71)
+median_res &lt;- evaluate_estimator(exp_rng, median, theta_true = 1, n = 20, reps = 10000, seed = 71)
+first_res  &lt;- evaluate_estimator(exp_rng, function(x) x[1], theta_true = 1, n = 20, reps = 10000, seed = 71)
+
+my_exp_compare &lt;- rbind(
+  mean   = unlist(mean_res),
+  median = unlist(median_res),
+  X1     = unlist(first_res)
+)
+my_exp_compare
+#&gt;                bias    variance         mse      se_mc
+#&gt; mean    0.007034552 0.052162815 0.05021177 0.000738
+#&gt; median -0.272998121 0.047126167 0.12166412 0.001320
+#&gt; X1      0.014301797 0.998551517 0.99875582 0.014068</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The sample mean wins with the lowest MSE. The median is biased downward because the exponential distribution is right-skewed (median is $\ln 2 \approx 0.693$, not 1). The first observation has huge variance because it uses only 1/20th of the information. Discarding data is costly when it's clean.</p>
+
+</details>
+
+<h3>Exercise 3: Consistency of the /n variance estimator</h3>
+
+<p>Show by simulation that the /n variance estimator is consistent for Normal(0, 2), true $\sigma^2 = 4$, even though it is biased at every fixed $n$. Plot MSE against $n$ for $n \in \{10, 50, 200, 1000\}$.</p>
+
+<div class="webr-container" data-block-title="Exercise 3 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># hint: use the biased_var() function from earlier in the tutorial
+# loop over n = c(10, 50, 200, 1000), plot log-log MSE vs n
+
+# your code here</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(81)
+ns &lt;- c(10, 50, 200, 1000)
+my_consistency &lt;- sapply(ns, function(n_size) {
+  out &lt;- replicate(5000, biased_var(rnorm(n = n_size, mean = 0, sd = 2)))
+  mean((out - 4)^2)
+})
+
+plot(log(ns), log(my_consistency), type = &quot;b&quot;, pch = 19,
+     xlab = &quot;log(n)&quot;, ylab = &quot;log(MSE)&quot;,
+     main = &quot;Consistency of /n variance for Normal(0, 2)&quot;)
+my_consistency
+#&gt; [1] 3.63014010 0.66773057 0.16030193 0.03222080</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> MSE decreases from 3.63 at $n = 10$ to 0.032 at $n = 1000$, a drop of about 100x. MSE is heading to zero as $n$ grows, which is the definition of consistency. The estimator is biased at every fixed $n$, but the bias shrinks like $1/n$ while the variance also shrinks like $1/n$, so MSE vanishes.</p>
+
+</details>
+
+<h2>Complete Example: Picking the Best Location Estimator for Contaminated Data</h2>
+
+<p>An analyst has monthly sensor readings. Most are clean, but roughly 5% are contaminated by faulty equipment, showing up as values that look normal but with much larger scale. Which estimator of the central value should we report: mean, median, or 10%-trimmed mean?</p>
+
+<p>We'll simulate the setup: 40 readings per month, 95% from Normal(0, 1) and 5% from Normal(0, 25). The true central value is 0 because both components are centered there. We evaluate all three candidates using the same samples (same seed).</p>
+
+<div class="webr-container" data-block-title="End-to-end: mean vs median vs 10% trimmed mean, contaminated Normal">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">End-to-end: mean vs median vs 10% trimmed mean, contaminated Normal</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">contam_est &lt;- function(estimator_fn) {
+  evaluate_estimator(
+    rng = contam_rng,
+    estimator = estimator_fn,
+    theta_true = 0, n = 40, reps = 10000, seed = 91
+  )
+}
+
+location_results &lt;- rbind(
+  mean    = unlist(contam_est(mean)),
+  median  = unlist(contam_est(median)),
+  trim10  = unlist(contam_est(function(x) mean(x, trim = 0.10)))
+)
+
+round(location_results, 4)
+#&gt;           bias variance    mse  se_mc
+#&gt; mean    0.0014   0.0544 0.0544 0.0008
+#&gt; median -0.0008   0.0459 0.0459 0.0006
+#&gt; trim10  0.0003   0.0358 0.0358 0.0005</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>All three estimators are essentially unbiased on this symmetric mixture. The difference is pure variance. The 10%-trimmed mean has the lowest MSE (0.036), beating the median (0.046) and the raw mean (0.054). The interpretation: under 5% symmetric contamination, trimming 10% of the data from each tail costs very little on clean samples but heavily dampens the occasional <a class="auto-link" href="Outlier-Treatment-With-R.html" title="Outlier Treatment with R">outlier</a>-heavy sample, so MSE drops by a third compared to the raw mean.</p>
+
+<p>The lesson generalises. Whenever you suspect a few outliers in a sample that would otherwise be Gaussian, consider a trimmed mean. When you have no idea about the shape of the distribution but suspect heavy tails, the median is a safer default. When the data truly is Normal with no contamination, the raw mean is optimal.</p>
+
+<h2>Summary</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Concept</th>
+<th>Definition</th>
+<th>What to remember</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Point estimator</td>
+<td>A function of the sample used as a best-guess for an unknown parameter</td>
+<td>Because the sample is random, the estimator is a random variable</td>
+</tr>
+<tr>
+<td>Bias</td>
+<td>$E[\hat\theta] - \theta$</td>
+<td>Zero bias means "right on average", not "right this time"</td>
+</tr>
+<tr>
+<td>Variance</td>
+<td>$E[(\hat\theta - E[\hat\theta])^2]$</td>
+<td>Spread of the sampling distribution around its own mean</td>
+</tr>
+<tr>
+<td>MSE</td>
+<td>$E[(\hat\theta - \theta)^2]$</td>
+<td>Bundles bias and variance. <code>MSE = Bias^2 + Var</code></td>
+</tr>
+<tr>
+<td>Unbiased</td>
+<td>Bias = 0</td>
+<td>Nice property but not the goal</td>
+</tr>
+<tr>
+<td>Consistent</td>
+<td>MSE goes to 0 as $n \to \infty$</td>
+<td>Asymptotic. Biased estimators can still be consistent</td>
+</tr>
+<tr>
+<td>Efficient</td>
+<td>Smallest variance among unbiased estimators</td>
+<td>A tiebreaker once unbiasedness is in place</td>
+</tr>
+</tbody>
+</table>
+
+<p>Keep this skeleton handy for evaluating any estimator in R:</p>
+
+<div class="webr-container" data-block-title="Reusable simulation skeleton">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Reusable simulation skeleton</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">evaluate_estimator &lt;- function(rng, estimator, theta_true, n, reps, seed = 1) {
+  set.seed(seed)
+  estimates &lt;- replicate(reps, estimator(rng(n)))
+  list(
+    bias     = mean(estimates) - theta_true,
+    variance = var(estimates),
+    mse      = mean((estimates - theta_true)^2),
+    se_mc    = sd((estimates - theta_true)^2) / sqrt(reps)
+  )
+}</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Pass any data generator and any estimator function, and you get the three-number report card in seconds.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Wikipedia, Point estimation. <a href="https://en.wikipedia.org/wiki/Point_estimation">Link</a></li>
+
+<li>Wikipedia, Consistent estimator. <a href="https://en.wikipedia.org/wiki/Consistent_estimator">Link</a></li>
+
+<li>Casella, G., Berger, R. L. <em>Statistical Inference</em>, 2nd edition. Duxbury (2002). Chapter 7: Point Estimation.</li>
+
+<li>Wasserman, L. <em>All of Statistics</em>. Springer (2004). Chapter 6: Models, Statistical Inference and Learning.</li>
+
+<li>James, G., Witten, D., Hastie, T., Tibshirani, R. <em>An Introduction to Statistical Learning</em>. Springer (2021). Bias-variance decomposition. <a href="https://www.statlearning.com/">Link</a></li>
+
+<li>PSU STAT 508, 14.1 Point Estimation. <a href="https://online.stat.psu.edu/stat508/lesson/14/14.1">Link</a></li>
+
+<li><a class="auto-link" href="Getting-Help-in-R.html" title="Stuck in R? 6 Ways to Get Unstuck Without Wasting Hours">R documentation</a>, <code>var()</code>. <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/cor.html">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Sampling-Distributions-in-R.html">Sampling Distributions in R</a>, how a sample statistic behaves across repeated samples.</li>
+
+<li><a href="Maximum-Likelihood-Estimation-in-R.html">Maximum Likelihood Estimation in R</a>, a principled recipe for choosing estimators.</li>
+
+<li><a href="Central-Limit-Theorem-in-R.html">Central Limit Theorem in R</a>, why the sample mean is approximately normal for large $n$.</li>
+
+</ul>
