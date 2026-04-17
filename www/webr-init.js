@@ -6,6 +6,9 @@
     const editors = [];
     let pendingRunBtn = null;
 
+    // Pre-computed index map: avoids O(n) querySelectorAll + indexOf per editor init/run
+    const _editorIndexMap = new WeakMap();
+
     // Lightweight overlay on top of the stock R mode: highlight function-call
     // sites (any identifier immediately followed by `(`). Skips R reserved
     // words so `function(`, `if(`, `for(`, etc. keep their keyword color.
@@ -166,21 +169,13 @@
           }
         }
       });
-      adObs.observe(document.documentElement, { childList: true, subtree: true });
+      document.querySelectorAll('.webr-container').forEach(c => {
+        adObs.observe(c, { childList: true, subtree: true });
+      });
     })();
 
-    // Smart preload: start downloading WebR when user scrolls near the first code block
-    // This way WebR is often ready by the time they actually click Run
-    const firstBlock = document.querySelector('.webr-container');
-    if (firstBlock && 'IntersectionObserver' in window) {
-      const preloadObserver = new IntersectionObserver((entries) => {
-        if (entries[0].isIntersecting && !webRReady && !webRLoading) {
-          loadAndInitWebR();
-          preloadObserver.disconnect();
-        }
-      }, { rootMargin: '200px' });  // Start loading 200px before block enters viewport
-      preloadObserver.observe(firstBlock);
-    }
+    // WebR loads on-demand: first Run click triggers loadAndInitWebR().
+    // No preload — avoids 12+ MB download on page load.
 
     // Build sticky header for each code block: [badge + label | copy + run]
     // Moves the existing Run button from .webr-buttons into the header so
@@ -189,6 +184,14 @@
     // contract and keeps rollback trivial.
     const copyIcon  = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
     const checkIcon = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>';
+
+    // Single shared ResizeObserver for horizontal overflow detection (instead of 1 per block)
+    const _overflowObserver = ('ResizeObserver' in window) ? new ResizeObserver(entries => {
+      for (const entry of entries) {
+        const target = entry.target.querySelector('.CodeMirror-scroll') || entry.target;
+        entry.target.classList.toggle('has-overflow', target.scrollWidth > target.clientWidth + 1);
+      }
+    }) : null;
 
     const _allContainers = document.querySelectorAll('.webr-container');
     if (_allContainers[0]) _allContainers[0].classList.add('engagement-unrun-first');
@@ -206,7 +209,7 @@
       copyBtn.onclick = function() {
         const c = this.closest('.webr-container');
         const editorEl = c.querySelector('.webr-editor');
-        const idx = [...document.querySelectorAll('.webr-editor')].indexOf(editorEl);
+        const idx = _editorIndexMap.get(editorEl);
         const code = editors[idx] ? editors[idx].cm.getValue() : editorEl.textContent;
         navigator.clipboard.writeText(code).then(() => {
           copyBtn.innerHTML = checkIcon;
@@ -270,17 +273,9 @@
         outputEl.setAttribute('tabindex', '-1');
       }
 
-      // Horizontal overflow affordance — toggle .has-overflow when the
-      // editor's scroll width exceeds its client width. Debounced via RO.
+      // Horizontal overflow affordance — shared ResizeObserver toggles .has-overflow
       const editorEl = codeBlock.querySelector('.webr-editor');
-      if (editorEl && 'ResizeObserver' in window) {
-        const checkOverflow = () => {
-          const target = editorEl.querySelector('.CodeMirror-scroll') || editorEl;
-          const overflow = target.scrollWidth > target.clientWidth + 1;
-          editorEl.classList.toggle('has-overflow', overflow);
-        };
-        new ResizeObserver(checkOverflow).observe(editorEl);
-      }
+      if (editorEl && _overflowObserver) _overflowObserver.observe(editorEl);
     });
 
     // Initialize CodeMirror editor for a single element
@@ -323,7 +318,7 @@
         return;
       }
       el.classList.add('cm-initialized');
-      const domIdx = [...document.querySelectorAll('.webr-editor')].indexOf(el);
+      const domIdx = _editorIndexMap.get(el);
       editors[domIdx] = { cm, originalCode: code, el };
     }
 
@@ -345,7 +340,7 @@
       if (_initScheduled) return;
       _initScheduled = true;
       if ('requestIdleCallback' in window) {
-        requestIdleCallback(processInitQueue, { timeout: 200 });
+        requestIdleCallback(processInitQueue);
       } else {
         setTimeout(processInitQueue, 80);
       }
@@ -355,6 +350,7 @@
     // via IntersectionObserver (rootMargin 400px). Each queued editor inits
     // one at a time, yielding to the main thread between each.
     const allEditors = document.querySelectorAll('.webr-editor');
+    allEditors.forEach((el, i) => _editorIndexMap.set(el, i));
     const _lazyEditors = [];
     allEditors.forEach(el => {
       const r = el.getBoundingClientRect();
@@ -488,7 +484,7 @@
       // Ensure the editor for this block is initialized even if the user
       // clicked Run before the lazy IntersectionObserver fired.
       if (!editorEl.dataset.cmInit) initEditor(editorEl);
-      const idx = [...document.querySelectorAll('.webr-editor')].indexOf(editorEl);
+      const idx = _editorIndexMap.get(editorEl);
       let code = editors[idx].cm.getValue();
 
       btn.disabled = true;
@@ -605,7 +601,7 @@
       const outputEl = container.querySelector('.webr-output');
       const plotEl = container.querySelector('.webr-plot-output');
       if (!editorEl.dataset.cmInit) initEditor(editorEl);
-      const idx = [...document.querySelectorAll('.webr-editor')].indexOf(editorEl);
+      const idx = _editorIndexMap.get(editorEl);
       editors[idx].cm.setValue(editors[idx].originalCode);
       outputEl.textContent = '';
       outputEl.classList.remove('has-content', 'has-error', 'has-message', 'is-loading');

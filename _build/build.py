@@ -333,17 +333,17 @@ WEBR_HEAD_BLOCK = """
     <!-- WebR Interactive R Code — external CSS deferred (non-render-blocking) -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/lib/codemirror.min.css" media="print" onload="this.media='all'">
     <noscript><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/lib/codemirror.min.css"></noscript>
-    <link rel="stylesheet" href="www/webr.css?v=4" media="print" onload="this.media='all'">
-    <noscript><link rel="stylesheet" href="www/webr.css?v=4"></noscript>
+    <link rel="stylesheet" href="www/webr.css?v=5" media="print" onload="this.media='all'">
+    <noscript><link rel="stylesheet" href="www/webr.css?v=5"></noscript>
 """
 
 WEBR_BODY_BLOCK = """
   <!-- WebR Engine — CodeMirror (single combined bundle via jsdelivr) -->
   <script defer src="https://cdn.jsdelivr.net/combine/npm/codemirror@5.65.16/lib/codemirror.min.js,npm/codemirror@5.65.16/mode/r/r.min.js,npm/codemirror@5.65.16/addon/edit/matchbrackets.min.js,npm/codemirror@5.65.16/addon/edit/closebrackets.min.js,npm/codemirror@5.65.16/addon/selection/active-line.min.js,npm/codemirror@5.65.16/addon/mode/overlay.min.js"></script>
-  <script type="module" src="www/webr-init.js?v=3"></script>
+  <script type="module" src="www/webr-init.js?v=4"></script>
 """
 
-ENGAGEMENT_HEAD_BLOCK = '    <link rel="stylesheet" href="www/engagement.css?v=2" media="print" onload="this.media=\'all\'">\n    <noscript><link rel="stylesheet" href="www/engagement.css?v=2"></noscript>'
+ENGAGEMENT_HEAD_BLOCK = '    <link rel="stylesheet" href="www/engagement.css?v=3" media="print" onload="this.media=\'all\'">\n    <noscript><link rel="stylesheet" href="www/engagement.css?v=3"></noscript>'
 ENGAGEMENT_BODY_BLOCK = '    <script defer src="www/engagement.js?v=3"></script>'
 
 DEFAULT_DESCRIPTION = "R Language Tutorials for Advanced Statistics"
