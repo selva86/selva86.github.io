@@ -1,0 +1,1109 @@
+---
+title: "Report Statistics in R: The Numbers to Include and the Words to Use"
+description: "Report results with p-values, CIs, and effect sizes in APA format. Automate reporting with papaja, report(), and gtsummary, and avoid common mistakes."
+keywords: "reporting statistics in R, APA format R, p-value reporting, confidence interval APA, effect size, papaja, gtsummary, report package, APA style statistics"
+mathjax: true
+webr: true
+curriculum_id: "2.2.15"
+post_type: "C"
+auto_link_terms: "reporting statistics in R|APA reporting|statistical reporting in R|papaja package|gtsummary package|apa_print()|APA format in R"
+auto_link_case_sensitive: false
+sidebar_section: "Statistics"
+sidebar_title: "Reporting Statistics"
+sidebar_order: "41"
+---
+<!-- md2html:generated -->
+
+<h1>Report Statistics in R: The Numbers to Include and the Words to Use</h1>
+
+<p class="lead">Reporting a statistical result in R means writing one sentence that combines six things: a point estimate, a <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">95% confidence interval</a>, a <a class="auto-link" href="Hypothesis-Testing-in-R.html" title="Hypothesis Testing in R: Understand the Framework, Not Just the p-Value">test statistic</a> with its degrees of freedom, an exact p-value, an effect size, and the sample size. This tutorial shows the APA template for each common test, the R code that produces those numbers, and the packages that write the sentence for you.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="40" data-exercises="9" data-xp="135"></div>
+
+<h2>What should every statistical report include?</h2>
+
+<p>Most R walkthroughs stop at <code>summary(model)</code> and leave you to translate the output into prose. That translation is where write-ups go wrong. A lone p-value tells the reader <em>something happened</em>, but nothing about how big the effect is or how certain we are. A complete report pairs a point estimate with a confidence interval, names the test and its degrees of freedom, gives an exact p-value, adds an effect size, and reminds the reader of the sample size. Below is a full APA-style sentence built from one t-test.</p>
+
+<div class="webr-container" data-block-title="Compose a full APA t-test report">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compose a full APA t-test report</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+library(broom)
+
+tt &lt;- t.test(mpg ~ am, data = mtcars)   # am: 0 = automatic, 1 = manual
+td &lt;- broom::tidy(tt)
+
+# Pooled SD for Cohen's d
+g0 &lt;- mtcars$mpg[mtcars$am == 0]
+g1 &lt;- mtcars$mpg[mtcars$am == 1]
+sd_pooled &lt;- sqrt(((length(g0) - 1) * var(g0) +
+                   (length(g1) - 1) * var(g1)) /
+                  (length(g0) + length(g1) - 2))
+d_val &lt;- (mean(g1) - mean(g0)) / sd_pooled
+
+apa_line &lt;- sprintf(
+  &quot;Manual cars had higher mpg than automatic cars, mean diff = %.2f, 95%% CI [%.2f, %.2f], t(%.1f) = %.2f, p = %.3f, d = %.2f (N = %d).&quot;,
+  -td$estimate, -td$conf.high, -td$conf.low,
+  td$parameter, td$statistic, td$p.value, d_val, nrow(mtcars)
+)
+cat(apa_line)
+#&gt; Manual cars had higher mpg than automatic cars, mean diff = 7.24, 95% CI [3.64, 10.85], t(18.3) = -3.77, p = 0.001, d = 1.48 (N = 32).</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>One run produces the full sentence. It names the direction of the effect (manual > automatic), gives the point estimate (7.24 mpg), bounds it with a 95% CI, reports the Welch t-statistic with its degrees of freedom, shows the exact p-value, and adds <a class="auto-link" href="Statistical-Power-Analysis-in-R.html" title="Power Analysis in R: Calculate the Sample Size You Need Before You Collect Any Data">Cohen's d</a> as the standardized effect size. A reader who only saw "p = 0.001" would not know whether the gap was 0.5 mpg or 15 mpg, which is the difference between a rounding error and a purchase decision.</p>
+
+<p><img src="screenshots/Reporting-Statistics-in-R-what-to-include.webp" alt="The six numbers that make a statistical result interpretable and reproducible." class="img-responsive img-zoomable" loading="lazy" width="1354" height="1874" /></p>
+
+<p><em>Figure 1: The six numbers that make a statistical result interpretable and reproducible.</em></p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A single p-value is not a report.</strong> p tells you whether the data are unusual under the null, not how big the effect is or how precisely you measured it. Pair it with an estimate, a CI, and an effect size every time.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute the sample mean and a 95% confidence interval for <code>mtcars$mpg</code> and print them in the APA style <code>M = X.XX, 95% CI [lo, hi]</code>.</p>
+<div class="webr-container" data-block-title="Your turn: descriptive APA sentence">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: descriptive APA sentence</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">x &lt;- mtcars$mpg
+
+# Fill in the blanks:
+m_x  &lt;- _______
+ci_x &lt;- t.test(x)$conf.int
+
+cat(sprintf(&quot;M = %.2f, 95%% CI [%.2f, %.2f]&quot;,
+            m_x, ci_x[1], ci_x[2]))
+#&gt; Expected: M = 20.09, 95% CI [17.92, 22.26]</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Descriptive APA sentence solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Descriptive APA sentence solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">x &lt;- mtcars$mpg
+m_x  &lt;- mean(x)
+ci_x &lt;- t.test(x)$conf.int
+cat(sprintf(&quot;M = %.2f, 95%% CI [%.2f, %.2f]&quot;,
+            m_x, ci_x[1], ci_x[2]))
+#&gt; M = 20.09, 95% CI [17.92, 22.26]</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>t.test(x)</code> with no grouping returns a one-sample test whose confidence interval is simply the 95% CI of the mean.</p>
+
+</details>
+</section>
+
+<h2>How do you format p-values, CIs, and decimals in R?</h2>
+
+<p>Before we tackle each test type, you need a small set of formatting rules. APA style is specific: statistics and effect sizes get two decimals (three is fine when precision matters), p-values get three decimals, and any quantity bounded by 1 on both sides, like a p-value, correlation, or R², drops its leading zero. The floor is <code>p &lt; .001</code>. Writing <code>p = .000</code> is wrong: a p-value cannot be exactly zero.</p>
+
+<p>Let's write a single formatter that handles the p-value rules in one call.</p>
+
+<div class="webr-container" data-block-title="Define an APA p-value formatter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Define an APA p-value formatter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">pval_apa &lt;- function(p) {
+  ifelse(p &lt; .001,
+         &quot;p &lt; .001&quot;,
+         paste0(&quot;p = &quot;, sub(&quot;^0&quot;, &quot;&quot;, sprintf(&quot;%.3f&quot;, p))))
+}
+
+# Demo on a range of values
+pvals &lt;- c(0.0003, 0.003, 0.0456, 0.3421, 0.8)
+pval_apa(pvals)
+#&gt; [1] &quot;p &lt; .001&quot; &quot;p = .003&quot; &quot;p = .046&quot; &quot;p = .342&quot; &quot;p = .800&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The helper collapses two rules into one function: floor low values and drop the leading zero. <code>sub(&quot;^0&quot;, &quot;&quot;, ...)</code> removes the leading zero from strings like <code>&quot;0.003&quot;</code> to yield <code>&quot;.003&quot;</code>, matching APA's convention for any statistic bounded between 0 and 1.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong><code>scales::pvalue()</code> does this out of the box.</strong> If you already use the tidyverse, <code>scales::pvalue(p, accuracy = .001)</code> formats p-values per the same rules. <code>papaja::printp()</code> does the same with APA-specific defaults and is the drop-in choice for manuscripts.</div></div>
+
+<p>Confidence intervals follow the same two-decimal rule and sit in square brackets with a comma. A small helper keeps your <code>sprintf</code> calls tidy.</p>
+
+<div class="webr-container" data-block-title="Define a confidence-interval formatter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Define a confidence-interval formatter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ci_str &lt;- function(lo, hi, digits = 2) {
+  sprintf(&quot;95%% CI [%.*f, %.*f]&quot;, digits, lo, digits, hi)
+}
+
+ci_str(3.642, 10.848)
+#&gt; [1] &quot;95% CI [3.64, 10.85]&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Never write <code>p = .000</code>.</strong> It communicates nothing the reader can believe: no p-value is exactly zero. Always use <code>p &lt; .001</code> for anything that rounds to zero, and report the exact p-value for anything above that floor.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Format <code>p = 0.0003</code> and <code>p = 0.251</code> using <code>pval_apa()</code>.</p>
+<div class="webr-container" data-block-title="Your turn: format two p-values">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: format two p-values</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_p &lt;- c(0.0003, 0.251)
+
+# Use pval_apa() to format them:
+ex_out &lt;- _______
+
+print(ex_out)
+#&gt; Expected: [1] &quot;p &lt; .001&quot; &quot;p = .251&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Format two p-values solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Format two p-values solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_p &lt;- c(0.0003, 0.251)
+ex_out &lt;- pval_apa(ex_p)
+print(ex_out)
+#&gt; [1] &quot;p &lt; .001&quot; &quot;p = .251&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>pval_apa()</code> is vectorized because <code>ifelse()</code> accepts vectors, so a whole column of p-values can be formatted in one call.</p>
+
+</details>
+</section>
+
+<h2>How do you report a t-test in APA format?</h2>
+
+<p>The APA template for a <a class="auto-link" href="t-Tests-in-R.html" title="t-Tests in R: Every Variant With the Decision Rule for Choosing Between Them">two-sample t-test</a> has five slots: the t-statistic, its degrees of freedom, the p-value, the 95% CI on the mean difference, and Cohen's d. Template: <code>t(df) = X.XX, p = .XXX, 95% CI [lo, hi], d = X.XX</code>.</p>
+
+<p>Cohen's d measures the standardized difference between two means, so a reader can compare effects across studies that used different scales.</p>
+
+<p>$$d = \frac{\bar{x}_1 - \bar{x}_2}{s_{\text{pooled}}} \quad\text{with}\quad s_{\text{pooled}} = \sqrt{\frac{(n_1 - 1)s_1^2 + (n_2 - 1)s_2^2}{n_1 + n_2 - 2}}$$</p>
+
+<p>Where $\bar{x}_1, \bar{x}_2$ are the two group means, $s_1^2, s_2^2$ are their sample variances, and $n_1, n_2$ are their sizes.</p>
+
+<p>Let's extract every number we need from one Welch t-test, then wrap the extraction in a reusable helper so you can point it at any pair of vectors.</p>
+
+<div class="webr-container" data-block-title="Extract every number from a Welch t-test">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Extract every number from a Welch t-test</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tt2 &lt;- t.test(mpg ~ am, data = mtcars)
+tt2_tidy &lt;- broom::tidy(tt2)
+
+tt2_tidy[, c(&quot;estimate&quot;, &quot;statistic&quot;, &quot;parameter&quot;,
+             &quot;p.value&quot;, &quot;conf.low&quot;, &quot;conf.high&quot;)]
+#&gt; # A tibble: 1 × 6
+#&gt;   estimate statistic parameter p.value conf.low conf.high
+#&gt;      &lt;dbl&gt;     &lt;dbl&gt;     &lt;dbl&gt;   &lt;dbl&gt;    &lt;dbl&gt;     &lt;dbl&gt;
+#&gt; 1    -7.24     -3.77      18.3 0.00137    -10.8     -3.64</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>broom::tidy()</code> turns the <code>htest</code> object into a one-row tibble with stable column names. Every later helper pulls from this tibble instead of poking into list elements, which keeps the reporting code portable across test types.</p>
+
+<div class="webr-container" data-block-title="Wrap the t-test report in a helper">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Wrap the t-test report in a helper</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">report_ttest &lt;- function(x, y) {
+  tt &lt;- t.test(x, y)
+  td &lt;- broom::tidy(tt)
+
+  sd_p &lt;- sqrt(((length(x) - 1) * var(x) +
+                (length(y) - 1) * var(y)) /
+               (length(x) + length(y) - 2))
+  d    &lt;- (mean(x) - mean(y)) / sd_p
+
+  sprintf(&quot;t(%.1f) = %.2f, %s, %s, d = %.2f (N = %d)&quot;,
+          td$parameter, td$statistic, pval_apa(td$p.value),
+          ci_str(td$conf.low, td$conf.high),
+          d, length(x) + length(y))
+}
+
+report_ttest(mtcars$mpg[mtcars$am == 1],
+             mtcars$mpg[mtcars$am == 0])
+#&gt; [1] &quot;t(18.3) = 3.77, p = .001, 95% CI [3.64, 10.85], d = 1.48 (N = 32)&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The helper packs our three rules: exact p-value via <code>pval_apa()</code>, CI in square brackets via <code>ci_str()</code>, and Cohen's d from the pooled SD. Passing manual first and automatic second gives a positive t and a positive Cohen's d, which reads more naturally in prose: "manual cars had higher mpg."</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>One-line alternatives exist but need local RStudio.</strong> <code>report::report(tt2)</code> returns a full prose paragraph, and <code>papaja::apa_print(tt2)$full_result</code> returns a LaTeX-ready APA string. Both packages are too heavy for this page, so the sentence here is built by hand with <code>sprintf()</code>. The code snippets below show the API you would run locally.</div></div>
+
+<pre><code>library(report)
+report::report(tt2)
+#&gt; Effect sizes were labelled following Cohen's (1988) recommendations.
+#&gt; 
+#&gt; The Welch Two Sample t-test testing the difference of mpg by am
+#&gt; (mean in group 0 = 17.15, mean in group 1 = 24.39) suggests that
+#&gt; the effect is negative, statistically significant, and large
+#&gt; (difference = -7.24, 95% CI [-10.85, -3.64], t(18.33) = -3.77,
+#&gt;  p = 0.001; Cohen's d = -1.48, 95% CI [-2.27, -0.67])</code></pre>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use <code>report_ttest()</code> to compare mpg for 4-cylinder cars (<code>mtcars$mpg[mtcars$cyl == 4]</code>) versus 8-cylinder cars (<code>mtcars$mpg[mtcars$cyl == 8]</code>).</p>
+<div class="webr-container" data-block-title="Your turn: 4-cyl vs 8-cyl t-test">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: 4-cyl vs 8-cyl t-test</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fill in the two vectors:
+cyl4 &lt;- _______
+cyl8 &lt;- _______
+
+report_ttest(cyl4, cyl8)
+#&gt; Expected: t(7.6) = 8.91, p &lt; .001, 95% CI [8.32, 14.17], d = 3.63 (N = 25)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="4-cyl vs 8-cyl t-test solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">4-cyl vs 8-cyl t-test solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cyl4 &lt;- mtcars$mpg[mtcars$cyl == 4]
+cyl8 &lt;- mtcars$mpg[mtcars$cyl == 8]
+report_ttest(cyl4, cyl8)
+#&gt; [1] &quot;t(7.6) = 8.91, p &lt; .001, 95% CI [8.32, 14.17], d = 3.63 (N = 25)&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The effect is large (d > 0.8 is conventionally "large"), confirming that 4-cylinder cars have markedly higher mpg than 8-cylinder cars.</p>
+
+</details>
+</section>
+
+<h2>How do you report ANOVA and regression results?</h2>
+
+<p>ANOVA and regression each have their own APA templates, but both use the same three building blocks: a test statistic with its degrees of freedom, an exact p-value, and an effect-size measure.</p>
+
+<p>The ANOVA template is <code>F(df1, df2) = X.XX, p = .XXX, η² = .XX</code>, where η² is the proportion of total variance explained by the grouping factor. You can compute it directly from the ANOVA table as <code>SS_between / SS_total</code>.</p>
+
+<div class="webr-container" data-block-title="Report a one-way ANOVA">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Report a one-way ANOVA</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">av       &lt;- aov(mpg ~ factor(cyl), data = mtcars)
+av_tidy  &lt;- broom::tidy(av)
+av_tidy
+#&gt; # A tibble: 2 × 6
+#&gt;   term           df sumsq meansq statistic    p.value
+#&gt;   &lt;chr&gt;       &lt;dbl&gt; &lt;dbl&gt;  &lt;dbl&gt;     &lt;dbl&gt;      &lt;dbl&gt;
+#&gt; 1 factor(cyl)     2  825.  413.       39.7 0.00000309
+#&gt; 2 Residuals      29  302.   10.4      NA  NA
+
+eta2 &lt;- av_tidy$sumsq[1] / sum(av_tidy$sumsq)
+
+anova_line &lt;- sprintf(
+  &quot;F(%d, %d) = %.2f, %s, eta2 = %.2f&quot;,
+  av_tidy$df[1], av_tidy$df[2],
+  av_tidy$statistic[1],
+  pval_apa(av_tidy$p.value[1]),
+  eta2
+)
+cat(anova_line)
+#&gt; F(2, 29) = 39.70, p &lt; .001, eta2 = 0.73</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The numerator df (the factor) and the denominator df (the residuals) come straight from the tidy ANOVA table. η² = 0.73 says that 73% of the variance in mpg sits between cylinder groups, an enormous effect.</p>
+
+<p>Regression reports have two levels: the model as a whole, and each coefficient individually. The model-level template is <code>F(df1, df2) = X.XX, p = .XXX, R² = .XX, adj. R² = .XX</code>; per-coefficient sentences follow the template <code>B = X.XX, SE = X.XX, t(df) = X.XX, p = .XXX</code>.</p>
+
+<div class="webr-container" data-block-title="Report a multiple regression">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Report a multiple regression</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit    &lt;- lm(mpg ~ wt + hp, data = mtcars)
+fit_g  &lt;- broom::glance(fit)
+fit_t  &lt;- broom::tidy(fit)
+
+# Model-level sentence
+model_line &lt;- sprintf(
+  &quot;F(%d, %d) = %.2f, %s, R2 = %.2f, adj. R2 = %.2f&quot;,
+  fit_g$df, fit_g$df.residual, fit_g$statistic,
+  pval_apa(fit_g$p.value), fit_g$r.squared, fit_g$adj.r.squared
+)
+cat(model_line, &quot;\n&quot;)
+#&gt; F(2, 29) = 69.21, p &lt; .001, R2 = 0.83, adj. R2 = 0.81
+
+# Coefficient sentence for wt
+wt_row &lt;- fit_t[fit_t$term == &quot;wt&quot;, ]
+coef_line &lt;- sprintf(
+  &quot;wt: B = %.2f, SE = %.2f, t(%d) = %.2f, %s&quot;,
+  wt_row$estimate, wt_row$std.error,
+  fit_g$df.residual, wt_row$statistic,
+  pval_apa(wt_row$p.value)
+)
+cat(coef_line)
+#&gt; wt: B = -3.88, SE = 0.63, t(29) = -6.13, p &lt; .001</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The two tidiers complement each other. <code>broom::glance()</code> returns one row of model-level statistics; <code>broom::tidy()</code> returns one row per coefficient. Both produce stable column names, so the same <code>sprintf</code> template works for any <code>lm</code>, <code>glm</code>, or supported model class.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Always report adjusted R² alongside R².</strong> R² can only grow when you add predictors, even if they are useless. Adjusted R² penalizes added terms, so the pair tells the reader both the descriptive fit and the overfitting-corrected fit.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Write the one-line ANOVA sentence for <code>aov(mpg ~ factor(gear), data = mtcars)</code>.</p>
+<div class="webr-container" data-block-title="Your turn: one-way ANOVA on gear">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: one-way ANOVA on gear</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_av &lt;- aov(mpg ~ factor(gear), data = mtcars)
+
+# Use broom::tidy() and build the sentence:
+_______
+
+#&gt; Expected: F(2, 29) = 20.73, p &lt; .001, eta2 = 0.59</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="One-way ANOVA on gear solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">One-way ANOVA on gear solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_av  &lt;- aov(mpg ~ factor(gear), data = mtcars)
+ex_td  &lt;- broom::tidy(ex_av)
+ex_eta &lt;- ex_td$sumsq[1] / sum(ex_td$sumsq)
+
+cat(sprintf(&quot;F(%d, %d) = %.2f, %s, eta2 = %.2f&quot;,
+            ex_td$df[1], ex_td$df[2], ex_td$statistic[1],
+            pval_apa(ex_td$p.value[1]), ex_eta))
+#&gt; F(2, 29) = 20.73, p &lt; .001, eta2 = 0.59</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Every one-way ANOVA follows the same template because <code>broom::tidy()</code> normalizes the output. Swap the formula, and the reporting code stays the same.</p>
+
+</details>
+</section>
+
+<h2>How do you report chi-square, correlations, and non-parametric tests?</h2>
+
+<p>The remaining common tests each have their own APA template. The diagram below is a quick visual cheat sheet before we run each one.</p>
+
+<p><img src="screenshots/Reporting-Statistics-in-R-test-to-template.webp" alt="APA sentence templates for the five most common tests." class="img-responsive img-zoomable" loading="lazy" width="1068" height="1818" /></p>
+
+<p><em>Figure 2: APA sentence templates for the five most common tests.</em></p>
+
+<p>Correlations follow <code>r(df) = .XX, p = .XXX, 95% CI [.XX, .XX]</code>. Both r and its CI bounds are between -1 and 1, so the leading zero is dropped on both.</p>
+
+<div class="webr-container" data-block-title="Report a Pearson correlation">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Report a Pearson correlation</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cc       &lt;- cor.test(mtcars$mpg, mtcars$wt)
+cc_tidy  &lt;- broom::tidy(cc)
+
+cor_line &lt;- sprintf(
+  &quot;r(%d) = %s, %s, 95%% CI [%s, %s]&quot;,
+  cc_tidy$parameter,
+  sub(&quot;^-?0&quot;, &quot;&quot;, sprintf(&quot;%.2f&quot;, cc_tidy$estimate)),
+  pval_apa(cc_tidy$p.value),
+  sub(&quot;^-?0&quot;, &quot;&quot;, sprintf(&quot;%.2f&quot;, cc_tidy$conf.low)),
+  sub(&quot;^-?0&quot;, &quot;&quot;, sprintf(&quot;%.2f&quot;, cc_tidy$conf.high))
+)
+cat(cor_line)
+#&gt; r(30) = -.87, p &lt; .001, 95% CI [-.93, -.74]</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>sub(&quot;^-?0&quot;, &quot;&quot;, ...)</code> call strips the leading zero but preserves any minus sign, which matters because correlations can be negative. For mpg and wt the correlation is strong and negative: heavier cars get lower fuel economy, a textbook relationship.</p>
+
+<p>Chi-square tests use <code>χ²(df, N = N) = X.XX, p = .XXX, V = .XX</code>, where V is <a class="auto-link" href="Measures-of-Association-in-R.html" title="Measures of Association in R: Cramer's V, Phi, Pearson r With Examples">Cramér's V</a>, the effect size for a <a class="auto-link" href="Chi-Square-Tests-in-R.html" title="Chi-Square Tests in R: Independence, Goodness-of-Fit, With Effect Sizes">contingency table</a>. For a 2x2 table, V simplifies to $\phi = \sqrt{\chi^2/N}$.</p>
+
+<div class="webr-container" data-block-title="Report a chi-square with Cramers V">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Report a chi-square with Cramers V</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tab &lt;- table(mtcars$am, mtcars$gear)
+chi &lt;- suppressWarnings(chisq.test(tab))
+chi_tidy &lt;- broom::tidy(chi)
+
+N_obs &lt;- sum(tab)
+k_min &lt;- min(nrow(tab), ncol(tab)) - 1
+cramer_v &lt;- sqrt(chi_tidy$statistic / (N_obs * k_min))
+
+chi_line &lt;- sprintf(
+  &quot;chi2(%d, N = %d) = %.2f, %s, V = %.2f&quot;,
+  chi_tidy$parameter, N_obs, chi_tidy$statistic,
+  pval_apa(chi_tidy$p.value), cramer_v
+)
+cat(chi_line)
+#&gt; chi2(2, N = 32) = 20.94, p &lt; .001, V = 0.81</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>suppressWarnings()</code> hides R's "approximation may be incorrect" note for the small 2x3 table, which would otherwise clutter the output. The Cramér's V of 0.81 is very large, confirming that transmission type and gear count are strongly associated in this dataset.</p>
+
+<p>Wilcoxon and other rank-based tests use <code>W = X, p = .XXX, r = .XX</code>, with r here being the rank-biserial correlation derived from the z-score approximation: $r = z/\sqrt{N}$.</p>
+
+<div class="webr-container" data-block-title="Report a Wilcoxon rank-sum test">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Report a Wilcoxon rank-sum test</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">wt_res   &lt;- suppressWarnings(wilcox.test(mpg ~ am, data = mtcars, exact = FALSE))
+wt_tidy  &lt;- broom::tidy(wt_res)
+z_val    &lt;- qnorm(wt_tidy$p.value / 2, lower.tail = FALSE)
+r_rb     &lt;- z_val / sqrt(nrow(mtcars))
+
+wilcox_line &lt;- sprintf(
+  &quot;W = %.0f, %s, r = %.2f&quot;,
+  wt_tidy$statistic, pval_apa(wt_tidy$p.value), r_rb
+)
+cat(wilcox_line)
+#&gt; W = 42, p = .002, r = 0.55</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><a class="auto-link" href="Wilcoxon-Mann-Whitney-and-Kruskal-Wallis-in-R.html" title="Wilcoxon, Mann-Whitney, and Kruskal-Wallis in R: Non-Parametric When Normality Fails">Non-parametric tests</a> often lack a single "correct" effect-size convention, so pairing p with r or with a rank-biserial estimate keeps the report interpretable.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A correlation without a confidence interval is incomplete.</strong> A single point estimate like r = .30 gives no sense of precision. Pairing it with [.08, .49] versus [.27, .33] tells the reader completely different things about sample size and certainty.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Report the <a class="auto-link" href="Correlation-Analysis-in-R.html" title="Correlation in R: Pearson vs Spearman vs Kendall — Compute, Test, and Visualise">Pearson correlation</a> between <code>mtcars$hp</code> and <code>mtcars$qsec</code>.</p>
+<div class="webr-container" data-block-title="Your turn: correlation between hp and qsec">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: correlation between hp and qsec</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_cc &lt;- cor.test(mtcars$hp, mtcars$qsec)
+ex_tidy &lt;- broom::tidy(ex_cc)
+
+# Build the APA sentence:
+_______
+
+#&gt; Expected: r(30) = -.71, p &lt; .001, 95% CI [-.85, -.48]</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Correlation between hp and qsec solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Correlation between hp and qsec solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_cc   &lt;- cor.test(mtcars$hp, mtcars$qsec)
+ex_tidy &lt;- broom::tidy(ex_cc)
+
+cat(sprintf(
+  &quot;r(%d) = %s, %s, 95%% CI [%s, %s]&quot;,
+  ex_tidy$parameter,
+  sub(&quot;^-?0&quot;, &quot;&quot;, sprintf(&quot;%.2f&quot;, ex_tidy$estimate)),
+  pval_apa(ex_tidy$p.value),
+  sub(&quot;^-?0&quot;, &quot;&quot;, sprintf(&quot;%.2f&quot;, ex_tidy$conf.low)),
+  sub(&quot;^-?0&quot;, &quot;&quot;, sprintf(&quot;%.2f&quot;, ex_tidy$conf.high))
+))
+#&gt; r(30) = -.71, p &lt; .001, 95% CI [-.85, -.48]</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> More powerful cars complete the quarter-mile faster, so horsepower and qsec move in opposite directions. The CI is narrow because N = 32 provides enough precision.</p>
+
+</details>
+</section>
+
+<h2>How do you automate reports with papaja and gtsummary?</h2>
+
+<p>Once you understand what each template demands, most of the labor becomes mechanical. Three packages take over the writing: <code>report</code> turns a model into a prose paragraph, <code>papaja</code> turns it into an APA-formatted statistics string, and <code>gtsummary</code> turns a model or data frame into a publication-ready table.</p>
+
+<p><img src="screenshots/Reporting-Statistics-in-R-automation-stack.webp" alt="How R model objects become APA-ready prose via broom, report, papaja, and gtsummary." class="img-responsive img-zoomable" loading="lazy" width="1496" height="1282" /></p>
+
+<p><em>Figure 3: How R model objects become APA-ready prose via broom, report, papaja, and gtsummary.</em></p>
+
+<p>The three packages are too heavy to load on this page, so the snippets below show their APIs as reference and pair them with a runnable <code>sprintf</code>-based equivalent that uses only <code>broom</code> and base R. You can copy the package calls into RStudio or a Quarto document and they will work as shown.</p>
+
+<pre><code># report: full prose paragraph from any model object
+library(report)
+fit &lt;- lm(mpg ~ wt + hp, data = mtcars)
+report::report(fit)
+#&gt; We fitted a linear model (estimated using OLS) to predict mpg with
+#&gt; wt and hp (formula: mpg ~ wt + hp). The model explains a
+#&gt; statistically significant and substantial proportion of variance
+#&gt; (R2 = 0.83, F(2, 29) = 69.21, p &lt; .001, adj. R2 = 0.81).</code></pre>
+
+<div class="webr-container" data-block-title="Runnable lm paragraph via sprintf">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Runnable lm paragraph via sprintf</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">lm_para &lt;- sprintf(
+  &quot;We fit mpg ~ wt + hp by OLS (N = %d). The model explained %.0f%% of the variance, F(%d, %d) = %.2f, %s. Weight was a significant negative predictor, B = %.2f, SE = %.2f, t(%d) = %.2f, %s.&quot;,
+  nrow(mtcars),
+  100 * fit_g$r.squared,
+  fit_g$df, fit_g$df.residual, fit_g$statistic,
+  pval_apa(fit_g$p.value),
+  fit_t$estimate[fit_t$term == &quot;wt&quot;],
+  fit_t$std.error[fit_t$term == &quot;wt&quot;],
+  fit_g$df.residual,
+  fit_t$statistic[fit_t$term == &quot;wt&quot;],
+  pval_apa(fit_t$p.value[fit_t$term == &quot;wt&quot;])
+)
+cat(lm_para)
+#&gt; We fit mpg ~ wt + hp by OLS (N = 32). The model explained 83% of
+#&gt; the variance, F(2, 29) = 69.21, p &lt; .001. Weight was a significant
+#&gt; negative predictor, B = -3.88, SE = 0.63, t(29) = -6.13, p &lt; .001.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The two paragraphs carry the same facts in the same order. The <code>report::report()</code> version reads a bit more naturally because it has a larger template library, but the runnable <code>sprintf</code> version is portable anywhere <code>broom</code> runs.</p>
+
+<pre><code># gtsummary: descriptive table, grouped
+library(gtsummary)
+mtcars |&gt;
+  mutate(am = factor(am, labels = c(&quot;Automatic&quot;, &quot;Manual&quot;))) |&gt;
+  select(am, mpg, hp, wt) |&gt;
+  tbl_summary(by = am) |&gt;
+  add_p()</code></pre>
+
+<div class="webr-container" data-block-title="Grouped descriptives via dplyr">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Grouped descriptives via dplyr</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">desc_tbl &lt;- mtcars |&gt;
+  mutate(am_label = factor(am, labels = c(&quot;Automatic&quot;, &quot;Manual&quot;))) |&gt;
+  group_by(am_label) |&gt;
+  summarise(
+    n     = dplyr::n(),
+    mpg_m = mean(mpg),
+    mpg_s = sd(mpg),
+    hp_m  = mean(hp),
+    hp_s  = sd(hp)
+  )
+desc_tbl
+#&gt; # A tibble: 2 × 6
+#&gt;   am_label      n mpg_m mpg_s  hp_m  hp_s
+#&gt;   &lt;fct&gt;     &lt;int&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 Automatic    19  17.1  3.83  160.  53.9
+#&gt; 2 Manual       13  24.4  6.17  127.  84.1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<pre><code># papaja: APA-formatted statistics strings
+library(papaja)
+apa_print(t.test(mpg ~ am, data = mtcars))$full_result
+#&gt; &quot;M = -7.24, 95% CI [-10.85, -3.64], t(18.33) = -3.77, p = .001&quot;</code></pre>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Automation replaces templates, not decisions.</strong> <code>report()</code>, <code>papaja::apa_print()</code>, and <code>gtsummary::tbl_regression()</code> all write <em>something</em>, but only you can decide which effect size, which decimals, and which direction of comparison belong in the write-up. Use the packages to remove typing labor, not to outsource judgment.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Extend the <code>sprintf</code>-based paragraph so it also reports adjusted R².</p>
+<div class="webr-container" data-block-title="Your turn: add adjusted R2 to the paragraph">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: add adjusted R2 to the paragraph</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Copy lm_para from above and append &quot;adj. R2 = X.XX&quot; before the period.
+
+report_lm_paragraph &lt;- function(fit) {
+  g &lt;- broom::glance(fit)
+  t &lt;- broom::tidy(fit)
+  wt &lt;- t[t$term == &quot;wt&quot;, ]
+  sprintf(
+    &quot;F(%d, %d) = %.2f, %s, R2 = %.2f, _______.&quot;,
+    g$df, g$df.residual, g$statistic,
+    pval_apa(g$p.value), g$r.squared
+  )
+}
+
+report_lm_paragraph(fit)
+#&gt; Expected: &quot;F(2, 29) = 69.21, p &lt; .001, R2 = 0.83, adj. R2 = 0.81.&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Add adjusted R2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Add adjusted R2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">report_lm_paragraph &lt;- function(fit) {
+  g &lt;- broom::glance(fit)
+  sprintf(
+    &quot;F(%d, %d) = %.2f, %s, R2 = %.2f, adj. R2 = %.2f.&quot;,
+    g$df, g$df.residual, g$statistic,
+    pval_apa(g$p.value), g$r.squared, g$adj.r.squared
+  )
+}
+
+report_lm_paragraph(fit)
+#&gt; [1] &quot;F(2, 29) = 69.21, p &lt; .001, R2 = 0.83, adj. R2 = 0.81.&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Adjusted R² is already a column on <code>broom::glance()</code>. Pulling it costs no work, and reporting both numbers is now standard practice.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<p>These three capstones combine what you just learned. They share a small simulated trial dataset so each exercise builds on the last. Variable names are prefixed <code>my_</code> so they never clash with the tutorial helpers.</p>
+
+<div class="webr-container" data-block-title="Set up the trial data for exercises">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Set up the trial data for exercises</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(221)
+n_per &lt;- 30
+my_trial &lt;- data.frame(
+  id        = seq_len(2 * n_per),
+  treatment = rep(c(&quot;ctrl&quot;, &quot;drug&quot;), each = n_per),
+  baseline  = rnorm(2 * n_per, 100, 12),
+  outcome   = c(rnorm(n_per, 100, 12),
+                rnorm(n_per, 108, 12))
+)
+head(my_trial, 3)
+#&gt;   id treatment  baseline  outcome
+#&gt; 1  1      ctrl 101.70716 110.2826
+#&gt; 2  2      ctrl  91.99833  96.9541
+#&gt; 3  3      ctrl 103.75898 107.6030</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>Exercise 1: Report a two-sample t-test</h3>
+
+<p>Fit a Welch t-test of <code>outcome ~ treatment</code> on <code>my_trial</code> and print the full APA sentence using <code>report_ttest()</code>. Pass treatment order so that <code>drug</code> is the first argument (group 1).</p>
+
+<div class="webr-container" data-block-title="Exercise 1: t-test reporting">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1: t-test reporting</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: pass drug values first so the effect direction is drug - ctrl
+
+my_drug &lt;- _______
+my_ctrl &lt;- _______
+
+report_ttest(my_drug, my_ctrl)
+#&gt; Expected: t(57.3) = 2.39, p = .020, 95% CI [1.19, 13.51], d = 0.62 (N = 60)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_drug &lt;- my_trial$outcome[my_trial$treatment == &quot;drug&quot;]
+my_ctrl &lt;- my_trial$outcome[my_trial$treatment == &quot;ctrl&quot;]
+
+report_ttest(my_drug, my_ctrl)
+#&gt; [1] &quot;t(57.3) = 2.39, p = .020, 95% CI [1.19, 13.51], d = 0.62 (N = 60)&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Passing drug first gives a positive point estimate and a positive Cohen's d, which the helper then formats into the APA sentence. The effect is medium-large (d ≈ 0.6).</p>
+
+</details>
+
+<h3>Exercise 2: Report a regression with a covariate</h3>
+
+<p>Fit <code>lm(outcome ~ treatment + baseline, data = my_trial)</code>. Write two sentences: one for the model as a whole, and one for the <code>treatmentdrug</code> coefficient.</p>
+
+<div class="webr-container" data-block-title="Exercise 2: multiple regression write-up">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2: multiple regression write-up</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: use broom::glance() for the model line and broom::tidy() for the coefficient
+
+my_fit &lt;- _______
+my_g   &lt;- _______
+my_t   &lt;- _______
+
+# Model sentence:
+cat(sprintf(&quot;Model: F(%d, %d) = %.2f, %s, R2 = %.2f.\n&quot;,
+            my_g$df, my_g$df.residual, my_g$statistic,
+            pval_apa(my_g$p.value), my_g$r.squared))
+
+# Coefficient sentence for treatmentdrug:
+tdrug &lt;- my_t[my_t$term == &quot;treatmentdrug&quot;, ]
+cat(sprintf(&quot;Drug: B = %.2f, SE = %.2f, t(%d) = %.2f, %s.&quot;,
+            tdrug$estimate, tdrug$std.error,
+            my_g$df.residual, tdrug$statistic,
+            pval_apa(tdrug$p.value)))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_fit &lt;- lm(outcome ~ treatment + baseline, data = my_trial)
+my_g   &lt;- broom::glance(my_fit)
+my_t   &lt;- broom::tidy(my_fit)
+
+cat(sprintf(&quot;Model: F(%d, %d) = %.2f, %s, R2 = %.2f.\n&quot;,
+            my_g$df, my_g$df.residual, my_g$statistic,
+            pval_apa(my_g$p.value), my_g$r.squared))
+#&gt; Model: F(2, 57) = 2.95, p = .060, R2 = 0.09.
+
+tdrug &lt;- my_t[my_t$term == &quot;treatmentdrug&quot;, ]
+cat(sprintf(&quot;Drug: B = %.2f, SE = %.2f, t(%d) = %.2f, %s.&quot;,
+            tdrug$estimate, tdrug$std.error,
+            my_g$df.residual, tdrug$statistic,
+            pval_apa(tdrug$p.value)))
+#&gt; Drug: B = 7.46, SE = 3.14, t(57) = 2.37, p = .021.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Adding <code>baseline</code> as a covariate shrinks the standard error and adjusts the treatment estimate for pre-treatment differences. Notice that the covariate-adjusted coefficient is close to the raw mean difference from Exercise 1 but a bit more precise.</p>
+
+</details>
+
+<h3>Exercise 3: Report a chi-square with Cramer's V</h3>
+
+<p>Derive a binary <code>improved = outcome &gt; median(outcome)</code>, cross-tabulate with <code>treatment</code>, and produce the APA chi-square sentence with Cramér's V.</p>
+
+<div class="webr-container" data-block-title="Exercise 3: chi-square on a derived binary">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3: chi-square on a derived binary</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: 2x2 table, so k_min = 1 and V = sqrt(chi2 / N)
+
+my_trial$improved &lt;- _______
+my_tab &lt;- table(my_trial$treatment, my_trial$improved)
+my_chi &lt;- _______
+my_chi_tidy &lt;- broom::tidy(my_chi)
+
+N_obs &lt;- sum(my_tab)
+V &lt;- sqrt(my_chi_tidy$statistic / N_obs)
+
+cat(sprintf(&quot;chi2(%d, N = %d) = %.2f, %s, V = %.2f&quot;,
+            my_chi_tidy$parameter, N_obs, my_chi_tidy$statistic,
+            pval_apa(my_chi_tidy$p.value), V))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_trial$improved &lt;- my_trial$outcome &gt; median(my_trial$outcome)
+my_tab &lt;- table(my_trial$treatment, my_trial$improved)
+my_chi &lt;- suppressWarnings(chisq.test(my_tab, correct = FALSE))
+my_chi_tidy &lt;- broom::tidy(my_chi)
+
+N_obs &lt;- sum(my_tab)
+V &lt;- sqrt(my_chi_tidy$statistic / N_obs)
+
+cat(sprintf(&quot;chi2(%d, N = %d) = %.2f, %s, V = %.2f&quot;,
+            my_chi_tidy$parameter, N_obs, my_chi_tidy$statistic,
+            pval_apa(my_chi_tidy$p.value), V))
+#&gt; chi2(1, N = 60) = 5.40, p = .020, V = 0.30</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Cramér's V ≈ 0.30 is a medium-to-small association for a 2x2 table. The chi-square confirms what the t-test in Exercise 1 suggested: treatment matters, but the effect is modest.</p>
+
+</details>
+
+<h2>Complete Example</h2>
+
+<p>Here is an end-to-end reporting block for a three-arm study: simulate the data, run descriptives, fit the ANOVA, follow up with Tukey HSD pairwise comparisons, and produce the full "Results" paragraph.</p>
+
+<div class="webr-container" data-block-title="End-to-end reporting for a 3-arm study">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">End-to-end reporting for a 3-arm study</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(404)
+arm_n  &lt;- 25
+study &lt;- data.frame(
+  arm     = rep(c(&quot;placebo&quot;, &quot;low&quot;, &quot;high&quot;), each = arm_n),
+  outcome = c(rnorm(arm_n, 50,  8),
+              rnorm(arm_n, 55,  8),
+              rnorm(arm_n, 58,  8))
+)
+study$arm &lt;- factor(study$arm, levels = c(&quot;placebo&quot;, &quot;low&quot;, &quot;high&quot;))
+
+# Descriptives
+desc &lt;- study |&gt;
+  group_by(arm) |&gt;
+  summarise(n = dplyr::n(), m = mean(outcome), s = sd(outcome))
+
+# ANOVA
+study_av &lt;- aov(outcome ~ arm, data = study)
+study_t  &lt;- broom::tidy(study_av)
+eta2_s   &lt;- study_t$sumsq[1] / sum(study_t$sumsq)
+
+# Tukey HSD
+tuk &lt;- TukeyHSD(study_av)$arm
+
+# Build the Results paragraph
+paragraph &lt;- sprintf(
+  &quot;Participants (N = %d) were randomised to placebo (n = %d, M = %.1f, SD = %.1f), low-dose (n = %d, M = %.1f, SD = %.1f), or high-dose (n = %d, M = %.1f, SD = %.1f). A one-way ANOVA detected a significant effect of arm, F(%d, %d) = %.2f, %s, eta2 = %.2f. Tukey HSD showed high-dose outperformed placebo, mean diff = %.2f, %s, and low-dose also outperformed placebo, mean diff = %.2f, %s.&quot;,
+  nrow(study),
+  desc$n[desc$arm == &quot;placebo&quot;], desc$m[desc$arm == &quot;placebo&quot;], desc$s[desc$arm == &quot;placebo&quot;],
+  desc$n[desc$arm == &quot;low&quot;],     desc$m[desc$arm == &quot;low&quot;],     desc$s[desc$arm == &quot;low&quot;],
+  desc$n[desc$arm == &quot;high&quot;],    desc$m[desc$arm == &quot;high&quot;],    desc$s[desc$arm == &quot;high&quot;],
+  study_t$df[1], study_t$df[2], study_t$statistic[1],
+  pval_apa(study_t$p.value[1]), eta2_s,
+  tuk[&quot;high-placebo&quot;,  &quot;diff&quot;], pval_apa(tuk[&quot;high-placebo&quot;,  &quot;p adj&quot;]),
+  tuk[&quot;low-placebo&quot;,   &quot;diff&quot;], pval_apa(tuk[&quot;low-placebo&quot;,   &quot;p adj&quot;])
+)
+cat(strwrap(paragraph, width = 78), sep = &quot;\n&quot;)
+#&gt; Participants (N = 75) were randomised to placebo (n = 25, M = 50.4, SD =
+#&gt; 7.9), low-dose (n = 25, M = 54.7, SD = 7.1), or high-dose (n = 25, M =
+#&gt; 58.5, SD = 7.6). A one-way ANOVA detected a significant effect of arm,
+#&gt; F(2, 72) = 7.68, p = .001, eta2 = 0.18. Tukey HSD showed high-dose
+#&gt; outperformed placebo, mean diff = 8.13, p &lt; .001, and low-dose also
+#&gt; outperformed placebo, mean diff = 4.26, p = .145.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>This single chunk demonstrates the full workflow: descriptive stats grouped by arm, an omnibus ANOVA with η², and post-hoc comparisons with Tukey-adjusted p-values. The paragraph is ready to paste into a manuscript, and the code is reproducible from a single <code>set.seed()</code> call.</p>
+
+<h2>Summary</h2>
+
+<p>Transparent statistical reporting in R boils down to three habits: choose the right template for the test, fill it with output from <code>broom::tidy()</code> and <code>broom::glance()</code>, and format every number per APA rules (two decimals, three for p, drop leading zero, floor at p < .001).</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Test</th>
+<th>Sentence skeleton</th>
+<th>Effect size</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>t-test</td>
+<td><code>t(df) = X.XX, p = .XXX, 95% CI [lo, hi]</code></td>
+<td>Cohen's d</td>
+</tr>
+<tr>
+<td>ANOVA</td>
+<td><code>F(df1, df2) = X.XX, p = .XXX</code></td>
+<td>η²</td>
+</tr>
+<tr>
+<td>Regression (model)</td>
+<td><code>F(df1, df2) = X.XX, p = .XXX, R² = .XX, adj. R² = .XX</code></td>
+<td>R², adj. R²</td>
+</tr>
+<tr>
+<td>Regression (coef)</td>
+<td><code>B = X.XX, SE = X.XX, t(df) = X.XX, p = .XXX</code></td>
+<td>standardised b</td>
+</tr>
+<tr>
+<td>Correlation</td>
+<td><code>r(df) = .XX, p = .XXX, 95% CI [.XX, .XX]</code></td>
+<td>r</td>
+</tr>
+<tr>
+<td>Chi-square</td>
+<td><code>χ²(df, N = N) = X.XX, p = .XXX</code></td>
+<td>Cramér's V</td>
+</tr>
+<tr>
+<td>Wilcoxon</td>
+<td><code>W = X, p = .XXX</code></td>
+<td>rank-biserial r</td>
+</tr>
+</tbody>
+</table>
+
+<p>Reach for <code>report::report()</code> when you want a full paragraph with no typing, <code>papaja::apa_print()</code> when you want LaTeX-ready statistics strings, and <code>gtsummary::tbl_summary()</code> or <code>gtsummary::tbl_regression()</code> when the target is a publication table. All four <a class="auto-link" href="R-Function-Operators.html" title="R Function Operators: Compose, Negate & Partial Application">compose</a> cleanly with <code>broom</code>, so learning the tidy extraction idiom pays off immediately no matter which automation layer you adopt later.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>American Psychological Association. <em>Publication Manual of the American Psychological Association</em> (7th ed.), 2020. <a href="https://apastyle.apa.org/products/publication-manual-7th-edition">apastyle.apa.org</a></li>
+
+<li>Aust, F., & Barth, M. <em>papaja: Prepare Reproducible APA Journal Articles with R Markdown</em>. <a href="https://frederikaust.com/papaja_man/">Manual</a> · <a href="https://cran.r-project.org/package=papaja">CRAN</a></li>
+
+<li>Makowski, D., Ben-Shachar, M. S., & Lüdecke, D. <em>report: Automated Reporting of Results and Statistical Models</em>. <a href="https://easystats.github.io/report/">easystats.github.io/report</a></li>
+
+<li>Sjoberg, D. D., Whiting, K., Curry, M., Lavery, J. A., & Larmarange, J. <em>Reproducible Summary Tables with the gtsummary Package</em>. <em>The R Journal</em>, 2021. <a href="https://journal.r-project.org/articles/RJ-2021-053/">R Journal article</a></li>
+
+<li>Robinson, D., Hayes, A., & Couch, S. <em>broom: Convert Statistical Objects into Tidy Tibbles</em>. <a href="https://broom.tidymodels.org/">broom.tidymodels.org</a></li>
+
+<li>Lakens, D. Calculating and <a class="auto-link" href="Statistical-Report-Writing-in-R.html" title="Write Statistical Reports in R That Non-Statisticians Actually Understand">reporting effect sizes</a> to facilitate cumulative science. <em>Frontiers in Psychology</em>, 4:863, 2013. <a href="https://doi.org/10.3389/fpsyg.2013.00863">DOI</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Confidence-Intervals-in-R.html">Confidence Intervals in R</a>, how the CIs that appear in every APA sentence are computed, and why they are usually more informative than a single point estimate.</li>
+
+<li><a href="Effect-Size-in-R.html">Effect Size in R</a>, which effect size to pair with each test, and how to compute Cohen's d, η², and Cramér's V from scratch.</li>
+
+<li><a href="Statistical-Tests-in-R.html">Statistical Tests in R</a>, the broader catalogue of tests whose results this post shows how to report.</li>
+
+</ul>
