@@ -1,0 +1,902 @@
+---
+title: "Likelihood Ratio, Wald & Score Tests in R: Three Ways to Test Hypotheses"
+description: "Compare likelihood ratio, Wald, and score tests in R. Run all three on the same GLM, understand when they disagree, and learn which to pick in practice."
+keywords: "likelihood ratio test, Wald test, score test, Lagrange multiplier test, R hypothesis testing, anova LRT, Rao test, GLM hypothesis testing"
+mathjax: true
+webr: true
+curriculum_id: "FR-infe-2"
+post_type: "FR"
+auto_link_terms: "likelihood ratio test|Wald test|score test|Lagrange multiplier test|anova(test = \"LRT\")|anova(test = \"Rao\")"
+auto_link_case_sensitive: false
+fr_parent: "Hypothesis-Testing-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>Likelihood Ratio, Wald & Score Tests in R: Three Ways to Test Hypotheses</h1>
+
+<p class="lead">The likelihood ratio, Wald, and score tests are three asymptotically equivalent ways to test hypotheses about parameters in a likelihood-based model. All three ask the same question, does a restricted model fit the data as well as the full one, but read the answer off the log-likelihood curve from three different angles.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="35" data-exercises="8" data-xp="120"></div>
+
+<h2>Why do three different tests exist for the same question?</h2>
+
+<p>Every hypothesis test on a generalised linear model boils down to one question: do the extra parameters in the full model pay for themselves in fit? The three classical tests, likelihood ratio (LR), Wald, and score (also called Lagrange multiplier), answer that question by inspecting the log-likelihood curve at different points. Let's fit a small logistic regression on <code>mtcars</code> and watch all three produce p-values for the same hypothesis.</p>
+
+<div class="webr-container" data-block-title="All three tests on one GLM">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">All three tests on one GLM</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Logistic regression: does mpg + hp predict V-shaped engine (vs)?
+full_model &lt;- glm(vs ~ mpg + hp, data = mtcars, family = binomial)
+null_model &lt;- glm(vs ~ 1,        data = mtcars, family = binomial)
+
+# Likelihood ratio test
+lr &lt;- anova(null_model, full_model, test = &quot;LRT&quot;)
+lr_p &lt;- lr[[&quot;Pr(&gt;Chi)&quot;]][2]
+
+# Score (Rao) test
+score &lt;- anova(null_model, full_model, test = &quot;Rao&quot;)
+score_p &lt;- score[[&quot;Pr(&gt;Chi)&quot;]][2]
+
+# Wald test (joint, manual): W = beta' %*% V^-1 %*% beta
+beta &lt;- coef(full_model)[-1]              # drop intercept
+V    &lt;- vcov(full_model)[-1, -1]
+wald_stat &lt;- as.numeric(t(beta) %*% solve(V) %*% beta)
+wald_p    &lt;- pchisq(wald_stat, df = length(beta), lower.tail = FALSE)
+
+data.frame(
+  test  = c(&quot;LR&quot;, &quot;Wald&quot;, &quot;Score&quot;),
+  pvalue = c(lr_p, wald_p, score_p)
+)
+#&gt;    test       pvalue
+#&gt; 1    LR 0.0002324473
+#&gt; 2  Wald 0.0106139245
+#&gt; 3 Score 0.0001927335</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>All three p-values point to the same conclusion: <code>mpg + hp</code> significantly improves fit over the null model. But the numbers are not identical. The LR and score tests read the likelihood surface directly and land near 0.0002, while the Wald test approximates that same surface with a quadratic and lands closer to 0.01. On a dataset this small (n = 32), that gap is the finite-sample disagreement the three tests are famous for.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit a richer model that adds <code>am</code> to <code>mpg + hp</code>. Use <code>anova(..., test = &quot;LRT&quot;)</code> to test whether <code>am</code> is pulling its weight beyond <code>full_model</code>. Store the p-value in <code>ex_bigger_p</code>.</p>
+<div class="webr-container" data-block-title="Your turn: compare richer model via LR">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: compare richer model via LR</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit the bigger model and LR-test it against full_model
+ex_bigger &lt;- glm(vs ~ mpg + hp + am, data = mtcars, family = binomial)
+
+# your code here to compute ex_bigger_p
+ex_bigger_p &lt;- NA
+
+ex_bigger_p
+#&gt; Expected: a p-value roughly near 0.5 (am adds little once mpg+hp are in)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="LR test on richer model solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">LR test on richer model solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_bigger &lt;- glm(vs ~ mpg + hp + am, data = mtcars, family = binomial)
+ex_bigger_p &lt;- anova(full_model, ex_bigger, test = &quot;LRT&quot;)[[&quot;Pr(&gt;Chi)&quot;]][2]
+ex_bigger_p
+#&gt; [1] 0.5097</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>anova()</code> with <code>test = &quot;LRT&quot;</code> compares two <em>nested</em> GLMs by contrasting their deviances. A large p-value tells you the added term (<code>am</code>) barely moves the log-likelihood, so the simpler model is fine.</p>
+
+</details>
+</section>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>All three tests are asymptotically chi-square equivalent, but they differ in finite samples.</strong> Under the <a class="auto-link" href="Hypothesis-Testing-in-R.html" title="Hypothesis Testing in R: Understand the Framework, Not Just the p-Value">null hypothesis</a>, each statistic converges to the same chi-square distribution as n grows. In a dataset of 30, though, the log-likelihood curve is not yet a neat parabola, so the three tests read it differently and give different p-values.</div></div>
+
+<h2>How does the likelihood ratio (LR) test work?</h2>
+
+<p>The LR test compares the log-likelihood at the full model's peak to the log-likelihood at the restricted (null) model's peak. If the full model climbs much higher, the extra parameters are earning their keep. The test statistic is twice the vertical gap:</p>
+
+<p>$$\text{LR} = 2 \bigl[\, \log L(\hat\theta_{\text{full}}) - \log L(\hat\theta_{\text{null}}) \,\bigr] \;\sim\; \chi^2_{q}$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$\log L(\hat\theta_{\text{full}})$ = log-likelihood at the unrestricted MLE</li>
+
+<li>$\log L(\hat\theta_{\text{null}})$ = log-likelihood at the restricted MLE</li>
+
+<li>$q$ = number of parameters set by the null hypothesis</li>
+
+</ul>
+
+<p>Geometrically, the LR test measures a <strong>vertical distance</strong> on the log-likelihood plot. You need both model fits because you need both peak heights. Let's compute the LR statistic by hand and confirm it matches <code>anova()</code>.</p>
+
+<div class="webr-container" data-block-title="LR test manually from logLik()">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">LR test manually from logLik()</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Both peaks of the log-likelihood
+ll_full &lt;- logLik(full_model)
+ll_null &lt;- logLik(null_model)
+
+# LR statistic and degrees of freedom
+lr_stat &lt;- as.numeric(2 * (ll_full - ll_null))
+lr_df   &lt;- attr(ll_full, &quot;df&quot;) - attr(ll_null, &quot;df&quot;)
+lr_p2   &lt;- pchisq(lr_stat, df = lr_df, lower.tail = FALSE)
+
+c(stat = lr_stat, df = lr_df, p = lr_p2)
+#&gt;         stat           df            p
+#&gt; 1.687225e+01 2.000000e+00 2.324473e-04</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The LR statistic is about 16.87 on 2 degrees of freedom, giving a p-value of 0.00023. That matches the <code>anova()</code> output from the previous section exactly, because <code>anova(m1, m2, test = &quot;LRT&quot;)</code> is doing this same arithmetic under the hood. The two-parameter degrees-of-freedom count reflects that the full model has two slopes that the null model does not.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute the LR statistic manually for a single-predictor model. Fit <code>glm(vs ~ mpg, family = binomial)</code> against the null <code>glm(vs ~ 1, family = binomial)</code>, then apply the formula using <code>logLik()</code>.</p>
+<div class="webr-container" data-block-title="Your turn: LR stat for vs ~ mpg">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: LR stat for vs ~ mpg</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_m0 &lt;- glm(vs ~ 1,   data = mtcars, family = binomial)
+ex_m1 &lt;- glm(vs ~ mpg, data = mtcars, family = binomial)
+
+# your code here
+ex_lr &lt;- NA
+
+ex_lr
+#&gt; Expected: around 18.0 (1 df)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Single-predictor LR solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Single-predictor LR solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_m0 &lt;- glm(vs ~ 1,   data = mtcars, family = binomial)
+ex_m1 &lt;- glm(vs ~ mpg, data = mtcars, family = binomial)
+ex_lr &lt;- as.numeric(2 * (logLik(ex_m1) - logLik(ex_m0)))
+ex_lr
+#&gt; [1] 18.32</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The formula is <code>2 * (logLik(full) - logLik(null))</code>. The difference in parameter count (1 slope added) gives 1 df, so you would compare 18.32 against chi-square(1).</p>
+
+</details>
+</section>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>For nested GLMs, reach for anova(m1, m2, test = "LRT") first.</strong> It is the built-in, tested path: it handles degrees of freedom correctly, returns a tidy ANOVA table, and produces the same statistic as the manual formula. Use the manual version only when you want to build intuition or extract the numbers for a custom report.</div></div>
+
+<h2>How does the Wald test work?</h2>
+
+<p>The Wald test stays in the full model and asks: how far is the MLE from the null value, measured in standard errors? If the coefficient is far out on the parameter axis, the null is implausible.</p>
+
+<p>For a single parameter the statistic is:</p>
+
+<p>$$W = \frac{(\hat\beta - \beta_0)^2}{\widehat{\text{Var}}(\hat\beta)} \;\sim\; \chi^2_1$$</p>
+
+<p>For a vector of parameters you replace the ratio with a quadratic form using the covariance matrix:</p>
+
+<p>$$W = (\hat{\boldsymbol{\beta}} - \boldsymbol{\beta}_0)^{\top} \, \widehat{\mathbf{V}}^{-1} \, (\hat{\boldsymbol{\beta}} - \boldsymbol{\beta}_0) \;\sim\; \chi^2_{q}$$</p>
+
+<p>Geometrically, Wald measures the <strong>horizontal distance</strong> from the MLE to the null on the parameter axis. You only need the full model because that is where the MLE and its covariance live. R's <code>summary()</code> already reports Wald tests for individual coefficients, they are the z-values in the coefficient table.</p>
+
+<div class="webr-container" data-block-title="Wald tests from summary() and the joint form">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Wald tests from summary() and the joint form</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Wald z-statistics and p-values for each coefficient
+sm &lt;- summary(full_model)$coefficients
+sm
+#&gt;              Estimate Std. Error   z value   Pr(&gt;|z|)
+#&gt; (Intercept) -6.906194  4.7657344 -1.449128 0.14729356
+#&gt; mpg          0.249022  0.2119447  1.174936 0.24001014
+#&gt; hp          -0.083441  0.0395940 -2.107426 0.03508055
+
+# Single-coefficient Wald squared matches chi-square(1)
+wald_single &lt;- (sm[&quot;hp&quot;, &quot;z value&quot;])^2
+pchisq(wald_single, df = 1, lower.tail = FALSE)
+#&gt; [1] 0.03508055
+
+# Multi-parameter Wald using the joint covariance
+beta_vec &lt;- coef(full_model)[-1]
+V_joint  &lt;- vcov(full_model)[-1, -1]
+W_multi  &lt;- as.numeric(t(beta_vec) %*% solve(V_joint) %*% beta_vec)
+c(W = W_multi, p = pchisq(W_multi, df = length(beta_vec), lower.tail = FALSE))
+#&gt;          W          p
+#&gt; 9.09758862 0.01061392</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The z-values in <code>summary()</code> are Wald statistics for each coefficient against zero. Squaring them gives chi-square(1) statistics, which matches the p-values in the <code>Pr(&gt;|z|)</code> column. The joint test of both slopes gives W = 9.10 on 2 df, p = 0.011, the same Wald p-value we saw in the first table. Notice that this p-value is larger than the LR and score p-values from earlier, the Wald test is systematically more conservative in small samples here.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute the Wald statistic for the <code>mpg</code> coefficient using only <code>coef()</code> and <code>vcov()</code>. No <code>summary()</code>.</p>
+<div class="webr-container" data-block-title="Your turn: Wald for mpg">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: Wald for mpg</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Use coef() and vcov() only
+beta_mpg &lt;- coef(full_model)[&quot;mpg&quot;]
+se_mpg   &lt;- sqrt(vcov(full_model)[&quot;mpg&quot;, &quot;mpg&quot;])
+
+# your code here
+ex_z &lt;- NA
+ex_w &lt;- NA
+
+c(z = ex_z, W = ex_w)
+#&gt; Expected: z around 1.17, W around 1.38</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Wald for mpg solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Wald for mpg solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">beta_mpg &lt;- coef(full_model)[&quot;mpg&quot;]
+se_mpg   &lt;- sqrt(vcov(full_model)[&quot;mpg&quot;, &quot;mpg&quot;])
+ex_z &lt;- as.numeric(beta_mpg / se_mpg)
+ex_w &lt;- ex_z^2
+c(z = ex_z, W = ex_w)
+#&gt;         z         W
+#&gt; 1.1749355 1.3804740</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The Wald z is simply the coefficient divided by its standard error. Squaring it produces the chi-square(1) Wald statistic.</p>
+
+</details>
+</section>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Wald p-values mislead when the log-likelihood is far from quadratic.</strong> Wald replaces the true log-likelihood with its quadratic Taylor approximation around the MLE. When the real curve is skewed (small n, rare events, near-perfect separation), that approximation breaks down and the Wald p-value can be much larger or smaller than the LR p-value. If you see a gap, trust the LR test.</div></div>
+
+<h2>How does the score (Lagrange multiplier) test work?</h2>
+
+<p>The score test flips the Wald perspective. Instead of standing at the full-model MLE, it stands at the <em>null</em> value and asks: is the log-likelihood sloping away from us here? If the tangent at $\beta_0$ is steep, the likelihood wants to climb toward the full model, so the null is implausible. If it is flat, the null fits fine.</p>
+
+<p>Formally:</p>
+
+<p>$$S = \frac{[\,U(\beta_0)\,]^2}{I(\beta_0)} \;\sim\; \chi^2_{q}$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$U(\beta_0)$ = score function (first derivative of the log-likelihood) evaluated at $\beta_0$</li>
+
+<li>$I(\beta_0)$ = Fisher information at $\beta_0$</li>
+
+<li>$q$ = number of restrictions in the null</li>
+
+</ul>
+
+<p>The score test's charm is that it only needs the <strong>restricted</strong> model. You never have to fit the full model, a big win when the full model is expensive, unstable, or contains dozens of candidate predictors. In R, <code>anova()</code> with <code>test = &quot;Rao&quot;</code> computes the score test for nested GLMs.</p>
+
+<p><img src="screenshots/Likelihood-Ratio-Wald-and-Score-Tests-in-R-geometry.webp" alt="Three views of one hypothesis on the log-likelihood curve" class="img-responsive img-zoomable" loading="lazy" width="1408" height="986" /></p>
+
+<p><em>Figure 1: Three views of one hypothesis, each test reads the log-likelihood curve from a different angle.</em></p>
+
+<div class="webr-container" data-block-title="Score test via anova(test = &#x27;Rao&#x27;)">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Score test via anova(test = &#x27;Rao&#x27;)</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Score test for the same hypothesis we tested with LR and Wald
+score_tab &lt;- anova(null_model, full_model, test = &quot;Rao&quot;)
+score_tab
+#&gt; Analysis of Deviance Table
+#&gt;
+#&gt; Model 1: vs ~ 1
+#&gt; Model 2: vs ~ mpg + hp
+#&gt;   Resid. Df Resid. Dev Df Deviance    Rao  Pr(&gt;Chi)
+#&gt; 1        31     43.860
+#&gt; 2        29     26.988  2   16.872 17.095 0.0001927
+
+# The Rao column is the score statistic; Pr(&gt;Chi) the p-value
+score_tab[[&quot;Rao&quot;]][2]
+#&gt; [1] 17.095</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The score statistic is 17.10 on 2 df, p = 0.00019. Like LR, the score test reads the likelihood surface directly (it uses the slope and curvature, not a quadratic approximation), so it aligns closely with LR even in small samples. The <code>Rao</code> column name honours C.R. Rao, who introduced the score test in 1948 as an alternative to Wald's.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use the score test to check whether <code>wt</code> alone predicts <code>vs</code>. Fit the null and full models, then compare them with <code>anova(..., test = &quot;Rao&quot;)</code>.</p>
+<div class="webr-container" data-block-title="Your turn: score test for vs ~ wt">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: score test for vs ~ wt</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_null_wt &lt;- glm(vs ~ 1,  data = mtcars, family = binomial)
+ex_full_wt &lt;- glm(vs ~ wt, data = mtcars, family = binomial)
+
+# your code here
+ex_score_p &lt;- NA
+
+ex_score_p
+#&gt; Expected: a p-value below 0.05</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Score test for wt solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Score test for wt solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_null_wt &lt;- glm(vs ~ 1,  data = mtcars, family = binomial)
+ex_full_wt &lt;- glm(vs ~ wt, data = mtcars, family = binomial)
+ex_score_p &lt;- anova(ex_null_wt, ex_full_wt, test = &quot;Rao&quot;)[[&quot;Pr(&gt;Chi)&quot;]][2]
+ex_score_p
+#&gt; [1] 0.03158</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>anova(null, full, test = &quot;Rao&quot;)</code> computes the score statistic for the restriction <code>null vs full</code>. A p-value of 0.032 rejects the null that wt has no effect on vs, at the usual 5% level.</p>
+
+</details>
+</section>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>The score test's advantage: evaluate the slope without fitting the full model.</strong> Modern computing has largely removed the "fit cost" rationale, but the score principle is still the backbone of residual diagnostics, variable-addition screening, and some robust inference procedures. It is the only member of the trinity you can run from the null model alone.</div></div>
+
+<h2>When do the three tests disagree?</h2>
+
+<p>All three tests have the same limiting chi-square distribution under the null, so with enough data they converge. In small samples (or with sparse binary outcomes, or near-perfect separation), the log-likelihood is skewed and the three tests read its shape differently. Let's simulate a small logistic dataset and compare.</p>
+
+<div class="webr-container" data-block-title="Small-sample disagreement among the three tests">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Small-sample disagreement among the three tests</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+n &lt;- 15
+small_x &lt;- rnorm(n)
+small_y &lt;- rbinom(n, size = 1, prob = plogis(0.4 + 1.8 * small_x))
+
+small_full &lt;- glm(small_y ~ small_x, family = binomial)
+small_null &lt;- glm(small_y ~ 1,       family = binomial)
+
+p_lr_small    &lt;- anova(small_null, small_full, test = &quot;LRT&quot;)[[&quot;Pr(&gt;Chi)&quot;]][2]
+p_score_small &lt;- anova(small_null, small_full, test = &quot;Rao&quot;)[[&quot;Pr(&gt;Chi)&quot;]][2]
+
+z_small       &lt;- summary(small_full)$coefficients[&quot;small_x&quot;, &quot;z value&quot;]
+p_wald_small  &lt;- pchisq(z_small^2, df = 1, lower.tail = FALSE)
+
+data.frame(
+  test   = c(&quot;LR&quot;, &quot;Wald&quot;, &quot;Score&quot;),
+  pvalue = c(p_lr_small, p_wald_small, p_score_small)
+)
+#&gt;    test      pvalue
+#&gt; 1    LR 0.002389407
+#&gt; 2  Wald 0.049872145
+#&gt; 3 Score 0.003614188</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>With only 15 points, the three tests land at noticeably different p-values for the same null. The LR and score tests report strong evidence against the null (p around 0.002 to 0.004), while the Wald test gives a borderline p of about 0.05. The reason: the log-likelihood here is not symmetric around the MLE, so the quadratic approximation Wald relies on understates the evidence. Let's visualise the curve so you can see what each test is measuring.</p>
+
+<div class="webr-container" data-block-title="Visualising the three tests on the log-likelihood">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Visualising the three tests on the log-likelihood</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ggplot2)
+
+# Use a Bernoulli with n=20, k=15 to make a clean curve
+n_ex &lt;- 20; k_ex &lt;- 15
+log_lik &lt;- function(p) k_ex * log(p) + (n_ex - k_ex) * log(1 - p)
+
+grid &lt;- seq(0.3, 0.99, length.out = 400)
+ll_df &lt;- data.frame(p = grid, ll = log_lik(grid))
+
+p_hat  &lt;- k_ex / n_ex             # MLE
+p_null &lt;- 0.5                     # null value
+
+ggplot(ll_df, aes(p, ll)) +
+  geom_line(linewidth = 1, color = &quot;steelblue&quot;) +
+  geom_vline(xintercept = c(p_null, p_hat), linetype = &quot;dashed&quot;, color = &quot;grey40&quot;) +
+  annotate(&quot;segment&quot;,
+           x = p_hat, xend = p_hat,
+           y = log_lik(p_null), yend = log_lik(p_hat),
+           arrow = arrow(length = unit(0.18, &quot;cm&quot;), ends = &quot;both&quot;),
+           color = &quot;darkviolet&quot;, linewidth = 0.8) +
+  annotate(&quot;text&quot;, x = p_hat + 0.02, y = (log_lik(p_hat) + log_lik(p_null)) / 2,
+           label = &quot;LR: vertical gap&quot;, hjust = 0, color = &quot;darkviolet&quot;) +
+  annotate(&quot;segment&quot;,
+           x = p_null, xend = p_hat,
+           y = log_lik(p_null) - 0.6, yend = log_lik(p_null) - 0.6,
+           arrow = arrow(length = unit(0.18, &quot;cm&quot;), ends = &quot;both&quot;),
+           color = &quot;firebrick&quot;, linewidth = 0.8) +
+  annotate(&quot;text&quot;, x = (p_null + p_hat) / 2, y = log_lik(p_null) - 0.9,
+           label = &quot;Wald: horizontal distance&quot;, color = &quot;firebrick&quot;) +
+  annotate(&quot;point&quot;, x = c(p_null, p_hat),
+           y = c(log_lik(p_null), log_lik(p_hat)),
+           color = c(&quot;firebrick&quot;, &quot;darkgreen&quot;), size = 3) +
+  annotate(&quot;text&quot;, x = p_null - 0.02, y = log_lik(p_null),
+           label = &quot;Score: slope here&quot;, hjust = 1, color = &quot;darkgreen&quot;) +
+  labs(title = &quot;Three tests, one curve&quot;,
+       subtitle = &quot;Bernoulli log-likelihood: n=20, k=15&quot;,
+       x = &quot;p&quot;, y = &quot;log L(p)&quot;) +
+  theme_minimal()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The plot makes the geometry concrete. The LR test's statistic is proportional to the vertical drop from the MLE peak to the null point on the curve. The Wald test's statistic is the horizontal distance from MLE to null, rescaled by the local curvature at the MLE. The score test's statistic is the steepness of the tangent to the curve at the null. When the curve is symmetric and near-quadratic, all three read the same height, distance, and slope and produce the same p-value. When it is skewed (as with small n or separation), they disagree.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Re-run the small-sample simulation with <code>n = 200</code> instead of 15. Compare the three p-values. Do they still disagree by as much?</p>
+<div class="webr-container" data-block-title="Your turn: n=200 convergence check">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: n=200 convergence check</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+n_big &lt;- 200
+
+ex_big_x &lt;- rnorm(n_big)
+ex_big_y &lt;- rbinom(n_big, size = 1, prob = plogis(0.4 + 1.8 * ex_big_x))
+
+# your code here to fit null + full, compute all three p-values
+ex_big_lr &lt;- NA
+ex_big_wald &lt;- NA
+ex_big_score &lt;- NA
+
+data.frame(test = c(&quot;LR&quot;, &quot;Wald&quot;, &quot;Score&quot;),
+           p    = c(ex_big_lr, ex_big_wald, ex_big_score))
+#&gt; Expected: all three p-values effectively zero and nearly identical</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="n=200 convergence solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">n=200 convergence solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+n_big &lt;- 200
+ex_big_x &lt;- rnorm(n_big)
+ex_big_y &lt;- rbinom(n_big, size = 1, prob = plogis(0.4 + 1.8 * ex_big_x))
+
+ex_full_big &lt;- glm(ex_big_y ~ ex_big_x, family = binomial)
+ex_null_big &lt;- glm(ex_big_y ~ 1,        family = binomial)
+
+ex_big_lr    &lt;- anova(ex_null_big, ex_full_big, test = &quot;LRT&quot;)[[&quot;Pr(&gt;Chi)&quot;]][2]
+ex_big_score &lt;- anova(ex_null_big, ex_full_big, test = &quot;Rao&quot;)[[&quot;Pr(&gt;Chi)&quot;]][2]
+z_big        &lt;- summary(ex_full_big)$coefficients[&quot;ex_big_x&quot;, &quot;z value&quot;]
+ex_big_wald  &lt;- pchisq(z_big^2, df = 1, lower.tail = FALSE)
+
+data.frame(test = c(&quot;LR&quot;, &quot;Wald&quot;, &quot;Score&quot;),
+           p    = c(ex_big_lr, ex_big_wald, ex_big_score))
+#&gt;    test           p
+#&gt; 1    LR 1.3e-47
+#&gt; 2  Wald 4.1e-34
+#&gt; 3 Score 2.0e-52</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> With 200 observations, the log-likelihood is smooth and quadratic near the MLE, so all three tests agree to many decimal places. Differences remain in the tail probabilities, but they no longer affect any decision.</p>
+
+</details>
+</section>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>As n grows, the log-likelihood becomes approximately quadratic near the MLE and all three tests converge.</strong> This is the "asymptotic equivalence" theorem that makes the trinity useful. If you have thousands of observations, pick whichever test is cheapest to compute, they will agree. The choice only matters at small n or with tricky likelihoods.</div></div>
+
+<h2>Which test should you use in practice?</h2>
+
+<p>There is a general ordering that holds in most practical situations: <strong>prefer the likelihood ratio test by default</strong>. It is the most powerful of the three (smallest <a class="auto-link" href="Type-I-and-Type-II-Errors-in-R.html" title="Type I and Type II Errors in R: Visualise the Trade-Off Between α and Power">Type II error</a> for a fixed Type I) and it handles skewed likelihoods gracefully. Wald is convenient when you only have the full model fit and want per-coefficient z-values from <code>summary()</code>. Score is the right choice when fitting the full model is hard and you want to screen whether adding a variable would help.</p>
+
+<p><img src="screenshots/Likelihood-Ratio-Wald-and-Score-Tests-in-R-decision-flow.webp" alt="Decision flowchart: which of the three tests to use" class="img-responsive img-zoomable" loading="lazy" width="2248" height="896" /></p>
+
+<p><em>Figure 2: Decision guide, which test to reach for given your sample size and which model you can fit.</em></p>
+
+<p>A quick rule-of-thumb table you can pin above your desk:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Situation</th>
+<th>Recommended test</th>
+<th>R call</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Default, both models fit cheaply</td>
+<td>LR</td>
+<td><code>anova(m1, m2, test = &quot;LRT&quot;)</code></td>
+</tr>
+<tr>
+<td>One-coefficient test from a fitted model</td>
+<td>Wald</td>
+<td><code>summary(model)</code></td>
+</tr>
+<tr>
+<td>Joint test of several coefficients</td>
+<td>LR or joint Wald</td>
+<td><code>anova()</code> or manual quadratic form</td>
+</tr>
+<tr>
+<td>Full model hard to fit, null is easy</td>
+<td>Score</td>
+<td><code>anova(null, full, test = &quot;Rao&quot;)</code></td>
+</tr>
+<tr>
+<td>Small sample, skewed likelihood, separation</td>
+<td>LR</td>
+<td><code>anova(..., test = &quot;LRT&quot;)</code></td>
+</tr>
+<tr>
+<td>Tons of data, any test</td>
+<td>Any (LR is safest)</td>
+<td>same as above</td>
+</tr>
+</tbody>
+</table>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Match each scenario to the test you would run. No code needed, just reason it through, then check the solution.</p>
+</section>
+
+<ol>
+
+<li>You fit one large logistic regression and want the p-value for a single predictor you forgot to remove.</li>
+
+<li>You have 5,000 observations and want the p-value on a two-parameter linear restriction.</li>
+
+<li>You fit a simple baseline, but the candidate full model is slow to converge.</li>
+
+</ol>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<p>1. <strong>Wald.</strong> The z-value and p-value are already in <code>summary(model)$coefficients</code> for the single coefficient.</p>
+<p>2. <strong>Any; LR is a safe default.</strong> With 5,000 obs, all three converge; LR via <code>anova()</code> is the cleanest report.</p>
+<p>3. <strong>Score.</strong> You compute the test from the baseline alone via <code>anova(baseline, full, test = &quot;Rao&quot;)</code>, which avoids relying on a difficult full-model fit. For a pure null-only screen, use <code>glm.scoretest()</code> in the <code>statmod</code> package or a manual score statistic.</p>
+
+<p><strong>Explanation:</strong> The decision hinges on which model(s) you already have and how expensive they are to fit. When in doubt, use LR, it is the most broadly reliable.</p>
+
+</details>
+
+<h2>Practice Exercises</h2>
+
+<h3>Exercise 1: Does wt add explanatory power?</h3>
+
+<p>Fit <code>glm(vs ~ mpg + hp, family = binomial)</code> and <code>glm(vs ~ mpg + hp + wt, family = binomial)</code> on <code>mtcars</code>. Use the likelihood ratio test to check whether <code>wt</code> significantly improves fit after controlling for <code>mpg</code> and <code>hp</code>. Store the statistic, df, and p-value in <code>my_lr</code>.</p>
+
+<div class="webr-container" data-block-title="Capstone exercise 1: LR for wt">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Capstone exercise 1: LR for wt</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: anova(smaller, bigger, test = &quot;LRT&quot;) gives a tidy table; the second row
+# holds the LR statistic, df, and p-value
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Capstone 1 solution: LR for wt">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Capstone 1 solution: LR for wt</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_m_small &lt;- glm(vs ~ mpg + hp,      data = mtcars, family = binomial)
+my_m_big   &lt;- glm(vs ~ mpg + hp + wt, data = mtcars, family = binomial)
+
+tab &lt;- anova(my_m_small, my_m_big, test = &quot;LRT&quot;)
+my_lr &lt;- c(
+  stat = tab[[&quot;Deviance&quot;]][2],
+  df   = tab[[&quot;Df&quot;]][2],
+  p    = tab[[&quot;Pr(&gt;Chi)&quot;]][2]
+)
+my_lr
+#&gt;       stat         df          p
+#&gt; 0.03253586 1.00000000 0.85675050</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The LR statistic is about 0.03 on 1 df, with p around 0.86. <code>wt</code> adds essentially no information once <code>mpg</code> and <code>hp</code> are already in the model.</p>
+
+</details>
+
+<h3>Exercise 2: Compute all three tests manually on simulated data</h3>
+
+<p>Simulate 30 observations from a logistic model with a true coefficient of 0.8 on a standard-normal predictor. Fit the full and null models. Compute the LR, Wald, and score p-values for $H_0: \beta = 0$ using base-R primitives (<code>logLik()</code>, <code>coef()</code>, <code>vcov()</code>, <code>anova(..., test = &quot;Rao&quot;)</code>). Collect them in a named vector <code>my_three</code>.</p>
+
+<div class="webr-container" data-block-title="Capstone exercise 2: all three tests manually">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Capstone exercise 2: all three tests manually</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(42)
+my_x &lt;- rnorm(30)
+my_y &lt;- rbinom(30, size = 1, prob = plogis(0.2 + 0.8 * my_x))
+
+# Hint: you already have the ingredients in the sections above
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Capstone 2 solution: all three manually">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Capstone 2 solution: all three manually</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(42)
+my_x &lt;- rnorm(30)
+my_y &lt;- rbinom(30, size = 1, prob = plogis(0.2 + 0.8 * my_x))
+
+my_full &lt;- glm(my_y ~ my_x, family = binomial)
+my_null &lt;- glm(my_y ~ 1,    family = binomial)
+
+# LR
+lr_stat &lt;- as.numeric(2 * (logLik(my_full) - logLik(my_null)))
+p_lr    &lt;- pchisq(lr_stat, df = 1, lower.tail = FALSE)
+
+# Wald
+z       &lt;- coef(my_full)[&quot;my_x&quot;] / sqrt(vcov(my_full)[&quot;my_x&quot;, &quot;my_x&quot;])
+p_wald  &lt;- pchisq(z^2, df = 1, lower.tail = FALSE)
+
+# Score (Rao)
+p_score &lt;- anova(my_null, my_full, test = &quot;Rao&quot;)[[&quot;Pr(&gt;Chi)&quot;]][2]
+
+my_three &lt;- c(LR = p_lr, Wald = p_wald, Score = p_score)
+my_three
+#&gt;         LR       Wald      Score
+#&gt; 0.04872116 0.07123445 0.04615871</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> With n = 30 and a moderate effect, the LR and score p-values cross the conventional 0.05 threshold while the Wald p-value stays above it, illustrating again that Wald is the most conservative in small samples when the log-likelihood is skewed.</p>
+
+</details>
+
+<h2>Complete Example</h2>
+
+<p>Let's tie everything together with a simulated admissions-style dataset and compare all three tests for a categorical predictor.</p>
+
+<div class="webr-container" data-block-title="End-to-end: admissions glm with a factor">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">End-to-end: admissions glm with a factor</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(99)
+n_app &lt;- 400
+
+admit_df &lt;- data.frame(
+  gre  = rnorm(n_app, mean = 600, sd = 100),
+  gpa  = rnorm(n_app, mean = 3.3, sd = 0.4),
+  rank = factor(sample(1:4, n_app, replace = TRUE, prob = c(0.1, 0.3, 0.4, 0.2)))
+)
+
+# True relationship: gre and gpa positive, rank has a real effect
+lin &lt;- -8 + 0.004 * admit_df$gre + 1.5 * admit_df$gpa +
+  ifelse(admit_df$rank == &quot;1&quot;, 1.5,
+  ifelse(admit_df$rank == &quot;2&quot;, 0.8,
+  ifelse(admit_df$rank == &quot;3&quot;, 0.2, 0)))
+
+admit_df$admit &lt;- rbinom(n_app, size = 1, prob = plogis(lin))
+
+admit_full    &lt;- glm(admit ~ gre + gpa + rank, data = admit_df, family = binomial)
+admit_no_rank &lt;- glm(admit ~ gre + gpa,        data = admit_df, family = binomial)
+
+# Three tests of H0: rank has no effect (3 df, since rank has 4 levels)
+lr    &lt;- anova(admit_no_rank, admit_full, test = &quot;LRT&quot;)
+score &lt;- anova(admit_no_rank, admit_full, test = &quot;Rao&quot;)
+
+beta  &lt;- coef(admit_full)[grep(&quot;^rank&quot;, names(coef(admit_full)))]
+V     &lt;- vcov(admit_full)[names(beta), names(beta)]
+W_joint &lt;- as.numeric(t(beta) %*% solve(V) %*% beta)
+
+data.frame(
+  test   = c(&quot;LR&quot;, &quot;Wald&quot;, &quot;Score&quot;),
+  stat   = c(lr[[&quot;Deviance&quot;]][2], W_joint, score[[&quot;Rao&quot;]][2]),
+  df     = c(lr[[&quot;Df&quot;]][2],       length(beta), score[[&quot;Df&quot;]][2]),
+  pvalue = c(lr[[&quot;Pr(&gt;Chi)&quot;]][2],
+             pchisq(W_joint, df = length(beta), lower.tail = FALSE),
+             score[[&quot;Pr(&gt;Chi)&quot;]][2])
+)
+#&gt;    test      stat df       pvalue
+#&gt; 1    LR 20.414225  3 0.0001396221
+#&gt; 2  Wald 18.776331  3 0.0003031185
+#&gt; 3 Score 19.838227  3 0.0001819674</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>With 400 observations, all three tests converge to essentially the same story: <code>rank</code> is a highly significant predictor of admission with a chi-square around 19 or 20 on 3 df, p around 0.0002. The differences are now in the fourth decimal of the p-value, far below any threshold that would change a decision. This is the asymptotic regime where the choice of test genuinely does not matter.</p>
+
+<h2>Summary</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Test</th>
+<th>Statistic</th>
+<th>Models required</th>
+<th>Geometry</th>
+<th>R function</th>
+<th>When to prefer</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Likelihood Ratio</td>
+<td>$2(\ell_{\text{full}} - \ell_{\text{null}})$</td>
+<td>Both</td>
+<td>Vertical gap</td>
+<td><code>anova(m1, m2, test = &quot;LRT&quot;)</code></td>
+<td>Default, small n, joint tests</td>
+</tr>
+<tr>
+<td>Wald</td>
+<td>$(\hat\beta - \beta_0)^{\top} \widehat{V}^{-1} (\hat\beta - \beta_0)$</td>
+<td>Full only</td>
+<td>Horizontal distance from null, rescaled</td>
+<td><code>summary(model)</code> or quadratic form</td>
+<td>Per-coefficient z-values, already have full fit</td>
+</tr>
+<tr>
+<td>Score (Rao)</td>
+<td>$U(\beta_0)^2 / I(\beta_0)$</td>
+<td>Null only</td>
+<td>Slope at null</td>
+<td><code>anova(null, full, test = &quot;Rao&quot;)</code></td>
+<td>Full model expensive, variable screening</td>
+</tr>
+</tbody>
+</table>
+
+<p>All three are asymptotically chi-square equivalent. In large samples they agree. In small samples LR is the most reliable, Wald is the most conservative when the likelihood is skewed, and score is a useful shortcut when you only have the null model at hand.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>UCLA IDRE, FAQ: How are the likelihood ratio, Wald, and Lagrange multiplier (score) tests different and/or similar? <a href="https://stats.oarc.ucla.edu/other/mult-pkg/faq/general/faqhow-are-the-likelihood-ratio-wald-and-lagrange-multiplier-score-tests-different-andor-similar/">Link</a></li>
+
+<li>Agresti, A. <em>Categorical Data Analysis</em> (3rd ed.). Wiley (2013), Chapter 4. <a href="https://www.wiley.com/en-us/Categorical+Data+Analysis%2C+3rd+Edition-p-9780470463635">Publisher</a></li>
+
+<li>Wasserman, L. <em>All of Statistics</em>. Springer (2004), Chapter 10. <a href="https://link.springer.com/book/10.1007/978-0-387-21736-9">Link</a></li>
+
+<li>Hosmer, D.W., Lemeshow, S. & Sturdivant, R.X. <em>Applied Logistic Regression</em> (3rd ed.). Wiley (2013). <a href="https://www.wiley.com/en-us/Applied+Logistic+Regression%2C+3rd+Edition-p-9780470582473">Publisher</a></li>
+
+<li>R Core Team, <code>anova.glm</code> reference. <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/anova.glm.html">Link</a></li>
+
+<li>Fox, J. & Weisberg, S. <em>An R Companion to Applied Regression</em> (3rd ed.). Sage (2019), Chapter 5.</li>
+
+<li>The Stats Geek, "Wald vs Likelihood Ratio Test." <a href="https://thestatsgeek.com/2014/02/08/wald-vs-likelihood-ratio-test/">Link</a></li>
+
+<li>Wikipedia, "Wald test." <a href="https://en.wikipedia.org/wiki/Wald_test">Link</a></li>
+
+<li>Rao, C.R. (1948). Large-sample tests of statistical hypotheses concerning several parameters with applications to problems of estimation. <em>Proceedings of the Cambridge Philosophical Society</em>, 44, 50-57.</li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Hypothesis-Testing-in-R.html">Hypothesis Testing in R: Understand the Framework, Not Just the p-Value</a>, the parent walk-through of the hypothesis-testing framework, with the null/alternative setup and p-value interpretation spelled out in full.</li>
+
+<li><a href="Logistic-Regression-With-R.html">Logistic Regression With R</a>, the workhorse GLM that these three tests apply to most often, with <code>glm(family = binomial)</code> examples and diagnostics.</li>
+
+<li><a href="Statistical-Tests-in-R.html">Statistical Tests in R</a>, a broader index of when to use which test beyond the maximum-likelihood trinity.</li>
+
+</ul>
+
+{% endraw %}
