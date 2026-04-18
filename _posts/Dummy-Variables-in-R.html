@@ -1,0 +1,789 @@
+---
+title: "Dummy Variables in R: What lm() Does With Factor Predictors Under the Hood"
+description: "R automatically creates dummy variables for factors in lm(). Learn how the reference category, coefficient interpretation, and interactions really work."
+keywords: "dummy variables R, lm factor predictors, categorical variables regression, treatment contrasts R, relevel R, reference level lm, model.matrix R, dummy coding R"
+mathjax: false
+webr: true
+curriculum_id: "2.3.5"
+post_type: "C"
+auto_link_terms: "dummy variables in R|dummy coding|reference category|treatment contrasts|factor predictors|reference level in lm|contrast coding in R"
+auto_link_case_sensitive: false
+sidebar_section: "Statistics"
+sidebar_title: "Dummy Variables in R"
+sidebar_order: "49"
+---
+<!-- md2html:generated -->
+
+<h1>Dummy Variables in R: What lm() Does With Factor Predictors Under the Hood</h1>
+
+<p class="lead">Dummy variables in R are the 0/1 columns that <code>lm()</code> builds automatically whenever you pass a factor as a predictor. Every factor with <code>k</code> levels becomes <code>k - 1</code> dummy columns, and R picks the first level alphabetically as the reference the other coefficients are measured against.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="30" data-exercises="9" data-xp="135"></div>
+
+<h2>What happens when you put a factor in lm()?</h2>
+
+<p>Let's skip the theory for a minute and just fit a model. The <code>iris</code> dataset has a <code>Species</code> factor with three levels: setosa, versicolor, and virginica. We will regress <code>Sepal.Length</code> on <code>Species</code> and look at what R prints. The output will show two coefficients with funny names, not three, and that one missing coefficient will tell us everything we need to know about what <code>lm()</code> did behind the scenes.</p>
+
+<div class="webr-container" data-block-title="Fit lm on a factor predictor">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit lm on a factor predictor</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Check that Species is already a factor in iris
+class(iris$Species)
+#&gt; [1] &quot;factor&quot;
+
+levels(iris$Species)
+#&gt; [1] &quot;setosa&quot;     &quot;versicolor&quot; &quot;virginica&quot;
+
+# Fit the model
+fit1 &lt;- lm(Sepal.Length ~ Species, data = iris)
+coef(fit1)
+#&gt;       (Intercept) Speciesversicolor  Speciesvirginica 
+#&gt;             5.006             0.930             1.582</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Three species, but only two coefficients show up next to <code>(Intercept)</code>. Where did setosa go? R did not drop it. It absorbed setosa into the intercept and now reports every other level as a difference from it. The value <code>5.006</code> is the mean <code>Sepal.Length</code> for setosa flowers. Add <code>0.930</code> and you get the mean for versicolor. Add <code>1.582</code> and you get the mean for virginica. Three numbers, three species, one intercept plus two dummies, and the arithmetic works out exactly.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>R does not drop the reference level, it hides it inside the intercept.</strong> The "missing" setosa coefficient is not missing at all; the intercept IS the setosa mean. Every other factor coefficient is a signed gap from it.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit the same kind of model but with <code>Sepal.Width</code> on the left side. Then inspect the coefficient names. Which level became the reference, and what are the two dummy columns named?</p>
+<div class="webr-container" data-block-title="Your turn: inspect coefficient labels">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: inspect coefficient labels</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit the model
+ex_fit &lt;- lm(Sepal.Width ~ Species, data = iris)
+
+# Print just the coefficient names
+names(coef(ex_fit))
+#&gt; Expected: &quot;(Intercept)&quot;, &quot;Speciesversicolor&quot;, &quot;Speciesvirginica&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Coefficient labels solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Coefficient labels solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_fit &lt;- lm(Sepal.Width ~ Species, data = iris)
+names(coef(ex_fit))
+#&gt; [1] &quot;(Intercept)&quot;       &quot;Speciesversicolor&quot; &quot;Speciesvirginica&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Setosa is the reference because it is alphabetically first in <code>levels(iris$Species)</code>. R names every dummy column by pasting the factor name to the level name, which is why you see <code>Speciesversicolor</code> rather than a plain <code>versicolor</code>.</p>
+
+</details>
+</section>
+
+<h2>How does R build the dummy variable matrix?</h2>
+
+<p>The coefficients in the previous block came from somewhere. Specifically, they came from R quietly turning the <code>Species</code> factor into numeric columns before handing them to the least-squares engine. That hidden set of columns is called the design matrix, and you can see it with <code>model.matrix()</code>. Looking at it is the single fastest way to stop treating factor handling as magic.</p>
+
+<div class="webr-container" data-block-title="Inspect the design matrix">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Inspect the design matrix</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Look at the design matrix for three representative rows
+# Row 1 is setosa, row 51 is versicolor, row 101 is virginica
+mm &lt;- model.matrix(~ Species, data = iris)
+mm[c(1, 51, 101), ]
+#&gt;     (Intercept) Speciesversicolor Speciesvirginica
+#&gt; 1             1                 0                0
+#&gt; 51            1                 1                0
+#&gt; 101           1                 0                1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the rows one at a time. Row 1 is a setosa flower: the intercept column is 1 (always), and both dummy columns are 0. Row 51 is versicolor: intercept 1, versicolor dummy 1, virginica dummy 0. Row 101 is virginica: intercept 1, versicolor dummy 0, virginica dummy 1. Setosa has no dedicated column because "both dummies zero" is how R flags it. This is why a three-level factor produces two dummy columns, not three.</p>
+
+<p><img src="screenshots/Dummy-Variables-in-R-factor-to-dummies.webp" alt="How R turns a factor into dummy columns" class="img-responsive img-zoomable" loading="lazy" width="2068" height="986" /></p>
+
+<p><em>Figure 1: R routes a k-level factor through <code>model.matrix()</code> to produce k-1 dummy columns plus the intercept.</em></p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>The dummy count is always nlevels minus one.</strong> A 4-level factor produces 3 dummy columns, a 10-level factor produces 9. Using all k levels would make the dummy columns sum to the intercept column, which is perfect collinearity, and <code>lm()</code> would drop one anyway.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Call <code>model.matrix()</code> on just the last three rows of <code>iris</code> and confirm the dummy values match your expectation. The last three rows are all virginica.</p>
+<div class="webr-container" data-block-title="Your turn: predict the dummy values">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: predict the dummy values</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Build the design matrix on rows 148 through 150
+ex_mm &lt;- model.matrix(~ Species, data = iris[148:150, ])
+
+# Your task: before running, predict what the dummy columns contain
+# Then run and verify
+ex_mm
+#&gt; Expected: (Intercept)=1, Speciesversicolor=0, Speciesvirginica=1 for all three rows</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Last-three-rows design matrix solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Last-three-rows design matrix solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_mm &lt;- model.matrix(~ Species, data = iris[148:150, ])
+ex_mm
+#&gt;     (Intercept) Speciesversicolor Speciesvirginica
+#&gt; 148           1                 0                1
+#&gt; 149           1                 0                1
+#&gt; 150           1                 0                1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> All three rows are virginica, so the <code>Speciesvirginica</code> column is 1 and <code>Speciesversicolor</code> is 0 for every row. The intercept column is always 1.</p>
+
+</details>
+</section>
+
+<h2>How do you interpret the coefficients of a factor?</h2>
+
+<p>The plain English reading is this: the intercept is the mean of the response variable in the reference group, and each dummy coefficient is the mean in that level minus the reference mean. You do not have to trust this interpretation; you can verify it by computing the group means and comparing them to <code>coef(fit1)</code> line by line.</p>
+
+<div class="webr-container" data-block-title="Verify coefficients against group means">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Verify coefficients against group means</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Compute the mean Sepal.Length for each species
+species_means &lt;- aggregate(Sepal.Length ~ Species, data = iris, mean)
+species_means
+#&gt;      Species Sepal.Length
+#&gt; 1     setosa        5.006
+#&gt; 2 versicolor        5.936
+#&gt; 3  virginica        6.588
+
+# Compare to fit1 coefficients
+coef(fit1)
+#&gt;       (Intercept) Speciesversicolor  Speciesvirginica 
+#&gt;             5.006             0.930             1.582
+
+# Check the arithmetic
+species_means$Sepal.Length[2] - species_means$Sepal.Length[1]
+#&gt; [1] 0.930
+
+species_means$Sepal.Length[3] - species_means$Sepal.Length[1]
+#&gt; [1] 1.582</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The intercept <code>5.006</code> is exactly the setosa mean. The coefficient <code>0.930</code> on <code>Speciesversicolor</code> is the versicolor mean minus the setosa mean. The coefficient <code>1.582</code> on <code>Speciesvirginica</code> is the virginica mean minus the setosa mean. This is not an approximation. It is algebraically what least squares returns when the only predictors are dummy columns.</p>
+
+<p><img src="screenshots/Dummy-Variables-in-R-coefficient-interpretation.webp" alt="Reading lm() coefficients for a factor" class="img-responsive img-zoomable" loading="lazy" width="1564" height="1130" /></p>
+
+<p><em>Figure 2: The intercept captures the reference group mean; each dummy coefficient captures how far a non-reference group sits from it.</em></p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Flip a coefficient's sign by swapping the reference, not by negating.</strong> If a stakeholder wants to see virginica as the baseline, use <code>relevel()</code> instead of rewording or multiplying by -1. The model is the same; only the labels shift.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Suppose a factor model returns an intercept of 12 and two coefficients <code>groupB = 3</code> and <code>groupC = -1</code>. Without running any code, write down the three group means.</p>
+<details>
+<summary>Click to reveal solution</summary>
+
+<p>The three group means are: A = 12 (the reference, equals the intercept), B = 12 + 3 = 15, and C = 12 + (-1) = 11. You add each coefficient to the intercept to recover that group's mean.</p>
+
+</details>
+</section>
+
+<h2>How do you change which level is the reference?</h2>
+
+<p>Alphabetical order is a convenience, not a decision. In <code>iris</code>, setosa happens to be a natural baseline because it is visibly the smallest-flowered species. In other datasets the alphabetical first level is a random category like "AL" for Alabama, which nobody wants to interpret as a baseline. <code>relevel()</code> lets you pick a reference that actually means something.</p>
+
+<div class="webr-container" data-block-title="Change the reference with relevel()">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Change the reference with relevel()</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Copy iris so we do not overwrite the original factor
+iris_rl &lt;- iris
+iris_rl$Species &lt;- relevel(iris_rl$Species, ref = &quot;virginica&quot;)
+
+# Refit using the new reference
+fit_rl &lt;- lm(Sepal.Length ~ Species, data = iris_rl)
+coef(fit_rl)
+#&gt;       (Intercept)    Speciessetosa Speciesversicolor 
+#&gt;             6.588            -1.582            -0.652</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The intercept is now <code>6.588</code>, the virginica mean. Setosa flipped to <code>-1.582</code> because its mean is 1.582 below virginica's. Versicolor is <code>-0.652</code> because its mean is 0.652 below. The model's predictions, residuals, and R-squared are identical to <code>fit1</code>; only the labels changed. You can also use <code>factor()</code> with an explicit <code>levels =</code> argument when you want full control over level order.</p>
+
+<div class="webr-container" data-block-title="Alternative: set level order with factor()">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Alternative: set level order with factor()</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Setting the order of levels also sets the reference (the first level)
+iris_fac &lt;- iris
+iris_fac$Species &lt;- factor(iris_fac$Species,
+                           levels = c(&quot;virginica&quot;, &quot;setosa&quot;, &quot;versicolor&quot;))
+
+fit_fac &lt;- lm(Sepal.Length ~ Species, data = iris_fac)
+coef(fit_fac)
+#&gt;       (Intercept)    Speciessetosa Speciesversicolor 
+#&gt;             6.588            -1.582            -0.652</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both approaches produce the same fit as <code>fit_rl</code>. Use <code>relevel()</code> when you only need to swap the baseline. Use <code>factor(..., levels = ...)</code> when you also want to control how other levels appear in tables and plots.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Reshuffling references changes which p-values test which comparison.</strong> Each dummy coefficient carries its own <a class="auto-link" href="Statistical-Tests-in-R.html" title="Statistical Tests in R">p-value</a> for "is this level significantly different from the reference?" Change the reference and you change what the p-values are testing. Do not keep releveling until you see the stars you want; pick the reference that fits the research question and leave it.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Reset the reference to setosa using <code>relevel()</code> and confirm the coefficients match the original <code>fit1</code> output.</p>
+<div class="webr-container" data-block-title="Your turn: reset reference to setosa">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: reset reference to setosa</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Start from the releveled version
+ex_iris &lt;- iris_rl
+# Reset the reference back to setosa, refit, inspect
+ex_iris$Species &lt;- relevel(ex_iris$Species, ref = &quot;setosa&quot;)
+ex_fit &lt;- lm(Sepal.Length ~ Species, data = ex_iris)
+coef(ex_fit)
+#&gt; Expected: same as fit1: 5.006, 0.930, 1.582</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Reset reference to setosa solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Reset reference to setosa solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_iris &lt;- iris_rl
+ex_iris$Species &lt;- relevel(ex_iris$Species, ref = &quot;setosa&quot;)
+ex_fit &lt;- lm(Sepal.Length ~ Species, data = ex_iris)
+coef(ex_fit)
+#&gt;       (Intercept) Speciesversicolor  Speciesvirginica 
+#&gt;             5.006             0.930             1.582</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>relevel()</code> pushes the named level to the front of <code>levels()</code>. Since the first level is always the reference, setting <code>ref = &quot;setosa&quot;</code> restores the original baseline, and the coefficients match <code>fit1</code> exactly.</p>
+
+</details>
+</section>
+
+<h2>What if you want a coefficient for every level?</h2>
+
+<p>Sometimes the reference-plus-gaps parameterisation is awkward. You just want one coefficient per level, each equal to that level's mean. Dropping the intercept with <code>- 1</code> in the formula does exactly that.</p>
+
+<div class="webr-container" data-block-title="Fit without an intercept">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit without an intercept</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Same data, same factor, but drop the intercept
+fit_noint &lt;- lm(Sepal.Length ~ Species - 1, data = iris)
+coef(fit_noint)
+#&gt;    Speciessetosa Speciesversicolor  Speciesvirginica 
+#&gt;            5.006             5.936             6.588</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now there are three coefficients, one per species, and each equals the species mean that you computed earlier with <code>aggregate()</code>. The model is mathematically the same as <code>fit1</code>: identical predictions, identical residuals, identical residual standard error. What changed is the parameterisation. You are just looking at the same surface from a different angle.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>An intercept-free model reports a different R-squared.</strong> Without an intercept, R² is measured against zero rather than the grand mean, which inflates it. Do not compare <code>summary(fit1)$r.squared</code> with <code>summary(fit_noint)$r.squared</code> and conclude the no-intercept model "fits better", the scales disagree.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Read the three species means directly off the no-intercept coefficient table. Which species has the largest mean <code>Sepal.Length</code>?</p>
+<details>
+<summary>Click to reveal solution</summary>
+
+<p>From <code>coef(fit_noint)</code>: setosa = 5.006, versicolor = 5.936, virginica = 6.588. Virginica has the largest mean. The no-intercept parameterisation lets you read group means straight off the coefficient table without having to add the intercept to each.</p>
+
+</details>
+</section>
+
+<h2>How do factor interactions work in lm()?</h2>
+
+<p>So far each coefficient was a group-mean offset. Interactions add a second dimension: they let a numeric predictor's slope change across factor levels. The way R implements this is unglamorous, it multiplies the dummy columns by the numeric column to produce new interaction columns. Same framework, more columns.</p>
+
+<div class="webr-container" data-block-title="Fit an interaction between factor and numeric">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit an interaction between factor and numeric</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Petal.Width is numeric; Species is a factor
+fit_int &lt;- lm(Sepal.Length ~ Petal.Width * Species, data = iris)
+coef(fit_int)
+#&gt;                   (Intercept)                   Petal.Width 
+#&gt;                        4.7772                        0.9131 
+#&gt;             Speciesversicolor              Speciesvirginica 
+#&gt;                        1.3587                        1.9468 
+#&gt; Petal.Width:Speciesversicolor  Petal.Width:Speciesvirginica 
+#&gt;                       -0.1989                       -0.5580</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The first two coefficients describe the reference species (setosa): intercept <code>4.7772</code> and <code>Petal.Width</code> slope <code>0.9131</code>. The two <code>Species*</code> coefficients shift the intercept for versicolor and virginica. The two <code>Petal.Width:Species*</code> coefficients shift the slope. For versicolor, the fitted equation is <code>(4.7772 + 1.3587) + (0.9131 - 0.1989) * Petal.Width</code>. For virginica it is <code>(4.7772 + 1.9468) + (0.9131 - 0.5580) * Petal.Width</code>. Each species gets its own line.</p>
+
+<div class="webr-container" data-block-title="Inspect the interaction design matrix">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Inspect the interaction design matrix</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># model.matrix() shows the new product columns directly
+mm_int &lt;- model.matrix(~ Petal.Width * Species, data = iris)
+mm_int[c(1, 51, 101), ]
+#&gt;     (Intercept) Petal.Width Speciesversicolor Speciesvirginica
+#&gt; 1             1         0.2                 0                0
+#&gt; 51            1         1.4                 1                0
+#&gt; 101           1         2.5                 0                1
+#&gt;     Petal.Width:Speciesversicolor Petal.Width:Speciesvirginica
+#&gt; 1                             0.0                          0.0
+#&gt; 51                            1.4                          0.0
+#&gt; 101                           0.0                          2.5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The last two columns are Petal.Width multiplied by each dummy. For a setosa row (row 1), both dummies are 0 so both product columns are 0, and the fit reduces to the reference line. For a versicolor row (row 51), only the <code>Speciesversicolor</code> column is 1, so only the versicolor product column carries Petal.Width. For a virginica row, only the virginica product column carries it. Nothing deeper than multiplication is happening.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Factor interactions are just more dummies, generated as dummy column times numeric column.</strong> <code>lm()</code> never learns what a "species" is. It just adds columns to the design matrix and solves for the least-squares coefficients exactly the same way it always does.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Given intercept 4.2, <code>Petal.Width</code> 0.9, <code>Speciesversicolor</code> 1.5, and <code>Petal.Width:Speciesversicolor</code> -0.3, compute the slope of <code>Petal.Width</code> for versicolor specifically.</p>
+<details>
+<summary>Click to reveal solution</summary>
+
+<p>The versicolor slope is the reference slope plus the interaction: <code>0.9 + (-0.3) = 0.6</code>. The intercept for versicolor would be <code>4.2 + 1.5 = 5.7</code>. So the fitted equation for versicolor is <code>Sepal.Length = 5.7 + 0.6 * Petal.Width</code>. Notice that the main-effect <code>Speciesversicolor</code> coefficient of 1.5 only shifts the intercept, it does not affect the slope.</p>
+
+</details>
+</section>
+
+<h2>What contrast schemes exist besides treatment coding?</h2>
+
+<p>Treatment coding is the default in R, and it is what we have been using this whole time. But it is only one of four contrast schemes that ship with base R. Switching schemes does not change how well the model fits; it changes what the coefficients mean. Pick the scheme that answers your research question directly instead of doing arithmetic on coefficients to reverse-engineer the answer.</p>
+
+<div class="webr-container" data-block-title="Inspect the default contrasts">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Inspect the default contrasts</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># The default contrast matrix for a 3-level factor
+contrasts(iris$Species)
+#&gt;            versicolor virginica
+#&gt; setosa              0         0
+#&gt; versicolor          1         0
+#&gt; virginica           0         1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>This is the treatment (dummy) matrix you have been looking at in <code>model.matrix()</code> the whole time. Each non-reference level gets its own column, with a 1 in the row for that level. Now switch to sum coding, which compares each level to the grand mean instead of to a reference.</p>
+
+<div class="webr-container" data-block-title="Switch to sum coding">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Switch to sum coding</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Copy so we do not overwrite
+iris_sum &lt;- iris
+contrasts(iris_sum$Species) &lt;- contr.sum(3)
+
+# Refit with the new contrasts
+fit_sum &lt;- lm(Sepal.Length ~ Species, data = iris_sum)
+coef(fit_sum)
+#&gt; (Intercept)    Species1    Species2 
+#&gt;       5.843      -0.838       0.093
+
+# Compare to the grand mean of Sepal.Length
+mean(iris$Sepal.Length)
+#&gt; [1] 5.843333</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The intercept is now <code>5.843</code>, the grand mean of <code>Sepal.Length</code> across all three species. The coefficients <code>Species1</code> and <code>Species2</code> are deviations of setosa and versicolor from that grand mean; virginica's deviation is implied as the negative sum of the two. The model's predictions and R² are identical to <code>fit1</code>. Only the lens on the coefficients changed.</p>
+
+<p><img src="screenshots/Dummy-Variables-in-R-contrast-decision.webp" alt="Which contrast scheme should you use?" class="img-responsive img-zoomable" loading="lazy" width="2248" height="1048" /></p>
+
+<p><em>Figure 3: A decision flow for picking treatment, sum, polynomial, or Helmert contrasts based on your comparison question.</em></p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Always state the contrast scheme when reporting coefficients.</strong> A coefficient of 0.93 means one thing under treatment coding and something else under sum coding. Papers and dashboards that report coefficients without naming the scheme are hard to audit. Say "treatment coding, reference = setosa" or "sum coding" in your methods section.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Reset <code>iris_sum$Species</code> contrasts to default treatment coding using <code>contr.treatment()</code>, refit the model, and confirm the coefficients match <code>fit1</code>.</p>
+<div class="webr-container" data-block-title="Your turn: reset to treatment contrasts">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: reset to treatment contrasts</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Reset to default treatment coding
+contrasts(iris_sum$Species) &lt;- contr.treatment(levels(iris_sum$Species))
+ex_fit &lt;- lm(Sepal.Length ~ Species, data = iris_sum)
+coef(ex_fit)
+#&gt; Expected: (Intercept)=5.006, Speciesversicolor=0.930, Speciesvirginica=1.582</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Reset contrasts solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Reset contrasts solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">contrasts(iris_sum$Species) &lt;- contr.treatment(levels(iris_sum$Species))
+ex_fit &lt;- lm(Sepal.Length ~ Species, data = iris_sum)
+coef(ex_fit)
+#&gt;       (Intercept) Speciesversicolor  Speciesvirginica 
+#&gt;             5.006             0.930             1.582</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>contr.treatment(levels(...))</code> rebuilds the default dummy matrix using the current level order. Because the level order in <code>iris_sum</code> is still setosa, versicolor, virginica, the coefficients line up exactly with the original <code>fit1</code>.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<p>These exercises combine multiple concepts from the tutorial. Use distinct variable names with the <code>my_</code> prefix so your exercise code does not overwrite the tutorial variables.</p>
+
+<h3>Exercise 1: Verify a group mean from lm() coefficients</h3>
+
+<p>Using <code>mtcars</code>, convert <code>cyl</code> to a factor, fit <code>mpg ~ cyl_f</code>, and verify that the intercept plus the coefficient for the 6-cylinder dummy equals the mean <code>mpg</code> of 6-cylinder cars computed directly with <code>aggregate()</code>. Save the model to <code>my_cyl_model</code> and the check to <code>my_cyl_check</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 1: verify group mean from coefficients">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1: verify group mean from coefficients</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: convert cyl to factor first, fit, then compare to aggregate() output
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Convert cyl to factor with levels in natural order
+mtcars_f &lt;- mtcars
+mtcars_f$cyl_f &lt;- factor(mtcars_f$cyl)
+
+# Fit the model
+my_cyl_model &lt;- lm(mpg ~ cyl_f, data = mtcars_f)
+coef(my_cyl_model)
+#&gt; (Intercept)      cyl_f6      cyl_f8 
+#&gt;      26.664      -6.921     -11.564
+
+# Compute group means for comparison
+aggregate(mpg ~ cyl_f, data = mtcars_f, mean)
+#&gt;   cyl_f      mpg
+#&gt; 1     4 26.66364
+#&gt; 2     6 19.74286
+#&gt; 3     8 15.10000
+
+# Verify: intercept + cyl_f6 coefficient matches the 6-cyl mean
+my_cyl_check &lt;- coef(my_cyl_model)[&quot;(Intercept)&quot;] + coef(my_cyl_model)[&quot;cyl_f6&quot;]
+my_cyl_check
+#&gt; (Intercept) 
+#&gt;    19.74286</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> 4-cylinder is the reference (the numerically smallest factor level comes first). The intercept is the 4-cyl mean, and adding <code>cyl_f6 = -6.921</code> recovers the 6-cyl mean of 19.74.</p>
+
+</details>
+
+<h3>Exercise 2: Predict from an interaction model by hand</h3>
+
+<p>Using <code>mtcars</code>, convert <code>cyl</code> to a factor, fit <code>mpg ~ cyl_f * wt</code>, and predict <code>mpg</code> for a 6-cylinder car weighing 3.2 thousand pounds using only the raw coefficients (no <code>predict()</code> call). Store the result in <code>my_prediction</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 2: manual prediction from interaction coefficients">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2: manual prediction from interaction coefficients</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: prediction = (intercept + cyl6 dummy) + (wt slope + cyl6:wt) * 3.2
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars_f &lt;- mtcars
+mtcars_f$cyl_f &lt;- factor(mtcars_f$cyl)
+
+my_int_model &lt;- lm(mpg ~ cyl_f * wt, data = mtcars_f)
+coef(my_int_model)
+#&gt; (Intercept)      cyl_f6      cyl_f8          wt   cyl_f6:wt   cyl_f8:wt 
+#&gt;      39.571      -8.049     -16.055      -5.647       2.867       4.101
+
+# Build the 6-cyl prediction at wt = 3.2
+b &lt;- coef(my_int_model)
+intercept_6cyl &lt;- b[&quot;(Intercept)&quot;] + b[&quot;cyl_f6&quot;]
+slope_6cyl &lt;- b[&quot;wt&quot;] + b[&quot;cyl_f6:wt&quot;]
+my_prediction &lt;- intercept_6cyl + slope_6cyl * 3.2
+my_prediction
+#&gt; (Intercept) 
+#&gt;     22.615</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> An interaction model gives each factor level its own intercept and slope. For 6-cylinder cars, you add the <code>cyl_f6</code> dummy coefficient to the intercept and the <code>cyl_f6:wt</code> interaction to the <code>wt</code> slope, then plug in <code>wt = 3.2</code>. The hand-built number matches what <code>predict()</code> would return, confirming the mechanics.</p>
+
+</details>
+
+<h2>Complete Example: a mini-analysis of mtcars</h2>
+
+<p>Let's tie it all together on <code>mtcars</code>. We will turn <code>cyl</code> and <code>am</code> into factors with human-readable labels, set the reference levels deliberately, fit a model that controls for weight, and interpret every coefficient in plain English.</p>
+
+<div class="webr-container" data-block-title="Complete example: mtcars with factors and a reference switch">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Complete example: mtcars with factors and a reference switch</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Build a working copy with readable factor labels
+cars &lt;- mtcars
+cars$cyl_f &lt;- factor(cars$cyl, levels = c(8, 6, 4),
+                     labels = c(&quot;eight&quot;, &quot;six&quot;, &quot;four&quot;))
+cars$am_f  &lt;- factor(cars$am,  levels = c(0, 1),
+                     labels = c(&quot;automatic&quot;, &quot;manual&quot;))
+
+# Setting 8-cylinder automatic as the (intercept) baseline is deliberate:
+# heavy, older muscle cars are the &quot;reference car&quot; we compare against
+
+# Fit an additive model controlling for weight
+cars_mod &lt;- lm(mpg ~ cyl_f + am_f + wt, data = cars)
+coef(cars_mod)
+#&gt; (Intercept)    cyl_fsix   cyl_ffour  am_fmanual          wt 
+#&gt;     30.999       3.031       6.921       1.810      -3.178</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Reading the coefficients one at a time: an 8-cylinder automatic car at zero weight (not a real car, just the math baseline) is predicted to do 31.0 mpg. Switching to 6 cylinders at the same weight and transmission adds 3.0 mpg. Four cylinders adds 6.9 mpg. A manual transmission adds 1.8 mpg. Every extra 1000 pounds of weight subtracts 3.2 mpg. The coefficient on <code>wt</code> is the same regardless of cylinder count because this model is additive, not interactive.</p>
+
+<div class="webr-container" data-block-title="Peek at the design matrix">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Peek at the design matrix</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Rows 1 through 3 of mtcars are a 6-cyl manual, 6-cyl manual, and 4-cyl manual
+head(model.matrix(cars_mod), 3)
+#&gt;                   (Intercept) cyl_fsix cyl_ffour am_fmanual    wt
+#&gt; Mazda RX4                   1        1         0          1 2.620
+#&gt; Mazda RX4 Wag               1        1         0          1 2.875
+#&gt; Datsun 710                  1        0         1          1 2.320</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>You can see the factor-to-dummy mechanics at work. The Mazdas are both 6-cylinder manuals with <code>cyl_fsix = 1</code> and <code>am_fmanual = 1</code>. The Datsun is a 4-cylinder manual with <code>cyl_ffour = 1</code>. Their predicted mpg values come from plugging these 0/1 columns into the coefficient formula, and that is the whole story of how R handles categorical predictors in <code>lm()</code>.</p>
+
+<h2>Summary</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Concept</th>
+<th>R command</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Fit a factor predictor</td>
+<td><code>lm(y ~ f, data = df)</code></td>
+</tr>
+<tr>
+<td>See the dummy columns</td>
+<td><code>model.matrix(~ f, data = df)</code></td>
+</tr>
+<tr>
+<td>Check the default contrasts</td>
+<td><code>contrasts(df$f)</code></td>
+</tr>
+<tr>
+<td>Change the reference level</td>
+<td><code>relevel(df$f, ref = &quot;level&quot;)</code></td>
+</tr>
+<tr>
+<td>Control full level order</td>
+<td><code>factor(x, levels = c(...))</code></td>
+</tr>
+<tr>
+<td>Drop the intercept for group means</td>
+<td><code>lm(y ~ f - 1)</code></td>
+</tr>
+<tr>
+<td>Factor-times-numeric interaction</td>
+<td><code>lm(y ~ numeric * f)</code></td>
+</tr>
+<tr>
+<td>Switch to sum coding</td>
+<td><code>contrasts(df$f) &lt;- contr.sum(n)</code></td>
+</tr>
+</tbody>
+</table>
+
+<p>Key takeaways:</p>
+
+<ol>
+
+<li>A factor with <code>k</code> levels becomes <code>k - 1</code> dummy columns plus an intercept. The omitted level is the reference.</li>
+
+<li>The intercept equals the reference group's mean (under default treatment coding). Every dummy coefficient is "this level's mean minus the reference's mean".</li>
+
+<li>Changing the reference with <code>relevel()</code> shifts coefficient labels and values but never the predictions, residuals, or R².</li>
+
+<li>Interactions between factors and numerics are just new design-matrix columns built by multiplying dummy columns by the numeric column.</li>
+
+<li>Treatment coding is the default; sum, Helmert, and polynomial coding exist for specific comparison questions. The fit is identical, the interpretation is not.</li>
+
+</ol>
+
+<h2>References</h2>
+
+<ol>
+
+<li>R Core Team. <em>An Introduction to R</em>, §11.1 "Defining statistical models; formulae". <a href="https://cran.r-project.org/doc/manuals/r-release/R-intro.html">Link</a></li>
+
+<li>Chambers, J.M. & Hastie, T.J. <em>Statistical Models in S</em>, 1992. Chapter 2 on design matrices and contrasts is the classic reference on how S and R build factor columns.</li>
+
+<li>Base <a class="auto-link" href="Getting-Help-in-R.html" title="Stuck in R? 6 Ways to Get Unstuck Without Wasting Hours">R documentation</a> for <code>contrasts</code> and <code>contr.treatment</code>. <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/contrasts.html">Link</a></li>
+
+<li>UCLA OARC. <em>Coding for <a class="auto-link" href="R-Factors.html" title="R Factors: The Data Type That Trips Up Almost Every R Beginner">Categorical Variables</a> in <a class="auto-link" href="adv-regression-models.html" title="Advanced Regression Models">Regression Models</a></em>. <a href="https://stats.oarc.ucla.edu/r/modules/coding-for-categorical-variables-in-regression-models/">Link</a></li>
+
+<li>STHDA. <em>Regression with Categorical Variables: Dummy Coding Essentials in R</em>. <a href="https://www.sthda.com/english/articles/40-regression-analysis/163-regression-with-categorical-variables-dummy-coding-essentials-in-r/">Link</a></li>
+
+<li>Faraway, J. <em>Linear Models with R</em>, 2nd ed., 2014, Chapter 14 "Categorical Predictors".</li>
+
+<li>Fox, J. & Weisberg, S. <em>An R Companion to Applied Regression</em>, 3rd ed., 2019, §4.3 "Factor Predictors". <a href="https://socialsciences.mcmaster.ca/jfox/Books/Companion/">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><strong><a href="Linear-Regression-Assumptions-in-R.html">Linear Regression Assumptions in R</a></strong>, diagnostic checks that still apply when your predictors are factors.</li>
+
+<li><strong><a href="Linear-Regression.html">Linear Regression</a></strong>, the base <code>lm()</code> workflow for numeric predictors, the natural prerequisite for this post.</li>
+
+<li><strong><a href="R-Factors.html">R Factors</a></strong>, how factors are stored, ordered, and manipulated outside of <code>lm()</code>.</li>
+
+</ul>
