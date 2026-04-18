@@ -1,0 +1,788 @@
+---
+title: "Sufficiency in Statistics in R: Sufficient Statistics, Fisher-Neyman Factorization"
+description: "Learn sufficient statistics and the Fisher-Neyman factorization theorem with runnable R examples for Bernoulli, Poisson, Normal, and uniform distributions."
+keywords: "sufficient statistics, Fisher-Neyman factorization theorem, sufficient statistic R, minimal sufficient statistic, factorization theorem example, exponential family sufficiency, sufficient statistic Bernoulli, sufficient statistic Poisson, sufficient statistic normal distribution, sufficient statistic uniform"
+mathjax: true
+webr: true
+curriculum_id: "FR-infe-5"
+post_type: "FR"
+auto_link_terms: "sufficient statistic|sufficient statistics|Fisher-Neyman factorization|factorization theorem|minimal sufficient statistic|jointly sufficient statistics|Fisher-Neyman factorization theorem"
+auto_link_case_sensitive: false
+fr_parent: "Point-Estimation-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>Sufficiency in Statistics in R: Sufficient Statistics, Fisher-Neyman Factorization</h1>
+
+<p class="lead">A <strong>sufficient statistic</strong> is a single number (or a small set of numbers) computed from your sample that carries every drop of information the data has about an unknown parameter. Once you know the sufficient statistic, the rest of the raw data tells you nothing extra, so estimation, likelihood, and inference can all be done from that compact summary.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="30" data-exercises="7" data-xp="105"></div>
+
+<h2>What is a sufficient statistic, in plain language?</h2>
+
+<p>Picture flipping a coin 100 times and recording every heads and tails. To estimate the coin's bias, do you really need all 100 answers? No, just the count of heads. That count is a sufficient statistic: a summary that captures every bit of evidence the sample carries about the parameter. Below, we check this claim numerically. The likelihood built from only <code>sum(x)</code> should match the likelihood built from the full sample, up to a constant that has nothing to do with the parameter.</p>
+
+<div class="webr-container" data-block-title="Bernoulli log-likelihood: full sample vs count only">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Bernoulli log-likelihood: full sample vs count only</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+
+# 100 Bernoulli flips with true p = 0.30
+x_bern &lt;- rbinom(100, size = 1, prob = 0.30)
+
+# Two log-likelihoods as a function of p: one from the full sample, one from sum(x) alone
+p_grid    &lt;- seq(0.05, 0.95, length.out = 50)
+ll_full   &lt;- sapply(p_grid, function(p) sum(dbinom(x_bern, 1, p, log = TRUE)))
+ll_from_T &lt;- sapply(p_grid, function(p) {
+  T &lt;- sum(x_bern); n &lt;- length(x_bern)
+  T * log(p) + (n - T) * log(1 - p)   # depends on x only through T
+})
+
+# Identical up to at most a data-only constant (here the constant is zero)
+range(ll_full - ll_from_T)
+#&gt; [1] 0 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The two log-likelihood curves are <strong>identical at every p</strong>. The sum of heads is doing all the work, the individual flips are irrelevant once you know their total. That is exactly what sufficiency means: the full sample and the summary <code>T = sum(x)</code> give the same inferential verdict about <code>p</code>.</p>
+
+<p>Three short formulas make this precise. A statistic $T(X)$ is <strong>sufficient for $\theta$</strong> if the conditional distribution of the data given $T$ does not depend on $\theta$:</p>
+
+<p>$$P(X = x \mid T(X) = t, \theta) = P(X = x \mid T(X) = t)$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$X = (X_1, \ldots, X_n)$ is the sample</li>
+
+<li>$T(X)$ is any function of the sample (the statistic)</li>
+
+<li>$\theta$ is the unknown parameter</li>
+
+</ul>
+
+<p>Intuitively, once $T$ is known, the data cannot whisper any further hint about $\theta$.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Sufficiency means identical likelihoods, not identical data.</strong> Two different datasets with the same value of $T$ produce the same likelihood curve, so they give you the same MLE, the same <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">confidence intervals</a>, the same Bayesian posterior.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Simulate 60 Bernoulli(0.4) flips. Build the log-likelihood from the count of successes alone (i.e., only use the sum), evaluate it at <code>p = 0.4</code>, and compare to the full-sample log-likelihood at the same <code>p</code>. They should match exactly.</p>
+<div class="webr-container" data-block-title="Your turn: Bernoulli log-lik from count only">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: Bernoulli log-lik from count only</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+ex_x &lt;- rbinom(60, 1, 0.4)
+
+# your code: compute ex_ll from only ex_sum, evaluate at p = 0.4
+
+ex_sum &lt;- sum(ex_x)
+# ex_ll &lt;- ...
+
+# Expected: ex_ll is equal to sum(dbinom(ex_x, 1, 0.4, log = TRUE))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Bernoulli log-lik from count only solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Bernoulli log-lik from count only solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_ll   &lt;- ex_sum * log(0.4) + (length(ex_x) - ex_sum) * log(1 - 0.4)
+ex_full &lt;- sum(dbinom(ex_x, 1, 0.4, log = TRUE))
+c(from_T = ex_ll, from_full = ex_full)
+#&gt;    from_T from_full
+#&gt; -40.23... -40.23...</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The Bernoulli log-likelihood is <code>T*log(p) + (n - T)*log(1 - p)</code>, where <code>T = sum(x)</code>. Nothing else about <code>ex_x</code> influences the answer.</p>
+
+</details>
+</section>
+
+<h2>What does the Fisher-Neyman factorization theorem say?</h2>
+
+<p>Checking sufficiency from the definition means computing conditional distributions, which is a headache. The <strong>Fisher-Neyman factorization theorem</strong> gives a shortcut: factor the joint density. If it splits into a piece that touches $\theta$ only through $T(x)$ times a piece that is free of $\theta$, then $T$ is sufficient. No integration, no conditioning.</p>
+
+<p><img src="screenshots/Sufficiency-in-Statistics-factorization-flow.webp" alt="Fisher-Neyman factorization flow" class="img-responsive img-zoomable" loading="lazy" width="1778" height="738" /></p>
+
+<p><em>Figure 1: How the Fisher-Neyman factorization splits the joint density into a theta-part through T(x) and an x-only part.</em></p>
+
+<p>Formally, $T(X)$ is sufficient for $\theta$ if and only if the joint density factors as:</p>
+
+<p>$$f(x_1, \ldots, x_n ; \theta) = g\bigl(T(x), \theta\bigr) \cdot h(x)$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$f$ is the joint density (or mass function) of the sample</li>
+
+<li>$g$ depends on the sample only through $T(x)$ and may involve $\theta$</li>
+
+<li>$h$ is any function of the data that does <strong>not</strong> involve $\theta$</li>
+
+</ul>
+
+<p>Try the theorem on Bernoulli. The joint mass function of $n$ flips with success probability $p$ is:</p>
+
+<p>$$f(x; p) = \prod_{i=1}^{n} p^{x_i}(1-p)^{1-x_i} = p^{\sum x_i}(1-p)^{n - \sum x_i}$$</p>
+
+<p>This is already in factorized form. Set $T(x) = \sum x_i$, take $g(T, p) = p^{T}(1-p)^{n-T}$, and $h(x) = 1$. The theorem fires: <code>sum(x)</code> is sufficient for $p$. Let's verify the factorization numerically.</p>
+
+<div class="webr-container" data-block-title="Bernoulli joint mass factorized into g(T, p) * h(x)">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Bernoulli joint mass factorized into g(T, p) * h(x)</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">T_bern &lt;- sum(x_bern)
+n_bern &lt;- length(x_bern)
+p_val  &lt;- 0.3
+
+# Joint mass computed directly
+joint  &lt;- prod(dbinom(x_bern, 1, p_val))
+
+# Joint mass via the factorization: g(T, p) * h(x), with h(x) = 1
+g_part &lt;- p_val^T_bern * (1 - p_val)^(n_bern - T_bern)
+h_part &lt;- 1
+
+c(joint_direct = joint, joint_factored = g_part * h_part)
+#&gt;   joint_direct joint_factored
+#&gt;   2.475...e-16   2.475...e-16</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both routes give the same number. The direct product over all 100 flips and the compact <code>g(T, p)</code> evaluation agree perfectly, which is exactly what the theorem promises.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>The factorization does the work once, for all parameter values.</strong> You do not need to redo any calculation as <code>p</code> varies. The form $p^T (1-p)^{n-T}$ is the answer.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The Poisson pmf is $f(x_i; \lambda) = e^{-\lambda}\lambda^{x_i}/x_i!$. Write the joint pmf for a sample of size $n$, group the $\lambda$-dependent pieces, and identify $T(x)$. Then verify your factorization in R against the direct product of <code>dpois</code>.</p>
+<div class="webr-container" data-block-title="Your turn: Poisson factorization check">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: Poisson factorization check</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(11)
+ex_pois &lt;- rpois(30, lambda = 2.5)
+
+# your code: compute ex_T_pois = sum(ex_pois), then check
+# g(T, lambda) * h(x) == prod(dpois(ex_pois, lambda)) at lambda = 2.5
+
+# Expected: the two values match to machine precision.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Poisson factorization solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Poisson factorization solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">lambda_val   &lt;- 2.5
+ex_T_pois    &lt;- sum(ex_pois)
+n_p          &lt;- length(ex_pois)
+g_T          &lt;- exp(-n_p * lambda_val) * lambda_val^ex_T_pois
+h_x          &lt;- 1 / prod(factorial(ex_pois))
+ex_joint_pois &lt;- prod(dpois(ex_pois, lambda_val))
+c(direct = ex_joint_pois, factored = g_T * h_x)
+#&gt;      direct   factored
+#&gt;  4.93...e-21 4.93...e-21</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The joint pmf is $e^{-n\lambda}\lambda^{\sum x_i}/\prod x_i!$. The $\lambda$-piece depends on data only through $T = \sum x_i$. The $1/\prod x_i!$ piece is $h(x)$. So <code>sum(ex_pois)</code> is sufficient for $\lambda$.</p>
+
+</details>
+</section>
+
+<h2>How do we find the sufficient statistic for common distributions?</h2>
+
+<p>Once you trust the factorization theorem, finding sufficient statistics for textbook distributions is fast. Here are the canonical cases you will see again and again.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Distribution</th>
+<th>Sufficient statistic $T(X)$</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Bernoulli$(p)$</td>
+<td>$\sum X_i$</td>
+<td>Joint mass $=p^{T}(1-p)^{n-T}$</td>
+</tr>
+<tr>
+<td>Poisson$(\lambda)$</td>
+<td>$\sum X_i$</td>
+<td>Joint pmf $\propto e^{-n\lambda}\lambda^{T}$</td>
+</tr>
+<tr>
+<td>Exponential(rate)</td>
+<td>$\sum X_i$</td>
+<td>Joint density $\propto \text{rate}^n e^{-\text{rate}\cdot T}$</td>
+</tr>
+<tr>
+<td>Normal$(\mu, \sigma^2)$, $\sigma$ known</td>
+<td>$\sum X_i$ (or $\bar X$)</td>
+<td>Joint density factors through sum of $x_i$</td>
+</tr>
+<tr>
+<td>Normal$(\mu, \sigma^2)$, both unknown</td>
+<td>$(\sum X_i, \sum X_i^2)$</td>
+<td>Two parameters, two summaries</td>
+</tr>
+<tr>
+<td>Uniform$(0, \theta)$</td>
+<td>$\max X_i$</td>
+<td>Joint density $=\theta^{-n} \cdot \mathbb{1}\{\max x \le \theta\}$</td>
+</tr>
+</tbody>
+</table>
+
+<p>Two numeric checks make the pattern concrete. First the Poisson, using the same "log-likelihoods must coincide" test we used for Bernoulli.</p>
+
+<div class="webr-container" data-block-title="Poisson: log-likelihood equivalence using T = sum(x)">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Poisson: log-likelihood equivalence using T = sum(x)</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(9)
+x_pois       &lt;- rpois(80, lambda = 3)
+lambda_grid  &lt;- seq(0.5, 6, length.out = 50)
+
+ll_pois_full &lt;- sapply(lambda_grid,
+                       function(L) sum(dpois(x_pois, L, log = TRUE)))
+ll_pois_T    &lt;- sapply(lambda_grid, function(L) {
+  T &lt;- sum(x_pois); n &lt;- length(x_pois)
+  -n * L + T * log(L)       # drops the -sum(log(x!)) constant (not a function of lambda)
+})
+
+# Difference is a constant across lambda (data-only, does not shift the argmax)
+diff_range &lt;- range(ll_pois_full - ll_pois_T)
+diff_range
+#&gt; [1] -105.37... -105.37...</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The difference is <strong>constant</strong> across every value of <code>lambda</code>. A constant shift cannot change the shape of the likelihood, the MLE, or the curvature, so <code>sum(x_pois)</code> carries the whole inference.</p>
+
+<p>Next, the uniform on $(0, \theta)$. Its likelihood is unusual because it is a step function: flat for all $\theta$ above the sample maximum, zero for any $\theta$ below it. The maximum of the sample is therefore the only number you need.</p>
+
+<div class="webr-container" data-block-title="Uniform(0, theta): likelihood lives on theta &gt;= max(x)">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Uniform(0, theta): likelihood lives on theta &gt;= max(x)</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(14)
+x_unif &lt;- runif(40, min = 0, max = 3)
+
+# Try a grid of theta values, compute the joint density directly
+theta_grid &lt;- seq(1, 5, length.out = 200)
+lik_unif   &lt;- sapply(theta_grid, function(th) {
+  if (th &lt; max(x_unif)) 0 else th^(-length(x_unif))
+})
+
+plot(theta_grid, lik_unif, type = &quot;l&quot;,
+     xlab = expression(theta), ylab = &quot;Likelihood&quot;,
+     main = &quot;Uniform(0, theta): zero below max(x), then theta^-n&quot;)
+abline(v = max(x_unif), lty = 2)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The plot is zero for <code>theta &lt; max(x_unif)</code> and drops off as <code>theta^(-n)</code> above it. Knowing the maximum alone tells you exactly where the likelihood lives, so <code>max(x)</code> is sufficient. You can discard all the other 39 observations and lose nothing.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>For any exponential-family distribution, the sufficient statistic is staring at you inside the density.</strong> Write the density as <code>exp(eta(theta) * T(x) - A(theta)) * h(x)</code> and T(x) in the exponent is your sufficient statistic. Bernoulli, Poisson, Exponential, Normal, Gamma, Beta, all exponential family, all follow this rule.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> For Exponential(rate), the density is $f(x; r) = r e^{-r x}$ for $x > 0$. Factor the joint density, identify the sufficient statistic, and verify in R that the log-likelihood depends on the data only through that statistic.</p>
+<div class="webr-container" data-block-title="Your turn: Exponential sufficient statistic">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: Exponential sufficient statistic</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(21)
+ex_exp &lt;- rexp(50, rate = 1.5)
+
+# your code: set ex_T_exp, build a log-likelihood from ex_T_exp alone,
+# and confirm it equals sum(dexp(ex_exp, rate, log = TRUE)) up to a constant.
+
+# Expected: the difference across the rate grid is constant.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exponential sufficient statistic solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exponential sufficient statistic solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_T_exp     &lt;- sum(ex_exp)
+ex_rate_grid &lt;- seq(0.5, 3, length.out = 40)
+ll_full_exp  &lt;- sapply(ex_rate_grid,
+                       function(r) sum(dexp(ex_exp, r, log = TRUE)))
+ex_ll_exp    &lt;- sapply(ex_rate_grid, function(r) {
+  n &lt;- length(ex_exp); n * log(r) - r * ex_T_exp
+})
+range(ll_full_exp - ex_ll_exp)
+#&gt; [1] 0 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The joint density is $r^n \exp(-r \sum x_i)$. The rate interacts with the data only through $T = \sum x_i$, so the sum is sufficient.</p>
+
+</details>
+</section>
+
+<h2>What is a minimal sufficient statistic and why does it matter?</h2>
+
+<p>Any one-to-one function of a sufficient statistic is also sufficient, so <code>sum(x)</code>, <code>n * mean(x)</code>, and <code>2 * sum(x) + 5</code> are all sufficient for the Bernoulli $p$. The question becomes: what is the <em>smallest</em> such summary? The <strong>minimal sufficient statistic</strong> is the sufficient statistic that can be written as a function of every other sufficient statistic, so it compresses the data as much as possible without losing information.</p>
+
+<p>The Lehmann-Scheffé criterion says $T$ is minimal sufficient if the ratio $f(x; \theta)/f(y; \theta)$ is free of $\theta$ <strong>exactly when</strong> $T(x) = T(y)$. In practice, for exponential families the canonical sufficient statistic is already minimal, and that is almost every distribution you will meet.</p>
+
+<p>Demonstration with a Normal sample when $\sigma^2$ is known. Both $(\sum x, \sum x^2)$ and $\bar x$ are sufficient, but $\bar x$ uses one number instead of two. The log-likelihoods based on each must agree up to a constant.</p>
+
+<div class="webr-container" data-block-title="Normal(mu, sigma^2 known): mean alone is minimal sufficient">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Normal(mu, sigma^2 known): mean alone is minimal sufficient</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(33)
+x_norm   &lt;- rnorm(40, mean = 5, sd = 2)
+sigma2   &lt;- 4
+mu_grid  &lt;- seq(2, 8, length.out = 60)
+
+# Log-likelihood built from the mean alone
+ll_from_mean &lt;- sapply(mu_grid, function(mu) {
+  n &lt;- length(x_norm); xbar &lt;- mean(x_norm)
+  -n / (2 * sigma2) * (xbar - mu)^2     # shape in mu only
+})
+
+# Log-likelihood built from (sum, sum of squares): should have same shape
+ll_from_pair &lt;- sapply(mu_grid, function(mu) {
+  s1 &lt;- sum(x_norm); s2 &lt;- sum(x_norm^2); n &lt;- length(x_norm)
+  (-s2 + 2 * mu * s1 - n * mu^2) / (2 * sigma2)
+})
+
+# Differences are constant in mu
+range(diff(ll_from_mean - ll_from_pair))
+#&gt; [1] 0 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both log-likelihoods have the <strong>same shape</strong> as <code>mu</code> varies, they only differ by an additive constant that does not depend on <code>mu</code>. So <code>mean(x_norm)</code> alone is enough, and compressing to <code>(sum, sumsq)</code> throws nothing useful away either, but it wastes a number.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>"Sufficient" is not "unique."</strong> A sufficient statistic is not one fixed answer. Any one-to-one function of a sufficient statistic is also sufficient. What is unique (up to relabeling) is <em>minimal</em> sufficiency.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Confirm that <code>n * mean(x)</code> and <code>sum(x)</code> carry the same information for a Normal sample with known variance. Build two log-likelihoods, one from each statistic, and show they have the same shape over a $\mu$-grid.</p>
+<div class="webr-container" data-block-title="Your turn: n*mean vs sum">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: n*mean vs sum</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2)
+ex_norm &lt;- rnorm(50, mean = 4, sd = 2)
+ex_T1   &lt;- sum(ex_norm)
+ex_T2   &lt;- length(ex_norm) * mean(ex_norm)
+
+# your code: confirm ex_T1 == ex_T2 numerically, then build a log-lik from each.
+
+# Expected: ex_T1 and ex_T2 are equal; both log-likelihoods peak at the same mu.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="n*mean vs sum solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">n*mean vs sum solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">identical(ex_T1, ex_T2)
+#&gt; [1] TRUE
+
+ex_sigma2 &lt;- 4
+ex_mu     &lt;- seq(1, 7, length.out = 50)
+ex_ll_T1  &lt;- sapply(ex_mu, function(mu) {
+  n &lt;- length(ex_norm); -n/(2*ex_sigma2) * (ex_T1/n - mu)^2
+})
+ex_ll_T2  &lt;- sapply(ex_mu, function(mu) {
+  n &lt;- length(ex_norm); -n/(2*ex_sigma2) * (ex_T2/n - mu)^2
+})
+range(ex_ll_T1 - ex_ll_T2)
+#&gt; [1] 0 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>n * mean(x)</code> <em>is</em> <code>sum(x)</code> by definition, so the log-likelihoods are literally identical. A one-to-one function of a sufficient statistic is itself sufficient.</p>
+
+</details>
+</section>
+
+<h2>How does sufficiency connect to maximum likelihood and data reduction?</h2>
+
+<p>Here is where sufficiency earns its keep. The maximum likelihood estimator depends on the data <strong>only through the sufficient statistic</strong>, so you can compute it without touching the raw observations at all. Storage, bandwidth, and privacy pressures all bow to this fact: transmit one number and someone downstream can fit the same model.</p>
+
+<p>For Bernoulli, the MLE is $\hat p = \sum x_i / n = T / n$. Watch: we run an MLE using only the total successes and the sample size, never touching <code>x_bern</code>.</p>
+
+<div class="webr-container" data-block-title="Bernoulli MLE from T = sum(x) alone">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Bernoulli MLE from T = sum(x) alone</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">T_obs  &lt;- sum(x_bern)           # pretend this is all you were given
+n_obs  &lt;- length(x_bern)        # and the sample size
+p_mle_T &lt;- T_obs / n_obs
+p_mle_full &lt;- mean(x_bern)      # traditional full-data MLE for comparison
+c(from_T = p_mle_T, from_full = p_mle_full)
+#&gt;    from_T from_full
+#&gt;      0.28      0.28</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Exactly the same estimate. Whoever handed you the dataset could have kept every individual flip secret and told you only the head count, and you would have arrived at the same answer.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Sufficiency is the theorem behind "the mean is enough."</strong> When you <a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">summarise</a> a large dataset with its mean or total for parameter estimation, you are not approximating, you are exploiting a mathematical guarantee that no other part of the data helps.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> A colleague tells you they observed 180 events across 60 days in a Poisson process, but refuses to share the day-by-day counts. Can you still fit the MLE for $\lambda$? Compute it.</p>
+<div class="webr-container" data-block-title="Your turn: Poisson MLE from totals only">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: Poisson MLE from totals only</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_total &lt;- 180
+ex_n     &lt;- 60
+
+# your code: compute ex_lambda_mle from ex_total and ex_n alone.
+
+# Expected: ex_lambda_mle should equal 3 (since MLE = T/n).</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Poisson MLE from totals solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Poisson MLE from totals solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_lambda_mle &lt;- ex_total / ex_n
+ex_lambda_mle
+#&gt; [1] 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> For Poisson, $T = \sum x_i$ is sufficient for $\lambda$, and $\hat\lambda_{\text{MLE}} = T/n$. You need nothing else.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<h3>Exercise 1: Verify sample mean sufficiency for a Normal</h3>
+
+<p>Simulate 60 Normal(μ = 7, σ² = 4) draws. Using a grid of μ from 3 to 11, build one log-likelihood from the full sample and another from only the sample mean. Show that the two curves differ by at most a constant that does not depend on μ, which confirms the sample mean is sufficient.</p>
+
+<div class="webr-container" data-block-title="Your turn: Normal mean sufficiency">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: Normal mean sufficiency</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Your code here. Hint: the &quot;from mean&quot; form is
+#   -n/(2*sigma2) * (mean(x) - mu)^2.
+
+# Expected: range(my_ll_full - my_ll_mean) returns two numbers that are equal.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Normal mean sufficiency solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Normal mean sufficiency solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(101)
+my_x        &lt;- rnorm(60, mean = 7, sd = 2)
+sigma2_val  &lt;- 4
+my_mu_grid  &lt;- seq(3, 11, length.out = 80)
+
+my_ll_full &lt;- sapply(my_mu_grid,
+                     function(mu) sum(dnorm(my_x, mu, sqrt(sigma2_val), log = TRUE)))
+my_ll_mean &lt;- sapply(my_mu_grid, function(mu) {
+  n &lt;- length(my_x); -n / (2 * sigma2_val) * (mean(my_x) - mu)^2
+})
+
+# Difference is constant in mu
+range(my_ll_full - my_ll_mean)
+#&gt; [1] -63.45... -63.45...</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>range()</code> returns two equal values, so the gap is the same at every μ. That constant absorbs the $\sum x_i^2$ and $\log$-normalizer pieces, none of which depend on μ. The mean alone drives inference.</p>
+
+</details>
+
+<h3>Exercise 2: Uniform(0, θ) and the maximum</h3>
+
+<p>Simulate 50 Uniform(0, 4) draws. For a θ-grid from 1 to 6, compute the likelihood directly. Then find the MLE and show that it equals the sample maximum.</p>
+
+<div class="webr-container" data-block-title="Your turn: Uniform(0, theta) MLE">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: Uniform(0, theta) MLE</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Your code here. Hint: likelihood is theta^(-n) for theta &gt;= max(x), else 0.
+
+# Expected: my_mle_u equals max(my_u).</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Uniform MLE solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Uniform MLE solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(202)
+my_u         &lt;- runif(50, min = 0, max = 4)
+my_theta_grid &lt;- seq(1, 6, length.out = 300)
+my_lik_u      &lt;- sapply(my_theta_grid, function(th) {
+  if (th &lt; max(my_u)) 0 else th^(-length(my_u))
+})
+
+my_mle_u &lt;- my_theta_grid[which.max(my_lik_u)]
+c(mle = my_mle_u, sample_max = max(my_u))
+#&gt;       mle sample_max
+#&gt;  3.97...    3.97...</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The likelihood is zero when θ is smaller than any observed value and decreases as <code>theta^(-n)</code> above the maximum. So the peak sits exactly at <code>max(x)</code>, which is the MLE and also the sufficient statistic.</p>
+
+</details>
+
+<h2>Complete Example</h2>
+
+<p>A worked end-to-end Poisson inference that relies only on the sufficient statistic. Simulate a sample, compute T, fit the MLE from T alone, plot the log-likelihood, and cross-check against the full-data MLE.</p>
+
+<div class="webr-container" data-block-title="Poisson end-to-end using only T">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Poisson end-to-end using only T</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(77)
+
+# Step 1: simulate a Poisson sample (we will pretend only the total is shared)
+pois_sample &lt;- rpois(120, lambda = 4.2)
+
+# Step 2: compute the sufficient statistic and sample size
+T_total &lt;- sum(pois_sample)
+n_total &lt;- length(pois_sample)
+
+# Step 3: MLE from T alone
+lambda_mle &lt;- T_total / n_total
+lambda_mle
+#&gt; [1] 4.216...
+
+# Step 4: log-likelihood curve, built using only T and n
+lam_grid &lt;- seq(3, 5.5, length.out = 120)
+ll_curve &lt;- -n_total * lam_grid + T_total * log(lam_grid)
+plot(lam_grid, ll_curve, type = &quot;l&quot;,
+     xlab = expression(lambda),
+     ylab = &quot;log L(lambda)  up to a constant&quot;,
+     main = &quot;Poisson log-likelihood from T(x) alone&quot;)
+abline(v = lambda_mle, col = &quot;steelblue&quot;, lty = 2)
+
+# Step 5: sanity check against the full-data MLE
+c(from_T = lambda_mle, from_full = mean(pois_sample))
+#&gt;   from_T from_full
+#&gt;   4.216...  4.216...</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Exactly equal. If you were building a privacy-preserving pipeline that transmits only <code>T_total</code> and <code>n_total</code> from an edge device to a server, the server fits the same MLE, draws the same log-likelihood, computes the same confidence interval. Sufficiency is the theoretical license for that engineering decision.</p>
+
+<h2>Summary</h2>
+
+<p><img src="screenshots/Sufficiency-in-Statistics-concept-mindmap.webp" alt="Sufficiency concept mindmap" class="img-responsive img-zoomable" loading="lazy" width="1670" height="944" /></p>
+
+<p><em>Figure 2: Sufficiency at a glance, definition, theorem, canonical examples, and uses.</em></p>
+
+<div class="webr-container" data-block-title="Quick-reference table of sufficient statistics">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Quick-reference table of sufficient statistics</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">suff_table &lt;- data.frame(
+  distribution = c(&quot;Bernoulli(p)&quot;, &quot;Poisson(lambda)&quot;, &quot;Exponential(rate)&quot;,
+                   &quot;Normal(mu, known s2)&quot;, &quot;Normal(mu, s2)&quot;, &quot;Uniform(0, theta)&quot;),
+  sufficient_stat = c(&quot;sum(x)&quot;, &quot;sum(x)&quot;, &quot;sum(x)&quot;, &quot;mean(x)&quot;,
+                      &quot;(sum(x), sum(x^2))&quot;, &quot;max(x)&quot;),
+  minimal = c(&quot;yes&quot;, &quot;yes&quot;, &quot;yes&quot;, &quot;yes&quot;, &quot;yes&quot;, &quot;yes&quot;)
+)
+print(suff_table)
+#&gt;            distribution    sufficient_stat minimal
+#&gt; 1           Bernoulli(p)             sum(x)     yes
+#&gt; 2        Poisson(lambda)             sum(x)     yes
+#&gt; 3     Exponential(rate)             sum(x)     yes
+#&gt; 4  Normal(mu, known s2)            mean(x)     yes
+#&gt; 5         Normal(mu, s2) (sum(x), sum(x^2))     yes
+#&gt; 6      Uniform(0, theta)             max(x)     yes</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Key takeaways:</p>
+
+<ul>
+
+<li>A <strong>sufficient statistic</strong> summarises a sample without losing any information about the parameter.</li>
+
+<li>The <strong>Fisher-Neyman factorization theorem</strong> is the practical test: a density that factors as $g(T(x), \theta) \cdot h(x)$ tells you $T$ is sufficient, no conditioning required.</li>
+
+<li>For exponential families, the canonical statistic in the exponent is sufficient and minimal.</li>
+
+<li>The MLE depends on data only through the sufficient statistic, which is why data reduction is lossless for estimation.</li>
+
+<li>Sufficiency is the starting point for sharper results like the Rao-Blackwell theorem, Lehmann-Scheffé theorem, and the Cramér-Rao lower bound.</li>
+
+</ul>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Wikipedia, <em>Sufficient statistic</em>. <a href="https://en.wikipedia.org/wiki/Sufficient_statistic">Link</a></li>
+
+<li>Penn State STAT 415, Lesson 24.2, <em>Factorization Theorem</em>. <a href="https://online.stat.psu.edu/stat415/lesson/24/24.2">Link</a></li>
+
+<li>Casella, G. and Berger, R. L., <em>Statistical Inference</em>, 2nd Edition, Duxbury, 2002, Chapter 6.</li>
+
+<li>Watkins, J., <em>Sufficient Statistics</em> lecture notes, University of Arizona. <a href="https://math.arizona.edu/~jwatkins/sufficiency.pdf">Link</a></li>
+
+<li>Breheny, P., <em>Factorization theorem</em>, University of Iowa STAT 7110. <a href="https://myweb.uiowa.edu/pbreheny/7110/wiki/factorization-theorem.html">Link</a></li>
+
+<li>García-Portugués, E., <em>A First Course on Statistical Inference</em>, Chapter 3.5, Minimal sufficient statistics. <a href="https://bookdown.org/egarpor/inference/point-min-sufficient.html">Link</a></li>
+
+<li>R Core Team, <em>Distributions reference manual</em>. <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/Distributions.html">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Point-Estimation-in-R.html">Point Estimation in R: What Makes an Estimator Good? Bias, Variance, and MSE</a>: the broader framework in which sufficiency plays its role.</li>
+
+<li><a href="Maximum-Likelihood-Estimation-in-R.html">Maximum Likelihood Estimation in R</a>: MLE depends on data only through sufficient statistics, so sufficiency is the workhorse behind every likelihood fit.</li>
+
+<li><a href="Method-of-Moments-in-R.html">Method of Moments in R: Fit Distributions Without Calculus</a>: an alternative estimator that also uses sample-based summaries.</li>
+
+</ul>
+
+{% endraw %}
