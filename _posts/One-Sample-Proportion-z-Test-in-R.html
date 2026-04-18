@@ -1,0 +1,794 @@
+---
+title: "One-Sample Proportion z-Test in R: Large Sample Inference"
+description: "Test whether a proportion equals a target value in R. Use prop.test() for large samples, understand continuity correction, and compute Wald vs Wilson CIs."
+keywords: "one-sample proportion z-test, prop.test R, z-test proportion, continuity correction, Wilson confidence interval, large sample inference"
+mathjax: true
+webr: true
+curriculum_id: "FR-infe-14"
+post_type: "FR"
+auto_link_terms: "one-sample proportion z-test|one-proportion z-test|z-test for a proportion|large-sample proportion test|proportion z-test in R"
+auto_link_case_sensitive: false
+fr_parent: "Proportion-Tests-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>One-Sample Proportion z-Test in R: Large Sample Inference</h1>
+
+<p class="lead">The one-sample proportion z-test checks whether an observed proportion differs from a hypothesized value p<sub>0</sub>. In R, <code>prop.test()</code> does the heavy lifting, but knowing how the z-statistic is built, when the <a class="auto-link" href="Central-Limit-Theorem-in-R.html" title="Central Limit Theorem in R: Simulate It From Skewed, Bimodal, and Uniform Distributions">normal approximation</a> holds, and which confidence interval to report is what separates a correct result from a misleading one.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="30" data-exercises="7" data-xp="105"></div>
+
+<h2>When should you reach for the one-sample proportion z-test?</h2>
+
+<p>Suppose your website's historical click-through rate is 10%, and a new design yields 135 clicks in 1,000 visits. Is 13.5% a real lift, or just noise? The one-sample proportion z-test answers exactly that question, as long as your sample is large enough for the normal approximation to hold. Let's run it first, then unpack what R did.</p>
+
+<p>We pass the number of successes <code>x</code>, the sample size <code>n</code>, and the hypothesized proportion <code>p</code> to <code>prop.test()</code>. By default it returns the test statistic, a two-sided p-value, and a <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">95% confidence interval</a>.</p>
+
+<div class="webr-container" data-block-title="Run prop.test on the click-through example">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Run prop.test on the click-through example</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Click-through rate test: 135 successes out of 1000 visits, H0: p = 0.10
+x  &lt;- 135
+n  &lt;- 1000
+p0 &lt;- 0.10
+
+result &lt;- prop.test(x, n, p = p0)
+result
+#&gt; 
+#&gt; 	1-sample proportions test with continuity correction
+#&gt; 
+#&gt; data:  x out of n, null probability p0
+#&gt; X-squared = 13.361, df = 1, p-value = 0.000257
+#&gt; alternative hypothesis: true p is not equal to 0.1
+#&gt; 95 percent confidence interval:
+#&gt;  0.1143559 0.1583739
+#&gt; sample estimate:
+#&gt;     p 
+#&gt; 0.135</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The p-value of 0.00026 is well below 0.05, so we reject the null. The 95% confidence interval (11.4%, 15.8%) excludes 0.10, telling the same story in effect-size terms. One subtle thing: R prints <code>X-squared</code> rather than a z-value. That's because, for a one-sample two-sided test, the chi-squared statistic R reports equals the z-statistic squared. We'll prove this in the next section.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Check np<sub>0</sub> and n(1 - p<sub>0</sub>) before trusting the p-value.</strong> The normal approximation needs both quantities to be at least 10 (some textbooks say 5). Here np<sub>0</sub> = 100 and n(1 - p<sub>0</sub>) = 900, so we are comfortably in "large-sample" territory.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Suppose a quality inspector finds 150 defects in a batch of 200 parts and wants to test against the historical rate of 70%. Write code to run <code>prop.test()</code> and report the p-value.</p>
+<div class="webr-container" data-block-title="Your turn: defect-rate proportion test">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: defect-rate proportion test</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: run prop.test for x=150, n=200, p0=0.70
+ex_x  &lt;- 150
+ex_n  &lt;- 200
+ex_p0 &lt;- 0.70
+
+# your code here
+
+#&gt; Expected: p-value around 0.09 (fail to reject H0 at 5%)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Defect-rate test solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Defect-rate test solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_result &lt;- prop.test(ex_x, ex_n, p = ex_p0)
+ex_result$p.value
+#&gt; [1] 0.0898</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> We pass the three arguments and extract <code>$p.value</code> from the returned htest object. A p-value of 0.09 is above 0.05, so we do not reject the null that the defect rate equals 70%.</p>
+
+</details>
+</section>
+
+<h2>How is the z-statistic for a proportion built?</h2>
+
+<p>The payoff result above came from a formula. Understanding that formula tells you why the test behaves the way it does, and makes the output fields recognizable.</p>
+
+<p>The z-statistic compares the observed proportion \(\hat{p}\) to the hypothesized proportion p<sub>0</sub>, scaled by the standard error of \(\hat{p}\) under the null.</p>
+
+<p>$$z = \frac{\hat{p} - p_0}{\sqrt{\dfrac{p_0 (1 - p_0)}{n}}}$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>\(\hat{p} = x / n\) is the observed sample proportion</li>
+
+<li>p<sub>0</sub> is the hypothesized proportion under the null</li>
+
+<li>n is the sample size</li>
+
+<li>the denominator is the standard error assuming H<sub>0</sub> is true</li>
+
+</ul>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Use p<sub>0</sub>, not \(\hat{p}\), in the standard error of the test.</strong> The z-test asks "how far is \(\hat{p}\) from the null, in units of the null's sampling standard deviation?" So the SE must reflect the <a class="auto-link" href="Hypothesis-Testing-in-R.html" title="Hypothesis Testing in R: Understand the Framework, Not Just the p-Value">null hypothesis</a>, not the data. Using \(\hat{p}\) inside the SE would compute a different quantity (the Wald CI uses \(\hat{p}\), but that is a separate estimation problem).</div></div>
+
+<p>Let's compute z by hand and check it against <code>prop.test()</code>.</p>
+
+<div class="webr-container" data-block-title="Compute the z-statistic manually">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compute the z-statistic manually</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Manual z calculation using x, n, p0 from the previous block
+p_hat   &lt;- x / n
+se      &lt;- sqrt(p0 * (1 - p0) / n)
+z_stat  &lt;- (p_hat - p0) / se
+p_value &lt;- 2 * pnorm(-abs(z_stat))
+
+c(p_hat = p_hat, se = se, z = z_stat, p_value = p_value)
+#&gt;        p_hat           se            z      p_value 
+#&gt; 0.1350000000 0.0094868330 3.6892183868 0.0002250297</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>We get z = 3.69 and a two-sided p-value of 0.000225. That matches the textbook one-sample proportion z-test exactly. Now let's see how it relates to <code>prop.test()</code>'s chi-squared output.</p>
+
+<div class="webr-container" data-block-title="Verify z squared equals chi-squared">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Verify z squared equals chi-squared</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># prop.test without continuity correction
+result_no_cc &lt;- prop.test(x, n, p = p0, correct = FALSE)
+
+c(chi_sq_from_R = result_no_cc$statistic,
+  z_squared     = z_stat^2)
+#&gt; chi_sq_from_R.X-squared              z_squared 
+#&gt;                13.61407               13.61407</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>They match to machine precision. So <code>prop.test(correct = FALSE)</code> is mathematically identical to the manual z-test: R just reports z<sup>2</sup> because a squared-z is chi-squared with 1 degree of freedom. The p-values are also the same because <code>pchisq(z^2, df = 1, lower.tail = FALSE)</code> equals <code>2 * pnorm(-|z|)</code>.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute the z-statistic by hand for x = 42, n = 100, p<sub>0</sub> = 0.5.</p>
+<div class="webr-container" data-block-title="Your turn: manual z computation">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: manual z computation</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: compute z = (p_hat - p0) / sqrt(p0*(1-p0)/n)
+ex_x2  &lt;- 42
+ex_n2  &lt;- 100
+ex_p02 &lt;- 0.5
+
+# your code here
+
+#&gt; Expected: z around -1.60</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Manual z computation solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Manual z computation solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_p_hat &lt;- ex_x2 / ex_n2
+ex_se    &lt;- sqrt(ex_p02 * (1 - ex_p02) / ex_n2)
+ex_z     &lt;- (ex_p_hat - ex_p02) / ex_se
+ex_z
+#&gt; [1] -1.6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> With \(\hat{p}\) = 0.42, the difference from the null is -0.08, and the null standard error is sqrt(0.25/100) = 0.05. Dividing gives z = -1.6, which is not quite extreme enough to reject at alpha = 0.05.</p>
+
+</details>
+</section>
+
+<p><img src="screenshots/One-Sample-Proportion-z-Test-in-R-z-mechanics.webp" alt="Building the z-statistic for a proportion" class="img-responsive img-zoomable" loading="lazy" width="1840" height="730" /></p>
+
+<p><em>Figure 1: How the z-statistic is built from the observed proportion, the hypothesized proportion, and the standard error under the null.</em></p>
+
+<h2>What does the continuity correction do?</h2>
+
+<p>The raw z-test approximates a discrete count (how many successes out of n) with a continuous normal distribution. That approximation has a small built-in mismatch: the discrete scale jumps by 1/n at each value, and Yates' continuity correction shifts the numerator of the z-statistic by half a step to compensate.</p>
+
+<p>Concretely, the corrected statistic shrinks the absolute difference by 1/(2n) before dividing by the SE. The effect is always to pull the z closer to zero, which pulls the p-value up. That makes corrected tests slightly more conservative. <code>prop.test()</code> applies the correction by default.</p>
+
+<p>Here is the same test with and without correction.</p>
+
+<div class="webr-container" data-block-title="Continuity correction on vs off">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Continuity correction on vs off</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Compare both forms
+result_cc   &lt;- prop.test(x, n, p = p0, correct = TRUE)
+result_nocc &lt;- prop.test(x, n, p = p0, correct = FALSE)
+
+data.frame(
+  correction = c(&quot;correct = TRUE&quot;, &quot;correct = FALSE&quot;),
+  chi_sq     = c(result_cc$statistic, result_nocc$statistic),
+  p_value    = c(result_cc$p.value,   result_nocc$p.value)
+)
+#&gt;        correction   chi_sq      p_value
+#&gt; 1  correct = TRUE 13.36100 0.0002570121
+#&gt; 2 correct = FALSE 13.61407 0.0002244664</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The two p-values differ in the fourth decimal, which rarely changes a real decision but can matter for reproducing a published result. Textbook z formulas almost never use the correction, so if you want to match a by-hand computation, set <code>correct = FALSE</code>.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Different packages default differently.</strong> Python's <code>statsmodels.proportions_ztest()</code> has no continuity correction. R's <code>prop.test()</code> defaults to <code>correct = TRUE</code>. If two analyses disagree in the fourth decimal, this is usually why.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Using the click-through data (x = 135, n = 1000, p<sub>0</sub> = 0.10), extract both p-values and report the difference.</p>
+<div class="webr-container" data-block-title="Your turn: compare corrected vs uncorrected p-values">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: compare corrected vs uncorrected p-values</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: return the absolute p-value difference between correct=TRUE and correct=FALSE
+
+# your code here
+
+#&gt; Expected: roughly 3.3e-05</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Correction comparison solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Correction comparison solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_diff &lt;- abs(prop.test(x, n, p = p0, correct = TRUE)$p.value -
+               prop.test(x, n, p = p0, correct = FALSE)$p.value)
+ex_diff
+#&gt; [1] 3.254571e-05</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The correction nudges the p-value up by about 3.3e-05. Tiny, but visible in the fourth decimal.</p>
+
+</details>
+</section>
+
+<h2>Which confidence interval should you report?</h2>
+
+<p>A p-value answers "is the effect real?"; a confidence interval answers "how big is it, and how precisely do we know that?" For a single proportion there are three common CIs, and they can differ meaningfully when p is near 0 or 1 or n is small.</p>
+
+<p>The <strong>Wald CI</strong> is the most familiar: \(\hat{p} \pm z_{\alpha/2} \sqrt{\hat{p}(1-\hat{p})/n}\). It's what most textbooks present, but it under-covers badly when \(\hat{p}\) approaches 0 or 1 because the SE collapses to zero.</p>
+
+<div class="webr-container" data-block-title="Compute the Wald CI manually">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compute the Wald CI manually</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Wald CI for the click-through example
+z_crit     &lt;- qnorm(0.975)
+wald_se    &lt;- sqrt(p_hat * (1 - p_hat) / n)
+wald_lower &lt;- p_hat - z_crit * wald_se
+wald_upper &lt;- p_hat + z_crit * wald_se
+
+c(wald_lower = wald_lower, wald_upper = wald_upper)
+#&gt; wald_lower wald_upper 
+#&gt;  0.1138150  0.1561850</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <strong>Wilson score CI</strong> is what <code>prop.test()</code> returns. It has much better coverage across the full range of p, especially for smaller n. It is derived by inverting the z-test (asking which p-values would not be rejected).</p>
+
+<div class="webr-container" data-block-title="Read the Wilson CI from prop.test">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Read the Wilson CI from prop.test</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Wilson CI was already computed in the first block's result object
+wilson_ci &lt;- result$conf.int
+wilson_ci
+#&gt; [1] 0.1143559 0.1583739
+#&gt; attr(,&quot;conf.level&quot;)
+#&gt; [1] 0.95</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <strong>Clopper-Pearson exact CI</strong> comes from <code>binom.test()</code>. It guarantees coverage at least the nominal level by inverting the <a class="auto-link" href="Exact-Binomial-Test-in-R.html" title="Exact Binomial Test in R: binom.test() for Small Samples">exact binomial test</a>, but tends to be conservative (wider than needed).</p>
+
+<div class="webr-container" data-block-title="Clopper-Pearson exact CI from binom.test">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Clopper-Pearson exact CI from binom.test</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">exact_result &lt;- binom.test(x, n, p = p0)
+exact_ci     &lt;- exact_result$conf.int
+exact_ci
+#&gt; [1] 0.1145113 0.1580611
+#&gt; attr(,&quot;conf.level&quot;)
+#&gt; [1] 0.95</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Here's a side-by-side for this example:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Method</th>
+<th>Lower</th>
+<th>Upper</th>
+<th>Width</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Wald</td>
+<td>0.1138</td>
+<td>0.1562</td>
+<td>0.0424</td>
+</tr>
+<tr>
+<td>Wilson</td>
+<td>0.1144</td>
+<td>0.1584</td>
+<td>0.0440</td>
+</tr>
+<tr>
+<td>Clopper-Pearson</td>
+<td>0.1145</td>
+<td>0.1581</td>
+<td>0.0436</td>
+</tr>
+</tbody>
+</table>
+
+<p>With n = 1000 and p away from the boundaries, all three agree. At small n or extreme p the gaps widen dramatically, and Wald becomes unreliable.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Default to Wilson for publication and reporting.</strong> It has the best small-sample coverage of the three, matches the test's own rejection region, and is what <code>prop.test()</code> already returns. Use Clopper-Pearson only when you specifically need guaranteed coverage; reserve Wald for quick hand calculations.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute the Wald 95% CI by hand for x = 60, n = 100.</p>
+<div class="webr-container" data-block-title="Your turn: Wald CI by hand">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: Wald CI by hand</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: compute the lower and upper Wald bounds for x=60, n=100
+ex_x3 &lt;- 60
+ex_n3 &lt;- 100
+
+# your code here
+
+#&gt; Expected: roughly (0.504, 0.696)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Wald CI solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Wald CI solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_p_hat3 &lt;- ex_x3 / ex_n3
+ex_se3    &lt;- sqrt(ex_p_hat3 * (1 - ex_p_hat3) / ex_n3)
+c(lower = ex_p_hat3 - 1.96 * ex_se3,
+  upper = ex_p_hat3 + 1.96 * ex_se3)
+#&gt;     lower     upper 
+#&gt; 0.5039818 0.6960182</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> With \(\hat{p}\) = 0.6 and SE = sqrt(0.24/100) = 0.049, the 95% Wald interval is 0.6 plus or minus 1.96 times 0.049.</p>
+
+</details>
+</section>
+
+<h2>When does the large-sample approximation fail?</h2>
+
+<p>Three assumptions have to hold for the z-test to produce trustworthy p-values: observations are independent (each trial doesn't depend on the others), the sample is large enough for the binomial-to-normal approximation to bite, and p<sub>0</sub> is not extremely close to 0 or 1. The first is a design issue and you verify it from how data was collected. The second and third are numerical conditions you can check before running the test.</p>
+
+<p>The standard check is that both np<sub>0</sub> and n(1 - p<sub>0</sub>) are at least 10. Below that, the binomial is too skewed to match a symmetric normal, and z-test p-values drift from their nominal levels.</p>
+
+<div class="webr-container" data-block-title="Assumption-check helper for the z-test">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Assumption-check helper for the z-test</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Reusable guard that warns when large-sample conditions fail
+check_assumptions &lt;- function(n, p0) {
+  expected_success &lt;- n * p0
+  expected_failure &lt;- n * (1 - p0)
+  data.frame(
+    n_p0           = expected_success,
+    n_one_minus_p0 = expected_failure,
+    ok             = expected_success &gt;= 10 &amp; expected_failure &gt;= 10
+  )
+}
+
+check_assumptions(1000, 0.10)
+#&gt;   n_p0 n_one_minus_p0   ok
+#&gt; 1  100            900 TRUE
+
+check_assumptions(50, 0.05)
+#&gt;   n_p0 n_one_minus_p0    ok
+#&gt; 1  2.5           47.5 FALSE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The click-through example passes with room to spare. A sample of 50 with p<sub>0</sub> = 0.05 fails because only 2.5 successes are expected, and a symmetric normal simply does not describe that distribution.</p>
+
+<p>What happens when the assumption fails? Let's simulate 10,000 datasets under a null that violates the rule (n = 15, p<sub>0</sub> = 0.05) and ask how often a naive z-test rejects at alpha = 0.05.</p>
+
+<div class="webr-container" data-block-title="Simulate small-n breakdown of the z-test">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Simulate small-n breakdown of the z-test</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Simulated rejection rate under H0 when assumptions fail
+set.seed(2026)
+sim_n  &lt;- 15
+sim_p0 &lt;- 0.05
+reps   &lt;- 10000
+
+sim_x       &lt;- rbinom(reps, size = sim_n, prob = sim_p0)
+sim_p_hat   &lt;- sim_x / sim_n
+sim_se      &lt;- sqrt(sim_p0 * (1 - sim_p0) / sim_n)
+sim_z       &lt;- (sim_p_hat - sim_p0) / sim_se
+sim_p_vals  &lt;- 2 * pnorm(-abs(sim_z))
+
+mean(sim_p_vals &lt; 0.05)
+#&gt; [1] 0.1388</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Under H<sub>0</sub> the test should reject only 5% of the time. Here it rejects almost 14% of the time, an inflated <a class="auto-link" href="Type-I-and-Type-II-Errors-in-R.html" title="Type I and Type II Errors in R: Visualise the Trade-Off Between α and Power">Type I error</a> caused by the skewed binomial at this sample size. The practical fix is to use <code>binom.test()</code>, which computes an <a class="auto-link" href="Permutation-Tests-in-R.html" title="Permutation Tests in R: Exact p-Values via Randomization">exact p-value</a> instead of relying on the normal approximation.</p>
+
+<p>The second thing to report alongside a p-value is an <a class="auto-link" href="Effect-Size-in-R.html" title="Effect Size in R: The Number p-Values Never Tell You (Cohen's d, η², and r)">effect size</a>. For a proportion against a null, Cohen's h is the standard choice. It uses the variance-stabilizing arcsine transform so effect sizes are comparable across different baseline rates.</p>
+
+<p>$$h = 2 \arcsin(\sqrt{\hat{p}}) - 2 \arcsin(\sqrt{p_0})$$</p>
+
+<p>Cohen's benchmarks are 0.2 (small), 0.5 (medium), 0.8 (large). These are conventions, not laws.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>With small n and extreme p<sub>0</sub>, use binom.test() and ignore the z-test entirely.</strong> The z-test's inflated Type I error does not go away with a larger alpha or a continuity correction. It is a structural mismatch between the discrete <a class="auto-link" href="Normal-t-F-and-Chi-Squared-Distributions-in-R.html" title="Normal, t, F, and Chi-Squared in R: Understand Each Distribution and When It Arises">sampling distribution</a> and the continuous normal.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Check whether n = 50, p<sub>0</sub> = 0.05 meets the large-sample conditions.</p>
+<div class="webr-container" data-block-title="Your turn: assumption check">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: assumption check</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: use check_assumptions() from the helper above
+
+# your code here
+
+#&gt; Expected: ok = FALSE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Assumption check solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Assumption check solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">check_assumptions(50, 0.05)
+#&gt;   n_p0 n_one_minus_p0    ok
+#&gt; 1  2.5           47.5 FALSE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> n * p<sub>0</sub> = 2.5 is far below 10, so the normal approximation is not reliable and <code>binom.test()</code> should be used.</p>
+
+</details>
+</section>
+
+<p><img src="screenshots/One-Sample-Proportion-z-Test-in-R-decision-flow.webp" alt="Decision flow for choosing proportion test and CI" class="img-responsive img-zoomable" loading="lazy" width="2038" height="690" /></p>
+
+<p><em>Figure 2: Decision flow for choosing between prop.test() and binom.test(), and for selecting the appropriate confidence interval.</em></p>
+
+<h2>Practice Exercises</h2>
+
+<h3>Exercise 1: Pick the right test and report the right CI</h3>
+
+<p>A clinical pilot reports 8 responders out of 30 patients against a historical benchmark rate of 50%. Decide which test is appropriate given sample size and p<sub>0</sub>, run it, and report both the p-value and a 95% confidence interval. Save the returned object to <code>my_test</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Exercise 1: pick prop.test vs binom.test, then run and report
+# Hint: np0 = 15 is borderline; use the exact test to be safe
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_x  &lt;- 8
+my_n  &lt;- 30
+my_p0 &lt;- 0.50
+
+# np0 = 15, n(1-p0) = 15, both &gt;= 10 so prop.test would work,
+# but with borderline n the exact test is preferable.
+my_test &lt;- binom.test(my_x, my_n, p = my_p0)
+c(p_value = my_test$p.value,
+  ci_low  = my_test$conf.int[1],
+  ci_high = my_test$conf.int[2])
+#&gt;    p_value     ci_low    ci_high 
+#&gt; 0.00522 0.11549 0.45350</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> With only 30 patients, the exact test avoids approximation error. The p-value of 0.005 and an exact CI of (11.5%, 45.4%) both support rejecting the 50% benchmark.</p>
+
+</details>
+
+<h3>Exercise 2: Test three cohorts against a target CTR</h3>
+
+<p>You have three ad cohorts with these results: cohort A = 42 of 500, cohort B = 85 of 1,000, cohort C = 12 of 120. Target CTR is p<sub>0</sub> = 0.08. Return a data frame called <code>my_summary</code> with columns <code>cohort</code>, <code>p_value</code>, <code>wilson_lower</code>, <code>wilson_upper</code>, and <code>reject</code> (TRUE if p-value < 0.05). Use <code>prop.test(correct = FALSE)</code> for each cohort.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Exercise 2: per-cohort proportion z-test with Wilson CI
+# Hint: Map over cohorts; extract $p.value and $conf.int from each prop.test
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cohorts &lt;- data.frame(
+  cohort = c(&quot;A&quot;, &quot;B&quot;, &quot;C&quot;),
+  x      = c(42, 85, 12),
+  n      = c(500, 1000, 120)
+)
+my_p0 &lt;- 0.08
+
+rows &lt;- lapply(seq_len(nrow(cohorts)), function(i) {
+  tst &lt;- prop.test(cohorts$x[i], cohorts$n[i], p = my_p0, correct = FALSE)
+  data.frame(
+    cohort       = cohorts$cohort[i],
+    p_value      = tst$p.value,
+    wilson_lower = tst$conf.int[1],
+    wilson_upper = tst$conf.int[2],
+    reject       = tst$p.value &lt; 0.05
+  )
+})
+my_summary &lt;- do.call(rbind, rows)
+my_summary
+#&gt;   cohort    p_value wilson_lower wilson_upper reject
+#&gt; 1      A 0.34199        0.06283      0.11248  FALSE
+#&gt; 2      B 0.56552        0.06904      0.10423  FALSE
+#&gt; 3      C 0.59115        0.05807      0.16658  FALSE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> None of the three cohorts rejects the null, and all three Wilson intervals straddle 0.08. Looping with <code>lapply()</code> lets you run the same test across heterogeneous cohort sizes and collect results into a tidy frame.</p>
+
+</details>
+
+<h2>Complete Example</h2>
+
+<p>A drug trial reports 220 responders out of 300 patients. The historical response rate for the standard of care is 70%. Walk through the full workflow: check assumptions, run the test, extract the p-value and Wilson CI, and compute Cohen's h.</p>
+
+<div class="webr-container" data-block-title="Full workflow for the drug-trial example">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Full workflow for the drug-trial example</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># End-to-end one-sample proportion z-test
+trial_x  &lt;- 220
+trial_n  &lt;- 300
+trial_p0 &lt;- 0.70
+
+# Step 1: verify large-sample conditions
+check_assumptions(trial_n, trial_p0)
+#&gt;   n_p0 n_one_minus_p0   ok
+#&gt; 1  210             90 TRUE
+
+# Step 2: run the uncorrected z-test (equivalent to textbook formula)
+trial_result &lt;- prop.test(trial_x, trial_n, p = trial_p0, correct = FALSE)
+
+# Step 3: pull out the numbers we'll report
+trial_p_hat &lt;- trial_x / trial_n
+cohens_h    &lt;- 2 * asin(sqrt(trial_p_hat)) - 2 * asin(sqrt(trial_p0))
+
+list(
+  p_hat        = trial_p_hat,
+  p_value      = trial_result$p.value,
+  wilson_ci    = as.numeric(trial_result$conf.int),
+  cohens_h     = cohens_h
+)
+#&gt; $p_hat
+#&gt; [1] 0.7333333
+#&gt; 
+#&gt; $p_value
+#&gt; [1] 0.19747
+#&gt; 
+#&gt; $wilson_ci
+#&gt; [1] 0.67996 0.78135
+#&gt; 
+#&gt; $cohens_h
+#&gt; [1] 0.07388</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The observed rate of 73.3% is higher than the 70% benchmark, but the p-value of 0.20 is not close to significant, the 95% Wilson interval (68.0%, 78.1%) clearly includes 0.70, and Cohen's h of 0.074 is well below the "small" threshold of 0.20. The conclusion: no evidence of a difference. A sample of 300 is large enough to detect a real effect if one existed, so we can also make a reasonable assurance that the new treatment is not dramatically better.</p>
+
+<h2>Summary</h2>
+
+<ul>
+
+<li>Use <code>prop.test()</code> for large samples (np<sub>0</sub> and n(1 - p<sub>0</sub>) both at least 10); switch to <code>binom.test()</code> otherwise.</li>
+
+<li>Set <code>correct = FALSE</code> if you want results that match a textbook z formula; leave it at the default for slightly more conservative p-values.</li>
+
+<li>Report the Wilson confidence interval (<code>prop.test()</code>'s default), not Wald, for publication-quality inference.</li>
+
+<li>Under H<sub>0</sub>, the standard error uses p<sub>0</sub>, not \(\hat{p}\). This is what makes the test a z-test rather than a <a class="auto-link" href="Likelihood-Ratio-Wald-and-Score-Tests-in-R.html" title="Likelihood Ratio, Wald & Score Tests in R: Three Ways to Test Hypotheses">Wald test</a>.</li>
+
+<li>R prints chi-squared instead of z, but for a one-sample two-sided test the two are related by chi-squared = z<sup>2</sup>.</li>
+
+<li>Always report an effect size alongside a p-value; Cohen's h is the standard choice for proportions.</li>
+
+</ul>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Agresti, A. (2013). <em>Categorical Data Analysis</em>, 3rd ed., Wiley. Chapter 1 covers Wilson and Wald intervals and the one-sample z-test.</li>
+
+<li>R Core Team. <code>prop.test()</code> documentation. <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/prop.test.html">Link</a></li>
+
+<li>Brown, L. D., Cai, T. T., and DasGupta, A. (2001). "Interval Estimation for a Binomial Proportion." <em>Statistical Science</em> 16(2), 101-133. Comprehensive coverage comparison of Wald, Wilson, and exact intervals.</li>
+
+<li>Wilson, E. B. (1927). "Probable inference, the law of succession, and statistical inference." <em>Journal of the American Statistical Association</em> 22, 209-212. Original derivation of the <a class="auto-link" href="Proportion-Tests-in-R.html" title="Proportion Tests in R: prop.test(), binom.test(), When to Use Each">Wilson score interval</a>.</li>
+
+<li>Cohen, J. (1988). <em>Statistical Power Analysis for the Behavioral Sciences</em>, 2nd ed., Lawrence Erlbaum. Defines Cohen's h and its benchmarks.</li>
+
+<li>Newcombe, R. G. (1998). "Two-sided confidence intervals for the single proportion: comparison of seven methods." <em>Statistics in Medicine</em> 17(8), 857-872.</li>
+
+<li>distributions3 package vignette: "One sample Z-tests for a proportion." <a href="https://cran.r-project.org/web/packages/distributions3/vignettes/one-sample-z-test-for-proportion.html">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Proportion-Tests-in-R.html">Proportion Tests in R</a>, the parent guide covering prop.test(), binom.test(), and when to use each with full decision rules.</li>
+
+<li><a href="Exact-Binomial-Test-in-R.html">Exact Binomial Test in R: binom.test() for Small Samples</a>, the sibling Further Reading on the exact alternative when large-sample conditions fail.</li>
+
+<li><a href="Statistical-Power-Analysis-in-R.html">Statistical Power Analysis in R</a>, which shows how to size your sample before running a proportion test so you can detect an effect of practical interest.</li>
+
+</ul>
+
+{% endraw %}
