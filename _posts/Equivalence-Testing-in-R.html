@@ -1,0 +1,961 @@
+---
+title: "Equivalence Testing in R: TOST for Non-Inferiority & Bioequivalence"
+description: "Learn equivalence testing in R with TOST. Prove two means are practically the same, run non-inferiority trials, and verify bioequivalence with runnable code."
+keywords: "equivalence testing R, TOST, two one-sided tests, non-inferiority test R, bioequivalence R, TOSTER package, equivalence bounds, statistical equivalence"
+mathjax: true
+webr: true
+curriculum_id: "FR-infe-3"
+post_type: "FR"
+auto_link_terms: "equivalence testing|TOST procedure|two one-sided tests|non-inferiority test|bioequivalence|equivalence bounds"
+auto_link_case_sensitive: false
+fr_parent: "Hypothesis-Testing-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>Equivalence Testing in R: TOST for Non-Inferiority & Bioequivalence</h1>
+
+<p class="lead">Equivalence testing flips the usual question: instead of asking "is there a difference?", it asks "are these two groups close enough that the difference doesn't matter?" The TOST procedure (Two One-Sided Tests) answers that with a pair of t-tests, supporting non-inferiority trials, generic-vs-brand drug comparisons, and any claim that two methods give practically the same result.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="35" data-exercises="9" data-xp="135"></div>
+
+<h2>How do you prove two means are practically equivalent in R?</h2>
+
+<p>A standard t-test can only reject sameness, never confirm it. TOST flips the logic. You pre-specify a range of differences too small to care about, then run two one-sided t-tests against the edges of that range. When both one-sided tests reject their null, the true difference must sit inside the range, and the groups are declared statistically equivalent. Here is that idea running on two blood pressure monitors that should read the same patient within 2 mmHg.</p>
+
+<div class="webr-container" data-block-title="TOST equivalence via two one-sided t-tests">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">TOST equivalence via two one-sided t-tests</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Two blood pressure monitors, 20 patients each (mmHg)
+monitor_a &lt;- c(120, 122, 118, 121, 119, 123, 117, 120, 122, 119,
+               121, 118, 120, 122, 119, 121, 117, 123, 120, 118)
+monitor_b &lt;- c(119, 121, 120, 122, 118, 121, 119, 120, 121, 119,
+               120, 120, 118, 121, 120, 122, 118, 120, 121, 119)
+
+# Equivalence bounds: differences within ±2 mmHg don't matter clinically
+low  &lt;- -2
+high &lt;-  2
+
+# Two one-sided t-tests
+t_lower &lt;- t.test(monitor_a, monitor_b, alternative = &quot;greater&quot;, mu = low)
+t_upper &lt;- t.test(monitor_a, monitor_b, alternative = &quot;less&quot;,    mu = high)
+
+c(p_lower = t_lower$p.value, p_upper = t_upper$p.value)
+#&gt;      p_lower      p_upper
+#&gt; 0.0001262827 0.0002227712
+
+# Equivalence holds only if BOTH reject at alpha = 0.05
+max(t_lower$p.value, t_upper$p.value) &lt; 0.05
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both one-sided tests reject their null, with p-values around 0.0001 and 0.0002. Since the larger of the two is well below 0.05, the true mean difference sits inside the ±2 mmHg window and the monitors are declared equivalent. A classical two-sided <code>t.test(monitor_a, monitor_b)</code> on the same data returns p = 0.92, which tells you only that you failed to detect a difference, not that the monitors agree.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Tighten the bounds to ±0.1 mmHg (a much stricter claim). What do the two p-values look like, and why does the conclusion flip?</p>
+<div class="webr-container" data-block-title="Your turn: tighter equivalence bounds">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: tighter equivalence bounds</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Re-run TOST with tighter bounds
+ex_tight_low  &lt;- -0.1
+ex_tight_high &lt;-  0.1
+
+# your code here
+ex_t_lower &lt;- NULL
+ex_t_upper &lt;- NULL
+
+c(lower = ex_t_lower$p.value, upper = ex_t_upper$p.value)
+#&gt; Expected: both p-values around 0.4, tight bounds fail</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Tighter bounds solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Tighter bounds solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_t_lower &lt;- t.test(monitor_a, monitor_b, alternative = &quot;greater&quot;, mu = ex_tight_low)
+ex_t_upper &lt;- t.test(monitor_a, monitor_b, alternative = &quot;less&quot;,    mu = ex_tight_high)
+c(lower = ex_t_lower$p.value, upper = ex_t_upper$p.value)
+#&gt;     lower     upper
+#&gt; 0.3829752 0.4604782</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Observed mean difference is only 0.05, which is well inside ±0.1. But the sample isn't precise enough to <em>prove</em> the difference is smaller than 0.1 mmHg. The test is conservative: you need evidence, not just a favourable point estimate.</p>
+
+</details>
+</section>
+
+<h2>Why can't a standard t-test prove equivalence?</h2>
+
+<p>A t-test asks one question: "Is the observed difference bigger than noise?" A non-significant p-value means you failed to reject the null of no difference. It never means the null is true. With a small sample, you can miss very real differences and still get a large p-value, so treating "p > 0.05" as proof of equivalence is a recipe for false claims.</p>
+
+<p>Watch this happen: two groups whose means actually differ by over a full unit, tested with just five observations per group.</p>
+
+<div class="webr-container" data-block-title="Small N hides a real difference">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Small N hides a real difference</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Two groups with actual mean difference ~1.3 units, but tiny N
+small_x &lt;- c(9.2, 11.1, 10.3, 8.8, 11.6)
+small_y &lt;- c(11.5, 10.8, 12.4, 11.9, 10.7)
+
+c(mean_x = mean(small_x), mean_y = mean(small_y))
+#&gt;  mean_x  mean_y
+#&gt;    10.20  11.46
+
+# Classical two-sided t-test
+classical_test &lt;- t.test(small_x, small_y)
+classical_test$p.value
+#&gt; [1] 0.08661551</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The t-test returns p = 0.087, which fails to reject the null of equal means. A reader who confuses "fails to reject" with "no difference" will happily claim the groups are the same. But the means really do differ by 1.3 units; the small sample just couldn't prove it. The high p-value reflects weak evidence, not equivalence.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Absence of evidence is not evidence of absence.</strong> A non-significant t-test says your data lacks the precision to detect a difference. Only a test designed to support equivalence (like TOST) can make that positive claim.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Simulate the same underlying scenario with N = 500 per group, using <code>rnorm()</code>. Does the t-test now detect the difference?</p>
+<div class="webr-container" data-block-title="Your turn: scale sample size up">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: scale sample size up</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+ex_big_x &lt;- rnorm(500, mean = 10.2, sd = 1.0)
+ex_big_y &lt;- rnorm(500, mean = 11.5, sd = 1.0)
+
+# your code here
+ex_big_test &lt;- NULL
+#&gt; Expected: p &lt; 0.001, well below 0.05</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Scale N up solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Scale N up solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+ex_big_x &lt;- rnorm(500, mean = 10.2, sd = 1.0)
+ex_big_y &lt;- rnorm(500, mean = 11.5, sd = 1.0)
+ex_big_test &lt;- t.test(ex_big_x, ex_big_y)
+ex_big_test$p.value
+#&gt; [1] 1.254521e-86</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Same true difference, much larger N, and the p-value collapses to essentially zero. The "non-significance" at N=5 was a power problem, not a truth about the population.</p>
+
+</details>
+</section>
+
+<h2>How does TOST combine two one-sided tests?</h2>
+
+<p>TOST formalises the flip. You pick a lower bound $L$ and an upper bound $U$ around zero that represent the largest difference you'd call "practically nothing." Then you run two one-sided tests:</p>
+
+<p>$$H_{0,\text{lower}}: \mu_A - \mu_B \le L \qquad H_{0,\text{upper}}: \mu_A - \mu_B \ge U$$</p>
+
+<p>Reject both at <a class="auto-link" href="Hypothesis-Testing-in-R.html" title="Hypothesis Testing in R: Understand the Framework, Not Just the p-Value">significance level</a> $\alpha$ and you've shown the true difference lies strictly inside $(L, U)$. In a two-sample setting, the two test statistics are:</p>
+
+<p>$$t_{\text{lower}} = \frac{\bar{x}_A - \bar{x}_B - L}{SE} \qquad t_{\text{upper}} = \frac{\bar{x}_A - \bar{x}_B - U}{SE}$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$\bar{x}_A, \bar{x}_B$ = sample means</li>
+
+<li>$SE$ = <a class="auto-link" href="Central-Limit-Theorem-in-R.html" title="Central Limit Theorem in R: Simulate It From Skewed, Bimodal, and Uniform Distributions">standard error of the mean</a> difference</li>
+
+<li>$L, U$ = lower and upper equivalence bounds</li>
+
+</ul>
+
+<p>The <code>tost()</code> helper below wraps base R's <code>t.test()</code> into a tidy summary.</p>
+
+<div class="webr-container" data-block-title="TOST helper returning a tidy result">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">TOST helper returning a tidy result</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tost &lt;- function(x, y, low, high, alpha = 0.05) {
+  t_lower &lt;- t.test(x, y, alternative = &quot;greater&quot;, mu = low)
+  t_upper &lt;- t.test(x, y, alternative = &quot;less&quot;,    mu = high)
+  max_p   &lt;- max(t_lower$p.value, t_upper$p.value)
+  list(
+    diff      = mean(x) - mean(y),
+    p_lower   = t_lower$p.value,
+    p_upper   = t_upper$p.value,
+    max_p     = max_p,
+    equivalent = max_p &lt; alpha
+  )
+}
+
+# Re-run the monitor example
+result &lt;- tost(monitor_a, monitor_b, low = -2, high = 2)
+result
+#&gt; $diff
+#&gt; [1] 0.05
+#&gt;
+#&gt; $p_lower
+#&gt; [1] 0.0001262827
+#&gt;
+#&gt; $p_upper
+#&gt; [1] 0.0002227712
+#&gt;
+#&gt; $max_p
+#&gt; [1] 0.0002227712
+#&gt;
+#&gt; $equivalent
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>One call, one verdict. The helper reports the observed difference (0.05), both one-sided p-values, the larger of the two (this is the TOST p-value you'd publish), and a boolean decision. An equivalent and very common way to read the result is the 90% confidence interval: if the (1 − 2α) CI for the mean difference lies entirely inside $[L, U]$, equivalence holds. This is the approach FDA bioequivalence reviews prefer because the CI is easier to interpret than two p-values.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Each one-sided test uses alpha, not alpha/2.</strong> Because you need both tests to reject, the overall <a class="auto-link" href="Type-I-and-Type-II-Errors-in-R.html" title="Type I and Type II Errors in R: Visualise the Trade-Off Between α and Power">Type I error</a> rate stays bounded at alpha. No <a class="auto-link" href="Multiple-Comparisons-in-R.html" title="Multiple Testing in R: Control False Discoveries Without Losing All Your Power">Bonferroni correction</a> required. This is what makes TOST efficient compared to a naive double-test.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Extend <code>tost()</code> to also return the 90% CI on the mean difference, so a reader can check whether it sits inside the bounds.</p>
+<div class="webr-container" data-block-title="Your turn: add a 90% CI to tost()">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: add a 90% CI to tost()</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_tost_ci &lt;- function(x, y, low, high, alpha = 0.05) {
+  # your code here
+  # hint: t.test(x, y, conf.level = 1 - 2*alpha)$conf.int gives the 90% CI
+  NULL
+}
+
+ex_tost_ci(monitor_a, monitor_b, low = -2, high = 2)
+#&gt; Expected: CI around [-0.87, 0.97], inside [-2, 2]</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="tost with CI solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">tost with CI solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_tost_ci &lt;- function(x, y, low, high, alpha = 0.05) {
+  t_lower &lt;- t.test(x, y, alternative = &quot;greater&quot;, mu = low)
+  t_upper &lt;- t.test(x, y, alternative = &quot;less&quot;,    mu = high)
+  ci      &lt;- t.test(x, y, conf.level = 1 - 2 * alpha)$conf.int
+  max_p   &lt;- max(t_lower$p.value, t_upper$p.value)
+  list(
+    diff       = mean(x) - mean(y),
+    ci_90      = as.numeric(ci),
+    max_p      = max_p,
+    equivalent = max_p &lt; alpha &amp;&amp; ci[1] &gt; low &amp;&amp; ci[2] &lt; high
+  )
+}
+ex_tost_ci(monitor_a, monitor_b, low = -2, high = 2)
+#&gt; $diff
+#&gt; [1] 0.05
+#&gt; $ci_90
+#&gt; [1] -0.8666 0.9666
+#&gt; $max_p
+#&gt; [1] 0.0002227712
+#&gt; $equivalent
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The 90% CI falls strictly inside <code>[-2, 2]</code>, which is the confidence-interval restatement of the same TOST result. Two equivalent ways of writing one conclusion.</p>
+
+</details>
+</section>
+
+<h2>How do you run a non-inferiority test in R?</h2>
+
+<p>Non-inferiority testing is TOST with only one side. You don't care if the new treatment is better, only that it isn't meaningfully worse. The margin is how much worse you'd tolerate. That turns into a single one-sided t-test: reject the hypothesis that the new treatment is at least <code>margin</code> worse, and you've shown non-inferiority.</p>
+
+<p>Suppose drug B is a cheaper generic version of drug A, and you're willing to accept B being up to 0.5 seconds slower. If the data rule out "B is 0.5 seconds or more slower," you can market B with a straight face.</p>
+
+<div class="webr-container" data-block-title="Non-inferiority with a one-sided margin">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Non-inferiority with a one-sided margin</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Response time in seconds, lower is better
+drug_a &lt;- c(2.1, 2.3, 1.9, 2.0, 2.2, 2.4, 2.1, 2.0, 2.3, 1.8,
+            2.2, 2.1, 2.0, 2.3, 1.9, 2.1, 2.2, 2.0, 2.1, 2.3)
+drug_b &lt;- c(2.3, 2.1, 2.4, 2.2, 2.3, 2.5, 2.2, 2.1, 2.4, 2.0,
+            2.3, 2.2, 2.1, 2.4, 2.0, 2.2, 2.3, 2.1, 2.2, 2.4)
+
+# Non-inferiority: reject H0 that (B - A) &gt;= 0.5
+# alternative = &quot;less&quot; tests that diff &lt; margin
+margin  &lt;- 0.5
+ni_test &lt;- t.test(drug_b, drug_a, alternative = &quot;less&quot;, mu = margin)
+ni_test$p.value
+#&gt; [1] 7.554e-10
+
+ni_test$p.value &lt; 0.05
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The p-value is essentially zero, so you reject "B is 0.5+ seconds slower than A." Drug B is non-inferior to drug A at the 0.5-second margin. Note what you have <em>not</em> shown: that B is equivalent (you'd need a second test against a lower bound), or that B is superior (you'd need a test against <code>mu = 0</code>). Each of those claims requires its own hypothesis.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Non-inferiority margins are clinical decisions, not statistical ones.</strong> A 0.5-second margin on drug response should come from clinicians who know what's acceptable for patients, or from regulatory guidance. Picking a margin that makes your data win is <a class="auto-link" href="Data-Ethics-in-R.html" title="Data Ethics for R Programmers: Privacy, Consent & Responsible Analysis">p-hacking</a>.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Using the same <code>drug_a</code> and <code>drug_b</code>, test whether drug B is <em>superior</em> (strictly faster than A, not just non-inferior). Expect to fail to reject, because B is actually slower.</p>
+<div class="webr-container" data-block-title="Your turn: superiority instead of non-inferiority">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: superiority instead of non-inferiority</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Superiority: H0 that B &gt;= A, H1 that B &lt; A (B is strictly faster)
+# your code here
+ex_sup_test &lt;- NULL
+
+ex_sup_test$p.value
+#&gt; Expected: p close to 0.99, B is not superior</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Superiority solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Superiority solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_sup_test &lt;- t.test(drug_b, drug_a, alternative = &quot;less&quot;, mu = 0)
+ex_sup_test$p.value
+#&gt; [1] 0.9917</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Superiority is the same structure with <code>mu = 0</code>. B's mean is 2.24 vs A's 2.12, so the one-sided test in the "B < A" direction fails completely. You can't claim B is faster; you can only claim B is close enough.</p>
+
+</details>
+</section>
+
+<h2>How do you test bioequivalence with the FDA 80-125% rule?</h2>
+
+<p>Bioequivalence is TOST with three twists: the data are paired (each subject takes both formulations), the analysis is on the log scale, and the FDA bounds are [80%, 125%]. The log scale matters because pharmacokinetic data are multiplicative, and 80% and 125% are reciprocal ratios ($1/0.8 = 1.25$) that become symmetric bounds of $\pm\ln(1.25) \approx \pm 0.223$ once you log-transform. This is what makes the asymmetric-looking rule a clean two-sided TOST.</p>
+
+<p>The target quantity is the geometric mean ratio (GMR) of the test drug to the reference drug. If the 90% CI on the GMR lies entirely inside [80%, 125%], the drugs are bioequivalent.</p>
+
+<div class="webr-container" data-block-title="Bioequivalence test with log-transform + FDA bounds">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Bioequivalence test with log-transform + FDA bounds</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># 24 subjects, each takes test and reference drug (paired)
+# AUC = area under the plasma concentration curve
+auc_test &lt;- c(105,  88, 125,  93, 112,  97, 108, 102,  99, 118,
+               85,  95, 110, 101, 122,  89, 114, 106,  98, 120,
+               94, 103, 107,  99)
+auc_ref  &lt;- c(102,  92, 118,  95, 108, 100, 104,  98, 101, 114,
+               88,  97, 106,  98, 116,  92, 110, 102, 100, 115,
+               96, 100, 104,  96)
+
+# Work on the log scale
+log_ratio &lt;- log(auc_test) - log(auc_ref)
+
+# FDA bioequivalence bounds on the log scale
+be_lower &lt;- log(0.80)    # ≈ -0.2231
+be_upper &lt;- log(1.25)    # ≈  0.2231
+
+# Paired TOST: one-sample t-tests on the log ratios
+p_lower &lt;- t.test(log_ratio, alternative = &quot;greater&quot;, mu = be_lower)$p.value
+p_upper &lt;- t.test(log_ratio, alternative = &quot;less&quot;,    mu = be_upper)$p.value
+c(p_lower = p_lower, p_upper = p_upper)
+#&gt;      p_lower      p_upper
+#&gt; 5.2e-18      2.0e-16
+
+# 90% CI on the log scale, then back-transform to percent
+ci90    &lt;- t.test(log_ratio, conf.level = 0.90)$conf.int
+ci_pct  &lt;- exp(ci90) * 100
+ci_pct
+#&gt; [1]  99.51 102.68
+#&gt; attr(,&quot;conf.level&quot;)
+#&gt; [1] 0.9</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both one-sided tests reject their bounds with tiny p-values, and the 90% CI on the geometric mean ratio is roughly [99.5%, 102.7%]. That interval sits comfortably inside [80%, 125%], so the test drug is declared bioequivalent to the reference. The point estimate (exp of the mean log ratio) is about 101%, which means the test drug produces ~1% more AUC on average, well inside the acceptable window.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Log-transformation turns the 80-125% asymmetry into a symmetric test.</strong> On the original scale, being 20% lower and 25% higher are the same size in opposite directions only because $\log(0.8) = -\log(1.25)$. Any ratio comparison should live on the log scale.</div></div>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A 90% CI that clips 80% or 125% fails bioequivalence even if the point estimate is 100%.</strong> Regulators care about the worst case the data allow, not the best guess. You pass bioequivalence when the entire interval sits strictly inside the bounds; a single nicked edge is a fail.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> For narrow-therapeutic-index drugs, regulators sometimes tighten the bounds to [90%, 111.11%] (a ±10% band). Re-run TOST with these tighter bounds on the same <code>auc_test</code> and <code>auc_ref</code>.</p>
+<div class="webr-container" data-block-title="Your turn: narrow-therapeutic-index (NTI) bounds">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: narrow-therapeutic-index (NTI) bounds</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Tighter NTI bounds: 90% to 111.11%
+ex_nti_low  &lt;- log(0.90)
+ex_nti_high &lt;- log(1 / 0.90)
+
+# your code here
+ex_nti_lower &lt;- NULL
+ex_nti_upper &lt;- NULL
+
+c(lower = ex_nti_lower, upper = ex_nti_upper)
+#&gt; Expected: both p-values still tiny, drug still bioequivalent under NTI rules</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="NTI bounds solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">NTI bounds solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_nti_lower &lt;- t.test(log_ratio, alternative = &quot;greater&quot;, mu = ex_nti_low)$p.value
+ex_nti_upper &lt;- t.test(log_ratio, alternative = &quot;less&quot;,    mu = ex_nti_high)$p.value
+c(lower = ex_nti_lower, upper = ex_nti_upper)
+#&gt;      lower      upper
+#&gt; 4.0e-08    1.3e-07</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Both p-values drop but remain well below 0.05. Because the 90% CI sits near 100%, even the tighter NTI window is comfortably wider than the uncertainty in the data. A test drug with more variable PK or a larger geometric mean shift could easily fail NTI while passing the standard 80-125% rule.</p>
+
+</details>
+</section>
+
+<h2>How do you choose equivalence bounds that make sense?</h2>
+
+<p>The bound is the most consequential choice in a TOST. A bound of ±5 units will pass almost anything; a bound of ±0.01 will fail almost everything. Three legitimate strategies exist:</p>
+
+<ol>
+
+<li><strong>Clinical or practical minimum.</strong> The smallest effect a domain expert would act on. A 2 mmHg difference between BP monitors is clinically noise; a 10 mmHg difference is not.</li>
+
+<li><strong>Empirical reference.</strong> The <a class="auto-link" href="Effect-Size-in-R.html" title="Effect Size in R: The Number p-Values Never Tell You (Cohen's d, η², and r)">effect size</a> the prior study had 33% power to detect. Anything smaller than that effect "the original couldn't have seen anyway" (Simonsohn's small-telescopes approach).</li>
+
+<li><strong>Regulatory.</strong> FDA bioequivalence uses [80%, 125%] on the log scale; EMA guidelines follow similarly; clinical trial protocols lock the margin in advance.</li>
+
+</ol>
+
+<p>The one rule: pick the bound before you look at the data.</p>
+
+<div class="webr-container" data-block-title="Same data, three bounds, three verdicts">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Same data, three bounds, three verdicts</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sample_d_x &lt;- c(10.1, 9.8, 10.3, 9.9, 10.2, 10.0, 9.7, 10.4, 10.1, 9.8,
+                10.3, 9.9, 10.0, 10.2, 9.8, 10.1, 10.4, 9.7, 10.2, 10.0,
+                 9.9, 10.1, 9.8, 10.3, 10.0, 10.2, 9.9, 10.1, 10.0, 9.8)
+sample_d_y &lt;- c(10.3, 10.1, 10.5, 10.2, 10.4, 10.3, 10.0, 10.6, 10.4, 10.1,
+                10.5, 10.2, 10.3, 10.4, 10.1, 10.3, 10.5, 10.0, 10.4, 10.2,
+                10.1, 10.3, 10.0, 10.5, 10.2, 10.4, 10.1, 10.3, 10.2, 10.1)
+
+# Build a sensitivity table over bounds
+run_tost &lt;- function(bound) {
+  pl &lt;- t.test(sample_d_x, sample_d_y, alternative = &quot;greater&quot;, mu = -bound)$p.value
+  pu &lt;- t.test(sample_d_x, sample_d_y, alternative = &quot;less&quot;,    mu =  bound)$p.value
+  max(pl, pu)
+}
+bounds      &lt;- c(1.0, 0.5, 0.3, 0.2, 0.1)
+bound_table &lt;- data.frame(
+  bound      = bounds,
+  max_p      = sapply(bounds, run_tost),
+  equivalent = sapply(bounds, run_tost) &lt; 0.05
+)
+bound_table
+#&gt;   bound     max_p equivalent
+#&gt; 1   1.0 0.0000000       TRUE
+#&gt; 2   0.5 0.0000080       TRUE
+#&gt; 3   0.3 0.0856143      FALSE
+#&gt; 4   0.2 0.7544139      FALSE
+#&gt; 5   0.1 0.9961612      FALSE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Observed mean difference is about -0.23, so any bound of ±0.5 or more passes easily. At ±0.3 the test is inconclusive (max p = 0.09, just over the alpha line) because the bound is barely wider than the difference itself. At ±0.2 and ±0.1, the data outright contradict equivalence. The "right" bound lives outside R: it is whatever width the decision-maker considers too small to act on.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Choosing bounds after seeing the data is p-hacking.</strong> If you run TOST at several widths and report the one that passed, you've inflated your Type I error rate and produced a conclusion that won't hold up in replication. Pre-register your bound, or at minimum disclose every bound you tested.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Using <code>sample_d_x</code> and <code>sample_d_y</code>, find the minimum bound (to two decimal places) at which equivalence is <em>just</em> achieved. A small search loop works.</p>
+<div class="webr-container" data-block-title="Your turn: minimum bound that achieves equivalence">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: minimum bound that achieves equivalence</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: try a sequence of bounds, return the first one where max p &lt; 0.05
+ex_bound_search &lt;- function(x, y, candidates = seq(0.10, 1.00, by = 0.01)) {
+  # your code here
+  NULL
+}
+
+ex_bound_search(sample_d_x, sample_d_y)
+#&gt; Expected: ~0.37</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Minimum bound solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Minimum bound solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_bound_search &lt;- function(x, y, candidates = seq(0.10, 1.00, by = 0.01)) {
+  for (b in candidates) {
+    pl &lt;- t.test(x, y, alternative = &quot;greater&quot;, mu = -b)$p.value
+    pu &lt;- t.test(x, y, alternative = &quot;less&quot;,    mu =  b)$p.value
+    if (max(pl, pu) &lt; 0.05) return(b)
+  }
+  NA
+}
+ex_bound_search(sample_d_x, sample_d_y)
+#&gt; [1] 0.37</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The smallest symmetric bound that passes TOST on this data is roughly ±0.37. Note this procedure is <strong>only valid as a diagnostic</strong>. Using this search to choose the bound you report would be cherry-picking.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<h3>Exercise 1: Generic vs brand-name ibuprofen</h3>
+
+<p>You're testing whether a generic ibuprofen delivers pain relief equivalent to the brand-name version. Equivalence is defined as the mean time to relief being within ±5 minutes of the brand. Run TOST on the data below and save the result to <code>my_tost1</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_generic &lt;- c(22, 25, 19, 24, 21, 23, 20, 26, 22, 24, 21, 23, 22, 20, 25, 19, 23, 22, 24, 21)
+my_brand   &lt;- c(20, 22, 21, 23, 19, 22, 20, 24, 21, 22, 20, 22, 21, 19, 23, 20, 22, 21, 22, 20)
+
+# Hint: use the tost() helper from earlier in the post
+
+my_tost1 &lt;- NULL
+my_tost1
+#&gt; Expected: equivalent = TRUE, max_p well below 0.05</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_tost1 &lt;- tost(my_generic, my_brand, low = -5, high = 5)
+my_tost1
+#&gt; $diff
+#&gt; [1] 1.55
+#&gt;
+#&gt; $p_lower
+#&gt; [1] 1.05e-10
+#&gt;
+#&gt; $p_upper
+#&gt; [1] 1.20e-07
+#&gt;
+#&gt; $max_p
+#&gt; [1] 1.20e-07
+#&gt;
+#&gt; $equivalent
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Observed difference is 1.55 minutes, well inside ±5. Both one-sided tests reject their bounds, so the generic is declared equivalent to the brand.</p>
+
+</details>
+
+<h3>Exercise 2: Non-inferiority from summary statistics</h3>
+
+<p>Write a function <code>non_inferiority_from_summary(m1, s1, n1, m2, s2, n2, margin)</code> that runs a non-inferiority test from <a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">summary statistics</a> alone (no raw data). Use group 1 as the new treatment and group 2 as the standard. A larger value is better. Return the p-value and a pass/fail decision. Apply it to: new = (45, 8, 120), standard = (47, 9, 115), margin = 5 units worse acceptable.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">non_inferiority_from_summary &lt;- function(m1, s1, n1, m2, s2, n2, margin) {
+  # Hint: Welch's t-test on summary stats:
+  # diff = m1 - m2
+  # se = sqrt(s1^2/n1 + s2^2/n2)
+  # df = (s1^2/n1 + s2^2/n2)^2 / ((s1^2/n1)^2/(n1-1) + (s2^2/n2)^2/(n2-1))
+  # non-inferiority H0: diff &lt;= -margin; H1: diff &gt; -margin
+  # your code here
+  NULL
+}
+
+non_inferiority_from_summary(45, 8, 120, 47, 9, 115, margin = 5)
+#&gt; Expected: p well below 0.05, non-inferiority achieved</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">non_inferiority_from_summary &lt;- function(m1, s1, n1, m2, s2, n2, margin) {
+  diff &lt;- m1 - m2
+  se   &lt;- sqrt(s1^2 / n1 + s2^2 / n2)
+  df   &lt;- (s1^2 / n1 + s2^2 / n2)^2 /
+          ((s1^2 / n1)^2 / (n1 - 1) + (s2^2 / n2)^2 / (n2 - 1))
+  # Testing diff &gt; -margin (new is not meaningfully worse)
+  t_stat &lt;- (diff - (-margin)) / se
+  p_val  &lt;- 1 - pt(t_stat, df)
+  list(
+    diff   = diff,
+    t_stat = t_stat,
+    df     = df,
+    p      = p_val,
+    pass   = p_val &lt; 0.05
+  )
+}
+non_inferiority_from_summary(45, 8, 120, 47, 9, 115, margin = 5)
+#&gt; $diff
+#&gt; [1] -2
+#&gt;
+#&gt; $t_stat
+#&gt; [1] 2.636
+#&gt;
+#&gt; $p
+#&gt; [1] 0.00452
+#&gt;
+#&gt; $pass
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The new treatment's mean is 2 units lower than standard, but the 5-unit margin easily absorbs that gap. The one-sided p-value is 0.0045, so non-inferiority is established.</p>
+
+</details>
+
+<h3>Exercise 3: Paired bioequivalence on AUC</h3>
+
+<p>Twenty-four subjects each took a test drug and a reference drug. Paired AUC values are supplied below. Run a paired TOST on the log ratios with FDA bounds ±log(1.25), and report the 90% CI back on the percent scale. Save the log ratios to <code>my_log_ratio</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 3 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_auc_test &lt;- c(115, 108, 122, 98, 130, 112, 105, 118, 95, 125,
+                 110, 102, 128, 107, 120, 100, 115, 108, 125, 112,
+                 98, 120, 106, 115)
+my_auc_ref  &lt;- c(110, 104, 118, 95, 125, 108, 102, 114, 92, 120,
+                 106, 98, 122, 103, 115, 97, 110, 104, 120, 108,
+                 95, 115, 102, 110)
+
+# Hint:
+# 1. my_log_ratio &lt;- log(test) - log(ref)
+# 2. Two one-sided t-tests against log(0.80) and log(1.25)
+# 3. 90% CI via t.test(..., conf.level = 0.90)$conf.int, then exp()*100
+
+my_log_ratio &lt;- NULL
+#&gt; Expected: 90% CI in percent inside [80, 125], bioequivalent</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_log_ratio &lt;- log(my_auc_test) - log(my_auc_ref)
+
+p_lo &lt;- t.test(my_log_ratio, alternative = &quot;greater&quot;, mu = log(0.80))$p.value
+p_hi &lt;- t.test(my_log_ratio, alternative = &quot;less&quot;,    mu = log(1.25))$p.value
+ci   &lt;- exp(t.test(my_log_ratio, conf.level = 0.90)$conf.int) * 100
+
+list(
+  gmr_pct = exp(mean(my_log_ratio)) * 100,
+  ci_pct  = as.numeric(ci),
+  max_p   = max(p_lo, p_hi),
+  be      = max(p_lo, p_hi) &lt; 0.05
+)
+#&gt; $gmr_pct
+#&gt; [1] 103.7
+#&gt;
+#&gt; $ci_pct
+#&gt; [1] 103.1 104.3
+#&gt;
+#&gt; $max_p
+#&gt; [1] 1.6e-28
+#&gt;
+#&gt; $be
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Geometric mean ratio is ~104%, and the 90% CI is narrowly inside the FDA window. Both one-sided tests reject with tiny p-values. Bioequivalence is declared.</p>
+
+</details>
+
+<h2>Complete Example</h2>
+
+<p>A real bioequivalence dossier evaluates at least two PK parameters. The drug passes only if <em>both</em> pass. Here we run the full decision on Cmax (peak concentration) and AUC (total exposure) using a helper, then build a one-line summary.</p>
+
+<div class="webr-container" data-block-title="End-to-end bioequivalence decision">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">End-to-end bioequivalence decision</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># 24 paired subjects, Cmax and AUC
+pk_test_cmax &lt;- c(45, 38, 52, 41, 48, 43, 50, 39, 46, 55, 42, 47,
+                  49, 44, 51, 40, 53, 45, 42, 48, 46, 50, 43, 45)
+pk_ref_cmax  &lt;- c(43, 40, 50, 42, 46, 41, 48, 38, 44, 52, 40, 45,
+                  47, 42, 49, 39, 51, 44, 41, 46, 44, 48, 41, 43)
+
+pk_test_auc  &lt;- c(210, 185, 235, 198, 220, 205, 228, 190, 215, 245,
+                  200, 218, 225, 208, 232, 192, 240, 212, 202, 224,
+                  214, 228, 206, 216)
+pk_ref_auc   &lt;- c(205, 192, 228, 203, 215, 198, 222, 186, 210, 240,
+                  196, 213, 221, 204, 228, 188, 235, 208, 199, 220,
+                  211, 222, 203, 212)
+
+run_be &lt;- function(test_vals, ref_vals, bound = log(1.25), alpha = 0.05) {
+  log_r &lt;- log(test_vals) - log(ref_vals)
+  p_lo  &lt;- t.test(log_r, alternative = &quot;greater&quot;, mu = -bound)$p.value
+  p_hi  &lt;- t.test(log_r, alternative = &quot;less&quot;,    mu =  bound)$p.value
+  ci    &lt;- exp(t.test(log_r, conf.level = 1 - 2 * alpha)$conf.int) * 100
+  list(
+    gmr_pct = round(exp(mean(log_r)) * 100, 2),
+    ci_pct  = round(as.numeric(ci), 2),
+    max_p   = max(p_lo, p_hi),
+    pass    = max(p_lo, p_hi) &lt; alpha
+  )
+}
+
+be_cmax &lt;- run_be(pk_test_cmax, pk_ref_cmax)
+be_auc  &lt;- run_be(pk_test_auc,  pk_ref_auc)
+
+summary_df &lt;- data.frame(
+  parameter = c(&quot;Cmax&quot;, &quot;AUC&quot;),
+  gmr_pct   = c(be_cmax$gmr_pct, be_auc$gmr_pct),
+  ci_low    = c(be_cmax$ci_pct[1], be_auc$ci_pct[1]),
+  ci_high   = c(be_cmax$ci_pct[2], be_auc$ci_pct[2]),
+  max_p     = c(be_cmax$max_p,  be_auc$max_p),
+  pass      = c(be_cmax$pass,   be_auc$pass)
+)
+summary_df
+#&gt;   parameter gmr_pct ci_low ci_high     max_p pass
+#&gt; 1      Cmax  105.07 102.99  107.20  2.3e-18 TRUE
+#&gt; 2       AUC  103.14 101.61  104.69  1.0e-19 TRUE
+
+overall_be &lt;- all(summary_df$pass)
+overall_be
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both parameters pass: Cmax GMR is 105% with a 90% CI of [103%, 107%], and AUC GMR is 103% with 90% CI [102%, 105%]. Both CIs sit well inside [80%, 125%], so the test drug is declared bioequivalent to the reference for regulatory submission. If either parameter's CI had touched or crossed a bound, the entire submission would fail.</p>
+
+<h2>Summary</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Use case</th>
+<th>Bounds convention</th>
+<th>R call pattern</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Two-sided equivalence</td>
+<td>±L, set from domain knowledge</td>
+<td>Two <code>t.test()</code> calls with <code>alternative = &quot;greater&quot;</code> and <code>&quot;less&quot;</code> at mu = -L and +L</td>
+</tr>
+<tr>
+<td>Non-inferiority</td>
+<td>One-sided, margin = worst-acceptable worsening</td>
+<td>One <code>t.test()</code> with <code>alternative = &quot;less&quot;</code> and mu = margin</td>
+</tr>
+<tr>
+<td>Bioequivalence (FDA)</td>
+<td>[80%, 125%] on log scale → ±log(1.25)</td>
+<td>Paired one-sample TOST on <code>log(test) - log(ref)</code></td>
+</tr>
+</tbody>
+</table>
+
+<p>Key takeaways:</p>
+
+<ul>
+
+<li>A non-significant t-test never proves equivalence. Run TOST if you want to support that claim.</li>
+
+<li>TOST combines two one-sided tests and decides equivalence when both reject at alpha.</li>
+
+<li>The 90% CI restatement is equivalent to the two-p-value version and is easier to communicate.</li>
+
+<li>Non-inferiority is TOST with only the lower bound active.</li>
+
+<li>Bioequivalence applies TOST on the log scale with regulator-defined [80%, 125%] bounds.</li>
+
+<li>The bound is a policy decision made before data collection, not a number to tune after the fact.</li>
+
+</ul>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Lakens, D. (2017). Equivalence Tests: A Practical Primer for t-Tests, Correlations, and Meta-Analyses. <em>Social Psychological and Personality Science</em>, 8(4). <a href="https://journals.sagepub.com/doi/10.1177/1948550617697177">Link</a></li>
+
+<li>Lakens, D., Scheel, A. M., & Isager, P. M. (2018). Equivalence Testing for Psychological Research: A Tutorial. <em>Advances in Methods and Practices in Psychological Science</em>, 1(2). <a href="https://journals.sagepub.com/doi/10.1177/2515245918770963">Link</a></li>
+
+<li>Schuirmann, D. J. (1987). A comparison of the two one-sided tests procedure and the power approach for assessing the equivalence of average bioavailability. <em>Journal of Pharmacokinetics and Biopharmaceutics</em>, 15(6). <a href="https://pubmed.ncbi.nlm.nih.gov/3450848/">Link</a></li>
+
+<li>U.S. Food and Drug Administration. Statistical Approaches to Establishing Bioequivalence (Guidance for Industry). <a href="https://www.fda.gov/regulatory-information/search-fda-guidance-documents/statistical-approaches-establishing-bioequivalence">Link</a></li>
+
+<li>Caldwell, A. TOSTER R package vignettes. CRAN. <a href="https://cran.r-project.org/web/packages/TOSTER/">Link</a></li>
+
+<li>Walker, E., & Nowacki, A. S. (2011). Understanding Equivalence and Noninferiority Testing. <em>Journal of General Internal Medicine</em>, 26(2). <a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC3043220/">Link</a></li>
+
+<li>European Medicines Agency. Guideline on the Investigation of Bioequivalence. <a href="https://www.ema.europa.eu/en/investigation-bioequivalence-scientific-guideline">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Hypothesis-Testing-in-R.html">Hypothesis Testing in R</a>, the null-hypothesis framework that TOST inverts, with the p-value mechanics you'll need behind every one-sided test.</li>
+
+<li><a href="Sample-Size-Planning-in-R.html">Sample Size in R</a>, power analysis to size a TOST study before you collect data, so your bounds are realistic for your sample.</li>
+
+<li><a href="Confidence-Intervals-in-R.html">Confidence Intervals in R</a>, the CI interpretation that anchors the 90% interval approach regulators use for bioequivalence decisions.</li>
+
+</ul>
+
+{% endraw %}
