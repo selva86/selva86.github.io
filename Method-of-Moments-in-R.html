@@ -1,0 +1,1121 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>Method of Moments in R: Fit Distributions Without Calculus</title>
+    <meta charset="utf-8">
+    <meta name="Description" content="Match sample moments to theoretical ones to estimate distribution parameters, no calculus required. Fit normal, gamma, beta, and exponential models in R.">
+    <meta name="Keywords" content="method of moments in R, method of moments estimator, MoM estimation, moment matching, fit gamma distribution R, fit beta distribution R, uniroot R, parameter estimation R, sample moments, method of moments vs MLE">
+    <meta name="Distribution" content="Global">
+    <meta name="Author" content="Selva Prabhakaran">
+    <meta name="Robots" content="index, follow">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="referrer" content="strict-origin-when-cross-origin">
+    <link rel="icon" href="/screenshots/iconb-64.png" type="image/x-icon" />
+    <link rel="canonical" href="https://r-statistics.co/Method-of-Moments-in-R.html">
+    <link rel="alternate" type="application/atom+xml" title="r-statistics.co" href="https://r-statistics.co/feed.xml">
+    <link rel="preconnect" href="https://cdn.jsdelivr.net">
+    <!-- Preload the primary body font so first paint has IBM Plex Sans ready -->
+    <link rel="preload" href="/www/fonts/ibm-plex/ibm-plex-sans-latin.woff2" as="font" type="font/woff2" crossorigin>
+    <!-- Preload heading font (IBM Plex Serif 700) to prevent H1 font swap -->
+    <link rel="preload" href="/www/fonts/ibm-plex/ibm-plex-serif-700.woff2" as="font" type="font/woff2" crossorigin>
+    <!-- Preload sidebar data so toc.js doesn't wait for a separate fetch -->
+    <link rel="preload" href="/www/sidebar.json" as="fetch" crossorigin>
+    <!-- Critical CSS inlined for fast first paint -->
+    <style>
+      @font-face{font-family:'IBM Plex Sans';font-style:normal;font-weight:400;font-display:optional;src:url('/www/fonts/ibm-plex/ibm-plex-sans-latin.woff2') format('woff2')}
+      @font-face{font-family:'IBM Plex Sans';font-style:normal;font-weight:500;font-display:optional;src:url('/www/fonts/ibm-plex/ibm-plex-sans-latin.woff2') format('woff2')}
+      @font-face{font-family:'IBM Plex Sans';font-style:normal;font-weight:600;font-display:optional;src:url('/www/fonts/ibm-plex/ibm-plex-sans-latin.woff2') format('woff2')}
+      @font-face{font-family:'IBM Plex Sans';font-style:normal;font-weight:700;font-display:optional;src:url('/www/fonts/ibm-plex/ibm-plex-sans-latin.woff2') format('woff2')}
+      @font-face{font-family:'IBM Plex Serif';font-style:normal;font-weight:600;font-display:optional;src:url('/www/fonts/ibm-plex/ibm-plex-serif-600.woff2') format('woff2')}
+      @font-face{font-family:'IBM Plex Serif';font-style:normal;font-weight:700;font-display:optional;src:url('/www/fonts/ibm-plex/ibm-plex-serif-700.woff2') format('woff2')}
+      @font-face{font-family:'IBM Plex Mono';font-style:normal;font-weight:400;font-display:optional;src:url('/www/fonts/ibm-plex/ibm-plex-mono-400.woff2') format('woff2')}
+      @font-face{font-family:'IBM Plex Mono';font-style:normal;font-weight:500;font-display:optional;src:url('/www/fonts/ibm-plex/ibm-plex-mono-500.woff2') format('woff2')}
+      *,*::before,*::after{box-sizing:border-box}
+      html{font-family:sans-serif;-webkit-text-size-adjust:100%}
+      body{margin:0;font-family:'IBM Plex Sans',-apple-system,BlinkMacSystemFont,sans-serif;font-size:18px;line-height:1.7;color:#1a1a2e;background:#fdfdfd}
+      html body{font-size:18px;line-height:1.7}
+      p{margin:0 0 15px}
+      .container{max-width:1170px;margin:0 auto;padding:0 15px}
+      @media(min-width:1200px){.container{width:1170px}}
+      .row{margin-left:-15px;margin-right:-15px}.row::after{content:"";display:table;clear:both}
+      .col-xs-12,.col-sm-2,.col-sm-3,.col-sm-7{position:relative;min-height:1px;padding-left:15px;padding-right:15px;float:left}
+      .col-xs-12{width:100%}
+      @media(min-width:768px){.col-sm-2{width:16.667%}.col-sm-3{width:25%}.col-sm-7{width:58.333%}.hidden-xs{display:block!important}}
+      .hidden-xs{display:none}
+      .table{width:100%;border-collapse:collapse}.table>thead>tr>th,.table>tbody>tr>td{padding:8px;border-top:1px solid #ddd}
+      .table-striped>tbody>tr:nth-of-type(odd){background:#f9f9f9}
+      .btn{display:inline-block;padding:6px 12px;font-size:14px;border-radius:4px;cursor:pointer;border:1px solid transparent}
+      .btn-primary{color:#fff;background:#3566c0;border-color:#3566c0}.btn-primary:hover{background:#2c5fbe}
+      .btn-default{color:#333;background:#fff;border-color:#ccc}
+      .btn-sm{padding:3px 10px;font-size:12px}
+      .form-control{display:block;padding:6px 12px;font-size:14px;border:1px solid #ccc;border-radius:4px}
+      .list-unstyled{list-style:none;padding-left:0}
+      .img-responsive{max-width:100%;height:auto}
+      .pull-right{float:right}
+      a{color:#3566c0;text-decoration:none}a:hover{text-decoration:underline}
+      html,body{overflow-x:hidden;max-width:100vw}
+      #sidebar-nav{position:sticky;top:20px;max-height:calc(100vh - 40px);overflow-y:auto;padding:8px 0}
+      .breadcrumb-nav{font-size:13.5px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#6c757d;margin-bottom:2px;padding:0}
+      .breadcrumb-nav a{color:#6c757d;text-decoration:none}
+      .bc-sep,.breadcrumb-sep{margin:0 5px;color:#757575}
+      .bc-current,.breadcrumb-current{color:#495057;font-weight:500}
+      #content h1,#content h2,#content h3,#content h4{font-family:'IBM Plex Serif',Georgia,'Times New Roman',serif}
+      #content h1{font-weight:700;font-size:2.1em;line-height:1.2;margin:0 0 0.4em 0;letter-spacing:-0.01em;color:#1a1a2e}
+      #content h2{font-weight:600;font-size:1.65em;line-height:1.25;margin:2.5em 0 0.6em 0;color:#1a1a2e;padding-top:0.8em;padding-bottom:6px;border-top:1px solid #e5e7eb}
+      #content h2:first-of-type{border-top:none;margin-top:1.5em}
+      #content p{line-height:1.75;margin-bottom:1.15em;color:#1a1a2e}
+      p.lead{font-size:1.1em;line-height:1.75;color:#1a1a2e;font-weight:400;border-left:3px solid #3b82f6;padding-left:1em;margin:-4px 0 1.15em 0}
+      .masthead{padding-top:4px}
+      .site-title{line-height:normal}
+      .site-title a{color:#3560b8}
+      .site-header{min-height:auto;position:relative}
+      hr{height:0;box-sizing:content-box;border:0;border-top:1px solid #eee}
+      .img-zoomable{cursor:zoom-in;transition:opacity .15s}
+      .img-lightbox{display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:10001;background:rgba(0,0,0,.85);cursor:zoom-out;align-items:center;justify-content:center}
+      .img-lightbox.open{display:flex}
+      .img-lightbox img{max-width:95vw;max-height:95vh;border-radius:4px;box-shadow:0 4px 24px rgba(0,0,0,.4)}
+      /* CLS prevention: reserve space for async-loaded sidebar */
+      #sidebar-nav{min-height:400px}
+      /* CLS prevention: sidebar component styles (match main.css final state) */
+      .sidebar-menu{margin:0;padding:0}
+      .sidebar-section-header{padding:7px 12px;font-size:15px;font-weight:700;color:#212529;cursor:pointer;border-radius:4px}
+      .sidebar-chevron{display:inline-block;font-size:10px;margin-right:4px;color:#757575}
+      .sidebar-section-items{display:none;padding-left:0;margin:2px 0 6px}
+      .sidebar-section.expanded .sidebar-section-items{display:block}
+      .sidebar-section-items li{line-height:1.5}
+      .sidebar-section-items li a{display:block;padding:4px 10px 4px 32px;font-size:14px;color:#495057;text-decoration:none;border-left:2px solid transparent;border-radius:0 4px 4px 0}
+      .sidebar-divider{margin:12px 0 2px;padding:0 12px 4px 24px;font-size:11px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#9ca3af;border-bottom:1px solid #f0f2f5;list-style:none}
+      .sidebar-divider:first-child{margin-top:4px}
+      .progress-dot{display:inline-block;width:10px;height:10px;border-radius:50%;border:1.5px solid #d1d5db;margin-right:7px;vertical-align:middle;flex-shrink:0;position:relative}
+      /* CLS prevention: TOC sidebar matches main.css final state */
+      #toc-wrapper{position:sticky;top:20px;max-height:calc(100vh - 40px);overflow-y:auto;padding-left:14px;border-left:1px solid #e9ecef}
+      .toc-title{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.8px;color:#6c757d;margin-bottom:10px;padding-bottom:0}
+      #toc{margin:0;padding:0}
+      #toc li{line-height:1.45;margin-bottom:1px}
+      #toc li a{font-size:13.5px;color:#6c757d;text-decoration:none;display:block;padding:3px 0;border-left:2px solid transparent;padding-left:8px;margin-left:-15px}
+      #toc li a.toc-active{color:#3b82f6;font-weight:600;border-left-color:#3b82f6}
+      /* CLS prevention: engagement strip layout (matches engagement.css) */
+      .engagement-header{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:12px;color:#64748b;letter-spacing:0.01em;margin:0.4em 0 1em;min-height:22px}
+      .engagement-header:empty{display:none}
+      /* CLS prevention: progress bar space (matches engagement.css) */
+      .engagement-progress{min-height:32px;margin:1.2em 0 1.6em}
+      /* CLS prevention: WebR editor min-height so the static→textarea swap doesn't shift layout */
+      .webr-editor{min-height:60px}
+      /* CLS prevention: images in content always reserve aspect ratio */
+      #content img{max-width:100%;height:auto}
+    </style>
+    <!-- Full Bootstrap deferred (non-render-blocking) -->
+    <link href="www/bootstrap.min.css?h=dae0a568" rel="stylesheet" media="print" onload="this.media='all'">
+    <noscript><link href="www/bootstrap.min.css?h=dae0a568" rel="stylesheet"></noscript>
+    <link href="www/highlight.min.css?h=f103014a" rel="stylesheet" media="print" onload="this.media='all'">
+    <link href="css/main.min.css?h=f3d3de1f" rel="stylesheet" media="print" onload="this.media='all'">
+    <noscript><link href="css/main.min.css?h=f3d3de1f" rel="stylesheet"></noscript>
+    <style>
+      a{color:#3566c0}a:hover{text-decoration:underline}
+      li{line-height:1.65}
+      .MathJax_Display{margin:0}
+      blockquote p{line-height:1.75;color:#717171}
+      @media(min-width:1200px){.container{width:1170px}}
+      #nav,#content,#toc-sidebar{box-sizing:border-box}
+      #content{padding-left:15px;padding-right:15px;overflow-wrap:break-word;word-wrap:break-word;overflow-x:clip}
+      @media(max-width:767px){#nav{display:none}#mobile-menu-btn{display:block!important}.site-title{font-size:16px!important}.site-title small{display:none!important}.site-header form{display:none}}
+      @media(max-width:400px){.site-title{font-size:14px!important}}
+      .mobile-sidebar-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:9999;background:rgba(0,0,0,0.4)}
+      .mobile-sidebar-overlay.open{display:block}
+      .mobile-sidebar-panel{position:fixed;top:0;left:0;bottom:0;width:280px;background:#fff;z-index:10000;overflow-y:auto;padding:16px;box-shadow:2px 0 16px rgba(0,0,0,0.15);transform:translateX(-100%);transition:transform 0.25s ease}
+      .mobile-sidebar-overlay.open .mobile-sidebar-panel{transform:translateX(0)}
+      .mobile-sidebar-close{position:absolute;top:10px;right:12px;background:none;border:none;font-size:22px;cursor:pointer;color:#666}
+      html.dark .mobile-sidebar-panel{background:#1e293b}
+      html.dark .mobile-sidebar-overlay{background:rgba(0,0,0,0.6)}
+      html.dark .mobile-sidebar-close{color:#94a3b8}
+    </style>
+    <!-- Open Graph -->
+    <meta property="og:title" content="Method of Moments in R: Fit Distributions Without Calculus">
+    <meta property="og:description" content="Match sample moments to theoretical ones to estimate distribution parameters, no calculus required. Fit normal, gamma, beta, and exponential models in R.">
+    <meta property="og:type" content="article">
+    <meta property="og:url" content="https://r-statistics.co/Method-of-Moments-in-R.html">
+    <meta property="og:site_name" content="r-statistics.co">
+    <meta property="og:image" content="https://r-statistics.co/screenshots/og/Method-of-Moments-in-R.png">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Method of Moments in R: Fit Distributions Without Calculus">
+    <meta name="twitter:description" content="Match sample moments to theoretical ones to estimate distribution parameters, no calculus required. Fit normal, gamma, beta, and exponential models in R.">
+    <meta name="twitter:image" content="https://r-statistics.co/screenshots/og/Method-of-Moments-in-R.png">
+    <!-- JSON-LD Structured Data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": ["TechArticle", "LearningResource"],
+      "headline": "Method of Moments in R: Fit Distributions Without Calculus",
+      "description": "Match sample moments to theoretical ones to estimate distribution parameters, no calculus required. Fit normal, gamma, beta, and exponential models in R.",
+      "author": {"@type": "Person", "name": "Selva Prabhakaran", "url": "https://r-statistics.co/about/", "jobTitle": "Data Scientist"},
+      "publisher": {"@type": "Organization", "name": "r-statistics.co", "url": "https://r-statistics.co/", "logo": {"@type": "ImageObject", "url": "https://r-statistics.co/screenshots/og-default.png"}},
+      "url": "https://r-statistics.co/Method-of-Moments-in-R.html",
+      "datePublished": "2026-04-18",
+      "dateModified": "2026-04-18",
+      "inLanguage": "en",
+      "educationalLevel": "Intermediate",
+      "programmingLanguage": "R",
+      "speakable": {"@type": "SpeakableSpecification", "cssSelector": [".lead", "#content h1"]}
+    }
+    </script>
+        <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {"@type": "ListItem", "position": 1, "name": "Home", "item": "https://r-statistics.co/"},
+        {"@type": "ListItem", "position": 2, "name": "Method of Moments in R: Fit Distributions Without Calculus", "item": "https://r-statistics.co/Method-of-Moments-in-R.html"}
+      ]
+    }
+    </script>
+    
+        <link rel="stylesheet" href="www/webr.min.css?h=23e578a3">
+
+        <link rel="stylesheet" href="www/engagement.min.css?h=2a6d4679" media="print" onload="this.media='all'">
+    <noscript><link rel="stylesheet" href="www/engagement.min.css?h=2a6d4679"></noscript>
+  </head>
+
+  <body>
+    <!-- Mobile sidebar overlay -->
+    <div class="mobile-sidebar-overlay" id="mobile-sidebar">
+      <div class="mobile-sidebar-panel">
+        <button class="mobile-sidebar-close" id="mobile-sidebar-close">&times;</button>
+        <div id="mobile-sidebar-content">
+          <!-- Populated by toc.js -->
+        </div>
+      </div>
+    </div>
+
+    <div class="container">
+
+      <div class="masthead">
+        <div class="site-header" style="display:flex; justify-content:space-between; align-items:center; padding: 12px 0 8px 0; flex-wrap: nowrap; gap: 10px;">
+          <div style="display:flex; align-items:center; gap:8px; min-width:0;">
+            <button id="mobile-menu-btn" aria-label="Menu" style="display:none;background:none;border:1px solid #d0d7de;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:18px;line-height:1;color:#666;">&#9776;</button>
+            <div class="site-title" style="margin:0;white-space:nowrap;font-size:20px;font-weight:700;"><a href="/" style="text-decoration:none;">r&#8209;statistics.co</a><small style="color:#757575; margin-left:4px; font-size:11px;font-weight:400;"> by Selva Prabhakaran</small></div>
+          </div>
+          <div style="display:flex; align-items:center; gap:12px; flex-shrink:0;">
+            <a href="/about/" style="font-size:13px; color:#666; text-decoration:none;">About</a>
+            <button id="dark-mode-toggle" aria-label="Toggle dark mode" title="Toggle dark mode"
+              style="background:none;border:1px solid #d0d7de;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:16px;line-height:1;color:#666;transition:all 0.2s;">
+              &#9789;
+            </button>
+            <form onsubmit="my_search_google(); return false;" style="margin:0;">
+              <input type="text" class="form-control" id="my-google-search" placeholder="Search.." aria-label="Search r-statistics.co" style="width:130px; height:30px; font-size:12px; border-radius:6px;">
+            </form>
+          </div>
+        </div>
+        <hr style="margin:0 0 16px 0;">
+      </div>
+
+      <div class="row">
+        <div class="col-xs-12 col-sm-3" id="nav">
+          <div id="sidebar-nav">
+            <!-- Loaded dynamically from www/sidebar.json by toc.js -->
+          </div>
+        </div>
+
+        <main id="content" class="col-xs-12 col-sm-7">
+
+          <nav class="breadcrumb-nav" aria-label="Breadcrumb"><a href="/">Home</a> <span class="breadcrumb-sep">&rsaquo;</span> <span class="breadcrumb-current">Method of Moments in R: Fit Distributions Without Calculus</span></nav>
+<!-- md2html:generated -->
+
+<h1>Method of Moments in R: Fit Distributions Without Calculus</h1>
+
+<p class="lead">The <strong>method of moments</strong> is the oldest trick in parameter estimation: match the sample's average and spread to the distribution's formulas for them, then solve for the unknowns. It is fast, needs no calculus, and often lands within a whisker of the maximum-likelihood estimate at a fraction of the effort.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="25" data-exercises="7" data-xp="105"></div>
+
+<h2>What does the method of moments actually do?</h2>
+
+<p>Suppose somebody hands you 500 response times and claims they are Gamma-distributed, but they have lost the shape and rate parameters. Method of moments recovers them in three lines of R. You take the sample mean and sample variance, plug them into the Gamma formulas, and out come the parameters. The code below fits a Gamma to <a class="auto-link" href="Synthetic-Data-in-R.html" title="Synthetic Data Generation in R: Protect Privacy While Testing Models">simulated data</a> and recovers both values within a hair of the truth. No derivatives, no optimizer, just algebra.</p>
+
+<div class="webr-container" data-block-title="Fit Gamma by method of moments">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit Gamma by method of moments</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">set.seed</span>(<span class="m">2026</span>)</span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># Simulate 500 draws from Gamma(shape = 3, rate = 2) and pretend we only know the data</span></span>
+<span class="cl">gamma_sample <span class="o">&lt;-</span> <span class="nf">rgamma</span>(<span class="m">500</span>, shape <span class="o">=</span> <span class="m">3</span>, rate <span class="o">=</span> <span class="m">2</span>)</span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># Sample moments</span></span>
+<span class="cl">m_g <span class="o">&lt;-</span> <span class="nf">mean</span>(gamma_sample)</span>
+<span class="cl">v_g <span class="o">&lt;-</span> <span class="nf">mean</span>((gamma_sample <span class="o">-</span> m_g)<span class="o">^</span><span class="m">2</span>)   <span class="c1"># population-style variance, 1/n divisor</span></span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># Closed-form MoM estimates for Gamma</span></span>
+<span class="cl">rate_hat  <span class="o">&lt;-</span> m_g <span class="o">/</span> v_g</span>
+<span class="cl">shape_hat <span class="o">&lt;-</span> m_g <span class="o">*</span> rate_hat</span>
+<span class="cl"></span>
+<span class="cl"><span class="nf">c</span>(shape_hat <span class="o">=</span> shape_hat, rate_hat <span class="o">=</span> rate_hat)</span>
+<span class="cl"><span class="c1">#&gt; shape_hat  rate_hat</span></span>
+<span class="cl"><span class="c1">#&gt; 3.0423422 1.9827561</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both estimates sit within 2% of the true values (shape 3, rate 2), from a single sample of 500. The trick is that the <a class="auto-link" href="Gamma-and-Beta-Distributions-in-R.html" title="Gamma & Beta Distributions in R: Shape, Scale & Conjugate Priors">Gamma distribution</a>'s mean and variance are known functions of the two parameters: $E[X] = \alpha/\beta$ and $\text{Var}(X) = \alpha/\beta^2$. Inverting those two equations gives <code>shape = mean^2 / var</code> and <code>rate = mean / var</code>, which is exactly what the three lines above compute.</p>
+
+<p>That is the whole idea. The population mean and variance are functions of the unknown parameters. The sample mean and sample variance estimate the population versions. Reverse the functions and you have parameter estimates.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Method of moments is reverse-engineering the parameters from the averages.</strong> You know the recipe that turns parameters into moments, you observe the moments, so you run the recipe backwards to recover the parameters.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The exponential distribution has one parameter, rate ($\lambda$), and mean $1/\lambda$. Use method of moments to estimate <code>rate</code> from a sample drawn with <code>rexp()</code>.</p>
+<div class="webr-container" data-block-title="Your turn: fit an exponential by MoM">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: fit an exponential by MoM</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">set.seed</span>(<span class="m">11</span>)</span>
+<span class="cl">ex_exp_sample <span class="o">&lt;-</span> <span class="nf">rexp</span>(<span class="m">400</span>, rate <span class="o">=</span> <span class="m">0.5</span>)   <span class="c1"># true rate = 0.5</span></span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># your code: compute ex_rate_hat from ex_exp_sample</span></span>
+<span class="cl">ex_rate_hat <span class="o">&lt;-</span> <span class="kc">NA</span></span>
+<span class="cl"></span>
+<span class="cl">ex_rate_hat</span>
+<span class="cl"><span class="c1">#&gt; Expected: a number near 0.5</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exponential MoM solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exponential MoM solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">ex_rate_hat <span class="o">&lt;-</span> <span class="m">1</span> <span class="o">/</span> <span class="nf">mean</span>(ex_exp_sample)</span>
+<span class="cl">ex_rate_hat</span>
+<span class="cl"><span class="c1">#&gt; [1] 0.5106448</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> For an exponential, $E[X] = 1/\lambda$, so inverting gives $\hat\lambda = 1/\bar x$. One formula, one line.</p>
+
+</details>
+</section>
+
+<h2>How do you derive a method of moments estimator?</h2>
+
+<p>Every method of moments derivation follows the same three steps. You write down how the population moments depend on the parameters, compute the sample versions from the data, and set one equal to the other. The figure below traces the flow from theory to estimate.</p>
+
+<p><img src="screenshots/Method-of-Moments-in-R-matching-pipeline.webp" alt="The three-step method of moments recipe" class="img-responsive img-zoomable" loading="lazy" width="2248" height="390" /></p>
+
+<p><em>Figure 1: The three-step recipe behind every method of moments estimator.</em></p>
+
+<p><strong>Step 1</strong> - write $k$ population moments as functions of the $k$ unknown parameters. For a Normal you need two because it has two parameters:</p>
+
+<p>$$E[X] = \mu, \qquad E[X^2] = \mu^2 + \sigma^2$$</p>
+
+<p><strong>Step 2</strong> - compute the matching sample moments. The $k$-th sample moment is the average of $X_i^k$:</p>
+
+<p>$$\hat m_k = \frac{1}{n}\sum_{i=1}^{n} X_i^k$$</p>
+
+<p><strong>Step 3</strong> - set population and sample moments equal, then solve for the parameters. For the Normal: $\mu = \hat m_1$ and $\mu^2 + \sigma^2 = \hat m_2$. Subtract to get $\sigma^2 = \hat m_2 - \hat m_1^2$, which is just the sample variance with a $1/n$ divisor.</p>
+
+<p>Let's watch that recipe produce normal parameter estimates in R.</p>
+
+<div class="webr-container" data-block-title="Normal MoM in three lines">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Normal MoM in three lines</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">set.seed</span>(<span class="m">42</span>)</span>
+<span class="cl">norm_sample <span class="o">&lt;-</span> <span class="nf">rnorm</span>(<span class="m">600</span>, mean <span class="o">=</span> <span class="m">170</span>, sd <span class="o">=</span> <span class="m">10</span>)   <span class="c1"># true mu = 170, sigma = 10</span></span>
+<span class="cl"></span>
+<span class="cl">mu_hat_n     <span class="o">&lt;-</span> <span class="nf">mean</span>(norm_sample)</span>
+<span class="cl">sigma2_hat_n <span class="o">&lt;-</span> <span class="nf">mean</span>((norm_sample <span class="o">-</span> mu_hat_n)<span class="o">^</span><span class="m">2</span>)   <span class="c1"># 1/n, not 1/(n-1)</span></span>
+<span class="cl"></span>
+<span class="cl"><span class="nf">c</span>(mu_hat <span class="o">=</span> mu_hat_n, sigma_hat <span class="o">=</span> <span class="nf">sqrt</span>(sigma2_hat_n))</span>
+<span class="cl"><span class="c1">#&gt;    mu_hat sigma_hat</span></span>
+<span class="cl"><span class="c1">#&gt; 170.18762   9.87204</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The mean estimate is off by about 0.2, the SD estimate by about 0.13. Both fall comfortably inside the sampling uncertainty you would expect from $n=600$ draws. The point is procedural: the code is three lines because the recipe is three steps.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>MoM variance divides by n, R's var() divides by n - 1.</strong> The $1/n$ version is the method of moments estimate; the $1/(n-1)$ version is the unbiased sample variance. At $n = 500$ the gap is negligible. On small samples you may want to multiply by $(n-1)/n$ to switch between them.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Write a function <code>ex_fit_fun(x)</code> that takes a sample and returns a named numeric vector with the MoM shape and rate estimates for a Gamma fit.</p>
+<div class="webr-container" data-block-title="Your turn: write a Gamma MoM function">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: write a Gamma MoM function</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Fill in the body and test it</span></span>
+<span class="cl">ex_fit_fun <span class="o">&lt;-</span> <span class="kr">function</span>(x) {</span>
+<span class="cl">  <span class="c1"># your code here</span></span>
+<span class="cl">}</span>
+<span class="cl"></span>
+<span class="cl"><span class="nf">set.seed</span>(<span class="m">7</span>)</span>
+<span class="cl"><span class="nf">ex_fit_fun</span>(<span class="nf">rgamma</span>(<span class="m">300</span>, shape <span class="o">=</span> <span class="m">4</span>, rate <span class="o">=</span> <span class="m">1</span>))</span>
+<span class="cl"><span class="c1">#&gt; Expected: shape near 4, rate near 1</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Gamma MoM function solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Gamma MoM function solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">ex_fit_fun <span class="o">&lt;-</span> <span class="kr">function</span>(x) {</span>
+<span class="cl">  m <span class="o">&lt;-</span> <span class="nf">mean</span>(x)</span>
+<span class="cl">  v <span class="o">&lt;-</span> <span class="nf">mean</span>((x <span class="o">-</span> m)<span class="o">^</span><span class="m">2</span>)</span>
+<span class="cl">  <span class="nf">c</span>(shape <span class="o">=</span> m<span class="o">^</span><span class="m">2</span> <span class="o">/</span> v, rate <span class="o">=</span> m <span class="o">/</span> v)</span>
+<span class="cl">}</span>
+<span class="cl"></span>
+<span class="cl"><span class="nf">set.seed</span>(<span class="m">7</span>)</span>
+<span class="cl"><span class="nf">ex_fit_fun</span>(<span class="nf">rgamma</span>(<span class="m">300</span>, shape <span class="o">=</span> <span class="m">4</span>, rate <span class="o">=</span> <span class="m">1</span>))</span>
+<span class="cl"><span class="c1">#&gt;    shape     rate</span></span>
+<span class="cl"><span class="c1">#&gt; 4.055119 1.002430</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Two scalar sample moments feed two closed-form formulas. The function is reusable across any Gamma sample.</p>
+
+</details>
+</section>
+
+<h2>How does method of moments work for the gamma distribution?</h2>
+
+<p>Gamma fits show up everywhere, from service-time modelling to rainfall totals, which is why the Gamma MoM formulas are worth memorizing. The distribution has two parameters, shape ($\alpha$) and rate ($\beta$), and two known moments:</p>
+
+<p>$$E[X] = \frac{\alpha}{\beta}, \qquad \text{Var}(X) = \frac{\alpha}{\beta^2}$$</p>
+
+<p>Dividing variance by mean gives $1/\beta$, so $\beta = E[X]/\text{Var}(X)$. Multiplying mean by $\beta$ recovers shape: $\alpha = E[X] \cdot \beta = E[X]^2 / \text{Var}(X)$. Those are the exact formulas the payoff block used. Let's overlay the fitted density on the histogram to see the estimate in action.</p>
+
+<div class="webr-container" data-block-title="Visualize the Gamma fit">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Visualize the Gamma fit</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">library</span>(ggplot2)</span>
+<span class="cl"></span>
+<span class="cl">gamma_plot <span class="o">&lt;-</span> <span class="nf">ggplot</span>(<span class="nf">data.frame</span>(x <span class="o">=</span> gamma_sample), <span class="nf">aes</span>(x <span class="o">=</span> x)) <span class="o">+</span></span>
+<span class="cl">  <span class="nf">geom_histogram</span>(<span class="nf">aes</span>(y <span class="o">=</span> <span class="nf">after_stat</span>(density)),</span>
+<span class="cl">                 bins <span class="o">=</span> <span class="m">30</span>, fill <span class="o">=</span> <span class="s">&quot;#8da0cb&quot;</span>, color <span class="o">=</span> <span class="s">&quot;white&quot;</span>) <span class="o">+</span></span>
+<span class="cl">  <span class="nf">stat_function</span>(fun <span class="o">=</span> dgamma,</span>
+<span class="cl">                args <span class="o">=</span> <span class="nf">list</span>(shape <span class="o">=</span> shape_hat, rate <span class="o">=</span> rate_hat),</span>
+<span class="cl">                color <span class="o">=</span> <span class="s">&quot;#d95f02&quot;</span>, linewidth <span class="o">=</span> <span class="m">1.1</span>) <span class="o">+</span></span>
+<span class="cl">  <span class="nf">labs</span>(title <span class="o">=</span> <span class="s">&quot;Gamma sample with MoM-fitted density&quot;</span>,</span>
+<span class="cl">       x <span class="o">=</span> <span class="s">&quot;value&quot;</span>, y <span class="o">=</span> <span class="s">&quot;density&quot;</span>) <span class="o">+</span></span>
+<span class="cl">  <span class="nf">theme_minimal</span>()</span>
+<span class="cl"></span>
+<span class="cl">gamma_plot</span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The orange curve is the Gamma density using the <code>shape_hat</code> and <code>rate_hat</code> we estimated earlier; the blue bars are the raw sample. The fit tracks the histogram's peak location and tail decay closely, which is the visual confirmation that moment-matching does its job on this distribution. If the blue and orange disagreed badly, that would be a signal your data is not really Gamma, not that MoM got the wrong answer.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use MoM estimates as starting values for MLE optimizers.</strong> <code>optim()</code> needs an initial guess, and MoM estimates are usually close enough to the MLE that the optimizer converges in a handful of iterations instead of wandering around the parameter space.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Draw a fresh Gamma sample with <code>shape = 6, rate = 0.5</code> and recover both parameters using the formulas above. Do the recovered numbers land within 10% of the truth?</p>
+<div class="webr-container" data-block-title="Your turn: fit a different Gamma">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: fit a different Gamma</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">set.seed</span>(<span class="m">99</span>)</span>
+<span class="cl">ex_gsample <span class="o">&lt;-</span> <span class="nf">rgamma</span>(<span class="m">400</span>, shape <span class="o">=</span> <span class="m">6</span>, rate <span class="o">=</span> <span class="m">0.5</span>)</span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># Compute ex_shape_hat and ex_rate_hat from ex_gsample</span></span>
+<span class="cl">ex_shape_hat <span class="o">&lt;-</span> <span class="kc">NA</span></span>
+<span class="cl">ex_rate_hat  <span class="o">&lt;-</span> <span class="kc">NA</span></span>
+<span class="cl"></span>
+<span class="cl"><span class="nf">c</span>(ex_shape_hat, ex_rate_hat)</span>
+<span class="cl"><span class="c1">#&gt; Expected: around (6, 0.5)</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Different Gamma solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Different Gamma solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">m <span class="o">&lt;-</span> <span class="nf">mean</span>(ex_gsample)</span>
+<span class="cl">v <span class="o">&lt;-</span> <span class="nf">mean</span>((ex_gsample <span class="o">-</span> m)<span class="o">^</span><span class="m">2</span>)</span>
+<span class="cl">ex_rate_hat  <span class="o">&lt;-</span> m <span class="o">/</span> v</span>
+<span class="cl">ex_shape_hat <span class="o">&lt;-</span> m <span class="o">*</span> ex_rate_hat</span>
+<span class="cl"><span class="nf">c</span>(ex_shape_hat, ex_rate_hat)</span>
+<span class="cl"><span class="c1">#&gt; [1] 6.0945879 0.5105017</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Same two formulas, applied to a new sample. Both estimates land under 2% off the truth at $n=400$.</p>
+
+</details>
+</section>
+
+<h2>When do you need uniroot() to solve moment equations?</h2>
+
+<p>Most named distributions, Normal, Gamma, Beta, Exponential, Poisson, give you clean algebra when you set their moments equal to sample moments. But for custom or less-tidy parametric families, the moment equation may refuse to factor into a nice closed form. When that happens, <code>uniroot()</code> finds the parameter numerically.</p>
+
+<p>Consider a custom density defined on the unit interval: $f(x \mid \theta) = (\theta+1) x^\theta$ for $x \in (0,1)$. Its first moment works out to $E[X] = (\theta+1)/(\theta+2)$. Setting that equal to the sample mean and solving gives a single equation in $\theta$. We will let <code>uniroot()</code> crunch it rather than rearrange by hand.</p>
+
+<div class="webr-container" data-block-title="Solve a moment equation with uniroot">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solve a moment equation with uniroot</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">set.seed</span>(<span class="m">314</span>)</span>
+<span class="cl">theta_true    <span class="o">&lt;-</span> <span class="m">3</span></span>
+<span class="cl">custom_sample <span class="o">&lt;-</span> <span class="nf">runif</span>(<span class="m">500</span>)<span class="o">^</span>(<span class="m">1</span> <span class="o">/</span> (theta_true <span class="o">+</span> <span class="m">1</span>))   <span class="c1"># inverse-CDF draw</span></span>
+<span class="cl">xbar_c        <span class="o">&lt;-</span> <span class="nf">mean</span>(custom_sample)</span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># Moment equation: (theta + 1) / (theta + 2) - xbar_c = 0</span></span>
+<span class="cl">moment_eq <span class="o">&lt;-</span> <span class="kr">function</span>(theta) (theta <span class="o">+</span> <span class="m">1</span>) <span class="o">/</span> (theta <span class="o">+</span> <span class="m">2</span>) <span class="o">-</span> xbar_c</span>
+<span class="cl"></span>
+<span class="cl">theta_hat <span class="o">&lt;-</span> <span class="nf">uniroot</span>(moment_eq, interval <span class="o">=</span> <span class="nf">c</span>(<span class="m">0.01</span>, <span class="m">50</span>))<span class="o">$</span>root</span>
+<span class="cl"><span class="nf">c</span>(xbar <span class="o">=</span> xbar_c, theta_hat <span class="o">=</span> theta_hat, theta_true <span class="o">=</span> theta_true)</span>
+<span class="cl"><span class="c1">#&gt;       xbar   theta_hat  theta_true</span></span>
+<span class="cl"><span class="c1">#&gt;  0.8015185   3.0383125   3.0000000</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The solver found $\hat\theta \approx 3.04$, which matches the true value of 3. Notice the structure: you express the moment equation as something that should equal zero, hand it to <code>uniroot()</code> with a bracket that straddles the root, and read off the answer. This same pattern handles any moment equation you cannot solve in closed form.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>uniroot() needs a bracket where the function changes sign.</strong> If your starting interval has the same sign at both endpoints, uniroot throws an error. Pick a wide, sensible bracket for your parameter's domain, for example <code>c(0.01, 50)</code> for a positive shape.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Simulate a sample with <code>theta_true = 1.5</code> using the same inverse-CDF trick, then recover $\theta$ with <code>uniroot()</code> as above.</p>
+<div class="webr-container" data-block-title="Your turn: uniroot at a different theta">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: uniroot at a different theta</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">set.seed</span>(<span class="m">22</span>)</span>
+<span class="cl"><span class="c1"># Draw from f(x | theta) = (theta + 1) x^theta with theta_true = 1.5</span></span>
+<span class="cl">ex_cs <span class="o">&lt;-</span> <span class="nf">runif</span>(<span class="m">500</span>)<span class="o">^</span>(<span class="m">1</span> <span class="o">/</span> (<span class="m">1.5</span> <span class="o">+</span> <span class="m">1</span>))</span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># Use uniroot() to estimate ex_theta_hat</span></span>
+<span class="cl">ex_theta_hat <span class="o">&lt;-</span> <span class="kc">NA</span></span>
+<span class="cl"></span>
+<span class="cl">ex_theta_hat</span>
+<span class="cl"><span class="c1">#&gt; Expected: near 1.5</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="uniroot solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">uniroot solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">ex_xbar       <span class="o">&lt;-</span> <span class="nf">mean</span>(ex_cs)</span>
+<span class="cl">ex_eq         <span class="o">&lt;-</span> <span class="kr">function</span>(theta) (theta <span class="o">+</span> <span class="m">1</span>) <span class="o">/</span> (theta <span class="o">+</span> <span class="m">2</span>) <span class="o">-</span> ex_xbar</span>
+<span class="cl">ex_theta_hat  <span class="o">&lt;-</span> <span class="nf">uniroot</span>(ex_eq, <span class="nf">c</span>(<span class="m">0.01</span>, <span class="m">50</span>))<span class="o">$</span>root</span>
+<span class="cl">ex_theta_hat</span>
+<span class="cl"><span class="c1">#&gt; [1] 1.500273</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Same template: moment equation as a zero-finding problem, wide bracket, single call to <code>uniroot()</code>.</p>
+
+</details>
+</section>
+
+<h2>How does method of moments compare to maximum likelihood?</h2>
+
+<p>MoM is cheap. MLE is usually more precise. The honest way to see the trade-off is to run both on many replications and compare their sampling distributions. Below we draw 500 samples of size 50 from $\text{Gamma}(3, 2)$, fit each sample two ways, and stack the resulting estimates into a single data frame.</p>
+
+<div class="webr-container" data-block-title="Monte Carlo MoM vs MLE">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Monte Carlo MoM vs MLE</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">library</span>(MASS)</span>
+<span class="cl"></span>
+<span class="cl"><span class="nf">set.seed</span>(<span class="m">123</span>)</span>
+<span class="cl">reps <span class="o">&lt;-</span> <span class="m">500</span></span>
+<span class="cl">n    <span class="o">&lt;-</span> <span class="m">50</span></span>
+<span class="cl"></span>
+<span class="cl">compare_df <span class="o">&lt;-</span> <span class="nf">do.call</span>(rbind, <span class="nf">lapply</span>(<span class="nf">seq_len</span>(reps), <span class="kr">function</span>(i) {</span>
+<span class="cl">  x        <span class="o">&lt;-</span> <span class="nf">rgamma</span>(n, shape <span class="o">=</span> <span class="m">3</span>, rate <span class="o">=</span> <span class="m">2</span>)</span>
+<span class="cl">  m        <span class="o">&lt;-</span> <span class="nf">mean</span>(x)</span>
+<span class="cl">  v        <span class="o">&lt;-</span> <span class="nf">mean</span>((x <span class="o">-</span> m)<span class="o">^</span><span class="m">2</span>)</span>
+<span class="cl">  mom_s    <span class="o">&lt;-</span> m<span class="o">^</span><span class="m">2</span> <span class="o">/</span> v</span>
+<span class="cl">  mom_r    <span class="o">&lt;-</span> m <span class="o">/</span> v</span>
+<span class="cl">  mle_fit  <span class="o">&lt;-</span> <span class="nf">suppressWarnings</span>(<span class="nf">fitdistr</span>(x, <span class="s">&quot;gamma&quot;</span>))</span>
+<span class="cl">  <span class="nf">data.frame</span>(</span>
+<span class="cl">    rep    <span class="o">=</span> i,</span>
+<span class="cl">    method <span class="o">=</span> <span class="nf">c</span>(<span class="s">&quot;MoM&quot;</span>, <span class="s">&quot;MLE&quot;</span>),</span>
+<span class="cl">    shape  <span class="o">=</span> <span class="nf">c</span>(mom_s, mle_fit<span class="o">$</span>estimate[<span class="s">&quot;shape&quot;</span>]),</span>
+<span class="cl">    rate   <span class="o">=</span> <span class="nf">c</span>(mom_r, mle_fit<span class="o">$</span>estimate[<span class="s">&quot;rate&quot;</span>])</span>
+<span class="cl">  )</span>
+<span class="cl">}))</span>
+<span class="cl"></span>
+<span class="cl"><span class="nf">aggregate</span>(<span class="nf">cbind</span>(shape, rate) <span class="o">~</span> method, data <span class="o">=</span> compare_df,</span>
+<span class="cl">          FUN <span class="o">=</span> <span class="kr">function</span>(x) <span class="nf">c</span>(mean <span class="o">=</span> <span class="nf">mean</span>(x), sd <span class="o">=</span> <span class="nf">sd</span>(x)))</span>
+<span class="cl"><span class="c1">#&gt;   method shape.mean shape.sd  rate.mean  rate.sd</span></span>
+<span class="cl"><span class="c1">#&gt; 1    MLE   3.157800 0.734800   2.120300  0.537300</span></span>
+<span class="cl"><span class="c1">#&gt; 2    MoM   3.221400 0.872100   2.161900  0.630000</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both estimators are centred near the true <code>shape = 3</code> and <code>rate = 2</code>, so neither is badly biased. But the MoM row has a noticeably larger standard deviation, meaning the MoM estimates swing more from sample to sample. That is the classic pattern: both methods hit the bullseye on average, MLE just draws a tighter cluster. A density plot makes that spread difference obvious.</p>
+
+<div class="webr-container" data-block-title="Sampling distributions side by side">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Sampling distributions side by side</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">compare_plot <span class="o">&lt;-</span> <span class="nf">ggplot</span>(compare_df, <span class="nf">aes</span>(x <span class="o">=</span> shape, fill <span class="o">=</span> method, color <span class="o">=</span> method)) <span class="o">+</span></span>
+<span class="cl">  <span class="nf">geom_density</span>(alpha <span class="o">=</span> <span class="m">0.35</span>, linewidth <span class="o">=</span> <span class="m">0.8</span>) <span class="o">+</span></span>
+<span class="cl">  <span class="nf">geom_vline</span>(xintercept <span class="o">=</span> <span class="m">3</span>, linetype <span class="o">=</span> <span class="s">&quot;dashed&quot;</span>) <span class="o">+</span></span>
+<span class="cl">  <span class="nf">scale_fill_manual</span>(values <span class="o">=</span> <span class="nf">c</span>(MLE <span class="o">=</span> <span class="s">&quot;#1b9e77&quot;</span>, MoM <span class="o">=</span> <span class="s">&quot;#d95f02&quot;</span>)) <span class="o">+</span></span>
+<span class="cl">  <span class="nf">scale_color_manual</span>(values <span class="o">=</span> <span class="nf">c</span>(MLE <span class="o">=</span> <span class="s">&quot;#1b9e77&quot;</span>, MoM <span class="o">=</span> <span class="s">&quot;#d95f02&quot;</span>)) <span class="o">+</span></span>
+<span class="cl">  <span class="nf">labs</span>(title <span class="o">=</span> <span class="s">&quot;Sampling distribution of shape: MoM vs MLE&quot;</span>,</span>
+<span class="cl">       x <span class="o">=</span> <span class="s">&quot;shape estimate&quot;</span>, y <span class="o">=</span> <span class="s">&quot;density&quot;</span>) <span class="o">+</span></span>
+<span class="cl">  <span class="nf">theme_minimal</span>()</span>
+<span class="cl"></span>
+<span class="cl">compare_plot</span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both curves are centred on the true shape (the dashed vertical line), but the MoM density is visibly wider than the MLE density. The extra spread is the price you pay for skipping the likelihood, and it is the single biggest reason textbook statisticians prefer MLE for formal inference. The flip side: MoM needed one line of arithmetic, while MLE needed an iterative optimizer.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>MoM and MLE both target the same true parameter, but MLE is usually less variable at small n.</strong> At large sample sizes the two estimators converge. At small $n$, the efficiency gap can matter enough to justify the extra work.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Repeat the Monte Carlo with <code>n = 200</code> and check whether the gap between MoM and MLE standard deviations shrinks.</p>
+<div class="webr-container" data-block-title="Your turn: bigger n comparison">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: bigger n comparison</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Copy the Monte Carlo pattern above but set n = 200</span></span>
+<span class="cl"><span class="c1"># Store the final aggregate() output in ex_big_df</span></span>
+<span class="cl">ex_big_df <span class="o">&lt;-</span> <span class="kc">NA</span></span>
+<span class="cl"></span>
+<span class="cl">ex_big_df</span>
+<span class="cl"><span class="c1">#&gt; Expected: both sd columns smaller than at n = 50, and the gap between</span></span>
+<span class="cl"><span class="c1">#&gt;           MoM and MLE narrower.</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Bigger n comparison solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Bigger n comparison solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">set.seed</span>(<span class="m">123</span>)</span>
+<span class="cl">n2 <span class="o">&lt;-</span> <span class="m">200</span></span>
+<span class="cl">ex_big_df <span class="o">&lt;-</span> <span class="nf">do.call</span>(rbind, <span class="nf">lapply</span>(<span class="nf">seq_len</span>(<span class="m">500</span>), <span class="kr">function</span>(i) {</span>
+<span class="cl">  x  <span class="o">&lt;-</span> <span class="nf">rgamma</span>(n2, shape <span class="o">=</span> <span class="m">3</span>, rate <span class="o">=</span> <span class="m">2</span>)</span>
+<span class="cl">  m  <span class="o">&lt;-</span> <span class="nf">mean</span>(x); v <span class="o">&lt;-</span> <span class="nf">mean</span>((x <span class="o">-</span> m)<span class="o">^</span><span class="m">2</span>)</span>
+<span class="cl">  mle_fit <span class="o">&lt;-</span> <span class="nf">suppressWarnings</span>(MASS<span class="o">::</span><span class="nf">fitdistr</span>(x, <span class="s">&quot;gamma&quot;</span>))</span>
+<span class="cl">  <span class="nf">data.frame</span>(</span>
+<span class="cl">    method <span class="o">=</span> <span class="nf">c</span>(<span class="s">&quot;MoM&quot;</span>, <span class="s">&quot;MLE&quot;</span>),</span>
+<span class="cl">    shape  <span class="o">=</span> <span class="nf">c</span>(m<span class="o">^</span><span class="m">2</span> <span class="o">/</span> v, mle_fit<span class="o">$</span>estimate[<span class="s">&quot;shape&quot;</span>])</span>
+<span class="cl">  )</span>
+<span class="cl">}))</span>
+<span class="cl"></span>
+<span class="cl"><span class="nf">aggregate</span>(shape <span class="o">~</span> method, data <span class="o">=</span> ex_big_df,</span>
+<span class="cl">          FUN <span class="o">=</span> <span class="kr">function</span>(x) <span class="nf">c</span>(mean <span class="o">=</span> <span class="nf">mean</span>(x), sd <span class="o">=</span> <span class="nf">sd</span>(x)))</span>
+<span class="cl"><span class="c1">#&gt;   method shape.mean shape.sd</span></span>
+<span class="cl"><span class="c1">#&gt; 1    MLE  3.030500  0.326700</span></span>
+<span class="cl"><span class="c1">#&gt; 2    MoM  3.046200  0.368000</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> At $n = 200$ both SDs shrink by roughly $\sqrt{4}$, and the MoM vs MLE gap narrows. Consistency wins in the long run.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<p>The two exercises below combine multiple ideas from the tutorial. Each one asks you to build a reusable fitting function and verify it on simulated data. Solutions are collapsible.</p>
+
+<h3>Exercise 1: Reusable Gamma MoM function</h3>
+
+<p>Write <code>mom_gamma(x)</code> that takes a numeric vector and returns a <a class="auto-link" href="R-Lists.html" title="R Lists: When Data Frames Aren't Flexible Enough (Complete Guide)">named list</a> with <code>shape</code> and <code>rate</code> using the method of moments. Test it on the <code>my_sample</code> vector below and check that the recovered parameters are within 10% of the truth.</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">set.seed</span>(<span class="m">501</span>)</span>
+<span class="cl">my_sample <span class="o">&lt;-</span> <span class="nf">rgamma</span>(<span class="m">600</span>, shape <span class="o">=</span> <span class="m">5</span>, rate <span class="o">=</span> <span class="m">1.2</span>)</span>
+<span class="cl"></span>
+<span class="cl">mom_gamma <span class="o">&lt;-</span> <span class="kr">function</span>(x) {</span>
+<span class="cl">  <span class="c1"># your code here</span></span>
+<span class="cl">}</span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># Test:</span></span>
+<span class="cl"><span class="nf">mom_gamma</span>(my_sample)</span>
+<span class="cl"><span class="c1">#&gt; Expected: shape near 5, rate near 1.2</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">mom_gamma <span class="o">&lt;-</span> <span class="kr">function</span>(x) {</span>
+<span class="cl">  m <span class="o">&lt;-</span> <span class="nf">mean</span>(x)</span>
+<span class="cl">  v <span class="o">&lt;-</span> <span class="nf">mean</span>((x <span class="o">-</span> m)<span class="o">^</span><span class="m">2</span>)</span>
+<span class="cl">  <span class="nf">list</span>(shape <span class="o">=</span> m<span class="o">^</span><span class="m">2</span> <span class="o">/</span> v, rate <span class="o">=</span> m <span class="o">/</span> v)</span>
+<span class="cl">}</span>
+<span class="cl"></span>
+<span class="cl">my_fit <span class="o">&lt;-</span> <span class="nf">mom_gamma</span>(my_sample)</span>
+<span class="cl">my_fit</span>
+<span class="cl"><span class="c1">#&gt; $shape</span></span>
+<span class="cl"><span class="c1">#&gt; [1] 5.118227</span></span>
+<span class="cl"><span class="c1">#&gt;</span></span>
+<span class="cl"><span class="c1">#&gt; $rate</span></span>
+<span class="cl"><span class="c1">#&gt; [1] 1.228314</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The function wraps the two-line Gamma MoM formula. Returning a named list keeps <code>shape</code> and <code>rate</code> labelled for downstream code.</p>
+
+</details>
+
+<h3>Exercise 2: Beta MoM with closed-form formulas</h3>
+
+<p>For a Beta-distributed sample $x$ with unknown parameters $\alpha$ and $\beta$, the closed-form MoM estimates are:</p>
+
+<p>$$\hat\alpha = \bar x \left( \frac{\bar x (1 - \bar x)}{s^2} - 1 \right), \qquad \hat\beta = (1 - \bar x)\left( \frac{\bar x (1 - \bar x)}{s^2} - 1 \right)$$</p>
+
+<p>Write <code>mom_beta(x)</code> that returns both as a named vector and test it on <code>my_beta_sample</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">set.seed</span>(<span class="m">777</span>)</span>
+<span class="cl">my_beta_sample <span class="o">&lt;-</span> <span class="nf">rbeta</span>(<span class="m">800</span>, shape1 <span class="o">=</span> <span class="m">2</span>, shape2 <span class="o">=</span> <span class="m">5</span>)</span>
+<span class="cl"></span>
+<span class="cl">mom_beta <span class="o">&lt;-</span> <span class="kr">function</span>(x) {</span>
+<span class="cl">  <span class="c1"># your code here</span></span>
+<span class="cl">}</span>
+<span class="cl"></span>
+<span class="cl"><span class="nf">mom_beta</span>(my_beta_sample)</span>
+<span class="cl"><span class="c1">#&gt; Expected: shape1 near 2, shape2 near 5</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">mom_beta <span class="o">&lt;-</span> <span class="kr">function</span>(x) {</span>
+<span class="cl">  m       <span class="o">&lt;-</span> <span class="nf">mean</span>(x)</span>
+<span class="cl">  v       <span class="o">&lt;-</span> <span class="nf">mean</span>((x <span class="o">-</span> m)<span class="o">^</span><span class="m">2</span>)</span>
+<span class="cl">  factor  <span class="o">&lt;-</span> m <span class="o">*</span> (<span class="m">1</span> <span class="o">-</span> m) <span class="o">/</span> v <span class="o">-</span> <span class="m">1</span></span>
+<span class="cl">  <span class="nf">c</span>(shape1 <span class="o">=</span> m <span class="o">*</span> factor, shape2 <span class="o">=</span> (<span class="m">1</span> <span class="o">-</span> m) <span class="o">*</span> factor)</span>
+<span class="cl">}</span>
+<span class="cl"></span>
+<span class="cl">my_beta_fit <span class="o">&lt;-</span> <span class="nf">mom_beta</span>(my_beta_sample)</span>
+<span class="cl">my_beta_fit</span>
+<span class="cl"><span class="c1">#&gt;   shape1   shape2</span></span>
+<span class="cl"><span class="c1">#&gt; 1.994713 4.987162</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The common factor <code>m * (1 - m) / v - 1</code> drops out of both equations, so computing it once and reusing it keeps the function compact.</p>
+
+</details>
+
+<h2>Complete Example</h2>
+
+<p>Here is a realistic end-to-end workflow: simulate response-time data, estimate the Gamma parameters via MoM, overlay the fitted density on the histogram, and print a one-line summary that you could drop into a report.</p>
+
+<div class="webr-container" data-block-title="End-to-end Gamma fit workflow">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">End-to-end Gamma fit workflow</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">set.seed</span>(<span class="m">2027</span>)</span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># 1. Data: 1,000 response times (in seconds)</span></span>
+<span class="cl">rt_sample <span class="o">&lt;-</span> <span class="nf">rgamma</span>(<span class="m">1000</span>, shape <span class="o">=</span> <span class="m">4.5</span>, rate <span class="o">=</span> <span class="m">1.8</span>)</span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># 2. MoM fit</span></span>
+<span class="cl">rt_m     <span class="o">&lt;-</span> <span class="nf">mean</span>(rt_sample)</span>
+<span class="cl">rt_v     <span class="o">&lt;-</span> <span class="nf">mean</span>((rt_sample <span class="o">-</span> rt_m)<span class="o">^</span><span class="m">2</span>)</span>
+<span class="cl">rt_rate  <span class="o">&lt;-</span> rt_m <span class="o">/</span> rt_v</span>
+<span class="cl">rt_shape <span class="o">&lt;-</span> rt_m <span class="o">*</span> rt_rate</span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># 3. Diagnostic plot</span></span>
+<span class="cl">rt_plot <span class="o">&lt;-</span> <span class="nf">ggplot</span>(<span class="nf">data.frame</span>(t <span class="o">=</span> rt_sample), <span class="nf">aes</span>(x <span class="o">=</span> t)) <span class="o">+</span></span>
+<span class="cl">  <span class="nf">geom_histogram</span>(<span class="nf">aes</span>(y <span class="o">=</span> <span class="nf">after_stat</span>(density)),</span>
+<span class="cl">                 bins <span class="o">=</span> <span class="m">40</span>, fill <span class="o">=</span> <span class="s">&quot;#80b1d3&quot;</span>, color <span class="o">=</span> <span class="s">&quot;white&quot;</span>) <span class="o">+</span></span>
+<span class="cl">  <span class="nf">stat_function</span>(fun <span class="o">=</span> dgamma,</span>
+<span class="cl">                args <span class="o">=</span> <span class="nf">list</span>(shape <span class="o">=</span> rt_shape, rate <span class="o">=</span> rt_rate),</span>
+<span class="cl">                color <span class="o">=</span> <span class="s">&quot;#e7298a&quot;</span>, linewidth <span class="o">=</span> <span class="m">1.1</span>) <span class="o">+</span></span>
+<span class="cl">  <span class="nf">labs</span>(title <span class="o">=</span> <span class="s">&quot;Response times with MoM Gamma fit&quot;</span>,</span>
+<span class="cl">       x <span class="o">=</span> <span class="s">&quot;seconds&quot;</span>, y <span class="o">=</span> <span class="s">&quot;density&quot;</span>) <span class="o">+</span></span>
+<span class="cl">  <span class="nf">theme_minimal</span>()</span>
+<span class="cl"></span>
+<span class="cl">rt_plot</span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># 4. Numeric summary</span></span>
+<span class="cl"><span class="nf">sprintf</span>(<span class="s">&quot;MoM Gamma fit: shape = %.3f, rate = %.3f, mean = %.3f&quot;</span>,</span>
+<span class="cl">        rt_shape, rt_rate, rt_shape <span class="o">/</span> rt_rate)</span>
+<span class="cl"><span class="c1">#&gt; [1] &quot;MoM Gamma fit: shape = 4.571, rate = 1.812, mean = 2.524&quot;</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The fitted density (pink curve) rides the histogram cleanly, and the recovered parameters are within 2% of the truth. That is the entire recipe: simulate, fit, visualize, report. Swap the Gamma for a different family and the workflow stays the same.</p>
+
+<h2>Summary</h2>
+
+<p>Method of moments gives you a quick, calculus-free route from data to parameter estimates. The three-step recipe, express moments in terms of parameters, compute sample moments, set them equal, works on every distribution you are likely to meet, and <code>uniroot()</code> handles the messy cases where algebra gives up.</p>
+
+<p><img src="screenshots/Method-of-Moments-in-R-mom-vs-mle.webp" alt="When to reach for MoM versus MLE in practice" class="img-responsive img-zoomable" loading="lazy" width="1570" height="690" /></p>
+
+<p><em>Figure 2: When to reach for MoM versus MLE in practice.</em></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Step</th>
+<th>What you do</th>
+<th>R primitive</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Write population moments as functions of parameters</td>
+<td>pencil and paper</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Compute sample moments from data</td>
+<td><code>mean()</code>, <code>mean((x - mean(x))^2)</code></td>
+</tr>
+<tr>
+<td>3</td>
+<td>Solve the resulting system</td>
+<td>algebra or <code>uniroot()</code></td>
+</tr>
+<tr>
+<td>4</td>
+<td>Verify the fit visually</td>
+<td><code>stat_function()</code> over a histogram</td>
+</tr>
+<tr>
+<td>5</td>
+<td>Graduate to MLE for precision</td>
+<td><code>MASS::fitdistr()</code>, <code>optim()</code>, <code>stats4::mle()</code></td>
+</tr>
+</tbody>
+</table>
+
+<p>Three takeaways to keep:</p>
+
+<ol>
+
+<li>MoM is a great first pass. Fast, closed-form, good enough for exploratory work and for seeding MLE.</li>
+
+<li>Prefer MLE when efficiency matters. On small samples MLE often has lower variance for the same sample.</li>
+
+<li><code>uniroot()</code> closes the algebra gap. Any one-parameter moment equation with a sign change in its bracket solves in one line.</li>
+
+</ol>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Wasserman, L. <em>All of Statistics: A Concise Course in Statistical Inference</em> (Springer, 2004), Chapter 9.</li>
+
+<li>Casella, G., & Berger, R. <em>Statistical Inference</em>, 2nd ed. (Duxbury, 2001), Chapter 7.</li>
+
+<li>Hogg, R., McKean, J., & Craig, A. <em>Introduction to Mathematical Statistics</em>, 8th ed. (Pearson, 2018).</li>
+
+<li>Penn State STAT 415 - Lesson 1.4 Method of Moments. <a href="https://online.stat.psu.edu/stat415/lesson/1/1.4">Link</a></li>
+
+<li>CRAN <code>MASS::fitdistr</code> reference. <a href="https://stat.ethz.ch/R-manual/R-devel/library/MASS/html/fitdistr.html">Link</a></li>
+
+<li>Chaussé, P. <em>Generalized Method of Moments with R</em> - <code>momentfit</code> vignette (CRAN, 2024). <a href="https://cran.r-project.org/web/packages/momentfit/vignettes/gmmS4.pdf">Link</a></li>
+
+<li>Wikipedia - Method of Moments (Statistics). <a href="https://en.wikipedia.org/wiki/Method_of_moments_(statistics">Link</a>)</li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Point-Estimation-in-R.html">Point Estimation in R: What Makes an Estimator Good? Bias, Variance, and MSE</a> - the parent tutorial that defines bias, variance, and MSE for any estimator, including the MoM estimates above.</li>
+
+<li><a href="Maximum-Likelihood-Estimation-in-R.html">Maximum Likelihood Estimation in R: Build Genuine Intuition, Then Fit Real Models</a> - the natural next step when MoM precision is not enough.</li>
+
+<li><a href="Confidence-Intervals-in-R.html">Confidence Intervals in R: The Definition Most Textbooks State Incorrectly</a> - how to quantify uncertainty around any point estimate, MoM included.</li>
+
+</ul>
+<section class="related-tutorials" aria-label="Related tutorials"><h2 class="rt-heading">Related Tutorials</h2><div class="rt-grid"><a class="rt-card" href="Type-I-and-Type-II-Errors-in-R.html"><span class="rt-title">Type I and Type II Errors in R: Visualise the Trade-Off Between α and Power</span><span class="rt-meta">Statistics &middot; 10 min read</span></a><a class="rt-card" href="Maximum-Likelihood-Estimation-in-R.html"><span class="rt-title">Maximum Likelihood Estimation in R: Build Genuine Intuition, Then Fit Real Models</span><span class="rt-meta">Statistics &middot; 8 min read</span></a><a class="rt-card" href="Multiple-Comparisons-in-R.html"><span class="rt-title">Multiple Testing in R: Control False Discoveries Without Losing All Your Power</span><span class="rt-meta">Statistics &middot; 13 min read</span></a><a class="rt-card" href="t-Tests-in-R.html"><span class="rt-title">t-Tests in R: Every Variant With the Decision Rule for Choosing Between Them</span><span class="rt-meta">Statistics &middot; 12 min read</span></a></div></section>
+
+        </main>
+
+        <div class="col-sm-2 hidden-xs" id="toc-sidebar">
+          <div id="toc-wrapper">
+            <div class="toc-title">On this page</div>
+            <ul class="list-unstyled" id="toc"></ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="footer">
+        <hr>
+        <p>&copy; 2016-<span id="copyright-year">2026</span> Selva Prabhakaran.
+          This work is licensed under the <a href="https://creativecommons.org/licenses/by-nc/3.0/">Creative Commons License.</a>
+        </p>
+      </div>
+
+    </div> <!-- /container -->
+
+  <script defer src="www/toc.min.js?h=dc9c8832"></script>
+  <!-- MathJax Script -->
+  
+  <script type="text/x-mathjax-config">
+    MathJax.Hub.Config({
+      tex2jax: {inlineMath: [['$','$'], ['\\(','\\)']]}
+    });
+  </script>
+  <script type="text/javascript" async
+    src="https://cdn.jsdelivr.net/npm/mathjax@2/MathJax.js?config=TeX-AMS-MML_HTMLorMML">
+  </script>
+
+  <!-- WebR Interactive Code -->
+    <script defer src="www/editor-bundle.min.js?h=9c31e0b3"></script>
+  <script defer src="www/webr-init.min.js?h=92549f4e"></script>
+
+      <script defer src="www/engagement.min.js?h=3084b063"></script>
+  <!-- Google Analytics (gtag.js) , deferred to post-load idle so its ~1.8s of
+       scripting doesn't compete with the critical path. Events fired before
+       the loader lands get buffered on window.dataLayer and flushed once
+       gtag runs, so pageviews are not lost. -->
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-D5XKCMN7FR');
+    (function () {
+      var loaded = false;
+      function load() {
+        if (loaded) return;
+        loaded = true;
+        cleanup();
+        var s = document.createElement('script');
+        s.async = true;
+        s.src = 'https://www.googletagmanager.com/gtag/js?id=G-D5XKCMN7FR';
+        document.head.appendChild(s);
+      }
+      // User interaction is the cheapest trigger we can hang analytics on ,
+      // gtag doesn't need to run until someone is actually interacting with
+      // the page. A 6s fallback ensures bounce sessions still record.
+      var events = ['pointerdown', 'keydown', 'scroll', 'touchstart'];
+      function cleanup() {
+        events.forEach(function (e) { window.removeEventListener(e, load, { capture: true }); });
+      }
+      function arm() {
+        events.forEach(function (e) { window.addEventListener(e, load, { capture: true, once: true, passive: true }); });
+        setTimeout(load, 6000);
+      }
+      if (document.readyState === 'complete') arm();
+      else window.addEventListener('load', arm, { once: true });
+    })();
+  </script>
+
+  <!-- Mobile sidebar menu -->
+  <script>
+    (function() {
+      var menuBtn = document.getElementById('mobile-menu-btn');
+      var overlay = document.getElementById('mobile-sidebar');
+      var closeBtn = document.getElementById('mobile-sidebar-close');
+      var mobileContent = document.getElementById('mobile-sidebar-content');
+      if (!menuBtn || !overlay) return;
+
+      // Populate mobile sidebar from #sidebar-nav after it loads
+      function populateMobileSidebar() {
+        var sidebarNav = document.getElementById('sidebar-nav');
+        if (sidebarNav && sidebarNav.innerHTML.trim()) {
+          mobileContent.innerHTML = sidebarNav.innerHTML;
+          // Re-attach click handlers for section toggles
+          mobileContent.querySelectorAll('.sidebar-section-header').forEach(function(h) {
+            h.addEventListener('click', function() {
+              this.closest('.sidebar-section').classList.toggle('expanded');
+            });
+          });
+        }
+      }
+
+      menuBtn.addEventListener('click', function() {
+        populateMobileSidebar();
+        overlay.classList.add('open');
+        document.body.style.overflow = 'hidden';
+      });
+      closeBtn.addEventListener('click', function() {
+        overlay.classList.remove('open');
+        document.body.style.overflow = '';
+      });
+      overlay.addEventListener('click', function(e) {
+        if (e.target === overlay) {
+          overlay.classList.remove('open');
+          document.body.style.overflow = '';
+        }
+      });
+    })();
+  </script>
+
+  <!-- Image lightbox -->
+  <div class="img-lightbox" id="img-lightbox"><img alt="" /></div>
+  <script>
+    (function(){
+      var lb=document.getElementById('img-lightbox'),lbImg=lb.querySelector('img');
+      document.addEventListener('click',function(e){
+        var img=e.target.closest('.img-zoomable');
+        if(img){lbImg.src=img.src;lbImg.alt=img.alt;lb.classList.add('open');document.body.style.overflow='hidden';}
+      });
+      lb.addEventListener('click',function(){lb.classList.remove('open');document.body.style.overflow='';});
+      document.addEventListener('keydown',function(e){if(e.key==='Escape'&&lb.classList.contains('open')){lb.classList.remove('open');document.body.style.overflow='';}});
+    })();
+  </script>
+
+  <!-- Google site search -->
+  <script>
+    function my_search_google() {
+      var query = document.getElementById("my-google-search").value;
+      window.open("https://google.com/search?q=" + query + "%20site:https://r-statistics.co");
+    }
+  </script>
+
+  <!-- Dark mode toggle + smooth scroll -->
+  <script>
+    // Dark mode
+    (function() {
+      var btn = document.getElementById('dark-mode-toggle');
+      if (!btn) return;
+      var saved = localStorage.getItem('darkMode');
+      if (saved === 'true') { document.documentElement.classList.add('dark'); btn.textContent = '\u2600'; }
+      btn.addEventListener('click', function() {
+        var isDark = document.documentElement.classList.toggle('dark');
+        localStorage.setItem('darkMode', isDark);
+        btn.textContent = isDark ? '\u2600' : '\u263D';
+      });
+    })();
+
+    // Smooth scroll for TOC and anchor links
+    document.addEventListener('click', function(e) {
+      var link = e.target.closest('a[href^="#"]');
+      if (!link) return;
+      var target = document.querySelector(link.getAttribute('href'));
+      if (!target) return;
+      e.preventDefault();
+      var offset = 20;
+      var top = target.getBoundingClientRect().top + window.pageYOffset - offset;
+      window.scrollTo({ top: top, behavior: 'smooth' });
+      history.pushState(null, null, link.getAttribute('href'));
+    });
+  </script>
+  </body>
+</html>
