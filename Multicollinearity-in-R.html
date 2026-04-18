@@ -3,8 +3,8 @@
   <head>
     <title>Multicollinearity in R: Detect It With VIF Before It Corrupts Your Coefficients</title>
     <meta charset="utf-8">
-    <meta name="Description" content="Correlated predictors inflate standard errors and destabilize regression coefficients. Detect multicollinearity in R with VIF and fix it with three techniques.">
-    <meta name="Keywords" content="multicollinearity in R, VIF in R, variance inflation factor, detect multicollinearity, fix multicollinearity, regression diagnostics, ridge regression R, collinearity R, GVIF">
+    <meta name="Description" content="Correlated predictors corrupt lm() coefficients. Detect multicollinearity in R with car::vif(), interpret VIF thresholds, and fix with ridge, PCA, or removal.">
+    <meta name="Keywords" content="multicollinearity in R, VIF in R, variance inflation factor, car::vif, GVIF, ridge regression, PCA regression, collinearity detection, lm diagnostics">
     <meta name="Distribution" content="Global">
     <meta name="Author" content="Selva Prabhakaran">
     <meta name="Robots" content="index, follow">
@@ -131,14 +131,14 @@
     </style>
     <!-- Open Graph -->
     <meta property="og:title" content="Multicollinearity in R: Detect It With VIF Before It Corrupts Your Coefficients">
-    <meta property="og:description" content="Correlated predictors inflate standard errors and destabilize regression coefficients. Detect multicollinearity in R with VIF and fix it with three techniques.">
+    <meta property="og:description" content="Correlated predictors corrupt lm() coefficients. Detect multicollinearity in R with car::vif(), interpret VIF thresholds, and fix with ridge, PCA, or removal.">
     <meta property="og:type" content="article">
     <meta property="og:url" content="https://r-statistics.co/Multicollinearity-in-R.html">
     <meta property="og:site_name" content="r-statistics.co">
     <meta property="og:image" content="https://r-statistics.co/screenshots/og/Multicollinearity-in-R.png">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Multicollinearity in R: Detect It With VIF Before It Corrupts Your Coefficients">
-    <meta name="twitter:description" content="Correlated predictors inflate standard errors and destabilize regression coefficients. Detect multicollinearity in R with VIF and fix it with three techniques.">
+    <meta name="twitter:description" content="Correlated predictors corrupt lm() coefficients. Detect multicollinearity in R with car::vif(), interpret VIF thresholds, and fix with ridge, PCA, or removal.">
     <meta name="twitter:image" content="https://r-statistics.co/screenshots/og/Multicollinearity-in-R.png">
     <!-- JSON-LD Structured Data -->
     <script type="application/ld+json">
@@ -146,7 +146,7 @@
       "@context": "https://schema.org",
       "@type": ["TechArticle", "LearningResource"],
       "headline": "Multicollinearity in R: Detect It With VIF Before It Corrupts Your Coefficients",
-      "description": "Correlated predictors inflate standard errors and destabilize regression coefficients. Detect multicollinearity in R with VIF and fix it with three techniques.",
+      "description": "Correlated predictors corrupt lm() coefficients. Detect multicollinearity in R with car::vif(), interpret VIF thresholds, and fix with ridge, PCA, or removal.",
       "author": {"@type": "Person", "name": "Selva Prabhakaran", "url": "https://r-statistics.co/about/", "jobTitle": "Data Scientist"},
       "publisher": {"@type": "Organization", "name": "r-statistics.co", "url": "https://r-statistics.co/", "logo": {"@type": "ImageObject", "url": "https://r-statistics.co/screenshots/og-default.png"}},
       "url": "https://r-statistics.co/Multicollinearity-in-R.html",
@@ -223,21 +223,18 @@
 
 <h1>Multicollinearity in R: Detect It With VIF Before It Corrupts Your Coefficients</h1>
 
-<p class="lead">Multicollinearity happens when two or more predictors in a regression are highly correlated, which inflates standard errors and makes coefficients swing wildly. You detect it in R with the Variance Inflation Factor (VIF) and fix it by dropping a redundant predictor, combining the correlated block with PCA, or switching to ridge regression.</p>
+<p class="lead">Multicollinearity happens when two or more predictors in a regression are highly correlated, which inflates standard errors and makes coefficients swing wildly between datasets. You detect it in R with the Variance Inflation Factor (VIF), and you fix it by dropping a redundant predictor, combining correlated variables into principal components, or switching to <a class="auto-link" href="Ridge-Regression-With-R.html" title="Ridge Regression with R">ridge regression</a>. This tutorial uses base R and <code>lm()</code> for the live code; <code>car::vif()</code> is the production detector you would reach for in RStudio.</p>
 
-<div class="engagement-header" data-difficulty="Intermediate" data-time="30" data-exercises="7" data-xp="105"></div>
+<div class="engagement-header" data-difficulty="Intermediate" data-time="40" data-exercises="8" data-xp="120"></div>
 
 <h2>What does multicollinearity do to your regression?</h2>
 
-<p>Multicollinearity is easiest to feel before it is defined. When two predictors measure nearly the same thing, the regression can't tell which one deserves credit, so the estimated coefficients swing wildly when you add or remove variables. Let's fit two models on <code>mtcars</code> that differ by a single predictor and watch the other coefficients lurch.</p>
+<p>Multicollinearity is easiest to feel before it is defined. When two predictors measure nearly the same thing, the regression cannot tell which one deserves credit, so coefficients lurch every time you add or drop a variable. Let's fit two models on <code>mtcars</code> that differ by a single predictor and watch the other coefficients move.</p>
 
 <div class="webr-container" data-block-title="Coefficient swing when a correlated predictor is dropped">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Coefficient swing when a correlated predictor is dropped</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">library</span>(dplyr)</span>
-<span class="cl"><span class="nf">library</span>(ggplot2)</span>
-<span class="cl"></span>
-<span class="cl"><span class="c1"># Full model: hp, wt, disp all predict mpg, but hp/disp/wt are correlated</span></span>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Full model: hp, wt, disp all predict mpg</span></span>
 <span class="cl">model_full <span class="o">&lt;-</span> <span class="nf">lm</span>(mpg <span class="o">~</span> hp <span class="o">+</span> wt <span class="o">+</span> disp, data <span class="o">=</span> mtcars)</span>
 <span class="cl"><span class="nf">round</span>(<span class="nf">coef</span>(model_full), <span class="m">3</span>)</span>
 <span class="cl"><span class="c1">#&gt; (Intercept)          hp          wt        disp</span></span>
@@ -257,20 +254,45 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Dropping <code>disp</code> barely moved <code>hp</code> or <code>wt</code> here, which is a sign <code>disp</code> added almost nothing the other two didn't already carry. In a badly collinear model you'd see the opposite, coefficients flipping sign or doubling in magnitude when you wiggle the predictor list. That instability is the symptom VIF is built to catch. The VIF turns "how much does my coefficient depend on which other predictors are present?" into a single number per predictor.</p>
+<p>Here the two fits look almost identical, which is the polite version of the problem. Even so, the <code>hp</code> coefficient moves slightly and <code>disp</code> collapses to essentially zero. In a more collinear dataset that tiny nudge becomes a sign flip, and the regression story you tell in the report changes completely.</p>
 
-<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Unstable coefficients are the disease, VIF is the thermometer.</strong> Multicollinearity doesn't usually break your predictions, it breaks your <em>inference</em>, coefficients, their signs, and their standard errors. If you only care about <a class="auto-link" href="Time-Series-Forecasting-With-R.html" title="Time Series Forecasting with R">forecasting</a>, you may not care. If you want to interpret coefficients, you must.</div></div>
+<p><img src="screenshots/Multicollinearity-in-R-why-it-hurts.webp" alt="How correlated predictors destabilise coefficient estimates." class="img-responsive img-zoomable" loading="lazy" width="2248" height="298" /></p>
+
+<p><em>Figure 1: How correlated predictors destabilise coefficient estimates.</em></p>
+
+<p>The instability shows up most clearly in the <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">confidence intervals</a>. When two predictors share information, the regression splits that information between them and every standard error gets bigger.</p>
+
+<div class="webr-container" data-block-title="Confidence intervals widen under collinearity">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Confidence intervals widen under collinearity</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">ci_full <span class="o">&lt;-</span> <span class="nf">confint</span>(model_full)</span>
+<span class="cl"><span class="nf">round</span>(ci_full, <span class="m">3</span>)</span>
+<span class="cl"><span class="c1">#&gt;                   2.5 %   97.5 %</span></span>
+<span class="cl"><span class="c1">#&gt; (Intercept)       30.296   43.915</span></span>
+<span class="cl"><span class="c1">#&gt; hp                -0.050   -0.013</span></span>
+<span class="cl"><span class="c1">#&gt; wt                -5.561   -2.042</span></span>
+<span class="cl"><span class="c1">#&gt; disp              -0.013    0.013</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The interval for <code>disp</code> crosses zero cleanly: the sign could be positive or negative depending on the sample. That is not a strong signal about displacement, it is a signal that <code>hp + wt + disp</code> carries three labels for one and a half pieces of information.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Wide confidence intervals that cross zero are the fingerprint of multicollinearity.</strong> When a predictor is truly informative, its interval sits confidently on one side of zero. An interval that straddles zero means the regression split too little information across too many correlated predictors.</div></div>
 
 <section class="tryit-block">
-<p><strong>Try it:</strong> Add <code>cyl</code> to the full model above and compare the <code>hp</code>, <code>wt</code>, and <code>disp</code> coefficients to <code>model_full</code>. Which ones shift the most?</p>
-<div class="webr-container" data-block-title="Your turn: add cyl and compare">
+<p><strong>Try it:</strong> Fit <code>lm(mpg ~ cyl + disp + hp, data = mtcars)</code> into <code>ex_model</code>. Then fit <code>ex_model_drop</code> after dropping <code>cyl</code>. Compare the two <code>coef()</code> outputs and report which coefficient changes the most in absolute value.</p>
+<div class="webr-container" data-block-title="Your turn: compare coefficient swing">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: add cyl and compare</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Fit the model below, then compare coefficients to model_full</span></span>
-<span class="cl">ex_model <span class="o">&lt;-</span> <span class="kc">NULL</span></span>
-<span class="cl"></span>
-<span class="cl"><span class="nf">round</span>(<span class="nf">coef</span>(ex_model), <span class="m">3</span>)</span>
-<span class="cl"><span class="c1">#&gt; Expected: hp, wt, disp coefficients visibly shift from model_full</span></span></div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: compare coefficient swing</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">ex_model <span class="o">&lt;-</span> <span class="nf">lm</span>(mpg <span class="o">~</span> cyl <span class="o">+</span> disp <span class="o">+</span> hp, data <span class="o">=</span> mtcars)</span>
+<span class="cl"><span class="c1"># your code here: fit ex_model_drop without cyl, then compare coef()</span></span>
+<span class="cl"><span class="c1">#&gt; Expected: one coefficient changes by more than 1 unit.</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -282,13 +304,19 @@
 <details>
 <summary>Click to reveal solution</summary>
 
-<div class="webr-container" data-block-title="Add cyl solution">
+<div class="webr-container" data-block-title="Coefficient swing solution">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Add cyl solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl">ex_model <span class="o">&lt;-</span> <span class="nf">lm</span>(mpg <span class="o">~</span> hp <span class="o">+</span> wt <span class="o">+</span> disp <span class="o">+</span> cyl, data <span class="o">=</span> mtcars)</span>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Coefficient swing solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">ex_model <span class="o">&lt;-</span> <span class="nf">lm</span>(mpg <span class="o">~</span> cyl <span class="o">+</span> disp <span class="o">+</span> hp, data <span class="o">=</span> mtcars)</span>
+<span class="cl">ex_model_drop <span class="o">&lt;-</span> <span class="nf">lm</span>(mpg <span class="o">~</span> disp <span class="o">+</span> hp, data <span class="o">=</span> mtcars)</span>
+<span class="cl"></span>
 <span class="cl"><span class="nf">round</span>(<span class="nf">coef</span>(ex_model), <span class="m">3</span>)</span>
-<span class="cl"><span class="c1">#&gt; (Intercept)          hp          wt        disp         cyl</span></span>
-<span class="cl"><span class="c1">#&gt;      40.829      -0.018      -3.854       0.012      -1.293</span></span></div>
+<span class="cl"><span class="c1">#&gt; (Intercept)         cyl        disp          hp</span></span>
+<span class="cl"><span class="c1">#&gt;      34.185      -1.227      -0.019      -0.015</span></span>
+<span class="cl"></span>
+<span class="cl"><span class="nf">round</span>(<span class="nf">coef</span>(ex_model_drop), <span class="m">3</span>)</span>
+<span class="cl"><span class="c1">#&gt; (Intercept)        disp          hp</span></span>
+<span class="cl"><span class="c1">#&gt;      30.736      -0.030      -0.025</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -298,70 +326,84 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p><strong>Explanation:</strong> The <code>hp</code> coefficient roughly halved (from -0.031 to -0.018) and <code>disp</code> flipped sign (0.000 → 0.012). That jumpiness is the coefficient instability multicollinearity causes.</p>
+<p>The <code>disp</code> coefficient drops from -0.019 to -0.030 once <code>cyl</code> is removed, and <code>hp</code> almost doubles. Because <code>cyl</code>, <code>disp</code>, and <code>hp</code> all describe engine size, pulling one out forces the others to carry its weight.</p>
 
 </details>
 </section>
 
 <h2>How do you compute VIF in R?</h2>
 
-<p>VIF formalizes that instability with one clean formula. For each predictor, it asks: how well can the OTHER predictors already predict this one? If the others explain almost all of it, this predictor carries little new information, and its VIF is large. The definition is:</p>
+<p>The Variance Inflation Factor gives you a number for the instability you just saw. For each predictor, VIF asks a simple question: how much of this predictor can the other predictors already explain? If the answer is "almost all of it", the regression cannot recover a clean coefficient for it.</p>
 
-<p>$$\text{VIF}_j = \frac{1}{1 - R_j^2}$$</p>
+<p>The formula comes from an auxiliary regression:</p>
+
+<p>$$\text{VIF}_j = \frac{1}{1 - R^2_j}$$</p>
 
 <p>Where:</p>
 
 <ul>
 
-<li>$\text{VIF}_j$ = variance inflation factor for predictor $j$</li>
+<li>$\text{VIF}_j$ = Variance Inflation Factor for predictor $j$</li>
 
-<li>$R_j^2$ = $R^2$ from regressing predictor $j$ on every OTHER predictor</li>
+<li>$R^2_j$ = the R-squared you get from regressing predictor $j$ on all the <em>other</em> predictors</li>
+
+<li>$1 - R^2_j$ = the fraction of predictor $j$ that the other predictors cannot explain</li>
 
 </ul>
 
-<p>We'll build a tiny <code>compute_vif()</code> in base R so the formula itself is transparent. It runs in your browser and works for any fitted <code>lm</code>.</p>
+<p>When $R^2_j$ is close to zero, the predictor carries unique information and VIF is close to 1. When $R^2_j$ climbs toward 0.9, VIF shoots up past 10 and the coefficient is riding on a sliver of independent variation.</p>
 
-<div class="webr-container" data-block-title="Define compute_vif and run on the full model">
+<p>You can build VIF from first principles with a short loop of <code>lm()</code> calls.</p>
+
+<div class="webr-container" data-block-title="Compute VIF manually with auxiliary regressions">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Define compute_vif and run on the full model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl">compute_vif <span class="o">&lt;-</span> <span class="kr">function</span>(model) {</span>
-<span class="cl">  X <span class="o">&lt;-</span> <span class="nf">model.matrix</span>(model)[, <span class="m">-1</span>, drop <span class="o">=</span> <span class="kc">FALSE</span>]  <span class="c1"># strip intercept</span></span>
-<span class="cl">  preds <span class="o">&lt;-</span> <span class="nf">colnames</span>(X)</span>
-<span class="cl">  vifs <span class="o">&lt;-</span> <span class="nf">sapply</span>(preds, <span class="kr">function</span>(p) {</span>
-<span class="cl">    others <span class="o">&lt;-</span> preds[preds <span class="o">!=</span> p]</span>
-<span class="cl">    form <span class="o">&lt;-</span> <span class="nf">as.formula</span>(<span class="nf">paste</span>(p, <span class="s">&quot;~&quot;</span>, <span class="nf">paste</span>(others, collapse <span class="o">=</span> <span class="s">&quot; + &quot;</span>)))</span>
-<span class="cl">    aux <span class="o">&lt;-</span> <span class="nf">lm</span>(form, data <span class="o">=</span> <span class="nf">as.data.frame</span>(X))</span>
-<span class="cl">    <span class="m">1</span> <span class="o">/</span> (<span class="m">1</span> <span class="o">-</span> <span class="nf">summary</span>(aux)<span class="o">$</span>r.squared)</span>
-<span class="cl">  })</span>
-<span class="cl">  vifs</span>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compute VIF manually with auxiliary regressions</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Predictors from the full model</span></span>
+<span class="cl">predictors <span class="o">&lt;-</span> <span class="nf">c</span>(<span class="s">&quot;hp&quot;</span>, <span class="s">&quot;wt&quot;</span>, <span class="s">&quot;disp&quot;</span>)</span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># Regress each predictor on the others and compute 1 / (1 - R^2)</span></span>
+<span class="cl">vif_values <span class="o">&lt;-</span> <span class="nf">sapply</span>(predictors, <span class="kr">function</span>(p) {</span>
+<span class="cl">  others <span class="o">&lt;-</span> <span class="nf">setdiff</span>(predictors, p)</span>
+<span class="cl">  formula_p <span class="o">&lt;-</span> <span class="nf">as.formula</span>(<span class="nf">paste</span>(p, <span class="s">&quot;~&quot;</span>, <span class="nf">paste</span>(others, collapse <span class="o">=</span> <span class="s">&quot; + &quot;</span>)))</span>
+<span class="cl">  r2 <span class="o">&lt;-</span> <span class="nf">summary</span>(<span class="nf">lm</span>(formula_p, data <span class="o">=</span> mtcars))<span class="o">$</span>r.squared</span>
+<span class="cl">  <span class="m">1</span> <span class="o">/</span> (<span class="m">1</span> <span class="o">-</span> r2)</span>
+<span class="cl">})</span>
+<span class="cl"></span>
+<span class="cl"><span class="nf">round</span>(vif_values, <span class="m">2</span>)</span>
+<span class="cl"><span class="c1">#&gt;   hp   wt disp</span></span>
+<span class="cl"><span class="c1">#&gt; 2.74 4.84 7.32</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Three numbers, three stories. <code>hp</code> has a VIF of 2.74, a mild dose of redundancy. <code>wt</code> sits at 4.84, right on the border of the "investigate" zone. <code>disp</code> lands at 7.32, which is why its confidence interval earlier swung through zero. The model tries to attribute mpg changes to displacement, but nearly 86 percent of displacement can already be predicted from horsepower and weight.</p>
+
+<p><img src="screenshots/Multicollinearity-in-R-vif-thresholds.webp" alt="How to interpret a VIF value against the standard thresholds." class="img-responsive img-zoomable" loading="lazy" width="1698" height="1168" /></p>
+
+<p><em>Figure 2: How to interpret a VIF value against the standard thresholds.</em></p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>VIF thresholds: 1 is clean, 5 is worth a look, 10 is urgent.</strong> A VIF of 1 means zero redundancy. Between 1 and 5 the predictor has overlap with the rest of the model but usually still earns its place. Between 5 and 10 you should ask whether the variable adds unique signal. Above 10, the coefficient estimate is essentially arbitrary and the variable should be dropped or combined.</div></div>
+
+<p>In everyday practice you would not hand-roll the VIF loop, you would reach for the <code>car</code> package. It adds factor support and a consistent return shape, and it is what most regression books reference.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>car::vif() is the production detector.</strong> Run <code>library(car); vif(model_full)</code> in RStudio to get the same numbers. The <code>car</code> package is not pre-compiled for the browser runtime on this page, so the examples use the manual formula instead. Both approaches give identical values; the manual loop shows what the function is doing under the hood. Install once with <code>install.packages(&quot;car&quot;)</code> and the function is available for every future project.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Write a function <code>ex_manual_vif(target, predictors, data)</code> that returns the VIF for one variable using the auxiliary-regression formula. Test it on <code>ex_manual_vif(&quot;wt&quot;, c(&quot;hp&quot;, &quot;wt&quot;, &quot;disp&quot;, &quot;qsec&quot;), mtcars)</code> and confirm the value is above 5.</p>
+<div class="webr-container" data-block-title="Your turn: one-shot VIF function">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: one-shot VIF function</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">ex_manual_vif <span class="o">&lt;-</span> <span class="kr">function</span>(target, predictors, data) {</span>
+<span class="cl">  <span class="c1"># your code here: regress target on the other predictors, return 1 / (1 - R^2)</span></span>
 <span class="cl">}</span>
 <span class="cl"></span>
-<span class="cl">vif_full <span class="o">&lt;-</span> <span class="nf">compute_vif</span>(model_full)</span>
-<span class="cl"><span class="nf">round</span>(vif_full, <span class="m">2</span>)</span>
-<span class="cl"><span class="c1">#&gt;    hp    wt  disp</span></span>
-<span class="cl"><span class="c1">#&gt;  2.74  4.85  7.32</span></span></div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p><code>disp</code> has a VIF of 7.32, which means the other predictors explain 86% of its variation, that's what made it redundant in the first section. <code>wt</code> is approaching the concern threshold, and <code>hp</code> is fine. In local R you'd call <code>car::vif(model_full)</code> and get the same numbers; we wrote the function ourselves so the math is explicit and so everything runs in the browser.</p>
-
-<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong><code>car::vif()</code> is the production tool.</strong> On your laptop, <code>library(car); vif(model_full)</code> returns the same values and handles extras (GVIF for factors, adjustments for multi-df terms). Use our <code>compute_vif()</code> to understand what <code>car::vif()</code> is doing; use <code>car::vif()</code> in production code.</div></div>
-
-<section class="tryit-block">
-<p><strong>Try it:</strong> Fit <code>mpg ~ wt + qsec + am</code> on <code>mtcars</code> and compute VIF. Is any value above 5?</p>
-<div class="webr-container" data-block-title="Your turn: VIF on a smaller model">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: VIF on a smaller model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl">ex_m2 <span class="o">&lt;-</span> <span class="kc">NULL</span>  <span class="c1"># fit lm()</span></span>
-<span class="cl">ex_vif2 <span class="o">&lt;-</span> <span class="kc">NULL</span>  <span class="c1"># call compute_vif()</span></span>
-<span class="cl"><span class="nf">round</span>(ex_vif2, <span class="m">2</span>)</span>
-<span class="cl"><span class="c1">#&gt; Expected: all VIFs should be comfortably below 5</span></span></div>
+<span class="cl"><span class="nf">ex_manual_vif</span>(<span class="s">&quot;wt&quot;</span>, <span class="nf">c</span>(<span class="s">&quot;hp&quot;</span>, <span class="s">&quot;wt&quot;</span>, <span class="s">&quot;disp&quot;</span>, <span class="s">&quot;qsec&quot;</span>), mtcars)</span>
+<span class="cl"><span class="c1">#&gt; Expected: a value above 5, confirming wt is collinear with the others.</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -373,14 +415,18 @@
 <details>
 <summary>Click to reveal solution</summary>
 
-<div class="webr-container" data-block-title="Smaller model VIF solution">
+<div class="webr-container" data-block-title="Manual VIF function solution">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Smaller model VIF solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl">ex_m2 <span class="o">&lt;-</span> <span class="nf">lm</span>(mpg <span class="o">~</span> wt <span class="o">+</span> qsec <span class="o">+</span> am, data <span class="o">=</span> mtcars)</span>
-<span class="cl">ex_vif2 <span class="o">&lt;-</span> <span class="nf">compute_vif</span>(ex_m2)</span>
-<span class="cl"><span class="nf">round</span>(ex_vif2, <span class="m">2</span>)</span>
-<span class="cl"><span class="c1">#&gt;   wt qsec   am</span></span>
-<span class="cl"><span class="c1">#&gt; 2.48 1.36 2.54</span></span></div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Manual VIF function solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">ex_manual_vif <span class="o">&lt;-</span> <span class="kr">function</span>(target, predictors, data) {</span>
+<span class="cl">  others <span class="o">&lt;-</span> <span class="nf">setdiff</span>(predictors, target)</span>
+<span class="cl">  f <span class="o">&lt;-</span> <span class="nf">as.formula</span>(<span class="nf">paste</span>(target, <span class="s">&quot;~&quot;</span>, <span class="nf">paste</span>(others, collapse <span class="o">=</span> <span class="s">&quot; + &quot;</span>)))</span>
+<span class="cl">  r2 <span class="o">&lt;-</span> <span class="nf">summary</span>(<span class="nf">lm</span>(f, data <span class="o">=</span> data))<span class="o">$</span>r.squared</span>
+<span class="cl">  <span class="m">1</span> <span class="o">/</span> (<span class="m">1</span> <span class="o">-</span> r2)</span>
+<span class="cl">}</span>
+<span class="cl"></span>
+<span class="cl"><span class="nf">round</span>(<span class="nf">ex_manual_vif</span>(<span class="s">&quot;wt&quot;</span>, <span class="nf">c</span>(<span class="s">&quot;hp&quot;</span>, <span class="s">&quot;wt&quot;</span>, <span class="s">&quot;disp&quot;</span>, <span class="s">&quot;qsec&quot;</span>), mtcars), <span class="m">2</span>)</span>
+<span class="cl"><span class="c1">#&gt; [1] 6.74</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -390,27 +436,43 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p><strong>Explanation:</strong> All VIFs are under 2.6, so this trio of predictors is fine, no meaningful collinearity problem.</p>
+<p>A VIF of 6.74 lands <code>wt</code> firmly in the investigate zone. In this extended predictor set, weight shares enough variance with horsepower, displacement, and quarter-mile time that its coefficient is no longer stable.</p>
 
 </details>
 </section>
 
-<h2>How do you interpret VIF values?</h2>
+<h2>How does VIF work for categorical predictors (GVIF)?</h2>
 
-<p>VIF maps directly to how much your standard errors are inflated. A VIF of 1 means the predictor is independent of every other predictor. A VIF of 4 means the standard error is 2× what it would be without collinearity, because the inflation factor is $\sqrt{\text{VIF}}$. Let's confirm the formula by computing one VIF by hand.</p>
+<p>A factor with $k$ levels becomes $k-1$ dummy variables inside <code>lm()</code>, so a single VIF per dummy is misleading. You could get a low VIF for each dummy individually while the whole factor is collinear with something else in the model. The fix is the Generalised Variance Inflation Factor (GVIF) and its adjusted form, $\text{GVIF}^{1/(2\,\text{Df})}$, which lets you compare factors with numeric predictors on the same scale.</p>
 
-<div class="webr-container" data-block-title="Manual VIF for disp from its auxiliary R squared">
+<p>The adjusted GVIF is designed so that its threshold mirrors the usual VIF rule. A $\text{GVIF}^{1/(2\,\text{Df})}$ near 1 means no collinearity, and the value $\sqrt{5} \approx 2.24$ corresponds to the usual VIF threshold of 5. Readers with a stats background can think of it as the VIF you would see if the factor were collapsed back to a single numeric variable.</p>
+
+<p>Let's fit a model with <a class="auto-link" href="Dummy-Variables-in-R.html" title="Dummy Variables in R: What lm() Does With Factor Predictors Under the Hood">factor predictors</a> on <code>mtcars</code> and inspect the regression output.</p>
+
+<div class="webr-container" data-block-title="Fit a model with factor predictors">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Manual VIF for disp from its auxiliary R squared</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Regress disp on the OTHER predictors</span></span>
-<span class="cl">aux_model <span class="o">&lt;-</span> <span class="nf">lm</span>(disp <span class="o">~</span> hp <span class="o">+</span> wt, data <span class="o">=</span> mtcars)</span>
-<span class="cl">r2_disp <span class="o">&lt;-</span> <span class="nf">summary</span>(aux_model)<span class="o">$</span>r.squared</span>
-<span class="cl"><span class="nf">round</span>(r2_disp, <span class="m">3</span>)</span>
-<span class="cl"><span class="c1">#&gt; [1] 0.864</span></span>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a model with factor predictors</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Convert cyl and gear to factors so lm() creates dummy variables</span></span>
+<span class="cl">model_factors <span class="o">&lt;-</span> <span class="nf">lm</span>(mpg <span class="o">~</span> <span class="nf">factor</span>(cyl) <span class="o">+</span> <span class="nf">factor</span>(gear) <span class="o">+</span> hp, data <span class="o">=</span> mtcars)</span>
+<span class="cl"><span class="nf">summary</span>(model_factors)<span class="o">$</span>coefficients</span>
+<span class="cl"><span class="c1">#&gt;                   Estimate Std. Error    t value     Pr(&gt;|t|)</span></span>
+<span class="cl"><span class="c1">#&gt; (Intercept)   30.32828797 3.06225317 9.90391728 2.124316e-10</span></span>
+<span class="cl"><span class="c1">#&gt; factor(cyl)6  -4.89123188 1.78526078 -2.74001773 1.079552e-02</span></span>
+<span class="cl"><span class="c1">#&gt; factor(cyl)8  -7.92010685 2.86512960 -2.76432611 1.021025e-02</span></span>
+<span class="cl"><span class="c1">#&gt; factor(gear)4  1.54254482 1.49833869 1.02950234 3.125020e-01</span></span>
+<span class="cl"><span class="c1">#&gt; factor(gear)5  2.31793751 1.95196174 1.18749964 2.457300e-01</span></span>
+<span class="cl"><span class="c1">#&gt; hp            -0.02638925 0.01479458 -1.78369663 8.620466e-02</span></span>
 <span class="cl"></span>
-<span class="cl">vif_disp <span class="o">&lt;-</span> <span class="m">1</span> <span class="o">/</span> (<span class="m">1</span> <span class="o">-</span> r2_disp)</span>
-<span class="cl"><span class="nf">round</span>(vif_disp, <span class="m">2</span>)</span>
-<span class="cl"><span class="c1">#&gt; [1] 7.32</span></span></div>
+<span class="cl">anova_factors <span class="o">&lt;-</span> <span class="nf">anova</span>(model_factors)</span>
+<span class="cl">anova_factors</span>
+<span class="cl"><span class="c1">#&gt; Analysis of Variance Table</span></span>
+<span class="cl"><span class="c1">#&gt;</span></span>
+<span class="cl"><span class="c1">#&gt; Response: mpg</span></span>
+<span class="cl"><span class="c1">#&gt;               Df Sum Sq Mean Sq F value    Pr(&gt;F)</span></span>
+<span class="cl"><span class="c1">#&gt; factor(cyl)    2 824.78  412.39 55.1020 1.321e-09</span></span>
+<span class="cl"><span class="c1">#&gt; factor(gear)   2  19.01    9.51  1.2700 0.2989</span></span>
+<span class="cl"><span class="c1">#&gt; hp             1  29.82   29.82  3.9838 0.0575</span></span>
+<span class="cl"><span class="c1">#&gt; Residuals     26 194.57    7.48</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -420,25 +482,20 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>The auxiliary regression says <code>hp + wt</code> together explain 86.4% of the variation in <code>disp</code>, which gives $1/(1-0.864) = 7.32$, the same number <code>compute_vif()</code> returned in the previous section. That is literally all VIF is: the auxiliary $R^2$ rescaled so small values are good. It's not the correlation between two predictors in isolation; it's how well the whole rest of the model predicts one predictor.</p>
+<p>The tall standard errors on the <code>factor(gear)</code> dummies and their non-significant F-test are the tell: once cylinder count is already in the model, the gear levels carry little unique information. If this were a real project you would either drop <code>gear</code>, group rarely-used levels, or check whether a single cylinder-and-gear interaction explains the same signal with fewer parameters.</p>
 
-<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>The 1 / 5 / 10 thresholds come from the auxiliary R².</strong> VIF = 1 is independence (R² = 0). VIF = 5 means R² = 0.80 (predictor 80% explained by the others), starts being a concern. VIF = 10 means R² = 0.90, severe. These are conventions, not laws; a domain expert may tolerate higher VIF if the variable is theoretically indispensable.</div></div>
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Compare $\text{GVIF}^{1/(2\,\text{Df})}$ against the same thresholds as VIF.</strong> An adjusted GVIF of 2.24 matches a VIF of 5; an adjusted GVIF of 3.16 matches a VIF of 10. That keeps a single rule-of-thumb in your head regardless of whether your predictor is numeric or categorical.</div></div>
 
-<p><img src="screenshots/Multicollinearity-in-R-vif-decision.webp" alt="VIF thresholds and the action each one triggers." class="img-responsive img-zoomable" loading="lazy" width="1756" height="842" /></p>
-
-<p><em>Figure 1: VIF thresholds and the action each one triggers.</em></p>
-
-<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Categorical predictors use GVIF, not VIF.</strong> If a factor has 3+ levels, <code>car::vif()</code> reports a GVIF (generalized VIF) plus a GVIF^(1/(2Df)) column, compare the latter to the usual thresholds (5 ≈ 2.24, 10 ≈ 3.16 on the adjusted scale). Our base-R <code>compute_vif()</code> treats each dummy separately, which is fine for binary factors but oversimplifies for multi-level ones.</div></div>
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong><code>car::vif()</code> returns three columns for factor models.</strong> With factors in the model, <code>vif(model_factors)</code> returns a matrix with columns <code>GVIF</code>, <code>Df</code>, and <code>GVIF^(1/(2*Df))</code>. Read the third column, not the first, when you compare against the usual thresholds. Calling <code>vif(model_factors)</code> on a numeric-only model gives a plain vector, which matches the manual formula above.</div></div>
 
 <section class="tryit-block">
-<p><strong>Try it:</strong> Compute VIF for <code>wt</code> manually by regressing it on <code>hp + disp</code>. Confirm it matches the value <code>compute_vif()</code> returned.</p>
-<div class="webr-container" data-block-title="Your turn: manual VIF for wt">
+<p><strong>Try it:</strong> Fit <code>ex_binary_model &lt;- lm(mpg ~ factor(am) + factor(vs) + hp, data = mtcars)</code>. Look at <code>summary(ex_binary_model)</code> and report whether <code>am</code> and <code>vs</code> appear to carry overlapping signal (hint: check the standard errors and <code>cor(mtcars$am, mtcars$vs)</code>).</p>
+<div class="webr-container" data-block-title="Your turn: two binary factors">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: manual VIF for wt</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl">ex_aux_wt <span class="o">&lt;-</span> <span class="kc">NULL</span>  <span class="c1"># auxiliary lm</span></span>
-<span class="cl">ex_vif_wt <span class="o">&lt;-</span> <span class="kc">NULL</span>  <span class="c1"># 1 / (1 - R^2)</span></span>
-<span class="cl"><span class="nf">round</span>(ex_vif_wt, <span class="m">2</span>)</span>
-<span class="cl"><span class="c1">#&gt; Expected: matches vif_full[&quot;wt&quot;] ~ 4.85</span></span></div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: two binary factors</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">ex_binary_model <span class="o">&lt;-</span> <span class="nf">lm</span>(mpg <span class="o">~</span> <span class="nf">factor</span>(am) <span class="o">+</span> <span class="nf">factor</span>(vs) <span class="o">+</span> hp, data <span class="o">=</span> mtcars)</span>
+<span class="cl"><span class="c1"># your code here: inspect summary() and cor() to judge collinearity</span></span>
+<span class="cl"><span class="c1">#&gt; Expected: cor(am, vs) is moderate (~0.17); standard errors are reasonable.</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -450,13 +507,19 @@
 <details>
 <summary>Click to reveal solution</summary>
 
-<div class="webr-container" data-block-title="Manual VIF for wt solution">
+<div class="webr-container" data-block-title="Binary factor inspection">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Manual VIF for wt solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl">ex_aux_wt <span class="o">&lt;-</span> <span class="nf">lm</span>(wt <span class="o">~</span> hp <span class="o">+</span> disp, data <span class="o">=</span> mtcars)</span>
-<span class="cl">ex_vif_wt <span class="o">&lt;-</span> <span class="m">1</span> <span class="o">/</span> (<span class="m">1</span> <span class="o">-</span> <span class="nf">summary</span>(ex_aux_wt)<span class="o">$</span>r.squared)</span>
-<span class="cl"><span class="nf">round</span>(ex_vif_wt, <span class="m">2</span>)</span>
-<span class="cl"><span class="c1">#&gt; [1] 4.85</span></span></div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Binary factor inspection</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">ex_binary_model <span class="o">&lt;-</span> <span class="nf">lm</span>(mpg <span class="o">~</span> <span class="nf">factor</span>(am) <span class="o">+</span> <span class="nf">factor</span>(vs) <span class="o">+</span> hp, data <span class="o">=</span> mtcars)</span>
+<span class="cl"><span class="nf">round</span>(<span class="nf">summary</span>(ex_binary_model)<span class="o">$</span>coefficients, <span class="m">3</span>)</span>
+<span class="cl"><span class="c1">#&gt;               Estimate Std. Error t value Pr(&gt;|t|)</span></span>
+<span class="cl"><span class="c1">#&gt; (Intercept)     26.003      2.605  9.982    0.000</span></span>
+<span class="cl"><span class="c1">#&gt; factor(am)1      5.277      1.080  4.885    0.000</span></span>
+<span class="cl"><span class="c1">#&gt; factor(vs)1      2.875      1.345  2.138    0.041</span></span>
+<span class="cl"><span class="c1">#&gt; hp              -0.051      0.012 -4.345    0.000</span></span>
+<span class="cl"></span>
+<span class="cl"><span class="nf">round</span>(<span class="nf">cor</span>(mtcars<span class="o">$</span>am, mtcars<span class="o">$</span>vs), <span class="m">3</span>)</span>
+<span class="cl"><span class="c1">#&gt; [1] 0.168</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -466,29 +529,35 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p><strong>Explanation:</strong> <code>hp</code> and <code>disp</code> together explain roughly 79% of the variation in <code>wt</code>, giving VIF = 4.85, exactly what <code>compute_vif()</code> reported.</p>
+<p>The correlation between <code>am</code> and <code>vs</code> is only 0.17, and both factor coefficients are significant with moderate standard errors. In this model the two binary factors behave independently enough to keep. Collinearity becomes a concern when that correlation climbs above about 0.7.</p>
 
 </details>
 </section>
 
-<h2>How do you visualize correlated predictors?</h2>
+<h2>What else signals multicollinearity beyond VIF?</h2>
 
-<p>Numbers are useful; pictures are faster. Two plots do most of the work: a correlation heatmap of the predictor matrix tells you <em>what</em> is correlated with what, and a bar chart of VIF values with threshold lines tells you <em>how bad</em> it is. We'll build both in base R + <a class="auto-link" href="ggplot2-Tutorial-With-R.html" title="ggplot2 Short Tutorial">ggplot2</a> so they run in the browser.</p>
+<p>VIF catches one predictor against the rest, but it can miss the case where three variables together are near-dependent even though no single pair is strongly correlated. The classic second check is the condition number of the scaled design matrix, computed with <code>kappa()</code>. It looks at the whole predictor matrix at once and flags near-singular geometry.</p>
 
-<div class="webr-container" data-block-title="Correlation heatmap of numeric predictors">
+<p>A condition number near 1 means the predictors span the feature space cleanly. Above 30 the matrix is nearly rank-deficient and coefficient estimates are numerically unstable. Always scale the predictors first; otherwise the value just reflects the units.</p>
+
+<div class="webr-container" data-block-title="Condition number and correlation matrix">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Correlation heatmap of numeric predictors</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl">cor_mat <span class="o">&lt;-</span> <span class="nf">cor</span>(mtcars[, <span class="nf">c</span>(<span class="s">&quot;hp&quot;</span>, <span class="s">&quot;wt&quot;</span>, <span class="s">&quot;disp&quot;</span>, <span class="s">&quot;cyl&quot;</span>, <span class="s">&quot;qsec&quot;</span>, <span class="s">&quot;drat&quot;</span>)])</span>
-<span class="cl">cor_long <span class="o">&lt;-</span> <span class="nf">as.data.frame</span>(<span class="nf">as.table</span>(cor_mat))</span>
-<span class="cl"><span class="nf">names</span>(cor_long) <span class="o">&lt;-</span> <span class="nf">c</span>(<span class="s">&quot;Var1&quot;</span>, <span class="s">&quot;Var2&quot;</span>, <span class="s">&quot;Correlation&quot;</span>)</span>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Condition number and correlation matrix</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Scale the predictors so units don&#39;t dominate the result</span></span>
+<span class="cl">X_scaled <span class="o">&lt;-</span> <span class="nf">scale</span>(mtcars[, <span class="nf">c</span>(<span class="s">&quot;hp&quot;</span>, <span class="s">&quot;wt&quot;</span>, <span class="s">&quot;disp&quot;</span>, <span class="s">&quot;drat&quot;</span>, <span class="s">&quot;qsec&quot;</span>)])</span>
+<span class="cl">kappa_val <span class="o">&lt;-</span> <span class="nf">kappa</span>(X_scaled)</span>
+<span class="cl"><span class="nf">round</span>(kappa_val, <span class="m">2</span>)</span>
+<span class="cl"><span class="c1">#&gt; [1] 6.99</span></span>
 <span class="cl"></span>
-<span class="cl"><span class="nf">ggplot</span>(cor_long, <span class="nf">aes</span>(Var1, Var2, fill <span class="o">=</span> Correlation)) <span class="o">+</span></span>
-<span class="cl">  <span class="nf">geom_tile</span>(color <span class="o">=</span> <span class="s">&quot;white&quot;</span>) <span class="o">+</span></span>
-<span class="cl">  <span class="nf">geom_text</span>(<span class="nf">aes</span>(label <span class="o">=</span> <span class="nf">round</span>(Correlation, <span class="m">2</span>)), size <span class="o">=</span> <span class="m">3.5</span>) <span class="o">+</span></span>
-<span class="cl">  <span class="nf">scale_fill_gradient2</span>(low <span class="o">=</span> <span class="s">&quot;steelblue&quot;</span>, mid <span class="o">=</span> <span class="s">&quot;white&quot;</span>, high <span class="o">=</span> <span class="s">&quot;firebrick&quot;</span>,</span>
-<span class="cl">                       midpoint <span class="o">=</span> <span class="m">0</span>, limits <span class="o">=</span> <span class="nf">c</span>(<span class="m">-1</span>, <span class="m">1</span>)) <span class="o">+</span></span>
-<span class="cl">  <span class="nf">labs</span>(title <span class="o">=</span> <span class="s">&quot;Correlation matrix of mtcars predictors&quot;</span>, x <span class="o">=</span> <span class="kc">NULL</span>, y <span class="o">=</span> <span class="kc">NULL</span>) <span class="o">+</span></span>
-<span class="cl">  <span class="nf">theme_minimal</span>()</span></div>
+<span class="cl"><span class="c1"># Correlation matrix for a pairwise read</span></span>
+<span class="cl">cor_mat <span class="o">&lt;-</span> <span class="nf">round</span>(<span class="nf">cor</span>(mtcars[, <span class="nf">c</span>(<span class="s">&quot;hp&quot;</span>, <span class="s">&quot;wt&quot;</span>, <span class="s">&quot;disp&quot;</span>, <span class="s">&quot;drat&quot;</span>, <span class="s">&quot;qsec&quot;</span>)]), <span class="m">2</span>)</span>
+<span class="cl">cor_mat</span>
+<span class="cl"><span class="c1">#&gt;        hp    wt  disp  drat  qsec</span></span>
+<span class="cl"><span class="c1">#&gt; hp   1.00  0.66  0.79 -0.45 -0.71</span></span>
+<span class="cl"><span class="c1">#&gt; wt   0.66  1.00  0.89 -0.71 -0.17</span></span>
+<span class="cl"><span class="c1">#&gt; disp 0.79  0.89  1.00 -0.71 -0.43</span></span>
+<span class="cl"><span class="c1">#&gt; drat -0.45 -0.71 -0.71  1.00  0.09</span></span>
+<span class="cl"><span class="c1">#&gt; qsec -0.71 -0.17 -0.43  0.09  1.00</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -498,24 +567,26 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Red cells are strong positive correlations, blue cells are strong negative. The block of <code>disp</code>, <code>cyl</code>, <code>hp</code>, and <code>wt</code> lights up in red-orange, they're all proxies for engine size and vehicle mass. Any regression using more than one of them is going to show high VIFs.</p>
+<p>A condition number of 6.99 sits well below the 30 warning line, so the predictor block is not numerically unstable. The <a class="auto-link" href="Correlation-Analysis-in-R.html" title="Correlation in R: Pearson vs Spearman vs Kendall — Compute, Test, and Visualise">correlation matrix</a>, though, shows the same story VIF told: <code>disp</code> correlates 0.89 with <code>wt</code> and 0.79 with <code>hp</code>, and <code>drat</code> is nearly a mirror of <code>wt</code>. Those high off-diagonal entries are the neighbours causing <code>disp</code>'s high VIF.</p>
 
-<div class="webr-container" data-block-title="VIF bar chart with action thresholds">
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Condition numbers above 30 are a red flag even when every VIF looks fine.</strong> Multi-way near-dependencies can hide from the pairwise VIF formula but still make the design matrix near-singular. Always compute both a condition number and the full correlation matrix; the two checks cover different failure modes.</div></div>
+
+<p>A base R <code>image()</code> call turns the correlation matrix into a quick heatmap so you can scan the pairs visually.</p>
+
+<div class="webr-container" data-block-title="Heatmap the correlation matrix">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">VIF bar chart with action thresholds</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl">vif_df <span class="o">&lt;-</span> <span class="nf">data.frame</span>(</span>
-<span class="cl">  Predictor <span class="o">=</span> <span class="nf">names</span>(vif_full),</span>
-<span class="cl">  VIF <span class="o">=</span> <span class="nf">as.numeric</span>(vif_full)</span>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Heatmap the correlation matrix</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Reverse rows so the top-left origin matches the cor() printout</span></span>
+<span class="cl"><span class="nf">image</span>(</span>
+<span class="cl">  <span class="m">1</span><span class="o">:</span><span class="nf">nrow</span>(cor_mat), <span class="m">1</span><span class="o">:</span><span class="nf">ncol</span>(cor_mat),</span>
+<span class="cl">  <span class="nf">t</span>(cor_mat)[, <span class="nf">nrow</span>(cor_mat)<span class="o">:</span><span class="m">1</span>],</span>
+<span class="cl">  col <span class="o">=</span> <span class="nf">hcl.colors</span>(<span class="m">20</span>, <span class="s">&quot;RdBu&quot;</span>),</span>
+<span class="cl">  zlim <span class="o">=</span> <span class="nf">c</span>(<span class="m">-1</span>, <span class="m">1</span>),</span>
+<span class="cl">  axes <span class="o">=</span> <span class="kc">FALSE</span>, xlab <span class="o">=</span> <span class="s">&quot;&quot;</span>, ylab <span class="o">=</span> <span class="s">&quot;&quot;</span>,</span>
+<span class="cl">  main <span class="o">=</span> <span class="s">&quot;Correlation heatmap: mtcars predictors&quot;</span></span>
 <span class="cl">)</span>
-<span class="cl"></span>
-<span class="cl"><span class="nf">ggplot</span>(vif_df, <span class="nf">aes</span>(x <span class="o">=</span> <span class="nf">reorder</span>(Predictor, VIF), y <span class="o">=</span> VIF)) <span class="o">+</span></span>
-<span class="cl">  <span class="nf">geom_col</span>(fill <span class="o">=</span> <span class="s">&quot;#6b5b95&quot;</span>) <span class="o">+</span></span>
-<span class="cl">  <span class="nf">geom_hline</span>(yintercept <span class="o">=</span> <span class="m">5</span>, linetype <span class="o">=</span> <span class="s">&quot;dashed&quot;</span>, color <span class="o">=</span> <span class="s">&quot;orange&quot;</span>) <span class="o">+</span></span>
-<span class="cl">  <span class="nf">geom_hline</span>(yintercept <span class="o">=</span> <span class="m">10</span>, linetype <span class="o">=</span> <span class="s">&quot;dashed&quot;</span>, color <span class="o">=</span> <span class="s">&quot;firebrick&quot;</span>) <span class="o">+</span></span>
-<span class="cl">  <span class="nf">labs</span>(title <span class="o">=</span> <span class="s">&quot;VIF for mpg ~ hp + wt + disp&quot;</span>,</span>
-<span class="cl">       x <span class="o">=</span> <span class="kc">NULL</span>, y <span class="o">=</span> <span class="s">&quot;VIF&quot;</span>) <span class="o">+</span></span>
-<span class="cl">  <span class="nf">theme_minimal</span>() <span class="o">+</span></span>
-<span class="cl">  <span class="nf">coord_flip</span>()</span></div>
+<span class="cl"><span class="nf">axis</span>(<span class="m">1</span>, at <span class="o">=</span> <span class="m">1</span><span class="o">:</span><span class="nf">ncol</span>(cor_mat), labels <span class="o">=</span> <span class="nf">colnames</span>(cor_mat))</span>
+<span class="cl"><span class="nf">axis</span>(<span class="m">2</span>, at <span class="o">=</span> <span class="m">1</span><span class="o">:</span><span class="nf">nrow</span>(cor_mat), labels <span class="o">=</span> <span class="nf">rev</span>(<span class="nf">rownames</span>(cor_mat)), las <span class="o">=</span> <span class="m">1</span>)</span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -525,16 +596,18 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>The bar for <code>disp</code> (VIF 7.32) sits above the orange line at 5, which is the "start paying attention" threshold. Nothing crosses 10 yet, but the model is clearly leaning on overlapping information.</p>
+<p>Red cells are strong positive correlations, blue cells are strong negative. The <code>wt-disp</code> cell pops red, <code>drat-wt</code> and <code>drat-disp</code> pop blue, and you can read the collinearity pattern in one glance.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Scale the predictors before calling <code>kappa()</code>.</strong> Without scaling, a predictor measured in thousands (like <code>disp</code>) will dominate one measured in tenths (like <code>drat</code>), and the condition number reflects the unit mismatch rather than any real collinearity. <code>scale()</code> centres each column to mean zero and standard deviation one, which is the correct input for <code>kappa()</code>.</div></div>
 
 <section class="tryit-block">
-<p><strong>Try it:</strong> Build a VIF bar chart for <code>mpg ~ hp + disp + wt + am</code>. Which predictor has the largest VIF?</p>
-<div class="webr-container" data-block-title="Your turn: VIF bar chart">
+<p><strong>Try it:</strong> Compute <code>ex_kappa &lt;- kappa(scale(mtcars[, c(&quot;hp&quot;, &quot;disp&quot;, &quot;wt&quot;, &quot;drat&quot;, &quot;qsec&quot;, &quot;cyl&quot;, &quot;am&quot;)]))</code>. Does adding <code>cyl</code> and <code>am</code> push the condition number above 30? Report the value and interpret.</p>
+<div class="webr-container" data-block-title="Your turn: wider condition-number check">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: VIF bar chart</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl">ex_m4 <span class="o">&lt;-</span> <span class="kc">NULL</span>  <span class="c1"># fit the model</span></span>
-<span class="cl">ex_vif4 <span class="o">&lt;-</span> <span class="kc">NULL</span>  <span class="c1"># compute VIF</span></span>
-<span class="cl"><span class="c1"># Then build a data frame and ggplot bar chart</span></span></div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: wider condition-number check</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">ex_kappa <span class="o">&lt;-</span> <span class="nf">kappa</span>(<span class="nf">scale</span>(mtcars[, <span class="nf">c</span>(<span class="s">&quot;hp&quot;</span>, <span class="s">&quot;disp&quot;</span>, <span class="s">&quot;wt&quot;</span>, <span class="s">&quot;drat&quot;</span>, <span class="s">&quot;qsec&quot;</span>, <span class="s">&quot;cyl&quot;</span>, <span class="s">&quot;am&quot;</span>)]))</span>
+<span class="cl"><span class="c1"># your code here: round and compare against the 30 threshold</span></span>
+<span class="cl"><span class="c1">#&gt; Expected: a value clearly above 7 but still below 30.</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -546,20 +619,12 @@
 <details>
 <summary>Click to reveal solution</summary>
 
-<div class="webr-container" data-block-title="VIF bar chart solution">
+<div class="webr-container" data-block-title="Condition number on seven predictors">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">VIF bar chart solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl">ex_m4 <span class="o">&lt;-</span> <span class="nf">lm</span>(mpg <span class="o">~</span> hp <span class="o">+</span> disp <span class="o">+</span> wt <span class="o">+</span> am, data <span class="o">=</span> mtcars)</span>
-<span class="cl">ex_vif4 <span class="o">&lt;-</span> <span class="nf">compute_vif</span>(ex_m4)</span>
-<span class="cl"><span class="nf">round</span>(ex_vif4, <span class="m">2</span>)</span>
-<span class="cl"><span class="c1">#&gt;    hp  disp    wt    am</span></span>
-<span class="cl"><span class="c1">#&gt;  2.89  7.42  5.10  1.93</span></span>
-<span class="cl"></span>
-<span class="cl">ex_df4 <span class="o">&lt;-</span> <span class="nf">data.frame</span>(Predictor <span class="o">=</span> <span class="nf">names</span>(ex_vif4), VIF <span class="o">=</span> <span class="nf">as.numeric</span>(ex_vif4))</span>
-<span class="cl"><span class="nf">ggplot</span>(ex_df4, <span class="nf">aes</span>(<span class="nf">reorder</span>(Predictor, VIF), VIF)) <span class="o">+</span></span>
-<span class="cl">  <span class="nf">geom_col</span>(fill <span class="o">=</span> <span class="s">&quot;#6b5b95&quot;</span>) <span class="o">+</span></span>
-<span class="cl">  <span class="nf">geom_hline</span>(yintercept <span class="o">=</span> <span class="m">5</span>, linetype <span class="o">=</span> <span class="s">&quot;dashed&quot;</span>, color <span class="o">=</span> <span class="s">&quot;orange&quot;</span>) <span class="o">+</span></span>
-<span class="cl">  <span class="nf">coord_flip</span>() <span class="o">+</span> <span class="nf">theme_minimal</span>() <span class="o">+</span> <span class="nf">labs</span>(x <span class="o">=</span> <span class="kc">NULL</span>)</span></div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Condition number on seven predictors</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">ex_kappa <span class="o">&lt;-</span> <span class="nf">kappa</span>(<span class="nf">scale</span>(mtcars[, <span class="nf">c</span>(<span class="s">&quot;hp&quot;</span>, <span class="s">&quot;disp&quot;</span>, <span class="s">&quot;wt&quot;</span>, <span class="s">&quot;drat&quot;</span>, <span class="s">&quot;qsec&quot;</span>, <span class="s">&quot;cyl&quot;</span>, <span class="s">&quot;am&quot;</span>)]))</span>
+<span class="cl"><span class="nf">round</span>(ex_kappa, <span class="m">2</span>)</span>
+<span class="cl"><span class="c1">#&gt; [1] 13.92</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -569,29 +634,175 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p><strong>Explanation:</strong> <code>disp</code> is still the worst offender at 7.42, and <code>wt</code> has crept above the 5-line now that <code>am</code> is in the model.</p>
+<p>Adding <code>cyl</code> and <code>am</code> pushes the condition number to 13.92, almost double the five-predictor value but still well below 30. The geometry is getting cramped but the design matrix is not yet singular. Watch for the number to cross 30 as you keep adding correlated engine metrics.</p>
 
 </details>
 </section>
 
-<h2>How do you fix multicollinearity?</h2>
+<h2>How do you fix multicollinearity in R?</h2>
 
-<p>Once VIF flags a problem, you have three tools, ordered from simplest to most elaborate. Drop the redundant predictor if one is clearly duplicative. Combine the correlated block into one index with PCA if they're all substantively meaningful. Or switch to ridge regression to keep every predictor while stabilizing the estimates through shrinkage.</p>
+<p>Once you have confirmed collinearity, you have three clean options: drop a redundant predictor, combine correlated predictors into a smaller set of composite features, or switch to a regression that expects correlated inputs. Pick based on context, not reflex.</p>
 
-<p><img src="screenshots/Multicollinearity-in-R-fix-strategies.webp" alt="Choosing between drop, combine, and ridge." class="img-responsive img-zoomable" loading="lazy" width="2248" height="838" /></p>
+<p><img src="screenshots/Multicollinearity-in-R-remedy-toolkit.webp" alt="Four remedies for a collinear regression, with when to use each." class="img-responsive img-zoomable" loading="lazy" width="1410" height="1186" /></p>
 
-<p><em>Figure 2: Choosing between drop, combine, and ridge.</em></p>
+<p><em>Figure 3: Four remedies for a collinear regression, with when to use each.</em></p>
 
-<h3>Fix 1: Drop the highest-VIF predictor</h3>
+<h3>Remedy 1: drop the redundant predictor</h3>
 
-<p>The blunt fix. It works when one of the correlated predictors is clearly the least informative, for instance, <code>disp</code> (engine size) is largely captured by <code>hp</code> + <code>wt</code> anyway.</p>
+<p>The fastest fix is also the most common. If <code>disp</code> duplicates information that <code>hp + wt</code> already carry, remove it and watch the VIFs fall.</p>
 
-<div class="webr-container" data-block-title="Drop disp and recompute VIF">
+<div class="webr-container" data-block-title="Drop disp, refit, and recompute VIFs">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Drop disp and recompute VIF</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Drop disp, refit, and recompute VIFs</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
     <div class="webr-editor" data-language="r"><span class="cl">model_drop <span class="o">&lt;-</span> <span class="nf">lm</span>(mpg <span class="o">~</span> hp <span class="o">+</span> wt, data <span class="o">=</span> mtcars)</span>
-<span class="cl">vif_drop <span class="o">&lt;-</span> <span class="nf">compute_vif</span>(model_drop)</span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># Recompute VIFs manually on the reduced model</span></span>
+<span class="cl">predictors_drop <span class="o">&lt;-</span> <span class="nf">c</span>(<span class="s">&quot;hp&quot;</span>, <span class="s">&quot;wt&quot;</span>)</span>
+<span class="cl">vif_drop <span class="o">&lt;-</span> <span class="nf">sapply</span>(predictors_drop, <span class="kr">function</span>(p) {</span>
+<span class="cl">  others <span class="o">&lt;-</span> <span class="nf">setdiff</span>(predictors_drop, p)</span>
+<span class="cl">  f <span class="o">&lt;-</span> <span class="nf">as.formula</span>(<span class="nf">paste</span>(p, <span class="s">&quot;~&quot;</span>, <span class="nf">paste</span>(others, collapse <span class="o">=</span> <span class="s">&quot; + &quot;</span>)))</span>
+<span class="cl">  <span class="m">1</span> <span class="o">/</span> (<span class="m">1</span> <span class="o">-</span> <span class="nf">summary</span>(<span class="nf">lm</span>(f, data <span class="o">=</span> mtcars))<span class="o">$</span>r.squared)</span>
+<span class="cl">})</span>
 <span class="cl"><span class="nf">round</span>(vif_drop, <span class="m">2</span>)</span>
+<span class="cl"><span class="c1">#&gt;   hp   wt</span></span>
+<span class="cl"><span class="c1">#&gt; 1.77 1.77</span></span>
+<span class="cl"></span>
+<span class="cl"><span class="nf">round</span>(<span class="nf">coef</span>(model_drop), <span class="m">3</span>)</span>
+<span class="cl"><span class="c1">#&gt; (Intercept)          hp          wt</span></span>
+<span class="cl"><span class="c1">#&gt;      37.227      -0.032      -3.878</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both VIFs drop to 1.77, well inside the safe zone. The coefficients for <code>hp</code> and <code>wt</code> are now stable and the model has lost nothing meaningful, because <code>disp</code> was restating what they already said.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Drop the predictor your domain expert cares least about, not the one with the highest VIF.</strong> When two variables carry the same information, the regression does not care which one you keep; you do. Choose the one easier to measure, cheaper to collect, or better-understood by stakeholders. The math stays the same.</div></div>
+
+<h3>Remedy 2: combine predictors with PCA</h3>
+
+<p>When every correlated predictor is genuinely meaningful, <a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">summarise</a> them into a smaller set of composite features with Principal Component Analysis (PCA). The first component captures the shared signal; regressing on components sidesteps collinearity entirely because the components are orthogonal by construction.</p>
+
+<div class="webr-container" data-block-title="Principal Components Regression on mtcars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Principal Components Regression on mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Scale the correlated block before PCA</span></span>
+<span class="cl">pca <span class="o">&lt;-</span> <span class="nf">prcomp</span>(mtcars[, <span class="nf">c</span>(<span class="s">&quot;hp&quot;</span>, <span class="s">&quot;wt&quot;</span>, <span class="s">&quot;disp&quot;</span>)], scale. <span class="o">=</span> <span class="kc">TRUE</span>)</span>
+<span class="cl"><span class="nf">round</span>(pca<span class="o">$</span>sdev<span class="o">^</span><span class="m">2</span> <span class="o">/</span> <span class="nf">sum</span>(pca<span class="o">$</span>sdev<span class="o">^</span><span class="m">2</span>), <span class="m">3</span>)</span>
+<span class="cl"><span class="c1">#&gt; [1] 0.873 0.090 0.037</span></span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># First two PCs as new predictors</span></span>
+<span class="cl">mtcars_pcs <span class="o">&lt;-</span> <span class="nf">data.frame</span>(mpg <span class="o">=</span> mtcars<span class="o">$</span>mpg, PC1 <span class="o">=</span> pca<span class="o">$</span>x[, <span class="m">1</span>], PC2 <span class="o">=</span> pca<span class="o">$</span>x[, <span class="m">2</span>])</span>
+<span class="cl">model_pca <span class="o">&lt;-</span> <span class="nf">lm</span>(mpg <span class="o">~</span> PC1 <span class="o">+</span> PC2, data <span class="o">=</span> mtcars_pcs)</span>
+<span class="cl"><span class="nf">round</span>(<span class="nf">coef</span>(model_pca), <span class="m">3</span>)</span>
+<span class="cl"><span class="c1">#&gt; (Intercept)         PC1         PC2</span></span>
+<span class="cl"><span class="c1">#&gt;      20.091      -2.600      -1.170</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The first component alone absorbs 87 percent of the variance in the three correlated predictors, and regressing <code>mpg</code> on <code>PC1</code> and <code>PC2</code> gives stable coefficients with no possible collinearity between them. The tradeoff is interpretability: PC1 is a linear combination of <code>hp</code>, <code>wt</code>, and <code>disp</code>, not any one of them. You get stability and lose the per-variable coefficient story.</p>
+
+<h3>Remedy 3: shrink coefficients with ridge regression</h3>
+
+<p>Ridge regression adds a small penalty $\lambda$ to the sum of squared coefficients. That penalty trades a tiny bit of bias for a large drop in coefficient variance, which is exactly what collinearity makes worse. You can code the closed-form solution from scratch with base R <a class="auto-link" href="R-Matrices.html" title="R Matrices: Fast Linear Algebra Operations That Data Frames Can't Do">matrix operations</a>:</p>
+
+<p>$$\hat{\beta}_{\text{ridge}} = (X^TX + \lambda I)^{-1} X^T y$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$X$ = the design matrix of centred and scaled predictors</li>
+
+<li>$y$ = the centred response vector</li>
+
+<li>$\lambda$ = the ridge penalty (larger values shrink coefficients harder)</li>
+
+<li>$I$ = the identity matrix</li>
+
+</ul>
+
+<div class="webr-container" data-block-title="Ridge regression from first principles">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Ridge regression from first principles</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Centre and scale predictors, centre response</span></span>
+<span class="cl">X_mat <span class="o">&lt;-</span> <span class="nf">scale</span>(<span class="nf">as.matrix</span>(mtcars[, <span class="nf">c</span>(<span class="s">&quot;hp&quot;</span>, <span class="s">&quot;wt&quot;</span>, <span class="s">&quot;disp&quot;</span>)]))</span>
+<span class="cl">y_vec <span class="o">&lt;-</span> mtcars<span class="o">$</span>mpg <span class="o">-</span> <span class="nf">mean</span>(mtcars<span class="o">$</span>mpg)</span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># Closed-form ridge with lambda = 1</span></span>
+<span class="cl">lambda <span class="o">&lt;-</span> <span class="m">1</span></span>
+<span class="cl">I_mat <span class="o">&lt;-</span> <span class="nf">diag</span>(<span class="nf">ncol</span>(X_mat))</span>
+<span class="cl">beta_ridge <span class="o">&lt;-</span> <span class="nf">solve</span>(<span class="nf">t</span>(X_mat) <span class="o">%*%</span> X_mat <span class="o">+</span> lambda <span class="o">*</span> I_mat) <span class="o">%*%</span> <span class="nf">t</span>(X_mat) <span class="o">%*%</span> y_vec</span>
+<span class="cl"><span class="nf">round</span>(beta_ridge, <span class="m">3</span>)</span>
+<span class="cl"><span class="c1">#&gt;         [,1]</span></span>
+<span class="cl"><span class="c1">#&gt; hp    -1.480</span></span>
+<span class="cl"><span class="c1">#&gt; wt    -2.089</span></span>
+<span class="cl"><span class="c1">#&gt; disp  -1.107</span></span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># Compare with OLS (lambda = 0)</span></span>
+<span class="cl">beta_ols <span class="o">&lt;-</span> <span class="nf">solve</span>(<span class="nf">t</span>(X_mat) <span class="o">%*%</span> X_mat) <span class="o">%*%</span> <span class="nf">t</span>(X_mat) <span class="o">%*%</span> y_vec</span>
+<span class="cl"><span class="nf">round</span>(beta_ols, <span class="m">3</span>)</span>
+<span class="cl"><span class="c1">#&gt;         [,1]</span></span>
+<span class="cl"><span class="c1">#&gt; hp    -1.005</span></span>
+<span class="cl"><span class="c1">#&gt; wt    -2.880</span></span>
+<span class="cl"><span class="c1">#&gt; disp  -0.181</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Ridge does not zero out <code>disp</code> the way drop-the-variable does. Instead it shrinks every coefficient toward zero, with the biggest shrinkage on whichever predictor the OLS estimate had least confidence in. The <code>disp</code> coefficient moves from -0.181 (tiny and uncertain) to -1.107 (a moderated share of the collinear block), and <code>wt</code> eases from -2.880 to -2.089.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Ridge trades a tiny bit of bias for a big drop in coefficient variance.</strong> Under multicollinearity, OLS estimates are unbiased but wildly variable. Ridge biases them slightly toward zero, but the shrinkage kills the variance explosion so predictions on new data are more accurate. Use ridge when all correlated predictors matter and you care more about prediction than causal coefficient interpretation.</div></div>
+
+<p>In real projects you do not hand-pick $\lambda$ from a single number either. You cross-validate over a grid of penalties and let the data choose the one that minimises prediction error, and that is what the <code>glmnet</code> package is built to do.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong><code>glmnet</code> is the production ridge path.</strong> Use <code>library(glmnet)</code> and <code>cv.glmnet(X, y, alpha = 0)</code> in RStudio to cross-validate the penalty and get the regularisation path for many lambdas at once. The <code>glmnet</code> package is not available in this page's browser runtime, so the examples use base R matrix ops. Install once with <code>install.packages(&quot;glmnet&quot;)</code> and the function is available for every future project.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Drop <code>disp</code> from a three-predictor model and refit, then confirm both VIFs land below 5. Fit <code>ex_model_fixed &lt;- lm(mpg ~ hp + wt, data = mtcars)</code> and compute VIFs manually.</p>
+<div class="webr-container" data-block-title="Your turn: confirm the remedy">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: confirm the remedy</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">ex_predictors <span class="o">&lt;-</span> <span class="nf">c</span>(<span class="s">&quot;hp&quot;</span>, <span class="s">&quot;wt&quot;</span>)</span>
+<span class="cl">ex_model_fixed <span class="o">&lt;-</span> <span class="nf">lm</span>(mpg <span class="o">~</span> hp <span class="o">+</span> wt, data <span class="o">=</span> mtcars)</span>
+<span class="cl"><span class="c1"># your code here: compute manual VIFs and round to 2 dp</span></span>
+<span class="cl"><span class="c1">#&gt; Expected: both VIFs under 2.</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Remedy verification solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Remedy verification solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">ex_predictors <span class="o">&lt;-</span> <span class="nf">c</span>(<span class="s">&quot;hp&quot;</span>, <span class="s">&quot;wt&quot;</span>)</span>
+<span class="cl">ex_vifs_fixed <span class="o">&lt;-</span> <span class="nf">sapply</span>(ex_predictors, <span class="kr">function</span>(p) {</span>
+<span class="cl">  others <span class="o">&lt;-</span> <span class="nf">setdiff</span>(ex_predictors, p)</span>
+<span class="cl">  f <span class="o">&lt;-</span> <span class="nf">as.formula</span>(<span class="nf">paste</span>(p, <span class="s">&quot;~&quot;</span>, <span class="nf">paste</span>(others, collapse <span class="o">=</span> <span class="s">&quot; + &quot;</span>)))</span>
+<span class="cl">  <span class="m">1</span> <span class="o">/</span> (<span class="m">1</span> <span class="o">-</span> <span class="nf">summary</span>(<span class="nf">lm</span>(f, data <span class="o">=</span> mtcars))<span class="o">$</span>r.squared)</span>
+<span class="cl">})</span>
+<span class="cl"><span class="nf">round</span>(ex_vifs_fixed, <span class="m">2</span>)</span>
 <span class="cl"><span class="c1">#&gt;   hp   wt</span></span>
 <span class="cl"><span class="c1">#&gt; 1.77 1.77</span></span></div>
     <div class="webr-buttons">
@@ -603,128 +814,25 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Both VIFs dropped to 1.77, essentially no inflation. The <code>mpg</code> coefficients from this model are now interpretable without worrying that they're proxies for each other.</p>
-
-<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Dropping a variable is not free.</strong> The remaining coefficients will shift because they now absorb effects that used to be split. Always compare the before/after models and report the reasoning, "I dropped disp because VIF > 5 and hp captures most engine-size signal", rather than silently picking the highest VIF.</div></div>
-
-<h3>Fix 2: Combine correlated predictors with PCA</h3>
-
-<p>When every predictor in the collinear block matters theoretically, extract their shared signal into a single component with <code>prcomp()</code> and use that component as the regressor.</p>
-
-<div class="webr-container" data-block-title="PCA to combine correlated predictors">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">PCA to combine correlated predictors</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Standardize and run PCA on the correlated block</span></span>
-<span class="cl">pca_block <span class="o">&lt;-</span> mtcars[, <span class="nf">c</span>(<span class="s">&quot;hp&quot;</span>, <span class="s">&quot;disp&quot;</span>, <span class="s">&quot;wt&quot;</span>, <span class="s">&quot;cyl&quot;</span>)]</span>
-<span class="cl">pca <span class="o">&lt;-</span> <span class="nf">prcomp</span>(pca_block, scale. <span class="o">=</span> <span class="kc">TRUE</span>)</span>
-<span class="cl"><span class="nf">summary</span>(pca)<span class="o">$</span>importance[, <span class="m">1</span><span class="o">:</span><span class="m">2</span>]</span>
-<span class="cl"><span class="c1">#&gt;                             PC1    PC2</span></span>
-<span class="cl"><span class="c1">#&gt; Standard deviation       1.8809 0.5688</span></span>
-<span class="cl"><span class="c1">#&gt; Proportion of Variance   0.8844 0.0809</span></span>
-<span class="cl"><span class="c1">#&gt; Cumulative Proportion    0.8844 0.9653</span></span>
-<span class="cl"></span>
-<span class="cl"><span class="c1"># Use PC1 as a single &quot;engine-size&quot; index</span></span>
-<span class="cl">pc1 <span class="o">&lt;-</span> pca<span class="o">$</span>x[, <span class="m">1</span>]</span>
-<span class="cl">model_pca <span class="o">&lt;-</span> <span class="nf">lm</span>(mpg <span class="o">~</span> pc1 <span class="o">+</span> qsec, data <span class="o">=</span> mtcars)</span>
-<span class="cl"><span class="nf">round</span>(<span class="nf">coef</span>(model_pca), <span class="m">3</span>)</span>
-<span class="cl"><span class="c1">#&gt; (Intercept)         pc1        qsec</span></span>
-<span class="cl"><span class="c1">#&gt;     -14.048      -2.736       2.063</span></span></div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p>PC1 alone explains 88.4% of the variance in the four correlated predictors, so it's a faithful summary of the "engine size / mass" factor. Using it as one predictor (plus <code>qsec</code>) gives a model with zero multicollinearity by construction, because there's only one predictor in that axis. The tradeoff: you lose the ability to say "a one-unit increase in <code>hp</code> changes <code>mpg</code> by X", your coefficient now describes a composite index instead.</p>
-
-<h3>Fix 3: Ridge regression</h3>
-
-<p>Ridge regression (<code>glmnet</code>) adds a penalty that shrinks coefficients toward zero, which absorbs the extra variance collinearity creates. It lets you keep every predictor in the model.</p>
-
-<div class="webr-container" data-block-title="Ridge regression setup (run locally)">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Ridge regression setup (run locally)</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># install.packages(&quot;glmnet&quot;); library(glmnet)</span></span>
-<span class="cl"><span class="c1"># x &lt;- as.matrix(mtcars[, c(&quot;hp&quot;, &quot;wt&quot;, &quot;disp&quot;, &quot;cyl&quot;)])</span></span>
-<span class="cl"><span class="c1"># y &lt;- mtcars$mpg</span></span>
-<span class="cl"><span class="c1"># cv_fit &lt;- cv.glmnet(x, y, alpha = 0)        # alpha = 0 means ridge</span></span>
-<span class="cl"><span class="c1"># coef(cv_fit, s = &quot;lambda.min&quot;)</span></span>
-<span class="cl"><span class="c1">#&gt; 5 x 1 sparse Matrix of class &quot;dgCMatrix&quot;</span></span>
-<span class="cl"><span class="c1">#&gt;                     s1</span></span>
-<span class="cl"><span class="c1">#&gt; (Intercept) 25.1348756</span></span>
-<span class="cl"><span class="c1">#&gt; hp          -0.0256</span></span>
-<span class="cl"><span class="c1">#&gt; wt          -1.9321</span></span>
-<span class="cl"><span class="c1">#&gt; disp        -0.0143</span></span>
-<span class="cl"><span class="c1">#&gt; cyl         -0.7821</span></span></div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong><code>glmnet</code> isn't available in the browser.</strong> The ridge block above is shown as code you can paste into local RStudio; it won't execute in the interactive runtime on this page. The coefficients are all in the same direction (negative, higher values reduce <code>mpg</code>) and much stabler than the raw <code>lm()</code> estimates, because the L2 penalty dampens coefficient swings.</div></div>
-
-<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Read the full ridge walkthrough.</strong> For cross-validation, <code>lambda</code> tuning, and ridge-vs-lasso tradeoffs, see <a href="Ridge-Regression-With-R.html">Ridge Regression With R</a>. Ridge is the standard answer when dropping or combining would throw away information you actually need.</div></div>
-
-<section class="tryit-block">
-<p><strong>Try it:</strong> Drop <code>hp</code> from <code>model_full</code> (not <code>disp</code>) and recompute VIF. Does the collinearity resolve?</p>
-<div class="webr-container" data-block-title="Your turn: drop hp instead">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: drop hp instead</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl">ex_m5 <span class="o">&lt;-</span> <span class="kc">NULL</span>  <span class="c1"># lm() without hp</span></span>
-<span class="cl">ex_vif5 <span class="o">&lt;-</span> <span class="kc">NULL</span></span>
-<span class="cl"><span class="nf">round</span>(ex_vif5, <span class="m">2</span>)</span>
-<span class="cl"><span class="c1">#&gt; Expected: wt and disp VIFs drop, but not as cleanly as dropping disp did</span></span></div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-<details>
-<summary>Click to reveal solution</summary>
-
-<div class="webr-container" data-block-title="Drop hp solution">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Drop hp solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl">ex_m5 <span class="o">&lt;-</span> <span class="nf">lm</span>(mpg <span class="o">~</span> wt <span class="o">+</span> disp, data <span class="o">=</span> mtcars)</span>
-<span class="cl">ex_vif5 <span class="o">&lt;-</span> <span class="nf">compute_vif</span>(ex_m5)</span>
-<span class="cl"><span class="nf">round</span>(ex_vif5, <span class="m">2</span>)</span>
-<span class="cl"><span class="c1">#&gt;   wt disp</span></span>
-<span class="cl"><span class="c1">#&gt; 4.28 4.28</span></span></div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p><strong>Explanation:</strong> Both VIFs drop to about 4.3, under the threshold of 5 but higher than when we dropped <code>disp</code> (which gave 1.77). <code>disp</code> was the more redundant predictor, so dropping it was the cleaner fix.</p>
+<p>Both VIFs are 1.77, identical and safely below 5. Dropping the redundant predictor is often the simplest and most communicable remedy.</p>
 
 </details>
 </section>
 
 <h2>Practice Exercises</h2>
 
-<h3>Exercise 1: VIF on airquality</h3>
+<h3>Exercise 1: Simulate collinearity</h3>
 
-<p>Using <code>airquality</code>, fit <code>Ozone ~ Solar.R + Wind + Temp + Day</code> and compute VIF. Which predictor (if any) is the biggest multicollinearity concern? Save the VIF vector as <code>my_vif_aq</code>.</p>
+<p>Generate two near-identical predictors and confirm that even when the true data-generating coefficients are different, the regression cannot recover them. Set the seed to 2026 for reproducibility. Save the fitted model to <code>my_sim_model</code>.</p>
 
-<div class="webr-container" data-block-title="Exercise 1 starter">
+<div class="webr-container" data-block-title="Exercise 1: simulate collinearity">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Hint: filter NAs with na.omit() first</span></span>
-<span class="cl"><span class="c1"># my_vif_aq &lt;- compute_vif(lm(Ozone ~ Solar.R + Wind + Temp + Day, data = ...))</span></span></div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1: simulate collinearity</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">set.seed</span>(<span class="m">2026</span>)</span>
+<span class="cl">my_x1 <span class="o">&lt;-</span> <span class="nf">rnorm</span>(<span class="m">200</span>)</span>
+<span class="cl"><span class="c1"># your code here: create my_x2 = my_x1 + small noise, my_y = 2*my_x1 + 3*my_x2 + noise</span></span>
+<span class="cl"><span class="c1"># fit my_sim_model &lt;- lm(my_y ~ my_x1 + my_x2)</span></span>
+<span class="cl"><span class="c1"># compute manual VIF and compare coefficients to true values (2, 3)</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -737,15 +845,25 @@
 <details>
 <summary>Click to reveal solution</summary>
 
-<div class="webr-container" data-block-title="airquality VIF solution">
+<div class="webr-container" data-block-title="Simulated collinearity solution">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">airquality VIF solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl">aq <span class="o">&lt;-</span> <span class="nf">na.omit</span>(airquality)</span>
-<span class="cl">aq_model <span class="o">&lt;-</span> <span class="nf">lm</span>(Ozone <span class="o">~</span> Solar.R <span class="o">+</span> Wind <span class="o">+</span> Temp <span class="o">+</span> Day, data <span class="o">=</span> aq)</span>
-<span class="cl">my_vif_aq <span class="o">&lt;-</span> <span class="nf">compute_vif</span>(aq_model)</span>
-<span class="cl"><span class="nf">round</span>(my_vif_aq, <span class="m">2</span>)</span>
-<span class="cl"><span class="c1">#&gt; Solar.R    Wind    Temp     Day</span></span>
-<span class="cl"><span class="c1">#&gt;    1.10    1.34    1.41    1.04</span></span></div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Simulated collinearity solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">set.seed</span>(<span class="m">2026</span>)</span>
+<span class="cl">my_x1 <span class="o">&lt;-</span> <span class="nf">rnorm</span>(<span class="m">200</span>)</span>
+<span class="cl">my_x2 <span class="o">&lt;-</span> my_x1 <span class="o">+</span> <span class="m">0.05</span> <span class="o">*</span> <span class="nf">rnorm</span>(<span class="m">200</span>)</span>
+<span class="cl">my_y <span class="o">&lt;-</span> <span class="m">2</span> <span class="o">*</span> my_x1 <span class="o">+</span> <span class="m">3</span> <span class="o">*</span> my_x2 <span class="o">+</span> <span class="nf">rnorm</span>(<span class="m">200</span>)</span>
+<span class="cl"></span>
+<span class="cl">my_sim_model <span class="o">&lt;-</span> <span class="nf">lm</span>(my_y <span class="o">~</span> my_x1 <span class="o">+</span> my_x2)</span>
+<span class="cl"><span class="nf">round</span>(<span class="nf">coef</span>(my_sim_model), <span class="m">3</span>)</span>
+<span class="cl"><span class="c1">#&gt; (Intercept)       my_x1       my_x2</span></span>
+<span class="cl"><span class="c1">#&gt;       0.018       1.857       3.136</span></span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># Manual VIF for the two predictors</span></span>
+<span class="cl">r2_x1 <span class="o">&lt;-</span> <span class="nf">summary</span>(<span class="nf">lm</span>(my_x1 <span class="o">~</span> my_x2))<span class="o">$</span>r.squared</span>
+<span class="cl">r2_x2 <span class="o">&lt;-</span> <span class="nf">summary</span>(<span class="nf">lm</span>(my_x2 <span class="o">~</span> my_x1))<span class="o">$</span>r.squared</span>
+<span class="cl"><span class="nf">round</span>(<span class="nf">c</span>(x1 <span class="o">=</span> <span class="m">1</span> <span class="o">/</span> (<span class="m">1</span> <span class="o">-</span> r2_x1), x2 <span class="o">=</span> <span class="m">1</span> <span class="o">/</span> (<span class="m">1</span> <span class="o">-</span> r2_x2)), <span class="m">1</span>)</span>
+<span class="cl"><span class="c1">#&gt;    x1    x2</span></span>
+<span class="cl"><span class="c1">#&gt; 401.0 401.0</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -755,18 +873,19 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p><strong>Explanation:</strong> Every VIF is well under 2, so <code>airquality</code> has essentially no multicollinearity, these four meteorological predictors measure genuinely different things.</p>
+<p>VIFs of 401 tell you the predictors carry the same information. The coefficients come out close to 1.86 and 3.14, which happen to land near the true (2, 3) because the sample size is large and the noise is small. Try reducing <code>n</code> to 20 and you will see the two coefficients swing far from the truth despite the data being generated cleanly.</p>
 
 </details>
 
-<h3>Exercise 2: Iterative VIF pruning</h3>
+<h3>Exercise 2: Full diagnostic pipeline</h3>
 
-<p>Using <code>mtcars</code>, fit the saturated model <code>mpg ~ cyl + disp + hp + drat + wt + qsec + vs + am + gear + carb</code>. Use <code>compute_vif()</code> to find the highest-VIF predictor, drop it, and refit. Repeat until all VIFs are below 5. Save the final VIF vector as <code>my_final_vif</code>.</p>
+<p>On <code>mtcars</code>, fit the five-predictor model <code>mpg ~ hp + disp + wt + drat + qsec</code>. Compute manual VIFs for each predictor, the <code>kappa()</code> condition number on the scaled predictors, and the correlation matrix. Decide which variable to drop based on the highest VIF. Save the refit model to <code>my_cleaned_model</code> and print its VIFs.</p>
 
-<div class="webr-container" data-block-title="Exercise 2 starter">
+<div class="webr-container" data-block-title="Exercise 2: full diagnostic pipeline">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Hint: a while-loop works, or just prune manually one predictor at a time</span></span></div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2: full diagnostic pipeline</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">my_full <span class="o">&lt;-</span> <span class="nf">lm</span>(mpg <span class="o">~</span> hp <span class="o">+</span> disp <span class="o">+</span> wt <span class="o">+</span> drat <span class="o">+</span> qsec, data <span class="o">=</span> mtcars)</span>
+<span class="cl"><span class="c1"># your code here: compute VIFs, kappa(), cor(), pick one to drop, refit</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -779,21 +898,35 @@
 <details>
 <summary>Click to reveal solution</summary>
 
-<div class="webr-container" data-block-title="Iterative VIF pruning solution">
+<div class="webr-container" data-block-title="Full diagnostic pipeline solution">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Iterative VIF pruning solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl">preds <span class="o">&lt;-</span> <span class="nf">c</span>(<span class="s">&quot;cyl&quot;</span>, <span class="s">&quot;disp&quot;</span>, <span class="s">&quot;hp&quot;</span>, <span class="s">&quot;drat&quot;</span>, <span class="s">&quot;wt&quot;</span>, <span class="s">&quot;qsec&quot;</span>, <span class="s">&quot;vs&quot;</span>, <span class="s">&quot;am&quot;</span>, <span class="s">&quot;gear&quot;</span>, <span class="s">&quot;carb&quot;</span>)</span>
-<span class="cl"><span class="kr">repeat</span> {</span>
-<span class="cl">  form <span class="o">&lt;-</span> <span class="nf">as.formula</span>(<span class="nf">paste</span>(<span class="s">&quot;mpg ~&quot;</span>, <span class="nf">paste</span>(preds, collapse <span class="o">=</span> <span class="s">&quot; + &quot;</span>)))</span>
-<span class="cl">  v <span class="o">&lt;-</span> <span class="nf">compute_vif</span>(<span class="nf">lm</span>(form, data <span class="o">=</span> mtcars))</span>
-<span class="cl">  <span class="kr">if</span> (<span class="nf">max</span>(v) <span class="o">&lt;</span> <span class="m">5</span>) <span class="kr">break</span></span>
-<span class="cl">  worst <span class="o">&lt;-</span> <span class="nf">names</span>(<span class="nf">which.max</span>(v))</span>
-<span class="cl">  preds <span class="o">&lt;-</span> <span class="nf">setdiff</span>(preds, worst)</span>
-<span class="cl">}</span>
-<span class="cl">my_final_vif <span class="o">&lt;-</span> v</span>
-<span class="cl"><span class="nf">round</span>(my_final_vif, <span class="m">2</span>)</span>
-<span class="cl"><span class="c1">#&gt;  drat  qsec    vs    am  gear  carb</span></span>
-<span class="cl"><span class="c1">#&gt;  2.06  2.83  2.48  1.91  2.22  2.94</span></span></div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Full diagnostic pipeline solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">my_full <span class="o">&lt;-</span> <span class="nf">lm</span>(mpg <span class="o">~</span> hp <span class="o">+</span> disp <span class="o">+</span> wt <span class="o">+</span> drat <span class="o">+</span> qsec, data <span class="o">=</span> mtcars)</span>
+<span class="cl"></span>
+<span class="cl">my_vars <span class="o">&lt;-</span> <span class="nf">c</span>(<span class="s">&quot;hp&quot;</span>, <span class="s">&quot;disp&quot;</span>, <span class="s">&quot;wt&quot;</span>, <span class="s">&quot;drat&quot;</span>, <span class="s">&quot;qsec&quot;</span>)</span>
+<span class="cl">my_vifs <span class="o">&lt;-</span> <span class="nf">sapply</span>(my_vars, <span class="kr">function</span>(p) {</span>
+<span class="cl">  others <span class="o">&lt;-</span> <span class="nf">setdiff</span>(my_vars, p)</span>
+<span class="cl">  f <span class="o">&lt;-</span> <span class="nf">as.formula</span>(<span class="nf">paste</span>(p, <span class="s">&quot;~&quot;</span>, <span class="nf">paste</span>(others, collapse <span class="o">=</span> <span class="s">&quot; + &quot;</span>)))</span>
+<span class="cl">  <span class="m">1</span> <span class="o">/</span> (<span class="m">1</span> <span class="o">-</span> <span class="nf">summary</span>(<span class="nf">lm</span>(f, data <span class="o">=</span> mtcars))<span class="o">$</span>r.squared)</span>
+<span class="cl">})</span>
+<span class="cl"><span class="nf">round</span>(my_vifs, <span class="m">2</span>)</span>
+<span class="cl"><span class="c1">#&gt;    hp  disp    wt  drat  qsec</span></span>
+<span class="cl"><span class="c1">#&gt;  5.31 10.39  8.63  2.97  6.11</span></span>
+<span class="cl"></span>
+<span class="cl"><span class="nf">round</span>(<span class="nf">kappa</span>(<span class="nf">scale</span>(mtcars[, my_vars])), <span class="m">2</span>)</span>
+<span class="cl"><span class="c1">#&gt; [1] 9.17</span></span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># disp has the highest VIF, so drop it</span></span>
+<span class="cl">my_cleaned_model <span class="o">&lt;-</span> <span class="nf">lm</span>(mpg <span class="o">~</span> hp <span class="o">+</span> wt <span class="o">+</span> drat <span class="o">+</span> qsec, data <span class="o">=</span> mtcars)</span>
+<span class="cl">my_new_vars <span class="o">&lt;-</span> <span class="nf">c</span>(<span class="s">&quot;hp&quot;</span>, <span class="s">&quot;wt&quot;</span>, <span class="s">&quot;drat&quot;</span>, <span class="s">&quot;qsec&quot;</span>)</span>
+<span class="cl">my_new_vifs <span class="o">&lt;-</span> <span class="nf">sapply</span>(my_new_vars, <span class="kr">function</span>(p) {</span>
+<span class="cl">  others <span class="o">&lt;-</span> <span class="nf">setdiff</span>(my_new_vars, p)</span>
+<span class="cl">  f <span class="o">&lt;-</span> <span class="nf">as.formula</span>(<span class="nf">paste</span>(p, <span class="s">&quot;~&quot;</span>, <span class="nf">paste</span>(others, collapse <span class="o">=</span> <span class="s">&quot; + &quot;</span>)))</span>
+<span class="cl">  <span class="m">1</span> <span class="o">/</span> (<span class="m">1</span> <span class="o">-</span> <span class="nf">summary</span>(<span class="nf">lm</span>(f, data <span class="o">=</span> mtcars))<span class="o">$</span>r.squared)</span>
+<span class="cl">})</span>
+<span class="cl"><span class="nf">round</span>(my_new_vifs, <span class="m">2</span>)</span>
+<span class="cl"><span class="c1">#&gt;    hp    wt  drat  qsec</span></span>
+<span class="cl"><span class="c1">#&gt;  3.35  4.84  2.78  2.43</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -803,49 +936,110 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p><strong>Explanation:</strong> The loop drops the worst VIF predictor each pass. Starting from 10 predictors, it trims <code>disp</code>, <code>cyl</code>, <code>wt</code>, and <code>hp</code> (the engine-size block) before every remaining VIF is below 5.</p>
+<p>Dropping <code>disp</code> brings every remaining VIF below 5, which is the clean result the model was asking for.</p>
+
+</details>
+
+<h3>Exercise 3: PCA remedy</h3>
+
+<p>Take the same five predictors from exercise 2. Run <code>prcomp()</code> on them (with scaling), keep the first two principal components, and fit <code>my_pc_model &lt;- lm(mpg ~ PC1 + PC2, data = ...)</code>. Compare the R-squared of <code>my_pc_model</code> with that of <code>my_full</code> from exercise 2.</p>
+
+<div class="webr-container" data-block-title="Exercise 3: PCA remedy">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3: PCA remedy</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">my_vars <span class="o">&lt;-</span> <span class="nf">c</span>(<span class="s">&quot;hp&quot;</span>, <span class="s">&quot;disp&quot;</span>, <span class="s">&quot;wt&quot;</span>, <span class="s">&quot;drat&quot;</span>, <span class="s">&quot;qsec&quot;</span>)</span>
+<span class="cl"><span class="c1"># your code here: prcomp with scale. = TRUE, build a data frame with mpg + PC1 + PC2, fit my_pc_model</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="PCA remedy solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">PCA remedy solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">my_vars <span class="o">&lt;-</span> <span class="nf">c</span>(<span class="s">&quot;hp&quot;</span>, <span class="s">&quot;disp&quot;</span>, <span class="s">&quot;wt&quot;</span>, <span class="s">&quot;drat&quot;</span>, <span class="s">&quot;qsec&quot;</span>)</span>
+<span class="cl">my_pca <span class="o">&lt;-</span> <span class="nf">prcomp</span>(mtcars[, my_vars], scale. <span class="o">=</span> <span class="kc">TRUE</span>)</span>
+<span class="cl"><span class="nf">round</span>(my_pca<span class="o">$</span>sdev<span class="o">^</span><span class="m">2</span> <span class="o">/</span> <span class="nf">sum</span>(my_pca<span class="o">$</span>sdev<span class="o">^</span><span class="m">2</span>), <span class="m">3</span>)</span>
+<span class="cl"><span class="c1">#&gt; [1] 0.734 0.180 0.052 0.020 0.014</span></span>
+<span class="cl"></span>
+<span class="cl">my_pc_df <span class="o">&lt;-</span> <span class="nf">data.frame</span>(mpg <span class="o">=</span> mtcars<span class="o">$</span>mpg,</span>
+<span class="cl">                       PC1 <span class="o">=</span> my_pca<span class="o">$</span>x[, <span class="m">1</span>],</span>
+<span class="cl">                       PC2 <span class="o">=</span> my_pca<span class="o">$</span>x[, <span class="m">2</span>])</span>
+<span class="cl">my_pc_model <span class="o">&lt;-</span> <span class="nf">lm</span>(mpg <span class="o">~</span> PC1 <span class="o">+</span> PC2, data <span class="o">=</span> my_pc_df)</span>
+<span class="cl"></span>
+<span class="cl"><span class="nf">round</span>(<span class="nf">summary</span>(my_pc_model)<span class="o">$</span>r.squared, <span class="m">3</span>)</span>
+<span class="cl"><span class="c1">#&gt; [1] 0.825</span></span>
+<span class="cl"></span>
+<span class="cl">my_full <span class="o">&lt;-</span> <span class="nf">lm</span>(mpg <span class="o">~</span> hp <span class="o">+</span> disp <span class="o">+</span> wt <span class="o">+</span> drat <span class="o">+</span> qsec, data <span class="o">=</span> mtcars)</span>
+<span class="cl"><span class="nf">round</span>(<span class="nf">summary</span>(my_full)<span class="o">$</span>r.squared, <span class="m">3</span>)</span>
+<span class="cl"><span class="c1">#&gt; [1] 0.851</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Two principal components capture 91 percent of the predictor variance and explain 82.5 percent of <code>mpg</code> variance. The five-predictor model explains 85.1 percent, barely better. The PC model is more stable and barely less accurate, which is usually the right trade when collinearity is high.</p>
 
 </details>
 
 <h2>Complete Example</h2>
 
-<p>Here is the end-to-end workflow on <code>mtcars</code>: fit the saturated model, diagnose, visualize, fix, and confirm.</p>
+<p>The <code>longley</code> dataset is a small economic <a class="auto-link" href="Time-Series-Analysis-With-R.html" title="Time Series Analysis with R">time series</a> from 1947 to 1962 and is the textbook example of multicollinearity. Let's run the full pipeline end to end.</p>
 
-<div class="webr-container" data-block-title="End-to-end detect and fix workflow">
+<div class="webr-container" data-block-title="Longley: detect and fix multicollinearity">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">End-to-end detect and fix workflow</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Step 1: saturated model</span></span>
-<span class="cl">sat_model <span class="o">&lt;-</span> <span class="nf">lm</span>(mpg <span class="o">~</span> cyl <span class="o">+</span> disp <span class="o">+</span> hp <span class="o">+</span> drat <span class="o">+</span> wt <span class="o">+</span> qsec <span class="o">+</span> vs <span class="o">+</span> am <span class="o">+</span> gear <span class="o">+</span> carb,</span>
-<span class="cl">                data <span class="o">=</span> mtcars)</span>
-<span class="cl"><span class="nf">round</span>(<span class="nf">compute_vif</span>(sat_model), <span class="m">2</span>)</span>
-<span class="cl"><span class="c1">#&gt;   cyl  disp    hp  drat    wt  qsec    vs    am  gear  carb</span></span>
-<span class="cl"><span class="c1">#&gt; 15.37 21.62  9.83  3.37 15.16  7.53  4.97  4.65  5.36  7.91</span></span>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Longley: detect and fix multicollinearity</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Full model: six highly correlated predictors</span></span>
+<span class="cl">long_model <span class="o">&lt;-</span> <span class="nf">lm</span>(Employed <span class="o">~</span> GNP.deflator <span class="o">+</span> GNP <span class="o">+</span> Unemployed <span class="o">+</span> Armed.Forces <span class="o">+</span></span>
+<span class="cl">                   Population <span class="o">+</span> Year, data <span class="o">=</span> longley)</span>
+<span class="cl"><span class="nf">round</span>(<span class="nf">summary</span>(long_model)<span class="o">$</span>coefficients, <span class="m">3</span>)</span>
+<span class="cl"><span class="c1">#&gt;               Estimate Std. Error t value Pr(&gt;|t|)</span></span>
+<span class="cl"><span class="c1">#&gt; (Intercept)  -3482.259   890.420  -3.911    0.004</span></span>
+<span class="cl"><span class="c1">#&gt; GNP.deflator     0.015     0.085   0.177    0.863</span></span>
+<span class="cl"><span class="c1">#&gt; GNP             -0.036     0.033  -1.070    0.313</span></span>
+<span class="cl"><span class="c1">#&gt; Unemployed      -0.020     0.005  -4.136    0.003</span></span>
+<span class="cl"><span class="c1">#&gt; Armed.Forces    -0.010     0.002  -4.822    0.001</span></span>
+<span class="cl"><span class="c1">#&gt; Population      -0.051     0.226  -0.226    0.826</span></span>
+<span class="cl"><span class="c1">#&gt; Year             1.829     0.455   4.016    0.003</span></span>
 <span class="cl"></span>
-<span class="cl"><span class="c1"># Step 2: iteratively drop the worst until max VIF &lt; 5</span></span>
-<span class="cl">drop_until_clean <span class="o">&lt;-</span> <span class="kr">function</span>(start_preds) {</span>
-<span class="cl">  p <span class="o">&lt;-</span> start_preds</span>
-<span class="cl">  <span class="kr">repeat</span> {</span>
-<span class="cl">    f <span class="o">&lt;-</span> <span class="nf">as.formula</span>(<span class="nf">paste</span>(<span class="s">&quot;mpg ~&quot;</span>, <span class="nf">paste</span>(p, collapse <span class="o">=</span> <span class="s">&quot; + &quot;</span>)))</span>
-<span class="cl">    v <span class="o">&lt;-</span> <span class="nf">compute_vif</span>(<span class="nf">lm</span>(f, data <span class="o">=</span> mtcars))</span>
-<span class="cl">    <span class="kr">if</span> (<span class="nf">max</span>(v) <span class="o">&lt;</span> <span class="m">5</span>) <span class="kr">return</span>(<span class="nf">list</span>(preds <span class="o">=</span> p, vif <span class="o">=</span> v))</span>
-<span class="cl">    p <span class="o">&lt;-</span> <span class="nf">setdiff</span>(p, <span class="nf">names</span>(<span class="nf">which.max</span>(v)))</span>
-<span class="cl">  }</span>
-<span class="cl">}</span>
+<span class="cl"><span class="c1"># Manual VIFs</span></span>
+<span class="cl">long_vars <span class="o">&lt;-</span> <span class="nf">c</span>(<span class="s">&quot;GNP.deflator&quot;</span>, <span class="s">&quot;GNP&quot;</span>, <span class="s">&quot;Unemployed&quot;</span>, <span class="s">&quot;Armed.Forces&quot;</span>, <span class="s">&quot;Population&quot;</span>, <span class="s">&quot;Year&quot;</span>)</span>
+<span class="cl">long_vifs <span class="o">&lt;-</span> <span class="nf">sapply</span>(long_vars, <span class="kr">function</span>(p) {</span>
+<span class="cl">  others <span class="o">&lt;-</span> <span class="nf">setdiff</span>(long_vars, p)</span>
+<span class="cl">  f <span class="o">&lt;-</span> <span class="nf">as.formula</span>(<span class="nf">paste</span>(p, <span class="s">&quot;~&quot;</span>, <span class="nf">paste</span>(others, collapse <span class="o">=</span> <span class="s">&quot; + &quot;</span>)))</span>
+<span class="cl">  <span class="m">1</span> <span class="o">/</span> (<span class="m">1</span> <span class="o">-</span> <span class="nf">summary</span>(<span class="nf">lm</span>(f, data <span class="o">=</span> longley))<span class="o">$</span>r.squared)</span>
+<span class="cl">})</span>
+<span class="cl"><span class="nf">round</span>(long_vifs, <span class="m">1</span>)</span>
+<span class="cl"><span class="c1">#&gt; GNP.deflator          GNP   Unemployed Armed.Forces   Population         Year</span></span>
+<span class="cl"><span class="c1">#&gt;        135.5       1788.5         33.6          3.6        399.2        758.9</span></span>
 <span class="cl"></span>
-<span class="cl">fit <span class="o">&lt;-</span> <span class="nf">drop_until_clean</span>(<span class="nf">c</span>(<span class="s">&quot;cyl&quot;</span>, <span class="s">&quot;disp&quot;</span>, <span class="s">&quot;hp&quot;</span>, <span class="s">&quot;drat&quot;</span>, <span class="s">&quot;wt&quot;</span>, <span class="s">&quot;qsec&quot;</span>,</span>
-<span class="cl">                          <span class="s">&quot;vs&quot;</span>, <span class="s">&quot;am&quot;</span>, <span class="s">&quot;gear&quot;</span>, <span class="s">&quot;carb&quot;</span>))</span>
-<span class="cl">final_model <span class="o">&lt;-</span> <span class="nf">lm</span>(<span class="nf">as.formula</span>(<span class="nf">paste</span>(<span class="s">&quot;mpg ~&quot;</span>, <span class="nf">paste</span>(fit<span class="o">$</span>preds, collapse <span class="o">=</span> <span class="s">&quot;+&quot;</span>))),</span>
-<span class="cl">                  data <span class="o">=</span> mtcars)</span>
+<span class="cl"><span class="c1"># Condition number on scaled predictors</span></span>
+<span class="cl"><span class="nf">round</span>(<span class="nf">kappa</span>(<span class="nf">scale</span>(longley[, long_vars])), <span class="m">1</span>)</span>
+<span class="cl"><span class="c1">#&gt; [1] 43.3</span></span>
 <span class="cl"></span>
-<span class="cl"><span class="c1"># Step 3: compare R^2 before vs after</span></span>
-<span class="cl"><span class="nf">c</span>(saturated <span class="o">=</span> <span class="nf">summary</span>(sat_model)<span class="o">$</span>r.squared,</span>
-<span class="cl">  cleaned   <span class="o">=</span> <span class="nf">summary</span>(final_model)<span class="o">$</span>r.squared)</span>
-<span class="cl"><span class="c1">#&gt; saturated   cleaned</span></span>
-<span class="cl"><span class="c1">#&gt;    0.8690    0.8528</span></span>
-<span class="cl"></span>
-<span class="cl"><span class="nf">round</span>(fit<span class="o">$</span>vif, <span class="m">2</span>)</span>
-<span class="cl"><span class="c1">#&gt;  drat  qsec    vs    am  gear  carb</span></span>
-<span class="cl"><span class="c1">#&gt;  2.06  2.83  2.48  1.91  2.22  2.94</span></span></div>
+<span class="cl"><span class="c1"># Drop GNP (highest VIF at 1788) and refit</span></span>
+<span class="cl">long_fixed <span class="o">&lt;-</span> <span class="nf">lm</span>(Employed <span class="o">~</span> GNP.deflator <span class="o">+</span> Unemployed <span class="o">+</span> Armed.Forces <span class="o">+</span></span>
+<span class="cl">                   Population <span class="o">+</span> Year, data <span class="o">=</span> longley)</span>
+<span class="cl">long_vars_fixed <span class="o">&lt;-</span> <span class="nf">c</span>(<span class="s">&quot;GNP.deflator&quot;</span>, <span class="s">&quot;Unemployed&quot;</span>, <span class="s">&quot;Armed.Forces&quot;</span>, <span class="s">&quot;Population&quot;</span>, <span class="s">&quot;Year&quot;</span>)</span>
+<span class="cl">long_vifs_fixed <span class="o">&lt;-</span> <span class="nf">sapply</span>(long_vars_fixed, <span class="kr">function</span>(p) {</span>
+<span class="cl">  others <span class="o">&lt;-</span> <span class="nf">setdiff</span>(long_vars_fixed, p)</span>
+<span class="cl">  f <span class="o">&lt;-</span> <span class="nf">as.formula</span>(<span class="nf">paste</span>(p, <span class="s">&quot;~&quot;</span>, <span class="nf">paste</span>(others, collapse <span class="o">=</span> <span class="s">&quot; + &quot;</span>)))</span>
+<span class="cl">  <span class="m">1</span> <span class="o">/</span> (<span class="m">1</span> <span class="o">-</span> <span class="nf">summary</span>(<span class="nf">lm</span>(f, data <span class="o">=</span> longley))<span class="o">$</span>r.squared)</span>
+<span class="cl">})</span>
+<span class="cl"><span class="nf">round</span>(long_vifs_fixed, <span class="m">1</span>)</span>
+<span class="cl"><span class="c1">#&gt; GNP.deflator   Unemployed Armed.Forces   Population         Year</span></span>
+<span class="cl"><span class="c1">#&gt;        101.2          8.0          3.5        297.5        378.4</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -855,7 +1049,9 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>The saturated model's R² was 0.869; the cleaned model's is 0.853. We lost 1.6 percentage points of variance explained in exchange for every VIF below 3, a trade almost always worth making if you care about interpreting coefficients. The final model has no predictor whose standard error is inflated by more than ~70% (√2.94 ≈ 1.71), so you can actually trust the p-values.</p>
+<p>Every VIF in the full model is in the three-digit or four-digit range, and the condition number of 43.3 confirms a near-singular design. Dropping the worst offender, <code>GNP</code>, barely helps: <code>Year</code> and <code>Population</code> still have VIFs in the hundreds because the dataset is a tight economic time series where everything trends together.</p>
+
+<p>The right answer for <code>longley</code> is not a single drop. You would keep one time-series indicator (usually <code>Year</code>), combine the economic variables into an index or principal component, and accept that six nearly-identical trend variables cannot be separated even by the most careful regression. This is the lesson the dataset was built to teach.</p>
 
 <h2>Summary</h2>
 
@@ -863,77 +1059,73 @@
 <thead>
 <tr>
 <th>Step</th>
-<th>Action</th>
+<th>What to run</th>
+<th>What it tells you</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>Symptom</td>
-<td>Coefficients swing when predictors are added or removed</td>
+<td>Detect instability</td>
+<td><code>lm()</code> full vs reduced + <code>confint()</code></td>
+<td>Coefficients that swing or cross zero signal collinearity</td>
 </tr>
 <tr>
-<td>Detect</td>
-<td>Build <code>compute_vif()</code> or call <code>car::vif(model)</code></td>
+<td>Quantify</td>
+<td>Manual VIF loop or <code>car::vif(model)</code></td>
+<td>VIF > 5 is worth investigating, > 10 is urgent</td>
 </tr>
 <tr>
-<td>Thresholds</td>
-<td>VIF < 5 fine, 5-10 concerning, ≥ 10 severe</td>
+<td>Confirm with a second lens</td>
+<td><code>kappa(scale(X))</code> and <code>cor(X)</code></td>
+<td>Condition number > 30 is collinear even with low VIFs</td>
 </tr>
 <tr>
-<td>Visualize</td>
-<td>Correlation heatmap + VIF bar chart with threshold lines</td>
+<td>Factors</td>
+<td><code>car::vif(model)</code> and read GVIF^(1/(2 Df))</td>
+<td>Compare to VIF thresholds via the adjusted column</td>
 </tr>
 <tr>
-<td>Fix 1</td>
-<td>Drop the most redundant predictor</td>
-</tr>
-<tr>
-<td>Fix 2</td>
-<td>Combine correlated predictors with <code>prcomp()</code> (PCA)</td>
-</tr>
-<tr>
-<td>Fix 3</td>
-<td>Ridge regression (<code>glmnet</code>, shrinks coefficients)</td>
+<td>Fix</td>
+<td>Drop / PCA / ridge</td>
+<td>Drop for clarity, PCA to combine, ridge for prediction</td>
 </tr>
 </tbody>
 </table>
 
-<p><img src="screenshots/Multicollinearity-in-R-overview-mindmap.webp" alt="Detect, interpret, and fix at a glance." class="img-responsive img-zoomable" loading="lazy" width="1688" height="826" /></p>
-
-<p><em>Figure 3: Detect, interpret, and fix at a glance.</em></p>
+<p>The short version: run <code>lm()</code>, read the VIFs, confirm with <code>kappa()</code> and <code>cor()</code>, then pick the remedy that matches what you need from the model. Causal interpretation of a single coefficient means drop or combine. Accurate prediction with every predictor kept means ridge.</p>
 
 <h2>References</h2>
 
 <ol>
 
-<li>Fox, J. & Weisberg, S. <em>An R Companion to Applied Regression</em>, 3rd Edition. SAGE (2019). <a href="https://socialsciences.mcmaster.ca/jfox/Books/Companion/">Link</a></li>
+<li>Fox, J. & Weisberg, S., <em>An R Companion to Applied Regression</em>, 3rd edition. Sage (2019). Chapter on <a class="auto-link" href="Linear-Regression-Assumptions-in-R.html" title="Linear Regression Assumptions in R: Test All 5 and Know What to Do When They Fail">regression diagnostics</a> and the <code>car</code> package. <a href="https://socialsciences.mcmaster.ca/jfox/Books/Companion/">Link</a></li>
 
-<li>car package, <code>vif()</code> reference. <a href="https://cran.r-project.org/web/packages/car/car.pdf">Link</a></li>
+<li>Kutner, M. H., Nachtsheim, C. J., Neter, J. & Li, W., <em>Applied Linear Statistical Models</em>, 5th edition. McGraw-Hill (2005). Chapter 10: Multicollinearity and its effects.</li>
 
-<li>Kutner, Nachtsheim & Neter. <em>Applied Linear Statistical Models</em>, 5th Ed. McGraw-Hill (2004). Chapter 10.</li>
+<li>Hoerl, A. E. & Kennard, R. W. (1970). Ridge regression: Biased estimation for nonorthogonal problems. <em>Technometrics</em>, 12(1), 55-67. <a href="https://www.jstor.org/stable/1267351">Link</a></li>
 
-<li>Harrell, F. E. <em>Regression Modeling Strategies</em>, 2nd Edition. Springer (2015). Chapter 4.</li>
+<li>Belsley, D. A., Kuh, E. & Welsch, R. E., <em>Regression Diagnostics: Identifying Influential Data and Sources of Collinearity</em>. Wiley (1980). The condition-number reference.</li>
 
-<li>Hoerl, A. & Kennard, R. "Ridge Regression: Biased Estimation for Nonorthogonal Problems." <em>Technometrics</em>, 12(1), 55-67 (1970).</li>
+<li>James, G., Witten, D., Hastie, T. & Tibshirani, R., <em>An Introduction to Statistical Learning with Applications in R</em>, 2nd edition. Springer (2021). Chapter 3: Linear Regression. <a href="https://www.statlearning.com/">Link</a></li>
 
-<li>R base stats, <code>lm()</code> and <code>prcomp()</code> documentation. <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/lm.html">Link</a></li>
+<li>CRAN, <code>car::vif()</code> reference page. <a href="https://cran.r-project.org/web/packages/car/car.pdf">Link</a></li>
 
-<li>James, Witten, Hastie, Tibshirani. <em>An Introduction to Statistical Learning</em>, 2nd Ed. Chapter 6 (Shrinkage Methods). <a href="https://www.statlearning.com/">Link</a></li>
+<li>Longley, J. W. (1967). An Appraisal of Least Squares Programs for the Electronic Computer from the Point of View of the User. <em>Journal of the American Statistical Association</em>, 62(319), 819-841.</li>
 
 </ol>
 
 <h2>Continue Learning</h2>
 
-<ul>
+<ol>
 
-<li><a href="Linear-Regression.html">Linear Regression in R</a>, the foundation on which every VIF calculation depends.</li>
+<li><a href="Linear-Regression.html">Linear Regression</a>, the full <code>lm()</code> workflow from fitting to interpretation, for when you want to make sure the base model is solid before reaching for diagnostics.</li>
 
-<li><a href="Ridge-Regression-With-R.html">Ridge Regression With R</a>, the full walkthrough of Fix 3, with cross-validation and lambda tuning.</li>
+<li><a href="Variable-Selection-and-Importance-With-R.html">Variable Selection and Importance With R</a>, a broader look at <a class="auto-link" href="Variable-Selection-and-Importance-With-R.html" title="Feature Selection and Variable Importance">feature selection</a> methods beyond VIF, including stepwise selection and importance metrics.</li>
 
-<li><a href="Correlation-Matrix-Plot-in-R.html">Correlation Matrix Plot in R</a>, more advanced visualizations for the correlation matrix we built in Section 4.</li>
+<li><a href="Outlier-Treatment-With-R.html">Outlier Treatment With R</a>, another core regression diagnostic; collinearity and outliers often interact and are best handled together.</li>
 
-</ul>
-<section class="related-tutorials" aria-label="Related tutorials"><h2 class="rt-heading">Related Tutorials</h2><div class="rt-grid"><a class="rt-card" href="Multiple-Regression-in-R.html"><span class="rt-title">Multiple Regression in R</span><span class="rt-meta"></span></a><a class="rt-card" href="Linear-Regression-Assumptions-in-R.html"><span class="rt-title">Linear Regression Assumptions in R: Test All 5 and Know What to Do When They Fail</span><span class="rt-meta">Statistics &middot; 10 min read</span></a><a class="rt-card" href="Simple-Linear-Regression-in-R.html"><span class="rt-title">Simple Linear Regression in R</span><span class="rt-meta"></span></a><a class="rt-card" href="Correlation-in-R.html"><span class="rt-title">Correlation in R: Choose Between Pearson, Spearman, and Kendall, With Tests</span><span class="rt-meta">Statistics &middot; 10 min read</span></a></div></section>
+</ol>
+<section class="related-tutorials" aria-label="Related tutorials"><h2 class="rt-heading">Related Tutorials</h2><div class="rt-grid"><a class="rt-card" href="Dummy-Variables-in-R.html"><span class="rt-title">Dummy Variables in R: What lm() Does With Factor Predictors Under the Hood</span><span class="rt-meta">Statistics &middot; 10 min read</span></a><a class="rt-card" href="Interaction-Effects-in-R.html"><span class="rt-title">Interaction Effects in R: Add Them, Test Them, and Actually Understand the Output</span><span class="rt-meta">Statistics &middot; 9 min read</span></a><a class="rt-card" href="Multiple-Regression-in-R.html"><span class="rt-title">Multiple Regression in R</span><span class="rt-meta"></span></a><a class="rt-card" href="Poisson-Regression-in-R.html"><span class="rt-title">Poisson Regression in R: Model Count Data and Handle Overdispersion</span><span class="rt-meta">Statistics &middot; 8 min read</span></a></div></section>
 
         </main>
 
