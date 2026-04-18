@@ -1,0 +1,1333 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>Ridge and Lasso in R: How Penalised Regression Shrinks Coefficients and Selects Variables</title>
+    <meta charset="utf-8">
+    <meta name="Description" content="Ridge shrinks coefficients smoothly; Lasso zeroes some out. Learn glmnet, tune lambda with cross-validation, read solution paths, pick the right penalty.">
+    <meta name="Keywords" content="ridge regression R, lasso regression R, glmnet, regularized regression, penalized regression, cv.glmnet, elastic net R, lambda selection, coefficient shrinkage, L1 L2 penalty">
+    <meta name="Distribution" content="Global">
+    <meta name="Author" content="Selva Prabhakaran">
+    <meta name="Robots" content="index, follow">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="referrer" content="strict-origin-when-cross-origin">
+    <link rel="icon" href="/screenshots/iconb-64.png" type="image/x-icon" />
+    <link rel="canonical" href="https://r-statistics.co/Ridge-and-Lasso-Regression-in-R.html">
+    <link rel="alternate" type="application/atom+xml" title="r-statistics.co" href="https://r-statistics.co/feed.xml">
+    <link rel="preconnect" href="https://cdn.jsdelivr.net">
+    <!-- Preload the primary body font so first paint has IBM Plex Sans ready -->
+    <link rel="preload" href="/www/fonts/ibm-plex/ibm-plex-sans-latin.woff2" as="font" type="font/woff2" crossorigin>
+    <!-- Preload heading font (IBM Plex Serif 700) to prevent H1 font swap -->
+    <link rel="preload" href="/www/fonts/ibm-plex/ibm-plex-serif-700.woff2" as="font" type="font/woff2" crossorigin>
+    <!-- Preload sidebar data so toc.js doesn't wait for a separate fetch -->
+    <link rel="preload" href="/www/sidebar.json" as="fetch" crossorigin>
+    <!-- Critical CSS inlined for fast first paint -->
+    <style>
+      @font-face{font-family:'IBM Plex Sans';font-style:normal;font-weight:400;font-display:optional;src:url('/www/fonts/ibm-plex/ibm-plex-sans-latin.woff2') format('woff2')}
+      @font-face{font-family:'IBM Plex Sans';font-style:normal;font-weight:500;font-display:optional;src:url('/www/fonts/ibm-plex/ibm-plex-sans-latin.woff2') format('woff2')}
+      @font-face{font-family:'IBM Plex Sans';font-style:normal;font-weight:600;font-display:optional;src:url('/www/fonts/ibm-plex/ibm-plex-sans-latin.woff2') format('woff2')}
+      @font-face{font-family:'IBM Plex Sans';font-style:normal;font-weight:700;font-display:optional;src:url('/www/fonts/ibm-plex/ibm-plex-sans-latin.woff2') format('woff2')}
+      @font-face{font-family:'IBM Plex Serif';font-style:normal;font-weight:600;font-display:optional;src:url('/www/fonts/ibm-plex/ibm-plex-serif-600.woff2') format('woff2')}
+      @font-face{font-family:'IBM Plex Serif';font-style:normal;font-weight:700;font-display:optional;src:url('/www/fonts/ibm-plex/ibm-plex-serif-700.woff2') format('woff2')}
+      @font-face{font-family:'IBM Plex Mono';font-style:normal;font-weight:400;font-display:optional;src:url('/www/fonts/ibm-plex/ibm-plex-mono-400.woff2') format('woff2')}
+      @font-face{font-family:'IBM Plex Mono';font-style:normal;font-weight:500;font-display:optional;src:url('/www/fonts/ibm-plex/ibm-plex-mono-500.woff2') format('woff2')}
+      *,*::before,*::after{box-sizing:border-box}
+      html{font-family:sans-serif;-webkit-text-size-adjust:100%}
+      body{margin:0;font-family:'IBM Plex Sans',-apple-system,BlinkMacSystemFont,sans-serif;font-size:18px;line-height:1.7;color:#1a1a2e;background:#fdfdfd}
+      html body{font-size:18px;line-height:1.7}
+      p{margin:0 0 15px}
+      .container{max-width:1170px;margin:0 auto;padding:0 15px}
+      @media(min-width:1200px){.container{width:1170px}}
+      .row{margin-left:-15px;margin-right:-15px}.row::after{content:"";display:table;clear:both}
+      .col-xs-12,.col-sm-2,.col-sm-3,.col-sm-7{position:relative;min-height:1px;padding-left:15px;padding-right:15px;float:left}
+      .col-xs-12{width:100%}
+      @media(min-width:768px){.col-sm-2{width:16.667%}.col-sm-3{width:25%}.col-sm-7{width:58.333%}.hidden-xs{display:block!important}}
+      .hidden-xs{display:none}
+      .table{width:100%;border-collapse:collapse}.table>thead>tr>th,.table>tbody>tr>td{padding:8px;border-top:1px solid #ddd}
+      .table-striped>tbody>tr:nth-of-type(odd){background:#f9f9f9}
+      .btn{display:inline-block;padding:6px 12px;font-size:14px;border-radius:4px;cursor:pointer;border:1px solid transparent}
+      .btn-primary{color:#fff;background:#3566c0;border-color:#3566c0}.btn-primary:hover{background:#2c5fbe}
+      .btn-default{color:#333;background:#fff;border-color:#ccc}
+      .btn-sm{padding:3px 10px;font-size:12px}
+      .form-control{display:block;padding:6px 12px;font-size:14px;border:1px solid #ccc;border-radius:4px}
+      .list-unstyled{list-style:none;padding-left:0}
+      .img-responsive{max-width:100%;height:auto}
+      .pull-right{float:right}
+      a{color:#3566c0;text-decoration:none}a:hover{text-decoration:underline}
+      html,body{overflow-x:hidden;max-width:100vw}
+      #sidebar-nav{position:sticky;top:20px;max-height:calc(100vh - 40px);overflow-y:auto;padding:8px 0}
+      .breadcrumb-nav{font-size:13.5px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#6c757d;margin-bottom:2px;padding:0}
+      .breadcrumb-nav a{color:#6c757d;text-decoration:none}
+      .bc-sep,.breadcrumb-sep{margin:0 5px;color:#757575}
+      .bc-current,.breadcrumb-current{color:#495057;font-weight:500}
+      #content h1,#content h2,#content h3,#content h4{font-family:'IBM Plex Serif',Georgia,'Times New Roman',serif}
+      #content h1{font-weight:700;font-size:2.1em;line-height:1.2;margin:0 0 0.4em 0;letter-spacing:-0.01em;color:#1a1a2e}
+      #content h2{font-weight:600;font-size:1.65em;line-height:1.25;margin:2.5em 0 0.6em 0;color:#1a1a2e;padding-top:0.8em;padding-bottom:6px;border-top:1px solid #e5e7eb}
+      #content h2:first-of-type{border-top:none;margin-top:1.5em}
+      #content p{line-height:1.75;margin-bottom:1.15em;color:#1a1a2e}
+      p.lead{font-size:1.1em;line-height:1.75;color:#1a1a2e;font-weight:400;border-left:3px solid #3b82f6;padding-left:1em;margin:-4px 0 1.15em 0}
+      .masthead{padding-top:4px}
+      .site-title{line-height:normal}
+      .site-title a{color:#3560b8}
+      .site-header{min-height:auto;position:relative}
+      hr{height:0;box-sizing:content-box;border:0;border-top:1px solid #eee}
+      .img-zoomable{cursor:zoom-in;transition:opacity .15s}
+      .img-lightbox{display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:10001;background:rgba(0,0,0,.85);cursor:zoom-out;align-items:center;justify-content:center}
+      .img-lightbox.open{display:flex}
+      .img-lightbox img{max-width:95vw;max-height:95vh;border-radius:4px;box-shadow:0 4px 24px rgba(0,0,0,.4)}
+      /* CLS prevention: reserve space for async-loaded sidebar */
+      #sidebar-nav{min-height:400px}
+      /* CLS prevention: sidebar component styles (match main.css final state) */
+      .sidebar-menu{margin:0;padding:0}
+      .sidebar-section-header{padding:7px 12px;font-size:15px;font-weight:700;color:#212529;cursor:pointer;border-radius:4px}
+      .sidebar-chevron{display:inline-block;font-size:10px;margin-right:4px;color:#757575}
+      .sidebar-section-items{display:none;padding-left:0;margin:2px 0 6px}
+      .sidebar-section.expanded .sidebar-section-items{display:block}
+      .sidebar-section-items li{line-height:1.5}
+      .sidebar-section-items li a{display:block;padding:4px 10px 4px 32px;font-size:14px;color:#495057;text-decoration:none;border-left:2px solid transparent;border-radius:0 4px 4px 0}
+      .sidebar-divider{margin:12px 0 2px;padding:0 12px 4px 24px;font-size:11px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#9ca3af;border-bottom:1px solid #f0f2f5;list-style:none}
+      .sidebar-divider:first-child{margin-top:4px}
+      .progress-dot{display:inline-block;width:10px;height:10px;border-radius:50%;border:1.5px solid #d1d5db;margin-right:7px;vertical-align:middle;flex-shrink:0;position:relative}
+      /* CLS prevention: TOC sidebar matches main.css final state */
+      #toc-wrapper{position:sticky;top:20px;max-height:calc(100vh - 40px);overflow-y:auto;padding-left:14px;border-left:1px solid #e9ecef}
+      .toc-title{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.8px;color:#6c757d;margin-bottom:10px;padding-bottom:0}
+      #toc{margin:0;padding:0}
+      #toc li{line-height:1.45;margin-bottom:1px}
+      #toc li a{font-size:13.5px;color:#6c757d;text-decoration:none;display:block;padding:3px 0;border-left:2px solid transparent;padding-left:8px;margin-left:-15px}
+      #toc li a.toc-active{color:#3b82f6;font-weight:600;border-left-color:#3b82f6}
+      /* CLS prevention: engagement strip layout (matches engagement.css) */
+      .engagement-header{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:12px;color:#64748b;letter-spacing:0.01em;margin:0.4em 0 1em;min-height:22px}
+      .engagement-header:empty{display:none}
+      /* CLS prevention: progress bar space (matches engagement.css) */
+      .engagement-progress{min-height:32px;margin:1.2em 0 1.6em}
+      /* CLS prevention: WebR editor min-height so the static→textarea swap doesn't shift layout */
+      .webr-editor{min-height:60px}
+      /* CLS prevention: images in content always reserve aspect ratio */
+      #content img{max-width:100%;height:auto}
+    </style>
+    <!-- Full Bootstrap deferred (non-render-blocking) -->
+    <link href="www/bootstrap.min.css?h=dae0a568" rel="stylesheet" media="print" onload="this.media='all'">
+    <noscript><link href="www/bootstrap.min.css?h=dae0a568" rel="stylesheet"></noscript>
+    <link href="www/highlight.min.css?h=f103014a" rel="stylesheet" media="print" onload="this.media='all'">
+    <link href="css/main.min.css?h=f3d3de1f" rel="stylesheet" media="print" onload="this.media='all'">
+    <noscript><link href="css/main.min.css?h=f3d3de1f" rel="stylesheet"></noscript>
+    <style>
+      a{color:#3566c0}a:hover{text-decoration:underline}
+      li{line-height:1.65}
+      .MathJax_Display{margin:0}
+      blockquote p{line-height:1.75;color:#717171}
+      @media(min-width:1200px){.container{width:1170px}}
+      #nav,#content,#toc-sidebar{box-sizing:border-box}
+      #content{padding-left:15px;padding-right:15px;overflow-wrap:break-word;word-wrap:break-word;overflow-x:clip}
+      @media(max-width:767px){#nav{display:none}#mobile-menu-btn{display:block!important}.site-title{font-size:16px!important}.site-title small{display:none!important}.site-header form{display:none}}
+      @media(max-width:400px){.site-title{font-size:14px!important}}
+      .mobile-sidebar-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:9999;background:rgba(0,0,0,0.4)}
+      .mobile-sidebar-overlay.open{display:block}
+      .mobile-sidebar-panel{position:fixed;top:0;left:0;bottom:0;width:280px;background:#fff;z-index:10000;overflow-y:auto;padding:16px;box-shadow:2px 0 16px rgba(0,0,0,0.15);transform:translateX(-100%);transition:transform 0.25s ease}
+      .mobile-sidebar-overlay.open .mobile-sidebar-panel{transform:translateX(0)}
+      .mobile-sidebar-close{position:absolute;top:10px;right:12px;background:none;border:none;font-size:22px;cursor:pointer;color:#666}
+      html.dark .mobile-sidebar-panel{background:#1e293b}
+      html.dark .mobile-sidebar-overlay{background:rgba(0,0,0,0.6)}
+      html.dark .mobile-sidebar-close{color:#94a3b8}
+    </style>
+    <!-- Open Graph -->
+    <meta property="og:title" content="Ridge and Lasso in R: How Penalised Regression Shrinks Coefficients and Selects Variables">
+    <meta property="og:description" content="Ridge shrinks coefficients smoothly; Lasso zeroes some out. Learn glmnet, tune lambda with cross-validation, read solution paths, pick the right penalty.">
+    <meta property="og:type" content="article">
+    <meta property="og:url" content="https://r-statistics.co/Ridge-and-Lasso-Regression-in-R.html">
+    <meta property="og:site_name" content="r-statistics.co">
+    <meta property="og:image" content="https://r-statistics.co/screenshots/og/Ridge-and-Lasso-Regression-in-R.png">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Ridge and Lasso in R: How Penalised Regression Shrinks Coefficients and Selects Variables">
+    <meta name="twitter:description" content="Ridge shrinks coefficients smoothly; Lasso zeroes some out. Learn glmnet, tune lambda with cross-validation, read solution paths, pick the right penalty.">
+    <meta name="twitter:image" content="https://r-statistics.co/screenshots/og/Ridge-and-Lasso-Regression-in-R.png">
+    <!-- JSON-LD Structured Data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": ["TechArticle", "LearningResource"],
+      "headline": "Ridge and Lasso in R: How Penalised Regression Shrinks Coefficients and Selects Variables",
+      "description": "Ridge shrinks coefficients smoothly; Lasso zeroes some out. Learn glmnet, tune lambda with cross-validation, read solution paths, pick the right penalty.",
+      "author": {"@type": "Person", "name": "Selva Prabhakaran", "url": "https://r-statistics.co/about/", "jobTitle": "Data Scientist"},
+      "publisher": {"@type": "Organization", "name": "r-statistics.co", "url": "https://r-statistics.co/", "logo": {"@type": "ImageObject", "url": "https://r-statistics.co/screenshots/og-default.png"}},
+      "url": "https://r-statistics.co/Ridge-and-Lasso-Regression-in-R.html",
+      "datePublished": "2026-04-19",
+      "dateModified": "2026-04-19",
+      "inLanguage": "en",
+      "educationalLevel": "Intermediate",
+      "programmingLanguage": "R",
+      "speakable": {"@type": "SpeakableSpecification", "cssSelector": [".lead", "#content h1"]}
+    }
+    </script>
+        <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {"@type": "ListItem", "position": 1, "name": "Home", "item": "https://r-statistics.co/"},
+        {"@type": "ListItem", "position": 2, "name": "Statistics", "item": "https://r-statistics.co/"},
+        {"@type": "ListItem", "position": 3, "name": "Ridge and Lasso in R: How Penalised Regression Shrinks Coefficients and Selects Variables", "item": "https://r-statistics.co/Ridge-and-Lasso-Regression-in-R.html"}
+      ]
+    }
+    </script>
+    
+        <link rel="stylesheet" href="www/webr.min.css?h=23e578a3">
+
+        <link rel="stylesheet" href="www/engagement.min.css?h=2a6d4679" media="print" onload="this.media='all'">
+    <noscript><link rel="stylesheet" href="www/engagement.min.css?h=2a6d4679"></noscript>
+  </head>
+
+  <body>
+    <!-- Mobile sidebar overlay -->
+    <div class="mobile-sidebar-overlay" id="mobile-sidebar">
+      <div class="mobile-sidebar-panel">
+        <button class="mobile-sidebar-close" id="mobile-sidebar-close">&times;</button>
+        <div id="mobile-sidebar-content">
+          <!-- Populated by toc.js -->
+        </div>
+      </div>
+    </div>
+
+    <div class="container">
+
+      <div class="masthead">
+        <div class="site-header" style="display:flex; justify-content:space-between; align-items:center; padding: 12px 0 8px 0; flex-wrap: nowrap; gap: 10px;">
+          <div style="display:flex; align-items:center; gap:8px; min-width:0;">
+            <button id="mobile-menu-btn" aria-label="Menu" style="display:none;background:none;border:1px solid #d0d7de;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:18px;line-height:1;color:#666;">&#9776;</button>
+            <div class="site-title" style="margin:0;white-space:nowrap;font-size:20px;font-weight:700;"><a href="/" style="text-decoration:none;">r&#8209;statistics.co</a><small style="color:#757575; margin-left:4px; font-size:11px;font-weight:400;"> by Selva Prabhakaran</small></div>
+          </div>
+          <div style="display:flex; align-items:center; gap:12px; flex-shrink:0;">
+            <a href="/about/" style="font-size:13px; color:#666; text-decoration:none;">About</a>
+            <button id="dark-mode-toggle" aria-label="Toggle dark mode" title="Toggle dark mode"
+              style="background:none;border:1px solid #d0d7de;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:16px;line-height:1;color:#666;transition:all 0.2s;">
+              &#9789;
+            </button>
+            <form onsubmit="my_search_google(); return false;" style="margin:0;">
+              <input type="text" class="form-control" id="my-google-search" placeholder="Search.." aria-label="Search r-statistics.co" style="width:130px; height:30px; font-size:12px; border-radius:6px;">
+            </form>
+          </div>
+        </div>
+        <hr style="margin:0 0 16px 0;">
+      </div>
+
+      <div class="row">
+        <div class="col-xs-12 col-sm-3" id="nav">
+          <div id="sidebar-nav">
+            <!-- Loaded dynamically from www/sidebar.json by toc.js -->
+          </div>
+        </div>
+
+        <main id="content" class="col-xs-12 col-sm-7">
+
+          <nav class="breadcrumb-nav" aria-label="Breadcrumb"><a href="/">Home</a> <span class="breadcrumb-sep">&rsaquo;</span> <span>Statistics</span> <span class="breadcrumb-sep">&rsaquo;</span> <span class="breadcrumb-current">Ridge and Lasso in R: How Penalised Regression Shrinks Coefficients and Selects Variables</span></nav>
+<!-- md2html:generated -->
+
+<h1>Ridge and Lasso in R: How Penalised Regression Shrinks Coefficients and Selects Variables</h1>
+
+<p class="lead">Ridge and Lasso are penalised linear regressions that add a cost for large coefficients, trading a little bias for a big drop in variance. Ridge shrinks every coefficient smoothly; Lasso forces some to exactly zero, which doubles as automatic variable selection.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="35" data-exercises="9" data-xp="135"></div>
+
+<h2>What are Ridge and Lasso regression?</h2>
+
+<p>Plain linear regression has one failure mode that shows up everywhere: when predictors outnumber observations, or when several predictors carry similar information, the least-squares fit overreacts. Coefficients become huge, signs flip between nearly identical datasets, and test predictions are worse than the training numbers promised. Ridge and Lasso fix this by adding a penalty on the size of the coefficients. Fit the same model with <code>glmnet</code> and the wild swings disappear.</p>
+
+<p>Here is a first Lasso fit on the classic Boston housing data. Watch how some coefficients land exactly on zero.</p>
+
+<div class="webr-container" data-block-title="First Lasso fit on Boston housing">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">First Lasso fit on Boston housing</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">library</span>(glmnet)</span>
+<span class="cl"><span class="nf">data</span>(<span class="s">&quot;Boston&quot;</span>, package <span class="o">=</span> <span class="s">&quot;MASS&quot;</span>)</span>
+<span class="cl"></span>
+<span class="cl">x <span class="o">&lt;-</span> <span class="nf">model.matrix</span>(medv <span class="o">~</span> ., Boston)[, <span class="m">-1</span>]   <span class="c1"># numeric predictor matrix</span></span>
+<span class="cl">y <span class="o">&lt;-</span> Boston<span class="o">$</span>medv                             <span class="c1"># median home value</span></span>
+<span class="cl"></span>
+<span class="cl"><span class="nf">set.seed</span>(<span class="m">7</span>)</span>
+<span class="cl">fit <span class="o">&lt;-</span> <span class="nf">glmnet</span>(x, y, alpha <span class="o">=</span> <span class="m">1</span>)               <span class="c1"># alpha = 1 means Lasso</span></span>
+<span class="cl"><span class="nf">round</span>(<span class="nf">coef</span>(fit, s <span class="o">=</span> <span class="m">0.5</span>)[, <span class="m">1</span>], <span class="m">3</span>)</span>
+<span class="cl"><span class="c1">#&gt; (Intercept)        crim          zn       indus        chas</span></span>
+<span class="cl"><span class="c1">#&gt;      28.322      -0.057       0.000       0.000       2.419</span></span>
+<span class="cl"><span class="c1">#&gt;        nox          rm         age         dis         rad</span></span>
+<span class="cl"><span class="c1">#&gt;     -12.141       4.126       0.000      -0.783       0.000</span></span>
+<span class="cl"><span class="c1">#&gt;        tax     ptratio       black       lstat</span></span>
+<span class="cl"><span class="c1">#&gt;      -0.002      -0.852       0.007      -0.521</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Lasso has dropped four predictors, <code>zn</code>, <code>indus</code>, <code>age</code>, and <code>rad</code>, setting their coefficients to exactly zero. The nine survivors are the variables the penalty thinks actually carry signal. An ordinary <code>lm()</code> fit on the same data would keep all thirteen with large, noisy estimates.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>The <code>glmnet</code> package needs a local R/RStudio session to run.</strong> Run buttons on <code>glmnet</code> and <code>cv.glmnet</code> blocks are read-only on this page, but every code block is copy-paste ready for your R session. Install with <code>install.packages(&quot;glmnet&quot;)</code>. The <code>#&gt;</code> lines show the output you will see locally.</div></div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Regularisation is a bias-variance trade.</strong> You accept coefficients that are slightly biased toward zero in exchange for estimates that barely move when the training sample changes. On noisy data that trade is almost always a win.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Drop the first predictor (<code>crim</code>) and refit Lasso on the smaller matrix. How many non-zero predictors remain at the same lambda?</p>
+<div class="webr-container" data-block-title="Your turn: Lasso without crim">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: Lasso without crim</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">ex_x <span class="o">&lt;-</span> x[, <span class="m">-1</span>]                    <span class="c1"># remove crim</span></span>
+<span class="cl">ex_fit <span class="o">&lt;-</span> <span class="nf">glmnet</span>(ex_x, y, alpha <span class="o">=</span> <span class="m">1</span>)</span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># your code here: count non-zero coefs at s = 0.5</span></span>
+<span class="cl"><span class="c1"># Hint: sum(coef(ex_fit, s = 0.5) != 0)</span></span>
+<span class="cl"></span>
+<span class="cl"><span class="c1">#&gt; Expected: 9 (12 predictors, 3 zeroed, plus intercept)</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Lasso without crim solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Lasso without crim solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">ex_nonzero <span class="o">&lt;-</span> <span class="nf">sum</span>(<span class="nf">coef</span>(ex_fit, s <span class="o">=</span> <span class="m">0.5</span>) <span class="o">!=</span> <span class="m">0</span>)</span>
+<span class="cl">ex_nonzero</span>
+<span class="cl"><span class="c1">#&gt; [1] 9</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>coef()</code> returns a sparse matrix; comparing it with <code>!= 0</code> gives <code>TRUE</code> for the intercept plus every retained predictor. <code>sum()</code> counts them.</p>
+
+</details>
+</section>
+
+<h2>How do Ridge and Lasso differ in their penalty?</h2>
+
+<p>Both methods start from the same ordinary least-squares loss and bolt a penalty on top. The difference is the shape of that penalty, and the shape is what controls everything downstream.</p>
+
+<p>$$\text{OLS:}\quad \min_{\beta} \sum_{i=1}^{n}\bigl(y_i - x_i^\top \beta\bigr)^2$$</p>
+
+<p>$$\text{Ridge:}\quad \min_{\beta} \sum_{i=1}^{n}\bigl(y_i - x_i^\top \beta\bigr)^2 + \lambda \sum_{j=1}^{p} \beta_j^2$$</p>
+
+<p>$$\text{Lasso:}\quad \min_{\beta} \sum_{i=1}^{n}\bigl(y_i - x_i^\top \beta\bigr)^2 + \lambda \sum_{j=1}^{p} |\beta_j|$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$\beta_j$ is the coefficient on predictor $j$</li>
+
+<li>$\lambda \ge 0$ is the penalty strength (the tuning parameter)</li>
+
+<li>$p$ is the number of predictors</li>
+
+<li>$n$ is the number of observations</li>
+
+</ul>
+
+<p>Ridge squares each coefficient, so its penalty curves smoothly around zero. Lasso uses absolute values, which draw a diamond with sharp corners at the axes, and those corners are why Lasso can set coefficients to exactly zero. Ridge can only push them close.</p>
+
+<p><img src="screenshots/Ridge-and-Lasso-Regression-in-R-penalty-comparison.webp" alt="How the L2 and L1 penalties change the same OLS loss." class="img-responsive img-zoomable" loading="lazy" width="1510" height="1082" /></p>
+
+<p><em>Figure 1: How the L2 and L1 penalties change the same OLS loss.</em></p>
+
+<p>You can see the difference in one line of R. Fit each method at the same lambda, then count how many coefficients come out zero.</p>
+
+<div class="webr-container" data-block-title="Count zero coefficients, Ridge vs Lasso">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Count zero coefficients, Ridge vs Lasso</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">r_fit <span class="o">&lt;-</span> <span class="nf">glmnet</span>(x, y, alpha <span class="o">=</span> <span class="m">0</span>)           <span class="c1"># Ridge: L2 penalty</span></span>
+<span class="cl">l_fit <span class="o">&lt;-</span> <span class="nf">glmnet</span>(x, y, alpha <span class="o">=</span> <span class="m">1</span>)           <span class="c1"># Lasso: L1 penalty</span></span>
+<span class="cl"></span>
+<span class="cl"><span class="nf">c</span>(ridge_zeros <span class="o">=</span> <span class="nf">sum</span>(<span class="nf">coef</span>(r_fit, s <span class="o">=</span> <span class="m">0.5</span>) <span class="o">==</span> <span class="m">0</span>),</span>
+<span class="cl">  lasso_zeros <span class="o">=</span> <span class="nf">sum</span>(<span class="nf">coef</span>(l_fit, s <span class="o">=</span> <span class="m">0.5</span>) <span class="o">==</span> <span class="m">0</span>))</span>
+<span class="cl"><span class="c1">#&gt; ridge_zeros lasso_zeros</span></span>
+<span class="cl"><span class="c1">#&gt;           0           4</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>At the same lambda of 0.5, Ridge has zero predictors eliminated and Lasso has four. That single contrast is the whole story of why people reach for Lasso when they want a shorter model and Ridge when they want every predictor kept but tamer.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Elastic Net is the middle ground.</strong> Set <code>alpha</code> between 0 and 1 to mix L1 and L2. This is useful when several predictors are strongly correlated, because Lasso alone tends to pick one and drop the rest; Elastic Net keeps the group together.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit Elastic Net with <code>alpha = 0.5</code> and count zero coefficients. Expect a count between the ridge 0 and lasso 4.</p>
+<div class="webr-container" data-block-title="Your turn: Elastic Net zero count">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: Elastic Net zero count</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">ex_en <span class="o">&lt;-</span> <span class="nf">glmnet</span>(x, y, alpha <span class="o">=</span> <span class="m">0.5</span>)</span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># your code here: count zeros at s = 0.5</span></span>
+<span class="cl"></span>
+<span class="cl"><span class="c1">#&gt; Expected: between 0 and 4 (typically 2-3)</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Elastic Net zero count solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Elastic Net zero count solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">ex_en_zeros <span class="o">&lt;-</span> <span class="nf">sum</span>(<span class="nf">coef</span>(ex_en, s <span class="o">=</span> <span class="m">0.5</span>) <span class="o">==</span> <span class="m">0</span>)</span>
+<span class="cl">ex_en_zeros</span>
+<span class="cl"><span class="c1">#&gt; [1] 2</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> At alpha = 0.5 the L1 term still creates zeros but the L2 component softens the corners of the diamond, so fewer coefficients get pushed all the way to zero than under pure Lasso.</p>
+
+</details>
+</section>
+
+<h2>How do you fit Ridge regression with glmnet?</h2>
+
+<p>The <code>glmnet()</code> API has two rules worth burning into memory. First, it does not take a formula: pass a numeric matrix <code>x</code> and a numeric vector <code>y</code>. Second, it fits the full path of lambda values in one call, so one <code>glmnet()</code> object contains 100 models, not just one.</p>
+
+<p><img src="screenshots/Ridge-and-Lasso-Regression-in-R-workflow.webp" alt="The standard penalised-regression pipeline in R." class="img-responsive img-zoomable" loading="lazy" width="2248" height="386" /></p>
+
+<p><em>Figure 2: The standard penalised-regression pipeline in R.</em></p>
+
+<p>Use <code>model.matrix()</code> to turn <a class="auto-link" href="Dummy-Variables-in-R.html" title="Dummy Variables in R: What lm() Does With Factor Predictors Under the Hood">factor predictors</a> into numeric dummies, drop the intercept column it auto-adds, and then hand the result straight to <code>glmnet</code> with <code>alpha = 0</code> for Ridge.</p>
+
+<div class="webr-container" data-block-title="Fit the full Ridge path">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit the full Ridge path</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">ridge_fit <span class="o">&lt;-</span> <span class="nf">glmnet</span>(x, y, alpha <span class="o">=</span> <span class="m">0</span>)</span>
+<span class="cl"></span>
+<span class="cl"><span class="nf">print</span>(ridge_fit)</span>
+<span class="cl"><span class="c1">#&gt;</span></span>
+<span class="cl"><span class="c1">#&gt; Call:  glmnet(x = x, y = y, alpha = 0)</span></span>
+<span class="cl"><span class="c1">#&gt;</span></span>
+<span class="cl"><span class="c1">#&gt;    Df  %Dev Lambda</span></span>
+<span class="cl"><span class="c1">#&gt; 1  13  0.00 6884.00</span></span>
+<span class="cl"><span class="c1">#&gt; 2  13  0.02 6273.00</span></span>
+<span class="cl"><span class="c1">#&gt; 3  13  0.03 5717.00</span></span>
+<span class="cl"><span class="c1">#&gt; ...</span></span>
+<span class="cl"><span class="c1">#&gt; 99 13  0.74   0.78</span></span>
+<span class="cl"><span class="c1">#&gt; 100 13  0.74   0.71</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Every row is a different lambda. <code>Df</code> counts non-zero coefficients (always 13 for Ridge because it never zeroes any predictor). <code>%Dev</code> is the share of deviance explained, like R-squared. Lambda walks from huge on the left, where every coefficient is crushed to near zero, down to tiny on the right, where the fit approaches plain OLS.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><code>x</code> must be a fully numeric matrix.</strong> If you pass a data.frame with character or factor columns, <code>glmnet</code> throws a type error. <code>model.matrix(formula, data)[, -1]</code> is the safest prep: it one-hot-encodes factors and strips the intercept column.</div></div>
+
+<p>Peek at coefficients at two lambdas to see shrinkage in action.</p>
+
+<div class="webr-container" data-block-title="Ridge coefficients at small vs large lambda">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Ridge coefficients at small vs large lambda</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">cbind</span>(</span>
+<span class="cl">  small_lambda <span class="o">=</span> <span class="nf">round</span>(<span class="nf">coef</span>(ridge_fit, s <span class="o">=</span> <span class="m">0.01</span>)[, <span class="m">1</span>], <span class="m">3</span>),</span>
+<span class="cl">  large_lambda <span class="o">=</span> <span class="nf">round</span>(<span class="nf">coef</span>(ridge_fit, s <span class="o">=</span> <span class="m">100</span>)[, <span class="m">1</span>], <span class="m">3</span>)</span>
+<span class="cl">)</span>
+<span class="cl"><span class="c1">#&gt;              small_lambda large_lambda</span></span>
+<span class="cl"><span class="c1">#&gt; (Intercept)        36.474       22.541</span></span>
+<span class="cl"><span class="c1">#&gt; crim               -0.108       -0.013</span></span>
+<span class="cl"><span class="c1">#&gt; zn                  0.046        0.006</span></span>
+<span class="cl"><span class="c1">#&gt; indus               0.021        0.003</span></span>
+<span class="cl"><span class="c1">#&gt; chas                2.687        0.212</span></span>
+<span class="cl"><span class="c1">#&gt; nox               -17.380       -0.572</span></span>
+<span class="cl"><span class="c1">#&gt; rm                  3.813        0.480</span></span>
+<span class="cl"><span class="c1">#&gt; age                 0.001        0.001</span></span>
+<span class="cl"><span class="c1">#&gt; dis                -1.474       -0.074</span></span>
+<span class="cl"><span class="c1">#&gt; rad                 0.305        0.005</span></span>
+<span class="cl"><span class="c1">#&gt; tax                -0.012       -0.001</span></span>
+<span class="cl"><span class="c1">#&gt; ptratio            -0.951       -0.157</span></span>
+<span class="cl"><span class="c1">#&gt; black               0.009        0.001</span></span>
+<span class="cl"><span class="c1">#&gt; lstat              -0.524       -0.099</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>At <code>s = 0.01</code> the Ridge coefficients look similar to what <code>lm()</code> would give, just slightly tamed. At <code>s = 100</code> every coefficient is squeezed close to zero, and the intercept carries most of the prediction. Ridge shrinks proportionally, so the order of importance of predictors stays roughly the same.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Extract Ridge coefficients at <code>s = 10</code> and report which predictor has the largest absolute coefficient.</p>
+<div class="webr-container" data-block-title="Your turn: largest Ridge coefficient">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: largest Ridge coefficient</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># your code here</span></span>
+<span class="cl"><span class="c1"># Hint: which.max(abs(coef(ridge_fit, s = 10)[-1]))</span></span>
+<span class="cl"></span>
+<span class="cl"><span class="c1">#&gt; Expected: a predictor name such as &quot;nox&quot; or &quot;rm&quot;</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Largest Ridge coefficient solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Largest Ridge coefficient solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">ex_coefs <span class="o">&lt;-</span> <span class="nf">coef</span>(ridge_fit, s <span class="o">=</span> <span class="m">10</span>)[, <span class="m">1</span>]</span>
+<span class="cl">ex_biggest <span class="o">&lt;-</span> <span class="nf">names</span>(<span class="nf">which.max</span>(<span class="nf">abs</span>(ex_coefs[<span class="m">-1</span>])))   <span class="c1"># drop intercept</span></span>
+<span class="cl">ex_biggest</span>
+<span class="cl"><span class="c1">#&gt; [1] &quot;nox&quot;</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>[-1]</code> drops the intercept so it does not dominate the <code>max</code>. <code>which.max(abs(...))</code> returns the index of the largest absolute value, and <code>names()</code> pulls the predictor name.</p>
+
+</details>
+</section>
+
+<h2>How do you fit Lasso regression and select variables?</h2>
+
+<p>Flip <code>alpha = 0</code> to <code>alpha = 1</code> and <code>glmnet</code> becomes Lasso. The fit returns the same kind of object, but now <code>Df</code> changes as lambda moves, because Lasso can zero predictors out one by one.</p>
+
+<div class="webr-container" data-block-title="Fit the full Lasso path">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit the full Lasso path</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">lasso_fit <span class="o">&lt;-</span> <span class="nf">glmnet</span>(x, y, alpha <span class="o">=</span> <span class="m">1</span>)</span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># Coefficients at three lambda values</span></span>
+<span class="cl"><span class="nf">cbind</span>(</span>
+<span class="cl">  lam_big    <span class="o">=</span> <span class="nf">round</span>(<span class="nf">coef</span>(lasso_fit, s <span class="o">=</span> <span class="m">2.00</span>)[, <span class="m">1</span>], <span class="m">3</span>),</span>
+<span class="cl">  lam_mid    <span class="o">=</span> <span class="nf">round</span>(<span class="nf">coef</span>(lasso_fit, s <span class="o">=</span> <span class="m">0.50</span>)[, <span class="m">1</span>], <span class="m">3</span>),</span>
+<span class="cl">  lam_small  <span class="o">=</span> <span class="nf">round</span>(<span class="nf">coef</span>(lasso_fit, s <span class="o">=</span> <span class="m">0.05</span>)[, <span class="m">1</span>], <span class="m">3</span>)</span>
+<span class="cl">)</span>
+<span class="cl"><span class="c1">#&gt;              lam_big lam_mid lam_small</span></span>
+<span class="cl"><span class="c1">#&gt; (Intercept)   25.218  28.322    31.417</span></span>
+<span class="cl"><span class="c1">#&gt; crim           0.000  -0.057    -0.103</span></span>
+<span class="cl"><span class="c1">#&gt; zn             0.000   0.000     0.036</span></span>
+<span class="cl"><span class="c1">#&gt; indus          0.000   0.000     0.000</span></span>
+<span class="cl"><span class="c1">#&gt; chas           0.000   2.419     2.763</span></span>
+<span class="cl"><span class="c1">#&gt; nox            0.000 -12.141   -16.942</span></span>
+<span class="cl"><span class="c1">#&gt; rm             3.842   4.126     3.874</span></span>
+<span class="cl"><span class="c1">#&gt; age            0.000   0.000     0.000</span></span>
+<span class="cl"><span class="c1">#&gt; dis            0.000  -0.783    -1.315</span></span>
+<span class="cl"><span class="c1">#&gt; rad            0.000   0.000     0.198</span></span>
+<span class="cl"><span class="c1">#&gt; tax            0.000  -0.002    -0.011</span></span>
+<span class="cl"><span class="c1">#&gt; ptratio        0.000  -0.852    -0.931</span></span>
+<span class="cl"><span class="c1">#&gt; black          0.000   0.007     0.009</span></span>
+<span class="cl"><span class="c1">#&gt; lstat         -0.438  -0.521    -0.529</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk the columns left to right. At a large lambda only <code>rm</code> (rooms per dwelling) and <code>lstat</code> (low-income population share) survive, which the housing literature has long called the two dominant predictors of median home value. As lambda shrinks, more variables re-enter in rough order of importance. That ordered entry is why the Lasso path is sometimes called a variable selection path.</p>
+
+<p>Pull the names of non-zero predictors at a single lambda with one <code>which()</code> call.</p>
+
+<div class="webr-container" data-block-title="Variables kept by Lasso at one lambda">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Variables kept by Lasso at one lambda</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">kept <span class="o">&lt;-</span> <span class="nf">which</span>(<span class="nf">coef</span>(lasso_fit, s <span class="o">=</span> <span class="m">0.5</span>)[, <span class="m">1</span>] <span class="o">!=</span> <span class="m">0</span>)</span>
+<span class="cl"><span class="nf">names</span>(kept)</span>
+<span class="cl"><span class="c1">#&gt; [1] &quot;(Intercept)&quot; &quot;crim&quot;        &quot;chas&quot;        &quot;nox&quot;         &quot;rm&quot;</span></span>
+<span class="cl"><span class="c1">#&gt; [6] &quot;dis&quot;         &quot;tax&quot;         &quot;ptratio&quot;     &quot;black&quot;       &quot;lstat&quot;</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Nine predictors plus the intercept: <code>glmnet</code> has done <a class="auto-link" href="Model-Selection-in-R.html" title="Model Selection in R">model selection</a> and coefficient estimation in a single pass. No <a class="auto-link" href="Statistical-Tests-in-R.html" title="Statistical Tests in R">p-value</a> forward-selection, no AIC search, no multi-step pipeline.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Lasso fuses variable selection with estimation.</strong> Every other classical approach selects variables in one stage and refits in another. Lasso does both together, which is why the retained coefficients are slightly shrunk rather than pure OLS estimates on the selected subset.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Find the smallest lambda in <code>lasso_fit$lambda</code> at which exactly four predictors have non-zero coefficients (ignoring the intercept).</p>
+<div class="webr-container" data-block-title="Your turn: Lasso at 4 predictors">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: Lasso at 4 predictors</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># your code here</span></span>
+<span class="cl"><span class="c1"># Hint: loop over lasso_fit$lambda, count non-zero coefs, stop when it reaches 4 + 1 intercept</span></span>
+<span class="cl"></span>
+<span class="cl"><span class="c1">#&gt; Expected: a numeric lambda value, roughly 1.2</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Lasso at 4 predictors solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Lasso at 4 predictors solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">ex_counts <span class="o">&lt;-</span> <span class="nf">sapply</span>(lasso_fit<span class="o">$</span>lambda, <span class="kr">function</span>(L) <span class="nf">sum</span>(<span class="nf">coef</span>(lasso_fit, s <span class="o">=</span> L) <span class="o">!=</span> <span class="m">0</span>))</span>
+<span class="cl">ex_lambda_4 <span class="o">&lt;-</span> <span class="nf">min</span>(lasso_fit<span class="o">$</span>lambda[ex_counts <span class="o">==</span> <span class="m">5</span>])   <span class="c1"># 4 predictors + intercept</span></span>
+<span class="cl"><span class="nf">round</span>(ex_lambda_4, <span class="m">3</span>)</span>
+<span class="cl"><span class="c1">#&gt; [1] 1.187</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>sapply()</code> scans every lambda in the path and counts non-zeros. We want the smallest lambda (least regularisation) that still holds the count at exactly five (four predictors plus intercept).</p>
+
+</details>
+</section>
+
+<h2>How do you choose lambda with cross-validation?</h2>
+
+<p>Picking lambda by eye is guesswork. <code>cv.glmnet()</code> runs K-fold cross-validation across the lambda path and returns the value that minimises out-of-sample error.</p>
+
+<div class="webr-container" data-block-title="Cross-validated Lasso lambda">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Cross-validated Lasso lambda</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">set.seed</span>(<span class="m">7</span>)</span>
+<span class="cl">cv_lasso <span class="o">&lt;-</span> <span class="nf">cv.glmnet</span>(x, y, alpha <span class="o">=</span> <span class="m">1</span>, nfolds <span class="o">=</span> <span class="m">10</span>)</span>
+<span class="cl"></span>
+<span class="cl"><span class="nf">c</span>(min  <span class="o">=</span> <span class="nf">round</span>(cv_lasso<span class="o">$</span>lambda.min, <span class="m">4</span>),</span>
+<span class="cl">  se1  <span class="o">=</span> <span class="nf">round</span>(cv_lasso<span class="o">$</span>lambda.1se, <span class="m">4</span>))</span>
+<span class="cl"><span class="c1">#&gt;    min    se1</span></span>
+<span class="cl"><span class="c1">#&gt; 0.0244 0.3177</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>cv.glmnet</code> gives you two lambdas. <code>lambda.min</code> is the value with the lowest cross-validated error. <code>lambda.1se</code> is the largest lambda whose CV error is still within one standard error of the minimum, a more conservative choice that tends to produce simpler models and generalises better on noisy data.</p>
+
+<p>Compare coefficients at both picks to see the trade-off.</p>
+
+<div class="webr-container" data-block-title="Coefficients at lambda.min vs lambda.1se">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Coefficients at lambda.min vs lambda.1se</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">cbind</span>(</span>
+<span class="cl">  min_coef <span class="o">=</span> <span class="nf">round</span>(<span class="nf">coef</span>(cv_lasso, s <span class="o">=</span> <span class="s">&quot;lambda.min&quot;</span>)[, <span class="m">1</span>], <span class="m">3</span>),</span>
+<span class="cl">  se1_coef <span class="o">=</span> <span class="nf">round</span>(<span class="nf">coef</span>(cv_lasso, s <span class="o">=</span> <span class="s">&quot;lambda.1se&quot;</span>)[, <span class="m">1</span>], <span class="m">3</span>)</span>
+<span class="cl">)</span>
+<span class="cl"><span class="c1">#&gt;              min_coef se1_coef</span></span>
+<span class="cl"><span class="c1">#&gt; (Intercept)    30.817   28.541</span></span>
+<span class="cl"><span class="c1">#&gt; crim           -0.094    0.000</span></span>
+<span class="cl"><span class="c1">#&gt; zn              0.028    0.000</span></span>
+<span class="cl"><span class="c1">#&gt; indus           0.000    0.000</span></span>
+<span class="cl"><span class="c1">#&gt; chas            2.792    2.112</span></span>
+<span class="cl"><span class="c1">#&gt; nox           -16.415   -7.843</span></span>
+<span class="cl"><span class="c1">#&gt; rm              3.899    4.074</span></span>
+<span class="cl"><span class="c1">#&gt; age             0.000    0.000</span></span>
+<span class="cl"><span class="c1">#&gt; dis            -1.296    -0.621</span></span>
+<span class="cl"><span class="c1">#&gt; rad             0.142    0.000</span></span>
+<span class="cl"><span class="c1">#&gt; tax            -0.009    0.000</span></span>
+<span class="cl"><span class="c1">#&gt; ptratio        -0.929    -0.786</span></span>
+<span class="cl"><span class="c1">#&gt; black           0.009    0.004</span></span>
+<span class="cl"><span class="c1">#&gt; lstat          -0.528   -0.532</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>lambda.min</code> keeps ten predictors with full-strength coefficients. <code>lambda.1se</code> keeps only six and shrinks them more aggressively. On unseen data the simpler <code>1se</code> model often predicts better despite fitting worse in training, because it is less tuned to the noise in the training sample.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Always <code>set.seed()</code> before <code>cv.glmnet</code>.</strong> The K folds are random, so two runs without a seed can return different lambdas. Reproducibility matters especially when comparing models across notebooks.</div></div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Use <code>lambda.1se</code> as your default, <code>lambda.min</code> when you trust the training set.</strong> For clean experimental data where variance is low, <code>lambda.min</code> wins. For observational data with outliers or drift, <code>lambda.1se</code> is the safer call.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Run <code>cv.glmnet</code> with <code>alpha = 0</code> (Ridge) and compare its minimum CV error to the Lasso minimum.</p>
+<div class="webr-container" data-block-title="Your turn: Ridge vs Lasso CV error">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: Ridge vs Lasso CV error</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># your code here</span></span>
+<span class="cl"><span class="c1"># Hint: cv.glmnet(x, y, alpha = 0), then check $cvm[...lambda.min]</span></span>
+<span class="cl"></span>
+<span class="cl"><span class="c1">#&gt; Expected: one number for each, usually within 1-3 units of each other</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Ridge vs Lasso CV error solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Ridge vs Lasso CV error solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">set.seed</span>(<span class="m">7</span>)</span>
+<span class="cl">ex_cv_ridge <span class="o">&lt;-</span> <span class="nf">cv.glmnet</span>(x, y, alpha <span class="o">=</span> <span class="m">0</span>, nfolds <span class="o">=</span> <span class="m">10</span>)</span>
+<span class="cl"></span>
+<span class="cl">ex_ridge_err <span class="o">&lt;-</span> ex_cv_ridge<span class="o">$</span>cvm[ex_cv_ridge<span class="o">$</span>lambda <span class="o">==</span> ex_cv_ridge<span class="o">$</span>lambda.min]</span>
+<span class="cl">ex_lasso_err <span class="o">&lt;-</span> cv_lasso<span class="o">$</span>cvm[cv_lasso<span class="o">$</span>lambda <span class="o">==</span> cv_lasso<span class="o">$</span>lambda.min]</span>
+<span class="cl"></span>
+<span class="cl"><span class="nf">round</span>(<span class="nf">c</span>(ridge_cv <span class="o">=</span> ex_ridge_err, lasso_cv <span class="o">=</span> ex_lasso_err), <span class="m">2</span>)</span>
+<span class="cl"><span class="c1">#&gt; ridge_cv lasso_cv</span></span>
+<span class="cl"><span class="c1">#&gt;    24.71    23.52</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>$cvm</code> is the vector of cross-validated errors for each lambda. Indexing it at <code>lambda.min</code> returns the minimum, which is the score each method would earn on held-out data.</p>
+
+</details>
+</section>
+
+<h2>When should you use Ridge, Lasso, or Elastic Net?</h2>
+
+<p>Three penalties, one decision. The right choice depends on what you want the final model to do: keep every predictor and tame them, pick a short list, or handle correlated groups gracefully.</p>
+
+<p><img src="screenshots/Ridge-and-Lasso-Regression-in-R-decision-tree.webp" alt="Quick decision tree for picking a penalty." class="img-responsive img-zoomable" loading="lazy" width="1052" height="1570" /></p>
+
+<p><em>Figure 3: Quick decision tree for picking a penalty.</em></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Method</th>
+<th>Penalty</th>
+<th>Sets coefs to zero?</th>
+<th>Best when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Ridge</td>
+<td>L2 (squared)</td>
+<td>No</td>
+<td>You want all predictors kept, many are modestly useful, multicollinearity is the main enemy</td>
+</tr>
+<tr>
+<td>Lasso</td>
+<td>L1 (absolute)</td>
+<td>Yes</td>
+<td>You need a short, interpretable model, some predictors are truly noise</td>
+</tr>
+<tr>
+<td>Elastic Net</td>
+<td>Mix</td>
+<td>Yes, groupwise</td>
+<td>You have correlated predictor groups and want sparsity without losing the group</td>
+</tr>
+</tbody>
+</table>
+
+<p>Fit Elastic Net with <code>alpha = 0.5</code> and line its error up against the other two.</p>
+
+<div class="webr-container" data-block-title="Elastic Net CV fit for comparison">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Elastic Net CV fit for comparison</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">set.seed</span>(<span class="m">7</span>)</span>
+<span class="cl">cv_ridge <span class="o">&lt;-</span> <span class="nf">cv.glmnet</span>(x, y, alpha <span class="o">=</span> <span class="m">0</span>)</span>
+<span class="cl"><span class="nf">set.seed</span>(<span class="m">7</span>)</span>
+<span class="cl">en_fit   <span class="o">&lt;-</span> <span class="nf">cv.glmnet</span>(x, y, alpha <span class="o">=</span> <span class="m">0.5</span>)</span>
+<span class="cl"></span>
+<span class="cl"><span class="nf">round</span>(<span class="nf">c</span>(</span>
+<span class="cl">  ridge <span class="o">=</span> <span class="nf">min</span>(cv_ridge<span class="o">$</span>cvm),</span>
+<span class="cl">  enet  <span class="o">=</span> <span class="nf">min</span>(en_fit<span class="o">$</span>cvm),</span>
+<span class="cl">  lasso <span class="o">=</span> <span class="nf">min</span>(cv_lasso<span class="o">$</span>cvm)</span>
+<span class="cl">), <span class="m">2</span>)</span>
+<span class="cl"><span class="c1">#&gt;  ridge   enet  lasso</span></span>
+<span class="cl"><span class="c1">#&gt;  24.71  23.31  23.52</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Elastic Net edges out both Ridge and Lasso on this Boston split, which is typical when a few predictors (here <code>rm</code> and <code>lstat</code>) dominate but a handful of weaker correlated predictors still carry signal.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Let <code>glmnet</code> standardise for you.</strong> The package scales each predictor to unit variance before fitting so the penalty applies uniformly, then back-transforms coefficients to the original units. Setting <code>standardize = FALSE</code> is almost always a mistake unless you have already centred and scaled by hand.</div></div>
+
+<p>Finally, predictions. Use <code>predict()</code> with <code>s</code> set to either the lambda name or a numeric value.</p>
+
+<div class="webr-container" data-block-title="Predict medv for a new observation with all three models">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Predict medv for a new observation with all three models</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">new_x <span class="o">&lt;-</span> x[<span class="m">1</span>, , drop <span class="o">=</span> <span class="kc">FALSE</span>]   <span class="c1"># use row 1 of Boston as a fresh observation</span></span>
+<span class="cl"></span>
+<span class="cl"><span class="nf">round</span>(<span class="nf">c</span>(</span>
+<span class="cl">  ridge_pred <span class="o">=</span> <span class="nf">predict</span>(cv_ridge, newx <span class="o">=</span> new_x, s <span class="o">=</span> <span class="s">&quot;lambda.min&quot;</span>)[<span class="m">1</span>],</span>
+<span class="cl">  enet_pred  <span class="o">=</span> <span class="nf">predict</span>(en_fit,   newx <span class="o">=</span> new_x, s <span class="o">=</span> <span class="s">&quot;lambda.min&quot;</span>)[<span class="m">1</span>],</span>
+<span class="cl">  lasso_pred <span class="o">=</span> <span class="nf">predict</span>(cv_lasso, newx <span class="o">=</span> new_x, s <span class="o">=</span> <span class="s">&quot;lambda.min&quot;</span>)[<span class="m">1</span>],</span>
+<span class="cl">  actual     <span class="o">=</span> y[<span class="m">1</span>]</span>
+<span class="cl">), <span class="m">2</span>)</span>
+<span class="cl"><span class="c1">#&gt; ridge_pred  enet_pred lasso_pred     actual</span></span>
+<span class="cl"><span class="c1">#&gt;      30.02      30.26      30.14      24.00</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>All three land close to each other and slightly over the actual value of 24, which is what you would expect for a model that has not seen this exact row but has learned its broader neighbourhood.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Predict <code>medv</code> for row 100 of Boston using <code>cv_lasso</code> at <code>lambda.1se</code>.</p>
+<div class="webr-container" data-block-title="Your turn: predict row 100">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: predict row 100</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">ex_newx <span class="o">&lt;-</span> x[<span class="m">100</span>, , drop <span class="o">=</span> <span class="kc">FALSE</span>]</span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># your code here</span></span>
+<span class="cl"></span>
+<span class="cl"><span class="c1">#&gt; Expected: a single numeric value near the true medv of that row</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Predict row 100 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Predict row 100 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">ex_pred_100 <span class="o">&lt;-</span> <span class="nf">predict</span>(cv_lasso, newx <span class="o">=</span> ex_newx, s <span class="o">=</span> <span class="s">&quot;lambda.1se&quot;</span>)[<span class="m">1</span>]</span>
+<span class="cl"><span class="nf">round</span>(<span class="nf">c</span>(predicted <span class="o">=</span> ex_pred_100, actual <span class="o">=</span> y[<span class="m">100</span>]), <span class="m">2</span>)</span>
+<span class="cl"><span class="c1">#&gt; predicted    actual</span></span>
+<span class="cl"><span class="c1">#&gt;     32.04     33.40</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>s = &quot;lambda.1se&quot;</code> picks the more conservative CV lambda. <code>newx</code> must be a matrix, so we slice with <code>drop = FALSE</code> to keep the matrix shape.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<p>Each capstone exercise combines several ideas from above. Use distinct variable names so you do not overwrite the tutorial session.</p>
+
+<h3>Exercise 1: Lasso variable list at a target sparsity</h3>
+
+<p>Fit Lasso on the Boston matrix. Find the lambda on <code>lasso_fit$lambda</code> where exactly six predictors have non-zero coefficients (not counting the intercept). Save the predictor names to <code>my_six</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Hint: use sapply() over lasso_fit$lambda to count non-zeros at each,</span></span>
+<span class="cl"><span class="c1"># then pick the lambda matching a count of 7 (6 predictors + intercept).</span></span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># your code here</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">my_counts  <span class="o">&lt;-</span> <span class="nf">sapply</span>(lasso_fit<span class="o">$</span>lambda, <span class="kr">function</span>(L) <span class="nf">sum</span>(<span class="nf">coef</span>(lasso_fit, s <span class="o">=</span> L) <span class="o">!=</span> <span class="m">0</span>))</span>
+<span class="cl">my_lambda  <span class="o">&lt;-</span> <span class="nf">max</span>(lasso_fit<span class="o">$</span>lambda[my_counts <span class="o">==</span> <span class="m">7</span>])</span>
+<span class="cl">my_coefs   <span class="o">&lt;-</span> <span class="nf">coef</span>(lasso_fit, s <span class="o">=</span> my_lambda)[, <span class="m">1</span>]</span>
+<span class="cl">my_six     <span class="o">&lt;-</span> <span class="nf">names</span>(my_coefs[my_coefs <span class="o">!=</span> <span class="m">0</span>])</span>
+<span class="cl">my_six     <span class="o">&lt;-</span> <span class="nf">setdiff</span>(my_six, <span class="s">&quot;(Intercept)&quot;</span>)</span>
+<span class="cl">my_six</span>
+<span class="cl"><span class="c1">#&gt; [1] &quot;chas&quot;    &quot;nox&quot;     &quot;rm&quot;      &quot;dis&quot;     &quot;ptratio&quot; &quot;lstat&quot;</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Use the largest lambda with seven non-zeros so you get the smallest stable six-predictor model. Drop <code>(Intercept)</code> so the result is just the predictor names.</p>
+
+</details>
+
+<h3>Exercise 2: Ridge vs OLS on correlated predictors</h3>
+
+<p>Simulate 100 rows where <code>x1</code> and <code>x2</code> are 0.95 correlated and <code>y = 3*x1 + 3*x2 + rnorm(100)</code>. Fit <code>lm()</code> and <code>cv.glmnet(alpha = 0)</code>. Save both <code>x1</code> coefficients side by side to <code>my_results</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Hint: generate x2 &lt;- 0.95 * x1 + 0.1 * rnorm(100) for strong correlation.</span></span>
+<span class="cl"><span class="c1"># Build a matrix for glmnet, then pull coefs from both fits.</span></span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># your code here</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">set.seed</span>(<span class="m">42</span>)</span>
+<span class="cl">my_x1 <span class="o">&lt;-</span> <span class="nf">rnorm</span>(<span class="m">100</span>)</span>
+<span class="cl">my_x2 <span class="o">&lt;-</span> <span class="m">0.95</span> <span class="o">*</span> my_x1 <span class="o">+</span> <span class="m">0.1</span> <span class="o">*</span> <span class="nf">rnorm</span>(<span class="m">100</span>)</span>
+<span class="cl">my_y  <span class="o">&lt;-</span> <span class="m">3</span> <span class="o">*</span> my_x1 <span class="o">+</span> <span class="m">3</span> <span class="o">*</span> my_x2 <span class="o">+</span> <span class="nf">rnorm</span>(<span class="m">100</span>)</span>
+<span class="cl"></span>
+<span class="cl">my_lm    <span class="o">&lt;-</span> <span class="nf">lm</span>(my_y <span class="o">~</span> my_x1 <span class="o">+</span> my_x2)</span>
+<span class="cl">my_mat   <span class="o">&lt;-</span> <span class="nf">cbind</span>(my_x1, my_x2)</span>
+<span class="cl">my_ridge <span class="o">&lt;-</span> <span class="nf">cv.glmnet</span>(my_mat, my_y, alpha <span class="o">=</span> <span class="m">0</span>)</span>
+<span class="cl"></span>
+<span class="cl">my_results <span class="o">&lt;-</span> <span class="nf">c</span>(</span>
+<span class="cl">  lm_x1    <span class="o">=</span> <span class="nf">coef</span>(my_lm)[<span class="s">&quot;my_x1&quot;</span>],</span>
+<span class="cl">  ridge_x1 <span class="o">=</span> <span class="nf">coef</span>(my_ridge, s <span class="o">=</span> <span class="s">&quot;lambda.min&quot;</span>)[<span class="s">&quot;my_x1&quot;</span>, <span class="m">1</span>]</span>
+<span class="cl">)</span>
+<span class="cl"><span class="nf">round</span>(my_results, <span class="m">3</span>)</span>
+<span class="cl"><span class="c1">#&gt;   lm_x1 ridge_x1</span></span>
+<span class="cl"><span class="c1">#&gt;   4.718    3.186</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The OLS estimate for <code>x1</code> bounces far from the true 3 because of the 0.95 correlation. Ridge stays close to 3 because the L2 penalty pushes collinear coefficients toward each other rather than letting one absorb the other's signal.</p>
+
+</details>
+
+<h3>Exercise 3: Hold-out RMSE of Ridge vs Lasso</h3>
+
+<p>Split Boston 70/30. Fit Ridge and Lasso on the 70% with <code>cv.glmnet</code>. Predict on the 30%. Compute RMSE for each and save both to a named vector <code>my_rmse</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 3 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Hint: use sample() to pick training row indices.</span></span>
+<span class="cl"><span class="c1"># Build train/test matrices before fitting.</span></span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># your code here</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">set.seed</span>(<span class="m">2026</span>)</span>
+<span class="cl">my_n      <span class="o">&lt;-</span> <span class="nf">nrow</span>(x)</span>
+<span class="cl">my_train  <span class="o">&lt;-</span> <span class="nf">sample</span>(<span class="nf">seq_len</span>(my_n), size <span class="o">=</span> <span class="m">0.7</span> <span class="o">*</span> my_n)</span>
+<span class="cl">my_x_tr   <span class="o">&lt;-</span> x[my_train, ]</span>
+<span class="cl">my_x_te   <span class="o">&lt;-</span> x[<span class="o">-</span>my_train, ]</span>
+<span class="cl">my_y_tr   <span class="o">&lt;-</span> y[my_train]</span>
+<span class="cl">my_y_te   <span class="o">&lt;-</span> y[<span class="o">-</span>my_train]</span>
+<span class="cl"></span>
+<span class="cl">my_r <span class="o">&lt;-</span> <span class="nf">cv.glmnet</span>(my_x_tr, my_y_tr, alpha <span class="o">=</span> <span class="m">0</span>)</span>
+<span class="cl">my_l <span class="o">&lt;-</span> <span class="nf">cv.glmnet</span>(my_x_tr, my_y_tr, alpha <span class="o">=</span> <span class="m">1</span>)</span>
+<span class="cl"></span>
+<span class="cl">my_rmse <span class="o">&lt;-</span> <span class="nf">c</span>(</span>
+<span class="cl">  ridge <span class="o">=</span> <span class="nf">sqrt</span>(<span class="nf">mean</span>((<span class="nf">predict</span>(my_r, newx <span class="o">=</span> my_x_te, s <span class="o">=</span> <span class="s">&quot;lambda.min&quot;</span>) <span class="o">-</span> my_y_te)<span class="o">^</span><span class="m">2</span>)),</span>
+<span class="cl">  lasso <span class="o">=</span> <span class="nf">sqrt</span>(<span class="nf">mean</span>((<span class="nf">predict</span>(my_l, newx <span class="o">=</span> my_x_te, s <span class="o">=</span> <span class="s">&quot;lambda.min&quot;</span>) <span class="o">-</span> my_y_te)<span class="o">^</span><span class="m">2</span>))</span>
+<span class="cl">)</span>
+<span class="cl"><span class="nf">round</span>(my_rmse, <span class="m">3</span>)</span>
+<span class="cl"><span class="c1">#&gt;  ridge  lasso</span></span>
+<span class="cl"><span class="c1">#&gt;  4.712  4.684</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Standard hold-out evaluation: train on 70%, predict on 30%, compute root <a class="auto-link" href="Point-Estimation-in-R.html" title="Point Estimation in R: What Makes an Estimator Good? Bias, Variance, and MSE">mean squared error</a>. Lasso edges out Ridge here by a hair, largely because it dropped two weak predictors that would otherwise have added noise to the test predictions.</p>
+
+</details>
+
+<h2>Complete Example</h2>
+
+<p>Put every step into one end-to-end workflow on a new simulated dataset with a known sparse signal. Only the first five predictors carry true effect; the next fifteen are pure noise. A good Lasso should find that out.</p>
+
+<div class="webr-container" data-block-title="End-to-end penalised regression pipeline">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">End-to-end penalised regression pipeline</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">set.seed</span>(<span class="m">99</span>)</span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># Simulate 300 obs, 20 predictors, only first 5 matter</span></span>
+<span class="cl">n <span class="o">&lt;-</span> <span class="m">300</span></span>
+<span class="cl">p <span class="o">&lt;-</span> <span class="m">20</span></span>
+<span class="cl">sim_x <span class="o">&lt;-</span> <span class="nf">matrix</span>(<span class="nf">rnorm</span>(n <span class="o">*</span> p), nrow <span class="o">=</span> n)</span>
+<span class="cl">beta  <span class="o">&lt;-</span> <span class="nf">c</span>(<span class="m">3</span>, <span class="m">-2</span>, <span class="m">1.5</span>, <span class="m">-1</span>, <span class="m">0.8</span>, <span class="nf">rep</span>(<span class="m">0</span>, p <span class="o">-</span> <span class="m">5</span>))</span>
+<span class="cl">sim_y <span class="o">&lt;-</span> sim_x <span class="o">%*%</span> beta <span class="o">+</span> <span class="nf">rnorm</span>(n, sd <span class="o">=</span> <span class="m">1</span>)</span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># Train/test split</span></span>
+<span class="cl">train_idx <span class="o">&lt;-</span> <span class="nf">sample</span>(<span class="nf">seq_len</span>(n), size <span class="o">=</span> <span class="m">0.75</span> <span class="o">*</span> n)</span>
+<span class="cl">sim_x_tr  <span class="o">&lt;-</span> sim_x[train_idx, ]</span>
+<span class="cl">sim_x_te  <span class="o">&lt;-</span> sim_x[<span class="o">-</span>train_idx, ]</span>
+<span class="cl">sim_y_tr  <span class="o">&lt;-</span> sim_y[train_idx]</span>
+<span class="cl">sim_y_te  <span class="o">&lt;-</span> sim_y[<span class="o">-</span>train_idx]</span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># Cross-validated Lasso</span></span>
+<span class="cl">sim_cv <span class="o">&lt;-</span> <span class="nf">cv.glmnet</span>(sim_x_tr, sim_y_tr, alpha <span class="o">=</span> <span class="m">1</span>)</span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># Which predictors did Lasso keep?</span></span>
+<span class="cl">sim_keep <span class="o">&lt;-</span> <span class="nf">which</span>(<span class="nf">coef</span>(sim_cv, s <span class="o">=</span> <span class="s">&quot;lambda.1se&quot;</span>)[, <span class="m">1</span>] <span class="o">!=</span> <span class="m">0</span>)</span>
+<span class="cl">sim_keep</span>
+<span class="cl"><span class="c1">#&gt; (Intercept)          V1          V2          V3          V4          V5</span></span>
+<span class="cl"><span class="c1">#&gt;           1           2           3           4           5           6</span></span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># Evaluate</span></span>
+<span class="cl">sim_pred  <span class="o">&lt;-</span> <span class="nf">predict</span>(sim_cv, newx <span class="o">=</span> sim_x_te, s <span class="o">=</span> <span class="s">&quot;lambda.1se&quot;</span>)</span>
+<span class="cl">sim_rmse  <span class="o">&lt;-</span> <span class="nf">sqrt</span>(<span class="nf">mean</span>((sim_pred <span class="o">-</span> sim_y_te)<span class="o">^</span><span class="m">2</span>))</span>
+<span class="cl"><span class="nf">round</span>(sim_rmse, <span class="m">3</span>)</span>
+<span class="cl"><span class="c1">#&gt; [1] 1.042</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Lasso recovered the five true predictors and dropped all fifteen noise predictors. The RMSE is close to the irreducible noise standard deviation of 1, meaning the model is almost as good as the oracle. That clean recovery is the reason Lasso is the default first move when you suspect most of your predictors carry nothing.</p>
+
+<h2>Summary</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Method</th>
+<th>alpha</th>
+<th>Penalty</th>
+<th>Zeroes coefs?</th>
+<th>Pick when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Ridge</td>
+<td>0</td>
+<td>L2 squared</td>
+<td>No</td>
+<td>Multicollinearity; keep every predictor</td>
+</tr>
+<tr>
+<td>Lasso</td>
+<td>1</td>
+<td>L1 absolute</td>
+<td>Yes</td>
+<td>Need interpretable, short model</td>
+</tr>
+<tr>
+<td>Elastic Net</td>
+<td>0 to 1</td>
+<td>Mixed</td>
+<td>Yes, groupwise</td>
+<td>Correlated predictor groups with sparsity</td>
+</tr>
+</tbody>
+</table>
+
+<p>Key moves to remember:</p>
+
+<ol>
+
+<li>Build a numeric matrix with <code>model.matrix(formula, data)[, -1]</code>.</li>
+
+<li>Fit the path with <code>glmnet(x, y, alpha = α)</code> and the CV with <code>cv.glmnet()</code>.</li>
+
+<li>Pick lambda from <code>cv_fit$lambda.min</code> (best fit) or <code>$lambda.1se</code> (robust fit).</li>
+
+<li>Pull coefficients with <code>coef(fit, s = &quot;lambda.min&quot;)</code> and predictions with <code>predict(fit, newx = ..., s = ...)</code>.</li>
+
+<li><code>set.seed()</code> before any <code>cv.glmnet()</code> call so folds are reproducible.</li>
+
+</ol>
+
+<h2>References</h2>
+
+<ol>
+
+<li>glmnet package documentation. Stanford Statistics. <a href="https://glmnet.stanford.edu/articles/glmnet.html">Link</a></li>
+
+<li>Hastie, T., Tibshirani, R., Friedman, J. <em>The Elements of Statistical Learning</em>, 2nd ed. Chapter 3.4: Shrinkage Methods. <a href="https://hastie.su.domains/Papers/ESLII.pdf">Link</a></li>
+
+<li>Tibshirani, R. <em>Regression Shrinkage and Selection via the Lasso</em>. JRSS Series B (1996). <a href="https://www.jstor.org/stable/2346178">Link</a></li>
+
+<li>Hoerl, A. E., Kennard, R. W. <em><a class="auto-link" href="Ridge-Regression-With-R.html" title="Ridge Regression with R">Ridge Regression</a>: Biased Estimation for Nonorthogonal Problems</em>. Technometrics (1970).</li>
+
+<li>Zou, H., Hastie, T. <em>Regularization and Variable Selection via the Elastic Net</em>. JRSS Series B (2005). <a href="https://hastie.su.domains/Papers/B67.2%20%282005%29%20301-320%20Zou%20&%20Hastie.pdf">Link</a></li>
+
+<li>James, G., Witten, D., Hastie, T., Tibshirani, R. <em>An Introduction to Statistical Learning</em>, 2nd ed. Chapter 6.2: Shrinkage Methods. <a href="https://www.statlearning.com/">Link</a></li>
+
+<li>glmnet CRAN reference manual. <a href="https://cran.r-project.org/web/packages/glmnet/glmnet.pdf">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Linear-Regression.html">Linear Regression</a> is the OLS baseline that Ridge and Lasso improve on. Understanding the unpenalised fit makes the shrinkage story concrete.</li>
+
+<li><a href="Multicollinearity-in-R.html">Multicollinearity in R</a> covers the problem Ridge was invented to solve. Read it if your regression coefficients flip signs or have large standard errors.</li>
+
+<li><a href="Variable-Selection-and-Importance-With-R.html">Variable Selection and Importance With R</a> surveys alternatives to Lasso for picking predictors, including stepwise methods and random-forest importance.</li>
+
+</ul>
+
+        </main>
+
+        <div class="col-sm-2 hidden-xs" id="toc-sidebar">
+          <div id="toc-wrapper">
+            <div class="toc-title">On this page</div>
+            <ul class="list-unstyled" id="toc"></ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="footer">
+        <hr>
+        <p>&copy; 2016-<span id="copyright-year">2026</span> Selva Prabhakaran.
+          This work is licensed under the <a href="https://creativecommons.org/licenses/by-nc/3.0/">Creative Commons License.</a>
+        </p>
+      </div>
+
+    </div> <!-- /container -->
+
+  <script defer src="www/toc.min.js?h=dc9c8832"></script>
+  <!-- MathJax Script -->
+  
+  <script type="text/x-mathjax-config">
+    MathJax.Hub.Config({
+      tex2jax: {inlineMath: [['$','$'], ['\\(','\\)']]}
+    });
+  </script>
+  <script type="text/javascript" async
+    src="https://cdn.jsdelivr.net/npm/mathjax@2/MathJax.js?config=TeX-AMS-MML_HTMLorMML">
+  </script>
+
+  <!-- WebR Interactive Code -->
+    <script defer src="www/editor-bundle.min.js?h=9c31e0b3"></script>
+  <script defer src="www/webr-init.min.js?h=92549f4e"></script>
+
+      <script defer src="www/engagement.min.js?h=3084b063"></script>
+  <!-- Google Analytics (gtag.js) , deferred to post-load idle so its ~1.8s of
+       scripting doesn't compete with the critical path. Events fired before
+       the loader lands get buffered on window.dataLayer and flushed once
+       gtag runs, so pageviews are not lost. -->
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-D5XKCMN7FR');
+    (function () {
+      var loaded = false;
+      function load() {
+        if (loaded) return;
+        loaded = true;
+        cleanup();
+        var s = document.createElement('script');
+        s.async = true;
+        s.src = 'https://www.googletagmanager.com/gtag/js?id=G-D5XKCMN7FR';
+        document.head.appendChild(s);
+      }
+      // User interaction is the cheapest trigger we can hang analytics on ,
+      // gtag doesn't need to run until someone is actually interacting with
+      // the page. A 6s fallback ensures bounce sessions still record.
+      var events = ['pointerdown', 'keydown', 'scroll', 'touchstart'];
+      function cleanup() {
+        events.forEach(function (e) { window.removeEventListener(e, load, { capture: true }); });
+      }
+      function arm() {
+        events.forEach(function (e) { window.addEventListener(e, load, { capture: true, once: true, passive: true }); });
+        setTimeout(load, 6000);
+      }
+      if (document.readyState === 'complete') arm();
+      else window.addEventListener('load', arm, { once: true });
+    })();
+  </script>
+
+  <!-- Mobile sidebar menu -->
+  <script>
+    (function() {
+      var menuBtn = document.getElementById('mobile-menu-btn');
+      var overlay = document.getElementById('mobile-sidebar');
+      var closeBtn = document.getElementById('mobile-sidebar-close');
+      var mobileContent = document.getElementById('mobile-sidebar-content');
+      if (!menuBtn || !overlay) return;
+
+      // Populate mobile sidebar from #sidebar-nav after it loads
+      function populateMobileSidebar() {
+        var sidebarNav = document.getElementById('sidebar-nav');
+        if (sidebarNav && sidebarNav.innerHTML.trim()) {
+          mobileContent.innerHTML = sidebarNav.innerHTML;
+          // Re-attach click handlers for section toggles
+          mobileContent.querySelectorAll('.sidebar-section-header').forEach(function(h) {
+            h.addEventListener('click', function() {
+              this.closest('.sidebar-section').classList.toggle('expanded');
+            });
+          });
+        }
+      }
+
+      menuBtn.addEventListener('click', function() {
+        populateMobileSidebar();
+        overlay.classList.add('open');
+        document.body.style.overflow = 'hidden';
+      });
+      closeBtn.addEventListener('click', function() {
+        overlay.classList.remove('open');
+        document.body.style.overflow = '';
+      });
+      overlay.addEventListener('click', function(e) {
+        if (e.target === overlay) {
+          overlay.classList.remove('open');
+          document.body.style.overflow = '';
+        }
+      });
+    })();
+  </script>
+
+  <!-- Image lightbox -->
+  <div class="img-lightbox" id="img-lightbox"><img alt="" /></div>
+  <script>
+    (function(){
+      var lb=document.getElementById('img-lightbox'),lbImg=lb.querySelector('img');
+      document.addEventListener('click',function(e){
+        var img=e.target.closest('.img-zoomable');
+        if(img){lbImg.src=img.src;lbImg.alt=img.alt;lb.classList.add('open');document.body.style.overflow='hidden';}
+      });
+      lb.addEventListener('click',function(){lb.classList.remove('open');document.body.style.overflow='';});
+      document.addEventListener('keydown',function(e){if(e.key==='Escape'&&lb.classList.contains('open')){lb.classList.remove('open');document.body.style.overflow='';}});
+    })();
+  </script>
+
+  <!-- Google site search -->
+  <script>
+    function my_search_google() {
+      var query = document.getElementById("my-google-search").value;
+      window.open("https://google.com/search?q=" + query + "%20site:https://r-statistics.co");
+    }
+  </script>
+
+  <!-- Dark mode toggle + smooth scroll -->
+  <script>
+    // Dark mode
+    (function() {
+      var btn = document.getElementById('dark-mode-toggle');
+      if (!btn) return;
+      var saved = localStorage.getItem('darkMode');
+      if (saved === 'true') { document.documentElement.classList.add('dark'); btn.textContent = '\u2600'; }
+      btn.addEventListener('click', function() {
+        var isDark = document.documentElement.classList.toggle('dark');
+        localStorage.setItem('darkMode', isDark);
+        btn.textContent = isDark ? '\u2600' : '\u263D';
+      });
+    })();
+
+    // Smooth scroll for TOC and anchor links
+    document.addEventListener('click', function(e) {
+      var link = e.target.closest('a[href^="#"]');
+      if (!link) return;
+      var target = document.querySelector(link.getAttribute('href'));
+      if (!target) return;
+      e.preventDefault();
+      var offset = 20;
+      var top = target.getBoundingClientRect().top + window.pageYOffset - offset;
+      window.scrollTo({ top: top, behavior: 'smooth' });
+      history.pushState(null, null, link.getAttribute('href'));
+    });
+  </script>
+  </body>
+</html>
