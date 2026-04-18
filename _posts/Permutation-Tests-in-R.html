@@ -1,0 +1,999 @@
+---
+title: "Permutation Tests in R: Exact p-Values via Randomization"
+description: "Run permutation tests in R to compute exact p-values by randomization, covering two-sample, paired, and correlation tests with coin and base R examples."
+keywords: "permutation test in R, exact p-value, randomization test, coin package R, oneway_test, independence_test, Fisher-Pitman test, Monte Carlo p-value, non-parametric test"
+mathjax: true
+webr: true
+curriculum_id: "FR-infe-10"
+post_type: "FR"
+auto_link_terms: "permutation test|permutation tests|randomization test|exact p-value|Monte Carlo p-value|Fisher-Pitman test|oneway_test|independence_test"
+auto_link_case_sensitive: false
+fr_parent: "Bootstrap-Confidence-Intervals-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>Permutation Tests in R: Exact p-Values via Randomization</h1>
+
+<p class="lead">Permutation tests compute exact p-values by shuffling your observed data under the <a class="auto-link" href="Hypothesis-Testing-in-R.html" title="Hypothesis Testing in R: Understand the Framework, Not Just the p-Value">null hypothesis</a> and counting how often you see a test statistic as extreme as the real one. You get a valid p-value without assuming normality, constant variance, or large samples.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="35" data-exercises="9" data-xp="135"></div>
+
+<h2>How does a permutation test produce an exact p-value?</h2>
+
+<p>Classical tests like the t-test assume a specific <a class="auto-link" href="Normal-t-F-and-Chi-Squared-Distributions-in-R.html" title="Normal, t, F, and Chi-Squared in R: Understand Each Distribution and When It Arises">sampling distribution</a> for your statistic. Permutation tests throw that assumption away. If the null hypothesis is true, the group labels carry no information, so shuffling them should produce results just like the one you observed. You shuffle many times, collect the test statistic each time, and ask what fraction of those shuffled statistics are at least as extreme as your original.</p>
+
+<p>Let's make this concrete with the <code>mtcars</code> dataset. We want to test whether automatic and manual cars differ in miles-per-gallon. Our test statistic is the absolute difference in group means.</p>
+
+<div class="webr-container" data-block-title="Payoff: two-sample permutation test on mtcars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Payoff: two-sample permutation test on mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Observed difference in means between manual (am=1) and automatic (am=0)
+obs_diff &lt;- mean(mtcars$mpg[mtcars$am == 1]) - mean(mtcars$mpg[mtcars$am == 0])
+
+set.seed(2026)
+B &lt;- 10000
+perm_diffs &lt;- replicate(B, {
+  shuffled &lt;- sample(mtcars$am)
+  mean(mtcars$mpg[shuffled == 1]) - mean(mtcars$mpg[shuffled == 0])
+})
+
+# Two-sided p-value with the +1 correction
+p_val &lt;- (1 + sum(abs(perm_diffs) &gt;= abs(obs_diff))) / (B + 1)
+
+c(observed = obs_diff, p_value = p_val)
+#&gt;  observed   p_value
+#&gt; 7.2449393 0.0002000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The observed gap is 7.24 mpg. Across 10,000 shuffles, only a handful produced a gap that large or larger, so the p-value lands near 0.0002. That's strong evidence the null (no transmission effect) is wrong, and we got there without invoking the <a class="auto-link" href="Central-Limit-Theorem-in-R.html" title="Central Limit Theorem in R: Simulate It From Skewed, Bimodal, and Uniform Distributions">Central Limit Theorem</a> or Welch's adjustment.</p>
+
+<p>The p-value formula is:</p>
+
+<p>$$p = \frac{1 + \#\{|T^{(<a class="auto-link" href="Conditional-Probability-in-R.html" title="Conditional Probability in R: P(A|B), Independence, and Bayes — With Real Examples">b)</a>}| \geq |T_{\text{obs}}|\}}{B + 1}$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$T_{\text{obs}}$ is the statistic on the real data</li>
+
+<li>$T^{(b)}$ is the statistic on the $b$-th shuffle, for $b = 1, \dots, B$</li>
+
+<li>The $+1$ in both numerator and denominator counts the observed data as one valid permutation and keeps the p-value from ever being exactly zero.</li>
+
+</ul>
+
+<p><img src="screenshots/Permutation-Tests-in-R-algorithm-flow.webp" alt="Permutation test algorithm flow" class="img-responsive img-zoomable" loading="lazy" width="2248" height="446" /></p>
+
+<p><em>Figure 1: The permutation test loop: shuffle labels, recompute the statistic, repeat, then read the p-value off the collected values.</em></p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>"Exact" means the null distribution itself is generated from the data, not approximated.</strong> When you enumerate every possible shuffle, the resulting p-value has no approximation error from a normality or large-sample assumption. The only randomness is sampling error in the original data, which every test faces.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Change the test above to a one-sided alternative, manual cars get <em>better</em> mileage than automatic. You only count shuffles where the signed difference is at least as large as the observed positive gap.</p>
+<div class="webr-container" data-block-title="Your turn: one-sided p-value">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: one-sided p-value</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Use obs_diff and perm_diffs from the block above
+ex_one_sided_p &lt;- # your code here
+
+ex_one_sided_p
+#&gt; Expected: roughly half of the two-sided p-value</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="One-sided permutation p-value solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">One-sided permutation p-value solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_one_sided_p &lt;- (1 + sum(perm_diffs &gt;= obs_diff)) / (B + 1)
+ex_one_sided_p
+#&gt; [1] 0.0001</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Drop the <code>abs()</code> and compare signed statistics. Since the observed difference is positive and the null distribution is roughly symmetric around zero, the one-sided p-value is about half of the two-sided one.</p>
+
+</details>
+</section>
+
+<h2>When should you reach for a permutation test instead of a t-test?</h2>
+
+<p>The t-test is fast and powerful when its assumptions hold. When they don't, its p-values can mislead, sometimes dramatically. Permutation tests replace those assumptions with a single, weaker one: <em>exchangeability</em> under the null, meaning the joint distribution of the data doesn't change when you relabel observations.</p>
+
+<p>Reach for a permutation test when any of these are true:</p>
+
+<ol>
+
+<li>Sample size is small (roughly $n < 30$) and the data look skewed or have outliers.</li>
+
+<li>The measurement is ordinal, or the statistic isn't a mean (median, trimmed mean, ratio, correlation).</li>
+
+<li>You need a test for a custom statistic with no standard distribution theory.</li>
+
+</ol>
+
+<p>Let's compare a t-test and a permutation test on a small, skewed sample where the t-test starts to creak.</p>
+
+<div class="webr-container" data-block-title="t-test vs permutation on skewed data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">t-test vs permutation on skewed data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(42)
+skew_x &lt;- rlnorm(8, meanlog = 0,   sdlog = 1)  # log-normal, right-skewed
+skew_y &lt;- rlnorm(8, meanlog = 0.8, sdlog = 1)
+
+# Welch's t-test
+tt &lt;- t.test(skew_y, skew_x)
+round(tt$p.value, 4)
+#&gt; [1] 0.1027
+
+# Permutation test on the mean difference
+combined &lt;- c(skew_x, skew_y)
+obs_d    &lt;- mean(skew_y) - mean(skew_x)
+set.seed(7)
+perm_ds  &lt;- replicate(10000, {
+  idx &lt;- sample(length(combined), length(skew_x))
+  mean(combined[-idx]) - mean(combined[idx])
+})
+perm_p &lt;- (1 + sum(abs(perm_ds) &gt;= abs(obs_d))) / (10000 + 1)
+round(perm_p, 4)
+#&gt; [1] 0.0676</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The t-test reports p = 0.10, which most analysts would call "not significant." The permutation test reports p = 0.07, closer to the edge and arguably more trustworthy given the skew. Neither tells you to pop champagne, but the permutation version isn't penalised for violating normality because it never assumed it.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Permutation tests still need exchangeability, not full independence.</strong> Exchangeability lets you shuffle labels without changing the joint distribution under the null. Paired data or <a class="auto-link" href="Time-Series-Analysis-With-R.html" title="Time Series Analysis with R">time series</a> usually break this, so you shuffle within the appropriate block (within pairs, within strata) rather than across the whole dataset.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Re-run the comparison above with <code>n = 80</code> per group instead of 8. With more data, the Central Limit Theorem kicks in and both methods should agree.</p>
+<div class="webr-container" data-block-title="Your turn: same test at larger n">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: same test at larger n</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(42)
+ex_x &lt;- rlnorm(80, meanlog = 0,   sdlog = 1)
+ex_y &lt;- rlnorm(80, meanlog = 0.8, sdlog = 1)
+
+ex_t_p &lt;- # your code: t-test p-value
+ex_perm_p &lt;- # your code: permutation p-value with B = 10000
+
+c(t = ex_t_p, perm = ex_perm_p)
+#&gt; Expected: both p-values very small and close to each other</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Larger-n comparison solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Larger-n comparison solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_t_p &lt;- t.test(ex_y, ex_x)$p.value
+
+ex_combined &lt;- c(ex_x, ex_y)
+ex_obs_d    &lt;- mean(ex_y) - mean(ex_x)
+set.seed(11)
+ex_perm_ds  &lt;- replicate(10000, {
+  idx &lt;- sample(length(ex_combined), length(ex_x))
+  mean(ex_combined[-idx]) - mean(ex_combined[idx])
+})
+ex_perm_p &lt;- (1 + sum(abs(ex_perm_ds) &gt;= abs(ex_obs_d))) / 10001
+
+round(c(t = ex_t_p, perm = ex_perm_p), 5)
+#&gt;       t    perm 
+#&gt; 0.00012 0.00010</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> With 80 observations per group, both p-values are tiny and agree to three decimals. The t-test's distributional assumption is effectively met by the large-$n$ <a class="auto-link" href="Law-of-Large-Numbers-vs-CLT-in-R.html" title="Law of Large Numbers vs Central Limit Theorem: Two Laws That Are Not the Same Thing">CLT</a>, so the two approaches converge.</p>
+
+</details>
+</section>
+
+<h2>How do you run permutation tests with the coin package?</h2>
+
+<p>Writing the shuffle loop by hand is great for understanding. For production, the <code>coin</code> package is the reference implementation. It provides a unified permutation framework across two-sample, k-sample, paired, correlation, and contingency-table tests, with three ways to compute the null distribution: <code>&quot;exact&quot;</code>, <code>&quot;approximate&quot;</code> (Monte Carlo), and <code>&quot;asymptotic&quot;</code> (closed-form approximation).</p>
+
+<p>The core two-sample function is <code>oneway_test()</code>, which implements the Fisher-Pitman permutation test.</p>
+
+<div class="webr-container" data-block-title="Exact Fisher-Pitman test on a small subset">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exact Fisher-Pitman test on a small subset</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(coin)
+
+# Use a small subset so exact enumeration is feasible
+small_mtcars &lt;- mtcars[1:10, ]
+small_mtcars$am &lt;- factor(small_mtcars$am)
+
+exact_test &lt;- oneway_test(mpg ~ am, data = small_mtcars,
+                          distribution = &quot;exact&quot;)
+exact_test
+#&gt;
+#&gt; 	Exact Two-Sample Fisher-Pitman Permutation Test
+#&gt;
+#&gt; data:  mpg by am (0, 1)
+#&gt; Z = -0.91287, p-value = 0.4
+#&gt; alternative hypothesis: true mu is not equal to 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>On this 10-row subset, the exact p-value is 0.40. <code>coin</code> enumerates every one of the $\binom{10}{4} = 210$ possible label assignments (there are 4 manuals and 6 automatics in the subset), computes the standardised statistic for each, and returns the exact proportion that are at least as extreme as the observed one.</p>
+
+<p>For the full 32-row dataset, exact enumeration would need to check $\binom{32}{13}$ shuffles, around 350 million. That's feasible but slow. The pragmatic option is Monte Carlo via <code>approximate()</code>.</p>
+
+<div class="webr-container" data-block-title="Monte Carlo approximation on the full dataset">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Monte Carlo approximation on the full dataset</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+approx_test &lt;- oneway_test(
+  mpg ~ factor(am), data = mtcars,
+  distribution = approximate(nresample = 10000)
+)
+approx_test
+#&gt;
+#&gt; 	Approximative Two-Sample Fisher-Pitman Permutation Test
+#&gt;
+#&gt; data:  mpg by factor(am) (0, 1)
+#&gt; Z = -4.1061, p-value &lt; 1e-04
+#&gt; alternative hypothesis: true mu is not equal to 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>nresample = 10000</code> takes 10,000 random shuffles and returns a p-value with a Monte Carlo standard error around $\sqrt{p(1-p)/B}$. At this <a class="auto-link" href="Effect-Size-in-R.html" title="Effect Size in R: The Number p-Values Never Tell You (Cohen's d, η², and r)">effect size</a> the reported value is "< 1e-04", matching the manual loop we ran at the top of this post.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use <code>&quot;exact&quot;</code> when n is small, <code>&quot;approximate&quot;</code> for medium n, and <code>&quot;asymptotic&quot;</code> only when you trust the large-sample approximation.</strong> The asymptotic option skips randomisation entirely and uses the limiting normal distribution of the standardised statistic. It's fast but loses the headline benefit of a permutation test on small samples.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Run an approximate permutation test comparing <code>mpg</code> across the three-level <code>cyl</code> factor (4, 6, 8 cylinders). <code>oneway_test()</code> handles k-sample comparisons automatically.</p>
+<div class="webr-container" data-block-title="Your turn: k-sample permutation">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: k-sample permutation</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: same function, different grouping variable
+ex_k_test &lt;- # your code here
+ex_k_test
+#&gt; Expected: highly significant p-value (&lt; 0.001)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="k-sample Fisher-Pitman solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">k-sample Fisher-Pitman solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(99)
+ex_k_test &lt;- oneway_test(
+  mpg ~ factor(cyl), data = mtcars,
+  distribution = approximate(nresample = 10000)
+)
+ex_k_test
+#&gt;
+#&gt; 	Approximative K-Sample Fisher-Pitman Permutation Test
+#&gt;
+#&gt; data:  mpg by factor(cyl) (4, 6, 8)
+#&gt; chi-squared = 25.923, p-value &lt; 1e-04</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The same <code>oneway_test()</code> call works across more than two groups, returning a chi-squared-style statistic. With three cylinder classes this is the permutation analogue of a one-way ANOVA.</p>
+
+</details>
+</section>
+
+<h2>How do you test paired data and correlations via permutation?</h2>
+
+<p>The shuffle strategy changes with the design. For paired data, you don't reshuffle freely across all observations, that would break the pairing. You only flip the sign of each within-pair difference, because under the null "no treatment effect" the sign of each paired difference is a fair coin flip.</p>
+
+<p>The built-in <code>sleep</code> dataset records the extra hours of sleep for 10 patients under two drugs. Each patient appears twice. Let's test whether group 2 beats group 1.</p>
+
+<div class="webr-container" data-block-title="Paired permutation on the sleep dataset">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Paired permutation on the sleep dataset</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># sleep is long-format with columns extra, group, ID
+sleep_diff &lt;- sleep$extra[sleep$group == 2] - sleep$extra[sleep$group == 1]
+sleep_diff
+#&gt;  [1] 1.2 2.4 1.3 1.3 0.0 1.0 1.8 0.8 4.6 1.4
+
+obs_mean_diff &lt;- mean(sleep_diff)
+
+set.seed(2026)
+paired_perms &lt;- replicate(10000, {
+  signs &lt;- sample(c(-1, 1), length(sleep_diff), replace = TRUE)
+  mean(signs * sleep_diff)
+})
+
+paired_p &lt;- (1 + sum(abs(paired_perms) &gt;= abs(obs_mean_diff))) / 10001
+c(obs = obs_mean_diff, p_value = paired_p)
+#&gt;       obs   p_value
+#&gt; 1.5800000 0.0046995</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The mean within-subject difference is 1.58 hours, and the permutation p-value is 0.005. Under the null, we randomly flipped the sign of each of the 10 differences and computed the mean; only about 50 of 10,000 such resamples produced an average at least as extreme as 1.58 in absolute value. The <a class="auto-link" href="t-Tests-in-R.html" title="t-Tests in R: Every Variant With the Decision Rule for Choosing Between Them">paired t-test</a> gives a similar p-value here, but the permutation version survives if those per-subject differences were skewed or had outliers.</p>
+
+<p>For correlation, the shuffle is different again. You permute <em>one</em> of the two variables while keeping the other fixed. That destroys the pairing between them, which is exactly what "no correlation" means.</p>
+
+<div class="webr-container" data-block-title="Correlation permutation on iris">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Correlation permutation on iris</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">x &lt;- iris$Sepal.Length
+y &lt;- iris$Petal.Length
+
+corr_obs &lt;- cor(x, y)
+
+set.seed(2026)
+corr_perms &lt;- replicate(10000, cor(x, sample(y)))
+corr_p &lt;- (1 + sum(abs(corr_perms) &gt;= abs(corr_obs))) / 10001
+
+c(observed_cor = corr_obs, p_value = corr_p)
+#&gt; observed_cor      p_value
+#&gt;    0.8717538    0.0001000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The observed Pearson correlation is 0.87. Across 10,000 random pairings (one vector shuffled, the other fixed), not a single permutation produced a correlation that extreme, so the p-value comes out at the minimum possible value of $1 / (B + 1) \approx 0.0001$.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Don't shuffle both vectors independently, you only need to break the link.</strong> If you call <code>sample()</code> on both <code>x</code> and <code>y</code>, the null distribution stays the same but you double the computational cost and introduce extra simulation noise. Shuffle one side only.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute a permutation p-value for the <em>Spearman</em> rank correlation between <code>iris$Sepal.Length</code> and <code>iris$Petal.Width</code>. The only change is the <code>method</code> argument.</p>
+<div class="webr-container" data-block-title="Your turn: Spearman permutation p-value">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: Spearman permutation p-value</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_x &lt;- iris$Sepal.Length
+ex_y &lt;- iris$Petal.Width
+
+ex_corr_obs &lt;- # your code: Spearman correlation
+ex_corr_p   &lt;- # your code: permutation p-value with B = 10000
+
+c(rho = ex_corr_obs, p = ex_corr_p)
+#&gt; Expected: high rho, p-value at the floor (~0.0001)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Spearman permutation solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Spearman permutation solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_corr_obs &lt;- cor(ex_x, ex_y, method = &quot;spearman&quot;)
+set.seed(2026)
+ex_corr_perms &lt;- replicate(10000, cor(ex_x, sample(ex_y), method = &quot;spearman&quot;))
+ex_corr_p &lt;- (1 + sum(abs(ex_corr_perms) &gt;= abs(ex_corr_obs))) / 10001
+
+round(c(rho = ex_corr_obs, p = ex_corr_p), 5)
+#&gt;     rho       p 
+#&gt; 0.83776 0.00010</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Pass <code>method = &quot;spearman&quot;</code> to <code>cor()</code> in both the observed and permuted calls. Sepal length and petal width are strongly rank-correlated, so the p-value bottoms out.</p>
+
+</details>
+</section>
+
+<h2>What if exact enumeration is infeasible?</h2>
+
+<p>Exact tests enumerate every possible label assignment. The count grows as $\binom{n_1 + n_2}{n_1}$ for a two-sample test, which explodes fast.</p>
+
+<div class="webr-container" data-block-title="How quickly the number of shuffles explodes">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">How quickly the number of shuffles explodes</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ns &lt;- c(10, 20, 30, 40, 50)
+data.frame(
+  total_n = ns,
+  shuffles_each_group_half = choose(ns, ns / 2)
+)
+#&gt;   total_n shuffles_each_group_half
+#&gt; 1      10                      252
+#&gt; 2      20                   184756
+#&gt; 3      30                155117520
+#&gt; 4      40             137846528820
+#&gt; 5      50          126410606437752</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>By $n = 30$ you're already at 155 million shuffles, where <code>coin</code>'s <code>&quot;exact&quot;</code> method starts to feel slow. By $n = 50$ you're well past 100 trillion and exact enumeration is off the table. Monte Carlo approximation sidesteps this by drawing $B$ random shuffles instead.</p>
+
+<p><img src="screenshots/Permutation-Tests-in-R-exact-vs-mc.webp" alt="Exact vs Monte Carlo decision" class="img-responsive img-zoomable" loading="lazy" width="1816" height="820" /></p>
+
+<p><em>Figure 2: Choosing between exact enumeration and Monte Carlo approximation as sample size grows.</em></p>
+
+<p>How many shuffles is enough? Since the p-value is a proportion, its Monte Carlo standard error is:</p>
+
+<p>$$\text{SE}(\hat p) \approx \sqrt{\frac{p(1-p)}{B}}$$</p>
+
+<p>At $p = 0.05$ and $B = 10{,}000$, the SE is about 0.0022, so a reported p-value of 0.050 sits in a ±0.005 margin. That's tight enough to distinguish 0.04 from 0.06.</p>
+
+<div class="webr-container" data-block-title="Monte Carlo precision across B">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Monte Carlo precision across B</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fresh small demo; B shown as a knob.
+set.seed(2026)
+x &lt;- rnorm(40, mean = 0.3)
+y &lt;- rnorm(40, mean = 0.0)
+obs &lt;- mean(x) - mean(y)
+pool &lt;- c(x, y)
+
+Bs &lt;- c(1000, 10000, 100000)
+p_hats &lt;- sapply(Bs, function(B) {
+  ds &lt;- replicate(B, {
+    idx &lt;- sample(length(pool), length(x))
+    mean(pool[idx]) - mean(pool[-idx])
+  })
+  (1 + sum(abs(ds) &gt;= abs(obs))) / (B + 1)
+})
+
+data.frame(B = Bs, p_hat = round(p_hats, 5),
+           se = round(sqrt(p_hats * (1 - p_hats) / Bs), 5))
+#&gt;        B   p_hat      se
+#&gt; 1   1000 0.07193 0.00817
+#&gt; 2  10000 0.07989 0.00271
+#&gt; 3 100000 0.08006 0.00086</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Ten thousand shuffles already nail the p-value to two decimals. A hundred thousand is overkill for most reports but cheap to run.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>B = 10,000 is the sweet spot for published results.</strong> It gives a Monte Carlo SE near 0.002 at typical p-values, matches what the <code>coin</code> package uses by default, and runs in under a second on modern hardware for simple statistics.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Estimate the Monte Carlo SE for a reported p-value of 0.02 at <code>B = 5000</code>. Use the formula above.</p>
+<div class="webr-container" data-block-title="Your turn: Monte Carlo SE">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: Monte Carlo SE</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_p &lt;- 0.02
+ex_B &lt;- 5000
+ex_se &lt;- # your code here
+ex_se
+#&gt; Expected: about 0.002</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Monte Carlo SE solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Monte Carlo SE solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_p &lt;- 0.02
+ex_B &lt;- 5000
+ex_se &lt;- sqrt(ex_p * (1 - ex_p) / ex_B)
+round(ex_se, 5)
+#&gt; [1] 0.00198</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> At B = 5000 and p = 0.02, the SE is about 0.002, so 95% of Monte Carlo runs will land within ±0.004 of the true permutation p-value. Doubling B to 10,000 cuts that to roughly ±0.003.</p>
+
+</details>
+</section>
+
+<h2>How does a permutation test differ from the bootstrap?</h2>
+
+<p>Permutation tests and the bootstrap both resample your data, so they're easy to confuse. They answer different questions.</p>
+
+<ul>
+
+<li><strong>Permutation test</strong> shuffles labels under the null hypothesis to produce a p-value. It asks: <em>how surprising is this statistic if the null is true?</em></li>
+
+<li><strong>Bootstrap</strong> resamples observations with replacement from the observed data to build a sampling distribution for a statistic. It asks: <em>what's the uncertainty around this estimate?</em></li>
+
+</ul>
+
+<p>Same data, different questions. You might run both in the same analysis, a permutation test for significance, a bootstrap for the confidence interval around the effect size.</p>
+
+<div class="webr-container" data-block-title="Permutation p-value and bootstrap CI side by side">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Permutation p-value and bootstrap CI side by side</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(boot)
+
+a &lt;- mtcars$mpg[mtcars$am == 1]
+b &lt;- mtcars$mpg[mtcars$am == 0]
+obs_diff_ab &lt;- mean(a) - mean(b)
+
+# Permutation p-value for difference in means
+pooled &lt;- c(a, b)
+set.seed(1)
+perm_ab &lt;- replicate(10000, {
+  idx &lt;- sample(length(pooled), length(a))
+  mean(pooled[idx]) - mean(pooled[-idx])
+})
+perm_p_ab &lt;- (1 + sum(abs(perm_ab) &gt;= abs(obs_diff_ab))) / 10001
+
+# Bootstrap 95% CI for the same difference in means
+boot_stat &lt;- function(d, i) {
+  resampled &lt;- d[i, ]
+  mean(resampled$mpg[resampled$am == 1]) -
+    mean(resampled$mpg[resampled$am == 0])
+}
+set.seed(1)
+boot_out &lt;- boot(mtcars, boot_stat, R = 2000)
+boot_ci  &lt;- boot.ci(boot_out, type = &quot;perc&quot;)$percent[4:5]
+
+list(
+  observed_diff = obs_diff_ab,
+  permutation_p = perm_p_ab,
+  bootstrap_95_CI = boot_ci
+)
+#&gt; $observed_diff
+#&gt; [1] 7.244939
+#&gt;
+#&gt; $permutation_p
+#&gt; [1] 2e-04
+#&gt;
+#&gt; $bootstrap_95_CI
+#&gt; [1] 3.207107 11.280909</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Manual cars average 7.2 mpg higher (p = 0.0002, bootstrap 95% CI 3.2 to 11.3). The permutation test tells you this difference is very unlikely under the null of no effect; the bootstrap tells you the effect is somewhere between 3 and 11 mpg. Different verbs, different outputs, complementary insights.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Pair them in reports.</strong> A common best practice is to lead with the point estimate + bootstrap CI (so readers see the effect size and its uncertainty) and report the permutation p-value alongside (so readers see the test of significance). For the full toolkit on CIs, see the parent post on <a href="Bootstrap-Confidence-Intervals-in-R.html">bootstrap confidence intervals</a>.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Match each scenario to the right tool. The solution explains why.</p>
+<div class="webr-container" data-block-title="Your turn: pick permutation or bootstrap">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: pick permutation or bootstrap</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Scenario A: &quot;What's the 95% CI for the median income in this sample?&quot;
+# Scenario B: &quot;Does the new ad design convert better than the old one?&quot;
+# Scenario C: &quot;How precise is my estimate of the Spearman correlation?&quot;
+# Scenario D: &quot;Is this observed correlation different from zero?&quot;
+
+# For each scenario, is the right tool a permutation test or a bootstrap?</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<p>- <strong>A: Bootstrap.</strong> You want a confidence interval for an estimate, not a test. Resample with replacement, recompute the median, collect 2.5th / 97.5th percentiles.</p>
+<p>- <strong>B: Permutation test.</strong> You want a p-value for "no effect of design." Shuffle the design labels, recompute the conversion gap, count extremes.</p>
+<p>- <strong>C: Bootstrap.</strong> Again a precision/uncertainty question. Permutation would give you a p-value, not a standard error.</p>
+<p>- <strong>D: Permutation test.</strong> You want a hypothesis test for zero correlation. Permute one of the two vectors to destroy the link under the null.</p>
+
+<p><strong>Rule of thumb:</strong> CI / standard error → bootstrap. p-value / hypothesis test → permutation.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<h3>Exercise 1: Build a generic permutation test function</h3>
+
+<p>Write a function <code>my_perm_p(x, y, B = 10000)</code> that returns the two-sided permutation p-value for <code>mean(y) - mean(x)</code>. Use only base R. Test it on <code>mtcars$mpg</code> split by <code>am</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: combine the vectors, shuffle the group assignment, compute the diff each time.
+
+my_perm_p &lt;- function(x, y, B = 10000) {
+  # Write your code here
+}
+
+# Test:
+set.seed(2026)
+my_perm_p(mtcars$mpg[mtcars$am == 0], mtcars$mpg[mtcars$am == 1])
+#&gt; Expected: p-value near 0.0002</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Generic permutation function solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Generic permutation function solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_perm_p &lt;- function(x, y, B = 10000) {
+  obs &lt;- mean(y) - mean(x)
+  pool &lt;- c(x, y)
+  n_x  &lt;- length(x)
+  perm_stats &lt;- replicate(B, {
+    idx &lt;- sample(length(pool), n_x)
+    mean(pool[-idx]) - mean(pool[idx])
+  })
+  (1 + sum(abs(perm_stats) &gt;= abs(obs))) / (B + 1)
+}
+
+set.seed(2026)
+my_perm_p(mtcars$mpg[mtcars$am == 0], mtcars$mpg[mtcars$am == 1])
+#&gt; [1] 2e-04</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The function pools the two samples, draws a random subset of size <code>length(x)</code> as the "new x" group, and computes the shuffled mean difference. The <code>+1</code> correction in numerator and denominator keeps the p-value bounded away from zero.</p>
+
+</details>
+
+<h3>Exercise 2: Permutation test for a difference in medians</h3>
+
+<p>Medians have no simple standard-error formula, which makes them a natural fit for permutation tests. Write code that tests whether <code>iris$Sepal.Length</code> differs in <em>median</em> between the <code>setosa</code> and <code>versicolor</code> species.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: same shuffle machinery, but compute median(x) - median(y) each time.
+
+setosa_sl &lt;- iris$Sepal.Length[iris$Species == &quot;setosa&quot;]
+versi_sl  &lt;- iris$Sepal.Length[iris$Species == &quot;versicolor&quot;]
+
+my_median_diff &lt;- # your code: observed median difference
+my_median_p    &lt;- # your code: permutation p-value, B = 10000
+
+c(diff = my_median_diff, p = my_median_p)
+#&gt; Expected: large, negative median difference, p-value at floor</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Median permutation solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Median permutation solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">setosa_sl &lt;- iris$Sepal.Length[iris$Species == &quot;setosa&quot;]
+versi_sl  &lt;- iris$Sepal.Length[iris$Species == &quot;versicolor&quot;]
+
+my_median_diff &lt;- median(setosa_sl) - median(versi_sl)
+pool_sl        &lt;- c(setosa_sl, versi_sl)
+set.seed(2026)
+med_perms &lt;- replicate(10000, {
+  idx &lt;- sample(length(pool_sl), length(setosa_sl))
+  median(pool_sl[idx]) - median(pool_sl[-idx])
+})
+my_median_p &lt;- (1 + sum(abs(med_perms) &gt;= abs(my_median_diff))) / 10001
+
+c(diff = my_median_diff, p = my_median_p)
+#&gt;      diff         p 
+#&gt; -0.800000  0.000100</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Replace <code>mean</code> with <code>median</code> in the statistic and you have a permutation test for median differences, no asymptotic theory required. Setosa sepals are about 0.8 cm shorter in median than versicolor sepals.</p>
+
+</details>
+
+<h3>Exercise 3: Spearman correlation permutation with coin</h3>
+
+<p>Use the <code>coin</code> package's <code>spearman_test()</code> function (which internally uses permutation machinery) to test the <a class="auto-link" href="Correlation-Analysis-in-R.html" title="Correlation in R: Pearson vs Spearman vs Kendall — Compute, Test, and Visualise">Spearman correlation</a> between <code>mtcars$hp</code> and <code>mtcars$mpg</code>. Use 10,000 approximate resamples.</p>
+
+<div class="webr-container" data-block-title="Exercise 3 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: spearman_test(y ~ x, data = ..., distribution = approximate(nresample = ...))
+
+my_spearman_result &lt;- # your code here
+my_spearman_result
+#&gt; Expected: strong negative association, p-value at the floor</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="coin Spearman permutation solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">coin Spearman permutation solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+my_spearman_result &lt;- spearman_test(
+  mpg ~ hp, data = mtcars,
+  distribution = approximate(nresample = 10000)
+)
+my_spearman_result
+#&gt;
+#&gt; 	Approximative Spearman Correlation Test
+#&gt;
+#&gt; data:  mpg by hp
+#&gt; Z = -4.7691, p-value &lt; 1e-04
+#&gt; alternative hypothesis: true rho is not equal to 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>spearman_test()</code> wraps the permutation machinery around ranked data. Higher horsepower means lower mpg, with a Z of -4.8 and a Monte Carlo p-value below 1 in 10,000.</p>
+
+</details>
+
+<h2>Complete Example</h2>
+
+<p>Let's run a full permutation analysis on the <code>chickwts</code> dataset. It records chick weights by feed type. We'll compare just two feeds, casein and sunflower, and produce both an exact permutation test and a manual Monte Carlo check.</p>
+
+<div class="webr-container" data-block-title="Full permutation analysis on chickwts">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Full permutation analysis on chickwts</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ck_sub &lt;- subset(chickwts, feed %in% c(&quot;casein&quot;, &quot;sunflower&quot;))
+ck_sub$feed &lt;- droplevels(ck_sub$feed)
+table(ck_sub$feed)
+#&gt;
+#&gt;    casein sunflower 
+#&gt;        12        12
+
+# Exact Fisher-Pitman test via coin
+set.seed(2026)
+ck_test &lt;- oneway_test(weight ~ feed, data = ck_sub,
+                       distribution = &quot;exact&quot;)
+ck_test
+#&gt;
+#&gt; 	Exact Two-Sample Fisher-Pitman Permutation Test
+#&gt;
+#&gt; data:  weight by feed (casein, sunflower)
+#&gt; Z = -0.20449, p-value = 0.8527
+#&gt; alternative hypothesis: true mu is not equal to 0
+
+# Manual Monte Carlo check for sanity
+set.seed(2026)
+ck_x &lt;- ck_sub$weight[ck_sub$feed == &quot;casein&quot;]
+ck_y &lt;- ck_sub$weight[ck_sub$feed == &quot;sunflower&quot;]
+ck_pool &lt;- c(ck_x, ck_y)
+ck_obs  &lt;- mean(ck_y) - mean(ck_x)
+ck_ds &lt;- replicate(10000, {
+  idx &lt;- sample(length(ck_pool), length(ck_x))
+  mean(ck_pool[-idx]) - mean(ck_pool[idx])
+})
+ck_manual_p &lt;- (1 + sum(abs(ck_ds) &gt;= abs(ck_obs))) / 10001
+round(ck_manual_p, 4)
+#&gt; [1] 0.8517</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The exact test reports p = 0.85, and the manual Monte Carlo check reports p = 0.85. Despite a small visual gap between casein and sunflower means, there's no evidence the two feeds differ in chick weight at week six. The two approaches agree to three decimals, a useful sanity check that your hand-rolled code matches a trusted implementation.</p>
+
+<h2>Summary</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Test</th>
+<th>Statistic</th>
+<th>When to use</th>
+<th>Base R approach</th>
+<th>coin function</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Two-sample location</td>
+<td>Mean difference</td>
+<td>Compare two independent groups</td>
+<td><code>replicate(B, sample(...))</code></td>
+<td><code>oneway_test()</code></td>
+</tr>
+<tr>
+<td>k-sample location</td>
+<td>F-like / chi-squared</td>
+<td>Compare 3+ groups</td>
+<td>Manual with <code>replicate()</code></td>
+<td><code>oneway_test()</code></td>
+</tr>
+<tr>
+<td>Paired location</td>
+<td>Mean of paired diffs</td>
+<td>Pre/post, matched pairs</td>
+<td>Sign-flip <code>replicate()</code></td>
+<td><code>wilcoxsign_test()</code></td>
+</tr>
+<tr>
+<td>Correlation</td>
+<td>Pearson or Spearman</td>
+<td>Test association</td>
+<td><code>replicate(B, cor(x, sample(y)))</code></td>
+<td><code>spearman_test()</code></td>
+</tr>
+<tr>
+<td>General independence</td>
+<td>Generic</td>
+<td>Any relation between two variables</td>
+<td>Custom</td>
+<td><code>independence_test()</code></td>
+</tr>
+</tbody>
+</table>
+
+<p>Key takeaways:</p>
+
+<ol>
+
+<li>Permutation tests give exact p-values with no distributional assumption, only exchangeability under the null.</li>
+
+<li>Use <code>&quot;exact&quot;</code> when $n$ is small (say, $n \leq 20$), <code>&quot;approximate&quot;</code> for medium $n$, and <code>&quot;asymptotic&quot;</code> only when the large-$n$ approximation is clearly safe.</li>
+
+<li>The $+1$ correction in numerator and denominator prevents p-values of exactly zero and keeps reported values valid under Monte Carlo sampling.</li>
+
+<li>Permutation answers "is there an effect?" while the bootstrap answers "how big is the effect?". Use both in a single analysis where appropriate.</li>
+
+<li>The <code>coin</code> package covers most common tests; falling back to a hand-rolled <code>replicate()</code> loop is fine for custom statistics.</li>
+
+</ol>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Hothorn, T., Hornik, K., van de Wiel, M. A., & Zeileis, A. <em>A Lego System for Conditional Inference</em>, American Statistician 60(3): 257-263 (2006). <a href="https://www.jstatsoft.org/article/view/v028i08">Link</a></li>
+
+<li>coin package vignette. <em>Implementing a Class of Permutation Tests: The coin Package</em>. Torsten Hothorn, CRAN (2021). <a href="https://cran.r-project.org/web/packages/coin/vignettes/Implementation.pdf">Link</a></li>
+
+<li>Good, P. <em>Permutation, Parametric, and Bootstrap Tests of Hypotheses</em>, 3rd Edition. Springer (2005). Chapters 2-4.</li>
+
+<li>Phipson, B. & Smyth, G. K. <em>Permutation p-values should never be zero: calculating exact p-values when permutations are randomly drawn</em>. Statistical Applications in Genetics and Molecular Biology 9(1) (2010). <a href="https://pubmed.ncbi.nlm.nih.gov/21044043/">Link</a></li>
+
+<li>Ernst, M. D. <em>Permutation Methods: A Basis for Exact Inference</em>. Statistical Science 19(4): 676-685 (2004). <a href="https://projecteuclid.org/journals/statistical-science/volume-19/issue-4/Permutation-Methods--A-Basis-for-Exact-Inference/10.1214/088342304000000396.full">Link</a></li>
+
+<li>Mangiafico, S. <em>Summary and Analysis of Extension Program Evaluation in R</em>. Chapter K: Permutation Tests. <a href="https://rcompanion.org/handbook/K_01.html">Link</a></li>
+
+<li>R Core Team. Documentation for <code>sample()</code> and <code>replicate()</code>. <a href="https://stat.ethz.ch/R-manual/R-devel/library/base/html/sample.html">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Bootstrap-Confidence-Intervals-in-R.html">Bootstrap CIs in R: Distribution-Free Confidence Intervals for Any Statistic</a>: the companion technique, resample with replacement to quantify uncertainty around any statistic.</li>
+
+<li><a href="t-Tests-in-R.html">t-Tests in R: One-Sample, Two-Sample, and Paired</a>: the parametric alternative when normality holds and you want fast, closed-form p-values.</li>
+
+<li><a href="Wilcoxon-Mann-Whitney-and-Kruskal-Wallis-in-R.html">Wilcoxon, Mann-Whitney and Kruskal-Wallis Tests in R</a>: rank-based <a class="auto-link" href="Wilcoxon-Mann-Whitney-and-Kruskal-Wallis-in-R.html" title="Wilcoxon, Mann-Whitney, and Kruskal-Wallis in R: Non-Parametric When Normality Fails">non-parametric tests</a> that are themselves special cases of the permutation framework.</li>
+
+</ul>
