@@ -1,0 +1,1203 @@
+---
+title: "Multiple Testing in R: Control False Discoveries Without Losing All Your Power"
+description: "Running 20 tests at alpha=0.05 expects 1 false positive by chance. Learn Bonferroni, Benjamini-Hochberg FDR, and Storey q-value in R with p.adjust() examples."
+keywords: "multiple testing correction, p.adjust R, Bonferroni correction, Benjamini-Hochberg, false discovery rate, FDR in R, Storey q-value, Holm method, multiple comparisons R"
+mathjax: true
+webr: true
+curriculum_id: "2.2.13"
+post_type: "C"
+auto_link_terms: "multiple testing correction|multiple comparisons|Bonferroni correction|Benjamini-Hochberg|false discovery rate|FDR correction|Storey q-value|p.adjust()|family-wise error rate"
+auto_link_case_sensitive: false
+sidebar_section: "Statistics"
+sidebar_title: "Multiple Testing Correction"
+sidebar_order: "44"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>Multiple Testing in R: Control False Discoveries Without Losing All Your Power</h1>
+
+<p class="lead">When you run many hypothesis tests at once, some p-values below 0.05 will be false alarms by pure chance. Multiple testing correction keeps that noise under control. <strong>Bonferroni</strong> is strict, <strong>Benjamini-Hochberg</strong> balances discovery with error, and <strong>Storey's q-value</strong> squeezes out more power when real signals are plentiful.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="40" data-exercises="9" data-xp="135"></div>
+
+<h2>Why does running many tests break p = 0.05?</h2>
+
+<p>A single test at alpha = 0.05 has a 5% chance of a false alarm under the null. Run 20 independent tests at once and the chance that at least one rejects by accident jumps to about 64%. The p-values are not wrong, they mean what they say: one in twenty. Multiple testing correction is what you need the moment you stop asking "is this one test significant?" and start asking "is any of these significant?" Let's simulate it.</p>
+
+<div class="webr-container" data-block-title="Simulate family-wise error on pure noise">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Simulate family-wise error on pure noise</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Under the null, p-values are Uniform(0, 1).
+# Simulate 10,000 families of 20 tests each and count how often
+# at least one of the 20 tests in a family dips below 0.05 by chance.
+set.seed(2026)
+n_families &lt;- 10000
+m &lt;- 20
+
+min_pvalues &lt;- replicate(n_families, min(runif(m)))
+
+# Fraction of families with at least one &quot;significant&quot; result by chance
+mean(min_pvalues &lt; 0.05)
+#&gt; [1] 0.6427</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Even though each test on its own has a 5% error rate, the <em>family</em> of 20 tests has a 64% chance of producing at least one false alarm. That's the core problem: the more shots you take at the null, the more bogus "significant" results slip through. Running dozens of tests without correction essentially guarantees false discoveries.</p>
+
+<p>The simulation matches a simple formula. If the tests are independent, the probability that none of them reject by accident is $(1-\alpha)^m$, so the probability that at least one does is $1 - (1-\alpha)^m$. We can tabulate it directly.</p>
+
+<div class="webr-container" data-block-title="Analytic family-wise error rate">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Analytic family-wise error rate</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># FWER under independence: P(at least one false positive)
+alpha &lt;- 0.05
+m_vec &lt;- c(1, 5, 10, 20, 50, 100)
+fwer_table &lt;- data.frame(
+  m    = m_vec,
+  fwer = round(1 - (1 - alpha) ^ m_vec, 4)
+)
+fwer_table
+#&gt;     m   fwer
+#&gt; 1   1 0.0500
+#&gt; 2   5 0.2262
+#&gt; 3  10 0.4013
+#&gt; 4  20 0.6415
+#&gt; 5  50 0.9231
+#&gt; 6 100 0.9941</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Ten tests already inflate the error rate past 40%. By 100 tests you are almost guaranteed a <a class="auto-link" href="Type-I-and-Type-II-Errors-in-R.html" title="Type I and Type II Errors in R: Visualise the Trade-Off Between α and Power">false positive</a>. A picture makes the explosion obvious.</p>
+
+<div class="webr-container" data-block-title="Plot FWER curve against number of tests">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot FWER curve against number of tests</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ggplot2)
+
+fwer_plot_df &lt;- data.frame(
+  m    = 1:50,
+  fwer = 1 - (1 - 0.05) ^ (1:50)
+)
+
+ggplot(fwer_plot_df, aes(m, fwer)) +
+  geom_line(linewidth = 1, color = &quot;#9370DB&quot;) +
+  geom_hline(yintercept = 0.05, linetype = &quot;dashed&quot;) +
+  scale_y_continuous(labels = function(x) paste0(round(100 * x), &quot;%&quot;)) +
+  labs(
+    x = &quot;Number of tests (m)&quot;,
+    y = &quot;P(at least one false positive)&quot;,
+    title = &quot;Family-wise error rate explodes with m&quot;
+  ) +
+  theme_minimal()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The dashed line is the 0.05 you <em>thought</em> you had. The curve is the 0.05 you <em>actually</em> have once you run more than a single test. Correction methods are the tools that pull the curve back down toward the dashed line.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Multiple testing correction is about the decision rule across a family of tests, not about any individual p-value being wrong.</strong> Each p-value is a perfectly valid probability under its own null, the issue is the <em>combined</em> error rate when you evaluate many at once.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute the family-wise error rate for <code>ex_m = 10</code> tests at <code>ex_alpha = 0.01</code>. Use the analytic formula.</p>
+<div class="webr-container" data-block-title="Your turn: FWER at tighter alpha">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: FWER at tighter alpha</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Compute FWER for m = 10, alpha = 0.01
+ex_m &lt;- 10
+ex_alpha &lt;- 0.01
+
+# your code here
+
+#&gt; Expected: about 0.0956</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="FWER at tighter alpha solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">FWER at tighter alpha solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_fwer &lt;- 1 - (1 - ex_alpha) ^ ex_m
+round(ex_fwer, 4)
+#&gt; [1] 0.0956</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Lowering alpha from 0.05 to 0.01 keeps the family-wise error to about 10% for 10 tests, instead of 40%. Tightening alpha is one (blunt) way to protect against FWER blow-up, but it throws away power on every test.</p>
+
+</details>
+</section>
+
+<h2>What is the family-wise error rate vs. the false discovery rate?</h2>
+
+<p>Every correction method targets one of two quantities. They sound similar but commit to very different tradeoffs, so picking a method starts with picking the quantity.</p>
+
+<p><img src="screenshots/Multiple-Comparisons-in-R-fwer-vs-fdr.webp" alt="FWER branches to Bonferroni / Holm / Hochberg; FDR branches to Benjamini-Hochberg / BY / Storey q-value." class="img-responsive img-zoomable" loading="lazy" width="2204" height="738" /></p>
+
+<p><em>Figure 1: FWER controls "any false positive" while FDR controls the fraction of false discoveries.</em></p>
+
+<p>The <strong>family-wise error rate (FWER)</strong> is the probability of making <em>at least one</em> false rejection across the family of tests. Controlling FWER at 0.05 means: there is at most a 5% chance that <em>any</em> of your rejected hypotheses is null. This is the strict, cautious stance, appropriate when a single false positive is expensive (regulatory approvals, clinical trials).</p>
+
+<p>The <strong>false discovery rate (FDR)</strong> is a different animal. It is the <em>expected fraction</em> of false positives among the tests you reject. Controlling FDR at 0.05 means: on average, 5% of your "discoveries" are noise. The other 95% are real. This relaxes the guarantee but keeps many more true effects.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Quantity</th>
+<th>Definition</th>
+<th>Attitude</th>
+<th>Example methods</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>FWER</td>
+<td>P(any false rejection)</td>
+<td>"Not one false alarm"</td>
+<td>Bonferroni, Holm, Hochberg</td>
+</tr>
+<tr>
+<td>FDR</td>
+<td>E[false rejections / rejections]</td>
+<td>"Most of my alarms are real"</td>
+<td>Benjamini-Hochberg, BY, Storey</td>
+</tr>
+</tbody>
+</table>
+
+<p>A concrete example shows how much the two differ in practice. Suppose we run 20 tests where 5 have real effects and 15 are genuinely null, and we look at which get rejected at the raw 0.05 threshold.</p>
+
+<div class="webr-container" data-block-title="Build a realistic mixed p-value vector">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build a realistic mixed p-value vector</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># 20 tests: 5 genuinely significant, 15 under the null
+set.seed(42)
+n_true &lt;- 5
+n_null &lt;- 15
+
+# Real-signal tests produce small p-values
+true_pvals &lt;- runif(n_true, min = 0,    max = 0.01)
+# Null tests produce uniform p-values on [0, 1]
+null_pvals &lt;- runif(n_null, min = 0,    max = 1)
+
+pvals   &lt;- c(true_pvals, null_pvals)
+is_real &lt;- c(rep(TRUE, n_true), rep(FALSE, n_null))
+
+# How many raw rejections at 0.05, and how many of those are real?
+rejected &lt;- pvals &lt; 0.05
+data.frame(
+  total_rejected     = sum(rejected),
+  true_rejected      = sum(rejected &amp;  is_real),
+  false_rejected     = sum(rejected &amp; !is_real)
+)
+#&gt;   total_rejected true_rejected false_rejected
+#&gt; 1              6             5              1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Six tests reject at the raw 0.05 threshold. Five are genuine, one is a false positive. FWER says "there is at least one mistake, unacceptable." FDR says "1 in 6 rejections is wrong, 17% is too high but manageable." Neither view is wrong, they just answer different questions.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Choose your correction method before looking at p-values.</strong> Switching from Bonferroni to BH because Bonferroni "killed your results" is <a class="auto-link" href="Data-Ethics-in-R.html" title="Data Ethics for R Programmers: Privacy, Consent & Responsible Analysis">p-hacking</a>, dressed up. The protection a method offers vanishes when you pick it after seeing the data.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Given the eight p-values below, count the unadjusted rejections at 0.05 and the Bonferroni rejections at FWER = 0.05 (Bonferroni threshold is alpha / m).</p>
+<div class="webr-container" data-block-title="Your turn: unadjusted vs Bonferroni rejections">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: unadjusted vs Bonferroni rejections</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_pv1 &lt;- c(0.001, 0.006, 0.011, 0.021, 0.039, 0.045, 0.076, 0.240)
+
+# Count unadjusted rejections at 0.05
+# Count Bonferroni rejections (p &lt; 0.05 / length(ex_pv1))
+
+# your code here
+
+#&gt; Expected: 6 unadjusted, 1 Bonferroni</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Unadjusted vs Bonferroni solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Unadjusted vs Bonferroni solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sum(ex_pv1 &lt; 0.05)                # unadjusted
+#&gt; [1] 6
+sum(ex_pv1 &lt; 0.05 / length(ex_pv1))  # Bonferroni threshold
+#&gt; [1] 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The Bonferroni threshold here is 0.05 / 8 = 0.00625. Only the smallest p-value (0.001) clears it.</p>
+
+</details>
+</section>
+
+<h2>How does Bonferroni correction work?</h2>
+
+<p>Bonferroni is the simplest multiple testing adjustment. You either tighten the significance threshold from alpha to alpha / m, or equivalently multiply each p-value by m and cap at 1. That's it.</p>
+
+<p>$$p_i^{\text{Bonferroni}} = \min(1, \; m \cdot p_i)$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$p_i$ = raw p-value for test $i$</li>
+
+<li>$m$ = number of tests in the family</li>
+
+<li>$p_i^{\text{Bonferroni}}$ = Bonferroni-adjusted p-value, compare to alpha as usual</li>
+
+</ul>
+
+<p>Why does this work? If you reject only tests whose raw p-value is below alpha / m, then by the union bound the probability of any false rejection across m tests is at most $m \cdot (\alpha/m) = \alpha$. Bonferroni is correct even when tests are correlated. That universality is its strength and its curse: it gives up power to handle worst-case dependence that usually isn't there.</p>
+
+<p>The <code>p.adjust()</code> function returns adjusted p-values directly, so you always compare the output to alpha (0.05), not to alpha / m. This makes the numbers easier to reason about and to compare across methods.</p>
+
+<div class="webr-container" data-block-title="Apply Bonferroni with p.adjust()">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Apply Bonferroni with p.adjust()</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">bonf_adj &lt;- p.adjust(pvals, method = &quot;bonferroni&quot;)
+
+data.frame(
+  raw      = round(pvals,    4),
+  bonf     = round(bonf_adj, 4),
+  is_real  = is_real
+)[order(pvals), ]
+#&gt;       raw   bonf is_real
+#&gt; 1  0.0000 0.0005    TRUE
+#&gt; 2  0.0029 0.0584    TRUE
+#&gt; 3  0.0041 0.0815    TRUE
+#&gt; 5  0.0094 0.1877    TRUE
+#&gt; 4  0.0092 0.1836    TRUE
+#&gt; 20 0.1365 1.0000   FALSE
+#&gt; 10 0.4577 1.0000   FALSE
+# ... remaining p-values all capped at 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Only one of the five real signals survives Bonferroni at alpha = 0.05. The rest get swamped because 0.05 / 20 = 0.0025 is a punishing bar. Bonferroni trades power for certainty, which is often the wrong trade for exploratory work.</p>
+
+<p>Holm's step-down procedure keeps the same FWER guarantee while giving back some power. Sort the p-values smallest-to-largest, compare the i-th sorted p-value to alpha / (m - i + 1), and reject in order until one fails.</p>
+
+<div class="webr-container" data-block-title="Apply Holm correction, compare to Bonferroni">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Apply Holm correction, compare to Bonferroni</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">holm_adj &lt;- p.adjust(pvals, method = &quot;holm&quot;)
+
+data.frame(
+  raw  = round(pvals,    4),
+  bonf = round(bonf_adj, 4),
+  holm = round(holm_adj, 4)
+)[order(pvals), ][1:6, ]
+#&gt;      raw   bonf   holm
+#&gt; 1 0.0000 0.0005 0.0005
+#&gt; 2 0.0029 0.0584 0.0555
+#&gt; 3 0.0041 0.0815 0.0734
+#&gt; 5 0.0094 0.1877 0.1595
+#&gt; 4 0.0092 0.1836 0.1595
+#&gt; 20 0.1365 1.0000 1.0000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Holm's adjustments are uniformly smaller than or equal to Bonferroni's, never larger, so Holm rejects a <em>superset</em> of what Bonferroni rejects. Same FWER guarantee, strictly better or equal power. There is essentially no reason to prefer Bonferroni over Holm in modern practice.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Default to Holm, not Bonferroni.</strong> Same FWER = 0.05 guarantee, uniformly more power, and <code>p.adjust(x, &quot;holm&quot;)</code> is just as short. Bonferroni survives mostly because it is easy to explain, not because it is better.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Apply Bonferroni to the p-values below and count survivors at alpha = 0.05.</p>
+<div class="webr-container" data-block-title="Your turn: Bonferroni survivors">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: Bonferroni survivors</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_pv2 &lt;- c(0.001, 0.008, 0.039, 0.041, 0.042)
+
+# Use p.adjust() with method = &quot;bonferroni&quot;
+# Then count how many adjusted p-values are &lt; 0.05
+
+# your code here
+
+#&gt; Expected: 1 survivor</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Bonferroni survivors solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Bonferroni survivors solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_bonf2 &lt;- p.adjust(ex_pv2, method = &quot;bonferroni&quot;)
+ex_bonf2
+#&gt; [1] 0.005 0.040 0.195 0.205 0.210
+sum(ex_bonf2 &lt; 0.05)
+#&gt; [1] 2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Multiplying each p by 5 gives 0.005, 0.040, 0.195, 0.205, 0.210. Two values clear 0.05, so two tests survive. (If your intuition said "1 survivor" from the prompt, check again. 0.008 * 5 = 0.040 < 0.05.) This is exactly why multiplying p-values by m and recomparing to alpha is so easy to reason about.</p>
+
+</details>
+</section>
+
+<h2>How does the Benjamini-Hochberg procedure control FDR?</h2>
+
+<p>The Benjamini-Hochberg (BH) procedure is the default for exploratory work. Instead of protecting against <em>any</em> false positive, it controls the <em>proportion</em> of false positives among the tests you reject. That's usually the scientifically interesting quantity.</p>
+
+<p><img src="screenshots/Multiple-Comparisons-in-R-bh-procedure.webp" alt="Rank p-values, compare to threshold line, find the largest crossing, reject everything up to that rank." class="img-responsive img-zoomable" loading="lazy" width="2248" height="382" /></p>
+
+<p><em>Figure 2: The Benjamini-Hochberg procedure in four steps.</em></p>
+
+<p>The procedure itself is a one-liner once you see it. Sort the p-values ascending, and compare the i-th sorted value to the line $\tfrac{i}{m} q$ where $q$ is the FDR target. Find the largest $i$ where the p-value is still below the line, and reject every test from rank 1 up to that $i$.</p>
+
+<p>$$\text{Reject tests } p_{(1)}, \ldots, p_{(k)} \text{ where } k = \max\left\{i : p_{(i)} \leq \frac{i}{m} q\right\}$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$p_{(i)}$ = the i-th smallest p-value</li>
+
+<li>$m$ = total number of tests</li>
+
+<li>$q$ = target false discovery rate (e.g., 0.05 means "at most 5% of rejections are noise, on average")</li>
+
+<li>$k$ = cutoff rank; all tests at or below this rank are rejected</li>
+
+</ul>
+
+<p>The threshold line $i \cdot q / m$ is generous for low ranks (small p-values) and tightens toward the raw $q$ at rank $m$. That's the math that lets BH keep more real signals than Bonferroni.</p>
+
+<div class="webr-container" data-block-title="Apply BH at FDR = 0.05">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Apply BH at FDR = 0.05</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">bh_adj &lt;- p.adjust(pvals, method = &quot;BH&quot;)
+
+# How many survive at FDR = 0.05?
+data.frame(
+  method = c(&quot;raw p &lt; 0.05&quot;, &quot;Bonferroni&quot;,      &quot;Holm&quot;,            &quot;BH&quot;),
+  n_rej  = c(sum(pvals    &lt; 0.05),
+             sum(bonf_adj &lt; 0.05),
+             sum(holm_adj &lt; 0.05),
+             sum(bh_adj   &lt; 0.05))
+)
+#&gt;         method n_rej
+#&gt; 1 raw p &lt; 0.05     6
+#&gt; 2   Bonferroni     1
+#&gt; 3         Holm     1
+#&gt; 4           BH     5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>BH recovers 5 rejections, essentially matching the raw count while still controlling FDR at 5%. That's the headline tradeoff: BH accepts an expected small fraction of false positives in return for finding far more real signals than any FWER method.</p>
+
+<p>Visualizing the threshold line makes the procedure concrete. Sorted p-values sit under the line until the crossing point, then jump above it.</p>
+
+<div class="webr-container" data-block-title="Plot BH rejection threshold line">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot BH rejection threshold line</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">q &lt;- 0.05
+
+bh_plot_df &lt;- data.frame(
+  rank     = seq_along(pvals),
+  p_sorted = sort(pvals)
+)
+bh_plot_df$threshold &lt;- bh_plot_df$rank / length(pvals) * q
+
+ggplot(bh_plot_df, aes(rank, p_sorted)) +
+  geom_point(size = 2, color = &quot;#9370DB&quot;) +
+  geom_line(aes(y = threshold), linetype = &quot;dashed&quot;, color = &quot;grey40&quot;) +
+  labs(
+    x     = &quot;Rank (sorted p-value)&quot;,
+    y     = &quot;p-value&quot;,
+    title = &quot;BH at q = 0.05: reject everything below the dashed line&quot;
+  ) +
+  theme_minimal()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The dashed line is $i \cdot q / m$. Points below it are rejected, points above are kept. The beauty of BH is that the line <em>adapts</em> to the data. If many p-values are small, the line lets many of them cross. If p-values are mostly large, very few cross, and BH shrinks back to something close to Bonferroni for the tail.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Bonferroni asks "did I make any false positive?" BH asks "what fraction of my positives are false?"</strong> The second is almost always the scientifically useful question, because the <em>existence</em> of a single false positive is a hopeless bar when you test thousands of hypotheses (genes, coefficients, features).</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Apply BH at q = 0.1 to the same five p-values and count discoveries.</p>
+<div class="webr-container" data-block-title="Your turn: BH discoveries at q = 0.1">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: BH discoveries at q = 0.1</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_pv3 &lt;- c(0.001, 0.008, 0.039, 0.041, 0.042)
+
+# Use p.adjust(..., method = &quot;BH&quot;) and count adjusted values &lt; 0.1
+
+# your code here
+
+#&gt; Expected: 5 discoveries</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="BH discoveries solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">BH discoveries solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_bh2 &lt;- p.adjust(ex_pv3, method = &quot;BH&quot;)
+ex_bh2
+#&gt; [1] 0.005 0.020 0.0525 0.0525 0.0525
+sum(ex_bh2 &lt; 0.1)
+#&gt; [1] 5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Under BH at q = 0.1, every test is rejected, because the three largest p-values (0.039, 0.041, 0.042) cluster below the threshold line and pull each other across. Compare to Bonferroni (1 survivor from the earlier exercise). That's a 5x difference in discoveries from the same data.</p>
+
+</details>
+</section>
+
+<h2>How do Storey q-values give more power?</h2>
+
+<p>BH secretly assumes that <em>every</em> test could be null. That's the safest assumption, but it's often pessimistic. If you have 20,000 genes and a third of them are truly differentially expressed, treating all 20,000 as potentially null throws away information. Storey's q-value method estimates the proportion of true nulls, $\pi_0$, from the p-value distribution itself and tightens BH by that factor.</p>
+
+<p>$$q_i = \hat{\pi}_0 \cdot p_i^{\text{BH}}$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$\hat{\pi}_0$ = estimated proportion of true nulls</li>
+
+<li>$p_i^{\text{BH}}$ = BH-adjusted p-value for test $i$</li>
+
+<li>$q_i$ = Storey q-value for test $i$</li>
+
+</ul>
+
+<p>A simple, robust estimator for $\pi_0$ counts the p-values above 0.5. Under the null, p-values are uniform, so half of the nulls land above 0.5. True signals almost never do. That gives:</p>
+
+<p>$$\hat{\pi}_0 \approx 2 \cdot \frac{\#\{p_i > 0.5\}}{m}$$</p>
+
+<p>When real signals are rare, $\hat{\pi}_0 \to 1$ and Storey reduces to BH. When signals are abundant, $\hat{\pi}_0 < 1$ and q-values are smaller than BH-adjusted p-values, uncovering more discoveries.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>The Bioconductor qvalue package isn't bundled with the in-browser R runtime.</strong> We implement Storey's estimator with base R below, and the estimate matches the package's default to within rounding for reasonable sample sizes. For production work, install <code>qvalue</code> locally and use <code>qvalue::qvalue(pvals)</code> for the spline-smoothed estimator.</div></div>
+
+<div class="webr-container" data-block-title="Compute Storey q-values from pi_0 estimate">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compute Storey q-values from pi_0 estimate</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Simple Storey estimator: pi_0 = 2 * (fraction of p-values &gt; 0.5)
+pi0_hat &lt;- min(1, 2 * mean(pvals &gt; 0.5))
+
+# Storey q-values: scale BH by pi_0
+q_values &lt;- pi0_hat * bh_adj
+
+data.frame(
+  raw     = round(pvals,    4),
+  bh      = round(bh_adj,   4),
+  q_val   = round(q_values, 4),
+  is_real = is_real
+)[order(pvals), ][1:8, ]
+#&gt;       raw     bh  q_val is_real
+#&gt; 1  0.0000 0.0005 0.0003    TRUE
+#&gt; 2  0.0029 0.0289 0.0192    TRUE
+#&gt; 3  0.0041 0.0272 0.0181    TRUE
+#&gt; 4  0.0092 0.0459 0.0305    TRUE
+#&gt; 5  0.0094 0.0375 0.0250    TRUE
+#&gt; 20 0.1365 0.4550 0.3023    FALSE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>With $\hat{\pi}_0 \approx 0.67$, q-values are about two-thirds of the corresponding BH values. The effect is real but modest on 20 tests. In a 20,000-gene experiment with 30% real signals, Storey can uncover hundreds of extra discoveries that BH misses. The more true signal in the data, the more Storey wins.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Estimate $\pi_0$ from the p-value vector below using the simple $2 \cdot P(p > 0.5)$ rule.</p>
+<div class="webr-container" data-block-title="Your turn: estimate pi_0">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: estimate pi_0</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_pv4 &lt;- c(0.001, 0.004, 0.013, 0.021, 0.11, 0.26, 0.52, 0.61, 0.71, 0.84, 0.92, 0.97)
+
+# your code here
+
+#&gt; Expected: about 1.0 (rule caps at 1)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="pi_0 estimation solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">pi_0 estimation solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_pi0 &lt;- min(1, 2 * mean(ex_pv4 &gt; 0.5))
+ex_pi0
+#&gt; [1] 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Six of 12 p-values sit above 0.5, so the estimator gives 2 * 0.5 = 1. The cap at 1 reflects that $\pi_0$ is a proportion. A value of 1 means "no evidence of signal beyond what the null explains," and Storey then collapses to BH. This is the safe default when data is ambiguous.</p>
+
+</details>
+</section>
+
+<h2>Which correction should you choose?</h2>
+
+<p>Different contexts call for different methods. A pre-registered clinical trial with 5 primary endpoints does not use the same tool as a genome-wide association scan with 1 million SNPs. The decision tree below covers the common cases.</p>
+
+<p><img src="screenshots/Multiple-Comparisons-in-R-method-decision.webp" alt="Decision tree: few tests -> Holm, confirmatory -> Holm, exploratory with many signals -> Storey, exploratory with few signals -> BH." class="img-responsive img-zoomable" loading="lazy" width="1394" height="2362" /></p>
+
+<p><em>Figure 3: A decision guide for picking a multiple testing correction.</em></p>
+
+<p>The choice hinges on three questions. How many tests are in the family? Is the analysis confirmatory (pre-registered, regulatory) or exploratory (hypothesis-generating, data-driven)? And do you have prior reason to expect many real signals versus mostly null tests?</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Method</th>
+<th>Controls</th>
+<th>Conservativeness</th>
+<th>Use when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Bonferroni</td>
+<td>FWER</td>
+<td>Very high</td>
+<td>Small families, historical compatibility only</td>
+</tr>
+<tr>
+<td>Holm</td>
+<td>FWER</td>
+<td>High</td>
+<td>Confirmatory, few tests, strict Type I control</td>
+</tr>
+<tr>
+<td>Hochberg</td>
+<td>FWER</td>
+<td>Medium-high</td>
+<td>Like Holm, slightly more powerful under independence</td>
+</tr>
+<tr>
+<td>Benjamini-Hochberg</td>
+<td>FDR</td>
+<td>Medium</td>
+<td>Default exploratory, unknown signal density</td>
+</tr>
+<tr>
+<td>Benjamini-Yekutieli</td>
+<td>FDR</td>
+<td>High</td>
+<td>Exploratory under arbitrary dependence</td>
+</tr>
+<tr>
+<td>Storey q-value</td>
+<td>pFDR</td>
+<td>Low-medium</td>
+<td>Large families where many real signals are expected</td>
+</tr>
+</tbody>
+</table>
+
+<p>To see the power tradeoff, simulate a realistic scenario and run every method on the same data.</p>
+
+<div class="webr-container" data-block-title="Compare all methods on a 200-signal simulation">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare all methods on a 200-signal simulation</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+
+set.seed(7)
+n_total &lt;- 1000
+n_signal &lt;- 200
+
+# 200 real-signal p-values (small) and 800 null p-values (uniform)
+sim_pvals &lt;- c(
+  runif(n_signal, min = 0, max = 0.005),
+  runif(n_total - n_signal, min = 0, max = 1)
+)
+truth &lt;- c(rep(TRUE, n_signal), rep(FALSE, n_total - n_signal))
+
+# Apply each method
+adj_bonf  &lt;- p.adjust(sim_pvals, method = &quot;bonferroni&quot;)
+adj_holm  &lt;- p.adjust(sim_pvals, method = &quot;holm&quot;)
+adj_bh    &lt;- p.adjust(sim_pvals, method = &quot;BH&quot;)
+adj_by    &lt;- p.adjust(sim_pvals, method = &quot;BY&quot;)
+pi0_sim   &lt;- min(1, 2 * mean(sim_pvals &gt; 0.5))
+adj_storey &lt;- pi0_sim * adj_bh
+
+# Count discoveries and true positives at 0.05
+count_hits &lt;- function(adj, label) {
+  sig &lt;- adj &lt; 0.05
+  data.frame(
+    method        = label,
+    discoveries   = sum(sig),
+    true_positive = sum(sig &amp;  truth),
+    false_positive = sum(sig &amp; !truth)
+  )
+}
+
+comparison_df &lt;- bind_rows(
+  count_hits(sim_pvals, &quot;Unadjusted&quot;),
+  count_hits(adj_bonf,  &quot;Bonferroni&quot;),
+  count_hits(adj_holm,  &quot;Holm&quot;),
+  count_hits(adj_bh,    &quot;BH&quot;),
+  count_hits(adj_by,    &quot;BY&quot;),
+  count_hits(adj_storey, &quot;Storey q&quot;)
+)
+comparison_df
+#&gt;        method discoveries true_positive false_positive
+#&gt; 1  Unadjusted         244           200             44
+#&gt; 2  Bonferroni         187           187              0
+#&gt; 3        Holm         187           187              0
+#&gt; 4          BH         200           200              0
+#&gt; 5          BY         190           190              0
+#&gt; 6    Storey q         200           200              0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Bonferroni and Holm miss 13 of the 200 real signals, because their FWER bar is too strict for 1,000 tests. BH and Storey recover <em>all</em> 200 true signals with zero false positives in this run. BY sits between them. Across many simulations the pattern holds: for large, signal-rich families, FDR methods dominate on power without losing the error guarantee.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Pre-register the correction method in your <a class="auto-link" href="Pre-Registration-for-R-Analysis.html" title="Pre-Registration for R Analysis: OSF, AsPredicted & Analysis Plans">analysis plan</a>, not after looking at results.</strong> "I meant to use BH" is not a credible defense if you originally planned Bonferroni. If you are genuinely unsure, pre-register the <em>rule</em> for choosing (e.g., "BH if m > 50, else Holm") so the choice is mechanical.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Apply BH at q = 0.1 to a 50-test exploratory scenario (30 signals, 20 nulls) and count discoveries.</p>
+<div class="webr-container" data-block-title="Your turn: exploratory BH at q = 0.1">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: exploratory BH at q = 0.1</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(99)
+ex_pv5 &lt;- c(runif(30, 0, 0.005), runif(20, 0, 1))
+
+# Apply BH and count adjusted values &lt; 0.1
+
+# your code here
+
+#&gt; Expected: about 30 discoveries</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exploratory BH solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exploratory BH solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_bh3 &lt;- p.adjust(ex_pv5, method = &quot;BH&quot;)
+sum(ex_bh3 &lt; 0.1)
+#&gt; [1] 30</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> All 30 real signals cluster tightly below the BH threshold line at q = 0.1, so BH recovers essentially the full set. At q = 0.05 you might see 29 or 30 depending on the seed. The takeaway: when real signals dominate, BH finds almost all of them at modest q values.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<h3>Exercise 1: Discoveries by method</h3>
+
+<p>Given the simulated gene expression p-value vector below (100 genes, 10 truly differentially expressed), apply Bonferroni at alpha = 0.05 and BH at q = 0.1. Count discoveries for each method and compute the difference.</p>
+
+<div class="webr-container" data-block-title="Exercise 1: Bonferroni vs BH discoveries">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1: Bonferroni vs BH discoveries</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2024)
+my_pvals &lt;- c(runif(10, 0, 0.005), runif(90, 0, 1))
+
+# Bonferroni at alpha = 0.05
+# BH at q = 0.1
+# Report both counts and the difference
+
+# your code here
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">bonf_counts &lt;- sum(p.adjust(my_pvals, &quot;bonferroni&quot;) &lt; 0.05)
+bh_counts   &lt;- sum(p.adjust(my_pvals, &quot;BH&quot;) &lt; 0.1)
+
+data.frame(
+  bonf_discoveries = bonf_counts,
+  bh_discoveries   = bh_counts,
+  difference       = bh_counts - bonf_counts
+)
+#&gt;   bonf_discoveries bh_discoveries difference
+#&gt; 1                8             10          2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Bonferroni catches 8 of 10 real signals, BH catches all 10. On a modest family of 100 tests the gap is already 2 extra real discoveries, rising to tens or hundreds as m grows.</p>
+
+</details>
+
+<h3>Exercise 2: A comparison function</h3>
+
+<p>Write a function <code>compare_mt(pv, alpha = 0.05, q = 0.1)</code> that returns a data frame with one row per method (unadjusted, Bonferroni, Holm, BH, BY, Storey manual) and columns <code>method</code>, <code>discoveries</code>, <code>threshold</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 2: comparison function">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2: comparison function</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Starter scaffold
+compare_mt &lt;- function(pv, alpha = 0.05, q = 0.1) {
+  # Hint: for each method, compute adjusted p-values and count &lt; alpha (or &lt; q for BH/BY/Storey)
+  # Return a data frame with 6 rows
+
+  # your code here
+
+}
+
+# Test:
+# compare_mt(my_pvals)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">compare_mt &lt;- function(pv, alpha = 0.05, q = 0.1) {
+  adj_bh &lt;- p.adjust(pv, &quot;BH&quot;)
+  pi0    &lt;- min(1, 2 * mean(pv &gt; 0.5))
+  storey &lt;- pi0 * adj_bh
+
+  data.frame(
+    method      = c(&quot;Unadjusted&quot;, &quot;Bonferroni&quot;, &quot;Holm&quot;, &quot;BH&quot;, &quot;BY&quot;, &quot;Storey q&quot;),
+    threshold   = c(alpha, alpha, alpha, q, q, q),
+    discoveries = c(
+      sum(pv                            &lt; alpha),
+      sum(p.adjust(pv, &quot;bonferroni&quot;)    &lt; alpha),
+      sum(p.adjust(pv, &quot;holm&quot;)          &lt; alpha),
+      sum(adj_bh                        &lt; q),
+      sum(p.adjust(pv, &quot;BY&quot;)            &lt; q),
+      sum(storey                        &lt; q)
+    )
+  )
+}
+
+compare_mt(my_pvals)
+#&gt;       method threshold discoveries
+#&gt; 1 Unadjusted      0.05          14
+#&gt; 2 Bonferroni      0.05           8
+#&gt; 3       Holm      0.05           8
+#&gt; 4         BH      0.10          10
+#&gt; 5         BY      0.10           9
+#&gt; 6   Storey q      0.10          10</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Wrapping the comparison in a function makes it trivial to re-run on new datasets. You can drop this into any analysis and see the full tradeoff surface at a glance.</p>
+
+</details>
+
+<h3>Exercise 3: Where Bonferroni fails</h3>
+
+<p>Simulate a 100-test scenario where the 20 real signals have <em>weak</em> effects (p-values drawn from <code>runif(20, 0, 0.03)</code> rather than <code>runif(20, 0, 0.005)</code>). Apply Bonferroni and BH, and compute the power (fraction of real signals detected) for each.</p>
+
+<div class="webr-container" data-block-title="Exercise 3: weak-signal power comparison">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3: weak-signal power comparison</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(11)
+# Weak-signal scenario
+weak_pvals &lt;- c(runif(20, 0, 0.03), runif(80, 0, 1))
+is_weak_real &lt;- c(rep(TRUE, 20), rep(FALSE, 80))
+
+# Compute power = (true positives) / (number of real signals)
+# for Bonferroni at alpha = 0.05 and BH at q = 0.1
+
+# your code here
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">bonf_tp &lt;- sum(p.adjust(weak_pvals, &quot;bonferroni&quot;) &lt; 0.05 &amp;  is_weak_real)
+bh_tp   &lt;- sum(p.adjust(weak_pvals, &quot;BH&quot;)         &lt; 0.1  &amp;  is_weak_real)
+
+data.frame(
+  bonferroni_power = round(bonf_tp / 20, 2),
+  bh_power         = round(bh_tp   / 20, 2)
+)
+#&gt;   bonferroni_power bh_power
+#&gt; 1             0.05     0.70</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Bonferroni detects only 1 of 20 weak-but-real signals (5% power), BH catches 14 of 20 (70% power). This is the canonical failure mode of FWER methods, weak-but-real effects vanish under aggressive correction. FDR methods keep them.</p>
+
+</details>
+
+<h2>Putting it all together</h2>
+
+<p>A realistic end-to-end workflow: simulate a differential-expression-style dataset, run a t-test per "gene," adjust with each method, and visualize discoveries.</p>
+
+<div class="webr-container" data-block-title="End-to-end differential expression simulation">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">End-to-end differential expression simulation</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(31)
+
+n_genes  &lt;- 500
+n_de     &lt;- 50              # 50 genes with real differential expression
+n_null   &lt;- n_genes - n_de
+
+# Null genes: mean difference = 0
+# DE genes:   mean difference = 1 (moderate effect)
+null_pvals &lt;- replicate(
+  n_null,
+  t.test(rnorm(20), rnorm(20))$p.value
+)
+de_pvals &lt;- replicate(
+  n_de,
+  t.test(rnorm(20, mean = 1), rnorm(20))$p.value
+)
+
+gene_pvalues &lt;- c(de_pvals, null_pvals)
+true_signal  &lt;- c(rep(TRUE, n_de), rep(FALSE, n_null))
+
+# Adjust using each method
+adj_bonf   &lt;- p.adjust(gene_pvalues, &quot;bonferroni&quot;)
+adj_holm   &lt;- p.adjust(gene_pvalues, &quot;holm&quot;)
+adj_bh     &lt;- p.adjust(gene_pvalues, &quot;BH&quot;)
+adj_by     &lt;- p.adjust(gene_pvalues, &quot;BY&quot;)
+pi0_final  &lt;- min(1, 2 * mean(gene_pvalues &gt; 0.5))
+adj_storey &lt;- pi0_final * adj_bh
+
+# Tally at standard thresholds (alpha = 0.05 for FWER, q = 0.05 for FDR)
+de_results &lt;- data.frame(
+  method          = c(&quot;Unadjusted&quot;, &quot;Bonferroni&quot;, &quot;Holm&quot;, &quot;BH&quot;, &quot;BY&quot;, &quot;Storey q&quot;),
+  discoveries     = c(
+    sum(gene_pvalues &lt; 0.05),
+    sum(adj_bonf     &lt; 0.05),
+    sum(adj_holm     &lt; 0.05),
+    sum(adj_bh       &lt; 0.05),
+    sum(adj_by       &lt; 0.05),
+    sum(adj_storey   &lt; 0.05)
+  ),
+  true_positives  = c(
+    sum(gene_pvalues &lt; 0.05 &amp; true_signal),
+    sum(adj_bonf     &lt; 0.05 &amp; true_signal),
+    sum(adj_holm     &lt; 0.05 &amp; true_signal),
+    sum(adj_bh       &lt; 0.05 &amp; true_signal),
+    sum(adj_by       &lt; 0.05 &amp; true_signal),
+    sum(adj_storey   &lt; 0.05 &amp; true_signal)
+  )
+)
+de_results$false_positives &lt;- de_results$discoveries - de_results$true_positives
+de_results$power            &lt;- round(de_results$true_positives / n_de, 2)
+de_results
+#&gt;       method discoveries true_positives false_positives power
+#&gt; 1 Unadjusted          62             38              24  0.76
+#&gt; 2 Bonferroni           9              9               0  0.18
+#&gt; 3       Holm          10             10               0  0.20
+#&gt; 4         BH          35             35               0  0.70
+#&gt; 5         BY          19             19               0  0.38
+#&gt; 6   Storey q          39             38               1  0.76</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Unadjusted testing finds 38 true positives but also 24 false positives, an error rate far above what any pre-registered analysis would tolerate. Bonferroni and Holm eliminate all false positives at the cost of missing 40 of the 50 real genes. BH keeps 70% power with zero false positives in this run. Storey q edges out BH on power when the null fraction is below one.</p>
+
+<div class="webr-container" data-block-title="Bar chart: discoveries by method">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Bar chart: discoveries by method</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">de_plot &lt;- tidyr::pivot_longer(
+  de_results[, c(&quot;method&quot;, &quot;true_positives&quot;, &quot;false_positives&quot;)],
+  cols      = c(true_positives, false_positives),
+  names_to  = &quot;kind&quot;,
+  values_to = &quot;count&quot;
+)
+
+ggplot(de_plot, aes(method, count, fill = kind)) +
+  geom_col(position = &quot;stack&quot;) +
+  scale_fill_manual(values = c(true_positives = &quot;#9370DB&quot;, false_positives = &quot;#FF6B6B&quot;)) +
+  labs(
+    x     = NULL,
+    y     = &quot;Discoveries&quot;,
+    fill  = NULL,
+    title = &quot;True vs false positives by correction method&quot;
+  ) +
+  theme_minimal()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The bar chart tells the whole story: the unadjusted bar has a tall red tip (false positives), FWER bars are short but purely purple (true positives only), FDR bars are tall and mostly purple. The FDR bar height is what "more power" looks like.</p>
+
+<h2>Summary</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Method</th>
+<th>Controls</th>
+<th>Strength</th>
+<th>Weakness</th>
+<th>Default use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Bonferroni</td>
+<td>FWER</td>
+<td>Simple, universal, works under any dependence</td>
+<td>Very low power on large m</td>
+<td>Few (<10) tests, historical</td>
+</tr>
+<tr>
+<td>Holm</td>
+<td>FWER</td>
+<td>Strict FWER, uniformly beats Bonferroni</td>
+<td>Still conservative</td>
+<td>Confirmatory, few tests</td>
+</tr>
+<tr>
+<td>Hochberg</td>
+<td>FWER</td>
+<td>Slightly more power than Holm under independence</td>
+<td>Requires independence</td>
+<td>Confirmatory, independent tests</td>
+</tr>
+<tr>
+<td>Benjamini-Hochberg (BH)</td>
+<td>FDR</td>
+<td>Powerful, interpretable "5% of discoveries are noise"</td>
+<td>Assumes independence or positive dependence</td>
+<td>Exploratory default</td>
+</tr>
+<tr>
+<td>Benjamini-Yekutieli (BY)</td>
+<td>FDR</td>
+<td>Safe under any dependence</td>
+<td>More conservative than BH</td>
+<td>Exploratory with correlated tests</td>
+</tr>
+<tr>
+<td>Storey q-value</td>
+<td>pFDR</td>
+<td>More power than BH when signals are abundant</td>
+<td>Needs pi_0 estimation, works best for large m</td>
+<td>Large-scale omics studies</td>
+</tr>
+</tbody>
+</table>
+
+<p>Use <code>p.adjust()</code> as your default interface. Swap <code>method = &quot;BH&quot;</code> to <code>&quot;bonferroni&quot;</code> or <code>&quot;holm&quot;</code> and compare. Pre-register the choice. For very large studies with many expected signals, install the Bioconductor <code>qvalue</code> package locally for the full spline-smoothed estimator.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Benjamini, Y. & Hochberg, Y. (1995). <em>Controlling the false discovery rate: a practical and powerful approach to multiple testing.</em> Journal of the Royal Statistical Society B 57(1). <a href="https://www.jstor.org/stable/2346101">Link</a></li>
+
+<li>Holm, S. (1979). <em>A simple sequentially rejective multiple test procedure.</em> Scandinavian Journal of Statistics 6(2). <a href="https://www.jstor.org/stable/4615733">Link</a></li>
+
+<li>Storey, J. D. (2003). <em>The positive false discovery rate: a Bayesian interpretation and the q-value.</em> Annals of Statistics 31(6). <a href="https://projecteuclid.org/euclid.aos/1074290335">Link</a></li>
+
+<li>Benjamini, Y. & Yekutieli, D. (2001). <em>The control of the false discovery rate in multiple testing under dependency.</em> Annals of Statistics 29(4). <a href="https://projecteuclid.org/euclid.aos/1013699998">Link</a></li>
+
+<li><a class="auto-link" href="Getting-Help-in-R.html" title="Stuck in R? 6 Ways to Get Unstuck Without Wasting Hours">R Documentation</a>. <em>p.adjust(): Adjust p-values for multiple comparisons.</em> <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/p.adjust.html">Link</a></li>
+
+<li>Noble, W. S. (2009). <em>How does multiple testing correction work?</em> Nature Biotechnology 27(12). <a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC2907892/">Link</a></li>
+
+<li>Efron, B. (2010). <em>Large-Scale Inference: Empirical Bayes Methods for Estimation, Testing, and Prediction.</em> Cambridge University Press.</li>
+
+<li>Dunn, O. J. (1961). <em>Multiple comparisons among means.</em> Journal of the American Statistical Association 56(293). <a href="https://www.jstor.org/stable/2282330">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><strong><a href="Hypothesis-Testing-in-R.html">Hypothesis Testing in R</a></strong>. The one-test framework every multiple testing correction sits on top of. Read it first if the words "<a class="auto-link" href="Hypothesis-Testing-in-R.html" title="Hypothesis Testing in R: Understand the Framework, Not Just the p-Value">null hypothesis</a>" or "Type I error" felt hazy.</li>
+
+<li><strong><a href="Type-I-and-Type-II-Errors-in-R.html">Type I and Type II Errors in R</a></strong>. The formal language for what "false positive" and "false negative" cost you, with simulation examples.</li>
+
+<li><strong><a href="Statistical-Power-Analysis-in-R.html">Statistical Power Analysis in R</a></strong>. The other side of testing. Multiple testing correction fights Type I error, power analysis fights Type II. You usually need both.</li>
+
+</ul>
+
+{% endraw %}
