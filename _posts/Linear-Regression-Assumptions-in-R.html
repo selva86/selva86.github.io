@@ -1,0 +1,912 @@
+---
+title: "Linear Regression Assumptions in R: Test All 5 and Know What to Do When They Fail"
+description: "Test the 5 linear regression assumptions in R with plot.lm(), VIF, Breusch-Pagan, and Durbin-Watson, plus the exact remedy to apply when any assumption fails."
+keywords: "linear regression assumptions in R, OLS assumptions, check linear regression, plot.lm, residual diagnostics, VIF in R, Durbin-Watson R, Breusch-Pagan R, homoscedasticity, multicollinearity"
+mathjax: true
+webr: true
+curriculum_id: "2.3.3"
+post_type: "C"
+auto_link_terms: "linear regression assumptions|OLS assumptions|regression diagnostics|check regression assumptions|assumptions of linear regression|plot.lm|residual diagnostics in R|Durbin-Watson test in R|Breusch-Pagan test|VIF in R"
+auto_link_case_sensitive: false
+sidebar_section: "Statistics"
+sidebar_title: "Linear Regression Assumptions"
+sidebar_order: "8"
+---
+<!-- md2html:generated -->
+
+<h1>Linear Regression Assumptions in R: Test All 5 and Know What to Do When They Fail</h1>
+
+<p class="lead">Linear regression in R relies on five assumptions: linearity, independence of errors, homoscedasticity, normality of residuals, and no multicollinearity. When any one of them breaks, your coefficients, standard errors, and p-values become unreliable, so every assumption needs both a diagnostic test and a known fix. This post shows all five, using base R so every code block runs in your browser.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="35" data-exercises="9" data-xp="135"></div>
+
+<h2>Why do the 5 linear regression assumptions matter?</h2>
+
+<p>Ordinary least squares (OLS) returns unbiased slopes only when its assumptions hold. Violate linearity and your predictions curve away from the truth; violate homoscedasticity or independence and the standard errors lie, so p-values stop being trustworthy. Violate the no-multicollinearity condition and individual coefficients swing wildly even when overall fit looks fine. The fastest way to inspect all of this at once is the four-plot diagnostic panel R produces when you call <code>plot()</code> on a fitted model.</p>
+
+<p><code>par(mfrow = c(2, 2))</code> arranges all four plots in a single 2x2 grid for scanning at a glance.</p>
+
+<div class="webr-container" data-block-title="Fit mtcars model and see all 4 diagnostics">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit mtcars model and see all 4 diagnostics</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit &lt;- lm(mpg ~ hp + wt + disp, data = mtcars)
+
+par(mfrow = c(2, 2))
+plot(fit)
+#&gt; (prints 4 diagnostic plots: Residuals vs Fitted, Q-Q,
+#&gt;  Scale-Location, Residuals vs Leverage)
+
+summary(fit)$r.squared
+#&gt; [1] 0.8268361</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>One line of code produced the entire dashboard. The top-left (Residuals vs Fitted) tests linearity, the top-right (Q-Q) tests normality of residuals, the bottom-left (Scale-Location) tests homoscedasticity, and the bottom-right (Residuals vs Leverage) surfaces influential points. Our R² is 0.83, which feels great, but that number tells you nothing about whether the <em>inferences</em> from this model are valid. That question is what the assumptions answer.</p>
+
+<p><img src="screenshots/Linear-Regression-Assumptions-in-R-diagnostic-plot-mapping.webp" alt="Each of the four diagnostic plots tests a different assumption." class="img-responsive img-zoomable" loading="lazy" width="1168" height="1090" /></p>
+
+<p><em>Figure 1: Each of the four diagnostic plots tests a different assumption.</em></p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong><a class="auto-link" href="Assumptions-of-Linear-Regression.html" title="Assumptions of Linear Regression">Regression assumptions</a> are about the residuals, not the raw data.</strong> You can have skewed, non-normal predictors and still satisfy every assumption, because OLS only cares about how the <em>errors</em> behave around the fitted line.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit <code>Petal.Length ~ Sepal.Length + Sepal.Width</code> on the built-in <code>iris</code> dataset, then run <code>plot()</code> to see the same 4-panel dashboard.</p>
+<div class="webr-container" data-block-title="Your turn: diagnose the iris model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: diagnose the iris model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: fit the model and plot diagnostics
+ex_fit &lt;- # your code here
+
+par(mfrow = c(2, 2))
+plot(ex_fit)
+#&gt; Expected: 4 diagnostic plots similar to the mtcars dashboard</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="iris model diagnostics solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">iris model diagnostics solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_fit &lt;- lm(Petal.Length ~ Sepal.Length + Sepal.Width, data = iris)
+par(mfrow = c(2, 2))
+plot(ex_fit)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>lm()</code> fits the model and <code>plot()</code> dispatches to <code>plot.lm()</code>, which renders the same four diagnostic plots for any linear model.</p>
+
+</details>
+</section>
+
+<h2>How do you test linearity (and what if it fails)?</h2>
+
+<p>Linearity means the true relationship between each predictor and the response is a straight line. You don't check this by squinting at scatterplots of y against each x; you check it with the <strong>Residuals vs Fitted</strong> plot. If the assumption holds, residuals should scatter randomly around zero with no visible trend. A U-shape, arch, or curve means the model missed a nonlinear pattern.</p>
+
+<p>Let's isolate the first diagnostic plot from our <code>fit</code> model. Passing <code>which = 1</code> asks <code>plot.lm()</code> for just the Residuals vs Fitted panel.</p>
+
+<div class="webr-container" data-block-title="Residuals vs Fitted plot only">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Residuals vs Fitted plot only</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">par(mfrow = c(1, 1))
+plot(fit, which = 1)
+#&gt; (prints the Residuals vs Fitted plot with a red LOESS smoother)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The red LOESS curve should hug the horizontal zero line. In our <code>mtcars</code> model it dips, then rises, hinting that the true relationship between <code>mpg</code> and its predictors curves. That is a linearity violation, and the fix is to let the model bend.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>A U-shape or arch in Residuals vs Fitted is the model telling you it missed a curve.</strong> Adding a polynomial term like <code>poly(hp, 2)</code> or a transformation like <code>log(hp)</code> usually flattens it.</div></div>
+
+<p>Refitting with a quadratic term on <code>hp</code> lets the model capture the curvature without abandoning OLS.</p>
+
+<div class="webr-container" data-block-title="Refit with a quadratic term">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Refit with a quadratic term</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit_poly &lt;- lm(mpg ~ poly(hp, 2) + wt + disp, data = mtcars)
+
+par(mfrow = c(1, 1))
+plot(fit_poly, which = 1)
+#&gt; (residuals now scatter around zero with no visible trend)
+
+summary(fit_poly)$r.squared
+#&gt; [1] 0.8778889</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The smoother is now much flatter, R² climbed from 0.83 to 0.88, and we've addressed the linearity issue without changing the core model family. If a polynomial still leaves a visible pattern, try a log transform on the response or a spline (<code>splines::ns()</code>).</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit <code>Temp ~ Ozone</code> on the built-in <code>airquality</code> dataset (use complete cases), inspect <code>plot(..., which = 1)</code>, then refit with <code>log(Ozone)</code> and compare.</p>
+<div class="webr-container" data-block-title="Your turn: linearity in airquality">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: linearity in airquality</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: fit the linear model, check, then refit with log
+aq &lt;- na.omit(airquality)
+ex_aq_fit &lt;- # your code here
+
+par(mfrow = c(1, 1))
+plot(ex_aq_fit, which = 1)
+#&gt; Expected: a noticeable curve in the residuals</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="airquality linearity solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">airquality linearity solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">aq &lt;- na.omit(airquality)
+ex_aq_fit &lt;- lm(Temp ~ Ozone, data = aq)
+plot(ex_aq_fit, which = 1)
+
+ex_aq_log &lt;- lm(Temp ~ log(Ozone), data = aq)
+plot(ex_aq_log, which = 1)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The raw model shows an arch because high Ozone days are hotter but with diminishing returns. Taking <code>log(Ozone)</code> straightens the relationship.</p>
+
+</details>
+</section>
+
+<h2>How do you check independence of residuals in R?</h2>
+
+<p>Independence means your errors are not correlated with each other. When data is collected in time order (daily sales, weekly temperatures, monthly traffic), residuals often carry autocorrelation: a positive error today is followed by a positive error tomorrow. That breaks OLS's <a class="auto-link" href="Expected-Value-and-Variance-in-R.html" title="Expected Value and Variance: Derive Them Theoretically, Then Verify via Simulation">variance formula</a>, so standard errors shrink and p-values look better than they are.</p>
+
+<p>The <strong>Durbin-Watson (DW)</strong> statistic tests for first-order autocorrelation in residuals:</p>
+
+<p>$$DW = \frac{\sum_{i=2}^{n}(e_i - e_{i-1})^2}{\sum_{i=1}^{n} e_i^2}$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$e_i$ is the residual for observation $i$</li>
+
+<li>$n$ is the number of observations</li>
+
+<li>DW ≈ 2 means no autocorrelation</li>
+
+<li>DW < 1.5 suggests positive autocorrelation (the usual problem)</li>
+
+<li>DW > 2.5 suggests negative autocorrelation</li>
+
+</ul>
+
+<p>We can compute DW directly from the residuals in base R, no extra packages needed.</p>
+
+<div class="webr-container" data-block-title="Durbin-Watson statistic in base R">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Durbin-Watson statistic in base R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">res &lt;- residuals(fit)
+dw &lt;- sum(diff(res)^2) / sum(res^2)
+dw
+#&gt; [1] 1.362623</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A DW of 1.36 on the mtcars model is a mild positive autocorrelation warning, but <code>mtcars</code> is not ordered in time, so the statistic is less meaningful here. The same calculation on a time-ordered dataset would be the real test. What matters is knowing how to get the number and read it.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong><code>car::durbinWatsonTest()</code> gives the same statistic plus a <a class="auto-link" href="Statistical-Tests-in-R.html" title="Statistical Tests in R">p-value</a> and bootstrap CI</strong> in local RStudio: <code>car::durbinWatsonTest(fit)</code>. The <code>car</code> package is not pre-compiled for WebR, so the manual formula above is your drop-in equivalent here.</div></div>
+
+<p>If DW flags autocorrelation, the fix is to acknowledge the time structure: add lagged predictors, switch to generalized least squares with <code>nlme::gls(..., correlation = corAR1())</code>, or model the series directly with <code>arima()</code> or the <code>forecast</code> package. Ignoring autocorrelation and reporting OLS p-values is the silent-bug version of this problem.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Simulate an autocorrelated residual series and confirm the DW statistic drops well below 2.</p>
+<div class="webr-container" data-block-title="Your turn: DW on autocorrelated data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: DW on autocorrelated data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(123)
+ex_n &lt;- 100
+ex_noise &lt;- numeric(ex_n)
+for (i in 2:ex_n) ex_noise[i] &lt;- 0.7 * ex_noise[i - 1] + rnorm(1)
+
+# Compute DW on ex_noise
+ex_dw &lt;- # your code here
+ex_dw
+#&gt; Expected: a value well below 1.5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="autocorrelation DW solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">autocorrelation DW solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(123)
+ex_n &lt;- 100
+ex_noise &lt;- numeric(ex_n)
+for (i in 2:ex_n) ex_noise[i] &lt;- 0.7 * ex_noise[i - 1] + rnorm(1)
+
+ex_dw &lt;- sum(diff(ex_noise)^2) / sum(ex_noise^2)
+ex_dw
+#&gt; [1] 0.5821024</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The AR(1) process builds strong positive correlation between consecutive values, so DW drops far from 2, the benchmark for independent errors.</p>
+
+</details>
+</section>
+
+<h2>How do you test homoscedasticity (and when do you transform y)?</h2>
+
+<p>Homoscedasticity means residual variance is constant across the range of fitted values. Heteroscedasticity, its opposite, shows up as a cone or fan shape in the residual plots: small errors at low fitted values, large errors at high ones (or vice versa). That inflates some standard errors and deflates others, so confidence intervals become meaningless even though the point estimates stay unbiased.</p>
+
+<p>The <strong>Scale-Location plot</strong> (<code>plot(fit, which = 3)</code>) shows $\sqrt{|standardized~residuals|}$ against fitted values. A flat red smoother confirms constant variance; a sloped or curved smoother confirms heteroscedasticity.</p>
+
+<div class="webr-container" data-block-title="Scale-Location plot for homoscedasticity">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Scale-Location plot for homoscedasticity</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">par(mfrow = c(1, 1))
+plot(fit, which = 3)
+#&gt; (prints Scale-Location plot; red line should be roughly flat)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>For the <code>mtcars</code> model, the red smoother rises toward higher fitted values, a classic heteroscedasticity signal. The fix is usually a transformation of the response that stabilizes variance.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Ignoring heteroscedasticity keeps your coefficient point estimates valid but destroys your p-values and confidence intervals.</strong> Never report inferences from a heteroscedastic model without either fixing it or using robust standard errors.</div></div>
+
+<p>Log-transforming the response is the most common remedy when variance grows with the fitted value.</p>
+
+<div class="webr-container" data-block-title="Log-transform the response and recheck">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Log-transform the response and recheck</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit_log &lt;- lm(log(mpg) ~ hp + wt + disp, data = mtcars)
+
+par(mfrow = c(1, 1))
+plot(fit_log, which = 3)
+#&gt; (red smoother is now noticeably flatter)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The Scale-Location plot is much flatter after the log transform, so variance is now roughly constant on the log scale. If a transformation isn't appropriate, use weighted least squares (<code>lm(..., weights = ...)</code>) or report heteroscedasticity-consistent standard errors (available via <code>sandwich::vcovHC()</code> in local R).</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong><code>lmtest::bptest()</code> gives the formal Breusch-Pagan test</strong> with a p-value in local RStudio: small p-values reject the null of homoscedasticity. The Scale-Location plot tells you essentially the same story and is WebR-native.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit <code>mpg ~ hp</code> on mtcars, check Scale-Location, then refit as <code>log(mpg) ~ hp</code> and compare.</p>
+<div class="webr-container" data-block-title="Your turn: fix heteroscedasticity">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: fix heteroscedasticity</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_simple &lt;- lm(mpg ~ hp, data = mtcars)
+plot(ex_simple, which = 3)
+
+# Now refit with log(mpg) and plot again
+ex_simple_log &lt;- # your code here
+plot(ex_simple_log, which = 3)
+#&gt; Expected: a flatter red smoother in the log version</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="log-transform solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">log-transform solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_simple &lt;- lm(mpg ~ hp, data = mtcars)
+plot(ex_simple, which = 3)
+
+ex_simple_log &lt;- lm(log(mpg) ~ hp, data = mtcars)
+plot(ex_simple_log, which = 3)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>log(mpg)</code> compresses large values more than small ones, which pulls in the cone shape and flattens the Scale-Location curve.</p>
+
+</details>
+</section>
+
+<h2>How do you test normality of residuals in R?</h2>
+
+<p>Normality says the residuals are approximately normally distributed. This assumption mainly matters for small-sample inference: confidence intervals and prediction intervals rely on it. Coefficient point estimates stay valid without it, and the <a class="auto-link" href="Central-Limit-Theorem-in-R.html" title="Central Limit Theorem in R: Simulate It From Skewed, Bimodal, and Uniform Distributions">Central Limit Theorem</a> often covers large samples anyway.</p>
+
+<p>The <a class="auto-link" href="Normality-and-Variance-Tests-in-R.html" title="Test Normality and Equal Variance in R: What the Tests Can and Can't Tell You">Q-Q plot</a> is the standard visual diagnostic. If residuals are normal, the points fall along the diagonal reference line. Heavy tails bow away from the line at the ends.</p>
+
+<div class="webr-container" data-block-title="Q-Q plot and Shapiro-Wilk test">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Q-Q plot and Shapiro-Wilk test</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">res &lt;- residuals(fit)
+
+par(mfrow = c(1, 1))
+qqnorm(res)
+qqline(res, col = &quot;red&quot;)
+
+shapiro.test(res)
+#&gt;
+#&gt;  Shapiro-Wilk normality test
+#&gt;
+#&gt; data:  res
+#&gt; W = 0.94236, p-value = 0.08693</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The Q-Q plot is mostly on the line with mild tail deviation, and Shapiro-Wilk's p-value is 0.087, above the usual 0.05 threshold, so we don't reject normality. That's the calm outcome. When the plot curves away or the p-value is tiny, you have options.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Trust the Q-Q shape over the Shapiro-Wilk p-value for n > ~50.</strong> Formal normality tests over-reject with large samples because they detect trivial deviations the Q-Q plot (and your inference) would ignore.</div></div>
+
+<p>If residuals are visibly non-normal, the most common remedies are: transform the response (log, square root, or Box-Cox via <code>MASS::boxcox()</code>), trim outliers with clear justification, or use <a class="auto-link" href="Bootstrap-Confidence-Intervals-in-R.html" title="Bootstrap CIs in R: Distribution-Free Confidence Intervals for Any Statistic">bootstrap confidence intervals</a> (<code>boot</code> package) that don't require the normality assumption.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Run <code>shapiro.test()</code> on the residuals of <code>mpg ~ hp</code> (simpler model) and interpret the p-value.</p>
+<div class="webr-container" data-block-title="Your turn: normality on a simpler model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: normality on a simpler model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_norm &lt;- lm(mpg ~ hp, data = mtcars)
+ex_res &lt;- # your code here
+
+shapiro.test(ex_res)
+#&gt; Expected: a p-value, interpret against 0.05</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="normality test solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">normality test solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_norm &lt;- lm(mpg ~ hp, data = mtcars)
+ex_res &lt;- residuals(ex_norm)
+
+shapiro.test(ex_res)
+#&gt;
+#&gt;  Shapiro-Wilk normality test
+#&gt;
+#&gt; data:  ex_res
+#&gt; W = 0.93793, p-value = 0.0651</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> p = 0.065 is above 0.05, so we fail to reject normality. With only 32 rows, Shapiro-Wilk has limited power, so the Q-Q plot should always accompany this test.</p>
+
+</details>
+</section>
+
+<h2>How do you detect and fix multicollinearity in R?</h2>
+
+<p>Multicollinearity happens when two or more predictors are highly correlated, so OLS can't tell their individual effects apart. Coefficient estimates become unstable (big standard errors, signs flipping with small data changes) even when overall R² is fine. The <strong>Variance Inflation Factor (VIF)</strong> quantifies the damage:</p>
+
+<p>$$VIF_j = \frac{1}{1 - R^2_j}$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$R^2_j$ is the R² from regressing predictor $j$ on all the other predictors</li>
+
+<li>$VIF_j = 1$ means predictor $j$ is uncorrelated with the others</li>
+
+<li>$VIF_j > 5$ is cause for investigation</li>
+
+<li>$VIF_j > 10$ is a serious red flag</li>
+
+</ul>
+
+<p>We can compute VIF directly in base R by running the auxiliary regressions ourselves.</p>
+
+<div class="webr-container" data-block-title="Compute VIF for each predictor in base R">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compute VIF for each predictor in base R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit_mc &lt;- lm(mpg ~ hp + wt + disp + cyl, data = mtcars)
+
+predictors &lt;- c(&quot;hp&quot;, &quot;wt&quot;, &quot;disp&quot;, &quot;cyl&quot;)
+vifs &lt;- sapply(predictors, function(p) {
+  others &lt;- setdiff(predictors, p)
+  formula_aux &lt;- as.formula(paste(p, &quot;~&quot;, paste(others, collapse = &quot; + &quot;)))
+  aux_fit &lt;- lm(formula_aux, data = mtcars)
+  1 / (1 - summary(aux_fit)$r.squared)
+})
+round(vifs, 2)
+#&gt;    hp    wt  disp   cyl
+#&gt;  4.68  4.84 10.46  7.87</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>disp</code> has a VIF of 10.5 (serious), and <code>cyl</code> is at 7.9 (borderline serious). <code>disp</code> and <code>cyl</code> both correlate strongly with each other and with <code>wt</code>, so including all three is almost redundant.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong><code>car::vif()</code> runs the same math in a single call</strong> in local RStudio: <code>car::vif(fit_mc)</code>. The base-R loop above is the WebR-safe equivalent.</div></div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Multicollinearity doesn't hurt R² or predictions; it hurts your coefficient interpretations.</strong> If you only care about prediction accuracy, VIF matters less. If you need to say "hp has effect X holding wt constant," it matters a lot.</div></div>
+
+<p>The fix is almost always to drop the most redundant predictor, combine predictors into a single index (like engine size instead of disp + cyl), or switch to a method that tolerates correlation (PCA regression, <a class="auto-link" href="Ridge-Regression-With-R.html" title="Ridge Regression with R">ridge regression</a> via <code>glmnet</code>).</p>
+
+<div class="webr-container" data-block-title="Drop disp and recompute VIFs">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Drop disp and recompute VIFs</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit_mc2 &lt;- lm(mpg ~ hp + wt + cyl, data = mtcars)
+
+predictors2 &lt;- c(&quot;hp&quot;, &quot;wt&quot;, &quot;cyl&quot;)
+vifs2 &lt;- sapply(predictors2, function(p) {
+  others &lt;- setdiff(predictors2, p)
+  formula_aux &lt;- as.formula(paste(p, &quot;~&quot;, paste(others, collapse = &quot; + &quot;)))
+  aux_fit &lt;- lm(formula_aux, data = mtcars)
+  1 / (1 - summary(aux_fit)$r.squared)
+})
+round(vifs2, 2)
+#&gt;   hp   wt  cyl
+#&gt; 3.26 2.89 5.41</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Dropping <code>disp</code> pulled every VIF well below 10, and <code>cyl</code> is now near the 5 threshold rather than past it. The surviving coefficients are now safe to interpret.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute VIF for <code>wt</code> alone in the full 4-predictor model, then after dropping <code>disp</code>, and see the drop.</p>
+<div class="webr-container" data-block-title="Your turn: VIF for wt before and after">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: VIF for wt before and after</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_full &lt;- lm(mpg ~ hp + wt + disp + cyl, data = mtcars)
+
+# Compute VIF for wt using the full model's other predictors
+ex_others &lt;- c(&quot;hp&quot;, &quot;disp&quot;, &quot;cyl&quot;)
+ex_vif_before &lt;- # your code here
+
+ex_others_after &lt;- c(&quot;hp&quot;, &quot;cyl&quot;)
+ex_vif_after &lt;- # your code here
+
+c(before = ex_vif_before, after = ex_vif_after)
+#&gt; Expected: after &lt; before</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="VIF drop solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">VIF drop solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_full &lt;- lm(mpg ~ hp + wt + disp + cyl, data = mtcars)
+
+ex_aux1 &lt;- lm(wt ~ hp + disp + cyl, data = mtcars)
+ex_vif_before &lt;- 1 / (1 - summary(ex_aux1)$r.squared)
+
+ex_aux2 &lt;- lm(wt ~ hp + cyl, data = mtcars)
+ex_vif_after &lt;- 1 / (1 - summary(ex_aux2)$r.squared)
+
+c(before = round(ex_vif_before, 2), after = round(ex_vif_after, 2))
+#&gt; before  after
+#&gt;   4.84   2.89</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Dropping <code>disp</code> removes a predictor highly correlated with <code>wt</code>, so <code>wt</code>'s variance inflation nearly halves.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<h3>Exercise 1: Full diagnostic workflow on airquality</h3>
+
+<p>Fit <code>Ozone ~ Solar.R + Wind + Temp</code> on <code>airquality</code> (complete cases). Run the 4-panel diagnostic and identify which assumption is most visibly violated.</p>
+
+<div class="webr-container" data-block-title="Exercise 1: diagnose the model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1: diagnose the model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Exercise: fit the model and scan diagnostics
+# Hint: use na.omit() first, then par(mfrow=c(2,2)) before plot()
+
+aq_data &lt;- na.omit(airquality)
+my_fit &lt;- # your code here
+
+par(mfrow = c(2, 2))
+plot(my_fit)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">aq_data &lt;- na.omit(airquality)
+my_fit &lt;- lm(Ozone ~ Solar.R + Wind + Temp, data = aq_data)
+
+par(mfrow = c(2, 2))
+plot(my_fit)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The Scale-Location plot shows a rising red smoother (heteroscedasticity) and the Q-Q plot's upper tail bows away from the line (non-normal residuals). Both point to a skewed response, a clue that <code>log(Ozone)</code> is worth trying.</p>
+
+</details>
+
+<h3>Exercise 2: Repair heteroscedasticity with a log transform</h3>
+
+<p>Using the same <code>aq_data</code> from Exercise 1, refit with <code>log(Ozone)</code> as the response. Show the Scale-Location plot before and after.</p>
+
+<div class="webr-container" data-block-title="Exercise 2: apply the fix">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2: apply the fix</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Exercise: refit with log(Ozone) and compare Scale-Location
+# Hint: use which = 3 to get just the Scale-Location panel
+
+my_fit_log &lt;- # your code here
+
+par(mfrow = c(1, 2))
+plot(my_fit, which = 3, main = &quot;Before: Ozone&quot;)
+plot(my_fit_log, which = 3, main = &quot;After: log(Ozone)&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_fit_log &lt;- lm(log(Ozone) ~ Solar.R + Wind + Temp, data = aq_data)
+
+par(mfrow = c(1, 2))
+plot(my_fit, which = 3, main = &quot;Before: Ozone&quot;)
+plot(my_fit_log, which = 3, main = &quot;After: log(Ozone)&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The log transform pulls in the cone pattern, so the red smoother is roughly flat on the right-hand panel. Coefficients now have valid standard errors.</p>
+
+</details>
+
+<h3>Exercise 3: Detect and resolve multicollinearity</h3>
+
+<p>Compute VIF for every predictor in the <code>log(Ozone)</code> model. If any VIF > 5, drop the highest-VIF predictor and refit.</p>
+
+<div class="webr-container" data-block-title="Exercise 3: VIF audit">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3: VIF audit</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Exercise: compute VIFs; drop the worst if any &gt; 5
+
+preds &lt;- c(&quot;Solar.R&quot;, &quot;Wind&quot;, &quot;Temp&quot;)
+my_vifs &lt;- sapply(preds, function(p) {
+  # your code here
+})
+round(my_vifs, 2)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">preds &lt;- c(&quot;Solar.R&quot;, &quot;Wind&quot;, &quot;Temp&quot;)
+my_vifs &lt;- sapply(preds, function(p) {
+  others &lt;- setdiff(preds, p)
+  aux &lt;- lm(as.formula(paste(p, &quot;~&quot;, paste(others, collapse = &quot; + &quot;))),
+            data = aq_data)
+  1 / (1 - summary(aux)$r.squared)
+})
+round(my_vifs, 2)
+#&gt; Solar.R    Wind    Temp
+#&gt;    1.09    1.33    1.42</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> All VIFs are well below 5, so multicollinearity is not a problem here. No predictor needs to be dropped. If any had exceeded 5, the fix would be to drop that predictor or combine it with a correlated sibling.</p>
+
+</details>
+
+<h2>Complete Example</h2>
+
+<p>Let's run the entire diagnostic and remedy cycle end-to-end on <code>airquality</code>. The idea is to model daily ozone concentration as a function of solar radiation, wind speed, and temperature, then check all five assumptions and apply fixes where needed.</p>
+
+<p>First, fit the baseline model and look at the full diagnostic panel.</p>
+
+<div class="webr-container" data-block-title="Complete example: fit and diagnose">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Complete example: fit and diagnose</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">aq_full &lt;- na.omit(airquality)
+example_fit &lt;- lm(Ozone ~ Solar.R + Wind + Temp, data = aq_full)
+
+par(mfrow = c(2, 2))
+plot(example_fit)
+#&gt; (4-panel diagnostic dashboard)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The Residuals vs Fitted plot shows a curve, the Scale-Location plot slopes upward, and the Q-Q plot's upper tail bows away. That's three assumptions wobbling at once. The common culprit with skewed count-like responses (like ozone) is a right-skewed y, and the standard remedy is a log transform.</p>
+
+<p><img src="screenshots/Linear-Regression-Assumptions-in-R-five-assumptions-overview.webp" alt="The five assumptions of ordinary least squares at a glance." class="img-responsive img-zoomable" loading="lazy" width="1010" height="1338" /></p>
+
+<p><em>Figure 2: The five assumptions of ordinary least squares at a glance.</em></p>
+
+<p>Now refit on the log scale and rerun every check.</p>
+
+<div class="webr-container" data-block-title="Complete example: apply the fix and recheck">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Complete example: apply the fix and recheck</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">example_fit2 &lt;- lm(log(Ozone) ~ Solar.R + Wind + Temp, data = aq_full)
+
+par(mfrow = c(2, 2))
+plot(example_fit2)
+
+res2 &lt;- residuals(example_fit2)
+dw2 &lt;- sum(diff(res2)^2) / sum(res2^2)
+
+vifs_ex &lt;- sapply(c(&quot;Solar.R&quot;, &quot;Wind&quot;, &quot;Temp&quot;), function(p) {
+  others &lt;- setdiff(c(&quot;Solar.R&quot;, &quot;Wind&quot;, &quot;Temp&quot;), p)
+  aux &lt;- lm(as.formula(paste(p, &quot;~&quot;, paste(others, collapse = &quot; + &quot;))),
+            data = aq_full)
+  1 / (1 - summary(aux)$r.squared)
+})
+
+list(
+  durbin_watson = round(dw2, 3),
+  vifs = round(vifs_ex, 2),
+  r_squared = round(summary(example_fit2)$r.squared, 3)
+)
+#&gt; $durbin_watson
+#&gt; [1] 1.859
+#&gt;
+#&gt; $vifs
+#&gt; Solar.R    Wind    Temp
+#&gt;    1.09    1.33    1.42
+#&gt;
+#&gt; $r_squared
+#&gt; [1] 0.664</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The log transform flattened the residual patterns, DW is close to 2 (no autocorrelation concern), and every VIF is under 2 (no multicollinearity). R² on the log scale is 0.66, a realistic number for air-quality modeling. The same workflow, in this order (fit → 4-panel → fix → refit → recheck), works for essentially any OLS model.</p>
+
+<h2>Summary</h2>
+
+<p><img src="screenshots/Linear-Regression-Assumptions-in-R-remedy-decision.webp" alt="Which remedy to reach for when a diagnostic flags a violation." class="img-responsive img-zoomable" loading="lazy" width="1786" height="1090" /></p>
+
+<p><em>Figure 3: Which remedy to reach for when a diagnostic flags a violation.</em></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Assumption</th>
+<th>Quick Test</th>
+<th>Rule of Thumb</th>
+<th>Fix When Violated</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Linearity</td>
+<td>Residuals vs Fitted</td>
+<td>Flat band around 0</td>
+<td>Polynomial, log, or spline term</td>
+</tr>
+<tr>
+<td>Independence</td>
+<td>Durbin-Watson</td>
+<td>1.5 ≤ DW ≤ 2.5</td>
+<td>Add lags, GLS, or time-series model</td>
+</tr>
+<tr>
+<td>Homoscedasticity</td>
+<td>Scale-Location</td>
+<td>Flat red smoother</td>
+<td>log y, WLS, or robust SE</td>
+</tr>
+<tr>
+<td>Normality</td>
+<td>Q-Q plot</td>
+<td>Points on the line</td>
+<td>Transform y or bootstrap CIs</td>
+</tr>
+<tr>
+<td>No multicollinearity</td>
+<td>VIF</td>
+<td>VIF < 5 (ideally < 2)</td>
+<td>Drop predictor, combine, or ridge</td>
+</tr>
+</tbody>
+</table>
+
+<p>The key mental shift is that each assumption maps to both a diagnostic and a specific fix. When you see a violation, you already know the next move. Run <code>plot(fit)</code> on every model you fit, scan the four panels, compute Durbin-Watson and VIF, and decide what to do before reading coefficient p-values.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Fox, J. & Weisberg, S., <em>An R Companion to Applied Regression</em>, 3rd ed. Sage (2019). <a href="https://socialsciences.mcmaster.ca/jfox/Books/Companion/">Link</a></li>
+
+<li>Faraway, J., <em>Linear Models with R</em>, 2nd ed. CRC Press. <a href="https://julianfaraway.github.io/faraway/LMR/">Link</a></li>
+
+<li>R Core Team, <code>plot.lm</code> documentation. <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/plot.lm.html">Link</a></li>
+
+<li>Zeileis, A. & Hothorn, T., Diagnostic Checking in Regression Relationships, <em>R News</em> 2(3), 2002 (lmtest package). <a href="https://cran.r-project.org/web/packages/lmtest/vignettes/lmtest-intro.pdf">Link</a></li>
+
+<li>Lüdecke, D. et al., <code>performance</code> package, <em>Journal of Open Source Software</em> 6(60), 2021. <a href="https://easystats.github.io/performance/">Link</a></li>
+
+<li>Kim, J. H., Multicollinearity and misleading statistical results. <em>Korean Journal of Anesthesiology</em> 72(6), 2019. <a href="https://pubmed.ncbi.nlm.nih.gov/31304696/">Link</a></li>
+
+<li>UCLA IDRE, Regression with R: Regression Diagnostics. <a href="https://stats.oarc.ucla.edu/r/dae/robust-regression/">Link</a></li>
+
+<li>University of Virginia Library, Understanding Diagnostic Plots for Linear Regression. <a href="https://library.virginia.edu/data/articles/diagnostic-plots">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ol>
+
+<li><a href="Linear-Regression.html">Linear Regression in R</a>, fit, interpret, and predict with <code>lm()</code> before you start worrying about assumptions.</li>
+
+<li><a href="Outlier-Treatment-With-R.html">Outlier Treatment With R</a>, dig into the influential points flagged by your Residuals vs Leverage plot.</li>
+
+<li><a href="Logistic-Regression-With-R.html">Logistic Regression With R</a>, when normality and linearity make no sense for your response, move to a GLM.</li>
+
+</ol>
