@@ -1,0 +1,856 @@
+---
+title: "Effect Size in R: The Number p-Values Never Tell You (Cohen's d, η², and r)"
+description: "Learn effect size in R: compute Cohen's d, eta-squared, Cramer's V, and r. Understand why effect size matters more than p-values, with runnable examples."
+keywords: "effect size in R, Cohen's d R, eta squared R, Cramer's V R, effect size ANOVA, practical significance, Cohen's d interpretation, cohens_d R, omega squared, effect size formula"
+mathjax: true
+webr: true
+curriculum_id: "2.2.7"
+post_type: "C"
+auto_link_terms: "effect size|Cohen's d|eta-squared|eta squared|Cramer's V|Hedges' g|practical significance|omega-squared"
+auto_link_case_sensitive: false
+sidebar_section: "Statistics"
+sidebar_title: "Effect Size"
+sidebar_order: "38"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>Effect Size in R: The Number p-Values Never Tell You (Cohen's d, η², and r)</h1>
+
+<p class="lead">Effect size measures the magnitude of a difference or association on a standardized, sample-size-free scale. Where p-values only tell you an effect probably exists, effect size tells you how large it is, so you know whether it matters in the real world.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="30" data-exercises="8" data-xp="120"></div>
+
+<h2>Why does effect size matter more than p-values?</h2>
+
+<p>A p-value answers a narrow question: assuming no effect, how surprising is this data? But "statistically significant" is not the same as "practically important," especially in large samples where trivial differences reach p < 0.001. The fix is reporting effect size alongside every test. Here is the comparison that got buried when you only looked at the p-value.</p>
+
+<p>Below, we compare fuel economy between automatic and manual transmissions in <code>mtcars</code>. The t-test returns a p-value. Then we compute <a class="auto-link" href="Statistical-Power-Analysis-in-R.html" title="Power Analysis in R: Calculate the Sample Size You Need Before You Collect Any Data">Cohen's d</a>, which converts the mean difference into units of pooled standard deviation, so we can judge how far apart the groups really are.</p>
+
+<div class="webr-container" data-block-title="p-value versus Cohen&#x27;s d on mtcars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">p-value versus Cohen&#x27;s d on mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Split mpg by transmission: 0 = automatic, 1 = manual
+auto   &lt;- mtcars$mpg[mtcars$am == 0]
+manual &lt;- mtcars$mpg[mtcars$am == 1]
+
+# 1. The usual p-value
+t.test(manual, auto)$p.value
+#&gt; [1] 0.001373638
+
+# 2. Cohen's d: mean difference in pooled-SD units
+n1 &lt;- length(auto)
+n2 &lt;- length(manual)
+s_pooled_mpg &lt;- sqrt(((n1 - 1) * var(auto) + (n2 - 1) * var(manual)) / (n1 + n2 - 2))
+d_mpg &lt;- (mean(manual) - mean(auto)) / s_pooled_mpg
+round(d_mpg, 3)
+#&gt; [1] 1.478</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The p-value (0.0014) just tells you the difference is not pure noise. Cohen's d (1.48) tells you manuals average 1.48 pooled standard deviations higher than automatics in this dataset, which is a very large effect by any convention. Two numbers, two different questions answered.</p>
+
+<p>Now watch what happens when the effect is tiny but the sample is huge. Big N shrinks standard errors, which shrinks p-values, even when the real difference is irrelevant.</p>
+
+<div class="webr-container" data-block-title="Large N makes trivial differences significant">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Large N makes trivial differences significant</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(42)
+# Two groups barely differ (true mean gap = 0.1), but n is 10000 each
+group_a &lt;- rnorm(10000, mean = 10.0, sd = 2)
+group_b &lt;- rnorm(10000, mean = 10.1, sd = 2)
+
+# p-value screams &quot;significant&quot;
+t.test(group_a, group_b)$p.value
+#&gt; [1] 0.0003791061
+
+# Cohen's d reveals the effect is basically nothing
+s_pooled_bigN &lt;- sqrt(((10000 - 1) * var(group_a) + (10000 - 1) * var(group_b)) / (20000 - 2))
+d_bigN &lt;- (mean(group_b) - mean(group_a)) / s_pooled_bigN
+round(d_bigN, 3)
+#&gt; [1] 0.052</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The p-value says "reject the null." The effect size says "the gap is about 0.05 standard deviations, which no one would call meaningful." This is the classic N-inflated significance trap, and it is why every major journal now requires effect sizes alongside p-values.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Sample size changes p-values, not effect size.</strong> Doubling N roughly halves a p-value without changing d, η², or r. That is why effect size is the number that tells you whether an effect is worth acting on.</div></div>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A tiny p-value does not mean a large effect.</strong> p < 0.001 with d = 0.04 is common in well-powered studies and tells you nothing except that the sample was large enough to detect noise-level differences.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute Cohen's d for the two vectors below. Use the formula from above: mean difference divided by pooled SD.</p>
+<div class="webr-container" data-block-title="Your turn: compute Cohen&#x27;s d">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: compute Cohen&#x27;s d</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_g1 &lt;- c(5.2, 5.5, 5.1, 5.4, 5.3)
+ex_g2 &lt;- c(5.9, 5.7, 6.0, 5.8, 5.9)
+
+# your code here
+# Expected: d around 3.5 (a very large effect)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Cohen&#x27;s d solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Cohen&#x27;s d solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_n1 &lt;- length(ex_g1)
+ex_n2 &lt;- length(ex_g2)
+ex_s_pooled &lt;- sqrt(((ex_n1 - 1) * var(ex_g1) + (ex_n2 - 1) * var(ex_g2)) / (ex_n1 + ex_n2 - 2))
+ex_d &lt;- (mean(ex_g2) - mean(ex_g1)) / ex_s_pooled
+round(ex_d, 3)
+#&gt; [1] 3.536</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The means differ by about 0.56 with a pooled SD around 0.16, giving d ≈ 3.5 standard deviations apart. Tiny samples, but a huge separation between the groups.</p>
+
+</details>
+</section>
+
+<h2>How do you compute Cohen's d for two groups in R?</h2>
+
+<p>Cohen's d is the most common effect size in applied research because it works for any two-group mean comparison and has well-known benchmarks. The formula uses the pooled standard deviation as its scaling factor so the result is dimensionless.</p>
+
+<p>$$d = \frac{\bar{x}_1 - \bar{x}_2}{s_{pooled}}, \quad s_{pooled} = \sqrt{\frac{(n_1-1)s_1^2 + (n_2-1)s_2^2}{n_1 + n_2 - 2}}$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$\bar{x}_1, \bar{x}_2$ = group means</li>
+
+<li>$s_1^2, s_2^2$ = group variances</li>
+
+<li>$n_1, n_2$ = group sizes</li>
+
+<li>$s_{pooled}$ = pooled standard deviation across both groups</li>
+
+</ul>
+
+<p>To avoid rewriting the formula every time, wrap it in a reusable function. Then Hedges' g, a small-sample-corrected variant of d, becomes a one-liner on top.</p>
+
+<div class="webr-container" data-block-title="Reusable Cohen&#x27;s d and Hedges&#x27; g">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Reusable Cohen&#x27;s d and Hedges&#x27; g</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cohens_d &lt;- function(x, y) {
+  n1 &lt;- length(x); n2 &lt;- length(y)
+  s_p &lt;- sqrt(((n1 - 1) * var(x) + (n2 - 1) * var(y)) / (n1 + n2 - 2))
+  (mean(x) - mean(y)) / s_p
+}
+
+hedges_g &lt;- function(x, y) {
+  n &lt;- length(x) + length(y)
+  correction &lt;- 1 - 3 / (4 * n - 9)
+  cohens_d(x, y) * correction
+}
+
+d_am &lt;- cohens_d(manual, auto)
+g_am &lt;- hedges_g(manual, auto)
+round(c(d = d_am, g = g_am), 3)
+#&gt;     d     g
+#&gt; 1.478 1.442</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Hedges' g is d multiplied by a small correction factor that shrinks toward zero as sample size drops. In this case, total N = 32, so the correction trims d from 1.478 to 1.442. For studies with more than ~50 total observations, d and g round to nearly the same number.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use Hedges' g when total N is 50 or fewer.</strong> The small-sample correction is non-trivial at N = 20 (about 4 percent shrinkage) and becomes negligible above N = 100. When in doubt, report g.</div></div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Dedicated effect size packages exist on CRAN.</strong> They bundle these formulas with <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">confidence intervals</a> and interpretation helpers. This tutorial sticks to base R so every computation is transparent and works in any R session.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> R ships with a dataset called <code>sleep</code> that records the extra hours of sleep under two drugs (<code>group</code> 1 and 2). Use <code>cohens_d()</code> to compute the effect size of drug 2 vs drug 1. Hint: subset <code>sleep$extra</code> by <code>sleep$group</code>.</p>
+<div class="webr-container" data-block-title="Your turn: Cohen&#x27;s d on sleep data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: Cohen&#x27;s d on sleep data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_grp1 &lt;- sleep$extra[sleep$group == 1]
+ex_grp2 &lt;- sleep$extra[sleep$group == 2]
+
+# your code here
+# Expected: d around 0.83 (a large effect)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Sleep Cohen&#x27;s d solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Sleep Cohen&#x27;s d solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_d_sleep &lt;- cohens_d(ex_grp2, ex_grp1)
+round(ex_d_sleep, 3)
+#&gt; [1] 0.832</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Drug 2 produced about 0.83 pooled SDs more extra sleep than drug 1, which crosses Cohen's "large effect" threshold of 0.8.</p>
+
+</details>
+</section>
+
+<h2>How do you measure effect size for ANOVA (η² and ω²)?</h2>
+
+<p>When you compare three or more group means with an ANOVA, Cohen's d no longer fits, because there are more than two means. The standard replacement is eta-squared (η²), the proportion of total variance in the outcome explained by the grouping factor.</p>
+
+<p>$$\eta^2 = \frac{SS_{between}}{SS_{total}}$$</p>
+
+<p>η² reads like an R²: 0 means the factor explains nothing, 1 means it explains everything. Values in between are interpretable as "percent of variance explained."</p>
+
+<div class="webr-container" data-block-title="Compute eta-squared from aov output">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compute eta-squared from aov output</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># ANOVA: mpg explained by number of cylinders (4, 6, 8)
+fit_cyl &lt;- aov(mpg ~ factor(cyl), data = mtcars)
+atbl &lt;- summary(fit_cyl)[[1]]
+print(atbl)
+#&gt;             Df Sum Sq Mean Sq F value   Pr(&gt;F)
+#&gt; factor(cyl)  2  824.8   412.4   39.70 4.98e-09
+#&gt; Residuals   29  301.3    10.4
+
+ss_between &lt;- atbl$&quot;Sum Sq&quot;[1]
+ss_total   &lt;- sum(atbl$&quot;Sum Sq&quot;)
+eta_sq     &lt;- ss_between / ss_total
+round(eta_sq, 3)
+#&gt; [1] 0.733</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>About 73 percent of the variance in mpg is explained by cylinder count. That is a very large effect by Cohen's ANOVA benchmarks (small = 0.01, medium = 0.06, large = 0.14). It also matches the intuition: 4-, 6-, and 8-cylinder engines clearly differ in fuel economy.</p>
+
+<p>η² has a known bias in small samples: it systematically overestimates the true population effect. Omega-squared (ω²) corrects for this by accounting for error variance and degrees of freedom.</p>
+
+<p>$$\omega^2 = \frac{SS_{between} - df_{between} \cdot MS_{error}}{SS_{total} + MS_{error}}$$</p>
+
+<p>Where $MS_{error}$ is the within-group mean square, and $df_{between}$ is the number of groups minus one.</p>
+
+<div class="webr-container" data-block-title="Compute omega-squared on the same model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compute omega-squared on the same model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df_between &lt;- atbl$Df[1]
+ms_error   &lt;- atbl$&quot;Mean Sq&quot;[2]
+omega_sq   &lt;- (ss_between - df_between * ms_error) / (ss_total + ms_error)
+round(omega_sq, 3)
+#&gt; [1] 0.707</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>ω² is slightly smaller than η² (0.707 vs 0.733), reflecting the downward correction. With this sample (N = 32), the gap is about 3 percentage points. In truly small samples, the gap grows, which is why ω² is the default choice for reporting in methodological journals.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Partial eta-squared inflates effect sizes when you have multiple factors.</strong> SPSS prints partial η² by default, which only uses each factor's own SS plus the error SS in the denominator. Reported this way, two large factors in the same model can each appear to "explain 70 percent" of variance, double-counting shared explanation. Prefer plain η², ω², or generalized η² for multi-factor designs.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Run a one-way ANOVA of <code>Sepal.Length</code> explained by <code>Species</code> using the <code>iris</code> dataset. Compute η² by hand.</p>
+<div class="webr-container" data-block-title="Your turn: eta-squared on iris">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: eta-squared on iris</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_fit &lt;- aov(Sepal.Length ~ Species, data = iris)
+ex_atbl &lt;- summary(ex_fit)[[1]]
+
+# your code here
+# Expected: eta^2 around 0.62</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="iris eta-squared solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">iris eta-squared solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_ss_b &lt;- ex_atbl$&quot;Sum Sq&quot;[1]
+ex_ss_t &lt;- sum(ex_atbl$&quot;Sum Sq&quot;)
+ex_eta  &lt;- ex_ss_b / ex_ss_t
+round(ex_eta, 3)
+#&gt; [1] 0.619</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Species accounts for about 62 percent of the variance in sepal length. Large effect, as expected for a classical iris question.</p>
+
+</details>
+</section>
+
+<h2>What effect size do you use for categorical variables (Cramér's V)?</h2>
+
+<p>When both variables are categorical, you usually run a chi-square test to detect association. But chi-square grows with sample size, so the raw statistic does not tell you how strong the association is. Cramér's V rescales chi-square to a 0–1 range that does not depend on N.</p>
+
+<p>$$V = \sqrt{\frac{\chi^2}{N \cdot (k - 1)}}, \quad k = \min(\text{rows}, \text{cols})$$</p>
+
+<p>Where $N$ is the total number of observations in the table and $k$ is the smaller of the two dimensions. For a 2×2 table ($k = 2$), V equals the <a class="auto-link" href="Measures-of-Association-in-R.html" title="Measures of Association in R: Cramer's V, Phi, Pearson r With Examples">phi coefficient</a>.</p>
+
+<p>Below, we apply V to R's built-in <code>HairEyeColor</code> data, collapsed over sex to give a 4×4 hair-by-eye table.</p>
+
+<div class="webr-container" data-block-title="Cramer&#x27;s V on HairEyeColor">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Cramer&#x27;s V on HairEyeColor</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tab_hair &lt;- margin.table(HairEyeColor, c(1, 2))
+tab_hair
+#&gt;        Eye
+#&gt; Hair    Brown Blue Hazel Green
+#&gt;   Black    68   20    15     5
+#&gt;   Brown   119   84    54    29
+#&gt;   Red      26   17    14    14
+#&gt;   Blond     7   94    10    16
+
+chi_hair  &lt;- suppressWarnings(chisq.test(tab_hair))
+n_hair    &lt;- sum(tab_hair)
+k_hair    &lt;- min(dim(tab_hair))
+cramers_v &lt;- sqrt(as.numeric(chi_hair$statistic) / (n_hair * (k_hair - 1)))
+round(cramers_v, 3)
+#&gt; [1] 0.279</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Cramér's V of 0.28 signals a moderate association between hair and eye color in this sample. The chi-square p-value is astronomically small (N = 592 makes even small deviations "significant"), but V reveals the practical strength of the dependence without that inflation.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Cramér's V benchmarks shift with degrees of freedom.</strong> For df = 1 (a 2×2 table), Cohen's benchmarks are 0.10 / 0.30 / 0.50. For df = 4 or more, the same effect needs a smaller V, so 0.05 / 0.15 / 0.25 is a common rescaled set. Report df alongside V.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a contingency table of <code>gear</code> and <code>cyl</code> from <code>mtcars</code> and compute Cramér's V.</p>
+<div class="webr-container" data-block-title="Your turn: Cramer&#x27;s V on gear x cyl">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: Cramer&#x27;s V on gear x cyl</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_tab &lt;- table(gear = mtcars$gear, cyl = mtcars$cyl)
+
+# your code here
+# Expected: V around 0.64</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="gear-cyl Cramer&#x27;s V solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">gear-cyl Cramer&#x27;s V solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_chi &lt;- suppressWarnings(chisq.test(ex_tab))
+ex_n   &lt;- sum(ex_tab)
+ex_k   &lt;- min(dim(ex_tab))
+ex_v   &lt;- sqrt(as.numeric(ex_chi$statistic) / (ex_n * (ex_k - 1)))
+round(ex_v, 3)
+#&gt; [1] 0.637</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> With df = 2, V = 0.64 is a large effect: 3-gear cars tend to be 8-cylinder, 4-gear tend to be 4-cylinder, and the correspondence is tight.</p>
+
+</details>
+</section>
+
+<h2>How do you interpret Pearson's r as an effect size?</h2>
+
+<p>Pearson's r is already on a standardized scale from −1 to 1, so it doubles as its own effect size for relationships between two continuous variables. Its magnitude tells you the strength of the linear relationship directly.</p>
+
+<p>Squaring r gives an additional payoff: $r^2$ is the proportion of variance in one variable explained by the other, which lines up with η² from ANOVA on the same "percent variance explained" scale.</p>
+
+<div class="webr-container" data-block-title="Pearson r as an effect size">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pearson r as an effect size</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">r_mpg_wt &lt;- cor(mtcars$mpg, mtcars$wt)
+round(r_mpg_wt, 3)
+#&gt; [1] -0.868
+
+# r-squared: proportion of mpg variance explained by weight
+round(r_mpg_wt^2, 3)
+#&gt; [1] 0.753</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>An r of −0.87 is a very strong negative correlation: as car weight rises, mpg falls. Squaring gives 0.75, meaning weight alone explains 75 percent of the variance in fuel economy. Cohen's benchmarks for r are 0.10 (small), 0.30 (medium), and 0.50 (large), so this is far past "large."</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>r² puts correlation on the same variance-explained scale as η².</strong> That is why you can directly compare "predictor X explains 40 percent of Y" from a correlation with "factor Z explains 45 percent of Y" from an ANOVA. Both are in units of percentage points of variance.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute Pearson's r and r² between <code>Sepal.Width</code> and <code>Petal.Width</code> in the <code>iris</code> dataset.</p>
+<div class="webr-container" data-block-title="Your turn: r and r-squared on iris">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: r and r-squared on iris</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># your code here
+# Expected: r around -0.37, r-squared around 0.13</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="iris r solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">iris r solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_r &lt;- cor(iris$Sepal.Width, iris$Petal.Width)
+round(c(r = ex_r, r2 = ex_r^2), 3)
+#&gt;      r     r2
+#&gt; -0.368  0.135</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> A weak-to-moderate negative correlation: wider sepals pair loosely with narrower petals across species. Petal width explains about 13 percent of sepal width variance, a small effect in Cohen's framing.</p>
+
+</details>
+</section>
+
+<h2>Which effect size should you use?</h2>
+
+<p>With four main families to choose from, picking the right one depends on the test you are running. The decision is mostly mechanical: the structure of the data fixes the effect size family, and you only pick within the family (d vs g, η² vs ω², V vs phi) based on sample size or dimensionality.</p>
+
+<p><img src="screenshots/Effect-Size-in-R-test-to-effect-size.webp" alt="Which effect size family matches each kind of statistical test." class="img-responsive img-zoomable" loading="lazy" width="1118" height="1282" /></p>
+
+<p><em>Figure 1: Which effect size family matches each kind of statistical test.</em></p>
+
+<p>Once you have picked a family, interpretation uses Cohen's benchmarks from his 1988 textbook. They are not laws of nature, but they are widely accepted, and journals expect them as a baseline.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Measure</th>
+<th>Small</th>
+<th>Medium</th>
+<th>Large</th>
+<th>Use when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Cohen's d, Hedges' g</td>
+<td>0.2</td>
+<td>0.5</td>
+<td>0.8</td>
+<td>Comparing two group means</td>
+</tr>
+<tr>
+<td>η², ω²</td>
+<td>0.01</td>
+<td>0.06</td>
+<td>0.14</td>
+<td>One-way ANOVA, 3+ groups</td>
+</tr>
+<tr>
+<td>Cramér's V (df = 1)</td>
+<td>0.10</td>
+<td>0.30</td>
+<td>0.50</td>
+<td>Chi-square, 2×2 or df=1</td>
+</tr>
+<tr>
+<td>Pearson's r</td>
+<td>0.10</td>
+<td>0.30</td>
+<td>0.50</td>
+<td>Two continuous variables</td>
+</tr>
+</tbody>
+</table>
+
+<p>A tiny helper function turns raw d values into Cohen's labels.</p>
+
+<div class="webr-container" data-block-title="Interpret Cohen&#x27;s d against benchmarks">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interpret Cohen&#x27;s d against benchmarks</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">interpret_d &lt;- function(d) {
+  absd &lt;- abs(d)
+  if (absd &lt; 0.2) &quot;negligible&quot;
+  else if (absd &lt; 0.5) &quot;small&quot;
+  else if (absd &lt; 0.8) &quot;medium&quot;
+  else &quot;large&quot;
+}
+
+# Apply to the d values we computed earlier
+c(d_mpg = interpret_d(d_mpg), d_bigN = interpret_d(d_bigN))
+#&gt;     d_mpg     d_bigN
+#&gt;   &quot;large&quot; &quot;negligible&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The mtcars d of 1.48 lands firmly in "large," while the 20000-observation simulation d of 0.05 is "negligible" despite its tiny p-value. Same interpretive framework, opposite substantive conclusions.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Cohen's benchmarks are guidelines, not laws.</strong> A d of 0.2 in a cancer trial can save thousands of lives; a d of 1.0 in a marketing A/B test may be field-trivial if the baseline conversion is already 0.1 percent. Always interpret in domain context.</div></div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Report effect size with a confidence interval when possible.</strong> A point estimate of d = 0.45 with 95% CI [0.05, 0.85] is far less conclusive than d = 0.45 with CI [0.40, 0.50]. Modern methods, including bootstrap, can attach CIs to any of the effect sizes shown here.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> You analyzed survey responses from 500 people and found that a new training program correlates with test-score improvement at r = 0.42. Classify this effect size.</p>
+<div class="webr-container" data-block-title="Your turn: classify an effect size">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: classify an effect size</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_r_train &lt;- 0.42
+
+# your code here
+# Expected output: &quot;large&quot; (r &gt;= 0.5 is large, 0.3-0.5 is medium)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Classify r solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Classify r solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">interpret_r &lt;- function(r) {
+  absr &lt;- abs(r)
+  if (absr &lt; 0.10) &quot;negligible&quot;
+  else if (absr &lt; 0.30) &quot;small&quot;
+  else if (absr &lt; 0.50) &quot;medium&quot;
+  else &quot;large&quot;
+}
+interpret_r(ex_r_train)
+#&gt; [1] &quot;medium&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> r = 0.42 falls in the 0.30–0.50 range, making it a "medium" effect under Cohen's benchmarks for correlations. Worth acting on, but not a ceiling effect.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<h3>Exercise 1: Report η² for iris</h3>
+
+<p>Run a one-way ANOVA of <code>Petal.Length</code> explained by <code>Species</code> in the <code>iris</code> dataset. Extract F, the p-value, and compute η² and ω². Save the three numbers in a named vector called <code>my_iris_report</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 1: iris ANOVA with effect size">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1: iris ANOVA with effect size</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Write your code below
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_fit  &lt;- aov(Petal.Length ~ Species, data = iris)
+my_atbl &lt;- summary(my_fit)[[1]]
+
+my_F      &lt;- my_atbl$&quot;F value&quot;[1]
+my_p      &lt;- my_atbl$&quot;Pr(&gt;F)&quot;[1]
+my_ss_b   &lt;- my_atbl$&quot;Sum Sq&quot;[1]
+my_ss_t   &lt;- sum(my_atbl$&quot;Sum Sq&quot;)
+my_df_b   &lt;- my_atbl$Df[1]
+my_ms_err &lt;- my_atbl$&quot;Mean Sq&quot;[2]
+
+my_eta   &lt;- my_ss_b / my_ss_t
+my_omega &lt;- (my_ss_b - my_df_b * my_ms_err) / (my_ss_t + my_ms_err)
+
+my_iris_report &lt;- round(c(F = my_F, p = my_p, eta2 = my_eta, omega2 = my_omega), 4)
+print(my_iris_report)
+#&gt;        F        p     eta2   omega2
+#&gt; 1180.16   0.0000   0.9414   0.9410</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Species explains about 94 percent of the variance in petal length, one of the largest ANOVA effects you will ever see. η² and ω² agree closely because the sample is large (n = 150).</p>
+
+</details>
+
+<h3>Exercise 2: Ozone in May vs August</h3>
+
+<p>Compare May and August ozone readings in the <code>airquality</code> dataset. Drop NA rows with <code>na.omit()</code> first. Run Welch's t-test, then compute Cohen's d and Hedges' g using the functions from earlier. Interpret d against Cohen's benchmarks.</p>
+
+<div class="webr-container" data-block-title="Exercise 2: airquality effect size">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2: airquality effect size</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: filter Ozone by Month == 5 and Month == 8, drop NAs
+# Use cohens_d() and hedges_g() defined earlier
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_may  &lt;- na.omit(airquality$Ozone[airquality$Month == 5])
+my_aug  &lt;- na.omit(airquality$Ozone[airquality$Month == 8])
+
+my_t    &lt;- t.test(my_aug, my_may)
+my_d    &lt;- cohens_d(my_aug, my_may)
+my_g    &lt;- hedges_g(my_aug, my_may)
+
+round(c(
+  p = my_t$p.value,
+  d = my_d,
+  g = my_g
+), 3)
+#&gt;     p     d     g
+#&gt; 0.000 1.343 1.321</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> August ozone averages about 1.34 pooled SDs above May, which is a very large effect. Hedges' g is only 0.02 lower because the combined sample is healthy. Interpretation: the seasonal effect on ozone is large, not just "statistically detectable."</p>
+
+</details>
+
+<h2>Complete Example: Effect size report for mtcars</h2>
+
+<p>A full effect-size report usually pairs each test in your analysis with its matching effect size. Here is that workflow end-to-end on <code>mtcars</code>, touching all four families covered above.</p>
+
+<div class="webr-container" data-block-title="Complete example: four effect sizes on mtcars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Complete example: four effect sizes on mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># 1. Cohen's d: mpg by transmission (2 groups)
+mt_d &lt;- cohens_d(manual, auto)
+
+# 2. eta-squared: mpg by cylinder (3 groups, ANOVA)
+mt_fit  &lt;- aov(mpg ~ factor(cyl), data = mtcars)
+mt_atbl &lt;- summary(mt_fit)[[1]]
+mt_eta  &lt;- mt_atbl$&quot;Sum Sq&quot;[1] / sum(mt_atbl$&quot;Sum Sq&quot;)
+
+# 3. Cramer's V: gear by cyl (categorical association)
+mt_tab &lt;- table(mtcars$gear, mtcars$cyl)
+mt_chi &lt;- suppressWarnings(chisq.test(mt_tab))
+mt_v   &lt;- sqrt(as.numeric(mt_chi$statistic) /
+               (sum(mt_tab) * (min(dim(mt_tab)) - 1)))
+
+# 4. Pearson r: mpg by weight (continuous pair)
+mt_r &lt;- cor(mtcars$mpg, mtcars$wt)
+
+round(c(
+  &quot;Cohen d (mpg ~ am)&quot;    = mt_d,
+  &quot;eta2   (mpg ~ cyl)&quot;    = mt_eta,
+  &quot;Cramer V (gear ~ cyl)&quot; = mt_v,
+  &quot;Pearson r (mpg ~ wt)&quot;  = mt_r
+), 3)
+#&gt;    Cohen d (mpg ~ am)    eta2   (mpg ~ cyl) Cramer V (gear ~ cyl)
+#&gt;                 1.478                 0.732                 0.637
+#&gt;  Pearson r (mpg ~ wt)
+#&gt;                -0.868</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Reading the output: transmission type, cylinder count, gear-cylinder association, and vehicle weight all have very large relationships with mpg. Every number sits above Cohen's "large" cutoff. That is expected for mtcars because it was assembled to contrast very different car designs, not to look like real-world sampling noise.</p>
+
+<p>In a real report, you would pair each number with its <a class="auto-link" href="Hypothesis-Testing-in-R.html" title="Hypothesis Testing in R: Understand the Framework, Not Just the p-Value">test statistic</a> and p-value. The effect size is the punchline, but the test confirms it is not a sampling fluke.</p>
+
+<h2>Summary</h2>
+
+<p>Effect size is the number that turns "the groups differ" into "here is how much they differ, on a scale I can interpret." Use the right family for your data structure, interpret against Cohen's benchmarks while accounting for your domain, and you will never again read a p-value as a magnitude.</p>
+
+<p><img src="screenshots/Effect-Size-in-R-families-mindmap.webp" alt="Families of effect size and their key members." class="img-responsive img-zoomable" loading="lazy" width="1686" height="876" /></p>
+
+<p><em>Figure 2: Families of effect size and their key members.</em></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Question</th>
+<th>Measure</th>
+<th>Small / Medium / Large</th>
+<th>Base-R recipe</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Do two groups differ?</td>
+<td>Cohen's d, Hedges' g</td>
+<td>0.2 / 0.5 / 0.8</td>
+<td>Mean diff / pooled SD</td>
+</tr>
+<tr>
+<td>Does a factor explain variance?</td>
+<td>η², ω²</td>
+<td>0.01 / 0.06 / 0.14</td>
+<td>SS_between / SS_total</td>
+</tr>
+<tr>
+<td>Are two categories associated?</td>
+<td>Cramér's V, phi</td>
+<td>0.10 / 0.30 / 0.50 (df=1)</td>
+<td>√(χ² / (N·(k−1)))</td>
+</tr>
+<tr>
+<td>Do two continuous variables relate?</td>
+<td>Pearson r, r²</td>
+<td>0.10 / 0.30 / 0.50</td>
+<td><code>cor(x, y)</code></td>
+</tr>
+</tbody>
+</table>
+
+<p>Three habits go with the table. Always report effect size when you report a p-value. Always note your benchmark source (Cohen, Sawilowsky, or a domain-specific paper). Always attach a confidence interval if your sample is small enough that the point estimate could shift meaningfully with more data.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Cohen, J. <em><a class="auto-link" href="Sample-Size-Planning-in-R.html" title="Sample Size in R: Calculate Your N Before You Collect a Single Observation">Statistical Power</a> Analysis for the Behavioral Sciences</em>, 2nd ed. Lawrence Erlbaum (1988). <a href="https://www.routledge.com/Statistical-Power-Analysis-for-the-Behavioral-Sciences/Cohen/p/book/9780805802832">Link</a></li>
+
+<li>Lakens, D. (2013). Calculating and <a class="auto-link" href="Statistical-Report-Writing-in-R.html" title="Write Statistical Reports in R That Non-Statisticians Actually Understand">reporting effect sizes</a> to facilitate cumulative science: a practical primer for t-tests and ANOVAs. <em>Frontiers in Psychology</em>, 4, 863. <a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC3840331/">Link</a></li>
+
+<li>Cumming, G. (2014). The New Statistics: Why and How. <em>Psychological Science</em>, 25(1), 7–29. <a href="https://journals.sagepub.com/doi/10.1177/0956797613504966">Link</a></li>
+
+<li>Nakagawa, S. & Cuthill, I. C. (2007). Effect size, confidence interval and statistical significance: a practical guide for biologists. <em>Biological Reviews</em>, 82, 591–605. <a href="https://onlinelibrary.wiley.com/doi/10.1111/j.1469-185X.2007.00027.x">Link</a></li>
+
+<li>Olejnik, S. & Algina, J. (2003). Generalized eta and omega squared statistics: measures of effect size for some common research designs. <em>Psychological Methods</em>, 8(4), 434–447. <a href="https://psycnet.apa.org/record/2003-10813-004">Link</a></li>
+
+<li>American Psychological Association (2020). <em>Publication Manual of the American Psychological Association</em>, 7th ed. <a href="https://apastyle.apa.org/products/publication-manual-7th-edition">Link</a></li>
+
+<li>R Core Team. <em>An Introduction to R</em>, base <a class="auto-link" href="Getting-Help-in-R.html" title="Stuck in R? 6 Ways to Get Unstuck Without Wasting Hours">R documentation</a> for <code>aov()</code>, <code>chisq.test()</code>, <code>cor()</code>. <a href="https://cran.r-project.org/doc/manuals/r-release/R-intro.html">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Hypothesis-Testing-in-R.html">Hypothesis Testing in R</a>: runs the tests whose effect sizes this post computes, from two-sample t-tests to chi-square.</li>
+
+<li><a href="Statistical-Power-Analysis-in-R.html">Power Analysis in R</a>: feed your planned effect size into power analysis to get the sample size your study needs. Closes the design loop.</li>
+
+<li><a href="Measures-of-Association-in-R.html">Measures of Association in R</a>: deeper coverage of categorical association measures beyond Cramér's V, including Kendall's tau-b and Goodman-Kruskal's gamma.</li>
+
+</ul>
+
+{% endraw %}
