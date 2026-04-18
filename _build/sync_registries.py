@@ -132,27 +132,11 @@ def sync_sidebar(posts, dry_run=False):
         existing.add(filename)
         added += 1
 
-    # Sort each section by sidebar_order where available
-    for post in posts:
-        if post.get('post_type') != 'C' or not post.get('sidebar_order'):
-            continue
-        section_name = post.get('sidebar_section', '')
-        if section_name not in section_map:
-            continue
-        section = section_map[section_name]
-        # Build order map from posts
-        order_map = {}
-        for p in posts:
-            if p.get('sidebar_section') == section_name and p.get('sidebar_order'):
-                try:
-                    order_map[p['filename']] = int(p['sidebar_order'])
-                except ValueError:
-                    pass
-        # Sort items: ordered items first (by order), then unordered items (preserve position)
-        ordered = [i for i in section['items'] if not i.get('divider') and i['href'] in order_map]
-        unordered = [i for i in section['items'] if i.get('divider') or i['href'] not in order_map]
-        ordered.sort(key=lambda i: order_map.get(i['href'], 999))
-        section['items'] = ordered + unordered
+    # Append-only: sidebar.json is hand-curated. We never reorder items or
+    # move dividers. The previous sort-by-sidebar_order logic dumped dividers
+    # at the end of each section and scrambled subsections; it has been
+    # removed. If a bulk batch needs re-sorting, run a standalone
+    # divider-aware sort script manually — never here.
 
     if not dry_run and added > 0:
         with open(SIDEBAR_PATH, 'w', encoding='utf-8') as f:
