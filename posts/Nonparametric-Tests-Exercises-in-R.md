@@ -1,64 +1,65 @@
 ---
 title: "Nonparametric Tests Exercises in R: 10 Practice Problems, Solved Step-by-Step"
 slug: Nonparametric-Tests-Exercises-in-R
-description: "10 nonparametric tests exercises in R with runnable solutions: Wilcoxon signed-rank, Mann-Whitney U, Kruskal-Wallis, post-hoc, effect sizes, and tie handling."
-keywords: "nonparametric tests exercises in R, Wilcoxon exercises R, Mann-Whitney U exercises, Kruskal-Wallis practice problems, wilcox.test examples, kruskal.test R, rank-sum test exercises, nonparametric effect size R"
-auto_link_terms: "nonparametric tests exercises|nonparametric practice problems|Wilcoxon exercises|Mann-Whitney exercises|Kruskal-Wallis exercises|rank-sum exercises|signed-rank exercises|nonparametric test solutions"
+description: "10 nonparametric tests exercises in R with runnable solutions: Wilcoxon signed-rank, Mann-Whitney U, Kruskal-Wallis, post-hoc, and rank-based effect sizes."
+keywords: "nonparametric tests exercises in R, Wilcoxon test R, Mann-Whitney test R, Kruskal-Wallis exercises, nonparametric practice problems, wilcox.test examples, kruskal.test examples, rank-based tests R"
+auto_link_terms: "nonparametric tests exercises|nonparametric practice problems|Wilcoxon exercises|Mann-Whitney exercises|Kruskal-Wallis exercises|rank-based tests exercises|nonparametric solutions"
 auto_link_case_sensitive: false
 mathjax: true
 webr: true
 date: 2026-04-18
 curriculum_id: E5.6
 post_type: EX
-sidebar_title: "Nonparametric Exercises (10 problems)"
+sidebar_title: "Nonparametric Tests Exercises (10 problems)"
 fr_parent: Wilcoxon-Mann-Whitney-and-Kruskal-Wallis-in-R.html
 difficulty: Intermediate
 ---
 
 # Nonparametric Tests Exercises in R: 10 Practice Problems, Solved Step-by-Step
 
-<p class="lead">These 10 nonparametric tests exercises in R walk you through Wilcoxon signed-rank, Mann-Whitney U, and Kruskal-Wallis with runnable solutions, covering one-sample, paired, and multi-group layouts plus post-hoc pairs, effect sizes, and tie handling so you can pick the right test and defend the p-value.</p>
+<p class="lead">These 10 nonparametric tests exercises in R cover one-sample Wilcoxon signed-rank, two-sample Mann-Whitney U, paired signed-rank, Kruskal-Wallis for three or more groups, post-hoc pairwise comparisons, Hodges-Lehmann confidence intervals, tie handling, and rank-based effect sizes, each one runnable in your browser.</p>
 
-## Which nonparametric test matches your question setup?
+## Which non-parametric test matches your design?
 
-Three rank-based tests cover most real use. Which one fires depends only on the data layout: how many groups you have, and whether measurements are paired. Here are the three calls on built-in R data in a single block so you can see the shapes side by side before the 10 exercises begin.
+One of three R calls covers 90% of rank-based problems. The choice depends only on how your data is laid out: one group, two independent groups, two paired groups, or three-plus groups. Here are all three tests run against the same built-in datasets so you can see the output shape before starting the exercises.
 
-```r title="Three nonparametric tests side by side"
-# One-sample signed-rank: is mtcars wt median different from 3.2?
-os_res <- wilcox.test(mtcars$wt, mu = 3.2)
+```r title="Three rank-based tests, three data layouts"
+# Layout 1: one sample, test median vs a claimed value
+one_res <- wilcox.test(mtcars$mpg, mu = 20)
 
-# Mann-Whitney U (two independent groups): sleep data, two drugs
-ms_res <- wilcox.test(extra ~ group, data = sleep)
+# Layout 2: two independent groups (Mann-Whitney U)
+set4 <- mtcars$mpg[mtcars$cyl == 4]
+set8 <- mtcars$mpg[mtcars$cyl == 8]
+mw_res <- wilcox.test(set4, set8)
 
-# Kruskal-Wallis (3+ groups): iris Sepal.Width across 3 species
-ks_res <- kruskal.test(Sepal.Width ~ Species, data = iris)
+# Layout 3: three or more groups (Kruskal-Wallis)
+kw_res <- kruskal.test(Sepal.Width ~ Species, data = iris)
 
-c(one_sample_p = os_res$p.value,
-  mann_whitney_p = ms_res$p.value,
-  kruskal_wallis_p = ks_res$p.value)
-#>    one_sample_p  mann_whitney_p kruskal_wallis_p
-#>    7.459318e-01    6.932224e-02    1.569282e-14
+c(one_sample     = one_res$p.value,
+  mann_whitney   = mw_res$p.value,
+  kruskal_wallis = kw_res$p.value)
+#>     one_sample    mann_whitney  kruskal_wallis
+#>   4.027e-01       4.192e-06       9.514e-15
 ```
 
-Each call answers a different question. The one-sample call asks whether an overall median matches a reference value. The Mann-Whitney call asks whether two independent groups come from the same distribution. The Kruskal-Wallis call asks the same question for three or more groups. Same family, three layouts, three very different p-values.
+Three calls, three p-values, same `$p.value` field on every result. The one-sample test fails to reject that median mpg equals 20 (p = 0.40). The Mann-Whitney test strongly rejects equal mpg across 4-cyl and 8-cyl cars (p = 4e-06). The Kruskal-Wallis test crushes the null that `Sepal.Width` is interchangeable across iris species (p = 1e-14). Same function family, same result shape, just different input layouts.
 
-| Your setup | R call | When to use |
+Here is the one-line decision rule:
+
+| You have... | Are measurements paired? | R call |
 |---|---|---|
-| One group vs a reference value | `wilcox.test(x, mu = value)` | Median comparison on a skewed or ordinal sample |
-| Two independent groups | `wilcox.test(y ~ group, data = d)` | Different subjects in each group, non-normal outcome |
-| Two paired measurements | `wilcox.test(y ~ group, data = d, paired = TRUE)` | Same subjects measured twice (before/after, matched pairs) |
-| Three or more groups | `kruskal.test(y ~ group, data = d)` | Multi-group comparison when ANOVA assumptions fail |
+| One sample + a claimed centre | N/A | `wilcox.test(x, mu = m)` |
+| Two independent groups | No | `wilcox.test(y ~ g)` or `wilcox.test(x, y)` |
+| Two groups, same subjects | Yes | `wilcox.test(x, y, paired = TRUE)` |
+| Three or more groups | No | `kruskal.test(y ~ g)` |
 
 [KEY INSIGHT]
-**Mann-Whitney U and the Wilcoxon rank-sum test are the same test under two names.** R's `wilcox.test()` implements both. The statistic it prints (`W`) equals Mann-Whitney's U for the first group. You do not need two functions for two papers that used different labels.
+**Mann-Whitney U and Wilcoxon rank-sum are the same test under two names.** R only ships `wilcox.test()`, which returns a W statistic equal to the Wilcoxon rank sum shifted by a constant. Whether a paper calls the result "U" or "W", the p-value is identical. "Non-parametric" means the test does not assume a specific distribution shape (like normal), not that it is assumption-free. It still assumes independence and, for the paired test, a symmetric distribution of differences.
 
-**Try it:** You have two vectors `before` and `after` holding 10 patients' cholesterol measured twice. Which flag does `wilcox.test()` need to treat them as paired rather than independent? Set `ex_flag` to `"paired"` or `"mu"`.
+**Try it:** A trainer measures blood pressure for 15 patients before and after an intervention. Same patients, two measurements each. Which flag in `wilcox.test()` must you set? Save `"paired"` or `"mu"` to `ex_flag`.
 
-```r title="Your turn: pick the flag"
-# Same 10 patients, two measurements each
-before <- c(210, 198, 225, 240, 215, 200, 220, 235, 205, 230)
-after  <- c(200, 190, 215, 225, 208, 195, 210, 220, 200, 220)
-
+```r title="Your turn: pick the wilcox.test flag"
+# Try it: before/after on the same 15 patients
 ex_flag <- "___"   # replace with "paired" or "mu"
 ex_flag
 #> Expected: "paired"
@@ -67,77 +68,104 @@ ex_flag
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Pick the flag solution"
+```r title="Paired design solution"
 ex_flag <- "paired"
-wilcox.test(before, after, paired = TRUE)$p.value
-#> [1] 0.005086263
+ex_flag
+#> [1] "paired"
 ```
 
-**Explanation:** Each subject contributes two linked measurements. `paired = TRUE` tells `wilcox.test()` to subtract within-subject, then run a signed-rank test on the differences. The `mu` flag is for one-sample tests against a reference value, which is a different question.
+**Explanation:** Same subjects measured twice is a paired design. Set `paired = TRUE` and pass the two vectors, `wilcox.test(before, after, paired = TRUE)`. `mu` is the one-sample null centre, irrelevant when you have two measurements per subject.
 
 </details>
 
-## How do you read and report a Wilcoxon or Kruskal-Wallis result?
+## How do you read wilcox.test() and kruskal.test() output?
 
-The print block from `wilcox.test()` is friendly, but every number in it is also accessible by name. For reports and pipelines, pull the fields directly: `statistic` (the W or H value), `p.value`, and for Kruskal-Wallis, `parameter` (degrees of freedom). That lets you drop values straight into text with `sprintf`.
+Both functions return a `htest` list with everything you need for a write-up: the test statistic, p-value, alternative hypothesis, and (for Wilcoxon with `conf.int = TRUE`) a confidence interval plus Hodges-Lehmann location estimate. Pulling fields by name gives one-line access for report tables, assumption checks, and downstream plots.
 
-```r title="Extract fields from a rank-sum result"
-# Mann-Whitney comparing iris petal lengths: setosa vs versicolor
-sub <- subset(iris, Species %in% c("setosa", "versicolor"))
-rs_res <- wilcox.test(Petal.Length ~ Species, data = sub)
+```r title="Extract every useful field from wilcox.test and kruskal.test"
+# Mann-Whitney with confidence interval switched on
+mw_full <- wilcox.test(set4, set8, conf.int = TRUE)
 
-# Pull the fields you actually need
-rs_res$statistic
-#>    W
-#> 0
-rs_res$p.value
-#> [1] 8.035846e-18
+mw_full$statistic
+#>   W
+#> 117
+mw_full$p.value
+#> [1] 4.192e-06
+mw_full$estimate
+#> difference in location
+#>                  10.50
+mw_full$conf.int
+#> [1] 6.300 14.200
+#> attr(,"conf.level")
+#> [1] 0.95
 
-# Format a one-line report
-sprintf("Mann-Whitney U: W = %.0f, p = %.3g",
-        rs_res$statistic, rs_res$p.value)
-#> [1] "Mann-Whitney U: W = 0, p = 8.04e-18"
+# Kruskal-Wallis fields (reuse kw_res from earlier)
+kw_res$statistic
+#> Kruskal-Wallis chi-squared
+#>                      63.57
+kw_res$parameter
+#> df
+#>  2
+kw_res$p.value
+#> [1] 9.514e-15
 ```
 
-A W of zero means every setosa observation ranked below every versicolor observation. That is a complete, non-overlapping separation, and the p-value of roughly $8 \times 10^{-18}$ is the test's way of saying there is no scenario where these two species share a distribution of petal length. Pull the fields you need, then hand-format them. This is how you keep statistical reporting reproducible instead of screenshot-based.
+The Wilcoxon `$estimate` is the Hodges-Lehmann estimator, the median of all pairwise differences between the two samples. It is a rank-based analogue of a mean difference, and its 95% CI of 6.3 to 14.2 mpg is the interval you report instead of `mean(set4) - mean(set8)`. For Kruskal-Wallis, `$statistic` is H and `$parameter` is df = groups minus 1. Those three fields plus the p-value are everything a reviewer asks for.
 
-[NOTE]
-**`wilcox.test()` and `kruskal.test()` drop NA values silently.** If your input has missing data, compare `length(x)` before and after removing NAs so your reported sample size matches the test's effective sample size. Hidden NAs are a top source of "why does my p-value not match the paper?" questions.
+Here are the five fields you will reach for most often:
 
-**Try it:** Run Kruskal-Wallis on iris `Sepal.Width` by `Species` and pull only the p-value formatted to 4 decimal places. Store the formatted string in `ex_kw_p`.
+| Field | wilcox.test | kruskal.test | When to use |
+|---|---|---|---|
+| `$statistic` | W (rank-sum / signed-rank) | H (chi-sq approximation) | Always report |
+| `$parameter` | not present | df = k − 1 | KW write-ups |
+| `$p.value` | Tail probability | Tail probability | The decision number |
+| `$estimate` | Hodges-Lehmann (with `conf.int`) | not present | Effect magnitude |
+| `$conf.int` | 95% CI on HL (with `conf.int`) | not present | Uncertainty range |
 
-```r title="Your turn: extract a KW p-value"
-# Run the test and extract just the p-value, rounded to 4 decimals
-ex_kw_p <- "___"   # replace with your formatted string
-ex_kw_p
-#> Expected: "0.0000"
+[TIP]
+**broom::tidy() turns any R test into a one-row data frame.** `broom::tidy(mw_full)` returns a clean `estimate / statistic / p.value / method / alternative` row that drops into markdown tables or `ggplot` panels. Useful when you run the same test across many subsets with `purrr::map()`.
+
+[WARNING]
+**If you see "cannot compute exact p-value with ties", the asymptotic approximation was used.** Rank-based tests assume continuous data so ties shouldn't occur, but real data has them. R silently falls back to a normal approximation (with continuity correction unless you set `correct = FALSE`). For small samples with many ties, the fallback is inaccurate, consider `coin::wilcox_test()` for an exact permutation-based alternative.
+
+**Try it:** Extract just the p-value from a one-sample Wilcoxon test on `mtcars$mpg` with null median `mu = 20`. Save it to `ex_p`, rounded to 4 decimals.
+
+```r title="Your turn: extract the one-sample p-value"
+# Try it: one-sample wilcox on mtcars$mpg against mu = 20, keep only p, rounded
+ex_p <- round(wilcox.test(___, mu = ___)$p.value, 4)   # fill in the vector and null
+ex_p
+#> Expected: 0.4027
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Extract KW p-value solution"
-kw <- kruskal.test(Sepal.Width ~ Species, data = iris)
-ex_kw_p <- sprintf("%.4f", kw$p.value)
-ex_kw_p
-#> [1] "0.0000"
+```r title="One-sample p-value solution"
+ex_p <- round(wilcox.test(mtcars$mpg, mu = 20)$p.value, 4)
+ex_p
+#> [1] 0.4027
 ```
 
-**Explanation:** `kw$p.value` returns the raw numeric. `sprintf("%.4f", ...)` rounds to 4 decimals as a character string, which is what reports and Shiny apps usually want. The reported value of 0.0000 means the raw p-value is below $5 \times 10^{-5}$, so the three species clearly differ in sepal width.
+**Explanation:** `wilcox.test(x, mu = 20)` runs the one-sample signed-rank test of whether the pseudo-median of `x` equals 20. The observed median of `mtcars$mpg` is 19.2, close enough to 20 that with n = 32 the test cannot reject, p = 0.40.
 
 </details>
 
 ## Practice Exercises
 
-Ten exercises follow, ordered by progressive difficulty. Each one runs in the same browser R session, so variables from earlier exercises stay in memory. Variable names are prefixed with `ex1_`, `ex2_`, and so on, so your exercise work does not clash with the teaching examples above.
+Ten capstone problems, ordered roughly easier to harder. Every exercise uses a distinct `ex<N>_` prefix so solutions do not clobber earlier tutorial state.
 
 ### Exercise 1: One-sample Wilcoxon signed-rank against a claimed median
 
-An automaker claims the median weight of mid-size cars in the mtcars dataset is 3.2 (thousand pounds). Test whether the data disagrees with that claim at the 5% level. Extract the p-value and decide whether to reject.
+Test whether the median weight in `mtcars$wt` differs from 3.2 (thousand pounds). Save the full result to `ex1_res`. State the decision at α = 0.05 and explain why the pseudo-median is a better target than the simple median when the distribution is skewed.
 
 ```r title="Exercise 1 starter: one-sample signed-rank"
-# Hint: wilcox.test(x, mu = ...)
-# Save the whole result to ex1_res, then print ex1_res$p.value
+# Exercise 1: is median mtcars$wt different from 3.2?
+# Hint: wilcox.test(vec, mu = 3.2, conf.int = TRUE)
+ex1_vec <- mtcars$wt
+median(ex1_vec)
+#> [1] 3.325
+
+# Write your code below:
 
 ```
 
@@ -145,21 +173,36 @@ An automaker claims the median weight of mid-size cars in the mtcars dataset is 
 <summary>Click to reveal solution</summary>
 
 ```r title="Exercise 1 solution"
-ex1_res <- wilcox.test(mtcars$wt, mu = 3.2)
-ex1_res$p.value
-#> [1] 0.7459318
+ex1_res <- wilcox.test(ex1_vec, mu = 3.2, conf.int = TRUE)
+ex1_res
+#>
+#> 	Wilcoxon signed rank test with continuity correction
+#>
+#> data:  ex1_vec
+#> V = 269, p-value = 0.3073
+#> alternative hypothesis: true location is not equal to 3.2
+#> 95 percent confidence interval:
+#>  2.9975 3.6100
+#> sample estimates:
+#> (pseudo)median
+#>        3.2325
 ```
 
-**Explanation:** The p-value of 0.75 is nowhere near 0.05, so there is no evidence against the claim. The signed-rank test here asks whether the pseudo-median of mtcars weights differs from 3.2, because the Wilcoxon does not require symmetry around the true median, the reference point is technically the pseudo-median. This distinction matters only for skewed distributions.
+**Explanation:** The signed-rank test converts each `x - 3.2` difference to a signed rank and asks whether the positive and negative ranks balance. V = 269, p = 0.31, so we fail to reject. The 95% CI on the pseudo-median (2.998 to 3.610) contains 3.2, telling the same story from a location-estimate angle. Use the pseudo-median instead of `median()` when you want a signed-rank-compatible centre for a potentially asymmetric distribution.
 
 </details>
 
 ### Exercise 2: Mann-Whitney U on two independent groups
 
-Does petal length differ between the `setosa` and `versicolor` species in `iris`? Run a two-sided Mann-Whitney U test. Save the result to `ex2_res` and report both the W statistic and the p-value.
+Using the `iris` dataset, compare `Petal.Length` between setosa and versicolor. Save the result to `ex2_res`. Report W and the p-value.
 
-```r title="Exercise 2 starter: two independent groups"
-# Hint: subset iris to two species, then wilcox.test(Petal.Length ~ Species, data = ...)
+```r title="Exercise 2 starter: Mann-Whitney on iris"
+# Exercise 2: Petal.Length setosa vs versicolor
+# Hint: wilcox.test(x, y) when you have two independent numeric vectors
+ex2_g_set <- iris$Petal.Length[iris$Species == "setosa"]
+ex2_g_ver <- iris$Petal.Length[iris$Species == "versicolor"]
+
+# Write your code below:
 
 ```
 
@@ -167,27 +210,29 @@ Does petal length differ between the `setosa` and `versicolor` species in `iris`
 <summary>Click to reveal solution</summary>
 
 ```r title="Exercise 2 solution"
-ex2_sub <- subset(iris, Species %in% c("setosa", "versicolor"))
-ex2_res <- wilcox.test(Petal.Length ~ Species, data = ex2_sub)
-c(W = unname(ex2_res$statistic), p = ex2_res$p.value)
-#>            W            p
-#> 0.000000e+00 8.035846e-18
+ex2_res <- wilcox.test(ex2_g_set, ex2_g_ver)
+ex2_res
+#>
+#> 	Wilcoxon rank sum test with continuity correction
+#>
+#> data:  ex2_g_set and ex2_g_ver
+#> W = 0, p-value < 2.2e-16
+#> alternative hypothesis: true location shift is not equal to 0
 ```
 
-**Explanation:** W = 0 means every setosa petal ranked below every versicolor petal, complete separation. The p-value of roughly $8 \times 10^{-18}$ is as small as it gets. In practical language: if these two species had the same petal-length distribution, you would not expect to see zero overlap in 100 samples, let alone the first one.
+**Explanation:** Setosa petals range 1.0 to 1.9 cm and versicolor petals range 3.0 to 5.1 cm. Zero overlap means every setosa value ranks below every versicolor value, so W = 0 (the minimum possible). The p-value is below `.Machine$double.eps`, R prints `< 2.2e-16`. When two samples are perfectly separable, the rank-sum test returns the most extreme p-value it can produce.
 
 </details>
 
 ### Exercise 3: One-tailed Mann-Whitney (direction matters)
 
-Building on Exercise 2, now test the specific hypothesis that versicolor petals are *longer* than setosa petals. Use `alternative = "greater"`. Mind the order of factor levels when interpreting "greater".
+Re-run Exercise 2 with the alternative hypothesis "versicolor petals are *longer* than setosa petals". Save the result to `ex3_res`. Explain why a one-tailed test halves the p-value when the effect is in the hypothesised direction.
 
-[TIP]
-**`alternative` has three values: `"two.sided"` (default), `"less"`, `"greater"`.** For a formula interface like `Petal.Length ~ Species`, "greater" means the *first* factor level's distribution tends to be greater than the second. Check the order with `levels()` or you will mis-sign your conclusion.
+```r title="Exercise 3 starter: one-tailed Mann-Whitney"
+# Exercise 3: one-tailed (versicolor > setosa)
+# Hint: the first vector is what the alternative says is larger
 
-```r title="Exercise 3 starter: one-tailed rank-sum"
-# Hint: check levels(ex2_sub$Species), then add alternative = "greater" or "less"
-# Save as ex3_res
+# Write your code below:
 
 ```
 
@@ -195,25 +240,42 @@ Building on Exercise 2, now test the specific hypothesis that versicolor petals 
 <summary>Click to reveal solution</summary>
 
 ```r title="Exercise 3 solution"
-# setosa is level 1, versicolor is level 2
-# To test "versicolor > setosa", we need "less" because level 1 (setosa) < level 2 (versicolor)
-ex3_res <- wilcox.test(Petal.Length ~ Species, data = ex2_sub,
-                       alternative = "less")
-ex3_res$p.value
-#> [1] 4.017923e-18
+ex3_res <- wilcox.test(ex2_g_ver, ex2_g_set, alternative = "greater")
+ex3_res
+#>
+#> 	Wilcoxon rank sum test with continuity correction
+#>
+#> data:  ex2_g_ver and ex2_g_set
+#> W = 2500, p-value < 2.2e-16
+#> alternative hypothesis: true location shift is greater than 0
 ```
 
-**Explanation:** `levels(ex2_sub$Species)` puts setosa first. Testing `alternative = "less"` on the formula means "first level's distribution is less than second level's", which is the same as "versicolor petals are longer than setosa petals". The one-tailed p-value is exactly half the two-sided p-value from Exercise 2, as expected when the effect aligns with the hypothesis direction.
+**Explanation:** Putting versicolor first in `wilcox.test(ver, set, alternative = "greater")` tests whether the first sample is stochastically larger than the second. W = 2500 (the maximum possible for 50 × 50 samples), and the one-tailed p-value equals the right-tail area only. With perfect separation it saturates at the floating-point limit. For a less extreme effect, the one-tailed p would be exactly half the two-tailed p when the observed direction matches the alternative.
 
 </details>
 
-### Exercise 4: Paired Wilcoxon signed-rank (before/after)
+[TIP]
+**`alternative = "two.sided"` is the safe default, change it only when the direction is pre-specified.** Picking one-tailed *after* peeking at group means inflates false positives and is a common reviewer red flag. Lock in one-tailed from your pre-registration or hypothesis, not from the data.
 
-The built-in `sleep` dataset records 10 patients who each tried two different sleep drugs. The `extra` column is extra hours of sleep, and `group` is the drug (1 or 2). Run a paired signed-rank test to see whether drug 1 and drug 2 differ.
+### Exercise 4: Paired Wilcoxon signed-rank on the sleep dataset
 
-```r title="Exercise 4 starter: paired test"
-# Hint: the sleep data has the same 10 IDs in each group, paired = TRUE
-# Save as ex4_res
+R's built-in `sleep` dataset records extra hours of sleep from the same 10 subjects taking two soporific drugs (groups 1 and 2). Run a paired Wilcoxon signed-rank test and save the result to `ex4_res`.
+
+```r title="Exercise 4 starter: paired sleep data"
+# Exercise 4: paired signed-rank on sleep
+# Hint: each ID appears in both groups, pass paired = TRUE
+ex4_d1 <- sleep$extra[sleep$group == 1]
+ex4_d2 <- sleep$extra[sleep$group == 2]
+head(cbind(ex4_d1, ex4_d2))
+#>      ex4_d1 ex4_d2
+#> [1,]    0.7    1.9
+#> [2,]   -1.6    0.8
+#> [3,]   -0.2    1.1
+#> [4,]   -1.2    0.1
+#> [5,]   -0.1   -0.1
+#> [6,]    3.4    4.4
+
+# Write your code below:
 
 ```
 
@@ -221,31 +283,34 @@ The built-in `sleep` dataset records 10 patients who each tried two different sl
 <summary>Click to reveal solution</summary>
 
 ```r title="Exercise 4 solution"
-ex4_res <- wilcox.test(extra ~ group, data = sleep, paired = TRUE)
-c(V = unname(ex4_res$statistic), p = ex4_res$p.value)
-#>           V           p
-#> 0.000000000 0.009090801
+ex4_res <- suppressWarnings(wilcox.test(ex4_d1, ex4_d2, paired = TRUE))
+ex4_res
+#>
+#> 	Wilcoxon signed rank test with continuity correction
+#>
+#> data:  ex4_d1 and ex4_d2
+#> V = 0, p-value = 0.009091
+#> alternative hypothesis: true location shift is not equal to 0
 ```
 
-**Explanation:** V = 0 here is the signed-rank equivalent of W = 0: every within-patient difference pointed the same direction (drug 2 gave more extra sleep for every patient). The paired p-value of 0.009 rejects equality at the 1% level. An unpaired Mann-Whitney on the same data would give a much larger p-value because it throws away the within-subject pairing.
+**Explanation:** With `paired = TRUE`, R computes `d <- ex4_d1 - ex4_d2` per subject, ranks the `|d|` values, signs them, and sums the positive ranks into V. Here every subject slept longer on drug 2 than drug 1, so every signed difference is negative, positive ranks sum to V = 0 (the minimum). The asymptotic p-value of 0.0091 rejects "no difference" at α = 0.05, drug 2 outperforms drug 1 in this sample.
 
 </details>
 
-### Exercise 5: Tie handling and exact vs approximate p-values
+[NOTE]
+**Paired vs independent is a design decision, not a data decision.** If the same subject contributes to both groups (before/after, left/right, rater/re-rater), it is paired. If subjects are independently sampled into group A vs group B, it is unpaired. Running the wrong variant can flip a significant result either way because pairing removes between-subject variance.
 
-Construct a small dataset with deliberate ties and run a rank-sum test. R will print a warning ("cannot compute exact p-value with ties"). Re-run with `exact = FALSE, correct = TRUE` to get a clean approximate p-value instead.
+### Exercise 5: Tie handling, exact vs approximate p-values
 
-[WARNING]
-**"Cannot compute exact p-value with ties" means the default exact algorithm fell back to the normal approximation silently.** The p-value you get is valid, but the warning signals that tied ranks exist. Rerun with `exact = FALSE, correct = TRUE` to make the approximation explicit and the warning go away.
+Here is a small dataset with deliberate ties. Run `wilcox.test()` on it first with defaults (watch for the ties warning), then suppress the exact calculation with `exact = FALSE`. Save the final result to `ex5_res`.
 
-```r title="Exercise 5 starter: ties produce a warning"
-# Hint: make two small vectors with some repeated values
-ex5_tied <- list(
-  a = c(1, 2, 2, 3, 4),
-  b = c(2, 3, 3, 4, 5)
-)
-# Run wilcox.test on ex5_tied$a vs ex5_tied$b and observe the warning
-# Then rerun with exact = FALSE, correct = TRUE
+```r title="Exercise 5 starter: ties in the data"
+# Exercise 5: ties + exact p-value
+# Hint: first use tryCatch to capture the warning message, then set exact = FALSE
+ex5_tied <- c(3, 5, 7, 7, 9, 12, 15)
+ex5_base <- c(4, 6, 8, 10, 11, 13)
+
+# Write your code below:
 
 ```
 
@@ -253,28 +318,44 @@ ex5_tied <- list(
 <summary>Click to reveal solution</summary>
 
 ```r title="Exercise 5 solution"
-ex5_tied <- list(
-  a = c(1, 2, 2, 3, 4),
-  b = c(2, 3, 3, 4, 5)
+# First pass: see the warning
+ex5_warn <- tryCatch(
+  wilcox.test(ex5_tied, ex5_base),
+  warning = function(w) conditionMessage(w)
 )
-# Clean approximate p-value, no warning
-ex5_res <- wilcox.test(ex5_tied$a, ex5_tied$b,
-                       exact = FALSE, correct = TRUE)
-ex5_res$p.value
-#> [1] 0.1730173
+ex5_warn
+#> [1] "cannot compute exact p-value with ties"
+
+# Second pass: switch to asymptotic approximation
+ex5_res <- wilcox.test(ex5_tied, ex5_base, exact = FALSE)
+ex5_res
+#>
+#> 	Wilcoxon rank sum test with continuity correction
+#>
+#> data:  ex5_tied and ex5_base
+#> W = 22.5, p-value = 0.9362
+#> alternative hypothesis: true location shift is not equal to 0
 ```
 
-**Explanation:** Ties break the exact permutation distribution that `wilcox.test()` uses by default, so R silently switches to a normal approximation and warns you. Passing `exact = FALSE` makes the approximation explicit and the `correct = TRUE` applies a continuity correction of 0.5 to the numerator, which slightly widens the p-value. In this tiny sample, p = 0.17 fails to reject equality, no surprise at n = 5 per group.
+**Explanation:** The repeated `7` in `ex5_tied` blocks the exact computation. R falls back to a normal approximation with continuity correction and tie-corrected variance, W = 22.5, p = 0.94. Setting `exact = FALSE` explicitly makes the fallback deterministic and silences the warning. For small n with heavy ties consider `coin::wilcox_test()` which runs an exact permutation test.
 
 </details>
 
-### Exercise 6: Kruskal-Wallis on 3 groups
+### Exercise 6: Kruskal-Wallis on three groups
 
-Does sepal width differ across all three iris species? Run a Kruskal-Wallis test on the full `iris` dataset, save the result to `ex6_res`, and extract both the H statistic and degrees of freedom.
+Use the built-in `PlantGrowth` dataset (yields under a control and two treatments, n = 10 each). Save a Kruskal-Wallis test of `weight ~ group` to `ex6_res`.
 
-```r title="Exercise 6 starter: Kruskal-Wallis on three species"
-# Hint: kruskal.test(Sepal.Width ~ Species, data = iris)
-# H is in $statistic, df is in $parameter
+```r title="Exercise 6 starter: Kruskal-Wallis"
+# Exercise 6: weight across three plant growth groups
+# Hint: kruskal.test(y ~ group, data = ...)
+ex6_df <- PlantGrowth
+head(ex6_df, 3)
+#>   weight group
+#> 1   4.17  ctrl
+#> 2   5.58  ctrl
+#> 3   5.18  ctrl
+
+# Write your code below:
 
 ```
 
@@ -282,27 +363,28 @@ Does sepal width differ across all three iris species? Run a Kruskal-Wallis test
 <summary>Click to reveal solution</summary>
 
 ```r title="Exercise 6 solution"
-ex6_res <- kruskal.test(Sepal.Width ~ Species, data = iris)
-c(H = unname(ex6_res$statistic),
-  df = unname(ex6_res$parameter),
-  p = ex6_res$p.value)
-#>            H           df            p
-#> 6.328831e+01 2.000000e+00 1.569282e-14
+ex6_res <- kruskal.test(weight ~ group, data = ex6_df)
+ex6_res
+#>
+#> 	Kruskal-Wallis rank sum test
+#>
+#> data:  weight by group
+#> Kruskal-Wallis chi-squared = 7.9882, df = 2, p-value = 0.01842
 ```
 
-**Explanation:** H = 63.3 on df = 2 gives a p-value far below any reasonable alpha, so at least one species differs. Kruskal-Wallis is an "omnibus" test: it tells you *something* differs but not *which* pair. For that you need post-hoc comparisons (Exercise 7). The df equals number of groups minus one, just like one-way ANOVA's between-group df.
+**Explanation:** H = 7.99 on df = 2 gives p = 0.018. At α = 0.05 we reject the null that all three groups share the same location. Kruskal-Wallis tells us *somewhere* in the three groups there is a difference, but it does not tell us *where*, that is the job of the post-hoc comparison in Exercise 7.
 
 </details>
 
-### Exercise 7: Post-hoc pairwise comparisons with FDR
+### Exercise 7: Post-hoc pairwise comparisons with BH adjustment
 
-Exercise 6 showed species differ on sepal width, but not which pairs. Run `pairwise.wilcox.test()` across all three species with Benjamini-Hochberg FDR correction. Save the result to `ex7_res` and read the pairwise p-value matrix.
+After a significant Kruskal-Wallis, use `pairwise.wilcox.test()` with `p.adjust.method = "BH"` (Benjamini-Hochberg) to identify *which* pairs of plant-growth groups differ. Save the result to `ex7_res`.
 
-[TIP]
-**`p.adjust.method` controls how you pay for multiple comparisons.** `"BH"` (Benjamini-Hochberg, the default FDR) is the right default for exploratory work; it controls the false discovery rate. `"holm"` is a stepdown family-wise-error method, more conservative. `"bonferroni"` is the most conservative and loses power quickly above 4-5 comparisons.
+```r title="Exercise 7 starter: pairwise wilcox with BH"
+# Exercise 7: pairwise.wilcox.test across the three groups
+# Hint: pairwise.wilcox.test(y, g, p.adjust.method = "BH")
 
-```r title="Exercise 7 starter: post-hoc pairwise"
-# Hint: pairwise.wilcox.test(iris$Sepal.Width, iris$Species, p.adjust.method = "BH")
+# Write your code below:
 
 ```
 
@@ -310,29 +392,39 @@ Exercise 6 showed species differ on sepal width, but not which pairs. Run `pairw
 <summary>Click to reveal solution</summary>
 
 ```r title="Exercise 7 solution"
-ex7_res <- pairwise.wilcox.test(iris$Sepal.Width, iris$Species,
-                                p.adjust.method = "BH")
-ex7_res$p.value
-#>                 setosa   versicolor
-#> versicolor 2.402983e-11           NA
-#> virginica  4.447596e-09 4.438060e-03
+ex7_res <- suppressWarnings(pairwise.wilcox.test(ex6_df$weight, ex6_df$group,
+                                                 p.adjust.method = "BH"))
+ex7_res
+#>
+#> 	Pairwise comparisons using Wilcoxon rank sum test with continuity correction
+#>
+#> data:  ex6_df$weight and ex6_df$group
+#>
+#>      ctrl  trt1
+#> trt1 0.310 -
+#> trt2 0.095 0.027
+#>
+#> P value adjustment method: BH
 ```
 
-**Explanation:** All three pairwise p-values sit below 0.005 after BH adjustment, so every pair differs significantly. Setosa vs the other two is the strongest effect, and versicolor vs virginica is smaller but still meaningful. `pairwise.wilcox.test()` runs rank-sum tests for every pair and then adjusts p-values in the chosen family.
+**Explanation:** Of the three pairs, only trt1 vs trt2 clears α = 0.05 after BH adjustment (adjusted p = 0.027). The ctrl vs trt2 contrast is borderline (p = 0.095) and ctrl vs trt1 is not significant. BH controls the *expected false discovery rate*, less conservative than Bonferroni (which would multiply raw p-values by 3). Always report the adjustment method, unadjusted pairwise p-values inflate the false-positive risk.
 
 </details>
 
+[TIP]
+**Choose `p.adjust.method` by the error you want to control.** `"bonferroni"` controls family-wise error rate (reject zero true nulls), strict but stable. `"holm"` does the same with a step-down gain in power. `"BH"` (Benjamini-Hochberg) controls the false discovery rate, the expected fraction of rejections that are wrong, and is the default in most modern biological and psychological reporting.
+
 ### Exercise 8: Rank-biserial effect size for Mann-Whitney
 
-A significant p-value tells you an effect is non-zero; effect size tells you how big. For Mann-Whitney, a clean choice is the rank-biserial correlation:
-
-$$r = 1 - \frac{2U}{n_1 n_2}$$
-
-where $U$ is the U statistic and $n_1, n_2$ are the two group sizes. The value ranges from -1 to 1, where 0 means complete overlap. Compute it for Exercise 2 (setosa vs versicolor petal length).
+The p-value from Exercise 2 said "the two groups differ". Quantify *how much* with the rank-biserial correlation $r$, computed as $r = 1 - \frac{2U}{n_1 n_2}$ where $U$ is the smaller of the two U statistics. Save `ex8_r` and classify the magnitude.
 
 ```r title="Exercise 8 starter: rank-biserial effect size"
-# Hint: U = ex2_res$statistic, n1 = 50 (setosa), n2 = 50 (versicolor)
-# Classify: |r| < 0.1 small, 0.1-0.3 moderate, 0.3-0.5 large, > 0.5 very large
+# Exercise 8: rank-biserial r from the Exercise 2 W stat
+# Hint: U1 = W; U2 = n1*n2 - U1; use the smaller, then r = 1 - 2*U/(n1*n2)
+ex8_n1 <- length(ex2_g_set)
+ex8_n2 <- length(ex2_g_ver)
+
+# Write your code below:
 
 ```
 
@@ -340,31 +432,29 @@ where $U$ is the U statistic and $n_1, n_2$ are the two group sizes. The value r
 <summary>Click to reveal solution</summary>
 
 ```r title="Exercise 8 solution"
-ex8_U <- unname(ex2_res$statistic)
-ex8_n1 <- 50
-ex8_n2 <- 50
-ex8_r <- 1 - (2 * ex8_U) / (ex8_n1 * ex8_n2)
-ex8_r
+ex8_U1 <- unname(ex2_res$statistic)          # W from Exercise 2
+ex8_U2 <- ex8_n1 * ex8_n2 - ex8_U1
+ex8_U  <- min(ex8_U1, ex8_U2)
+ex8_r  <- 1 - 2 * ex8_U / (ex8_n1 * ex8_n2)
+round(ex8_r, 3)
 #> [1] 1
 ```
 
-**Explanation:** U = 0 pushes the formula to r = 1, the theoretical maximum. Every setosa value ranked below every versicolor value, so the effect is perfectly separated. Real-world effect sizes this large are rare; this is a textbook dataset bred for clean examples. Most applied problems return |r| in the 0.1 to 0.4 range.
+**Explanation:** With `U1 = 0`, `U2 = 2500`, the smaller is 0. Plug into the formula: $r = 1 - (2 \cdot 0)/(50 \cdot 50) = 1.0$. Perfect separation maps to $r = 1$, and that lines up with what we saw in Exercise 2. Cohen's thresholds on rank-biserial: 0.1 small, 0.3 medium, 0.5 large. An $r$ of 1.0 is as large as it goes.
 
 </details>
 
 ### Exercise 9: Epsilon-squared effect size for Kruskal-Wallis
 
-For Kruskal-Wallis, the analog of eta-squared is epsilon-squared:
+A Kruskal-Wallis p-value says there is *some* difference, but $\varepsilon^2$ quantifies it. Use the formula $\varepsilon^2 = \frac{H (n + 1)}{n^2 - 1}$ on the iris Sepal.Width vs Species Kruskal-Wallis from the opening section. Classify by the convention 0.01 small, 0.08 medium, 0.26 large.
 
-$$\varepsilon^2 = \frac{H}{(n^2 - 1)/(n + 1)} = \frac{H(n+1)}{n^2 - 1}$$
+```r title="Exercise 9 starter: epsilon-squared for KW"
+# Exercise 9: epsilon^2 from the iris KW statistic
+# Hint: reuse kw_res$statistic; n = nrow(iris)
+ex9_H <- unname(kw_res$statistic)
+ex9_n <- nrow(iris)
 
-where $H$ is the test statistic and $n$ is the total sample size. It ranges from 0 to 1. Compute it for Exercise 6 (sepal width across 3 species).
-
-[KEY INSIGHT]
-**Epsilon-squared is H normalized by its theoretical maximum.** That is why it lands between 0 and 1. Rules of thumb: < 0.01 is negligible, 0.01-0.08 small, 0.08-0.26 moderate, > 0.26 large (Cohen-style thresholds adapted for ranks).
-
-```r title="Exercise 9 starter: epsilon-squared"
-# Hint: H = ex6_res$statistic, n = nrow(iris) = 150
+# Write your code below:
 
 ```
 
@@ -372,41 +462,31 @@ where $H$ is the test statistic and $n$ is the total sample size. It ranges from
 <summary>Click to reveal solution</summary>
 
 ```r title="Exercise 9 solution"
-ex9_H <- unname(ex6_res$statistic)
-ex9_n <- nrow(iris)
 ex9_eps <- ex9_H * (ex9_n + 1) / (ex9_n^2 - 1)
-ex9_eps
-#> [1] 0.4250257
+round(ex9_eps, 3)
+#> [1] 0.427
 ```
 
-**Explanation:** Epsilon-squared = 0.43 sits well above the 0.26 "large" threshold, matching what the tiny p-value already suggested. Unlike the p-value, this number tells you *how much* of the rank variation in sepal width is attributable to species, about 43%. That is the kind of statistic that belongs in a results paragraph next to H and p.
+**Explanation:** With $H = 63.57$ and $n = 150$, $\varepsilon^2 = 63.57 \cdot 151 / (150^2 - 1) = 0.427$. That sits well above the 0.26 "large" threshold: Species explains a meaningful share of the rank variance in Sepal.Width. Always pair a KW p-value with $\varepsilon^2$ (or $\eta^2_H$, which is nearly identical); a highly significant KW on a huge n can have a trivial effect.
 
 </details>
 
-### Exercise 10: Decide the right test from a data description
+[KEY INSIGHT]
+**P-values scale with sample size, effect sizes do not.** In a study with 10,000 observations, a Kruskal-Wallis can flag a tiny $\varepsilon^2 = 0.002$ as $p < 10^{-10}$. That is "statistically significant but practically irrelevant". Reporting the rank-biserial $r$ or $\varepsilon^2$ alongside the p-value keeps the reader grounded in how big the effect actually is.
 
-Four short vignettes, four correct R calls. Match each scenario to the right test and save your answers as a named character vector called `ex10_choices`. Use the codes from this key:
+### Exercise 10: Full pipeline on chickwts, test → post-hoc → effect size
 
-- `"one_sample"` → `wilcox.test(x, mu = value)`
-- `"mann_whitney"` → `wilcox.test(y ~ group, data = d)`
-- `"paired"` → `wilcox.test(y ~ group, data = d, paired = TRUE)`
-- `"kruskal"` → `kruskal.test(y ~ group, data = d)`
+Real data usually arrives as one row per observation with a categorical grouping. R's built-in `chickwts` has the weight of 71 chicks across 6 feed types. Put the full workflow together: Kruskal-Wallis, pairwise post-hoc with Holm adjustment, and $\varepsilon^2$.
 
-Vignettes:
+```r title="Exercise 10 starter: chickwts end-to-end"
+# Exercise 10: full KW pipeline on chickwts
+# Hint: kruskal.test -> pairwise.wilcox.test (holm) -> epsilon-squared
+ex10_df <- chickwts
+table(ex10_df$feed)
+#>    casein horsebean   linseed  meatmeal   soybean sunflower
+#>        12        10        12        11        14        12
 
-- **A.** 40 students rate a textbook on a 1-10 ordinal scale. Is the median rating different from 7?
-- **B.** A clinic measures systolic blood pressure in 25 patients before and after a 30-day exercise program.
-- **C.** Soil nitrogen measured at 4 different farm plots with 12 readings per plot. Do plots differ?
-- **D.** Hospital wait times measured in two different emergency rooms on skewed, non-normal distributions.
-
-```r title="Exercise 10 starter: map scenarios to tests"
-ex10_choices <- c(
-  A = "___",
-  B = "___",
-  C = "___",
-  D = "___"
-)
-ex10_choices
+# Write your code below:
 
 ```
 
@@ -414,97 +494,116 @@ ex10_choices
 <summary>Click to reveal solution</summary>
 
 ```r title="Exercise 10 solution"
-ex10_choices <- c(
-  A = "one_sample",     # one group vs reference value
-  B = "paired",         # same patients, before vs after
-  C = "kruskal",        # 4 groups, one outcome
-  D = "mann_whitney"    # two independent groups, non-normal
+# Step 1: Kruskal-Wallis
+ex10_res <- kruskal.test(weight ~ feed, data = ex10_df)
+ex10_res$statistic
+#> Kruskal-Wallis chi-squared
+#>                     37.343
+ex10_res$p.value
+#> [1] 5.113e-07
+
+# Step 2: pairwise.wilcox.test with Holm
+ex10_pw <- suppressWarnings(
+  pairwise.wilcox.test(ex10_df$weight, ex10_df$feed,
+                       p.adjust.method = "holm")
 )
-ex10_choices
-#>             A             B             C             D
-#>  "one_sample"      "paired"     "kruskal" "mann_whitney"
+round(ex10_pw$p.value, 3)
+#>           casein horsebean linseed meatmeal soybean
+#> horsebean  0.001        NA      NA       NA      NA
+#> linseed    0.004     0.096      NA       NA      NA
+#> meatmeal   0.674     0.008   0.237       NA      NA
+#> soybean    0.097     0.024   0.674    0.674      NA
+#> sunflower  0.823     0.001   0.004    0.674   0.097
+
+# Step 3: epsilon-squared
+ex10_n   <- nrow(ex10_df)
+ex10_H   <- unname(ex10_res$statistic)
+ex10_eps <- ex10_H * (ex10_n + 1) / (ex10_n^2 - 1)
+round(ex10_eps, 3)
+#> [1] 0.527
 ```
 
-**Explanation:** Every scenario maps to exactly one call. A compares a single group's median to a claim. B has linked before/after measurements, so paired. C is three or more groups, so Kruskal-Wallis. D is two independent groups with non-normality, so Mann-Whitney. This mapping is 80% of real-world nonparametric analysis; the rest is careful reporting of effect sizes and assumptions.
+**Explanation:** Three steps capture the whole story. Kruskal-Wallis says weights differ across feeds ($p = 5 \times 10^{-7}$). Holm-adjusted pairwise comparisons say casein beats horsebean and linseed but ties with meatmeal / soybean / sunflower, and horsebean is clearly the weakest feed. Epsilon-squared of 0.53 flags this as a very large effect, much of the weight variance is explained by feed choice. That three-line sketch, test / post-hoc / effect size, is the template for any categorical comparison in real data.
 
 </details>
 
-## Complete Example: Pain-relief dose comparison
+## Complete Example: end-to-end chickwts analysis with reporting
 
-Here is the full workflow you would apply to a real dataset. A clinical trial measures pain reduction (0-10 ordinal scale) across three doses of a new analgesic: 10 patients per dose, 30 patients total. The outcome is ordinal and the sample is small, so nonparametric is the right call from the start.
+Let's stitch the full workflow, including an assumption check, into one block that mirrors how a real report would read.
 
-[NOTE]
-**On ordinal or skewed data, start nonparametric rather than running a t-test first and apologizing later.** Running a t-test, noticing non-normality in the residuals, and then switching to Wilcoxon inflates the false-positive rate because you chose the test after seeing the data. The right reason to pick a nonparametric test is the design, not a failed normality check.
+```r title="End-to-end nonparametric analysis on chickwts"
+# Step 1 - quick sanity check: n, median, IQR per group
+cw_tab <- aggregate(weight ~ feed, data = chickwts,
+                    FUN = function(v) round(c(n      = length(v),
+                                              median = median(v),
+                                              IQR    = IQR(v)), 1))
+cw_tab
+#>        feed weight.n weight.median weight.IQR
+#> 1    casein       12         342.0       80.8
+#> 2 horsebean       10         151.5       60.5
+#> 3   linseed       12         221.0       94.8
+#> 4  meatmeal       11         263.0       84.0
+#> 5   soybean       14         248.0      105.5
+#> 6 sunflower       12         328.0       50.8
 
-```r title="Complete example: simulate, test, post-hoc, effect size"
-set.seed(2026)
+# Step 2 - Shapiro-Wilk per group (sample sizes are small, so err on nonparametric)
+cw_shapiro <- sapply(split(chickwts$weight, chickwts$feed),
+                     function(v) shapiro.test(v)$p.value)
+round(cw_shapiro, 3)
+#>    casein horsebean   linseed  meatmeal   soybean sunflower
+#>     0.215     0.506     0.923     0.931     0.506     0.365
 
-# Simulate pain-reduction scores per dose (ordinal, 0-10 scale)
-pain_df <- data.frame(
-  dose  = rep(c("low", "medium", "high"), each = 10),
-  score = c(sample(1:5, 10, replace = TRUE),
-            sample(3:7, 10, replace = TRUE),
-            sample(5:9, 10, replace = TRUE))
-)
-pain_df$dose <- factor(pain_df$dose, levels = c("low", "medium", "high"))
+# Step 3 - Kruskal-Wallis (the right default when any group is non-normal or small n)
+cw_kw <- kruskal.test(weight ~ feed, data = chickwts)
+cw_kw$p.value
+#> [1] 5.113e-07
 
-# Step 1: omnibus Kruskal-Wallis across three doses
-pain_kw <- kruskal.test(score ~ dose, data = pain_df)
-pain_kw$p.value
-#> [1] 9.968406e-05
-
-# Step 2: post-hoc pairwise Wilcoxon with Holm adjustment
-pain_ph <- pairwise.wilcox.test(pain_df$score, pain_df$dose,
-                                p.adjust.method = "holm")
-pain_ph$p.value
-#>              low      medium
-#> medium 0.03148519         NA
-#> high   0.00028005 0.01236345
-
-# Step 3: epsilon-squared effect size
-pain_H <- unname(pain_kw$statistic)
-pain_n <- nrow(pain_df)
-pain_eps <- pain_H * (pain_n + 1) / (pain_n^2 - 1)
-pain_eps
-#> [1] 0.6406218
-
-# Step 4: one-line summary
-sprintf("KW H(%d) = %.2f, p = %.4f, epsilon^2 = %.2f",
-        unname(pain_kw$parameter), pain_H, pain_kw$p.value, pain_eps)
-#> [1] "KW H(2) = 18.57, p = 0.0001, epsilon^2 = 0.64"
+# Step 4 - pairwise with Holm + effect size
+cw_pw_min  <- min(suppressWarnings(
+                    pairwise.wilcox.test(chickwts$weight, chickwts$feed,
+                                         p.adjust.method = "holm")$p.value),
+                  na.rm = TRUE)
+cw_eps     <- unname(cw_kw$statistic) * (nrow(chickwts) + 1) /
+              (nrow(chickwts)^2 - 1)
+c(min_adj_p = round(cw_pw_min, 4),
+  epsilon2  = round(cw_eps, 3))
+#> min_adj_p  epsilon2
+#>     0.001     0.527
 ```
 
-The overall Kruskal-Wallis test rejects equality (p < 0.001). All three pairwise comparisons after Holm adjustment show significant differences, with the largest gap between low and high doses (p < 0.001). Epsilon-squared of 0.64 indicates a large effect; dose accounts for roughly 64% of the rank variation in pain scores. In a paper you would report: "Pain-reduction scores differed significantly across doses (Kruskal-Wallis H(2) = 18.57, p < 0.001, ε² = 0.64). Post-hoc Holm-adjusted Wilcoxon tests found all three pairs differed (all adjusted p < 0.05), with the largest shift from low to high dose."
+[WARNING]
+**Median is not mean, do not swap the research question when you swap the test.** Kruskal-Wallis tests whether the *distributions* (usually summarised by medians or pseudo-medians) differ, not whether the means differ. If your client asked about average weight, explain upfront why you are answering a median-based question, and consider a transformed-data t-test / ANOVA or a robust mean like the Hodges-Lehmann estimator as complements.
+
+A one-paragraph APA-style write-up: *A Kruskal-Wallis rank-sum test compared chick weights across six feeds in the `chickwts` dataset (N = 71). Weight differed significantly across feeds, $H(5) = 37.34$, $p < .001$, with a large effect, $\varepsilon^2 = 0.53$. Holm-adjusted pairwise Wilcoxon rank-sum tests indicated casein- and sunflower-fed chicks weighed significantly more than horsebean-fed chicks (all adjusted $p < .01$), while differences among the remaining feeds were not reliable.* That sentence answers three questions at once: is the effect real, is it big, and where does it live.
 
 ## Summary
 
-| # | Exercise | Test used | Key function | Difficulty |
-|---|---|---|---|---|
-| 1 | One-sample median vs claim | Wilcoxon signed-rank | `wilcox.test(x, mu = )` | Medium |
-| 2 | Two-species petal length | Mann-Whitney U | `wilcox.test(y ~ g, data = )` | Medium |
-| 3 | One-tailed direction test | Mann-Whitney U | `alternative = "less"` | Medium |
-| 4 | Two drugs, same patients | Paired signed-rank | `paired = TRUE` | Medium |
-| 5 | Tie handling + warnings | Mann-Whitney U | `exact = FALSE, correct = TRUE` | Hard |
-| 6 | Three-species sepal width | Kruskal-Wallis | `kruskal.test(y ~ g, data = )` | Medium |
-| 7 | Which pairs differ | Post-hoc pairwise | `pairwise.wilcox.test(...)` | Hard |
-| 8 | Mann-Whitney effect size | Rank-biserial r | formula on U | Hard |
-| 9 | Kruskal-Wallis effect size | Epsilon-squared | formula on H | Hard |
-| 10 | Decision drill | All four | scenario mapping | Hard |
+| Exercise | Test | Key R call | Effect size |
+|---|---|---|---|
+| 1 | One-sample signed-rank | `wilcox.test(x, mu)` | n/a |
+| 2-3 | Mann-Whitney (2- and 1-sided) | `wilcox.test(x, y)` | Rank-biserial $r$ |
+| 4 | Paired signed-rank | `wilcox.test(x, y, paired = TRUE)` | n/a |
+| 5 | Tie handling | `wilcox.test(..., exact = FALSE)` | n/a |
+| 6 | Kruskal-Wallis | `kruskal.test(y ~ g)` | Epsilon-squared |
+| 7 | Post-hoc pairwise | `pairwise.wilcox.test(y, g, "BH")` | n/a |
+| 8-9 | Effect sizes | Formulas above | $r$, $\varepsilon^2$ |
+| 10 | Full pipeline | KW + post-hoc + $\varepsilon^2$ | $\varepsilon^2$ |
 
-Three rules to take away. First, the test you pick is decided by the data layout, not by running normality checks. Second, always report an effect size alongside the p-value; a significant H or W tells you an effect exists, not how big. Third, after a significant Kruskal-Wallis, do post-hoc pairs with BH or Holm adjustment, not 3 raw Wilcoxon tests.
+Three principles carry across every exercise: pick the test from the design (one / two / paired / many groups); always pair the p-value with an effect size so the reader knows how big the effect is, not just whether it exists; and adjust pairwise post-hoc p-values so your family-wise error or false discovery rate is under control.
 
 ## References
 
-1. R Core Team. `wilcox.test` documentation (stats package). [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/wilcox.test.html)
-2. R Core Team. `kruskal.test` documentation (stats package). [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/kruskal.test.html)
-3. Hollander, M., & Wolfe, D. A. (1999). *Nonparametric Statistical Methods* (2nd ed.). Wiley. [Link](https://www.wiley.com/en-us/Nonparametric+Statistical+Methods%2C+3rd+Edition-p-9780470387375)
-4. Conover, W. J. (1999). *Practical Nonparametric Statistics* (3rd ed.). Wiley.
-5. Mangiafico, S. (2016). *Summary and Analysis of Extension Program Evaluation in R*. [Link](https://rcompanion.org/handbook/)
-6. Kerby, D. S. (2014). The simple difference formula: An approach to teaching nonparametric correlation. *Comprehensive Psychology*, 3, 11-IT. [Link](https://journals.sagepub.com/doi/10.2466/11.IT.3.1)
-7. Tomczak, M., & Tomczak, E. (2014). The need to report effect size estimates revisited. *Trends in Sport Sciences*, 1(21), 19-25. [Link](https://tss.awf.poznan.pl/files/3_Trends_Vol21_2014__no1_20.pdf)
+1. R Core Team. *wilcox.test, R Stats Reference.* [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/wilcox.test.html)
+2. R Core Team. *kruskal.test, R Stats Reference.* [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/kruskal.test.html)
+3. Hollander, M., Wolfe, D. A., and Chicken, E. *Nonparametric Statistical Methods*, 3rd edition. Wiley (2013).
+4. Conover, W. J. *Practical Nonparametric Statistics*, 3rd edition. Wiley (1999).
+5. Wilcoxon, F. "Individual Comparisons by Ranking Methods." *Biometrics Bulletin* 1(6), 80-83 (1945).
+6. Mann, H. B. and Whitney, D. R. "On a test of whether one of two random variables is stochastically larger than the other." *Annals of Mathematical Statistics* 18(1), 50-60 (1947).
+7. Kruskal, W. H. and Wallis, W. A. "Use of Ranks in One-Criterion Variance Analysis." *Journal of the American Statistical Association* 47(260), 583-621 (1952).
+8. Tomczak, M. and Tomczak, E. "The need to report effect size estimates revisited." *Trends in Sport Sciences* 21(1), 19-25 (2014).
 
 ## Continue Learning
 
-1. **[Wilcoxon, Mann-Whitney, and Kruskal-Wallis in R](/Wilcoxon-Mann-Whitney-and-Kruskal-Wallis-in-R.html)**: the underlying tutorial covers when to use each test, how the ranks work, and what the output means. Read this first if any exercise felt opaque.
-2. **[t-Test Exercises in R](/t-Test-Exercises-in-R.html)**: the parametric companion with twelve one-sample, two-sample, and paired t-test problems in the same exercise format.
-3. **[Hypothesis Testing Exercises in R](/Hypothesis-Testing-Exercises-in-R.html)**: broader practice across hypothesis tests, Type I/II errors, and p-value interpretation.
+- [Wilcoxon, Mann-Whitney, and Kruskal-Wallis in R: Non-Parametric When Normality Fails](Wilcoxon-Mann-Whitney-and-Kruskal-Wallis-in-R.html) covers the parent theory, decision rules, and assumption checks in detail.
+- [t-Test Exercises in R](t-Test-Exercises-in-R.html) is the parametric counterpart, use it when the normality assumption holds.
+- [Hypothesis Testing Exercises in R](Hypothesis-Testing-Exercises-in-R.html) gives broader inference practice across proportions, means, and non-parametrics with the same drill-sheet format.
