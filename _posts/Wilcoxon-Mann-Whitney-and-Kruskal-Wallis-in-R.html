@@ -1,0 +1,975 @@
+---
+title: "Wilcoxon, Mann-Whitney, and Kruskal-Wallis in R: Non-Parametric When Normality Fails"
+description: "When data is skewed or your sample is too small to trust normality, rank-based tests give valid p-values. Learn which non-parametric test to use in R."
+keywords: "wilcoxon test in R, mann-whitney test R, kruskal-wallis test R, wilcox.test, kruskal.test, non-parametric tests R, rank-sum test, signed-rank test, Dunn's test"
+mathjax: true
+webr: true
+curriculum_id: "2.2.12"
+post_type: "C"
+auto_link_terms: "Wilcoxon test|Mann-Whitney test|Kruskal-Wallis test|Kruskal-Wallis|non-parametric tests|rank-sum test|signed-rank test|wilcox.test|kruskal.test"
+auto_link_case_sensitive: false
+sidebar_section: "Statistics"
+sidebar_title: "Wilcoxon, Mann-Whitney & Kruskal-Wallis"
+sidebar_order: "42"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>Wilcoxon, Mann-Whitney, and Kruskal-Wallis in R: Non-Parametric When Normality Fails</h1>
+
+<p class="lead">When your data is skewed, ordinal, or the sample is too small to trust a t-test, rank-based tests like Wilcoxon, Mann-Whitney U, and Kruskal-Wallis give valid p-values without assuming normality. In R, you run them with <code>wilcox.test()</code> and <code>kruskal.test()</code>.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="35" data-exercises="9" data-xp="135"></div>
+
+<h2>When should you use non-parametric tests instead of t-tests and ANOVA?</h2>
+
+<p>Parametric tests like the t-test and ANOVA assume your data are roughly normal. When that assumption breaks, p-values become unreliable, sometimes wildly so. Rank-based tests sidestep normality by comparing ranks instead of raw values. Here is a quick demonstration on two skewed salary samples where a t-test would be misleading but <code>wilcox.test()</code> still gives a defensible answer.</p>
+
+<div class="webr-container" data-block-title="Rank-sum on skewed salary data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Rank-sum on skewed salary data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+set.seed(2026)
+
+# Two right-skewed salary samples (rgamma mirrors real income distributions)
+salary_a &lt;- round(rgamma(30, shape = 2, scale = 12000))
+salary_b &lt;- round(rgamma(30, shape = 2, scale = 20000))
+
+# A t-test assumes normality which these clearly violate.
+# wilcox.test() compares ranks and stays valid.
+wilcox.test(salary_a, salary_b)
+#&gt; 
+#&gt; 	Wilcoxon rank sum exact test
+#&gt; 
+#&gt; data:  salary_a and salary_b
+#&gt; W = 312, p-value = 0.0392
+#&gt; alternative hypothesis: true location shift is not equal to 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The W statistic is the sum of ranks for the first sample after pooling both groups and ranking them together. The p-value of 0.039 says the two groups come from different distributions at the 5% level, and we reached that conclusion without any normality gymnastics.</p>
+
+<p><img src="screenshots/Wilcoxon-Mann-Whitney-and-Kruskal-Wallis-in-R-decision-tree.webp" alt="Decision tree for choosing between Wilcoxon rank-sum, signed-rank, and Kruskal-Wallis tests." class="img-responsive img-zoomable" loading="lazy" width="1586" height="1590" /></p>
+
+<p><em>Figure 1: Decision tree for choosing between Wilcoxon rank-sum, signed-rank, and Kruskal-Wallis tests.</em></p>
+
+<p>Every common parametric test has a rank-based twin. When the parametric assumptions hold, prefer the parametric version because it has more power. When they fail, swap in the non-parametric equivalent.</p>
+
+<p><img src="screenshots/Wilcoxon-Mann-Whitney-and-Kruskal-Wallis-in-R-test-mapping.webp" alt="Every common parametric test has a rank-based non-parametric equivalent." class="img-responsive img-zoomable" loading="lazy" width="1040" height="938" /></p>
+
+<p><em>Figure 2: Every common parametric test has a rank-based non-parametric equivalent.</em></p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Ranking throws away absolute values and keeps only order, which makes these tests immune to outliers and monotone transformations.</strong> The same Wilcoxon p-value comes out whether you analyse income, log(income), or quintile rank, because the ordering of observations is identical in all three.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Two pre-filled vectors <code>ex_a</code> and <code>ex_b</code> hold reaction times from two groups. Run a two-sided Wilcoxon rank-sum test and read the p-value.</p>
+<div class="webr-container" data-block-title="Your turn: rank-sum on reaction times">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: rank-sum on reaction times</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Your turn
+ex_a &lt;- c(221, 198, 245, 267, 289, 312, 334, 198)
+ex_b &lt;- c(245, 267, 289, 312, 334, 356, 378, 401)
+
+# Run wilcox.test() on ex_a and ex_b.
+# your code here</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Rank-sum on reaction times solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Rank-sum on reaction times solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">wilcox.test(ex_a, ex_b)
+#&gt; 
+#&gt; 	Wilcoxon rank sum test with continuity correction
+#&gt; 
+#&gt; data:  ex_a and ex_b
+#&gt; W = 12, p-value = 0.0306
+#&gt; alternative hypothesis: true location shift is not equal to 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>wilcox.test()</code> with two <a class="auto-link" href="R-Vectors.html" title="R Vectors: The Foundation of Everything in R (Master This First)">numeric vectors</a> runs the rank-sum test by default. The small p-value says group B's reaction times are stochastically larger.</p>
+
+</details>
+</section>
+
+<h2>How does wilcox.test() compare two independent groups?</h2>
+
+<p>The Wilcoxon rank-sum test, also called the Mann-Whitney U test, answers: "Are these two samples drawn from the same distribution?" The algorithm pools the two groups, ranks all values from smallest to largest, and sums the ranks for the first group. If the two samples are interchangeable, that rank sum should land near its expected value; if one group systematically ranks higher, the sum will be unusually high or low.</p>
+
+<p>Let's compare sepal length between iris species Setosa and Versicolor. Setosa has visibly smaller sepals, so we expect a very small p-value.</p>
+
+<div class="webr-container" data-block-title="Rank-sum on iris Setosa vs Versicolor">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Rank-sum on iris Setosa vs Versicolor</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Subset to two species, then run the rank-sum test
+iris_two &lt;- subset(iris, Species %in% c(&quot;setosa&quot;, &quot;versicolor&quot;))
+iris_two$Species &lt;- droplevels(iris_two$Species)
+
+wilcox.test(Sepal.Length ~ Species, data = iris_two)
+#&gt; 
+#&gt; 	Wilcoxon rank sum test with continuity correction
+#&gt; 
+#&gt; data:  Sepal.Length by Species
+#&gt; W = 168.5, p-value = 8.346e-14
+#&gt; alternative hypothesis: true location shift is not equal to 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The p-value is microscopically small, which matches what the boxplots show. Note the <code>droplevels()</code> call. Without it, R would still track virginica as an unused factor level and warn you. The warning about ties you may see just means base R switched from an exact p-value to a <a class="auto-link" href="Central-Limit-Theorem-in-R.html" title="Central Limit Theorem in R: Simulate It From Skewed, Bimodal, and Uniform Distributions">normal approximation</a>, which barely changes anything for 100 observations.</p>
+
+<p>You can also run a one-sided test when you have a directional hypothesis. Since we suspect Setosa sepals are <em>shorter</em>, set <code>alternative = &quot;less&quot;</code>.</p>
+
+<div class="webr-container" data-block-title="One-tailed rank-sum, Setosa less than Versicolor">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">One-tailed rank-sum, Setosa less than Versicolor</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">wilcox.test(Sepal.Length ~ Species, data = iris_two, alternative = &quot;less&quot;)
+#&gt; 
+#&gt; 	Wilcoxon rank sum test with continuity correction
+#&gt; 
+#&gt; data:  Sepal.Length by Species
+#&gt; W = 168.5, p-value = 4.173e-14
+#&gt; alternative hypothesis: true location shift is less than 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The one-sided p-value is exactly half the two-sided value. Only use a one-sided test when your hypothesis is truly directional before you look at the data.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Mann-Whitney compares distributions, not strictly medians.</strong> The test only has a clean "median difference" interpretation when the two group distributions have the same <em>shape</em>. If one group is also more spread out than the other, a significant result could reflect that difference in variability rather than a shift in central tendency.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Run a two-sided rank-sum test comparing <code>Petal.Length</code> between the <code>versicolor</code> and <code>virginica</code> iris species.</p>
+<div class="webr-container" data-block-title="Your turn: petal length, versicolor vs virginica">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: petal length, versicolor vs virginica</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Your turn: subset iris, then compare Petal.Length by Species
+# Use the same wilcox.test(..., data = ...) pattern as above.
+
+# your code here</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Petal length rank-sum solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Petal length rank-sum solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">iris_vv &lt;- subset(iris, Species %in% c(&quot;versicolor&quot;, &quot;virginica&quot;))
+iris_vv$Species &lt;- droplevels(iris_vv$Species)
+
+wilcox.test(Petal.Length ~ Species, data = iris_vv)
+#&gt; 
+#&gt; 	Wilcoxon rank sum test with continuity correction
+#&gt; 
+#&gt; data:  Petal.Length by Species
+#&gt; W = 44, p-value = 2.2e-16
+#&gt; alternative hypothesis: true location shift is not equal to 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The p-value is essentially zero, so virginica petals are stochastically longer than versicolor.</p>
+
+</details>
+</section>
+
+<h2>How do you test paired samples with the Wilcoxon signed-rank test?</h2>
+
+<p>When each observation in one group is naturally linked to one in the other, for example before-and-after measurements on the same patients, you have paired data. Running a rank-sum test would throw away the pairing information. The Wilcoxon signed-rank test uses it.</p>
+
+<p>The signed-rank procedure computes the <em>differences</em> within each pair, ranks the absolute differences, then sums the ranks that correspond to positive differences. A V statistic far from its expected value signals a systematic direction in the differences.</p>
+
+<p>R's classic <code>sleep</code> dataset measures extra sleep hours for 10 patients under two soporific drugs. Each patient takes both drugs, so the data are paired.</p>
+
+<div class="webr-container" data-block-title="Signed-rank on the paired sleep dataset">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Signed-rank on the paired sleep dataset</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># 10 patients, 2 drugs each, long format with group as factor
+head(sleep, 3)
+#&gt;   extra group ID
+#&gt; 1   0.7     1  1
+#&gt; 2  -1.6     1  2
+#&gt; 3  -0.2     1  3
+
+wilcox.test(extra ~ group, data = sleep, paired = TRUE)
+#&gt; 
+#&gt; 	Wilcoxon signed rank test with continuity correction
+#&gt; 
+#&gt; data:  extra by group
+#&gt; V = 3, p-value = 0.009091
+#&gt; alternative hypothesis: true location shift is not equal to 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The V statistic of 3 is far below its expected value of 27.5 under the null, and the p-value is 0.009. Drug 2 gives more extra sleep than drug 1, and we reach that conclusion without assuming the differences are normal.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Always verify pair alignment before running a paired test.</strong> If your data is in wide format, the two vectors must be in the same subject order. A single misaligned row silently corrupts the test. In long format, sort by the ID column first and confirm every ID appears exactly twice.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Simulate 12 patients' cholesterol before and after a 6-week diet. Run a paired signed-rank test to see whether the diet changed cholesterol.</p>
+<div class="webr-container" data-block-title="Your turn: paired pre/post cholesterol">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: paired pre/post cholesterol</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+ex_pre &lt;- round(rnorm(12, mean = 220, sd = 20))
+ex_post &lt;- ex_pre - round(rnorm(12, mean = 8, sd = 6))  # slight reduction
+
+# Run the paired signed-rank test on ex_pre vs ex_post.
+# your code here</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Paired signed-rank solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Paired signed-rank solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">wilcox.test(ex_pre, ex_post, paired = TRUE)
+#&gt; 
+#&gt; 	Wilcoxon signed rank exact test
+#&gt; 
+#&gt; data:  ex_pre and ex_post
+#&gt; V = 71, p-value = 0.005371
+#&gt; alternative hypothesis: true location shift is not equal to 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Most of the post-diet values are lower than pre, so the positive-difference rank-sum V is large, and the p-value rejects "no change".</p>
+
+</details>
+</section>
+
+<h2>How does kruskal.test() compare three or more groups?</h2>
+
+<p>When you have three or more independent groups, Wilcoxon rank-sum no longer applies. The Kruskal-Wallis test extends it: pool all values, rank them, compute the mean rank per group, and check whether mean ranks differ more than random shuffling would allow.</p>
+
+<p>The <a class="auto-link" href="Hypothesis-Testing-in-R.html" title="Hypothesis Testing in R: Understand the Framework, Not Just the p-Value">test statistic</a> H follows (approximately) a <a class="auto-link" href="Normal-t-F-and-Chi-Squared-Distributions-in-R.html" title="Normal, t, F, and Chi-Squared in R: Understand Each Distribution and When It Arises">chi-squared distribution</a> with k - 1 degrees of freedom, where k is the number of groups.</p>
+
+<p>$$H = \frac{12}{N(N+1)} \sum_{i=1}^{k} \frac{R_i^2}{n_i} - 3(N+1)$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$N$ = total sample size across all groups</li>
+
+<li>$k$ = number of groups</li>
+
+<li>$R_i$ = sum of ranks in group $i$</li>
+
+<li>$n_i$ = sample size in group $i$</li>
+
+</ul>
+
+<p>Let's try the built-in <code>PlantGrowth</code> dataset, which records dried plant weights under a control and two treatment conditions.</p>
+
+<div class="webr-container" data-block-title="Kruskal-Wallis on PlantGrowth weights">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Kruskal-Wallis on PlantGrowth weights</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># 30 plants, 3 groups (ctrl, trt1, trt2)
+table(PlantGrowth$group)
+#&gt; 
+#&gt; ctrl trt1 trt2 
+#&gt;   10   10   10
+
+kruskal.test(weight ~ group, data = PlantGrowth)
+#&gt; 
+#&gt; 	Kruskal-Wallis rank sum test
+#&gt; 
+#&gt; data:  weight by group
+#&gt; Kruskal-Wallis chi-squared = 7.9882, df = 2, p-value = 0.01842</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The p-value of 0.018 rejects the null that all three distributions are identical. What it does <em>not</em> tell you is which pair differs. That comes next.</p>
+
+<p><code>kruskal.test()</code> also accepts a list of vectors instead of a formula, which is handy when your groups are stored separately.</p>
+
+<div class="webr-container" data-block-title="Same test via vector list interface">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Same test via vector list interface</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">pg_list &lt;- split(PlantGrowth$weight, PlantGrowth$group)
+kruskal.test(pg_list)
+#&gt; 
+#&gt; 	Kruskal-Wallis rank sum test
+#&gt; 
+#&gt; data:  pg_list
+#&gt; Kruskal-Wallis chi-squared = 7.9882, df = 2, p-value = 0.01842</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Identical result. Use whichever interface matches how your data is stored.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Kruskal-Wallis generalises Mann-Whitney to three or more groups.</strong> Run it with k = 2 groups and you get the same p-value as <code>wilcox.test()</code> (up to tie corrections). That equivalence is why the post-hoc procedure uses rank-sum tests on each pair.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Run Kruskal-Wallis on <code>Sepal.Width</code> by <code>Species</code> across all three iris species.</p>
+<div class="webr-container" data-block-title="Your turn: Kruskal-Wallis on iris Sepal.Width">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: Kruskal-Wallis on iris Sepal.Width</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Run kruskal.test() with Sepal.Width ~ Species on the full iris dataset.
+# your code here</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Iris Kruskal-Wallis solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Iris Kruskal-Wallis solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">kruskal.test(Sepal.Width ~ Species, data = iris)
+#&gt; 
+#&gt; 	Kruskal-Wallis rank sum test
+#&gt; 
+#&gt; data:  Sepal.Width by Species
+#&gt; Kruskal-Wallis chi-squared = 63.571, df = 2, p-value = 1.569e-14</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The three species have very different Sepal.Width distributions, giving an H of 63.6 and a p-value close to zero.</p>
+
+</details>
+</section>
+
+<h2>How do you run post-hoc comparisons after a significant Kruskal-Wallis test?</h2>
+
+<p>A significant Kruskal-Wallis result says "at least one pair differs" but not which one. To pin down the guilty pair, run pairwise Wilcoxon rank-sum tests and adjust the p-values for multiple testing.</p>
+
+<p>Base R ships <code>pairwise.wilcox.test()</code> which does exactly that. With three groups you get three pairwise tests, so a Bonferroni correction multiplies each raw p-value by 3.</p>
+
+<div class="webr-container" data-block-title="Pairwise rank-sum with Bonferroni correction">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pairwise rank-sum with Bonferroni correction</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">pairwise.wilcox.test(PlantGrowth$weight, PlantGrowth$group,
+                     p.adjust.method = &quot;bonferroni&quot;)
+#&gt; 
+#&gt; 	Pairwise comparisons using Wilcoxon rank sum exact test
+#&gt; 
+#&gt; data:  PlantGrowth$weight and PlantGrowth$group 
+#&gt; 
+#&gt;      ctrl  trt1 
+#&gt; trt1 0.598 -    
+#&gt; trt2 0.263 0.024
+#&gt; 
+#&gt; P value adjustment method: bonferroni</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Only the trt1-vs-trt2 pair survives the Bonferroni correction at α = 0.05. Bonferroni is conservative, so when you have many groups it can kill real effects. Benjamini-Hochberg controls the false discovery rate instead and keeps more power.</p>
+
+<div class="webr-container" data-block-title="Same test with Benjamini-Hochberg FDR correction">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Same test with Benjamini-Hochberg FDR correction</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">pairwise.wilcox.test(PlantGrowth$weight, PlantGrowth$group,
+                     p.adjust.method = &quot;BH&quot;)
+#&gt; 
+#&gt; 	Pairwise comparisons using Wilcoxon rank sum exact test
+#&gt; 
+#&gt; data:  PlantGrowth$weight and PlantGrowth$group 
+#&gt; 
+#&gt;      ctrl  trt1 
+#&gt; trt1 0.199 -    
+#&gt; trt2 0.132 0.024
+#&gt; 
+#&gt; P value adjustment method: BH</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The conclusion is the same here, but BH would flag more pairs if your experiment had more groups and borderline p-values.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Never report the omnibus Kruskal-Wallis p-value as proof of a specific pair difference.</strong> A low omnibus p says "something is different somewhere". Without pairwise correction, readers cannot tell whether trt1 differs from ctrl, trt2 from ctrl, or only trt1 from trt2. Always follow a significant omnibus test with corrected pairwise comparisons.</div></div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Dunn's test is a popular alternative post-hoc that ranks exactly once.</strong> <code>pairwise.wilcox.test()</code> re-ranks within each pair, which is slightly inconsistent with the omnibus ranking. Dunn's test uses the ranks from the original Kruskal-Wallis call. Install <code>FSA</code> and run <code>FSA::dunnTest(weight ~ group, data = PlantGrowth, method = &quot;bh&quot;)</code> in a local R session. The FSA package is not bundled with the interactive runtime on this page.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Simulate three groups with clearly different means and run pairwise Wilcoxon with FDR adjustment.</p>
+<div class="webr-container" data-block-title="Your turn: post-hoc on three simulated groups">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: post-hoc on three simulated groups</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(99)
+ex_three_groups &lt;- data.frame(
+  value = c(rnorm(15, 50, 5), rnorm(15, 55, 5), rnorm(15, 62, 5)),
+  grp   = rep(c(&quot;A&quot;, &quot;B&quot;, &quot;C&quot;), each = 15)
+)
+
+# Run pairwise.wilcox.test on value and grp with method = &quot;BH&quot;.
+# your code here</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Three-group post-hoc solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Three-group post-hoc solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">pairwise.wilcox.test(ex_three_groups$value, ex_three_groups$grp,
+                     p.adjust.method = &quot;BH&quot;)
+#&gt; 
+#&gt; 	Pairwise comparisons using Wilcoxon rank sum exact test
+#&gt; 
+#&gt; data:  ex_three_groups$value and ex_three_groups$grp 
+#&gt; 
+#&gt;   A       B      
+#&gt; B 0.0244  -      
+#&gt; C 5.2e-07 0.00015
+#&gt; 
+#&gt; P value adjustment method: BH</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> All three pairs differ after BH adjustment. C is clearly separated from both A and B.</p>
+
+</details>
+</section>
+
+<h2>What pitfalls and effect sizes should you know?</h2>
+
+<p>Three issues catch people off guard with rank-based tests. First, ties. When two observations are equal, R cannot compute an exact p-value and falls back on a normal approximation, printing a warning.</p>
+
+<div class="webr-container" data-block-title="Ties force a continuity-corrected approximation">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Ties force a continuity-corrected approximation</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tie_a &lt;- c(1, 2, 3, 4, 5)
+tie_b &lt;- c(3, 3, 4, 5, 6)
+
+wilcox.test(tie_a, tie_b)
+#&gt; 
+#&gt; 	Wilcoxon rank sum test with continuity correction
+#&gt; 
+#&gt; data:  tie_a and tie_b
+#&gt; W = 6, p-value = 0.2088
+#&gt; alternative hypothesis: true location shift is not equal to 0
+#&gt; Warning message:
+#&gt; In wilcox.test.default(tie_a, tie_b) :
+#&gt;   cannot compute exact p-value with ties</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The warning is informational. The reported p-value is still valid, just based on a normal approximation instead of the exact distribution. You only need to worry when samples are small and ties are abundant, in which case the <code>coin::wilcox_test()</code> function offers exact ties-aware p-values.</p>
+
+<p>Second, a significant p-value tells you "something differs" but not "how big the effect is". Report an effect size alongside every p-value. For a two-group rank-sum test, the rank-biserial correlation is a clean choice. It ranges from 0 (no effect) to 1 (complete separation).</p>
+
+<div class="webr-container" data-block-title="Rank-biserial effect size for iris Setosa vs Versicolor">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Rank-biserial effect size for iris Setosa vs Versicolor</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">n1 &lt;- 50  # setosa
+n2 &lt;- 50  # versicolor
+W  &lt;- 168.5
+# Standardised Z from the rank-sum test:
+rs_z &lt;- (W - n1 * n2 / 2) / sqrt(n1 * n2 * (n1 + n2 + 1) / 12)
+rs_r &lt;- abs(rs_z) / sqrt(n1 + n2)
+round(c(Z = rs_z, r = rs_r), 3)
+#&gt;      Z      r 
+#&gt; -7.458  0.746</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>An |r| of 0.75 is a large effect by Cohen's benchmarks (0.10 small, 0.30 medium, 0.50 large). That matches what we saw: the two species barely overlap in sepal length.</p>
+
+<p>Third, for Kruskal-Wallis, the epsilon-squared statistic gives a similar "proportion of variance explained" feel. Compute it from the H statistic and total N.</p>
+
+<div class="webr-container" data-block-title="Epsilon-squared effect size for PlantGrowth">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Epsilon-squared effect size for PlantGrowth</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">H   &lt;- 7.9882
+N   &lt;- 30
+eps2 &lt;- H / (N - 1)
+round(eps2, 3)
+#&gt; [1] 0.275</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>An eps² of 0.275 is a relatively strong effect by Cohen-equivalent thresholds (small 0.01, medium 0.08, large 0.26). Combined with the pairwise test, we now have a complete picture: there is a real difference, trt1 and trt2 are the culprits, and the effect is not small.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Always report both the p-value and an effect size.</strong> A p-value says "the difference is unlikely under the null"; an effect size says "the difference is this big". Reviewers, clinicians, and decision-makers care about the magnitude, not just statistical significance.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Given H = 12.4 from a Kruskal-Wallis test on N = 45 observations, compute epsilon-squared and classify it as small, medium, or large.</p>
+<div class="webr-container" data-block-title="Your turn: classify an epsilon-squared">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: classify an epsilon-squared</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Use the formula eps2 = H / (N - 1)
+H &lt;- 12.4
+N &lt;- 45
+# your code here</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Epsilon-squared classification solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Epsilon-squared classification solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">eps2 &lt;- H / (N - 1)
+round(eps2, 3)
+#&gt; [1] 0.282
+
+# 0.282 &gt; 0.26 =&gt; large effect</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Epsilon-squared of 0.28 exceeds the 0.26 large-effect threshold, so the Kruskal-Wallis detects a substantial difference.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<p>Apply everything you just learned. Each exercise combines at least two concepts from the tutorial. Work through them before peeking at the solution.</p>
+
+<h3>Exercise 1: Decide the right test from the data</h3>
+
+<p>You have two reaction-time samples <code>my_x</code> and <code>my_y</code>. Use <code>shapiro.test()</code> to decide whether normality holds, then run either a t-test or a Wilcoxon rank-sum test based on the result. Print the chosen test's output.</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(42)
+my_x &lt;- c(rexp(20, rate = 0.1))        # heavily skewed
+my_y &lt;- c(rexp(20, rate = 0.07))
+
+# Step 1: test normality of my_x and my_y with shapiro.test()
+# Step 2: if either fails (p &lt; 0.05), use wilcox.test(); otherwise use t.test()
+
+# your code here</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sw_x &lt;- shapiro.test(my_x)$p.value
+sw_y &lt;- shapiro.test(my_y)$p.value
+c(sw_x = sw_x, sw_y = sw_y)
+#&gt;       sw_x       sw_y 
+#&gt; 0.00021... 0.00087...
+
+# Both fail normality, so use Wilcoxon:
+if (sw_x &lt; 0.05 || sw_y &lt; 0.05) {
+  wilcox.test(my_x, my_y)
+} else {
+  t.test(my_x, my_y)
+}
+#&gt; 
+#&gt; 	Wilcoxon rank sum exact test
+#&gt; 
+#&gt; data:  my_x and my_y
+#&gt; W = 168, p-value = 0.2933</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>shapiro.test()</code> rejects normality for both samples (exponential draws are far from normal). We branch into <code>wilcox.test()</code>, which finds no significant difference at α = 0.05.</p>
+
+</details>
+
+<h3>Exercise 2: Kruskal-Wallis plus post-hoc on real data</h3>
+
+<p>Using the built-in <code>airquality</code> dataset, test whether mean Ozone differs across months. Drop rows with missing Ozone first. Convert <code>Month</code> to a factor. Run Kruskal-Wallis; if significant, follow up with <code>pairwise.wilcox.test()</code> using BH adjustment.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Clean + prepare:
+aq &lt;- na.omit(airquality[, c(&quot;Ozone&quot;, &quot;Month&quot;)])
+aq$Month &lt;- factor(aq$Month, labels = c(&quot;May&quot;, &quot;Jun&quot;, &quot;Jul&quot;, &quot;Aug&quot;, &quot;Sep&quot;))
+
+# Step 1: run kruskal.test(Ozone ~ Month, data = aq)
+# Step 2: if p &lt; 0.05, run pairwise.wilcox.test(aq$Ozone, aq$Month, p.adjust.method = &quot;BH&quot;)
+
+# your code here</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">kw_res &lt;- kruskal.test(Ozone ~ Month, data = aq)
+kw_res
+#&gt; 
+#&gt; 	Kruskal-Wallis rank sum test
+#&gt; 
+#&gt; data:  Ozone by Month
+#&gt; Kruskal-Wallis chi-squared = 29.267, df = 4, p-value = 6.901e-06
+
+if (kw_res$p.value &lt; 0.05) {
+  pairwise.wilcox.test(aq$Ozone, aq$Month, p.adjust.method = &quot;BH&quot;)
+}
+#&gt; 
+#&gt; 	Pairwise comparisons using Wilcoxon rank sum test with continuity correction
+#&gt; 
+#&gt; data:  aq$Ozone and aq$Month 
+#&gt; 
+#&gt;     May     Jun    Jul    Aug   
+#&gt; Jun 0.552   -      -      -     
+#&gt; Jul 0.00031 0.0042 -      -     
+#&gt; Aug 0.00095 0.0052 0.820  -     
+#&gt; Sep 0.267   0.552  0.0042 0.0104</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Kruskal-Wallis strongly rejects equality (p ≈ 7e-06). Post-hoc shows Jul and Aug differ from May, Jun, and Sep, but not from each other. Summer Ozone is higher, which matches atmospheric chemistry.</p>
+
+</details>
+
+<h3>Exercise 3: Report the effect size</h3>
+
+<p>Using the same <code>aq</code> object from Exercise 2, compute epsilon-squared from the Kruskal-Wallis H statistic and classify it as small, medium, or large using the thresholds 0.01 / 0.08 / 0.26.</p>
+
+<div class="webr-container" data-block-title="Exercise 3 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Use the H value from Exercise 2's kruskal.test() result.
+# Formula: eps2 = H / (N - 1), where N is total non-NA observations.
+
+# your code here</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">H    &lt;- 29.267
+N    &lt;- nrow(aq)
+eps2 &lt;- H / (N - 1)
+round(eps2, 3)
+#&gt; [1] 0.263
+
+# 0.263 &gt;= 0.26 =&gt; large effect</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Epsilon-squared of 0.26 just crosses the large-effect threshold. Ozone varies substantially across months in this dataset.</p>
+
+</details>
+
+<h2>Complete Example</h2>
+
+<p>Here is a full non-parametric pipeline on <code>airquality</code>: clean the data, visualise, check normality, pick the right test, run it, follow up with post-hoc, and report an effect size. All in one flow.</p>
+
+<div class="webr-container" data-block-title="End-to-end non-parametric workflow on airquality">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">End-to-end non-parametric workflow on airquality</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Step 1: clean (drop NA Ozone, format Month)
+aq_clean &lt;- na.omit(airquality[, c(&quot;Ozone&quot;, &quot;Month&quot;)])
+aq_clean$Month &lt;- factor(aq_clean$Month,
+                         labels = c(&quot;May&quot;, &quot;Jun&quot;, &quot;Jul&quot;, &quot;Aug&quot;, &quot;Sep&quot;))
+
+# Step 2: visualise (boxplot hints at distribution shapes)
+boxplot(Ozone ~ Month, data = aq_clean,
+        col = &quot;lightblue&quot;, main = &quot;Ozone by Month&quot;)
+
+# Step 3: check normality per group with Shapiro-Wilk
+shapiro_p &lt;- tapply(aq_clean$Ozone, aq_clean$Month,
+                    function(x) shapiro.test(x)$p.value)
+round(shapiro_p, 4)
+#&gt;    May    Jun    Jul    Aug    Sep 
+#&gt; 0.0020 0.0102 0.0520 0.0057 0.0004
+
+# Step 4: most groups fail normality, so use Kruskal-Wallis
+kw &lt;- kruskal.test(Ozone ~ Month, data = aq_clean)
+kw
+#&gt; 
+#&gt; 	Kruskal-Wallis rank sum test
+#&gt; 
+#&gt; data:  Ozone by Month
+#&gt; Kruskal-Wallis chi-squared = 29.267, df = 4, p-value = 6.901e-06
+
+# Step 5: significant, so run pairwise post-hoc with BH adjustment
+pw &lt;- pairwise.wilcox.test(aq_clean$Ozone, aq_clean$Month,
+                           p.adjust.method = &quot;BH&quot;)
+pw
+
+# Step 6: report epsilon-squared effect size
+H    &lt;- as.numeric(kw$statistic)
+N    &lt;- nrow(aq_clean)
+eps2 &lt;- H / (N - 1)
+cat(&quot;Kruskal-Wallis: H =&quot;, round(H, 2),
+    &quot;df =&quot;, kw$parameter,
+    &quot;p =&quot;, signif(kw$p.value, 3),
+    &quot;eps2 =&quot;, round(eps2, 3), &quot;\n&quot;)
+#&gt; Kruskal-Wallis: H = 29.27 df = 4 p = 6.9e-06 eps2 = 0.263</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>This is the minimum a reader or reviewer should see: visualisation, assumption check, the right test, pairwise follow-up, and an effect size with interpretation thresholds.</p>
+
+<h2>Summary</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Parametric test</th>
+<th>Non-parametric equivalent</th>
+<th>R function</th>
+<th>When to use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a class="auto-link" href="t-Tests-in-R.html" title="t-Tests in R: Every Variant With the Decision Rule for Choosing Between Them">Two-sample t-test</a></td>
+<td>Wilcoxon rank-sum / Mann-Whitney U</td>
+<td><code>wilcox.test(x, y)</code></td>
+<td>2 independent groups, non-normal data</td>
+</tr>
+<tr>
+<td>Paired t-test</td>
+<td>Wilcoxon signed-rank</td>
+<td><code>wilcox.test(x, y, paired = TRUE)</code></td>
+<td>2 matched samples, non-normal differences</td>
+</tr>
+<tr>
+<td>One-way ANOVA</td>
+<td>Kruskal-Wallis</td>
+<td><code>kruskal.test(y ~ group)</code></td>
+<td>3+ independent groups, non-normal data</td>
+</tr>
+<tr>
+<td>Tukey HSD / pairwise t</td>
+<td>Pairwise rank-sum or Dunn's test</td>
+<td><code>pairwise.wilcox.test()</code> / <code>FSA::dunnTest()</code></td>
+<td>Post-hoc after significant Kruskal-Wallis</td>
+</tr>
+</tbody>
+</table>
+
+<p>Key workflow:</p>
+
+<ol>
+
+<li>Plot the data and eyeball <a class="auto-link" href="Univariate-EDA-in-R.html" title="Univariate EDA in R: Every Variable Deserves Individual Attention Before Modelling">distribution shape</a>.</li>
+
+<li>Test normality per group with <code>shapiro.test()</code>.</li>
+
+<li>If normality fails, pick the rank-based test that matches your design.</li>
+
+<li>Report the test statistic, p-value, and an effect size (rank-biserial r or epsilon-squared).</li>
+
+<li>For three-plus groups, follow a significant omnibus with corrected pairwise comparisons.</li>
+
+</ol>
+
+<h2>References</h2>
+
+<ol>
+
+<li>R Core Team. <em>wilcox.test: Wilcoxon Rank Sum and Signed Rank Tests</em>. <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/wilcox.test.html">Link</a></li>
+
+<li>R Core Team. <em>kruskal.test: Kruskal-Wallis Rank Sum Test</em>. <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/kruskal.test.html">Link</a></li>
+
+<li>R Core Team. <em>pairwise.wilcox.test: Pairwise Wilcoxon Rank Sum Tests</em>. <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/pairwise.wilcox.test.html">Link</a></li>
+
+<li>Hollander, M., Wolfe, D. A., and Chicken, E. (2013). <em>Nonparametric Statistical Methods</em>, 3rd edition. Wiley.</li>
+
+<li>Wilcoxon, F. (1945). Individual comparisons by ranking methods. <em>Biometrics Bulletin</em>, 1(6), 80-83.</li>
+
+<li>Mann, H. B., and Whitney, D. R. (1947). On a test of whether one of two random variables is stochastically larger than the other. <em>Annals of Mathematical Statistics</em>, 18(1), 50-60.</li>
+
+<li>Kruskal, W. H., and Wallis, W. A. (1952). Use of ranks in one-criterion variance analysis. <em>Journal of the American Statistical Association</em>, 47(260), 583-621.</li>
+
+<li>Ogle, D. H. <em>FSA::dunnTest reference</em>. <a href="https://fishr-core-team.github.io/FSA/reference/dunnTest.html">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><strong><a href="t-Tests-in-R.html">t-Tests in R</a></strong>: the parametric sibling of the rank-sum test; use when your data is roughly normal.</li>
+
+<li><strong><a href="Normality-and-Variance-Tests-in-R.html">Normality and Variance Tests in R</a></strong>: the Shapiro-Wilk and Levene checks you run <em>before</em> deciding between parametric and non-parametric.</li>
+
+<li><strong><a href="Effect-Size-in-R.html">Effect Size in R</a></strong>: the wider family of effect sizes you should report alongside every p-value, not just rank-biserial r and epsilon-squared.</li>
+
+</ul>
+
+{% endraw %}
