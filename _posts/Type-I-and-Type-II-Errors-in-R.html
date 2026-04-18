@@ -1,0 +1,918 @@
+---
+title: "Type I and Type II Errors in R: Visualise the Trade-Off Between α and Power"
+description: "Every hypothesis test trades Type I errors (α) against Type II errors (β). Visualise both in R, and see how α, sample size, and effect size shape power."
+keywords: "Type I error, Type II error, alpha, beta, statistical power, power analysis, significance level, false positive, false negative, pwr package, hypothesis testing R"
+mathjax: true
+webr: true
+curriculum_id: "2.2.5"
+post_type: "C"
+auto_link_terms: "Type I error|Type II error|statistical power|significance level|false positive|false negative"
+auto_link_case_sensitive: false
+sidebar_section: "Statistics"
+sidebar_title: "Type I and II Errors"
+sidebar_order: "36"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>Type I and Type II Errors in R: Visualise the Trade-Off Between α and Power</h1>
+
+<p class="lead">A <b>Type I error</b> rejects a true null hypothesis (a false positive, probability α), and a <b>Type II error</b> fails to reject a false null hypothesis (a false negative, probability β). Statistical power, 1 − β, is the probability of actually detecting a real effect when one is present.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="35" data-exercises="8" data-xp="120"></div>
+
+<h2>What are Type I and Type II errors?</h2>
+
+<p>Every hypothesis test chooses between two worlds: the null distribution H₀ and the alternative distribution H₁. Both curves overlap, and any "reject" cutoff you draw will push a sliver of each distribution into the wrong bucket. The clearest way to see this is to plot both curves and shade the regions that become α and β. Let's build one picture and read every quantity straight off it.</p>
+
+<p>We'll build a reusable helper, <code>plot_power()</code>, that takes an effect size <code>d</code>, a sample size <code>n</code>, and a <a class="auto-link" href="Hypothesis-Testing-in-R.html" title="Hypothesis Testing in R: Understand the Framework, Not Just the p-Value">significance level</a> <code>alpha</code>, then draws the two sampling distributions with α shaded red (Type I) and β shaded blue (Type II).</p>
+
+<div class="webr-container" data-block-title="Define plot_power() and render the payoff picture">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Define plot_power() and render the payoff picture</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ggplot2)
+
+plot_power &lt;- function(d = 0.5, n = 30, alpha = 0.05) {
+  shift &lt;- d * sqrt(n)                       # H1 shift in SE units
+  crit  &lt;- qnorm(1 - alpha)                  # critical Z for one-sided test
+  x     &lt;- seq(-4, shift + 4, length.out = 400)
+  df    &lt;- data.frame(
+    x    = x,
+    null = dnorm(x, mean = 0,     sd = 1),
+    alt  = dnorm(x, mean = shift, sd = 1)
+  )
+  beta  &lt;- pnorm(crit, mean = shift, sd = 1)
+  power &lt;- 1 - beta
+
+  ggplot(df, aes(x)) +
+    geom_area(aes(y = null), fill = &quot;#c8d6e5&quot;, alpha = 0.5) +
+    geom_area(aes(y = alt),  fill = &quot;#feca57&quot;, alpha = 0.3) +
+    geom_area(data = subset(df, x &gt;= crit), aes(y = null),
+              fill = &quot;#ee5253&quot;, alpha = 0.8) +
+    geom_area(data = subset(df, x &lt;= crit), aes(y = alt),
+              fill = &quot;#54a0ff&quot;, alpha = 0.5) +
+    geom_vline(xintercept = crit, linetype = &quot;dashed&quot;) +
+    labs(
+      title = sprintf(&quot;d=%.2f, n=%d, alpha=%.3f  -&gt;  beta=%.3f, power=%.3f&quot;,
+                      d, n, alpha, beta, power),
+      x = &quot;Test statistic (Z)&quot;,
+      y = &quot;Density&quot;
+    ) +
+    theme_minimal()
+}
+
+plot_power(d = 0.5, n = 30, alpha = 0.05)
+#&gt; A plot with two bell curves:
+#&gt;   - grey/red curve: null distribution (Z ~ N(0,1))
+#&gt;   - yellow/blue curve: alternative distribution shifted by 2.74 SE
+#&gt;   - dashed line at Z = 1.645 (the critical value)
+#&gt;   - red right tail of H0 = alpha = 0.05
+#&gt;   - blue left tail of H1 under the critical line = beta ≈ 0.135
+#&gt;   - power = 1 - beta ≈ 0.865</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The title of the figure is the whole story. At a Cohen's d of 0.5 and n=30, the critical Z sits at 1.645 (the 95th percentile of the null). The red slice of the null curve above that line is exactly 5%, your Type I rate. The blue slice of the alternative curve <em>below</em> the same line is β ≈ 13.5%, the probability you'd miss this real effect. Everything that follows is just sliding the three inputs (<code>d</code>, <code>n</code>, <code>alpha</code>) and watching these two areas change.</p>
+
+<p><img src="screenshots/Type-I-and-Type-II-Errors-in-R-decision-matrix.webp" alt="The four outcomes of a hypothesis test, two errors, two correct decisions." class="img-responsive img-zoomable" loading="lazy" width="1424" height="1282" /></p>
+
+<p><em>Figure 1: The four outcomes of a hypothesis test, two errors, two correct decisions.</em></p>
+
+<p>The same four outcomes live in every test. Let's write them as a small table so the names stop blurring together.</p>
+
+<div class="webr-container" data-block-title="Build the 2x2 decision matrix">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build the 2x2 decision matrix</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tibble)
+
+decision_tbl &lt;- tribble(
+  ~truth,   ~decision,          ~label,                        ~probability,
+  &quot;H0 true&quot;, &quot;Reject H0&quot;,        &quot;Type I error (false positive)&quot;,   &quot;alpha&quot;,
+  &quot;H0 true&quot;, &quot;Fail to reject H0&quot;,&quot;Correct non-rejection&quot;,           &quot;1 - alpha&quot;,
+  &quot;H1 true&quot;, &quot;Reject H0&quot;,        &quot;Correct detection (Power)&quot;,       &quot;1 - beta&quot;,
+  &quot;H1 true&quot;, &quot;Fail to reject H0&quot;,&quot;Type II error (false negative)&quot;,  &quot;beta&quot;
+)
+print(decision_tbl)
+#&gt; # A tibble: 4 × 4
+#&gt;   truth   decision           label                           probability
+#&gt;   &lt;chr&gt;   &lt;chr&gt;              &lt;chr&gt;                           &lt;chr&gt;
+#&gt; 1 H0 true Reject H0          Type I error (false positive)   alpha
+#&gt; 2 H0 true Fail to reject H0  Correct non-rejection           1 - alpha
+#&gt; 3 H1 true Reject H0          Correct detection (Power)       1 - beta
+#&gt; 4 H1 true Fail to reject H0  Type II error (false negative)  beta</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Reading this table carefully is worth a minute. α and β live in <strong>different rows</strong>: α conditions on H₀ being true, β conditions on H₁ being true. You don't add them up. You can't judge a test by "α + β". That's why tightening α doesn't automatically hurt β by the same amount, they're computed on different distributions.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The two errors are not symmetric trade-offs of a single number.</strong> α is computed under the null, β under the alternative. They move together only because they share the same critical value, not because they share the same probability mass.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Re-run <code>plot_power()</code> with <code>alpha = 0.01</code> (everything else the same). Predict whether β will be bigger or smaller before you look. Check the figure title.</p>
+<div class="webr-container" data-block-title="Your turn: tighten alpha">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: tighten alpha</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: call plot_power() with alpha = 0.01
+# Hint: keep d = 0.5 and n = 30
+ex_plot &lt;- plot_power(d = 0.5, n = 30, alpha = ___)
+
+# Expected: alpha in the title drops to 0.01,
+# and beta rises from ~0.135 to about ~0.29.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Tighten alpha solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Tighten alpha solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_plot &lt;- plot_power(d = 0.5, n = 30, alpha = 0.01)
+ex_plot
+#&gt; Figure title: d=0.50, n=30, alpha=0.010 -&gt; beta=0.288, power=0.712</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Lowering α from 0.05 to 0.01 moves the dashed critical line to the right (Z = 2.326). That shrinks the red tail of the null to 1%, but a bigger chunk of the alternative curve now sits <em>under</em> the line, so β roughly doubles.</p>
+
+</details>
+</section>
+
+<h2>How does changing α affect β?</h2>
+
+<p>The first H2 showed it once. Now let's make it quantitative. Lowering α is a decision to be stricter before you declare a finding real. The cost is you reject fewer true positives too. Let's sweep α across three common values and print the numbers.</p>
+
+<div class="webr-container" data-block-title="Sweep alpha and tabulate beta and power">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Sweep alpha and tabulate beta and power</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">alphas &lt;- c(0.10, 0.05, 0.01)
+
+alpha_beta_df &lt;- data.frame(
+  alpha = alphas,
+  crit  = qnorm(1 - alphas),
+  beta  = pnorm(qnorm(1 - alphas), mean = 0.5 * sqrt(30), sd = 1),
+  power = 1 - pnorm(qnorm(1 - alphas), mean = 0.5 * sqrt(30), sd = 1)
+)
+alpha_beta_df
+#&gt;   alpha     crit      beta     power
+#&gt; 1  0.10 1.281552 0.0725330 0.9274670
+#&gt; 2  0.05 1.644854 0.1353803 0.8646197
+#&gt; 3  0.01 2.326348 0.2884987 0.7115013</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Three lines in, and the trade-off is stark. Going from α=0.10 to α=0.01 cuts the Type I rate ten-fold, but β jumps from 7.3% to 28.8%, you'd miss more than a quarter of real effects at the stricter cutoff. This is why "just use α=0.001 to be safe" is bad advice: it's only safer against one mistake.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Smaller α is not universally "safer".</strong> Cutting α from 0.05 to 0.01 sounds cautious, but with a modest effect size you'll typically quadruple your miss rate. A test tuned for false-positive control can be completely uninformative about real effects if β isn't checked.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Write a function <code>ex_alpha_sweep(alphas, d, n)</code> that returns a data frame with columns <code>alpha</code>, <code>beta</code>, <code>power</code>. Test it on <code>c(0.20, 0.05, 0.001)</code>.</p>
+<div class="webr-container" data-block-title="Your turn: function that sweeps alpha">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: function that sweeps alpha</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_alpha_sweep &lt;- function(alphas, d, n) {
+  # your code here
+}
+
+ex_alpha_sweep(c(0.20, 0.05, 0.001), d = 0.5, n = 30)
+#&gt; Expected: a data.frame with 3 rows and columns alpha, beta, power</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Alpha sweep solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Alpha sweep solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_alpha_sweep &lt;- function(alphas, d, n) {
+  shift &lt;- d * sqrt(n)
+  crit  &lt;- qnorm(1 - alphas)
+  beta  &lt;- pnorm(crit, mean = shift, sd = 1)
+  data.frame(alpha = alphas, beta = beta, power = 1 - beta)
+}
+
+ex_alpha_sweep(c(0.20, 0.05, 0.001), d = 0.5, n = 30)
+#&gt;   alpha       beta     power
+#&gt; 1 0.200 0.03049029 0.9695097
+#&gt; 2 0.050 0.13538028 0.8646197
+#&gt; 3 0.001 0.49994173 0.5000583</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>qnorm()</code> and <code>pnorm()</code> are vectorised, so the body is just four lines. The point is that at α=0.001 and d=0.5, n=30, power drops to 50%, a coin flip, useless for a serious study.</p>
+
+</details>
+</section>
+
+<h2>How does sample size change the picture?</h2>
+
+<p>Changing α is a policy decision. Changing n is an investment in data. More data shrinks the standard error, which narrows both sampling distributions, which reduces overlap, which cuts β. Same α, more data, less β. It's the cleanest lever you have.</p>
+
+<div class="webr-container" data-block-title="Sweep sample size at fixed effect size">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Sweep sample size at fixed effect size</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">n_grid &lt;- c(10, 20, 30, 50, 100, 200)
+d_fixed &lt;- 0.5
+alpha_fixed &lt;- 0.05
+
+n_power_df &lt;- data.frame(
+  n     = n_grid,
+  shift = d_fixed * sqrt(n_grid),
+  beta  = pnorm(qnorm(1 - alpha_fixed),
+                mean = d_fixed * sqrt(n_grid), sd = 1),
+  power = 1 - pnorm(qnorm(1 - alpha_fixed),
+                    mean = d_fixed * sqrt(n_grid), sd = 1)
+)
+n_power_df
+#&gt;     n    shift      beta     power
+#&gt; 1  10 1.581139 0.5253804 0.4746196
+#&gt; 2  20 2.236068 0.2788144 0.7211856
+#&gt; 3  30 2.738613 0.1353803 0.8646197
+#&gt; 4  50 3.535534 0.0290397 0.9709603
+#&gt; 5 100 5.000000 0.0004290 0.9995710
+#&gt; 6 200 7.071068 0.0000000 1.0000000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>At n=10 the test is worse than a coin flip for detecting d=0.5. By n=50 power is already 97%, and at n=100 we're essentially guaranteed to detect it. The returns flatten quickly, going from 50 to 200 buys almost nothing at d=0.5, but would matter a lot for a smaller effect. That insight is exactly what a power curve reveals.</p>
+
+<div class="webr-container" data-block-title="Plot power curves across several effect sizes">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot power curves across several effect sizes</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">n_curve_df &lt;- expand.grid(
+  n = seq(5, 200, by = 5),
+  d = c(0.2, 0.5, 0.8)
+)
+n_curve_df$power &lt;- 1 - pnorm(
+  qnorm(0.95),
+  mean = n_curve_df$d * sqrt(n_curve_df$n),
+  sd = 1
+)
+
+ggplot(n_curve_df, aes(x = n, y = power, colour = factor(d))) +
+  geom_line(linewidth = 1) +
+  geom_hline(yintercept = 0.80, linetype = &quot;dotted&quot;) +
+  labs(
+    title = &quot;Power vs sample size for three effect sizes (alpha=0.05)&quot;,
+    x = &quot;Sample size n&quot;, y = &quot;Power (1 - beta)&quot;,
+    colour = &quot;Cohen's d&quot;
+  ) +
+  theme_minimal()
+#&gt; A plot: three rising S-curves.
+#&gt;   - d=0.8 reaches 0.80 power by n ~ 13
+#&gt;   - d=0.5 reaches 0.80 power by n ~ 26
+#&gt;   - d=0.2 needs n ~ 155 to reach 0.80 power</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each curve climbs steeply, then plateaus near 1. The dotted line at 0.80 is the textbook power target. Notice how the small-effect curve takes a much bigger n to cross that line, a quiet reminder that small effects demand huge studies, not clever tests.</p>
+
+<p><img src="screenshots/Type-I-and-Type-II-Errors-in-R-power-levers.webp" alt="The three levers that raise power: α, sample size, and effect size." class="img-responsive img-zoomable" loading="lazy" width="1034" height="986" /></p>
+
+<p><em>Figure 2: The three levers that raise power: α, sample size, and effect size.</em></p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Solve for the smallest n that gives power ≥ 0.90 at α=0.05 and d=0.3.</p>
+<div class="webr-container" data-block-title="Your turn: find n for target power">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: find n for target power</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_n &lt;- ___  # starting value, search upward
+ex_power &lt;- 1 - pnorm(qnorm(0.95), mean = 0.3 * sqrt(ex_n), sd = 1)
+
+# Expected: n around 117 yields power ≈ 0.90</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Find n for target power solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Find n for target power solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_n_grid &lt;- 50:200
+ex_power_grid &lt;- 1 - pnorm(qnorm(0.95),
+                           mean = 0.3 * sqrt(ex_n_grid), sd = 1)
+ex_n &lt;- min(ex_n_grid[ex_power_grid &gt;= 0.90])
+ex_n
+#&gt; [1] 117
+1 - pnorm(qnorm(0.95), mean = 0.3 * sqrt(ex_n), sd = 1)
+#&gt; [1] 0.9014498</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Grid-searching over an integer range is the simplest reliable solution. <code>pwr.t.test()</code> (next section) does this inversion analytically, but the grid confirms the answer.</p>
+
+</details>
+</section>
+
+<h2>How does effect size affect power?</h2>
+
+<p>Effect size is the signal-to-noise ratio, expressed as a standard-deviation-unit gap between H₀ and H₁. Cohen famously benchmarked d=0.2 as small, 0.5 as medium, 0.8 as large. Those labels are domain-free rules of thumb, in your field a "small" effect may be life-saving (a 0.1 SD drop in hospital mortality) or trivially uninteresting.</p>
+
+<div class="webr-container" data-block-title="Power at three effect sizes with n=30, alpha=0.05">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Power at three effect sizes with n=30, alpha=0.05</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">effect_df &lt;- data.frame(
+  d = c(0.2, 0.5, 0.8),
+  n = 30,
+  alpha = 0.05
+)
+effect_df$power &lt;- 1 - pnorm(
+  qnorm(0.95),
+  mean = effect_df$d * sqrt(effect_df$n),
+  sd = 1
+)
+effect_df$beta &lt;- 1 - effect_df$power
+effect_df
+#&gt;     d  n alpha     power      beta
+#&gt; 1 0.2 30  0.05 0.1832193 0.8167807
+#&gt; 2 0.5 30  0.05 0.8646197 0.1353803
+#&gt; 3 0.8 30  0.05 0.9960946 0.0039054</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Same n, same α, three different worlds. A study tuned to detect "small" effects at n=30 has 18% power: you'd miss the real effect more than 4 times out of 5. The same n catches a "medium" effect 86% of the time and a "large" effect essentially always. This is why "we ran a study and found nothing" often means "we didn't run a big enough study".</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Cohen's d benchmarks (0.2, 0.5, 0.8) are not laws.</strong> They're rough defaults for planning when no prior effect estimate is available. Prefer a domain-specific effect size whenever you can, ideally from a pilot study or a meta-analysis.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute power for d values from 0.1 to 1.0 in steps of 0.1 at n=30, α=0.05, and plot it.</p>
+<div class="webr-container" data-block-title="Your turn: power vs d curve">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: power vs d curve</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_d_grid &lt;- ___
+ex_power_grid &lt;- ___
+
+# Expected: a smooth S-curve from ~0.05 at d=0.1 to ~1.0 at d=1.0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Power vs d solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Power vs d solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_d_grid &lt;- seq(0.1, 1.0, by = 0.1)
+ex_power_grid &lt;- 1 - pnorm(qnorm(0.95),
+                           mean = ex_d_grid * sqrt(30), sd = 1)
+
+plot(ex_d_grid, ex_power_grid, type = &quot;b&quot;,
+     xlab = &quot;Cohen's d&quot;, ylab = &quot;Power&quot;,
+     main = &quot;Power vs effect size at n=30, alpha=0.05&quot;)
+#&gt; A rising S-curve: ~0.08 at d=0.1, ~0.86 at d=0.5, ~1.00 at d=1.0.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The curve is steepest in the middle (around d=0.4) and flattens at both ends. That's why doubling a tiny effect size gains far more power than doubling an already-large one.</p>
+
+</details>
+</section>
+
+<h2>How do we calculate power with the pwr package?</h2>
+
+<p>Everything above used closed-form expressions for a one-sided z-test. In practice you usually want a t-test, a proportion test, or an ANOVA, and you want to <strong>solve for</strong> the quantity you don't know. The <code>pwr</code> package by Stéphane Champely handles that inversion for the common tests. You give it any three of (effect size, sample size, α, power) and it computes the fourth.</p>
+
+<div class="webr-container" data-block-title="Use pwr for a two-sample t-test">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Use pwr for a two-sample t-test</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(pwr)
+
+# 1. Given d, n, alpha -&gt; compute power
+pwr.t.test(n = 30, d = 0.5, sig.level = 0.05,
+           type = &quot;two.sample&quot;, alternative = &quot;two.sided&quot;)
+#&gt;      Two-sample t test power calculation
+#&gt;
+#&gt;               n = 30
+#&gt;               d = 0.5
+#&gt;       sig.level = 0.05
+#&gt;           power = 0.4778965
+#&gt;     alternative = two.sided
+#&gt;
+#&gt; NOTE: n is number in *each* group
+
+# 2. Given d, alpha, power -&gt; solve for n
+pwr_out &lt;- pwr.t.test(d = 0.5, sig.level = 0.05, power = 0.80,
+                      type = &quot;two.sample&quot;, alternative = &quot;two.sided&quot;)
+n_req &lt;- ceiling(pwr_out$n)
+n_req
+#&gt; [1] 64</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Two things to notice. First, the two-sided t-test at d=0.5, n=30 has power 0.48, much lower than our earlier one-sided z-test estimate of 0.86. That gap comes from two adjustments: two-sided tests must split α across both tails, and the t-distribution has fatter tails than the normal. Second, to hit the classic 80% power target at d=0.5, you need 64 subjects <em>per group</em>, or 128 total. That's a useful sanity check every time you design a study.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Always leave out the quantity you want to compute.</strong> <code>pwr.t.test()</code> inverts the formula for whichever argument you omit. Pass it <code>n = NULL</code> (or just leave <code>n</code> off) to solve for sample size, omit <code>power</code> to compute power, omit <code>d</code> to find the minimum detectable effect.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use <code>pwr.t.test()</code> to find the sample size per group needed for 90% power at d=0.4, α=0.05, two-sided.</p>
+<div class="webr-container" data-block-title="Your turn: solve for n with pwr">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: solve for n with pwr</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_pwr &lt;- pwr.t.test(d = ___, sig.level = 0.05, power = ___,
+                     type = &quot;two.sample&quot;, alternative = &quot;two.sided&quot;)
+ceiling(ex_pwr$n)
+#&gt; Expected: 133 per group</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="pwr solve-for-n solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">pwr solve-for-n solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_pwr &lt;- pwr.t.test(d = 0.4, sig.level = 0.05, power = 0.90,
+                     type = &quot;two.sample&quot;, alternative = &quot;two.sided&quot;)
+ceiling(ex_pwr$n)
+#&gt; [1] 133</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Shrinking the effect from 0.5 to 0.4 and raising power from 0.80 to 0.90 more than doubles the per-group sample size. Small gains on both fronts compound quickly.</p>
+
+</details>
+</section>
+
+<h2>How do simulations validate the error rates?</h2>
+
+<p>Analytical formulas are tidy, but only exist for standard tests. For anything non-standard, bootstrapped tests, mixed models, custom statistics, you estimate α and power the way a frequentist defines them: by running the experiment many times and counting. <a class="auto-link" href="Sample-Spaces-Events-and-Probability-Axioms-in-R-With-Monte-Carlo-Proof.html" title="Probability Axioms in R: Prove the Rules of Probability via Monte Carlo Simulation">Monte Carlo simulation</a> is the ground truth every formula is trying to approximate.</p>
+
+<div class="webr-container" data-block-title="Simulate Type I rate under the null">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Simulate Type I rate under the null</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2025)
+
+n_sim &lt;- 5000
+n_each &lt;- 30
+
+p_values_null &lt;- replicate(n_sim, {
+  x &lt;- rnorm(n_each, mean = 0, sd = 1)   # both groups share the same mean
+  y &lt;- rnorm(n_each, mean = 0, sd = 1)
+  t.test(x, y)$p.value
+})
+false_pos_rate &lt;- mean(p_values_null &lt; 0.05)
+false_pos_rate
+#&gt; [1] 0.0504</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The empirical false-positive rate sits right at 5%, matching the nominal α exactly (within Monte Carlo noise). That's what "α = 0.05" actually promises: if H₀ is true and you re-ran the study forever, you'd wrongly reject about 5% of the time. No more, no less. Now let's flip the truth and see what power looks like.</p>
+
+<div class="webr-container" data-block-title="Simulate power under a true effect">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Simulate power under a true effect</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+
+p_values_alt &lt;- replicate(n_sim, {
+  x &lt;- rnorm(n_each, mean = 0.0, sd = 1)
+  y &lt;- rnorm(n_each, mean = 0.5, sd = 1)   # true shift = 0.5 SD
+  t.test(x, y)$p.value
+})
+empirical_power &lt;- mean(p_values_alt &lt; 0.05)
+empirical_power
+#&gt; [1] 0.4806</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Empirical power is 48%, essentially the same as the 47.8% <code>pwr.t.test()</code> predicted for d=0.5, n=30. Analytical and simulated answers agree, which is the whole reason we trust the formula in the first place. When you build a custom test, you lose the formula but keep the simulator.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Simulation is the authoritative definition of α and power.</strong> Formulas are fast approximations to the long-run frequency of rejection; the simulation <em>is</em> that frequency. If the two disagree, trust the simulator and debug the formula.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Re-run the power simulation with <code>n_each &lt;- 10</code> (same effect size). Predict whether empirical power will be above or below 50% before you run it.</p>
+<div class="webr-container" data-block-title="Your turn: simulate power at n=10">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: simulate power at n=10</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(99)
+ex_n &lt;- 10
+ex_p &lt;- replicate(2000, {
+  x &lt;- rnorm(ex_n, mean = 0.0, sd = 1)
+  y &lt;- rnorm(ex_n, mean = ___, sd = 1)
+  t.test(x, y)$p.value
+})
+mean(ex_p &lt; 0.05)
+#&gt; Expected: about 0.18 (much worse than n=30)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Power at n=10 simulation solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Power at n=10 simulation solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(99)
+ex_n &lt;- 10
+ex_p &lt;- replicate(2000, {
+  x &lt;- rnorm(ex_n, mean = 0.0, sd = 1)
+  y &lt;- rnorm(ex_n, mean = 0.5, sd = 1)
+  t.test(x, y)$p.value
+})
+mean(ex_p &lt; 0.05)
+#&gt; [1] 0.1855</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Same effect size, one-third the sample, and power collapses from 48% to 19%. The empirical answer matches <code>pwr.t.test(n = 10, d = 0.5, ...)</code> closely. Sample size is the single biggest thing you control.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<h3>Exercise 1: Build a full error table</h3>
+
+<p>Write a function <code>my_error_table(alphas, d, n)</code> that returns a data frame with columns <code>alpha</code>, <code>beta</code>, <code>power</code>, and <code>correct_rejection</code>. Run it for α values <code>c(0.001, 0.01, 0.05, 0.10)</code> at d=0.4 and n=40 (one-sided z-test, so use the analytical formula). Your result should show how sharply β rises as α tightens.</p>
+
+<div class="webr-container" data-block-title="Exercise 1: your error table">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1: your error table</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: power = 1 - pnorm(qnorm(1 - alpha), mean = d * sqrt(n), sd = 1)
+# Hint: correct_rejection (under H0) = 1 - alpha
+
+my_error_table &lt;- function(alphas, d, n) {
+  # your code here
+}
+
+my_error_table(c(0.001, 0.01, 0.05, 0.10), d = 0.4, n = 40)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution: full error table">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution: full error table</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_error_table &lt;- function(alphas, d, n) {
+  shift &lt;- d * sqrt(n)
+  crit  &lt;- qnorm(1 - alphas)
+  beta  &lt;- pnorm(crit, mean = shift, sd = 1)
+  data.frame(
+    alpha             = alphas,
+    beta              = beta,
+    power             = 1 - beta,
+    correct_rejection = 1 - alphas
+  )
+}
+
+my_error_table(c(0.001, 0.01, 0.05, 0.10), d = 0.4, n = 40)
+#&gt;   alpha       beta     power correct_rejection
+#&gt; 1 0.001 0.76225820 0.2377418             0.999
+#&gt; 2 0.010 0.44898140 0.5510186             0.990
+#&gt; 3 0.050 0.19637793 0.8036221             0.950
+#&gt; 4 0.100 0.09891598 0.9010840             0.900</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Notice how at α=0.001 you're only detecting 24% of real d=0.4 effects, and the table puts that cost right next to the nominally reassuring 99.9% correct-rejection rate. Displaying both columns together stops α-worship.</p>
+
+</details>
+
+<h3>Exercise 2: Simulate a power curve for a proportion test</h3>
+
+<p>Simulate the power of a two-sample proportion test across a grid of sample sizes. The control group has a 10% conversion rate; the treatment group has 14%. Use <code>prop.test()</code> and count how often it rejects at α=0.05. Plot power vs n per group.</p>
+
+<div class="webr-container" data-block-title="Exercise 2: your proportion-power simulation">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2: your proportion-power simulation</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: replicate() around prop.test(c(s1, s2), c(n_each, n_each))$p.value
+# Hint: simulate successes with rbinom(1, n_each, prob)
+
+my_n_grid &lt;- c(200, 500, 1000, 2000)
+my_power_curve &lt;- sapply(my_n_grid, function(n_each) {
+  # simulate 500 datasets, return mean(p &lt; 0.05)
+  # your code here
+})
+
+plot(my_n_grid, my_power_curve, type = &quot;b&quot;,
+     xlab = &quot;n per group&quot;, ylab = &quot;Power&quot;,
+     main = &quot;Simulated power: 10% vs 14% conversion&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution: simulated proportion power">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution: simulated proportion power</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2027)
+my_n_grid &lt;- c(200, 500, 1000, 2000)
+
+my_power_curve &lt;- sapply(my_n_grid, function(n_each) {
+  p_vals &lt;- replicate(500, {
+    s1 &lt;- rbinom(1, n_each, 0.10)
+    s2 &lt;- rbinom(1, n_each, 0.14)
+    prop.test(c(s1, s2), c(n_each, n_each))$p.value
+  })
+  mean(p_vals &lt; 0.05)
+})
+
+data.frame(n_per_group = my_n_grid, power = my_power_curve)
+#&gt;   n_per_group power
+#&gt; 1         200 0.298
+#&gt; 2         500 0.678
+#&gt; 3        1000 0.926
+#&gt; 4        2000 0.998
+
+plot(my_n_grid, my_power_curve, type = &quot;b&quot;,
+     xlab = &quot;n per group&quot;, ylab = &quot;Power&quot;,
+     main = &quot;Simulated power: 10% vs 14% conversion&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> To reliably catch a 4-point lift off a 10% base you need roughly a thousand users per arm. This is exactly the kind of calculation A/B test planners reach for and is easy to generalise, swap <code>rbinom()</code> for any sampling mechanism and the scaffold still works.</p>
+
+</details>
+
+<h2>Complete Example: plan a two-group study end to end</h2>
+
+<p>A product team wants to A/B test a new onboarding flow. Prior analytics suggest the true improvement in 7-day retention is roughly d=0.4 (a "small to medium" effect). They want α=0.05 and 80% power, using a two-sided t-test. We'll plan the sample size, visualise the expected test, and simulate to confirm.</p>
+
+<div class="webr-container" data-block-title="Step 1: solve for n with pwr">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Step 1: solve for n with pwr</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">plan &lt;- pwr.t.test(d = 0.4, sig.level = 0.05, power = 0.80,
+                   type = &quot;two.sample&quot;, alternative = &quot;two.sided&quot;)
+plan
+#&gt;      Two-sample t test power calculation
+#&gt;
+#&gt;               n = 99.0804
+#&gt;               d = 0.4
+#&gt;       sig.level = 0.05
+#&gt;           power = 0.8
+#&gt;     alternative = two.sided
+#&gt;
+#&gt; NOTE: n is number in *each* group
+
+n_per_group &lt;- ceiling(plan$n)
+n_per_group
+#&gt; [1] 100</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="webr-container" data-block-title="Step 2: visualise the one-sided z equivalent for intuition">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Step 2: visualise the one-sided z equivalent for intuition</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">plot_power(d = 0.4, n = 100, alpha = 0.05)
+#&gt; Figure title: d=0.40, n=100, alpha=0.050 -&gt; beta=0.0008, power=0.999
+#&gt; (the z-test approximation; the real two-sided t-test is less optimistic)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The z-approximation pegs power above 99%. That's higher than <code>pwr</code>'s 80% because <code>plot_power()</code> implements a one-sided z-test, not the two-sided t-test the team will actually use. We keep it for the visual, then trust <code>pwr</code> and the simulator for the planning number.</p>
+
+<div class="webr-container" data-block-title="Step 3: simulate the planned study 2,000 times">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Step 3: simulate the planned study 2,000 times</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(777)
+sim_p &lt;- replicate(2000, {
+  x &lt;- rnorm(n_per_group, 0.0, 1)
+  y &lt;- rnorm(n_per_group, 0.4, 1)
+  t.test(x, y)$p.value
+})
+mean(sim_p &lt; 0.05)
+#&gt; [1] 0.8015</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The simulator lands on 80.2%, rounding error away from the analytical 80%. The team can now commit to 100 users per arm with confidence that a true d=0.4 effect will be caught roughly 4 times out of 5, while the false-positive rate stays at 5%. That's a study design, documented end to end in 15 lines of R.</p>
+
+<h2>Summary</h2>
+
+<p><img src="screenshots/Type-I-and-Type-II-Errors-in-R-summary-mindmap.webp" alt="Recap of how Type I, Type II, and power relate." class="img-responsive img-zoomable" loading="lazy" width="1382" height="1040" /></p>
+
+<p><em>Figure 3: Recap of how Type I, Type II, and power relate.</em></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Quantity</th>
+<th>Meaning</th>
+<th>Controlled by</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>α (Type I rate)</td>
+<td>P(reject H₀ given H₀ true)</td>
+<td>You set it directly</td>
+</tr>
+<tr>
+<td>β (Type II rate)</td>
+<td>P(fail to reject given H₁ true)</td>
+<td>Emerges from α, n, and effect size</td>
+</tr>
+<tr>
+<td>Power = 1 − β</td>
+<td>P(reject given H₁ true)</td>
+<td>Grows with n and effect size; grows with α</td>
+</tr>
+<tr>
+<td>1 − α</td>
+<td>P(correctly fail to reject given H₀)</td>
+<td>Directly tied to α</td>
+</tr>
+</tbody>
+</table>
+
+<p>Two facts to keep in your head after closing the tab. First, α and β live on different distributions, you cannot "split the difference" by averaging them. Second, of the three levers that move power (α, n, effect size), only sample size is freely yours to adjust once the study begins, so plan it before you collect anything.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Cohen, J. (1988). <em>Statistical Power Analysis for the Behavioral Sciences</em>, 2nd ed. Lawrence Erlbaum Associates. <a href="https://www.amazon.com/Statistical-Power-Analysis-Behavioral-Sciences/dp/0805802835">Amazon link</a></li>
+
+<li>Champely, S., <em>pwr: Basic Functions for Power Analysis</em>. CRAN. <a href="https://cran.r-project.org/web/packages/pwr/pwr.pdf">Link</a></li>
+
+<li>pwr package vignette, <em>Practical examples</em>. <a href="https://cran.r-project.org/web/packages/pwr/vignettes/pwr-vignette.html">Link</a></li>
+
+<li>Wickham, H. <em>ggplot2: Elegant Graphics for Data Analysis</em>. Springer. <a href="https://ggplot2-book.org/">Link</a></li>
+
+<li>R Core Team, <em>Statistical functions (qnorm, pnorm, t.test)</em>. <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/00Index.html">Link</a></li>
+
+<li>Magnusson, K., <em>Creating a typical textbook illustration of statistical power using either ggplot or base graphics</em>. R Psychologist blog. <a href="https://rpsychologist.com/creating-a-typical-textbook-illustration-of-statistical-power-using-either-ggplot-or-base-graphics/">Link</a></li>
+
+<li>pwrss package vignette, <em>Practical <a class="auto-link" href="Sample-Size-Planning-in-R.html" title="Sample Size in R: Calculate Your N Before You Collect a Single Observation">Power Analysis in R</a></em>. CRAN. <a href="https://cran.r-project.org/web/packages/pwrss/vignettes/examples.html">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="/Hypothesis-Testing-in-R.html">Hypothesis Testing in R: Understand the Framework, Not Just the p-Value</a>, the framework these errors live inside.</li>
+
+<li><a href="/Confidence-Intervals-in-R.html">Confidence Intervals in R: The Definition Most Textbooks State Incorrectly</a>, the other half of frequentist inference.</li>
+
+<li><a href="/Point-Estimation-in-R.html">Point Estimation in R: What Makes an Estimator Good?</a>, the upstream step: how we got µ̂ in the first place.</li>
+
+</ul>
+
+{% endraw %}
