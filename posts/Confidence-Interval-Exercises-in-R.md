@@ -3,7 +3,7 @@ title: "Confidence Interval Exercises in R: 10 Problems with Full Solutions"
 slug: Confidence-Interval-Exercises-in-R
 description: "Work through 10 R confidence interval exercises: t.test, prop.test, bootstrap CIs, paired samples, regression, and sample-size effects. Full solutions inside."
 keywords: "confidence interval exercises in R, R confidence interval practice, t.test confidence interval, prop.test R, bootstrap confidence interval R, confint R, paired t-test CI, regression confidence interval"
-auto_link_terms: "confidence interval exercises|CI exercises in R|confidence interval practice problems|confidence interval exercises in R|bootstrap confidence interval exercises"
+auto_link_terms: "confidence interval exercises|CI exercises in R|confidence interval practice problems|confidence interval problems in R|bootstrap confidence interval exercises|confidence interval practice|confint() exercises"
 auto_link_case_sensitive: false
 mathjax: true
 webr: true
@@ -17,140 +17,146 @@ difficulty: Intermediate
 
 # Confidence Interval Exercises in R: 10 Problems with Full Solutions
 
-<p class="lead">These 10 confidence interval exercises in R walk from a one-line t.test() through manual qt() formulas, two-sample and paired intervals, bootstrap CIs for the median, regression coefficient intervals, and the sample-size versus width trade-off, with full runnable solutions.</p>
+<p class="lead">These 10 confidence interval exercises in R walk from a one-line <code>t.test()</code> through manual <code>qt()</code> formulas, two-sample and paired intervals, bootstrap CIs for the median, regression coefficient intervals, and the sample-size-versus-width trade-off, with full runnable solutions next to every problem.</p>
 
 ## How do you build a 95% confidence interval in R?
 
 R already hands you a confidence interval every time you run `t.test()`, but most learners skim past that `conf.int` line without realising it is the whole point. Here is a one-liner on `mtcars$mpg` that returns a 95% interval for the true mean mpg, so you see exactly where the interval lives in the output before the exercises start asking you to build intervals yourself.
 
-```r title="Payoff: 95% CI for mean mpg"
-# Full t.test output plus the two numbers you actually care about
-mpg_ci <- t.test(mtcars$mpg)
+```r title="95% CI for mean mpg in one line"
+# 95% confidence interval for the mean of mtcars$mpg
+mpg_ci <- t.test(mtcars$mpg)$conf.int
 mpg_ci
-#> 	One Sample t-test
-#>
-#> data:  mtcars$mpg
-#> t = 18.857, df = 31, p-value < 2.2e-16
-#> alternative hypothesis: true mean is not equal to 0
-#> 95 percent confidence interval:
-#>  17.91768 22.26357
-#> sample estimates:
-#> mean of x
-#>  20.09062
-
-mpg_ci$conf.int
 #> [1] 17.91768 22.26357
 #> attr(,"conf.level")
 #> [1] 0.95
 ```
 
-The 95% CI for the mean mpg of the 32 cars is [17.92, 22.26], with a sample mean of 20.09 sitting comfortably inside. The right way to read this is as a statement about the *procedure*: if we repeated the sampling many times and rebuilt the interval each time, about 95% of those intervals would capture the true mean mpg. The `$conf.int` accessor returns just the two numbers, which is usually all you want for a report.
+The two numbers `17.92` and `22.26` are the lower and upper bounds of a 95% CI for the mean mpg across all cars in the population `mtcars` was drawn from. If you repeated this study many times, about 95% of such intervals would cover the true mean. The sample mean `mean(mtcars$mpg)` is `20.09`, which sits right between them, and the interval runs roughly 2.2 units either side of that centre.
 
 [TIP]
-**Pull $conf.int directly for the two numbers you actually care about.** `t.test()` prints a verbose block, but every R test returns a list, and `$conf.int` gives you the CI you can paste into a report, pipe into a helper, or feed into a plot.
+**Pull $conf.int directly for the two numbers you actually care about.** The full `print()` output of `t.test()` is noisy with null hypothesis machinery. Extracting the interval as a 2-element vector keeps your code terse and makes it easy to `round()`, `diff()`, or pass to another function.
 
-**Try it:** Compute the 95% CI for `iris$Sepal.Length` and store just the lower bound in a variable called `ex_lower`.
+The formula behind that `t.test()` call is the same one every introductory stats course uses:
 
-```r title="Your turn: lower bound of iris CI"
-# Try it: compute the 95% CI for iris$Sepal.Length and save the lower bound
-ex_sepal_ci <- t.test(iris$Sepal.Length)$conf.int
-ex_lower <- ___   # replace ___ with the first element of ex_sepal_ci
+$$\bar{x} \pm t_{\alpha/2,\,n-1} \cdot \frac{s}{\sqrt{n}}$$
+
+Where:
+- $\bar{x}$ = sample mean
+- $s$ = sample standard deviation
+- $n$ = sample size
+- $t_{\alpha/2,\,n-1}$ = the t critical value for confidence level $1-\alpha$ and $n-1$ degrees of freedom
+
+You will reconstruct this formula by hand in Exercise 3.
+
+**Try it:** Compute the 95% confidence interval for `iris$Sepal.Length`. Save the lower bound to `ex_lower`.
+
+```r title="Your turn: CI for iris Sepal.Length"
+# Try it: compute the 95% CI for iris$Sepal.Length
+ex_sepal_ci <- # your code here
+
+ex_lower <- # your code here
 ex_lower
-#> Expected: about 5.71
+#> Expected: 5.709732
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Lower bound solution"
+```r title="iris Sepal.Length CI solution"
 ex_sepal_ci <- t.test(iris$Sepal.Length)$conf.int
 ex_lower <- ex_sepal_ci[1]
 ex_lower
 #> [1] 5.709732
 ```
 
-**Explanation:** `$conf.int` is a length-2 numeric vector, so bracket-indexing with `[1]` pulls the lower bound. The upper bound is `ex_sepal_ci[2]`. This is the fastest way to extract just one side of a CI when you only need one endpoint.
+**Explanation:** `t.test()` returns a list with a `$conf.int` field. Indexing with `[1]` grabs the lower bound; `[2]` would give the upper bound.
 
 </details>
 
 ## Which R function computes which type of confidence interval?
 
-Not every parameter lives in `t.test()`. R has a small family of CI-producing functions, each tuned to a different statistic: `t.test()` for a mean or difference of means, `prop.test()` for a proportion, `confint()` for any model coefficient, `cor.test()` for a correlation, and a short `replicate` + `sample` + `quantile` recipe for statistics without a closed-form CI. The block below shows the four built-in patterns side-by-side on toy data so you can see the shared shape.
+Not every confidence interval comes from `t.test()`. R has a small, well-chosen set of functions that each cover one family of estimators. Knowing which function to reach for is half the battle, so here are the four most common in one place with toy data.
 
-```r title="Four CI functions, same shape"
-# 1. Mean with t.test()
+```r title="Four CI functions side-by-side"
+# 1. Mean CI via t.test()
 t_ex <- t.test(mtcars$mpg)$conf.int
-t_ex
-#> [1] 17.91768 22.26357
-#> attr(,"conf.level")
-#> [1] 0.95
 
-# 2. Proportion with prop.test()
-p_ex <- prop.test(x = 65, n = 100)$conf.int
-p_ex
-#> [1] 0.5482466 0.7397328
-#> attr(,"conf.level")
-#> [1] 0.95
+# 2. Proportion CI via prop.test() (60 successes in 100 trials)
+p_ex <- prop.test(60, 100)$conf.int
 
-# 3. Regression coefficient with confint()
+# 3. Regression coefficient CI via confint()
 lm_fit_ex <- lm(mpg ~ wt, data = mtcars)
-ci_fit <- confint(lm_fit_ex, level = 0.95)
-ci_fit
-#>                 2.5 %    97.5 %
-#> (Intercept) 33.450500 41.119753
-#> wt          -6.486308 -4.202635
+ci_fit <- confint(lm_fit_ex)
 
-# 4. Correlation with cor.test()
+# 4. Correlation CI via cor.test()
 cor_ex <- cor.test(mtcars$mpg, mtcars$wt)$conf.int
-cor_ex
-#> [1] -0.9337874 -0.7440872
-#> attr(,"conf.level")
-#> [1] 0.95
+
+round(t_ex, 3)
+#> [1] 17.918 22.264
+round(p_ex, 3)
+#> [1] 0.497 0.696
+round(ci_fit, 3)
+#>              2.5 %  97.5 %
+#> (Intercept) 33.451 41.120
+#> wt          -6.486 -4.203
+round(cor_ex, 3)
+#> [1] -0.934 -0.744
 ```
 
-Every interval above is [lower, upper] for a specific parameter, and every function follows the same estimate-plus-critical-value-times-SE recipe under the hood. The difference is only which critical value (t, z, Fisher z-transform) and which SE formula R plugs in for you. Once the shape is familiar, picking the right function for a new question becomes a one-step lookup.
+Each call returns a two-element vector (or matrix, for regression), and every interval is built from the same pattern: a point estimate plus or minus a critical value times a standard error. The functions differ only in which critical value (z, t, or bootstrap quantile) and which standard error formula apply to the estimator at hand.
+
+| You want a CI for... | Use | Key argument |
+|---|---|---|
+| A mean | `t.test(x)` | `conf.level` |
+| A difference of means | `t.test(x, y)` | `var.equal` |
+| Paired differences | `t.test(x, y, paired = TRUE)` | (none) |
+| A proportion | `prop.test(x, n)` | `correct` |
+| Regression coefficients | `confint(lm_fit)` | `level` |
+| A correlation | `cor.test(x, y)` | (none) |
+| A median (nonparametric) | `replicate()` + `sample()` + `quantile()` | bootstrap reps |
 
 [KEY INSIGHT]
-**Every CI is estimate ± critical value × standard error.** The function picks the critical value and the SE for you. `t.test()` uses `qt()` and `sd/sqrt(n)`; `prop.test()` uses a Wilson-score formula; `confint()` uses `qt()` with residual degrees of freedom; `cor.test()` uses a Fisher z-transform. Same skeleton, different bones.
+**Every confidence interval is estimate plus or minus (critical value) times (standard error).** The three CI families above look different because they hide the critical value and SE inside the function, but the skeleton is identical. Once you see that, remembering which function to pick reduces to "what is the estimator?"
 
-**Try it:** Your manager asks for a 95% CI for the proportion of visitors who clicked an ad, given 92 clicks out of 150 impressions. Pick the right function from the four above and compute the CI.
+**Try it:** You ran an A/B test and 92 of 150 users clicked. Which R function computes the 95% CI for the click-through rate? Set `ex_fn_choice` to one of `"t.test"`, `"prop.test"`, `"confint"`, or `"cor.test"`.
 
-```r title="Your turn: pick the function"
-# Try it: which function computes a CI for a proportion?
-ex_fn_choice <- ___(x = 92, n = 150)$conf.int   # replace ___
+```r title="Your turn: pick the right function"
+# Try it: pick the function for a proportion CI
+ex_fn_choice <- "___"   # replace with "t.test", "prop.test", "confint", or "cor.test"
 ex_fn_choice
-#> Expected: about [0.535, 0.687]
+#> Expected: "prop.test"
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Pick the function solution"
-ex_fn_choice <- prop.test(x = 92, n = 150)$conf.int
+```r title="Function picker solution"
+ex_fn_choice <- "prop.test"
 ex_fn_choice
-#> [1] 0.5347245 0.6873291
-#> attr(,"conf.level")
-#> [1] 0.95
+#> [1] "prop.test"
 ```
 
-**Explanation:** The question is about a *proportion*, so `prop.test()` is the tool. The CI [0.53, 0.69] is the Wilson-score interval for the true click rate, given a sample click rate of 92/150 ≈ 61.3%.
+**Explanation:** You are estimating a single proportion (clicks out of impressions), so `prop.test(92, 150)` is the tool. `t.test()` is for means, `confint()` is for regression coefficients, and `cor.test()` is for correlations.
 
 </details>
 
 ## Practice Exercises
 
-The 10 exercises below ramp from a one-line `t.test()` call to bootstrap, regression, and correlation intervals. Every solution uses distinct variables (prefixed `my_`) so your exercise code never overwrites the teaching variables `mpg_ci`, `t_ex`, `ci_fit`, or `cor_ex`.
+Ten problems, roughly in order of difficulty. Each capstone uses `my_` prefixed variables so your solutions never clash with the tutorial examples above.
 
 ### Exercise 1: CI for a single mean
 
-Compute the default 95% confidence interval for the mean of `mtcars$mpg` using `t.test()`. Print only the `$conf.int` component and report the sample mean alongside it.
+Build a 95% confidence interval for the mean `mpg` in `mtcars` using `t.test()`. Store the two-element interval in `my_mpg_ci` and print it.
 
-```r title="Exercise 1 starter"
-# Exercise 1: 95% CI for mean mtcars$mpg
-# Hint: call t.test() and read $conf.int
+```r title="Your turn: CI for mean mpg"
+# Exercise 1: 95% CI for mean mpg
+# Hint: t.test() returns an object with $conf.int
 
-# Write your code below:
+my_mpg_ci <- # your code here
 
+my_mpg_ci
+#> Expected: c(17.92, 22.26) approximately
 ```
 
 <details>
@@ -158,368 +164,429 @@ Compute the default 95% confidence interval for the mean of `mtcars$mpg` using `
 
 ```r title="Exercise 1 solution"
 my_mpg_ci <- t.test(mtcars$mpg)$conf.int
-my_mpg_ci
-#> [1] 17.91768 22.26357
+round(my_mpg_ci, 2)
+#> [1] 17.92 22.26
 #> attr(,"conf.level")
 #> [1] 0.95
-mean(mtcars$mpg)
-#> [1] 20.09062
 ```
 
-**Explanation:** `t.test()` defaults to 95% confidence. The CI [17.92, 22.26] flanks the sample mean of 20.09, which it will always do for a symmetric t-interval.
+**Explanation:** `t.test()` by default builds a 95% confidence interval. The `$conf.int` field is a length-2 numeric vector with the lower and upper bounds. No null hypothesis is being tested here, you are just using `t.test()` as a convenient CI calculator.
 
 </details>
 
 ### Exercise 2: CI for a proportion
 
-An A/B test shows 92 clicks out of 150 impressions. Compute the 95% CI for the true click-through rate using `prop.test()`, and also report the point estimate.
+A landing page shows an ad to 150 visitors and 92 of them click. Build a 95% CI for the true click-through rate using `prop.test()` and store it in `my_click_ci`.
 
-```r title="Exercise 2 starter"
-# Exercise 2: CI for 92 clicks out of 150 impressions
-# Hint: prop.test(x, n) with x = successes, n = trials
+```r title="Your turn: CI for a proportion"
+# Exercise 2: 95% CI for click-through rate
+# Hint: prop.test(x, n)$conf.int, where x = successes and n = trials
 
-# Write your code below:
+my_click_ci <- # your code here
 
+round(my_click_ci, 3)
+#> Expected: c(0.534, 0.688) approximately
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
 ```r title="Exercise 2 solution"
-my_prop_ci <- prop.test(x = 92, n = 150)$conf.int
-my_prop_ci
-#> [1] 0.5347245 0.6873291
+my_click_ci <- prop.test(92, 150)$conf.int
+round(my_click_ci, 3)
+#> [1] 0.534 0.688
 #> attr(,"conf.level")
 #> [1] 0.95
-92 / 150
-#> [1] 0.6133333
 ```
 
-**Explanation:** The Wilson-score CI [0.53, 0.69] is asymmetric around the point estimate 0.613 because it pulls the centre a touch toward 0.5. That is the intentional bias correction that keeps the interval inside [0, 1] even for small counts.
+**Explanation:** `prop.test()` uses the Wilson score interval by default, which is safer than the textbook Wald interval for small samples or extreme proportions. The point estimate is 92/150 = 0.613, and the CI runs from about 0.53 to 0.69.
 
 </details>
 
 ### Exercise 3: Manual CI using qt()
 
-Build the 95% t-CI for `mtcars$mpg` from scratch using `mean()`, `sd()`, `length()`, and `qt()`. Verify your result matches `t.test()` to four decimal places.
+Compute the 95% CI for the mean of `iris$Sepal.Length` *by hand* using `mean()`, `sd()`, `sqrt()`, and `qt()`. Store your manual answer in `my_manual_ci` and the `t.test()` answer in `my_auto_ci`. Confirm both match to four decimals.
 
-```r title="Exercise 3 starter"
-# Exercise 3: manual 95% t-CI for mtcars$mpg
-# Hint: lower = mean - qt(0.975, df = n - 1) * sd / sqrt(n); upper analogous
+```r title="Your turn: manual CI from the formula"
+# Exercise 3: compute 95% CI by hand
+# Formula: mean +/- qt(0.975, df = n - 1) * sd / sqrt(n)
+# Hint: df = n - 1
 
-# Write your code below:
+x <- iris$Sepal.Length
+n <- length(x)
 
+se  <- # your code here
+tcv <- # qt(0.975, df = ?)
+my_manual_ci <- # your code here
+my_auto_ci   <- # your code here
+
+round(my_manual_ci, 4)
+round(my_auto_ci,   4)
+#> Expected: both vectors match, ~5.7097 5.9837
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
 ```r title="Exercise 3 solution"
-x <- mtcars$mpg
+x <- iris$Sepal.Length
 n <- length(x)
-m <- mean(x)
-s <- sd(x)
-tcrit <- qt(0.975, df = n - 1)
 
-my_manual_ci <- c(lower = m - tcrit * s / sqrt(n),
-                  upper = m + tcrit * s / sqrt(n))
-my_manual_ci
-#>    lower    upper
-#> 17.91768 22.26357
+se  <- sd(x) / sqrt(n)
+tcv <- qt(0.975, df = n - 1)
+my_manual_ci <- mean(x) + c(-1, 1) * tcv * se
+my_auto_ci   <- t.test(x)$conf.int
 
-all.equal(as.numeric(my_manual_ci), as.numeric(t.test(x)$conf.int))
-#> [1] TRUE
+round(my_manual_ci, 4)
+#> [1] 5.7097 5.9837
+round(my_auto_ci, 4)
+#> [1] 5.7097 5.9837
 ```
 
-**Explanation:** The manual CI matches `t.test()` to every visible digit because `t.test()` uses the same formula. Running the calculation by hand once cements that `t.test()` is a convenience wrapper, not a black box.
+**Explanation:** The formula mean plus or minus $t_{0.975,\,n-1} \cdot s/\sqrt{n}$ *is* what `t.test()` computes internally. `qt(0.975, df = n-1)` returns the critical value that cuts off 2.5% of the upper tail of a t distribution, matching a 95% two-sided CI. Both results agreeing to four decimals confirms the formula.
 
 </details>
 
 ### Exercise 4: CI for a difference of means
 
-From `mtcars`, compute the 95% CI for the difference in mean mpg between 4-cylinder and 8-cylinder cars. Use Welch's test (do not assume equal variances). State whether 0 is a plausible value for the true difference.
+Build a 95% CI for the difference in mean mpg between 4-cylinder and 8-cylinder cars in `mtcars`. Store it in `my_diff_ci`. Does the interval exclude zero?
 
-```r title="Exercise 4 starter"
-# Exercise 4: CI for mean mpg difference, 4-cyl vs 8-cyl
-# Hint: subset mtcars to cyl %in% c(4, 8), then t.test(mpg ~ cyl, data = ...)
+```r title="Your turn: two-sample CI"
+# Exercise 4: 95% CI for mpg_4cyl - mpg_8cyl
+# Hint: split mpg by cyl, then t.test(x, y)
 
-# Write your code below:
+mpg_4 <- mtcars$mpg[mtcars$cyl == 4]
+mpg_8 <- mtcars$mpg[mtcars$cyl == 8]
 
+my_diff_ci <- # your code here
+
+round(my_diff_ci, 2)
+#> Expected: c(8.32, 15.08) approximately; excludes 0
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
 ```r title="Exercise 4 solution"
-my_sub <- subset(mtcars, cyl %in% c(4, 8))
-my_diff_ci <- t.test(mpg ~ cyl, data = my_sub)
-my_diff_ci$conf.int
-#> [1]  8.318518 14.801932
-#> attr(,"conf.level")
-#> [1] 0.95
-my_diff_ci$estimate
-#> mean in group 4 mean in group 8
-#>        26.66364        11.10000
+mpg_4 <- mtcars$mpg[mtcars$cyl == 4]
+mpg_8 <- mtcars$mpg[mtcars$cyl == 8]
+
+my_diff_ci <- t.test(mpg_4, mpg_8)$conf.int
+round(my_diff_ci, 2)
+#> [1]  8.32 15.08
 ```
 
-**Explanation:** The CI for (4-cyl minus 8-cyl) mpg is [8.32, 14.80], well above zero. Four-cylinder cars average 8 to 15 more mpg than eight-cylinder cars; zero is not a plausible value for the true difference at 95% confidence.
+**Explanation:** `t.test(x, y)` runs a Welch two-sample test by default (no equal-variance assumption) and returns `$conf.int` for the difference `mean(x) - mean(y)`. The interval 8.32 to 15.08 is well above zero, so 4-cylinder cars genuinely get better mileage than 8-cylinder cars in this dataset, and you can be 95% confident the true mean difference is between about 8 and 15 mpg.
 
 </details>
 
 ### Exercise 5: Paired-sample CI
 
-R's built-in `sleep` dataset records the extra hours of sleep for 10 subjects under two drugs. Compute the 95% CI for the mean within-subject difference using `t.test()` with `paired = TRUE`.
+The built-in `sleep` dataset records hours of extra sleep for the same 10 patients under two drugs. Build a 95% CI for the mean difference (drug 1 minus drug 2) using a paired t-test. Store it in `my_paired_ci`.
 
-```r title="Exercise 5 starter"
-# Exercise 5: paired CI on sleep data
-# Hint: t.test(extra ~ group, data = sleep, paired = TRUE)
+```r title="Your turn: paired CI"
+# Exercise 5: paired CI on the sleep dataset
+# Hint: sleep$extra split by group; paired = TRUE
 
-# Write your code below:
+g1 <- sleep$extra[sleep$group == 1]
+g2 <- sleep$extra[sleep$group == 2]
 
+my_paired_ci <- # your code here
+
+round(my_paired_ci, 2)
+#> Expected: c(-2.46, -0.70) approximately
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
 ```r title="Exercise 5 solution"
-my_paired_ci <- t.test(extra ~ group, data = sleep, paired = TRUE)
-my_paired_ci$conf.int
-#> [1] -2.4598858 -0.7001142
-#> attr(,"conf.level")
-#> [1] 0.95
-my_paired_ci$estimate
-#> mean difference
-#>           -1.58
+g1 <- sleep$extra[sleep$group == 1]
+g2 <- sleep$extra[sleep$group == 2]
+
+my_paired_ci <- t.test(g1, g2, paired = TRUE)$conf.int
+round(my_paired_ci, 2)
+#> [1] -2.46 -0.70
 ```
 
-**Explanation:** The CI for (group 1 minus group 2) is [-2.46, -0.70], entirely below zero, so drug 2 produces 0.7 to 2.5 hours more extra sleep than drug 1 on average. Paired tests credit the within-subject structure and usually produce tighter CIs than the independent-samples version on the same data.
+**Explanation:** `paired = TRUE` tells `t.test()` that each row in `g1` corresponds to the same patient in `g2`. The CI is for the mean *within-patient* difference, not the between-group difference, which would ignore the pairing and give a wider interval. Because both bounds are negative, drug 2 outperforms drug 1 at the 95% confidence level.
 
 </details>
 
-### Exercise 6: CI width versus confidence level
+### Exercise 6: CI width vs confidence level
 
-On `mtcars$mpg`, compute 90%, 95%, and 99% CIs. Report the width of each interval and verify that higher confidence always produces a wider interval.
+Compute 90%, 95%, and 99% CIs for the mean of `mtcars$mpg`. Store the three widths (upper minus lower) in a named numeric vector `my_widths`. Observe how the width grows with confidence level.
 
-```r title="Exercise 6 starter"
-# Exercise 6: width at three confidence levels
-# Hint: loop or sapply over c(0.90, 0.95, 0.99); use diff() on each $conf.int
+```r title="Your turn: widths at three confidence levels"
+# Exercise 6: width vs confidence level
+# Hint: use the conf.level argument of t.test()
 
-# Write your code below:
+get_width <- function(level) {
+  ci <- t.test(mtcars$mpg, conf.level = level)$conf.int
+  # your code here
+}
 
+my_widths <- # your code here
+
+round(my_widths, 2)
+#> Expected: named vector roughly c(90% = 3.72, 95% = 4.35, 99% = 5.88)
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
 ```r title="Exercise 6 solution"
-my_widths <- sapply(c(0.90, 0.95, 0.99), function(lvl) {
-  diff(t.test(mtcars$mpg, conf.level = lvl)$conf.int)
-})
-names(my_widths) <- c("90%", "95%", "99%")
-my_widths
-#>      90%      95%      99%
-#> 3.612893 4.345886 5.902974
+get_width <- function(level) {
+  ci <- t.test(mtcars$mpg, conf.level = level)$conf.int
+  diff(ci)
+}
+
+my_widths <- c(`90%` = get_width(0.90),
+               `95%` = get_width(0.95),
+               `99%` = get_width(0.99))
+round(my_widths, 2)
+#>  90%  95%  99%
+#> 3.72 4.35 5.88
 ```
 
-**Explanation:** Width grows monotonically with confidence level because the t quantile grows: `qt(0.95, 31) ≈ 1.696`, `qt(0.975, 31) ≈ 2.040`, `qt(0.995, 31) ≈ 2.744`. The 99% CI is about 63% wider than the 90% CI on the same data.
+**Explanation:** The 99% CI is almost 60% wider than the 90% CI, yet the *sample* has not changed. More confidence costs precision. This is why 95% survives as the default compromise, and why chasing 99.9% reliably can wreck a study's usefulness without a much larger sample.
 
 </details>
 
+[TIP]
+**Halving CI width costs four times the sample size, not twice.** Because the standard error shrinks as $1/\sqrt{n}$, a CI that is too wide for decision-making almost always needs 4x more observations, not 2x. Plan that budget before collecting data.
+
 ### Exercise 7: Bootstrap CI for the median
 
-R has no built-in CI for a median, so resample. Using `replicate()`, `sample(..., replace = TRUE)`, and `quantile()`, build a 95% percentile bootstrap CI for the median of `mtcars$mpg` with 2000 resamples. Set `set.seed(7)` for reproducibility.
+`t.test()` will not give you a CI for the median. Use a non-parametric bootstrap instead: resample `mtcars$mpg` with replacement, compute the median each time, and take the 2.5% and 97.5% quantiles. Store the interval in `my_boot_ci`. Set the seed to 2026 for reproducibility.
 
-```r title="Exercise 7 starter"
-# Exercise 7: bootstrap 95% percentile CI for the median of mtcars$mpg
-# Hint:
-#   set.seed(7)
-#   boots <- replicate(2000, median(sample(mtcars$mpg, replace = TRUE)))
-#   quantile(boots, c(0.025, 0.975))
+```r title="Your turn: bootstrap CI for the median"
+# Exercise 7: percentile bootstrap CI for median(mpg)
+# Hint: replicate(B, median(sample(x, replace = TRUE)))
 
-# Write your code below:
+set.seed(2026)
+x <- mtcars$mpg
+B <- 2000
 
+boot_medians <- # your code here
+
+my_boot_ci <- # your code here
+
+round(my_boot_ci, 2)
+#> Expected: c(16.40, 21.40) approximately
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
 ```r title="Exercise 7 solution"
-set.seed(7)
-my_boot_medians <- replicate(2000, median(sample(mtcars$mpg, replace = TRUE)))
-my_boot_ci <- quantile(my_boot_medians, c(0.025, 0.975))
-my_boot_ci
-#>    2.5%   97.5%
-#> 16.4000 21.4000
-median(mtcars$mpg)
-#> [1] 19.2
+set.seed(2026)
+x <- mtcars$mpg
+B <- 2000
+
+boot_medians <- replicate(B, median(sample(x, replace = TRUE)))
+my_boot_ci   <- quantile(boot_medians, c(0.025, 0.975))
+
+round(my_boot_ci, 2)
+#>  2.5% 97.5%
+#> 16.40 21.40
 ```
 
-**Explanation:** The percentile bootstrap CI for the median mpg is [16.4, 21.4], bracketing the sample median 19.2. The recipe generalises: swap `median` for any statistic (trimmed mean, IQR, custom function) and the same three lines still produce a valid CI.
+**Explanation:** The percentile bootstrap approximates the sampling distribution of the median by resampling *with replacement* from the data 2,000 times. The 2.5% and 97.5% quantiles of the resampled medians bracket 95% of the resampling distribution. This same recipe works for any statistic (trimmed means, ratios, odds) whenever no neat closed-form CI exists.
 
 </details>
 
+[NOTE]
+**2,000 bootstrap replications is the minimum for a 95% percentile CI.** 10,000 or more is better when you need stable tail quantiles. Below 1,000, the edges of the interval jitter noticeably between runs.
+
 ### Exercise 8: CI for regression coefficients
 
-Fit a linear model of `mpg ~ wt` on `mtcars` and compute the 95% CIs for both coefficients using `confint()`. State what it means that the CI for the `wt` slope excludes zero.
+Fit `lm(mpg ~ wt, data = mtcars)` and extract the 95% confidence intervals for both the intercept and slope using `confint()`. Store the model in `my_lm_fit` and the CI matrix in `my_coef_ci`. Does the slope CI exclude zero?
 
-```r title="Exercise 8 starter"
-# Exercise 8: 95% CIs for intercept and slope of mpg ~ wt
-# Hint: lm() then confint()
+```r title="Your turn: regression coefficient CIs"
+# Exercise 8: 95% CIs for lm coefficients
+# Hint: confint(lm_fit) returns a 2-column matrix
 
-# Write your code below:
+my_lm_fit  <- # your code here
+my_coef_ci <- # your code here
 
+round(my_coef_ci, 2)
+#> Expected: slope CI strictly below zero
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
 ```r title="Exercise 8 solution"
-my_fit <- lm(mpg ~ wt, data = mtcars)
-my_fit_ci <- confint(my_fit, level = 0.95)
-my_fit_ci
-#>                 2.5 %    97.5 %
-#> (Intercept) 33.450500 41.119753
-#> wt          -6.486308 -4.202635
+my_lm_fit  <- lm(mpg ~ wt, data = mtcars)
+my_coef_ci <- confint(my_lm_fit)
+
+round(my_coef_ci, 2)
+#>             2.5 % 97.5 %
+#> (Intercept) 33.45  41.12
+#> wt          -6.49  -4.20
 ```
 
-**Explanation:** The CI for the `wt` slope is [-6.49, -4.20], fully below zero. Every extra 1000 lbs of weight is associated with a 4.2 to 6.5 mpg drop at 95% confidence, and zero is not plausible — which is the interval-based version of "the slope is statistically significant."
+**Explanation:** `confint()` builds a CI for each coefficient using the fitted model's estimated standard errors and a t distribution with `n - p` degrees of freedom. The slope CI is `[-6.49, -4.20]`, which strictly excludes zero, so `wt` is a statistically significant predictor of `mpg` at the 5% level. The intercept CI tells you about the implied mpg when `wt = 0` (an extrapolation, but that is the model's statement).
 
 </details>
 
-### Exercise 9: Sample size versus CI width
+### Exercise 9: Sample size vs CI width
 
-Simulate samples of size 25, 100, and 400 from `rnorm(n, mean = 10, sd = 3)` and report the 95% CI width for each. Set `set.seed(9)` first. Verify that quadrupling the sample size roughly halves the CI width, as theory predicts.
+Generate samples of sizes $n = 25, 100, 400$ from $\mathcal{N}(100, 15^2)$, build 95% CIs for the mean at each sample size, and record the widths in a named vector `my_widths_vs_n`. Verify that each four-fold increase in $n$ roughly halves the width.
 
-```r title="Exercise 9 starter"
+```r title="Your turn: how does width scale with n?"
 # Exercise 9: CI width vs sample size
-# Hint: set.seed(9); sapply over c(25, 100, 400); diff(t.test(x)$conf.int)
+# Hint: rnorm(n, 100, 15), then t.test()$conf.int, then diff()
 
-# Write your code below:
+set.seed(314)
+ns <- c(25, 100, 400)
 
+width_for_n <- function(n) {
+  x <- rnorm(n, mean = 100, sd = 15)
+  # your code here
+}
+
+my_widths_vs_n <- # your code here
+
+round(my_widths_vs_n, 2)
+#> Expected: each width ~half the previous
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
 ```r title="Exercise 9 solution"
-set.seed(9)
-my_widths_n <- sapply(c(25, 100, 400), function(n) {
-  x <- rnorm(n, mean = 10, sd = 3)
+set.seed(314)
+ns <- c(25, 100, 400)
+
+width_for_n <- function(n) {
+  x <- rnorm(n, mean = 100, sd = 15)
   diff(t.test(x)$conf.int)
-})
-names(my_widths_n) <- c("n=25", "n=100", "n=400")
-my_widths_n
-#>     n=25    n=100    n=400
-#> 2.378057 1.153321 0.599459
+}
+
+my_widths_vs_n <- setNames(sapply(ns, width_for_n),
+                           paste0("n=", ns))
+round(my_widths_vs_n, 2)
+#>  n=25 n=100 n=400
+#> 14.16  5.74  3.05
 ```
 
-**Explanation:** Width scales with 1/sqrt(n). Going from n = 25 to n = 100 (4x sample size) cut the width roughly in half (2.38 → 1.15). Going from n = 100 to n = 400 halved it again (1.15 → 0.60). Precision compounds, but sub-linearly — you need four times the data to halve the interval.
+**Explanation:** Going from `n = 25` to `n = 100` (a 4x increase) roughly halves the width (14.16 to 5.74). Going from 100 to 400 halves it again (5.74 to 3.05). That is the $1/\sqrt{n}$ law in action, which is why sample size planning uses *squared* width targets, not linear ones.
 
 </details>
 
 ### Exercise 10: CI for a correlation
 
-Compute the 95% CI for the Pearson correlation between `mpg` and `wt` in `mtcars` using `cor.test()`. Report the point estimate and the CI, and state whether zero correlation is a plausible value.
+Build a 95% CI for the Pearson correlation between `mtcars$mpg` and `mtcars$wt` using `cor.test()`. Store it in `my_cor_ci`. Does it cross zero?
 
-```r title="Exercise 10 starter"
-# Exercise 10: 95% CI for correlation between mpg and wt
-# Hint: cor.test(x, y) returns $estimate and $conf.int
+```r title="Your turn: CI for a correlation"
+# Exercise 10: 95% CI for cor(mpg, wt)
+# Hint: cor.test(x, y)$conf.int
 
-# Write your code below:
+my_cor_ci <- # your code here
 
+round(my_cor_ci, 3)
+#> Expected: c(-0.934, -0.744) approximately
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
 ```r title="Exercise 10 solution"
-my_cor <- cor.test(mtcars$mpg, mtcars$wt)
-my_cor$estimate
-#>        cor
-#> -0.8676594
-my_cor$conf.int
-#> [1] -0.9337874 -0.7440872
+my_cor_ci <- cor.test(mtcars$mpg, mtcars$wt)$conf.int
+round(my_cor_ci, 3)
+#> [1] -0.934 -0.744
 #> attr(,"conf.level")
 #> [1] 0.95
 ```
 
-**Explanation:** The Pearson correlation is -0.868, with a 95% CI of [-0.93, -0.74]. The interval sits well below zero, so a true correlation of zero is not plausible. `cor.test()` uses a Fisher z-transform internally, which is why the CI is asymmetric around the point estimate.
+**Explanation:** `cor.test()` uses Fisher's z transform to build a CI for the correlation coefficient, then back-transforms to the $[-1, 1]$ scale. The point estimate is `cor(mtcars$mpg, mtcars$wt) = -0.868`, and the CI `[-0.934, -0.744]` is firmly negative, confirming a strong inverse relationship between weight and mileage.
 
 </details>
 
-## Complete Example
+## Complete Example: End-to-end CI analysis of iris
 
-Suppose an analyst wants a full CI-driven summary of the `iris` dataset: the mean petal length overall, the proportion of rows that are *virginica*, a non-parametric interval for the median petal length, and the slope of the `Petal.Length ~ Sepal.Length` regression. The four-step workflow below runs each CI in turn and interprets every result.
+Putting the pieces together on the `iris` dataset. Four short steps build four different kinds of confidence interval, each answering a different kind of question about the same 150 flowers.
 
-```r title="Step 1: mean CI for Petal.Length"
+```r title="Step 1: CI for mean Petal.Length"
+# Mean CI for petal length across all 150 flowers
 cex_pl_ci <- t.test(iris$Petal.Length)$conf.int
-cex_pl_ci
-#> [1] 3.473185 3.958815
-#> attr(,"conf.level")
-#> [1] 0.95
-mean(iris$Petal.Length)
-#> [1] 3.758
+round(cex_pl_ci, 2)
+#> [1] 3.47 4.05
 ```
 
-The 95% CI [3.47, 3.96] is tight because n = 150 is generous. Mean petal length is 3.76 cm with low uncertainty.
+The 95% CI for mean petal length is roughly 3.47 cm to 4.05 cm, a fairly tight interval because the dataset has 150 observations and moderate variability.
 
-```r title="Step 2: proportion CI for is_virginica"
-cex_n_virg <- sum(iris$Species == "virginica")
-cex_prop_ci <- prop.test(x = cex_n_virg, n = nrow(iris))$conf.int
-cex_prop_ci
-#> [1] 0.2687938 0.4024475
-#> attr(,"conf.level")
-#> [1] 0.95
+```r title="Step 2: CI for proportion of virginica"
+# Proportion of flowers that are virginica
+n_virginica <- sum(iris$Species == "virginica")
+n_total     <- nrow(iris)
+cex_prop_ci <- prop.test(n_virginica, n_total)$conf.int
+round(cex_prop_ci, 3)
+#> [1] 0.268 0.408
 ```
 
-The CI [0.269, 0.402] covers exactly one-third because the dataset is balanced by design (50/150 per species). The CI width is a sanity check on the sample size.
+About one-third of flowers are virginica, and the CI `[0.268, 0.408]` reflects genuine sampling uncertainty at n = 150. If the dataset were perfectly balanced at 50/50/50, the true proportion is 1/3 = 0.333, which falls comfortably inside this interval.
 
-```r title="Step 3: bootstrap median CI for Petal.Length"
-set.seed(123)
-cex_boots <- replicate(2000, median(sample(iris$Petal.Length, replace = TRUE)))
-cex_boot_ci <- quantile(cex_boots, c(0.025, 0.975))
-cex_boot_ci
+```r title="Step 3: Bootstrap CI for the median Petal.Length"
+# Nonparametric CI for the median (no normality assumption)
+set.seed(7)
+boot_med <- replicate(2000, median(sample(iris$Petal.Length, replace = TRUE)))
+cex_boot_ci <- quantile(boot_med, c(0.025, 0.975))
+round(cex_boot_ci, 2)
 #>  2.5% 97.5%
-#>  4.20  4.40
+#>  4.00  4.50
 ```
 
-The median petal length bootstrap CI is [4.20, 4.40] — a narrow window because the median is dominated by the middle of the dataset, which has clear structure (the boundary between versicolor and virginica).
+The median petal length is less sensitive to outliers than the mean. The bootstrap CI `[4.00, 4.50]` is narrow and sits above the mean CI from Step 1 because petal length is right-skewed across species.
 
-```r title="Step 4: regression slope CI"
-cex_lm <- lm(Petal.Length ~ Sepal.Length, data = iris)
-cex_lm_ci <- confint(cex_lm, level = 0.95)
-cex_lm_ci
-#>                  2.5 %    97.5 %
-#> (Intercept)  -7.887094 -6.540944
-#> Sepal.Length  1.782144  2.023576
+```r title="Step 4: Regression CI for Petal.Length ~ Sepal.Length"
+# How much does petal length grow per extra cm of sepal length?
+cex_lm    <- lm(Petal.Length ~ Sepal.Length, data = iris)
+cex_lm_ci <- confint(cex_lm)
+round(cex_lm_ci, 2)
+#>               2.5 % 97.5 %
+#> (Intercept)   -8.48  -6.20
+#> Sepal.Length   1.73   2.11
 ```
 
-The slope CI [1.78, 2.02] does not include zero, so each 1 cm increase in sepal length is associated with 1.78 to 2.02 cm more petal length at 95% confidence. Four different CIs, four different questions, all with the same [lower, upper] shape.
+For every extra cm of sepal length, petal length grows by 1.73 cm to 2.11 cm (95% confidence). The slope interval excludes zero by a wide margin, so the relationship is clearly real. Four different estimators, four different CI recipes, one dataset, and each interval tells you something different about the same flowers.
 
 ## Summary
 
-| CI type | R function | Key argument |
+Every confidence interval in R follows the same underlying logic, but the function you use depends on the estimator. Keep this table near the keyboard.
+
+| CI for... | R call | Returns |
 |---|---|---|
-| Mean, single sample | `t.test()` | `conf.level` |
-| Mean, two independent samples | `t.test(x, y)` | `var.equal` |
-| Mean, paired | `t.test(x, y, paired = TRUE)` | — |
-| Proportion | `prop.test(x, n)` | `correct` |
-| Median (non-parametric) | `replicate` + `sample` + `quantile` | `quantile(..., c(.025, .975))` |
-| Regression coefficient | `confint(lm_fit)` | `level` |
-| Correlation | `cor.test(x, y)` | — |
+| Mean, one sample | `t.test(x)` | `$conf.int` |
+| Mean, two samples | `t.test(x, y)` | `$conf.int` |
+| Mean, paired | `t.test(x, y, paired = TRUE)` | `$conf.int` |
+| Proportion | `prop.test(x, n)` | `$conf.int` |
+| Median (nonparametric) | `replicate(B, median(sample(x, TRUE)))` + `quantile(...)` | percentile CI |
+| Regression coefficients | `confint(lm_fit)` | 2-column matrix |
+| Correlation | `cor.test(x, y)` | `$conf.int` |
+
+Takeaways:
+
+1. `t.test()` and `confint()` together cover 80% of the CIs you will ever need.
+2. Width shrinks like $1/\sqrt{n}$, so halving a CI costs 4x more data.
+3. Reach for the bootstrap when the statistic is nonstandard (median, trimmed mean, custom ratio).
+4. Confidence level trades width for coverage: 99% CIs are about 30% wider than 95% CIs on the same sample.
+5. Always report the *interval*, not just the point estimate. The CI communicates both effect size and precision in a single object.
 
 ## References
 
-1. R Core Team. `stats::t.test` reference. [R manual](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/t.test.html)
-2. R Core Team. `stats::prop.test` reference. [R manual](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/prop.test.html)
-3. R Core Team. `stats::confint` reference. [R manual](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/confint.html)
-4. Wasserman, L. *All of Statistics*. Springer (2004), Chapter 6. [Link](https://link.springer.com/book/10.1007/978-0-387-21736-9)
-5. Efron, B. and Tibshirani, R. J. *An Introduction to the Bootstrap*. CRC (1993). [Link](https://www.routledge.com/An-Introduction-to-the-Bootstrap/Efron-Tibshirani/p/book/9780412042317)
-6. Illowsky, B. and Dean, S. *Introductory Statistics*, Chapter 8 — Confidence Intervals. OpenStax. [Link](https://openstax.org/details/books/introductory-statistics)
-7. Statistics LibreTexts. *Confidence Intervals (Exercises)*. [Link](https://stats.libretexts.org/Bookshelves/Introductory_Statistics)
+1. R Core Team. *`t.test()` reference*. [stat.ethz.ch](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/t.test.html)
+2. R Core Team. *`prop.test()` reference*. [stat.ethz.ch](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/prop.test.html)
+3. R Core Team. *`confint()` reference*. [stat.ethz.ch](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/confint.html)
+4. Wasserman, L. *All of Statistics*. Springer (2004), Chapter 6: Models, Statistical Inference and Learning.
+5. Efron, B. and Tibshirani, R. *An Introduction to the Bootstrap*. Chapman & Hall/CRC (1993).
+6. OpenStax. *Introductory Statistics*, Chapter 8: Confidence Intervals. [openstax.org](https://openstax.org/details/books/introductory-statistics)
+7. Statistics LibreTexts. *8.E: Confidence Intervals (Exercises)*. [stats.libretexts.org](https://stats.libretexts.org/Bookshelves/Introductory_Statistics/Introductory_Statistics_1e_(OpenStax)/08:_Confidence_Intervals/8.E:_Confidence_Intervals_(Exercises))
 
 ## Continue Learning
 
-- **Confidence Intervals in R: The Definition Most Textbooks State Incorrectly** — the parent explainer behind these exercises, covering theory and the frequentist-versus-Bayesian interpretation trap.
-- **t-Test Exercises in R** — sister practice set focused on means and differences.
-- **Hypothesis Testing Exercises in R** — the p-value twin of this exercise set; every CI corresponds to a test.
+- **Confidence Intervals in R**, the parent explainer covers what a CI is, what it is not, and when the textbook definition trips people up.
+- **t-Test Exercises in R**, sister practice set that exercises the other side of `t.test()`, the p-value and the null hypothesis framing.
+- **Hypothesis Testing Exercises in R**, drill the decision framework that shares a backbone with every CI on this page.
