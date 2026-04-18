@@ -1,384 +1,445 @@
 ---
 title: "One-Sample Proportion z-Test in R: Large Sample Inference"
-slug: "One-Sample-Proportion-z-Test-in-R"
-description: "Test whether a proportion equals a target value in R. Use prop.test() for large samples, understand continuity correction, and compute Wald vs Wilson CIs."
-keywords: "one-sample proportion z-test, prop.test R, z-test proportion, continuity correction, Wilson confidence interval, large sample inference"
-auto_link_terms: "one-sample proportion z-test|one-proportion z-test|z-test for a proportion|large-sample proportion test|proportion z-test in R"
+slug: One-Sample-Proportion-z-Test-in-R
+description: "Compute a one-sample proportion z-test in R with large-sample inference. Manual z, prop.test(), Wilson CI, Cohen's h, and power in ~150 lines of code."
+keywords: "one proportion z test in R, prop.test, one sample z test R, large sample proportion test, normal approximation proportion, Wilson confidence interval, Cohen's h, proportion test power"
+auto_link_terms: "one-sample proportion z-test|one-proportion z-test|large-sample proportion test|Wilson confidence interval|Cohen's h|z-test for a proportion"
 auto_link_case_sensitive: false
 mathjax: true
 webr: true
-date: "2026-04-18"
+date: 2026-04-18
 curriculum_id: "FR-infe-14"
-post_type: "FR"
-fr_parent: "Proportion-Tests-in-R.html"
-difficulty: "Intermediate"
+post_type: FR
+fr_parent: Proportion-Tests-in-R.html
+difficulty: Intermediate
 ---
 
 # One-Sample Proportion z-Test in R: Large Sample Inference
 
-<p class="lead">The one-sample proportion z-test checks whether an observed proportion differs from a hypothesized value p<sub>0</sub>. In R, <code>prop.test()</code> does the heavy lifting, but knowing how the z-statistic is built, when the normal approximation holds, and which confidence interval to report is what separates a correct result from a misleading one.</p>
+<p class="lead">A one-sample proportion z-test checks whether an observed proportion (like a 35% conversion rate in 400 trials) differs from a hypothesised value under the large-sample normal approximation. It works when <code>n*p0</code> and <code>n*(1-p0)</code> are both at least 10, returns a <code>z</code> statistic compared to Normal(0, 1), and is the large-sample cousin of the exact binomial test.</p>
 
-## When should you reach for the one-sample proportion z-test?
+## What is a one-sample proportion z-test?
 
-Suppose your website's historical click-through rate is 10%, and a new design yields 135 clicks in 1,000 visits. Is 13.5% a real lift, or just noise? The one-sample proportion z-test answers exactly that question, as long as your sample is large enough for the normal approximation to hold. Let's run it first, then unpack what R did.
+You surveyed 400 site visitors and 152 clicked the new pricing page. Your baseline click rate was 35%. Is 38% a real lift or random noise? The z-test answers that by standardising the gap between observed and hypothesised proportions. Let's do it by hand first so the formula never feels like a black box again.
 
-We pass the number of successes `x`, the sample size `n`, and the hypothesized proportion `p` to `prop.test()`. By default it returns the test statistic, a two-sided p-value, and a 95% confidence interval.
+The test statistic is:
 
-```r title="Run prop.test on the click-through example"
-# Click-through rate test: 135 successes out of 1000 visits, H0: p = 0.10
-x  <- 135
-n  <- 1000
-p0 <- 0.10
+$$z = \frac{\hat{p} - p_0}{\sqrt{p_0(1-p_0)/n}}$$
 
-result <- prop.test(x, n, p = p0)
-result
-#> 
-#> 	1-sample proportions test with continuity correction
-#> 
-#> data:  x out of n, null probability p0
-#> X-squared = 13.361, df = 1, p-value = 0.000257
-#> alternative hypothesis: true p is not equal to 0.1
-#> 95 percent confidence interval:
-#>  0.1143559 0.1583739
-#> sample estimate:
-#>     p 
-#> 0.135
+Where $\hat{p}$ is the sample proportion $x/n$, $p_0$ is the null proportion, and $n$ is the sample size. Compare $z$ to a standard Normal distribution.
+
+```r title="Manual one-sample z-test for a proportion"
+# Data: 152 clicks out of 400 visitors; baseline p0 = 0.35
+x  <- 152
+n  <- 400
+p0 <- 0.35
+
+p_hat <- x / n
+se0   <- sqrt(p0 * (1 - p0) / n)
+z     <- (p_hat - p0) / se0
+
+# Two-sided p-value from Normal(0,1)
+p_val <- 2 * pnorm(-abs(z))
+
+# 95% Wald confidence interval around p_hat
+se_wald <- sqrt(p_hat * (1 - p_hat) / n)
+ci_wald <- c(p_hat - 1.96 * se_wald, p_hat + 1.96 * se_wald)
+
+round(c(p_hat = p_hat, z = z, p_value = p_val,
+        ci_low = ci_wald[1], ci_high = ci_wald[2]), 4)
+#>   p_hat       z p_value  ci_low ci_high
+#>  0.3800  1.2579  0.2085  0.3324  0.4276
 ```
 
-The p-value of 0.00026 is well below 0.05, so we reject the null. The 95% confidence interval (11.4%, 15.8%) excludes 0.10, telling the same story in effect-size terms. One subtle thing: R prints `X-squared` rather than a z-value. That's because, for a one-sample two-sided test, the chi-squared statistic R reports equals the z-statistic squared. We'll prove this in the next section.
+The sample rate is 38%, which is 3 points above the null of 35%. But the z-statistic is only 1.26, well short of the 1.96 threshold for two-sided significance at the 5% level. The p-value of 0.21 says "this much of a gap or bigger happens by chance about one run in five." You don't have evidence the true click rate has moved. The Wald 95% interval stretches from 0.33 to 0.43, comfortably covering 0.35.
 
-[TIP]
-**Check np<sub>0</sub> and n(1 - p<sub>0</sub>) before trusting the p-value.** The normal approximation needs both quantities to be at least 10 (some textbooks say 5). Here np<sub>0</sub> = 100 and n(1 - p<sub>0</sub>) = 900, so we are comfortably in "large-sample" territory.
+![Building the z-statistic for a proportion.](screenshots/One-Sample-Proportion-z-Test-in-R-z-mechanics.webp)
+*Figure 1: How the z-statistic is built from the sample and hypothesised proportions.*
 
-**Try it:** Suppose a quality inspector finds 150 defects in a batch of 200 parts and wants to test against the historical rate of 70%. Write code to run `prop.test()` and report the p-value.
+[KEY INSIGHT]
+**The standard error uses p0, not p_hat.** Under the null the true variance of `p_hat` is `p0*(1-p0)/n`, so plugging in `p0` gives `z` its clean Normal(0, 1) shape. The score form is what makes the test a test.
 
-```r title="Your turn: defect-rate proportion test"
-# Try it: run prop.test for x=150, n=200, p0=0.70
-ex_x  <- 150
+**Try it:** A small coffee chain claims 30% of customers order oat milk. In a sample of 200, 48 did. Compute `ex_z` for this data, then the two-sided p-value in `ex_p`.
+
+```r title="Your turn: z-test for oat milk preference"
+# Test 48/200 against H0: p = 0.30
+ex_x  <- 48
 ex_n  <- 200
-ex_p0 <- 0.70
+ex_p0 <- 0.30
 
-# your code here
+ex_z <- NULL  # your code here
+ex_p <- NULL  # your code here
 
-#> Expected: p-value around 0.09 (fail to reject H0 at 5%)
+c(z = ex_z, p_value = ex_p)
+#> Expected: z around -1.85, p-value around 0.06
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Defect-rate test solution"
-ex_result <- prop.test(ex_x, ex_n, p = ex_p0)
-ex_result$p.value
-#> [1] 0.0898
+```r title="Oat milk z-test solution"
+ex_p_hat <- ex_x / ex_n
+ex_se0   <- sqrt(ex_p0 * (1 - ex_p0) / ex_n)
+ex_z     <- (ex_p_hat - ex_p0) / ex_se0
+ex_p     <- 2 * pnorm(-abs(ex_z))
+
+round(c(z = ex_z, p_value = ex_p), 4)
+#>       z p_value
+#> -1.8516  0.0641
 ```
 
-**Explanation:** We pass the three arguments and extract `$p.value` from the returned htest object. A p-value of 0.09 is above 0.05, so we do not reject the null that the defect rate equals 70%.
+**Explanation:** 24% observed vs 30% hypothesised gives `z = -1.85`, two-sided p = 0.064. Close but not significant at the 5% level.
 
 </details>
 
-## How is the z-statistic for a proportion built?
+## How do you check the large-sample assumptions?
 
-The payoff result above came from a formula. Understanding that formula tells you why the test behaves the way it does, and makes the output fields recognizable.
+The z-test leans on the Central Limit Theorem to approximate a discrete binomial with a continuous Normal. That approximation is only honest when the expected counts are big enough. The working rule is `n*p0 >= 10` and `n*(1-p0) >= 10`. Some textbooks use 5 as the threshold; 10 is the safer and more widely recommended value.
 
-The z-statistic compares the observed proportion \(\hat{p}\) to the hypothesized proportion p<sub>0</sub>, scaled by the standard error of \(\hat{p}\) under the null.
-
-$$z = \frac{\hat{p} - p_0}{\sqrt{\dfrac{p_0 (1 - p_0)}{n}}}$$
-
-Where:
-- \(\hat{p} = x / n\) is the observed sample proportion
-- p<sub>0</sub> is the hypothesized proportion under the null
-- n is the sample size
-- the denominator is the standard error assuming H<sub>0</sub> is true
-
-[KEY INSIGHT]
-**Use p<sub>0</sub>, not \(\hat{p}\), in the standard error of the test.** The z-test asks "how far is \(\hat{p}\) from the null, in units of the null's sampling standard deviation?" So the SE must reflect the null hypothesis, not the data. Using \(\hat{p}\) inside the SE would compute a different quantity (the Wald CI uses \(\hat{p}\), but that is a separate estimation problem).
-
-Let's compute z by hand and check it against `prop.test()`.
-
-```r title="Compute the z-statistic manually"
-# Manual z calculation using x, n, p0 from the previous block
-p_hat   <- x / n
-se      <- sqrt(p0 * (1 - p0) / n)
-z_stat  <- (p_hat - p0) / se
-p_value <- 2 * pnorm(-abs(z_stat))
-
-c(p_hat = p_hat, se = se, z = z_stat, p_value = p_value)
-#>        p_hat           se            z      p_value 
-#> 0.1350000000 0.0094868330 3.6892183868 0.0002250297
-```
-
-We get z = 3.69 and a two-sided p-value of 0.000225. That matches the textbook one-sample proportion z-test exactly. Now let's see how it relates to `prop.test()`'s chi-squared output.
-
-```r title="Verify z squared equals chi-squared"
-# prop.test without continuity correction
-result_no_cc <- prop.test(x, n, p = p0, correct = FALSE)
-
-c(chi_sq_from_R = result_no_cc$statistic,
-  z_squared     = z_stat^2)
-#> chi_sq_from_R.X-squared              z_squared 
-#>                13.61407               13.61407
-```
-
-They match to machine precision. So `prop.test(correct = FALSE)` is mathematically identical to the manual z-test: R just reports z<sup>2</sup> because a squared-z is chi-squared with 1 degree of freedom. The p-values are also the same because `pchisq(z^2, df = 1, lower.tail = FALSE)` equals `2 * pnorm(-|z|)`.
-
-**Try it:** Compute the z-statistic by hand for x = 42, n = 100, p<sub>0</sub> = 0.5.
-
-```r title="Your turn: manual z computation"
-# Try it: compute z = (p_hat - p0) / sqrt(p0*(1-p0)/n)
-ex_x2  <- 42
-ex_n2  <- 100
-ex_p02 <- 0.5
-
-# your code here
-
-#> Expected: z around -1.60
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Manual z computation solution"
-ex_p_hat <- ex_x2 / ex_n2
-ex_se    <- sqrt(ex_p02 * (1 - ex_p02) / ex_n2)
-ex_z     <- (ex_p_hat - ex_p02) / ex_se
-ex_z
-#> [1] -1.6
-```
-
-**Explanation:** With \(\hat{p}\) = 0.42, the difference from the null is -0.08, and the null standard error is sqrt(0.25/100) = 0.05. Dividing gives z = -1.6, which is not quite extreme enough to reject at alpha = 0.05.
-
-</details>
-
-![Building the z-statistic for a proportion](screenshots/One-Sample-Proportion-z-Test-in-R-z-mechanics.webp)
-*Figure 1: How the z-statistic is built from the observed proportion, the hypothesized proportion, and the standard error under the null.*
-
-## What does the continuity correction do?
-
-The raw z-test approximates a discrete count (how many successes out of n) with a continuous normal distribution. That approximation has a small built-in mismatch: the discrete scale jumps by 1/n at each value, and Yates' continuity correction shifts the numerator of the z-statistic by half a step to compensate.
-
-Concretely, the corrected statistic shrinks the absolute difference by 1/(2n) before dividing by the SE. The effect is always to pull the z closer to zero, which pulls the p-value up. That makes corrected tests slightly more conservative. `prop.test()` applies the correction by default.
-
-Here is the same test with and without correction.
-
-```r title="Continuity correction on vs off"
-# Compare both forms
-result_cc   <- prop.test(x, n, p = p0, correct = TRUE)
-result_nocc <- prop.test(x, n, p = p0, correct = FALSE)
-
-data.frame(
-  correction = c("correct = TRUE", "correct = FALSE"),
-  chi_sq     = c(result_cc$statistic, result_nocc$statistic),
-  p_value    = c(result_cc$p.value,   result_nocc$p.value)
-)
-#>        correction   chi_sq      p_value
-#> 1  correct = TRUE 13.36100 0.0002570121
-#> 2 correct = FALSE 13.61407 0.0002244664
-```
-
-The two p-values differ in the fourth decimal, which rarely changes a real decision but can matter for reproducing a published result. Textbook z formulas almost never use the correction, so if you want to match a by-hand computation, set `correct = FALSE`.
-
-[NOTE]
-**Different packages default differently.** Python's `statsmodels.proportions_ztest()` has no continuity correction. R's `prop.test()` defaults to `correct = TRUE`. If two analyses disagree in the fourth decimal, this is usually why.
-
-**Try it:** Using the click-through data (x = 135, n = 1000, p<sub>0</sub> = 0.10), extract both p-values and report the difference.
-
-```r title="Your turn: compare corrected vs uncorrected p-values"
-# Try it: return the absolute p-value difference between correct=TRUE and correct=FALSE
-
-# your code here
-
-#> Expected: roughly 3.3e-05
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Correction comparison solution"
-ex_diff <- abs(prop.test(x, n, p = p0, correct = TRUE)$p.value -
-               prop.test(x, n, p = p0, correct = FALSE)$p.value)
-ex_diff
-#> [1] 3.254571e-05
-```
-
-**Explanation:** The correction nudges the p-value up by about 3.3e-05. Tiny, but visible in the fourth decimal.
-
-</details>
-
-## Which confidence interval should you report?
-
-A p-value answers "is the effect real?"; a confidence interval answers "how big is it, and how precisely do we know that?" For a single proportion there are three common CIs, and they can differ meaningfully when p is near 0 or 1 or n is small.
-
-The **Wald CI** is the most familiar: \(\hat{p} \pm z_{\alpha/2} \sqrt{\hat{p}(1-\hat{p})/n}\). It's what most textbooks present, but it under-covers badly when \(\hat{p}\) approaches 0 or 1 because the SE collapses to zero.
-
-```r title="Compute the Wald CI manually"
-# Wald CI for the click-through example
-z_crit     <- qnorm(0.975)
-wald_se    <- sqrt(p_hat * (1 - p_hat) / n)
-wald_lower <- p_hat - z_crit * wald_se
-wald_upper <- p_hat + z_crit * wald_se
-
-c(wald_lower = wald_lower, wald_upper = wald_upper)
-#> wald_lower wald_upper 
-#>  0.1138150  0.1561850
-```
-
-The **Wilson score CI** is what `prop.test()` returns. It has much better coverage across the full range of p, especially for smaller n. It is derived by inverting the z-test (asking which p-values would not be rejected).
-
-```r title="Read the Wilson CI from prop.test"
-# Wilson CI was already computed in the first block's result object
-wilson_ci <- result$conf.int
-wilson_ci
-#> [1] 0.1143559 0.1583739
-#> attr(,"conf.level")
-#> [1] 0.95
-```
-
-The **Clopper-Pearson exact CI** comes from `binom.test()`. It guarantees coverage at least the nominal level by inverting the exact binomial test, but tends to be conservative (wider than needed).
-
-```r title="Clopper-Pearson exact CI from binom.test"
-exact_result <- binom.test(x, n, p = p0)
-exact_ci     <- exact_result$conf.int
-exact_ci
-#> [1] 0.1145113 0.1580611
-#> attr(,"conf.level")
-#> [1] 0.95
-```
-
-Here's a side-by-side for this example:
-
-| Method       | Lower  | Upper  | Width  |
-|--------------|--------|--------|--------|
-| Wald         | 0.1138 | 0.1562 | 0.0424 |
-| Wilson       | 0.1144 | 0.1584 | 0.0440 |
-| Clopper-Pearson | 0.1145 | 0.1581 | 0.0436 |
-
-With n = 1000 and p away from the boundaries, all three agree. At small n or extreme p the gaps widen dramatically, and Wald becomes unreliable.
-
-[KEY INSIGHT]
-**Default to Wilson for publication and reporting.** It has the best small-sample coverage of the three, matches the test's own rejection region, and is what `prop.test()` already returns. Use Clopper-Pearson only when you specifically need guaranteed coverage; reserve Wald for quick hand calculations.
-
-**Try it:** Compute the Wald 95% CI by hand for x = 60, n = 100.
-
-```r title="Your turn: Wald CI by hand"
-# Try it: compute the lower and upper Wald bounds for x=60, n=100
-ex_x3 <- 60
-ex_n3 <- 100
-
-# your code here
-
-#> Expected: roughly (0.504, 0.696)
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Wald CI solution"
-ex_p_hat3 <- ex_x3 / ex_n3
-ex_se3    <- sqrt(ex_p_hat3 * (1 - ex_p_hat3) / ex_n3)
-c(lower = ex_p_hat3 - 1.96 * ex_se3,
-  upper = ex_p_hat3 + 1.96 * ex_se3)
-#>     lower     upper 
-#> 0.5039818 0.6960182
-```
-
-**Explanation:** With \(\hat{p}\) = 0.6 and SE = sqrt(0.24/100) = 0.049, the 95% Wald interval is 0.6 plus or minus 1.96 times 0.049.
-
-</details>
-
-## When does the large-sample approximation fail?
-
-Three assumptions have to hold for the z-test to produce trustworthy p-values: observations are independent (each trial doesn't depend on the others), the sample is large enough for the binomial-to-normal approximation to bite, and p<sub>0</sub> is not extremely close to 0 or 1. The first is a design issue and you verify it from how data was collected. The second and third are numerical conditions you can check before running the test.
-
-The standard check is that both np<sub>0</sub> and n(1 - p<sub>0</sub>) are at least 10. Below that, the binomial is too skewed to match a symmetric normal, and z-test p-values drift from their nominal levels.
+Alongside the count rule, you also need the data to be a simple random sample from independent trials with two outcomes. If trials cluster (repeat visitors, the same patient measured twice) the nominal 5% error rate will be too optimistic.
 
 ```r title="Assumption-check helper for the z-test"
-# Reusable guard that warns when large-sample conditions fail
-check_assumptions <- function(n, p0) {
-  expected_success <- n * p0
-  expected_failure <- n * (1 - p0)
-  data.frame(
-    n_p0           = expected_success,
-    n_one_minus_p0 = expected_failure,
-    ok             = expected_success >= 10 & expected_failure >= 10
-  )
+# Returns list with pass/fail and the two expected counts
+check_assumptions <- function(n, p0, threshold = 10) {
+  np0  <- n * p0
+  nq0  <- n * (1 - p0)
+  pass <- (np0 >= threshold) && (nq0 >= threshold)
+  list(pass = pass, n_p0 = np0, n_1_minus_p0 = nq0)
 }
 
-check_assumptions(1000, 0.10)
-#>   n_p0 n_one_minus_p0   ok
-#> 1  100            900 TRUE
+# Our example: n = 400, p0 = 0.35
+check_assumptions(n = 400, p0 = 0.35)
+#> $pass
+#> [1] TRUE
+#> $n_p0
+#> [1] 140
+#> $n_1_minus_p0
+#> [1] 260
 
-check_assumptions(50, 0.05)
-#>   n_p0 n_one_minus_p0    ok
-#> 1  2.5           47.5 FALSE
+# Small-sample counter-example: n = 12, p0 = 0.3
+check_assumptions(n = 12, p0 = 0.3)
+#> $pass
+#> [1] FALSE
+#> $n_p0
+#> [1] 3.6
+#> $n_1_minus_p0
+#> [1] 8.4
 ```
 
-The click-through example passes with room to spare. A sample of 50 with p<sub>0</sub> = 0.05 fails because only 2.5 successes are expected, and a symmetric normal simply does not describe that distribution.
+Our n=400 case sails through with expected counts of 140 and 260. The n=12 case fails the first count. For that second example the normal approximation would underestimate the tails of the true binomial, so the z-test would give a biased p-value and a poorly-covering Wald interval. Treat assumption checks as a guardrail, not a formality.
 
-What happens when the assumption fails? Let's simulate 10,000 datasets under a null that violates the rule (n = 15, p<sub>0</sub> = 0.05) and ask how often a naive z-test rejects at alpha = 0.05.
+![Choosing the right proportion test and confidence interval.](screenshots/One-Sample-Proportion-z-Test-in-R-decision-flow.webp)
+*Figure 2: Use `prop.test()` with the Wilson CI when the count rule passes, otherwise fall back to `binom.test()` with a Clopper-Pearson interval.*
 
-```r title="Simulate small-n breakdown of the z-test"
-# Simulated rejection rate under H0 when assumptions fail
-set.seed(2026)
-sim_n  <- 15
-sim_p0 <- 0.05
-reps   <- 10000
+[WARNING]
+**When the count rule fails, do not just shrug and run the z-test.** Switch to `binom.test()` for an exact p-value from the binomial distribution. See the [Exact Binomial Test in R](Exact-Binomial-Test-in-R.html) post for the full treatment.
 
-sim_x       <- rbinom(reps, size = sim_n, prob = sim_p0)
-sim_p_hat   <- sim_x / sim_n
-sim_se      <- sqrt(sim_p0 * (1 - sim_p0) / sim_n)
-sim_z       <- (sim_p_hat - sim_p0) / sim_se
-sim_p_vals  <- 2 * pnorm(-abs(sim_z))
+**Try it:** A recruiter claims 20% of applicants pass the coding round. You see 12 passes out of 40. Does the count rule for the z-test hold?
 
-mean(sim_p_vals < 0.05)
-#> [1] 0.1388
+```r title="Your turn: check the count rule"
+# Check assumptions for n = 40, p0 = 0.20
+# Use the helper defined above.
+ex_check <- NULL  # your code here
+
+ex_check
+#> Expected: pass = FALSE, n_p0 = 8, n_1_minus_p0 = 32
 ```
 
-Under H<sub>0</sub> the test should reject only 5% of the time. Here it rejects almost 14% of the time, an inflated Type I error caused by the skewed binomial at this sample size. The practical fix is to use `binom.test()`, which computes an exact p-value instead of relying on the normal approximation.
+<details>
+<summary>Click to reveal solution</summary>
 
-The second thing to report alongside a p-value is an effect size. For a proportion against a null, Cohen's h is the standard choice. It uses the variance-stabilizing arcsine transform so effect sizes are comparable across different baseline rates.
+```r title="Recruiter count-rule solution"
+ex_check <- check_assumptions(n = 40, p0 = 0.20)
+ex_check
+#> $pass
+#> [1] FALSE
+#> $n_p0
+#> [1] 8
+#> $n_1_minus_p0
+#> [1] 32
+```
+
+**Explanation:** `n*p0 = 8`, which is under 10. The z-test is risky here. Prefer `binom.test(x = 12, n = 40, p = 0.20)` for a solid p-value.
+
+</details>
+
+## How do you run the z-test with prop.test()?
+
+R's built-in `prop.test()` does the same arithmetic you just did by hand, with three twists: it reports a chi-square statistic (which is $z^2$), it offers a Yates continuity correction by default, and it returns a Wilson score interval instead of the Wald one. Setting `correct = FALSE` strips the continuity correction and lines the function up exactly with the textbook z-test.
+
+The three key inputs are `x` (successes), `n` (sample size), and `p` (the null proportion). The result is an htest object whose `statistic`, `p.value`, and `conf.int` components carry everything you need.
+
+```r title="Run prop.test without continuity correction"
+res_score <- prop.test(x = x, n = n, p = p0,
+                       correct = FALSE)
+res_score
+#> 
+#> 	1-sample proportions test without continuity correction
+#> 
+#> data:  x out of n, null probability p0
+#> X-squared = 1.5824, df = 1, p-value = 0.2085
+#> alternative hypothesis: true p is not equal to 0.35
+#> 95 percent confidence interval:
+#>  0.3336012 0.4285025
+#> sample estimates:
+#>    p 
+#> 0.38
+
+# Confirm chi-square equals z^2 from the manual calc
+c(sqrt_chi = sqrt(res_score$statistic), abs_z = abs(z))
+#> sqrt_chi.X-squared         abs_z 
+#>          1.2579365     1.2579365
+```
+
+The chi-square statistic 1.58 is exactly $z^2 = 1.258^2$, and the p-value 0.2085 matches the one we computed by hand. That is the core identity behind the "proportion test": R wraps the z-test in a chi-square hull, but the arithmetic under the hood is the same. The confidence interval here is Wilson's, not Wald's, which is why it differs slightly from the manual Wald interval we printed earlier.
+
+One-sided alternatives are one flag away. Use `alternative = "greater"` if your research question is "the true rate is above $p_0$", and `alternative = "less"` for the other direction. The p-value is halved in the direction you hypothesised and set to near 1 in the other.
+
+```r title="One-sided proportion z-tests"
+res_greater <- prop.test(x = x, n = n, p = p0,
+                         alternative = "greater",
+                         correct = FALSE)
+res_less    <- prop.test(x = x, n = n, p = p0,
+                         alternative = "less",
+                         correct = FALSE)
+
+c(two_sided = res_score$p.value,
+  greater   = res_greater$p.value,
+  less      = res_less$p.value)
+#> two_sided   greater      less 
+#> 0.2084559 0.1042280 0.8957720
+```
+
+The one-sided "greater" p-value is exactly half the two-sided p-value, because all the evidence sits on that side. The "less" alternative lines up with the opposite tail and gets a p-value near 1. Pick the one-sided flavour only when a directional hypothesis was pre-specified, not because the two-sided result disappointed you.
+
+[TIP]
+**Run prop.test() with `correct = FALSE` when you want the textbook z-test.** The default Yates correction shrinks the chi-square toward zero to account for the continuous approximation of a discrete distribution. For sample sizes in the hundreds it changes the p-value only a whisker, but it breaks the clean "chi-square equals z squared" identity.
+
+**Try it:** Use `prop.test()` to run the one-sided "greater" version of the main example. Store it in `ex_res_greater` and pull out the p-value.
+
+```r title="Your turn: one-sided prop.test"
+# Two-sided was p = 0.21; greater should be p = 0.10
+ex_res_greater <- NULL  # your code here
+
+ex_res_greater$p.value
+#> Expected: ~0.1042
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="One-sided prop.test solution"
+ex_res_greater <- prop.test(x = 152, n = 400, p = 0.35,
+                            alternative = "greater",
+                            correct = FALSE)
+ex_res_greater$p.value
+#> [1] 0.104228
+```
+
+**Explanation:** Halving the two-sided p puts all the probability mass in the right tail, giving 0.104. Still not significant at 5%, so directional evidence is also weak.
+
+</details>
+
+## Which confidence interval should you report: Wald or Wilson?
+
+The Wald interval $\hat{p} \pm z^{*} \sqrt{\hat{p}(1-\hat{p})/n}$ is the formula everyone learns first. It is easy to compute and works fine in the middle of the range. It breaks down as the true proportion approaches 0 or 1 because the SE shrinks but the distribution becomes skewed, and the Wald interval can spill outside [0, 1] or cover too little of the time.
+
+The Wilson score interval solves this by inverting the score test instead of the Wald test. Its centre shifts slightly toward 0.5 and its width uses `p0`-style variance terms. For any proportion near the boundaries, Wilson delivers noticeably better coverage and never escapes [0, 1]. It is `prop.test()`'s default interval.
+
+```r title="Compare Wald and Wilson intervals for a near-boundary case"
+# Scenario: 2 positives out of 50 samples; a 4% observed rate
+p_small <- 2 / 50
+n_small <- 50
+
+# Wald CI (by hand): z* = 1.96
+se_small <- sqrt(p_small * (1 - p_small) / n_small)
+ci_wald2 <- c(p_small - 1.96 * se_small, p_small + 1.96 * se_small)
+
+# Wilson CI via prop.test (we only want conf.int, ignore the test output)
+ci_wilson2 <- prop.test(x = 2, n = 50, correct = FALSE)$conf.int
+
+round(rbind(Wald = ci_wald2, Wilson = as.numeric(ci_wilson2)), 4)
+#>          [,1]   [,2]
+#> Wald   -0.0143 0.0943
+#> Wilson  0.0110 0.1353
+```
+
+The Wald interval extends to -0.014, a nonsense lower bound for a proportion. The Wilson interval starts at 0.011, stays inside [0, 1], and shifts the centre upward a touch to reflect the pull toward 0.5. When your observed count is small or your proportion is near the boundary, that matters. For proportions near 0.5 in large samples, the two intervals agree to three decimal places.
+
+[NOTE]
+**prop.test() returns a Wilson score interval; binom.test() returns a Clopper-Pearson exact interval.** Neither gives you Wald by default. Compute Wald by hand if you need it for a textbook calculation, and know that Wilson is the more defensible choice in practice.
+
+**Try it:** A survey shows 30 out of 50 respondents prefer option A. Compute the Wald 95% interval for `p_hat = 0.6` and compare it to the Wilson interval from `prop.test()`.
+
+```r title="Your turn: Wald vs Wilson at n = 50"
+ex_p  <- 30 / 50
+ex_n  <- 50
+
+ex_wald   <- NULL  # your code here (two numbers)
+ex_wilson <- NULL  # your code here (two numbers)
+
+round(rbind(Wald = ex_wald, Wilson = ex_wilson), 4)
+#> Expected: Wald around (0.46, 0.74), Wilson around (0.46, 0.72)
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Wald vs Wilson solution"
+ex_se     <- sqrt(ex_p * (1 - ex_p) / ex_n)
+ex_wald   <- c(ex_p - 1.96 * ex_se, ex_p + 1.96 * ex_se)
+ex_wilson <- as.numeric(prop.test(x = 30, n = 50, correct = FALSE)$conf.int)
+
+round(rbind(Wald = ex_wald, Wilson = ex_wilson), 4)
+#>          [,1]   [,2]
+#> Wald   0.4642 0.7358
+#> Wilson 0.4629 0.7226
+```
+
+**Explanation:** At `p_hat = 0.6` and `n = 50` the intervals nearly agree. Wilson's upper bound sits slightly lower because the score formulation leans in toward 0.5. For most real reporting, Wilson is the safer pick.
+
+</details>
+
+## How big is the effect? Cohen's h
+
+A p-value answers "could this gap be chance?" but says nothing about "is the gap big enough to care about?" Cohen's `h` fills that second slot. It is an effect-size measure for proportions based on the arcsine-square-root transform, which stabilises the variance across the 0-to-1 range.
+
+The formula is:
 
 $$h = 2 \arcsin(\sqrt{\hat{p}}) - 2 \arcsin(\sqrt{p_0})$$
 
-Cohen's benchmarks are 0.2 (small), 0.5 (medium), 0.8 (large). These are conventions, not laws.
+Cohen's benchmark thresholds are 0.2 (small), 0.5 (medium), and 0.8 (large). Because the transform stretches near the boundaries, `h` does a much better job than the raw difference `p_hat - p0` when either proportion is close to 0 or 1.
 
-[WARNING]
-**With small n and extreme p<sub>0</sub>, use binom.test() and ignore the z-test entirely.** The z-test's inflated Type I error does not go away with a larger alpha or a continuity correction. It is a structural mismatch between the discrete sampling distribution and the continuous normal.
+```r title="Cohen's h helper and interpretation"
+cohens_h <- function(p_hat, p0) {
+  2 * asin(sqrt(p_hat)) - 2 * asin(sqrt(p0))
+}
 
-**Try it:** Check whether n = 50, p<sub>0</sub> = 0.05 meets the large-sample conditions.
+h_val <- cohens_h(p_hat = p_hat, p0 = p0)
+round(h_val, 3)
+#> [1] 0.063
 
-```r title="Your turn: assumption check"
-# Try it: use check_assumptions() from the helper above
+# Quick label
+size_label <- cut(abs(h_val),
+                  breaks = c(-Inf, 0.2, 0.5, 0.8, Inf),
+                  labels = c("negligible", "small", "medium", "large"))
+size_label
+#> [1] negligible
+#> Levels: negligible small medium large
+```
 
-# your code here
+The effect is 0.063, well below the 0.2 "small" threshold. Read this as: even if the true click rate really did move from 35% to 38%, that shift is tiny by the standards of this scale. The non-significant p-value from earlier now has a companion story: there is very little signal to find, and the sample of 400 did not find it.
 
-#> Expected: ok = FALSE
+[KEY INSIGHT]
+**Report both significance and effect size.** A tiny effect can clear p < 0.05 in a huge sample, and a meaningful effect can miss p < 0.05 in a tiny sample. Cohen's `h` decouples "is there a signal?" from "is the signal worth acting on?"
+
+**Try it:** Compute Cohen's `h` for two scenarios against a null of 0.50: `70/100` and `55/100`. Compare the sizes.
+
+```r title="Your turn: Cohen's h at two effect magnitudes"
+# Scenario A: p_hat = 0.70 vs p0 = 0.50
+# Scenario B: p_hat = 0.55 vs p0 = 0.50
+
+ex_h1 <- NULL  # your code here
+ex_h2 <- NULL  # your code here
+
+round(c(big = ex_h1, small = ex_h2), 3)
+#> Expected: big around 0.41, small around 0.10
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Assumption check solution"
-check_assumptions(50, 0.05)
-#>   n_p0 n_one_minus_p0    ok
-#> 1  2.5           47.5 FALSE
+```r title="Cohen's h two-scenario solution"
+ex_h1 <- cohens_h(p_hat = 0.70, p0 = 0.50)
+ex_h2 <- cohens_h(p_hat = 0.55, p0 = 0.50)
+
+round(c(big = ex_h1, small = ex_h2), 3)
+#>   big small 
+#> 0.411 0.100
 ```
 
-**Explanation:** n * p<sub>0</sub> = 2.5 is far below 10, so the normal approximation is not reliable and `binom.test()` should be used.
+**Explanation:** A shift from 0.50 to 0.70 gives `h = 0.41` (small-to-medium). A shift from 0.50 to 0.55 gives `h = 0.10`, half the small threshold. Same sample size, very different real-world importance.
 
 </details>
 
-![Decision flow for choosing proportion test and CI](screenshots/One-Sample-Proportion-z-Test-in-R-decision-flow.webp)
-*Figure 2: Decision flow for choosing between prop.test() and binom.test(), and for selecting the appropriate confidence interval.*
+## How many observations do you need? Power and sample size
+
+Planning a proportion study without thinking about power is how underpowered research gets published. Given a target effect size you care about, a significance level (usually 0.05), and a desired power (usually 0.80), you can solve for the sample size needed. The `pwr` package makes this one function call.
+
+The question comes in two flavours. Prospective: "how many observations do I need to have an 80% chance of detecting `h = 0.2` at alpha = 0.05?" Retrospective: "given my `n` and observed `h`, what power did I actually have?" Both use `pwr::pwr.p.test`.
+
+```r title="Sample size for a small effect at 80% power"
+library(pwr)
+
+n_needed <- pwr.p.test(h = 0.20, power = 0.80,
+                       sig.level = 0.05,
+                       alternative = "two.sided")
+n_needed
+#> 
+#>      proportion power calculation for binomial distribution (arcsine transformation) 
+#> 
+#>               h = 0.2
+#>               n = 196.2215
+#>       sig.level = 0.05
+#>           power = 0.8
+#>     alternative = two.sided
+```
+
+You need about 197 observations to have 80% power to detect a "small" effect at the 5% level. That is the minimum sample size for a well-powered test, not a suggestion. If your true effect is smaller than `h = 0.2`, you will need far more. If it is larger, you can get away with fewer.
+
+```r title="Achieved power for the click-through example"
+power_achieved <- pwr.p.test(h = h_val, n = n,
+                             sig.level = 0.05,
+                             alternative = "two.sided")
+round(power_achieved$power, 3)
+#> [1] 0.242
+```
+
+Our study had roughly 24% power. That is painfully low: even if a true 3-point lift existed, we had only a one-in-four chance of catching it. This is why the non-significant p-value in the first section is not evidence of no effect. The sample was too small to rule one out.
+
+[WARNING]
+**An underpowered non-significant result is not evidence for the null.** A study with 24% power fails to reject H0 three-quarters of the time even when the alternative is true. Report power whenever you publish a null result so readers can tell "no effect" apart from "couldn't see one."
+
+**Try it:** Find the sample size you would need to detect a very small effect of `h = 0.10` at 80% power and alpha = 0.05.
+
+```r title="Your turn: sample size for a tiny effect"
+ex_n_needed <- NULL  # your code here
+
+ex_n_needed$n
+#> Expected: roughly 785
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Sample size for h = 0.10 solution"
+ex_n_needed <- pwr.p.test(h = 0.10, power = 0.80,
+                          sig.level = 0.05,
+                          alternative = "two.sided")
+round(ex_n_needed$n)
+#> [1] 785
+```
+
+**Explanation:** Halving the effect size quadruples the required sample. `h = 0.10` needs about 785 observations for 80% power, versus 197 for `h = 0.20`. Small effects are expensive to detect.
+
+</details>
 
 ## Practice Exercises
 
-### Exercise 1: Pick the right test and report the right CI
+Three capstone problems that pull together everything above. Work through them in order.
 
-A clinical pilot reports 8 responders out of 30 patients against a historical benchmark rate of 50%. Decide which test is appropriate given sample size and p<sub>0</sub>, run it, and report both the p-value and a 95% confidence interval. Save the returned object to `my_test`.
+### Exercise 1: Website redesign bounce rate
+
+Before a redesign, your site's bounce rate was 55%. After the redesign, 255 out of 500 new visitors bounced. Run a two-sided z-test against `p0 = 0.55`, report the Wilson CI, and compute Cohen's `h`. Did the redesign change bounce behaviour?
 
 ```r title="Exercise 1 starter"
-# Exercise 1: pick prop.test vs binom.test, then run and report
-# Hint: np0 = 15 is borderline; use the exact test to be safe
+# Hint: p_hat = 255/500 = 0.51
+# Run prop.test(correct = FALSE), extract statistic and conf.int,
+# then use cohens_h() from earlier.
+
+my_ab_x  <- 255
+my_ab_n  <- 500
+my_ab_p0 <- 0.55
 
 # Write your code below:
 
@@ -388,31 +449,39 @@ A clinical pilot reports 8 responders out of 30 patients against a historical be
 <summary>Click to reveal solution</summary>
 
 ```r title="Exercise 1 solution"
-my_x  <- 8
-my_n  <- 30
-my_p0 <- 0.50
+my_ab_res <- prop.test(x = my_ab_x, n = my_ab_n,
+                       p = my_ab_p0, correct = FALSE)
+my_ab_h   <- cohens_h(p_hat = my_ab_x / my_ab_n, p0 = my_ab_p0)
 
-# np0 = 15, n(1-p0) = 15, both >= 10 so prop.test would work,
-# but with borderline n the exact test is preferable.
-my_test <- binom.test(my_x, my_n, p = my_p0)
-c(p_value = my_test$p.value,
-  ci_low  = my_test$conf.int[1],
-  ci_high = my_test$conf.int[2])
-#>    p_value     ci_low    ci_high 
-#> 0.00522 0.11549 0.45350
+list(z_squared = as.numeric(my_ab_res$statistic),
+     p_value   = my_ab_res$p.value,
+     wilson_ci = as.numeric(my_ab_res$conf.int),
+     cohens_h  = my_ab_h)
+#> $z_squared
+#> [1] 3.232
+#> $p_value
+#> [1] 0.0722
+#> $wilson_ci
+#> [1] 0.4668 0.5530
+#> $cohens_h
+#> [1] -0.0803
 ```
 
-**Explanation:** With only 30 patients, the exact test avoids approximation error. The p-value of 0.005 and an exact CI of (11.5%, 45.4%) both support rejecting the 50% benchmark.
+**Explanation:** `z^2 = 3.23` gives `|z| = 1.80`, two-sided p = 0.07. Not quite significant at 5%. The Wilson CI (0.47, 0.55) covers the null of 0.55 at its upper edge. Cohen's `h` is -0.08, well below "small". The redesign produced a tiny, non-significant downshift.
 
 </details>
 
-### Exercise 2: Test three cohorts against a target CTR
+### Exercise 2: Conversion-rate benchmark and sample-size planning
 
-You have three ad cohorts with these results: cohort A = 42 of 500, cohort B = 85 of 1,000, cohort C = 12 of 120. Target CTR is p<sub>0</sub> = 0.08. Return a data frame called `my_summary` with columns `cohort`, `p_value`, `wilson_lower`, `wilson_upper`, and `reject` (TRUE if p-value < 0.05). Use `prop.test(correct = FALSE)` for each cohort.
+Your new landing page converted 200 of 500 visitors. Management expects conversion to be 45%. Run both the two-sided test and the one-sided "less than" test against `p0 = 0.45`. Then compute the sample size needed to reliably detect a small effect of `h = 0.10` at 80% power.
 
 ```r title="Exercise 2 starter"
-# Exercise 2: per-cohort proportion z-test with Wilson CI
-# Hint: Map over cohorts; extract $p.value and $conf.int from each prop.test
+# Hint: prop.test() with alternative = "less" for the one-sided test,
+# and pwr.p.test() for the sample size.
+
+my_conv_x  <- 200
+my_conv_n  <- 500
+my_conv_p0 <- 0.45
 
 # Write your code below:
 
@@ -422,99 +491,148 @@ You have three ad cohorts with these results: cohort A = 42 of 500, cohort B = 8
 <summary>Click to reveal solution</summary>
 
 ```r title="Exercise 2 solution"
-cohorts <- data.frame(
-  cohort = c("A", "B", "C"),
-  x      = c(42, 85, 12),
-  n      = c(500, 1000, 120)
-)
-my_p0 <- 0.08
+res_two <- prop.test(x = my_conv_x, n = my_conv_n,
+                     p = my_conv_p0, correct = FALSE)
+res_one <- prop.test(x = my_conv_x, n = my_conv_n,
+                     p = my_conv_p0,
+                     alternative = "less", correct = FALSE)
 
-rows <- lapply(seq_len(nrow(cohorts)), function(i) {
-  tst <- prop.test(cohorts$x[i], cohorts$n[i], p = my_p0, correct = FALSE)
-  data.frame(
-    cohort       = cohorts$cohort[i],
-    p_value      = tst$p.value,
-    wilson_lower = tst$conf.int[1],
-    wilson_upper = tst$conf.int[2],
-    reject       = tst$p.value < 0.05
-  )
-})
-my_summary <- do.call(rbind, rows)
-my_summary
-#>   cohort    p_value wilson_lower wilson_upper reject
-#> 1      A 0.34199        0.06283      0.11248  FALSE
-#> 2      B 0.56552        0.06904      0.10423  FALSE
-#> 3      C 0.59115        0.05807      0.16658  FALSE
+n_for_small <- pwr.p.test(h = 0.10, power = 0.80,
+                          sig.level = 0.05,
+                          alternative = "two.sided")
+
+list(p_two_sided = res_two$p.value,
+     p_one_less  = res_one$p.value,
+     h_observed  = cohens_h(my_conv_x / my_conv_n, my_conv_p0),
+     n_for_h_0.10 = round(n_for_small$n))
+#> $p_two_sided
+#> [1] 0.0253
+#> $p_one_less
+#> [1] 0.0126
+#> $h_observed
+#> [1] -0.1012
+#> $n_for_h_0.10
+#> [1] 785
 ```
 
-**Explanation:** None of the three cohorts rejects the null, and all three Wilson intervals straddle 0.08. Looping with `lapply()` lets you run the same test across heterogeneous cohort sizes and collect results into a tidy frame.
+**Explanation:** Two-sided p = 0.025 rejects the 45% claim at 5%. The one-sided "less" test has half that p-value at 0.013. The observed effect `h = -0.10` is small. To plan a future study to catch effects this small with 80% power, you would need roughly 785 observations.
 
 </details>
 
-## Complete Example
+### Exercise 3: When the z-test does not apply
 
-A drug trial reports 220 responders out of 300 patients. The historical response rate for the standard of care is 70%. Walk through the full workflow: check assumptions, run the test, extract the p-value and Wilson CI, and compute Cohen's h.
+A call-centre audit finds 3 problem calls in a sample of 30 against a target rate of `p0 = 0.10`. Check the count-rule assumption. If it fails, explain which test you should run instead and why.
 
-```r title="Full workflow for the drug-trial example"
-# End-to-end one-sample proportion z-test
-trial_x  <- 220
-trial_n  <- 300
-trial_p0 <- 0.70
+```r title="Exercise 3 starter"
+my_border_x  <- 3
+my_border_n  <- 30
+my_border_p0 <- 0.10
 
-# Step 1: verify large-sample conditions
-check_assumptions(trial_n, trial_p0)
-#>   n_p0 n_one_minus_p0   ok
-#> 1  210             90 TRUE
+# Use check_assumptions() from earlier.
+# Then write a one-line comment recommending the right test.
 
-# Step 2: run the uncorrected z-test (equivalent to textbook formula)
-trial_result <- prop.test(trial_x, trial_n, p = trial_p0, correct = FALSE)
-
-# Step 3: pull out the numbers we'll report
-trial_p_hat <- trial_x / trial_n
-cohens_h    <- 2 * asin(sqrt(trial_p_hat)) - 2 * asin(sqrt(trial_p0))
-
-list(
-  p_hat        = trial_p_hat,
-  p_value      = trial_result$p.value,
-  wilson_ci    = as.numeric(trial_result$conf.int),
-  cohens_h     = cohens_h
-)
-#> $p_hat
-#> [1] 0.7333333
-#> 
-#> $p_value
-#> [1] 0.19747
-#> 
-#> $wilson_ci
-#> [1] 0.67996 0.78135
-#> 
-#> $cohens_h
-#> [1] 0.07388
 ```
 
-The observed rate of 73.3% is higher than the 70% benchmark, but the p-value of 0.20 is not close to significant, the 95% Wilson interval (68.0%, 78.1%) clearly includes 0.70, and Cohen's h of 0.074 is well below the "small" threshold of 0.20. The conclusion: no evidence of a difference. A sample of 300 is large enough to detect a real effect if one existed, so we can also make a reasonable assurance that the new treatment is not dramatically better.
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Exercise 3 solution"
+my_border_check <- check_assumptions(n = my_border_n, p0 = my_border_p0)
+my_border_check
+#> $pass
+#> [1] FALSE
+#> $n_p0
+#> [1] 3
+#> $n_1_minus_p0
+#> [1] 27
+
+# n*p0 = 3, well below the 10 threshold. Use binom.test():
+binom.test(x = my_border_x, n = my_border_n, p = my_border_p0)$p.value
+#> [1] 0.6474
+```
+
+**Explanation:** Only 3 expected successes under the null means the binomial distribution is far from Normal. The z-test p-value would be biased. `binom.test()` evaluates the exact binomial p-value (0.65 here), so no information is thrown away and the Type-I error rate is what it promises.
+
+</details>
+
+## Complete Example: Candy factory quality control
+
+A candy factory claims that 95% of bars pass the weight-tolerance check. In a random sample of 240 bars, 216 pass (90%). Does the observed pass rate differ from the 95% claim? Walk through all six steps end-to-end.
+
+```r title="Candy QA: assumption check, z-test, CI, effect size, power"
+qa_x  <- 216
+qa_n  <- 240
+qa_p0 <- 0.95
+
+# 1. Assumption check
+qa_assume <- check_assumptions(n = qa_n, p0 = qa_p0)
+
+# 2. Manual z-test
+qa_p_hat <- qa_x / qa_n
+qa_se0   <- sqrt(qa_p0 * (1 - qa_p0) / qa_n)
+qa_z     <- (qa_p_hat - qa_p0) / qa_se0
+qa_pval  <- 2 * pnorm(-abs(qa_z))
+
+# 3. prop.test for Wilson CI
+qa_res <- prop.test(x = qa_x, n = qa_n, p = qa_p0, correct = FALSE)
+
+# 4. Cohen's h and 5. achieved power
+qa_h     <- cohens_h(qa_p_hat, qa_p0)
+qa_power <- pwr.p.test(h = qa_h, n = qa_n,
+                       sig.level = 0.05,
+                       alternative = "two.sided")
+
+list(
+  assumptions_pass = qa_assume$pass,
+  p_hat            = qa_p_hat,
+  z                = round(qa_z, 3),
+  p_value          = signif(qa_pval, 3),
+  wilson_ci        = round(as.numeric(qa_res$conf.int), 4),
+  cohens_h         = round(qa_h, 3),
+  achieved_power   = round(qa_power$power, 3)
+)
+#> $assumptions_pass
+#> [1] TRUE
+#> $p_hat
+#> [1] 0.9
+#> $z
+#> [1] -3.553
+#> $p_value
+#> [1] 0.00038
+#> $wilson_ci
+#> [1] 0.8547 0.9325
+#> $cohens_h
+#> [1] -0.192
+#> $achieved_power
+#> [1] 0.967
+```
+
+The assumptions pass (`n*p0 = 228`, `n*(1-p0) = 12`). The z-statistic of -3.55 yields p = 0.00038, a decisive rejection of the 95% claim. The Wilson 95% interval runs from 85.5% to 93.3%, entirely below the claimed 95%. Cohen's `h` is -0.19, just under the "small" threshold, so the effect is small but real. Achieved power was 97%, which means this study had more than enough juice to spot a gap of this size. Bottom line for the factory floor: the true pass rate is statistically and practically below 95%, and the process should be investigated.
 
 ## Summary
 
-- Use `prop.test()` for large samples (np<sub>0</sub> and n(1 - p<sub>0</sub>) both at least 10); switch to `binom.test()` otherwise.
-- Set `correct = FALSE` if you want results that match a textbook z formula; leave it at the default for slightly more conservative p-values.
-- Report the Wilson confidence interval (`prop.test()`'s default), not Wald, for publication-quality inference.
-- Under H<sub>0</sub>, the standard error uses p<sub>0</sub>, not \(\hat{p}\). This is what makes the test a z-test rather than a Wald test.
-- R prints chi-squared instead of z, but for a one-sample two-sided test the two are related by chi-squared = z<sup>2</sup>.
-- Always report an effect size alongside a p-value; Cohen's h is the standard choice for proportions.
+| Step | Code / formula | What it gives you | Typical pitfall |
+|---|---|---|---|
+| 1. Check assumptions | `check_assumptions(n, p0)` | Can you trust the Normal approximation? | Forgetting independence beyond the count rule |
+| 2. Compute z | `(p_hat - p0) / sqrt(p0*(1-p0)/n)` | Standardised distance from the null | Using `p_hat` in the SE instead of `p0` |
+| 3. Two-sided p-value | `2 * pnorm(-abs(z))` | Evidence against H0 | Running one-sided only because two-sided was not significant |
+| 4. Confidence interval | `prop.test(..., correct=FALSE)$conf.int` | Wilson score interval | Defaulting to Wald near 0 or 1 |
+| 5. Effect size | `cohens_h(p_hat, p0)` | Practical importance of the gap | Reporting p without `h` |
+| 6. Power / sample size | `pwr.p.test(h, n, sig.level, power)` | Study sensitivity | Interpreting a non-significant underpowered result as "no effect" |
 
 ## References
 
-1. Agresti, A. (2013). *Categorical Data Analysis*, 3rd ed., Wiley. Chapter 1 covers Wilson and Wald intervals and the one-sample z-test.
-2. R Core Team. `prop.test()` documentation. [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/prop.test.html)
-3. Brown, L. D., Cai, T. T., and DasGupta, A. (2001). "Interval Estimation for a Binomial Proportion." *Statistical Science* 16(2), 101-133. Comprehensive coverage comparison of Wald, Wilson, and exact intervals.
-4. Wilson, E. B. (1927). "Probable inference, the law of succession, and statistical inference." *Journal of the American Statistical Association* 22, 209-212. Original derivation of the Wilson score interval.
-5. Cohen, J. (1988). *Statistical Power Analysis for the Behavioral Sciences*, 2nd ed., Lawrence Erlbaum. Defines Cohen's h and its benchmarks.
-6. Newcombe, R. G. (1998). "Two-sided confidence intervals for the single proportion: comparison of seven methods." *Statistics in Medicine* 17(8), 857-872.
-7. distributions3 package vignette: "One sample Z-tests for a proportion." [Link](https://cran.r-project.org/web/packages/distributions3/vignettes/one-sample-z-test-for-proportion.html)
+1. Agresti, A. (2013). *Categorical Data Analysis*, 3rd Edition. Wiley. Chapter 1: Distributions and Inference for Categorical Data. [Publisher link](https://www.wiley.com/en-us/Categorical+Data+Analysis%2C+3rd+Edition-p-9780470463635)
+2. Wilson, E. B. (1927). Probable inference, the law of succession, and statistical inference. *Journal of the American Statistical Association*, 22(158), 209-212. [JSTOR](https://www.jstor.org/stable/2276774)
+3. Cohen, J. (1988). *Statistical Power Analysis for the Behavioral Sciences*, 2nd Edition. Routledge. Chapter 6: Differences Between Proportions.
+4. R Core Team. `prop.test()` reference. [CRAN documentation](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/prop.test.html)
+5. Champely, S. `pwr` package: Basic Functions for Power Analysis. [CRAN](https://cran.r-project.org/package=pwr)
+6. distributions3 package vignette, "One sample Z-tests for a proportion". [CRAN](https://cran.r-project.org/web/packages/distributions3/vignettes/one-sample-z-test-for-proportion.html)
+7. STHDA. "One-Proportion Z-Test in R". [Link](https://www.sthda.com/english/wiki/one-proportion-z-test-in-r)
+8. Carter, D. J. *R for Statistics in EPH*, Section 4.2: Z-test for proportions. [Bookdown](https://bookdown.org/danieljcarter/r4steph/z-test-for-proportions.html)
 
 ## Continue Learning
 
-- [Proportion Tests in R](Proportion-Tests-in-R.html), the parent guide covering prop.test(), binom.test(), and when to use each with full decision rules.
-- [Exact Binomial Test in R: binom.test() for Small Samples](Exact-Binomial-Test-in-R.html), the sibling Further Reading on the exact alternative when large-sample conditions fail.
-- [Statistical Power Analysis in R](Statistical-Power-Analysis-in-R.html), which shows how to size your sample before running a proportion test so you can detect an effect of practical interest.
+- [Proportion Tests in R: prop.test() and binom.test()](Proportion-Tests-in-R.html). The parent overview of one- and two-sample proportion tests and when to use each tool.
+- [Exact Binomial Test in R](Exact-Binomial-Test-in-R.html). What to reach for when the large-sample count rule fails.
+- [Effect Size in R](Effect-Size-in-R.html). Cohen's `h` in context with `d`, `r`, and other effect-size measures across tests.
