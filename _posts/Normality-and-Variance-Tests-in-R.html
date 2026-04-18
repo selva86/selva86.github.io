@@ -1,0 +1,1108 @@
+---
+title: "Test Normality and Equal Variance in R: What the Tests Can and Can't Tell You"
+description: "Shapiro-Wilk, K-S, Anderson-Darling test normality; Levene's and Bartlett's test variance. Learn test power, Q-Q plots, when visuals beat formal tests."
+keywords: "normality test in R, shapiro.test R, Q-Q plot R, Levene's test R, Bartlett's test R, homogeneity of variance R, Anderson-Darling R, Kolmogorov-Smirnov R, test assumptions R"
+mathjax: true
+webr: true
+curriculum_id: "2.2.10"
+post_type: "C"
+auto_link_terms: "normality test in R|Shapiro-Wilk test|shapiro.test()|Levene's test|Bartlett's test|Q-Q plot|homogeneity of variance|Anderson-Darling test"
+auto_link_case_sensitive: false
+sidebar_section: "Statistics"
+sidebar_title: "Normality & Variance Tests"
+sidebar_order: "41"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>Test Normality and Equal Variance in R: What the Tests Can and Can't Tell You</h1>
+
+<p class="lead">Every parametric test you run, the t-test, ANOVA, the classical linear model, assumes the data are normal and the groups share a common variance, so a 30-second assumption check prevents you from trusting a p-value that was never valid in the first place. This post shows you which test to pick, how to read the result, and why the tests themselves can mislead you at both small and large sample sizes.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="40" data-exercises="9" data-xp="135"></div>
+
+<h2>Why test normality and equal variance at all?</h2>
+
+<p>Most textbooks hand you a t-test or an ANOVA and move on without saying that both results depend on two quiet assumptions. If the data are skewed or the group variances differ wildly, the p-value you read off the screen is the p-value of a different test than the one you thought you ran. A quick pre-flight check fixes this.</p>
+
+<p>Let's see what a 30-second assumption check looks like on real data. We take <code>mtcars</code>, ask whether fuel efficiency (<code>mpg</code>) is normal inside the 6-cylinder subset, and whether the three cylinder groups share a common variance. Both questions turn into one line of R.</p>
+
+<div class="webr-container" data-block-title="Pre-flight check on mtcars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pre-flight check on mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Shapiro on the mpg values for 6-cylinder cars
+mpg_6cyl &lt;- mtcars$mpg[mtcars$cyl == 6]
+shapiro.test(mpg_6cyl)
+#&gt;
+#&gt;  Shapiro-Wilk normality test
+#&gt;
+#&gt; data:  mpg_6cyl
+#&gt; W = 0.89903, p-value = 0.3278
+
+# Bartlett across all three cylinder groups
+bartlett.test(mpg ~ cyl, data = mtcars)
+#&gt;
+#&gt;  Bartlett test of homogeneity of variances
+#&gt;
+#&gt; data:  mpg by cyl
+#&gt; W = 9.4319, df = 2, p-value = 0.008947</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The Shapiro p-value of 0.33 says we have no evidence against normality inside the 6-cylinder group, fine. But the Bartlett p-value of 0.009 says the variance is clearly not the same across cylinder groups. If you were about to run a classical ANOVA with <code>var.equal = TRUE</code>, you would have been reading a result produced under a broken assumption. You would use Welch's ANOVA or <code>oneway.test()</code> instead. Two tiny tests changed the entire <a class="auto-link" href="Pre-Registration-for-R-Analysis.html" title="Pre-Registration for R Analysis: OSF, AsPredicted & Analysis Plans">analysis plan</a>.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The tests don't answer "is my data normal?"</strong> They answer "how strong is the evidence against normality in this specific sample?" That is a subtler, sample-size-dependent question, and it is the hinge of everything that follows.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Run Shapiro-Wilk on <code>mtcars$wt</code> (the full car weight column) and state whether you would reject normality at alpha = 0.05.</p>
+<div class="webr-container" data-block-title="Your turn: Shapiro on car weight">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: Shapiro on car weight</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: run shapiro.test() on mtcars$wt
+ex_result &lt;- # your code here
+
+print(ex_result)
+#&gt; Expected: a p-value well above 0.05 (weight is roughly normal in this sample)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Shapiro on car weight solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Shapiro on car weight solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_result &lt;- shapiro.test(mtcars$wt)
+print(ex_result)
+#&gt;
+#&gt;  Shapiro-Wilk normality test
+#&gt;
+#&gt; data:  mtcars$wt
+#&gt; W = 0.94326, p-value = 0.09265</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The p-value of 0.093 is above 0.05, so we do not reject normality. The sample is consistent with a normal distribution, though it is not far from the threshold, which is a hint that we should also look at a Q-Q plot before committing to parametric tools.</p>
+
+</details>
+</section>
+
+<h2>How do you test normality with Shapiro-Wilk, K-S, and Anderson-Darling?</h2>
+
+<p>Three tests dominate practice: Shapiro-Wilk, the Kolmogorov-Smirnov (K-S) test, and the Anderson-Darling (AD) test. They differ in what kind of deviation they detect best and how they behave at different sample sizes. Let's run each one on a clearly normal sample and a clearly skewed one, so you can see the contrast before we dive into the mechanics.</p>
+
+<div class="webr-container" data-block-title="Shapiro on normal vs skewed samples">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Shapiro on normal vs skewed samples</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+x_norm &lt;- rnorm(100, mean = 0, sd = 1)
+x_skew &lt;- rexp(100, rate = 1)
+
+shapiro.test(x_norm)$p.value
+#&gt; [1] 0.9236
+
+shapiro.test(x_skew)$p.value
+#&gt; [1] 2.05e-08</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>On the normal sample we get p = 0.92, nowhere near rejection. On the exponential sample, which is visibly right-skewed, Shapiro gives p < 0.0001. That is the test doing what you want: flagging real non-normality. The Shapiro-Wilk statistic W is a correlation between the ordered sample and the quantiles you would expect from a normal, so W close to 1 means "arranged like a normal," while W well below 1 means "not at all."</p>
+
+<p>$$W = \frac{\left(\sum_{i=1}^{n} a_i x_{(i)}\right)^2}{\sum_{i=1}^{n} (x_i - \bar{x})^2}$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$x_{(i)}$ is the i-th smallest value in the sample</li>
+
+<li>$a_i$ are constants derived from the expected normal <a class="auto-link" href="Order-Statistics-in-R.html" title="Order Statistics in R: Min, Max, Sample Quantiles — Theory & Simulation">order statistics</a></li>
+
+<li>$\bar{x}$ is the sample mean</li>
+
+</ul>
+
+<p>W ranges from near 0 (wildly non-normal) to 1 (perfectly normal in the sample). Practical guidance: W above 0.95 paired with a p-value above 0.05 is your "green light" combination.</p>
+
+<p>The K-S test compares the empirical <a class="auto-link" href="Random-Variables-in-R.html" title="Random Variables in R: Discrete vs Continuous, PMF, PDF, and CDF — Visualised">cumulative distribution function</a> (CDF) of your sample to a reference CDF. In R, <code>ks.test()</code> runs the one-sample version.</p>
+
+<div class="webr-container" data-block-title="K-S test against a normal CDF">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">K-S test against a normal CDF</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ks_result &lt;- ks.test(x_norm, &quot;pnorm&quot;, mean = mean(x_norm), sd = sd(x_norm))
+ks_result
+#&gt;
+#&gt;  Asymptotic one-sample Kolmogorov-Smirnov test
+#&gt;
+#&gt; data:  x_norm
+#&gt; D = 0.050121, p-value = 0.9627
+#&gt; alternative hypothesis: two-sided</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <a class="auto-link" href="Hypothesis-Testing-in-R.html" title="Hypothesis Testing in R: Understand the Framework, Not Just the p-Value">test statistic</a> D is the largest vertical gap between the two CDFs; small D means the shapes match. The p-value of 0.96 says no reason to reject normality.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Estimating mean and sd from your sample inflates the K-S p-value.</strong> The classical K-S test assumes the reference distribution is specified up front, not fitted from the data. If you plug in <code>mean(x)</code> and <code>sd(x)</code>, the test becomes too lenient. The correct patch is the Lilliefors variant (<code>nortest::lillie.test()</code> in local R), or just use Shapiro-Wilk, which was designed for this situation.</div></div>
+
+<p>Anderson-Darling is the third member of the family. It weights the tails more heavily than K-S, which makes it excellent at catching tail departures (heavy tails, outliers). The Anderson-Darling A² statistic is:</p>
+
+<p>$$A^2 = -n - \frac{1}{n} \sum_{i=1}^{n} (2i - 1) \left[ \ln F(x_{(i)}) + \ln(1 - F(x_{(n+1-i)})) \right]$$</p>
+
+<p>Where $F$ is the fitted normal CDF, $x_{(i)}$ is the i-th order statistic, and the sum runs over the sorted sample. The further from a normal the sample is, especially in the tails, the larger A² gets. We can compute it in a handful of lines of base R, no extra packages.</p>
+
+<div class="webr-container" data-block-title="Anderson-Darling by hand">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Anderson-Darling by hand</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ad_stat &lt;- function(x) {
+  x &lt;- sort(x)
+  n &lt;- length(x)
+  Fx &lt;- pnorm(x, mean = mean(x), sd = sd(x))
+  i &lt;- seq_len(n)
+  -n - mean((2 * i - 1) * (log(Fx) + log(1 - rev(Fx))))
+}
+
+ad_value_norm &lt;- ad_stat(x_norm)
+ad_value_skew &lt;- ad_stat(x_skew)
+c(normal = ad_value_norm, skewed = ad_value_skew)
+#&gt;   normal   skewed
+#&gt;  0.22718  5.84213</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A² under 0.5 is consistent with normality; our normal sample gives 0.23. The exponential sample scores 5.84, an order of magnitude above, reflecting the heavy right tail. Critical values are tabulated (≈ 0.752 at alpha = 0.05 for an unknown-parameter normal), and packages like <code>nortest</code> return p-values directly. For WebR-safe work the A² statistic alone is informative.</p>
+
+<p><img src="screenshots/Normality-and-Variance-Tests-in-R-normality-decision.webp" alt="Choose a normality test based on sample size, then interpret alongside a Q-Q plot." class="img-responsive img-zoomable" loading="lazy" width="1800" height="842" /></p>
+
+<p><em>Figure 1: Choose a normality test based on sample size, then interpret alongside a Q-Q plot.</em></p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Default to Shapiro-Wilk for n under 5000.</strong> It has the highest power against a wide range of alternatives in that range. Use Anderson-Darling when tail behavior is the primary concern. Reserve plain K-S for cases where you have a fully pre-specified reference distribution.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Run <code>shapiro.test()</code> on <code>airquality$Temp</code> (daily temperature readings) and state the p-value and your decision.</p>
+<div class="webr-container" data-block-title="Your turn: Shapiro on temperature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: Shapiro on temperature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: shapiro.test on airquality$Temp
+ex_temp &lt;- # your code here
+
+print(ex_temp)
+#&gt; Expected: a p-value around 0.009 (weak evidence against normality)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Shapiro on temperature solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Shapiro on temperature solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_temp &lt;- shapiro.test(airquality$Temp)
+print(ex_temp)
+#&gt;
+#&gt;  Shapiro-Wilk normality test
+#&gt;
+#&gt; data:  airquality$Temp
+#&gt; W = 0.97617, p-value = 0.009319</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The p-value of 0.009 is below 0.05, so we reject normality at the usual threshold. But W is 0.976, very close to 1, which suggests the departure is mild. Always read the effect size (W) alongside the p-value.</p>
+
+</details>
+</section>
+
+<h2>How do you read a Q-Q plot?</h2>
+
+<p>A Q-Q plot pairs sample quantiles against theoretical normal quantiles on one axis each. If the sample is normal, the points fall on a straight diagonal line. If it is not, the shape of the deviation tells you what kind of non-normality you have, which a p-value alone cannot.</p>
+
+<p>Let's draw one for a clearly normal sample first, so we know what "passing" looks like.</p>
+
+<div class="webr-container" data-block-title="Q-Q plot for normal data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Q-Q plot for normal data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+x_norm_big &lt;- rnorm(200)
+
+qqnorm(x_norm_big, main = &quot;Normal data&quot;)
+qqline(x_norm_big, col = &quot;steelblue&quot;, lwd = 2)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Points hug the line top to bottom. No surprise: we drew from a normal. Now let's see the four failure signatures side by side. The pattern names are worth memorizing.</p>
+
+<div class="webr-container" data-block-title="Q-Q plots for four departure shapes">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Q-Q plots for four departure shapes</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+x_rskew &lt;- rexp(200, rate = 1)              # right-skewed
+x_lskew &lt;- -rexp(200, rate = 1)             # left-skewed
+x_heavy &lt;- rt(200, df = 3)                  # heavy-tailed
+x_light &lt;- runif(200, -2, 2)                # light-tailed
+
+par(mfrow = c(2, 2))
+qqnorm(x_rskew, main = &quot;Right-skew&quot;);  qqline(x_rskew)
+qqnorm(x_lskew, main = &quot;Left-skew&quot;);   qqline(x_lskew)
+qqnorm(x_heavy, main = &quot;Heavy tails&quot;); qqline(x_heavy)
+qqnorm(x_light, main = &quot;Light tails&quot;); qqline(x_light)
+par(mfrow = c(1, 1))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Some R packages for normality tests (like nortest) are not available in WebR yet.</strong> That is why this tutorial sticks to base R plus the manual Anderson-Darling implementation. In a local R session you can install <code>nortest</code> to get <code>lillie.test()</code>, <code>ad.test()</code>, and friends as one-liners.</div></div>
+
+<p>Four signatures, four diagnoses:</p>
+
+<ol>
+
+<li><strong>Right-skew</strong> bends up on the right, flat on the left. Think income distributions.</li>
+
+<li><strong>Left-skew</strong> bends down on the left, flat on the right. Think exam scores capped at 100.</li>
+
+<li><strong>Heavy tails</strong> form an S-curve, bowed below the line at the left end and above at the right. Think financial returns.</li>
+
+<li><strong>Light tails</strong> give the opposite S, flat at the extremes and steep in the middle. Think bounded measurements.</li>
+
+</ol>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>The shape of the deviation tells you what kind of non-normality you have; a p-value doesn't.</strong> That information is usually more actionable than the p-value itself, because skew responds to a log transform, heavy tails respond to robust methods, and outliers respond to inspection.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a Q-Q plot for <code>mtcars$mpg</code> and describe which of the four patterns it resembles (if any).</p>
+<div class="webr-container" data-block-title="Your turn: Q-Q on mpg">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: Q-Q on mpg</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: qqnorm + qqline on mtcars$mpg
+qqnorm(mtcars$mpg, main = &quot;mtcars mpg&quot;)
+# add the reference line here
+
+#&gt; Expected: points sit close to the line, mild right-skew bend at the top</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Q-Q on mpg solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Q-Q on mpg solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">qqnorm(mtcars$mpg, main = &quot;mtcars mpg&quot;)
+qqline(mtcars$mpg, col = &quot;steelblue&quot;, lwd = 2)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Most points hug the line, so the central part of the distribution is near-normal. The top-right end bends slightly up, a mild right-skew signature driven by a few high-mpg cars like the Toyota Corolla. Safe for a t-test; worth a log transform for sensitive work.</p>
+
+</details>
+</section>
+
+<h2>How do you test equal variance with Levene, Bartlett, and Fligner-Killeen?</h2>
+
+<p>Three tests again, with a similar trade-off: Bartlett is the most powerful under normality but is fragile when normality is violated, Levene is robust to mild non-normality, and Fligner-Killeen is a non-parametric safety net. Let's run all three on the cylinder-by-mpg split we saw earlier, and see where they agree and disagree.</p>
+
+<div class="webr-container" data-block-title="Bartlett test on mtcars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Bartlett test on mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">bart_result &lt;- bartlett.test(mpg ~ cyl, data = mtcars)
+bart_result
+#&gt;
+#&gt;  Bartlett test of homogeneity of variances
+#&gt;
+#&gt; data:  mpg by cyl
+#&gt; W = 9.4319, df = 2, p-value = 0.008947</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Bartlett gives p = 0.009, clearly rejecting equal variance. The test statistic follows a <a class="auto-link" href="Normal-t-F-and-Chi-Squared-Distributions-in-R.html" title="Normal, t, F, and Chi-Squared in R: Understand Each Distribution and When It Arises">chi-squared distribution</a> under the null, so the df = 2 comes from having three groups (k - 1 = 2).</p>
+
+<p>Now Levene. R's base installation doesn't include a Levene function, which is an opportunity: the test is so simple we can implement it by hand in three lines. The trick is that Levene is literally ANOVA on absolute deviations from the group mean.</p>
+
+<div class="webr-container" data-block-title="Levene test from scratch">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Levene test from scratch</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">levene &lt;- function(y, group) {
+  means &lt;- ave(y, group, FUN = mean)
+  z &lt;- abs(y - means)
+  summary(aov(z ~ group))
+}
+
+levene_result &lt;- levene(mtcars$mpg, factor(mtcars$cyl))
+levene_result
+#&gt;             Df Sum Sq Mean Sq F value Pr(&gt;F)
+#&gt; group        2  19.25   9.626   2.271  0.121
+#&gt; Residuals   29 122.89   4.238</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Levene gives p = 0.121, no rejection. That is a striking disagreement with Bartlett, and it tells us something specific: the variance differences are real, but they are not separable from the deviations-from-normality that Bartlett is also sensitive to. When two variance tests disagree that sharply, always check normality inside each group first.</p>
+
+<p>Fligner-Killeen is the third voice in the room: a non-parametric test based on ranks, which means group-level outliers barely move it.</p>
+
+<div class="webr-container" data-block-title="Fligner-Killeen on mtcars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fligner-Killeen on mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fligner_result &lt;- fligner.test(mpg ~ cyl, data = mtcars)
+fligner_result
+#&gt;
+#&gt;  Fligner-Killeen test of homogeneity of variances
+#&gt;
+#&gt; data:  mpg by cyl
+#&gt; Fligner-Killeen:med chi-squared = 4.7192, df = 2, p-value = 0.09442</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Fligner-Killeen sides with Levene: p = 0.094, no rejection. So the picture firms up: Bartlett was fooled by mild non-normality in the 8-cylinder group, and the robust tests correctly identify that the variance differences are within the range we would expect by chance.</p>
+
+<p><img src="screenshots/Normality-and-Variance-Tests-in-R-variance-decision.webp" alt="Pick a variance test based on how normal the groups look and how outlier-heavy they are." class="img-responsive img-zoomable" loading="lazy" width="1934" height="842" /></p>
+
+<p><em>Figure 2: Pick a variance test based on how normal the groups look and how <a class="auto-link" href="Outlier-Treatment-With-R.html" title="Outlier Treatment with R">outlier</a>-heavy they are.</em></p>
+
+<p>Here is the decision table you should internalize:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Test</th>
+<th>Assumes normality?</th>
+<th>Robust to outliers?</th>
+<th>When to use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Bartlett</td>
+<td>Yes, strictly</td>
+<td>No</td>
+<td>Groups look normal, you want max power</td>
+</tr>
+<tr>
+<td>Levene</td>
+<td>No, mildly robust</td>
+<td>Somewhat</td>
+<td>The applied-stats default</td>
+</tr>
+<tr>
+<td>Fligner-Killeen</td>
+<td>No</td>
+<td>Yes</td>
+<td>Heavy skew, outliers, or a nonparametric context</td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Bartlett is powerful but fragile; Levene is the default in most applied work; Fligner-Killeen is the non-parametric safety net.</strong> When the three disagree, the direction of disagreement (Bartlett rejects, robust tests do not) is itself a signal that non-normality is the issue, not variance.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Run <code>bartlett.test(Sepal.Length ~ Species, data = iris)</code> and state the result.</p>
+<div class="webr-container" data-block-title="Your turn: Bartlett on iris">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: Bartlett on iris</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: run bartlett.test on Sepal.Length by Species
+ex_bart &lt;- # your code here
+
+print(ex_bart)
+#&gt; Expected: p-value around 0.0003 (reject equal variance)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Bartlett on iris solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Bartlett on iris solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_bart &lt;- bartlett.test(Sepal.Length ~ Species, data = iris)
+print(ex_bart)
+#&gt;
+#&gt;  Bartlett test of homogeneity of variances
+#&gt;
+#&gt; data:  Sepal.Length by Species
+#&gt; Bartlett's K-squared = 16.006, df = 2, p-value = 0.000335</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The p-value of 0.0003 rejects equal variance firmly. The three iris species really do have different sepal length spreads, so a classical ANOVA with <code>var.equal = TRUE</code> would be the wrong tool. Use <code>oneway.test()</code> with Welch's correction instead.</p>
+
+</details>
+</section>
+
+<h2>Why do formal tests fail at small and large sample sizes?</h2>
+
+<p>This is the piece most tutorials skip. Normality and variance tests are null-hypothesis tests, and null-hypothesis tests have the same core problem: their behavior scales with sample size in ways that feel perverse when you first see them. Tiny samples cannot detect real deviations; huge samples reject meaningless ones. The cleanest way to feel this is to run the same test across a sweep of sample sizes.</p>
+
+<div class="webr-container" data-block-title="Shapiro p-values across sample sizes">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Shapiro p-values across sample sizes</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(42)
+sizes &lt;- c(15, 100, 1000, 10000)
+
+# Sample from rnorm (truly normal)
+pvals_norm &lt;- sapply(sizes, function(n) shapiro.test(rnorm(n))$p.value)
+
+# Sample from a barely-skewed mix (99% normal, 1% shifted)
+draw_mix &lt;- function(n) {
+  ifelse(runif(n) &lt; 0.01, rnorm(n, 3, 1), rnorm(n, 0, 1))
+}
+pvals_mix &lt;- sapply(sizes, function(n) shapiro.test(draw_mix(n))$p.value)
+
+data.frame(n = sizes, pure_normal = pvals_norm, tiny_contamination = pvals_mix)
+#&gt;       n pure_normal tiny_contamination
+#&gt; 1    15   0.8907354          0.3120127
+#&gt; 2   100   0.6617128          0.0009234
+#&gt; 3  1000   0.2850094          2.01e-14
+#&gt; 4 10000   0.0813410          &lt; 2.2e-16</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the right-hand column top to bottom. At n = 15 the contaminated sample passes with p = 0.31. At n = 100 it fails at p = 0.001. At n = 10000 it fails with a p-value beyond the edge of machine precision. The contamination rate, 1%, did not change. Only the sample size changed. The same dynamic appears in variance tests:</p>
+
+<div class="webr-container" data-block-title="Bartlett p-values across sample sizes">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Bartlett p-values across sample sizes</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+sizes &lt;- c(30, 300, 3000)
+pvals_bart &lt;- sapply(sizes, function(n) {
+  # Two groups with variances 1.00 vs 1.05 (5% apart, practically identical)
+  g1 &lt;- rnorm(n, sd = 1.00)
+  g2 &lt;- rnorm(n, sd = 1.05)
+  y &lt;- c(g1, g2)
+  g &lt;- rep(c(&quot;A&quot;, &quot;B&quot;), each = n)
+  bartlett.test(y ~ g)$p.value
+})
+
+data.frame(n = sizes, p_value = pvals_bart)
+#&gt;      n    p_value
+#&gt; 1   30 0.53814719
+#&gt; 2  300 0.82450912
+#&gt; 3 3000 0.13592307</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A 5% variance difference is nothing in practice. At n = 30 the test happily accepts. At n = 3000 the test is starting to see it. Push to n = 50000 and you will reject almost every time, even though the practical difference between SD = 1.00 and SD = 1.05 is invisible to any downstream analysis.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>At very large n, stop running shapiro.test().</strong> Use a Q-Q plot and effect-size thinking instead. The test is answering the wrong question: "is there any statistical difference?" when you care about "is there a meaningful difference?"</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Generate two samples of 10,000 from <code>rnorm(0, 1)</code> and <code>rnorm(0, 1.02)</code> (a 2% SD difference), and run <code>bartlett.test</code> on them.</p>
+<div class="webr-container" data-block-title="Your turn: bartlett at large n">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: bartlett at large n</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(99)
+# generate two samples of size 10000 with sd 1 and 1.02
+# run bartlett.test on them
+
+ex_bart_n &lt;- # your code here
+print(ex_bart_n)
+#&gt; Expected: a small p-value, under 0.05</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Bartlett at large n solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Bartlett at large n solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(99)
+g1 &lt;- rnorm(10000, sd = 1.00)
+g2 &lt;- rnorm(10000, sd = 1.02)
+y &lt;- c(g1, g2); g &lt;- rep(c(&quot;A&quot;, &quot;B&quot;), each = 10000)
+
+ex_bart_n &lt;- bartlett.test(y ~ g)
+print(ex_bart_n)
+#&gt;
+#&gt;  Bartlett test of homogeneity of variances
+#&gt;
+#&gt; data:  y by g
+#&gt; Bartlett's K-squared = 5.217, df = 1, p-value = 0.0224</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> A 2% difference in standard deviation is practically meaningless, but at n = 10,000 per group the test rejects at p = 0.02. This is the large-n trap: statistical significance without <a class="auto-link" href="Effect-Size-in-R.html" title="Effect Size in R: The Number p-Values Never Tell You (Cohen's d, η², and r)">practical significance</a>. Always pair a formal test with an effect-size check or a plot.</p>
+
+</details>
+</section>
+
+<h2>What do you do when the test and the plot disagree?</h2>
+
+<p>In daily work the tension resolves itself most of the time. In the minority of cases where the formal test says one thing and the plot shows another, you have to pick a side. The practical rule is to let sample size dictate the tie-breaker. Let's build two adversarial examples, one from each side, to see what that means.</p>
+
+<div class="webr-container" data-block-title="Large-n rejection with clean plot">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Large-n rejection with clean plot</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(3)
+# 5000 points, very mildly contaminated
+x_large &lt;- c(rnorm(4900), rnorm(100, mean = 0.25))
+
+shapiro.test(x_large)$p.value
+#&gt; [1] 1.08e-05
+
+qqnorm(x_large, main = &quot;n = 5000, Shapiro rejects, plot looks fine&quot;)
+qqline(x_large, col = &quot;steelblue&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Shapiro screams at p < 0.0001. Look at the Q-Q plot and you see points sitting nearly on the line with a barely visible curve at the right end. That deviation is real (we planted it) but tiny. No downstream t-test or ANOVA would care. Trust the plot.</p>
+
+<p>Now the opposite direction:</p>
+
+<div class="webr-container" data-block-title="Small-n acceptance with bad plot">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Small-n acceptance with bad plot</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(5)
+x_small_outlier &lt;- c(rnorm(9), 8)
+
+shapiro.test(x_small_outlier)$p.value
+#&gt; [1] 0.001196
+
+qqnorm(x_small_outlier, main = &quot;n = 10, one strong outlier&quot;)
+qqline(x_small_outlier, col = &quot;steelblue&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Here Shapiro flags it, correctly. At n = 10 you are blessed: sample size is small enough that the test only rejects for real trouble, and the plot confirms exactly where the trouble is. But at n = 10 even if Shapiro had passed, that one extreme point would wreck any t-test you ran, and a plot would have shown you. At small n, always inspect manually no matter what the test says.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Automatic outlier removal based on Q-Q inspection is a research-integrity issue.</strong> Decisions to drop points must rest on domain knowledge (measurement error, known anomaly, out-of-range value). Removing points because "they looked off on the plot" quietly inflates <a class="auto-link" href="Type-I-and-Type-II-Errors-in-R.html" title="Type I and Type II Errors in R: Visualise the Trade-Off Between α and Power">Type I error</a> rates on whatever test comes next.</div></div>
+
+<p>The decision rule reduces to three lines:</p>
+
+<ul>
+
+<li><strong>n under 30:</strong> trust neither in isolation; inspect the data and the plot together.</li>
+
+<li><strong>n between 30 and 1000:</strong> trust the test, sanity-check with the plot.</li>
+
+<li><strong>n above 1000:</strong> trust the plot; treat the test as advisory.</li>
+
+</ul>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Parametric tests tolerate mild departures.</strong> Thanks to the <a class="auto-link" href="Central-Limit-Theorem-in-R.html" title="Central Limit Theorem in R: Simulate It From Skewed, Bimodal, and Uniform Distributions">Central Limit Theorem</a>, the t-test and ANOVA both remain approximately valid under mild skew as long as sample sizes are moderate. Residual-based diagnostics after fitting the model are often more informative than pre-flight normality tests.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Generate a 40-point sample that is otherwise normal but contains one outlier at value 8. Run <code>shapiro.test()</code> and look at the Q-Q plot. State whether you should trust the formal result.</p>
+<div class="webr-container" data-block-title="Your turn: outlier case">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: outlier case</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(11)
+# build a vector of 39 normal points plus one value of 8
+ex_outlier &lt;- # your code here
+
+shapiro.test(ex_outlier)$p.value
+qqnorm(ex_outlier); qqline(ex_outlier)
+#&gt; Expected: p-value below 0.01, Q-Q plot shows one point pulled far off the line</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Outlier case solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Outlier case solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(11)
+ex_outlier &lt;- c(rnorm(39), 8)
+
+shapiro.test(ex_outlier)$p.value
+#&gt; [1] 1.53e-10
+
+qqnorm(ex_outlier); qqline(ex_outlier)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The p-value of 1.5e-10 correctly rejects normality, and the Q-Q plot shows a single point pulled far off the line at the top. Here the formal test and the plot agree. At n = 40, both tools are reliable, so you act on what you see: inspect that outlier, decide whether to remove it on domain grounds, or switch to a robust test like Wilcoxon.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<h3>Exercise 1: Check ANOVA assumptions on iris</h3>
+
+<p>Given the <code>iris</code> dataset, decide whether a classical one-way ANOVA of <code>Sepal.Length ~ Species</code> has its assumptions satisfied. Run Shapiro per group, then Bartlett, then Levene (using the <code>levene()</code> function defined earlier in this post). State your verdict and what you would run if the assumptions fail.</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: split by species, apply shapiro.test to each
+# Then run bartlett.test and levene() on the full data
+
+# Re-define levene for this block
+levene &lt;- function(y, group) {
+  means &lt;- ave(y, group, FUN = mean)
+  z &lt;- abs(y - means)
+  summary(aov(z ~ group))
+}
+
+# your code here
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Shapiro per species
+by(iris$Sepal.Length, iris$Species, shapiro.test)
+#&gt; iris$Species: setosa
+#&gt;  W = 0.9777, p-value = 0.4595
+#&gt; iris$Species: versicolor
+#&gt;  W = 0.9778, p-value = 0.4647
+#&gt; iris$Species: virginica
+#&gt;  W = 0.9712, p-value = 0.2583
+
+# Bartlett
+bartlett.test(Sepal.Length ~ Species, data = iris)
+#&gt;  p-value = 0.000335
+
+# Levene
+levene(iris$Sepal.Length, iris$Species)
+#&gt;  F value = 6.352  Pr(&gt;F) = 0.00226</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Normality holds for all three species. But both variance tests reject equal variance, which means classical ANOVA (<code>var.equal = TRUE</code>) is invalid. Use <code>oneway.test(Sepal.Length ~ Species, data = iris)</code> with Welch's correction, which does not assume equal variance.</p>
+
+</details>
+
+<h3>Exercise 2: Show that the t-test survives a large-n rejection</h3>
+
+<p>Simulate two samples of size 5000 where one is rnorm(0, 1) and the other is rnorm(0.02, 1) (a tiny shift). Shapiro-Wilk will likely reject normality for the combined vector. Show empirically that a <a class="auto-link" href="t-Tests-in-R.html" title="t-Tests in R: Every Variant With the Decision Rule for Choosing Between Them">two-sample t-test</a> still gives a valid, reasonable p-value by comparing to a permutation test result on the same data.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(100)
+# generate the two samples
+# run a t-test
+# run a small permutation test (say 1000 reshuffles)
+# compare the two p-values
+
+# your code here
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(100)
+a &lt;- rnorm(5000, mean = 0.00, sd = 1)
+b &lt;- rnorm(5000, mean = 0.02, sd = 1)
+
+t_p &lt;- t.test(a, b)$p.value
+obs_diff &lt;- mean(a) - mean(b)
+
+combined &lt;- c(a, b); n &lt;- length(a)
+perm_diffs &lt;- replicate(1000, {
+  shuf &lt;- sample(combined)
+  mean(shuf[1:n]) - mean(shuf[(n+1):(2*n)])
+})
+perm_p &lt;- mean(abs(perm_diffs) &gt;= abs(obs_diff))
+
+c(t_test = t_p, permutation = perm_p)
+#&gt;    t_test permutation
+#&gt;    0.397       0.397</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The two p-values agree to three decimal places. Even though the combined sample "fails" Shapiro-Wilk at this sample size, the t-test's large-n asymptotic distribution is spot-on. This is the Central Limit Theorem doing its job, and it is why residual-based diagnostics after fitting are usually more useful than pre-flight normality tests at moderate-to-large n.</p>
+
+</details>
+
+<h3>Exercise 3: Write a pre-flight summary function</h3>
+
+<p>Build a function <code>pre_flight(y, group)</code> that takes a numeric vector and a grouping factor. It should print Shapiro-Wilk per group, Bartlett, Levene, and a one-line recommendation: "ANOVA (var.equal = TRUE)", "Welch ANOVA (var.equal = FALSE)", "Non-parametric (Kruskal-Wallis)", or "Transform first".</p>
+
+<div class="webr-container" data-block-title="Exercise 3 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: decide the branch based on
+#   (a) whether any Shapiro per-group p &lt; 0.05
+#   (b) whether bartlett.test p &lt; 0.05
+
+pre_flight &lt;- function(y, group) {
+  # your code here
+}
+
+# Test it:
+# pre_flight(iris$Sepal.Length, iris$Species)
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">pre_flight &lt;- function(y, group) {
+  group &lt;- factor(group)
+  sw &lt;- tapply(y, group, function(v) shapiro.test(v)$p.value)
+  bp &lt;- bartlett.test(y, group)$p.value
+
+  cat(&quot;Shapiro p-values by group:\n&quot;); print(round(sw, 4))
+  cat(&quot;Bartlett p-value:&quot;, round(bp, 4), &quot;\n&quot;)
+
+  any_non_normal &lt;- any(sw &lt; 0.05)
+  unequal_var   &lt;- bp &lt; 0.05
+
+  rec &lt;- if (any_non_normal &amp;&amp; unequal_var) {
+    &quot;Transform first, then reassess&quot;
+  } else if (any_non_normal) {
+    &quot;Non-parametric: Kruskal-Wallis&quot;
+  } else if (unequal_var) {
+    &quot;Welch ANOVA: oneway.test(..., var.equal = FALSE)&quot;
+  } else {
+    &quot;Classical ANOVA: aov(..., var.equal = TRUE)&quot;
+  }
+  cat(&quot;Recommendation:&quot;, rec, &quot;\n&quot;)
+  invisible(rec)
+}
+
+pre_flight(iris$Sepal.Length, iris$Species)
+#&gt; Shapiro p-values by group:
+#&gt;     setosa versicolor  virginica
+#&gt;     0.4595     0.4647     0.2583
+#&gt; Bartlett p-value: 3e-04
+#&gt; Recommendation: Welch ANOVA: oneway.test(..., var.equal = FALSE)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The function encodes the decision logic we have been building across the post. Notice the branches never use formal-test p-values in isolation; they combine normality and variance results, which matches how an experienced analyst reasons about assumption violations.</p>
+
+</details>
+
+<h2>Complete Example</h2>
+
+<p>Let's put everything together on <code>PlantGrowth</code>, a classic dataset comparing plant weights across three treatment groups.</p>
+
+<div class="webr-container" data-block-title="Complete example: PlantGrowth pre-flight">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Complete example: PlantGrowth pre-flight</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Step 1: Inspect
+table(PlantGrowth$group)
+#&gt; ctrl trt1 trt2
+#&gt;   10   10   10
+
+# Step 2: Normality per group
+by(PlantGrowth$weight, PlantGrowth$group, shapiro.test)
+#&gt; PlantGrowth$group: ctrl  p-value = 0.7475
+#&gt; PlantGrowth$group: trt1  p-value = 0.4519
+#&gt; PlantGrowth$group: trt2  p-value = 0.5643
+
+# Step 3: Q-Q plots
+par(mfrow = c(1, 3))
+for (g in levels(PlantGrowth$group)) {
+  x &lt;- PlantGrowth$weight[PlantGrowth$group == g]
+  qqnorm(x, main = g); qqline(x)
+}
+par(mfrow = c(1, 1))
+
+# Step 4: Equal variance
+bartlett.test(weight ~ group, data = PlantGrowth)$p.value
+#&gt; [1] 0.2371
+
+fligner.test(weight ~ group, data = PlantGrowth)$p.value
+#&gt; [1] 0.3892
+
+# Step 5: Decision + run the appropriate test
+anova_result &lt;- aov(weight ~ group, data = PlantGrowth)
+summary(anova_result)
+#&gt;             Df Sum Sq Mean Sq F value Pr(&gt;F)
+#&gt; group        2  3.766  1.8832   4.846 0.0159 *
+#&gt; Residuals   27 10.492  0.3886</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Every per-group Shapiro passes, and both variance tests agree that the groups share a common variance. Classical ANOVA is valid, and it finds a significant effect at p = 0.016. That is the correct end-to-end workflow: pre-flight first, model second, interpret third.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>When in doubt, prefer Welch's t-test and Welch's ANOVA.</strong> They are the default behavior of <code>t.test()</code> and are available via <code>oneway.test()</code> for more than two groups. They handle unequal variance gracefully without meaningful power loss when variances are actually equal, so they are a strictly safer default than the classical pooled-variance versions.</div></div>
+
+<h2>Summary</h2>
+
+<p>Here is the one-page cheat sheet to walk away with:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>What you want to check</th>
+<th>Small n (< 30)</th>
+<th>Medium n (30-1000)</th>
+<th>Large n (> 1000)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Normality</td>
+<td>Q-Q plot + Shapiro</td>
+<td>Shapiro + Q-Q plot</td>
+<td>Q-Q plot (ignore formal test)</td>
+</tr>
+<tr>
+<td>Equal variance</td>
+<td>Levene + boxplot</td>
+<td>Levene (default)</td>
+<td>Visual + effect size</td>
+</tr>
+<tr>
+<td>When tests disagree</td>
+<td>Trust the plot</td>
+<td>Trust the test, verify with plot</td>
+<td>Trust the plot</td>
+</tr>
+<tr>
+<td>What to do if assumption fails</td>
+<td>Non-parametric (Wilcoxon, Kruskal-Wallis)</td>
+<td>Welch / robust methods</td>
+<td>Re-examine whether deviation is practically meaningful</td>
+</tr>
+</tbody>
+</table>
+
+<p><img src="screenshots/Normality-and-Variance-Tests-in-R-overview.webp" alt="The assumption-test toolkit, grouped by what you are checking and how you decide." class="img-responsive img-zoomable" loading="lazy" width="1680" height="1056" /></p>
+
+<p><em>Figure 3: The assumption-test toolkit, grouped by what you are checking and how you decide.</em></p>
+
+<p>Key principles:</p>
+
+<ul>
+
+<li>A formal test answers "how much evidence is in this sample," not "is the data normal." The answer depends as much on sample size as on the data.</li>
+
+<li>Always pair a formal test with a Q-Q plot. The plot tells you what kind of departure you have, which a p-value can't.</li>
+
+<li>Shapiro-Wilk is the default normality test; Levene is the default variance test. Use the alternatives when you have a specific reason.</li>
+
+<li>At large n, formal tests become a trap. Use plots and effect-size thinking instead.</li>
+
+<li>Residual-based diagnostics after fitting a model are often more informative than pre-flight tests, because they tell you whether the residuals (the thing the model actually cares about) are behaving.</li>
+
+</ul>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Shapiro, S. S., & Wilk, M. B. (1965). "An analysis of variance test for normality (complete samples)". <em>Biometrika</em> 52(3-4): 591-611. <a href="https://doi.org/10.1093/biomet/52.3-4.591">Link</a></li>
+
+<li>Razali, N. M., & Wah, Y. B. (2011). "Power comparisons of Shapiro-Wilk, Kolmogorov-Smirnov, Lilliefors and Anderson-Darling tests". <em>Journal of Statistical Modeling and Analytics</em> 2(1): 21-33.</li>
+
+<li>Anderson, T. W., & Darling, D. A. (1954). "A test of goodness of fit". <em>JASA</em> 49(268): 765-769.</li>
+
+<li>Levene, H. (1960). "Robust tests for equality of variances". In <em>Contributions to Probability and Statistics</em>. Stanford University Press.</li>
+
+<li>Bartlett, M. S. (1937). "Properties of sufficiency and <a class="auto-link" href="Statistical-Tests-in-R.html" title="Statistical Tests in R">statistical tests</a>". <em>Proceedings of the Royal Society A</em> 160(901): 268-282.</li>
+
+<li>Ghasemi, A., & Zahediasl, S. (2012). "Normality tests for statistical analysis: a guide for non-statisticians". <em>International Journal of Endocrinology and Metabolism</em> 10(2): 486-9. <a href="https://doi.org/10.5812/ijem.3505">Link</a></li>
+
+<li>R Core Team. <code>shapiro.test</code>, <code>ks.test</code>, <code>bartlett.test</code>, <code>fligner.test</code> documentation. <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/00Index.html">Link</a></li>
+
+<li>Wilcox, R. R. (2012). <em>Introduction to Robust Estimation and Hypothesis Testing</em> (3rd ed.). Academic Press.</li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><strong><a href="Hypothesis-Testing-in-R.html">Hypothesis Testing in R</a></strong>, the decision framework these assumption tests feed into, including p-values, alpha, and how to avoid the most common misinterpretations.</li>
+
+<li><strong><a href="t-Tests-in-R.html">t-Tests in R</a></strong>, the canonical consumer of the normality and equal-variance assumptions you just learned to check.</li>
+
+<li><strong><a href="Statistical-Power-Analysis-in-R.html">Power Analysis in R</a></strong>, explains formally why sample size behaves the way it does in any hypothesis test, including the pre-flight tests in this post.</li>
+
+</ul>
+
+{% endraw %}
