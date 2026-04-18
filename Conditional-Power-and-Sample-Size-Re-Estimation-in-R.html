@@ -3,8 +3,8 @@
   <head>
     <title>Conditional Power & Sample Size Re-Estimation in R</title>
     <meta charset="utf-8">
-    <meta name="Description" content="Conditional power tells you if an ongoing trial is worth finishing. Use gsDesign ssrCP() to re-estimate sample size at interim without inflating Type I error.">
-    <meta name="Keywords" content="conditional power R, sample size re-estimation, adaptive clinical trial, ssrCP gsDesign, rpact interim analysis, combination test, promising zone, inverse normal test, unblinded SSR">
+    <meta name="Description" content="Learn conditional power and sample size re-estimation in R with runnable examples, formulas, and practical decision rules for adaptive clinical trial design.">
+    <meta name="Keywords" content="conditional power, sample size re-estimation, adaptive clinical trials, interim analysis, gsDesign, rpact, promising zone, group sequential design, inverse normal combination test">
     <meta name="Distribution" content="Global">
     <meta name="Author" content="Selva Prabhakaran">
     <meta name="Robots" content="index, follow">
@@ -131,14 +131,14 @@
     </style>
     <!-- Open Graph -->
     <meta property="og:title" content="Conditional Power & Sample Size Re-Estimation in R">
-    <meta property="og:description" content="Conditional power tells you if an ongoing trial is worth finishing. Use gsDesign ssrCP() to re-estimate sample size at interim without inflating Type I error.">
+    <meta property="og:description" content="Learn conditional power and sample size re-estimation in R with runnable examples, formulas, and practical decision rules for adaptive clinical trial design.">
     <meta property="og:type" content="article">
     <meta property="og:url" content="https://r-statistics.co/Conditional-Power-and-Sample-Size-Re-Estimation-in-R.html">
     <meta property="og:site_name" content="r-statistics.co">
     <meta property="og:image" content="https://r-statistics.co/screenshots/og/Conditional-Power-and-Sample-Size-Re-Estimation-in-R.png">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Conditional Power & Sample Size Re-Estimation in R">
-    <meta name="twitter:description" content="Conditional power tells you if an ongoing trial is worth finishing. Use gsDesign ssrCP() to re-estimate sample size at interim without inflating Type I error.">
+    <meta name="twitter:description" content="Learn conditional power and sample size re-estimation in R with runnable examples, formulas, and practical decision rules for adaptive clinical trial design.">
     <meta name="twitter:image" content="https://r-statistics.co/screenshots/og/Conditional-Power-and-Sample-Size-Re-Estimation-in-R.png">
     <!-- JSON-LD Structured Data -->
     <script type="application/ld+json">
@@ -146,7 +146,7 @@
       "@context": "https://schema.org",
       "@type": ["TechArticle", "LearningResource"],
       "headline": "Conditional Power & Sample Size Re-Estimation in R",
-      "description": "Conditional power tells you if an ongoing trial is worth finishing. Use gsDesign ssrCP() to re-estimate sample size at interim without inflating Type I error.",
+      "description": "Learn conditional power and sample size re-estimation in R with runnable examples, formulas, and practical decision rules for adaptive clinical trial design.",
       "author": {"@type": "Person", "name": "Selva Prabhakaran", "url": "https://r-statistics.co/about/", "jobTitle": "Data Scientist"},
       "publisher": {"@type": "Organization", "name": "r-statistics.co", "url": "https://r-statistics.co/", "logo": {"@type": "ImageObject", "url": "https://r-statistics.co/screenshots/og-default.png"}},
       "url": "https://r-statistics.co/Conditional-Power-and-Sample-Size-Re-Estimation-in-R.html",
@@ -222,140 +222,37 @@
 
 <h1>Conditional Power & Sample Size Re-Estimation in R</h1>
 
-<p class="lead"><b>Conditional power</b> answers a hard mid-trial question: <i>given what we have seen so far, how likely are we to still reject the null at the final analysis?</i> <b>Sample size re-estimation (SSR)</b> uses that answer to top up enrollment when the interim look is promising but underpowered, without inflating the <a class="auto-link" href="Hypothesis-Testing-in-R.html" title="Hypothesis Testing in R: Understand the Framework, Not Just the p-Value">Type I error</a> rate. In R, <code>gsDesign::ssrCP()</code> turns this into a reproducible, pre-specified workflow.</p>
+<p class="lead">Conditional power is the probability your trial will reject the <a class="auto-link" href="Hypothesis-Testing-in-R.html" title="Hypothesis Testing in R: Understand the Framework, Not Just the p-Value">null hypothesis</a> at the end, given what you have seen at an interim look. Sample size re-estimation uses conditional power to decide whether to boost the final sample size, so a promising trend can be carried to a confident conclusion without wasting patients on a hopeless one.</p>
 
-<div class="engagement-header" data-difficulty="Advanced" data-time="30" data-exercises="8" data-xp="120"></div>
+<div class="engagement-header" data-difficulty="Advanced" data-time="35" data-exercises="9" data-xp="135"></div>
 
-<h2>What is conditional power and why does it matter?</h2>
+<h2>What is conditional power, and how do you compute it in R?</h2>
 
-<p>You have enrolled half your trial and the interim Z-statistic is 1.4, encouraging but well below the critical value of 1.96. Is the trial worth finishing as planned, or is it already a lost cause? Conditional power puts a probability on that question by projecting the final result forward from what you have already observed. One call does the math.</p>
+<p>A trial enrolls half its planned patients and takes a peek at the data. Is the treatment effect on track? If the interim trend is weak, pouring in the remaining half is expensive; if it is strong, you are probably fine. Conditional power (CP) answers a sharper question: given this interim Z-statistic, what is the chance the final test will still reject the null? One line of base R gives you the number.</p>
 
-<p>We build a two-stage group sequential design anchored to a fixed-sample size of 128 (the sort of number <code>pwr.t.test()</code> gives you for an 80%-power, d = 0.5 study), then ask <code>condPower()</code> for the conditional power at the interim.</p>
+<p>Under the observed interim trend, the closed form is a single <code>pnorm()</code> call:</p>
 
-<div class="webr-container" data-block-title="Conditional power at the interim look">
+<p>$$CP_{\text{obs}}(z_1) = 1 - \Phi\!\left(\frac{z_\alpha - z_1/\sqrt{t}}{\sqrt{1-t}}\right)$$</p>
+
+<p>where $z_1$ is the interim Z-statistic, $t = n_1/n$ is the information fraction, and $z_\alpha$ is the final one-sided critical value.</p>
+
+<div class="webr-container" data-block-title="Compute conditional power for an interim z1">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Conditional power at the interim look</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">library</span>(gsDesign)</span>
-<span class="cl"><span class="nf">library</span>(mvtnorm)</span>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compute conditional power for an interim z1</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># One-sided alpha and planning parameters</span></span>
+<span class="cl">alpha <span class="o">&lt;-</span> <span class="m">0.025</span></span>
+<span class="cl">z_a   <span class="o">&lt;-</span> <span class="nf">qnorm</span>(<span class="m">1</span> <span class="o">-</span> alpha)   <span class="c1"># 1.959964</span></span>
+<span class="cl">t     <span class="o">&lt;-</span> <span class="m">0.5</span>                <span class="c1"># interim information fraction (half the planned n)</span></span>
 <span class="cl"></span>
-<span class="cl"><span class="c1"># Two-stage design: fixed N of 128 total, interim at 50% information</span></span>
-<span class="cl">design_gs <span class="o">&lt;-</span> <span class="nf">gsDesign</span>(k <span class="o">=</span> <span class="m">2</span>, n.fix <span class="o">=</span> <span class="m">128</span>, timing <span class="o">=</span> <span class="m">0.5</span>,</span>
-<span class="cl">                      alpha <span class="o">=</span> <span class="m">0.025</span>, beta <span class="o">=</span> <span class="m">0.20</span>, test.type <span class="o">=</span> <span class="m">1</span>)</span>
-<span class="cl">design_gs<span class="o">$</span>n.I          <span class="c1"># cumulative sample size at each look</span></span>
-<span class="cl"><span class="c1">#&gt; [1]  67.83 135.65</span></span>
-<span class="cl"></span>
-<span class="cl">cp_interim <span class="o">&lt;-</span> <span class="nf">condPower</span>(z1 <span class="o">=</span> <span class="m">1.4</span>, n2 <span class="o">=</span> design_gs<span class="o">$</span>n.I[<span class="m">2</span>] <span class="o">-</span> design_gs<span class="o">$</span>n.I[<span class="m">1</span>],</span>
-<span class="cl">                        x <span class="o">=</span> design_gs)</span>
-<span class="cl"><span class="nf">round</span>(cp_interim, <span class="m">3</span>)</span>
-<span class="cl"><span class="c1">#&gt; [1] 0.517</span></span></div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p>The trial is not dead at Z<sub>1</sub> = 1.4, but conditional power of about 52% is well below the 80% target we planned for. That gap between "ongoing chance" and "planned chance" is the cue to consider SSR. If CP were 10%, we would stop for futility; if CP were 90%, we would keep going unchanged; at 52%, we are in the zone where adding patients can rescue the study.</p>
-
-<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Conditional power reads the middle of a trial the way a weather nowcast reads the sky.</strong> It is a probabilistic update given the interim data, not a commitment and not a new hypothesis test.</div></div>
-
-<section class="tryit-block">
-<p><strong>Try it:</strong> Recompute conditional power for Z<sub>1</sub> = 0.5 (weak interim) and Z<sub>1</sub> = 2.2 (strong interim) on the same design. Which one is already a near-certain win?</p>
-<div class="webr-container" data-block-title="Your turn: CP at different interim Z values">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: CP at different interim Z values</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Keep the design fixed, vary only z1</span></span>
-<span class="cl">ex_cp_weak <span class="o">&lt;-</span> <span class="nf">condPower</span>(z1 <span class="o">=</span> ___, n2 <span class="o">=</span> design_gs<span class="o">$</span>n.I[<span class="m">2</span>] <span class="o">-</span> design_gs<span class="o">$</span>n.I[<span class="m">1</span>],</span>
-<span class="cl">                        x <span class="o">=</span> design_gs)</span>
-<span class="cl">ex_cp_strong <span class="o">&lt;-</span> <span class="nf">condPower</span>(z1 <span class="o">=</span> ___, n2 <span class="o">=</span> design_gs<span class="o">$</span>n.I[<span class="m">2</span>] <span class="o">-</span> design_gs<span class="o">$</span>n.I[<span class="m">1</span>],</span>
-<span class="cl">                          x <span class="o">=</span> design_gs)</span>
-<span class="cl"></span>
-<span class="cl"><span class="nf">c</span>(weak <span class="o">=</span> <span class="nf">round</span>(ex_cp_weak, <span class="m">3</span>), strong <span class="o">=</span> <span class="nf">round</span>(ex_cp_strong, <span class="m">3</span>))</span>
-<span class="cl"><span class="c1">#&gt; Expected: weak CP near 0.10, strong CP near 0.95</span></span></div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-<details>
-<summary>Click to reveal solution</summary>
-
-<div class="webr-container" data-block-title="Conditional power at weak and strong interim Z">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Conditional power at weak and strong interim Z</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl">ex_cp_weak   <span class="o">&lt;-</span> <span class="nf">condPower</span>(z1 <span class="o">=</span> <span class="m">0.5</span>, n2 <span class="o">=</span> design_gs<span class="o">$</span>n.I[<span class="m">2</span>] <span class="o">-</span> design_gs<span class="o">$</span>n.I[<span class="m">1</span>],</span>
-<span class="cl">                          x <span class="o">=</span> design_gs)</span>
-<span class="cl">ex_cp_strong <span class="o">&lt;-</span> <span class="nf">condPower</span>(z1 <span class="o">=</span> <span class="m">2.2</span>, n2 <span class="o">=</span> design_gs<span class="o">$</span>n.I[<span class="m">2</span>] <span class="o">-</span> design_gs<span class="o">$</span>n.I[<span class="m">1</span>],</span>
-<span class="cl">                          x <span class="o">=</span> design_gs)</span>
-<span class="cl"><span class="nf">c</span>(weak <span class="o">=</span> <span class="nf">round</span>(ex_cp_weak, <span class="m">3</span>), strong <span class="o">=</span> <span class="nf">round</span>(ex_cp_strong, <span class="m">3</span>))</span>
-<span class="cl"><span class="c1">#&gt;   weak strong </span></span>
-<span class="cl"><span class="c1">#&gt;  0.082  0.979</span></span></div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p><strong>Explanation:</strong> At Z<sub>1</sub> = 0.5 the trial is heading toward futility; at Z<sub>1</sub> = 2.2 it is nearly certain to win as-is. Neither needs SSR, the interesting zone is the middle.</p>
-
-</details>
-</section>
-
-<h2>How is conditional power calculated from the interim Z?</h2>
-
-<p>The formula projects the final Z forward. Given the interim Z<sub>1</sub>, it asks: what is the probability that the final Z will exceed the critical value, assuming some <a class="auto-link" href="Effect-Size-in-R.html" title="Effect Size in R: The Number p-Values Never Tell You (Cohen's d, η², and r)">effect size</a> θ for the remaining patients?</p>
-
-<p>$$\text{CP}(\theta) = 1 - \Phi\!\left(\frac{z_\alpha\sqrt{I} - z_1\sqrt{I_1} - \theta (I - I_1)}{\sqrt{I - I_1}}\right)$$</p>
-
-<p>Where:</p>
-
-<ul>
-
-<li>$z_1$ = the observed interim standardized statistic</li>
-
-<li>$I_1$ = statistical information at the interim (proportional to stage-1 sample size)</li>
-
-<li>$I$ = total information at the final analysis</li>
-
-<li>$\theta$ = assumed effect size for the remaining (second-stage) data</li>
-
-<li>$z_\alpha$ = final-analysis critical value (about 1.96 for α = 0.025 one-sided)</li>
-
-</ul>
-
-<p>The only unknown once the interim data are in is θ. Let's rebuild the calculation in base R so you can see exactly what <code>condPower()</code> is doing under the hood, then verify the two match.</p>
-
-<div class="webr-container" data-block-title="Manual CP function in base R">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Manual CP function in base R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Reusable helper: CP at z1 given information levels and assumed theta</span></span>
-<span class="cl">cp_manual <span class="o">&lt;-</span> <span class="kr">function</span>(z1, info1, info_final, theta, z_alpha <span class="o">=</span> <span class="nf">qnorm</span>(<span class="m">0.975</span>)) {</span>
-<span class="cl">  numerator   <span class="o">&lt;-</span> z_alpha <span class="o">*</span> <span class="nf">sqrt</span>(info_final) <span class="o">-</span></span>
-<span class="cl">                 z1 <span class="o">*</span> <span class="nf">sqrt</span>(info1) <span class="o">-</span></span>
-<span class="cl">                 theta <span class="o">*</span> (info_final <span class="o">-</span> info1)</span>
-<span class="cl">  denominator <span class="o">&lt;-</span> <span class="nf">sqrt</span>(info_final <span class="o">-</span> info1)</span>
-<span class="cl">  <span class="m">1</span> <span class="o">-</span> <span class="nf">pnorm</span>(numerator <span class="o">/</span> denominator)</span>
+<span class="cl"><span class="c1"># CP under the observed interim trend</span></span>
+<span class="cl">cp_observed <span class="o">&lt;-</span> <span class="kr">function</span>(z1, t <span class="o">=</span> <span class="m">0.5</span>, alpha <span class="o">=</span> <span class="m">0.025</span>) {</span>
+<span class="cl">  z_a <span class="o">&lt;-</span> <span class="nf">qnorm</span>(<span class="m">1</span> <span class="o">-</span> alpha)</span>
+<span class="cl">  <span class="m">1</span> <span class="o">-</span> <span class="nf">pnorm</span>((z_a <span class="o">-</span> z1 <span class="o">/</span> <span class="nf">sqrt</span>(t)) <span class="o">/</span> <span class="nf">sqrt</span>(<span class="m">1</span> <span class="o">-</span> t))</span>
 <span class="cl">}</span>
 <span class="cl"></span>
-<span class="cl"><span class="c1"># For a 2-sample mean test with SD=1, info = n / 4</span></span>
-<span class="cl">info1       <span class="o">&lt;-</span> <span class="m">64</span> <span class="o">/</span> <span class="m">4</span>     <span class="c1"># 16</span></span>
-<span class="cl">info_final  <span class="o">&lt;-</span> <span class="m">128</span> <span class="o">/</span> <span class="m">4</span>    <span class="c1"># 32</span></span>
-<span class="cl">theta_plan  <span class="o">&lt;-</span> (<span class="nf">qnorm</span>(<span class="m">0.975</span>) <span class="o">+</span> <span class="nf">qnorm</span>(<span class="m">0.80</span>)) <span class="o">/</span> <span class="nf">sqrt</span>(info_final)  <span class="c1"># planned effect</span></span>
-<span class="cl"><span class="nf">round</span>(theta_plan, <span class="m">3</span>)</span>
-<span class="cl"><span class="c1">#&gt; [1] 0.495</span></span>
-<span class="cl"></span>
-<span class="cl">cp_base <span class="o">&lt;-</span> <span class="nf">cp_manual</span>(z1 <span class="o">=</span> <span class="m">1.4</span>, info1 <span class="o">=</span> info1, info_final <span class="o">=</span> info_final,</span>
-<span class="cl">                     theta <span class="o">=</span> theta_plan)</span>
-<span class="cl"><span class="nf">round</span>(cp_base, <span class="m">3</span>)</span>
-<span class="cl"><span class="c1">#&gt; [1] 0.729</span></span></div>
+<span class="cl"><span class="c1"># Suppose we observe z1 = 1.4 at the interim look (encouraging but not decisive)</span></span>
+<span class="cl"><span class="nf">cp_observed</span>(z1 <span class="o">=</span> <span class="m">1.4</span>, t <span class="o">=</span> <span class="m">0.5</span>)</span>
+<span class="cl"><span class="c1">#&gt; [1] 0.4831684</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -365,50 +262,22 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Under the planned effect size, CP at Z<sub>1</sub> = 1.4 is about 73%. That is noticeably higher than the ~52% we got earlier from <code>condPower()</code>, and the reason is the default θ. <code>condPower()</code> uses the <em>observed</em> interim effect, which at Z<sub>1</sub> = 1.4 is smaller than what we planned for. Different θ, different answer.</p>
+<p>With an interim $z_1 = 1.4$, the trial has roughly a 48% chance of crossing the final efficacy boundary if the current trend continues. Not a disaster, not a win. That exact "somewhere in the middle" is where sample size re-estimation lives.</p>
 
-<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Three common choices for θ.</strong> (1) The originally planned effect (optimistic, keeps the trial on its design assumptions). (2) The observed interim effect (realistic but noisy, biases CP toward 50%). (3) A blend, for example halfway between the two. Regulators usually want the rule pre-specified.</div></div>
-
-<div class="webr-container" data-block-title="CP across three theta choices">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">CP across three theta choices</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Observed interim effect for a 2-sample z-test: theta_hat = z1 / sqrt(info1)</span></span>
-<span class="cl">theta_obs   <span class="o">&lt;-</span> <span class="m">1.4</span> <span class="o">/</span> <span class="nf">sqrt</span>(info1)                  <span class="c1"># ~0.35</span></span>
-<span class="cl">theta_blend <span class="o">&lt;-</span> (theta_plan <span class="o">+</span> theta_obs) <span class="o">/</span> <span class="m">2</span>       <span class="c1"># halfway</span></span>
-<span class="cl"></span>
-<span class="cl">cp_table <span class="o">&lt;-</span> <span class="nf">data.frame</span>(</span>
-<span class="cl">  choice   <span class="o">=</span> <span class="nf">c</span>(<span class="s">&quot;planned&quot;</span>, <span class="s">&quot;observed&quot;</span>, <span class="s">&quot;blend&quot;</span>),</span>
-<span class="cl">  theta    <span class="o">=</span> <span class="nf">round</span>(<span class="nf">c</span>(theta_plan, theta_obs, theta_blend), <span class="m">3</span>),</span>
-<span class="cl">  CP_at_z1 <span class="o">=</span> <span class="nf">round</span>(<span class="nf">sapply</span>(<span class="nf">c</span>(theta_plan, theta_obs, theta_blend),</span>
-<span class="cl">                          <span class="kr">function</span>(th) <span class="nf">cp_manual</span>(<span class="m">1.4</span>, info1, info_final, th)),</span>
-<span class="cl">                   <span class="m">3</span>)</span>
-<span class="cl">)</span>
-<span class="cl">cp_table</span>
-<span class="cl"><span class="c1">#&gt;     choice theta CP_at_z1</span></span>
-<span class="cl"><span class="c1">#&gt; 1  planned 0.495    0.729</span></span>
-<span class="cl"><span class="c1">#&gt; 2 observed 0.350    0.511</span></span>
-<span class="cl"><span class="c1">#&gt; 3    blend 0.423    0.628</span></span></div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p>Same interim data, same design, three defensible answers: 0.73, 0.51, or 0.63. This is not a bug, it is the central subjective choice in CP. Writing which θ you will use into the protocol <em>before</em> the interim look is what keeps the analysis honest.</p>
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Conditional power is a forecast, not a verdict.</strong> An interim p-value tells you whether you could reject right now; conditional power tells you whether you are likely to reject at the end. The first answers the wrong question during an interim look, because you planned the full sample size for a reason.</div></div>
 
 <section class="tryit-block">
-<p><strong>Try it:</strong> Compute CP using a pessimistic θ equal to half the planned effect. Does CP at Z<sub>1</sub> = 1.4 stay above 0.5?</p>
-<div class="webr-container" data-block-title="Your turn: pessimistic theta">
+<p><strong>Try it:</strong> Compute conditional power at two contrasting interim looks: a weak one ($z_1 = 0.8$) and a strong one ($z_1 = 2.0$). Both at $t = 0.5$.</p>
+<div class="webr-container" data-block-title="Your turn: compute CP at two interim looks">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: pessimistic theta</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl">ex_theta_pess <span class="o">&lt;-</span> ___ <span class="o">/</span> <span class="m">2</span></span>
-<span class="cl">ex_cp_pess    <span class="o">&lt;-</span> <span class="nf">cp_manual</span>(z1 <span class="o">=</span> <span class="m">1.4</span>, info1 <span class="o">=</span> info1,</span>
-<span class="cl">                           info_final <span class="o">=</span> info_final, theta <span class="o">=</span> ___)</span>
-<span class="cl"><span class="nf">round</span>(ex_cp_pess, <span class="m">3</span>)</span>
-<span class="cl"><span class="c1">#&gt; Expected: a value below 0.5</span></span></div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: compute CP at two interim looks</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Try it: compute CP for z1 = 0.8 and z1 = 2.0</span></span>
+<span class="cl">ex_cp_weak   <span class="o">&lt;-</span> <span class="c1"># your code here</span></span>
+<span class="cl">ex_cp_strong <span class="o">&lt;-</span> <span class="c1"># your code here</span></span>
+<span class="cl"></span>
+<span class="cl">ex_cp_weak</span>
+<span class="cl">ex_cp_strong</span>
+<span class="cl"><span class="c1">#&gt; Expected: CP of about 0.096 for z1=0.8 and 0.89 for z1=2.0</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -420,14 +289,15 @@
 <details>
 <summary>Click to reveal solution</summary>
 
-<div class="webr-container" data-block-title="Pessimistic CP solution">
+<div class="webr-container" data-block-title="CP at weak and strong interims">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pessimistic CP solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl">ex_theta_pess <span class="o">&lt;-</span> theta_plan <span class="o">/</span> <span class="m">2</span></span>
-<span class="cl">ex_cp_pess    <span class="o">&lt;-</span> <span class="nf">cp_manual</span>(z1 <span class="o">=</span> <span class="m">1.4</span>, info1 <span class="o">=</span> info1,</span>
-<span class="cl">                           info_final <span class="o">=</span> info_final, theta <span class="o">=</span> ex_theta_pess)</span>
-<span class="cl"><span class="nf">round</span>(ex_cp_pess, <span class="m">3</span>)</span>
-<span class="cl"><span class="c1">#&gt; [1] 0.373</span></span></div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">CP at weak and strong interims</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">ex_cp_weak   <span class="o">&lt;-</span> <span class="nf">cp_observed</span>(<span class="m">0.8</span>)</span>
+<span class="cl">ex_cp_strong <span class="o">&lt;-</span> <span class="nf">cp_observed</span>(<span class="m">2.0</span>)</span>
+<span class="cl">ex_cp_weak</span>
+<span class="cl"><span class="c1">#&gt; [1] 0.09582</span></span>
+<span class="cl">ex_cp_strong</span>
+<span class="cl"><span class="c1">#&gt; [1] 0.8884</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -437,43 +307,56 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p><strong>Explanation:</strong> Halving θ pushes CP well below 0.5, illustrating how sensitive the number is to the assumed second-stage effect. Regulators often ask for a sensitivity table over several θ values.</p>
+<p><strong>Explanation:</strong> The observed-trend formula uses $z_1/\sqrt{t}$ as the implied drift. A small interim Z projects to a small final Z, so CP is low; a large interim Z projects a near-certain rejection.</p>
 
 </details>
 </section>
 
-<h2>When should you re-estimate sample size (the promising zone)?</h2>
+<h2>How does conditional power change with the interim effect?</h2>
 
-<p>Chen, DeMets and Lan (2004) partitioned the interim into three zones based on CP. Only the middle zone justifies SSR, the other two call for different decisions.</p>
+<p>Plotting the whole CP curve is more useful than any single value. It shows at a glance how sensitive the end-of-trial forecast is to what happens at the interim.</p>
 
-<p><img src="screenshots/Conditional-Power-and-Sample-Size-Re-Estimation-in-R-decision-zones.webp" alt="Conditional power decision zones: unfavorable, promising, favorable" class="img-responsive img-zoomable" loading="lazy" /></p>
+<p>Let us compute CP for a grid of interim Z-statistics, from clearly negative to clearly positive.</p>
 
-<p><em>Figure 1: Three conditional power zones that drive the SSR decision.</em></p>
-
-<p>The unfavorable zone (CP < 0.3) is futility territory, the signal is too weak to salvage with a few extra patients. The promising zone (0.3 ≤ CP ≤ 0.8) is where SSR buys meaningful power for reasonable cost. The favorable zone (CP > 0.8) means the trial is already on track, extra enrollment is wasted.</p>
-
-<div class="webr-container" data-block-title="Classify interim Z into CP zones">
+<div class="webr-container" data-block-title="Conditional power over a grid of interim z values">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Classify interim Z into CP zones</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl">decide_ssr <span class="o">&lt;-</span> <span class="kr">function</span>(z1, info1, info_final, theta,</span>
-<span class="cl">                       lo <span class="o">=</span> <span class="m">0.3</span>, hi <span class="o">=</span> <span class="m">0.8</span>) {</span>
-<span class="cl">  cp <span class="o">&lt;-</span> <span class="nf">cp_manual</span>(z1, info1, info_final, theta)</span>
-<span class="cl">  zone <span class="o">&lt;-</span> <span class="nf">cut</span>(cp, breaks <span class="o">=</span> <span class="nf">c</span>(<span class="o">-</span><span class="kc">Inf</span>, lo, hi, <span class="kc">Inf</span>),</span>
-<span class="cl">              labels <span class="o">=</span> <span class="nf">c</span>(<span class="s">&quot;unfavorable&quot;</span>, <span class="s">&quot;promising&quot;</span>, <span class="s">&quot;favorable&quot;</span>))</span>
-<span class="cl">  <span class="nf">data.frame</span>(z1 <span class="o">=</span> z1, CP <span class="o">=</span> <span class="nf">round</span>(cp, <span class="m">3</span>), zone <span class="o">=</span> zone)</span>
-<span class="cl">}</span>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Conditional power over a grid of interim z values</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">z1_grid <span class="o">&lt;-</span> <span class="nf">seq</span>(<span class="m">-1</span>, <span class="m">3</span>, by <span class="o">=</span> <span class="m">0.1</span>)</span>
+<span class="cl">cp_grid <span class="o">&lt;-</span> <span class="nf">cp_observed</span>(z1_grid)</span>
+<span class="cl"><span class="nf">head</span>(<span class="nf">cbind</span>(z1 <span class="o">=</span> z1_grid, CP <span class="o">=</span> cp_grid), <span class="m">5</span>)</span>
+<span class="cl"><span class="c1">#&gt;        z1          CP</span></span>
+<span class="cl"><span class="c1">#&gt; [1,] -1.0 0.000002867</span></span>
+<span class="cl"><span class="c1">#&gt; [2,] -0.9 0.000007142</span></span>
+<span class="cl"><span class="c1">#&gt; [3,] -0.8 0.000017215</span></span>
+<span class="cl"><span class="c1">#&gt; [4,] -0.7 0.000040044</span></span>
+<span class="cl"><span class="c1">#&gt; [5,] -0.6 0.000089898</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>CP is essentially zero for negative interim trends, then rises steeply through the middle, then saturates near 1. That steep middle region is where one more unit of interim Z buys you a big jump in expected success. That is also the region where re-estimating sample size pays off.</p>
+
+<div class="webr-container" data-block-title="Plot the CP curve with promising-zone reference lines">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot the CP curve with promising-zone reference lines</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">library</span>(ggplot2)</span>
 <span class="cl"></span>
-<span class="cl">z1_grid  <span class="o">&lt;-</span> <span class="nf">c</span>(<span class="m">0.5</span>, <span class="m">1.0</span>, <span class="m">1.4</span>, <span class="m">1.7</span>, <span class="m">2.0</span>, <span class="m">2.3</span>)</span>
-<span class="cl">zone_df  <span class="o">&lt;-</span> <span class="nf">decide_ssr</span>(z1 <span class="o">=</span> z1_grid, info1 <span class="o">=</span> info1,</span>
-<span class="cl">                       info_final <span class="o">=</span> info_final, theta <span class="o">=</span> theta_plan)</span>
-<span class="cl">zone_df</span>
-<span class="cl"><span class="c1">#&gt;    z1    CP         zone</span></span>
-<span class="cl"><span class="c1">#&gt; 1 0.5 0.183  unfavorable</span></span>
-<span class="cl"><span class="c1">#&gt; 2 1.0 0.466    promising</span></span>
-<span class="cl"><span class="c1">#&gt; 3 1.4 0.729    promising</span></span>
-<span class="cl"><span class="c1">#&gt; 4 1.7 0.874    favorable</span></span>
-<span class="cl"><span class="c1">#&gt; 5 2.0 0.956    favorable</span></span>
-<span class="cl"><span class="c1">#&gt; 6 2.3 0.988    favorable</span></span></div>
+<span class="cl">cp_df <span class="o">&lt;-</span> <span class="nf">data.frame</span>(z1 <span class="o">=</span> z1_grid, CP <span class="o">=</span> cp_grid)</span>
+<span class="cl"></span>
+<span class="cl"><span class="nf">ggplot</span>(cp_df, <span class="nf">aes</span>(x <span class="o">=</span> z1, y <span class="o">=</span> CP)) <span class="o">+</span></span>
+<span class="cl">  <span class="nf">geom_line</span>(linewidth <span class="o">=</span> <span class="m">1.1</span>, color <span class="o">=</span> <span class="s">&quot;#2c7fb8&quot;</span>) <span class="o">+</span></span>
+<span class="cl">  <span class="nf">geom_hline</span>(yintercept <span class="o">=</span> <span class="nf">c</span>(<span class="m">0.30</span>, <span class="m">0.80</span>), linetype <span class="o">=</span> <span class="s">&quot;dashed&quot;</span>, color <span class="o">=</span> <span class="s">&quot;gray40&quot;</span>) <span class="o">+</span></span>
+<span class="cl">  <span class="nf">annotate</span>(<span class="s">&quot;text&quot;</span>, x <span class="o">=</span> <span class="m">-0.8</span>, y <span class="o">=</span> <span class="m">0.33</span>, label <span class="o">=</span> <span class="s">&quot;CP = 0.30&quot;</span>, hjust <span class="o">=</span> <span class="m">0</span>, size <span class="o">=</span> <span class="m">3.3</span>) <span class="o">+</span></span>
+<span class="cl">  <span class="nf">annotate</span>(<span class="s">&quot;text&quot;</span>, x <span class="o">=</span> <span class="m">-0.8</span>, y <span class="o">=</span> <span class="m">0.83</span>, label <span class="o">=</span> <span class="s">&quot;CP = 0.80&quot;</span>, hjust <span class="o">=</span> <span class="m">0</span>, size <span class="o">=</span> <span class="m">3.3</span>) <span class="o">+</span></span>
+<span class="cl">  <span class="nf">labs</span>(x <span class="o">=</span> <span class="s">&quot;Interim Z-statistic (z1)&quot;</span>,</span>
+<span class="cl">       y <span class="o">=</span> <span class="s">&quot;Conditional power under observed trend&quot;</span>,</span>
+<span class="cl">       title <span class="o">=</span> <span class="s">&quot;CP curve at interim information fraction t = 0.5&quot;</span>) <span class="o">+</span></span>
+<span class="cl">  <span class="nf">theme_minimal</span>(base_size <span class="o">=</span> <span class="m">12</span>)</span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -483,19 +366,27 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>At Z<sub>1</sub> = 1.4 we sit solidly in the promising zone, which is exactly where SSR rules are designed to act. At Z<sub>1</sub> = 0.5 we would stop for futility, no amount of extra recruitment can close that gap at acceptable cost. At Z<sub>1</sub> ≥ 1.7 the trial is already strong enough, adding patients only inflates cost.</p>
+<p>The two reference lines mark the typical Mehta-Pocock "promising zone" boundaries: below 0.30 the trial is in trouble, above 0.80 it is almost certain to succeed, and between them is the zone where a sample size bump is worth considering.</p>
 
-<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Re-estimating outside the promising zone often doubles cost for little power gain.</strong> Worse, some ad-hoc rules (for example, re-estimate whenever CP < 0.5 using the observed effect) can inflate the Type I error rate above the nominal α unless paired with a combination test.</div></div>
+<p><img src="screenshots/Conditional-Power-and-Sample-Size-Re-Estimation-in-R-trial-timeline.webp" alt="A two-stage adaptive trial timeline: plan, stage 1 enrollment, interim look, decision, stage 2, final test." class="img-responsive img-zoomable" loading="lazy" width="2248" height="344" /></p>
+
+<p><em>Figure 1: A 2-stage adaptive trial: interim look computes conditional power and drives the adaptation decision.</em></p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Information fraction matters as much as z1.</strong> A given $z_1$ means very different things at $t = 0.3$ (very early) versus $t = 0.7$ (nearly done). Always report and check $t$ before you read a CP value. Run <code>cp_observed(1.4, t = 0.3)</code> and <code>cp_observed(1.4, t = 0.7)</code> and notice how they differ.</div></div>
 
 <section class="tryit-block">
-<p><strong>Try it:</strong> Classify Z<sub>1</sub> = 1.1 and Z<sub>1</sub> = 2.5 using <code>decide_ssr()</code>. Which zones do they fall into?</p>
-<div class="webr-container" data-block-title="Your turn: classify borderline Z values">
+<p><strong>Try it:</strong> Plot the same CP curve at an earlier interim look, $t = 0.3$. Is the curve steeper or shallower than at $t = 0.5$?</p>
+<div class="webr-container" data-block-title="Your turn: CP curve at t = 0.3">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: classify borderline Z values</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl">ex_zones <span class="o">&lt;-</span> <span class="nf">decide_ssr</span>(z1 <span class="o">=</span> <span class="nf">c</span>(___, ___), info1 <span class="o">=</span> info1,</span>
-<span class="cl">                       info_final <span class="o">=</span> info_final, theta <span class="o">=</span> theta_plan)</span>
-<span class="cl">ex_zones</span>
-<span class="cl"><span class="c1">#&gt; Expected: one promising, one favorable</span></span></div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: CP curve at t = 0.3</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Try it: build a data frame of CP values across z1 for t = 0.3 and plot</span></span>
+<span class="cl">ex_cp_03 <span class="o">&lt;-</span> <span class="c1"># your code here: apply cp_observed with t = 0.3</span></span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># plot (reuse the style above if you like):</span></span>
+<span class="cl"><span class="c1"># ggplot(...)</span></span>
+<span class="cl"></span>
+<span class="cl"><span class="nf">head</span>(ex_cp_03)</span>
+<span class="cl"><span class="c1">#&gt; Expected: smaller CP values than at t = 0.5 for most z1 in the middle range</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -507,15 +398,16 @@
 <details>
 <summary>Click to reveal solution</summary>
 
-<div class="webr-container" data-block-title="Borderline zones solution">
+<div class="webr-container" data-block-title="CP curve at t = 0.3 solution">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Borderline zones solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl">ex_zones <span class="o">&lt;-</span> <span class="nf">decide_ssr</span>(z1 <span class="o">=</span> <span class="nf">c</span>(<span class="m">1.1</span>, <span class="m">2.5</span>), info1 <span class="o">=</span> info1,</span>
-<span class="cl">                       info_final <span class="o">=</span> info_final, theta <span class="o">=</span> theta_plan)</span>
-<span class="cl">ex_zones</span>
-<span class="cl"><span class="c1">#&gt;    z1    CP       zone</span></span>
-<span class="cl"><span class="c1">#&gt; 1 1.1 0.561  promising</span></span>
-<span class="cl"><span class="c1">#&gt; 2 2.5 0.995  favorable</span></span></div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">CP curve at t = 0.3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">ex_cp_03 <span class="o">&lt;-</span> <span class="nf">cp_observed</span>(z1_grid, t <span class="o">=</span> <span class="m">0.3</span>)</span>
+<span class="cl"></span>
+<span class="cl"><span class="nf">ggplot</span>(<span class="nf">data.frame</span>(z1 <span class="o">=</span> z1_grid, CP <span class="o">=</span> ex_cp_03), <span class="nf">aes</span>(z1, CP)) <span class="o">+</span></span>
+<span class="cl">  <span class="nf">geom_line</span>(linewidth <span class="o">=</span> <span class="m">1.1</span>, color <span class="o">=</span> <span class="s">&quot;#41ab5d&quot;</span>) <span class="o">+</span></span>
+<span class="cl">  <span class="nf">geom_hline</span>(yintercept <span class="o">=</span> <span class="nf">c</span>(<span class="m">0.30</span>, <span class="m">0.80</span>), linetype <span class="o">=</span> <span class="s">&quot;dashed&quot;</span>) <span class="o">+</span></span>
+<span class="cl">  <span class="nf">labs</span>(title <span class="o">=</span> <span class="s">&quot;CP curve at t = 0.3&quot;</span>, x <span class="o">=</span> <span class="s">&quot;z1&quot;</span>, y <span class="o">=</span> <span class="s">&quot;CP&quot;</span>) <span class="o">+</span></span>
+<span class="cl">  <span class="nf">theme_minimal</span>(base_size <span class="o">=</span> <span class="m">12</span>)</span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -525,150 +417,74 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p><strong>Explanation:</strong> <code>cut()</code> bins CP into three ordered levels, making the zone decision a one-liner.</p>
+<p><strong>Explanation:</strong> At a smaller $t$ the interim contains less information, so the same $z_1$ maps to a less certain forecast. The curve is shallower through the middle and takes longer to saturate.</p>
 
 </details>
 </section>
 
-<h2>How does ssrCP() run a full re-estimation?</h2>
+<h2>When should you re-estimate the sample size, and what is the "promising zone"?</h2>
 
-<p>Everything above sets up the decision rule. <code>ssrCP()</code> from gsDesign puts the rule into a single call that adapts stage-2 sample size across a range of interim Z values, capped by a user-chosen maximum fold-increase.</p>
+<p>Mehta and Pocock (2011) formalized a rule-based decision tied directly to conditional power. The idea: only adapt when it both helps and is defensible. That translates to four zones.</p>
 
-<p><img src="screenshots/Conditional-Power-and-Sample-Size-Re-Estimation-in-R-ssr-workflow.webp" alt="Sample size re-estimation workflow: design, interim, decision, final test" class="img-responsive img-zoomable" loading="lazy" /></p>
+<p><img src="screenshots/Conditional-Power-and-Sample-Size-Re-Estimation-in-R-promising-zone.webp" alt="Decision zones: futility, unpromising, promising, favorable." class="img-responsive img-zoomable" loading="lazy" width="1584" height="1282" /></p>
 
-<p><em>Figure 2: End-to-end sample size re-estimation workflow with gsDesign.</em></p>
+<p><em>Figure 2: Interim CP ranges and the adaptation decision each one triggers.</em></p>
 
-<p>The workflow plugs three choices into one function: a base group sequential design (carries the alpha-spending rules), a grid of possible interim Z values, and SSR parameters (<code>maxinc</code> caps the fold-increase, <code>cpadj</code> sets the promising zone, <code>z2</code> selects the combination test).</p>
-
-<div class="webr-container" data-block-title="Run ssrCP across a grid of interim Z">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Run ssrCP across a grid of interim Z</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Keep the same base design; adapt only when CP is in the promising zone</span></span>
-<span class="cl">ssr_result <span class="o">&lt;-</span> <span class="nf">ssrCP</span>(</span>
-<span class="cl">  x      <span class="o">=</span> design_gs,</span>
-<span class="cl">  z1     <span class="o">=</span> <span class="nf">seq</span>(<span class="m">0</span>, <span class="m">3</span>, <span class="m">0.25</span>),</span>
-<span class="cl">  maxinc <span class="o">=</span> <span class="m">2</span>,                <span class="c1"># cap stage-2 at 2x planned</span></span>
-<span class="cl">  cpadj  <span class="o">=</span> <span class="nf">c</span>(<span class="m">0.3</span>, <span class="m">0.8</span>),      <span class="c1"># promising zone bounds</span></span>
-<span class="cl">  beta   <span class="o">=</span> <span class="m">0.20</span>,             <span class="c1"># target CP for re-estimation</span></span>
-<span class="cl">  z2     <span class="o">=</span> z2NC              <span class="c1"># inverse-normal combination test</span></span>
-<span class="cl">)</span>
-<span class="cl"><span class="nf">head</span>(ssr_result<span class="o">$</span>dat, <span class="m">10</span>)</span>
-<span class="cl"><span class="c1">#&gt;     z1       z2       n2    CP theta    delta</span></span>
-<span class="cl"><span class="c1">#&gt; 1 0.00 1.977076  67.8248 0.025 0.495 0.495</span></span>
-<span class="cl"><span class="c1">#&gt; 2 0.25 1.862131  67.8248 0.044 0.495 0.495</span></span>
-<span class="cl"><span class="c1">#&gt; 3 0.50 1.740706  67.8248 0.075 0.495 0.495</span></span>
-<span class="cl"><span class="c1">#&gt; 4 0.75 1.612800  67.8248 0.122 0.495 0.495</span></span>
-<span class="cl"><span class="c1">#&gt; 5 1.00 1.478414 135.6495 0.466 0.495 0.495</span></span>
-<span class="cl"><span class="c1">#&gt; 6 1.25 1.337547 135.6495 0.619 0.495 0.495</span></span>
-<span class="cl"><span class="c1">#&gt; 7 1.50 1.190199 135.6495 0.775 0.495 0.495</span></span>
-<span class="cl"><span class="c1">#&gt; 8 1.75 1.036371  67.8248 0.874 0.495 0.495</span></span>
-<span class="cl"><span class="c1">#&gt; 9 2.00 0.876063  67.8248 0.956 0.495 0.495</span></span>
-<span class="cl"><span class="c1">#&gt; 10 2.25 0.709274 67.8248 0.988 0.495 0.495</span></span></div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p>Read the <code>n2</code> column. For Z<sub>1</sub> between 1.0 and 1.5 (the promising zone), stage-2 sample size roughly doubles to ~136. Outside that band, stage-2 stays at the original ~68. That is <code>ssrCP()</code> doing exactly what the decision rule in the previous section described, just in one call and across a grid.</p>
-
-<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Set <code>maxinc</code> to your practical cap, not a statistical one.</strong> Doubling a trial is already aggressive; tripling rarely pays off once you factor in enrollment timelines and sponsor patience. A <code>maxinc</code> of 1.5 to 2 is the usual landing spot.</div></div>
-
-<section class="tryit-block">
-<p><strong>Try it:</strong> Re-run <code>ssrCP()</code> with <code>maxinc = 1.5</code>. How much does the peak stage-2 N shrink?</p>
-<div class="webr-container" data-block-title="Your turn: tighter maxinc">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: tighter maxinc</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl">ex_ssr <span class="o">&lt;-</span> <span class="nf">ssrCP</span>(x <span class="o">=</span> design_gs, z1 <span class="o">=</span> <span class="nf">seq</span>(<span class="m">0</span>, <span class="m">3</span>, <span class="m">0.25</span>),</span>
-<span class="cl">                maxinc <span class="o">=</span> ___, cpadj <span class="o">=</span> <span class="nf">c</span>(<span class="m">0.3</span>, <span class="m">0.8</span>),</span>
-<span class="cl">                beta <span class="o">=</span> <span class="m">0.20</span>, z2 <span class="o">=</span> z2NC)</span>
-<span class="cl"><span class="nf">max</span>(ex_ssr<span class="o">$</span>dat<span class="o">$</span>n2)</span>
-<span class="cl"><span class="c1">#&gt; Expected: about 1.5x the planned stage-2 N (~102)</span></span></div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-<details>
-<summary>Click to reveal solution</summary>
-
-<div class="webr-container" data-block-title="maxinc = 1.5 solution">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">maxinc = 1.5 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl">ex_ssr <span class="o">&lt;-</span> <span class="nf">ssrCP</span>(x <span class="o">=</span> design_gs, z1 <span class="o">=</span> <span class="nf">seq</span>(<span class="m">0</span>, <span class="m">3</span>, <span class="m">0.25</span>),</span>
-<span class="cl">                maxinc <span class="o">=</span> <span class="m">1.5</span>, cpadj <span class="o">=</span> <span class="nf">c</span>(<span class="m">0.3</span>, <span class="m">0.8</span>),</span>
-<span class="cl">                beta <span class="o">=</span> <span class="m">0.20</span>, z2 <span class="o">=</span> z2NC)</span>
-<span class="cl"><span class="nf">round</span>(<span class="nf">max</span>(ex_ssr<span class="o">$</span>dat<span class="o">$</span>n2), <span class="m">2</span>)</span>
-<span class="cl"><span class="c1">#&gt; [1] 101.74</span></span></div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p><strong>Explanation:</strong> Capping <code>maxinc</code> at 1.5 halves the extra recruitment the rule can request. You gain less power, but you gain a tighter operational envelope.</p>
-
-</details>
-</section>
-
-<h2>How do combination tests protect Type I error after re-estimation?</h2>
-
-<p>Here is the subtle problem. Once you adapt N based on interim data, the naive final Z-statistic is no longer distributed as standard normal under the null. Using it at α = 0.025 inflates the actual Type I error. Combination tests fix this by pre-committing to a weighting scheme for Z<sub>1</sub> and Z<sub>2</sub> that is mathematically invariant to the adaptation.</p>
-
-<p>gsDesign ships three:</p>
+<p>The zone boundaries are conventions, not laws; trial teams set them in the protocol. A common default:</p>
 
 <table class="table table-striped">
 <thead>
 <tr>
-<th>Function</th>
-<th>Combines Z₁ and Z₂ via</th>
-<th>When to prefer</th>
+<th>Zone</th>
+<th>CP range</th>
+<th>Decision</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>z2NC</code></td>
-<td>Inverse-normal: weighted sum with fixed weights</td>
-<td>Default; well-understood and regulator-friendly</td>
+<td>Futility</td>
+<td>< 0.10</td>
+<td>Stop for futility</td>
 </tr>
 <tr>
-<td><code>z2Z</code></td>
-<td>Sufficient-statistic (naive) Z</td>
-<td>Only when N is not adapted (as a sanity baseline)</td>
+<td>Unpromising</td>
+<td>0.10 - 0.30</td>
+<td>Continue with planned n</td>
 </tr>
 <tr>
-<td><code>z2Fisher</code></td>
-<td>Fisher p-value combination: chi-squared on log p</td>
-<td>Robust to small second stages, rarely used in SSR</td>
+<td>Promising</td>
+<td>0.30 - 0.80</td>
+<td>Re-estimate n upward</td>
+</tr>
+<tr>
+<td>Favorable</td>
+<td>> 0.80</td>
+<td>Continue with planned n</td>
 </tr>
 </tbody>
 </table>
 
-<div class="webr-container" data-block-title="Compare stage-2 critical values across combination tests">
+<p>A tiny classifier captures the rule in R.</p>
+
+<div class="webr-container" data-block-title="Zone classifier from conditional power">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare stage-2 critical values across combination tests</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># For the same interim Z1, what Z2 is required to reject at final?</span></span>
-<span class="cl">z1_fix <span class="o">&lt;-</span> <span class="m">1.4</span></span>
-<span class="cl">z2_nc     <span class="o">&lt;-</span> <span class="nf">z2NC</span>(z1 <span class="o">=</span> z1_fix, x <span class="o">=</span> design_gs)</span>
-<span class="cl">z2_z      <span class="o">&lt;-</span> <span class="nf">z2Z</span>(z1 <span class="o">=</span> z1_fix, x <span class="o">=</span> design_gs,</span>
-<span class="cl">                 n2 <span class="o">=</span> design_gs<span class="o">$</span>n.I[<span class="m">2</span>] <span class="o">-</span> design_gs<span class="o">$</span>n.I[<span class="m">1</span>])</span>
-<span class="cl">z2_fisher <span class="o">&lt;-</span> <span class="nf">z2Fisher</span>(z1 <span class="o">=</span> z1_fix, x <span class="o">=</span> design_gs)</span>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Zone classifier from conditional power</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">zone <span class="o">&lt;-</span> <span class="kr">function</span>(cp) {</span>
+<span class="cl">  <span class="nf">cut</span>(cp,</span>
+<span class="cl">      breaks <span class="o">=</span> <span class="nf">c</span>(<span class="o">-</span><span class="kc">Inf</span>, <span class="m">0.10</span>, <span class="m">0.30</span>, <span class="m">0.80</span>, <span class="kc">Inf</span>),</span>
+<span class="cl">      labels <span class="o">=</span> <span class="nf">c</span>(<span class="s">&quot;Futility&quot;</span>, <span class="s">&quot;Unpromising&quot;</span>, <span class="s">&quot;Promising&quot;</span>, <span class="s">&quot;Favorable&quot;</span>),</span>
+<span class="cl">      right  <span class="o">=</span> <span class="kc">FALSE</span>)</span>
+<span class="cl">}</span>
 <span class="cl"></span>
-<span class="cl"><span class="nf">data.frame</span>(test <span class="o">=</span> <span class="nf">c</span>(<span class="s">&quot;z2NC&quot;</span>, <span class="s">&quot;z2Z&quot;</span>, <span class="s">&quot;z2Fisher&quot;</span>),</span>
-<span class="cl">           z2_required <span class="o">=</span> <span class="nf">round</span>(<span class="nf">c</span>(z2_nc, z2_z, z2_fisher), <span class="m">3</span>))</span>
-<span class="cl"><span class="c1">#&gt;       test z2_required</span></span>
-<span class="cl"><span class="c1">#&gt; 1     z2NC       1.198</span></span>
-<span class="cl"><span class="c1">#&gt; 2      z2Z       1.198</span></span>
-<span class="cl"><span class="c1">#&gt; 3 z2Fisher       1.473</span></span></div>
+<span class="cl"><span class="c1"># Try it on a few interim scenarios</span></span>
+<span class="cl">example_z1 <span class="o">&lt;-</span> <span class="nf">c</span>(<span class="m">0.2</span>, <span class="m">0.9</span>, <span class="m">1.4</span>, <span class="m">2.3</span>)</span>
+<span class="cl">example_cp <span class="o">&lt;-</span> <span class="nf">cp_observed</span>(example_z1)</span>
+<span class="cl"><span class="nf">data.frame</span>(z1 <span class="o">=</span> example_z1, CP <span class="o">=</span> <span class="nf">round</span>(example_cp, <span class="m">3</span>), Zone <span class="o">=</span> <span class="nf">zone</span>(example_cp))</span>
+<span class="cl"><span class="c1">#&gt;    z1    CP        Zone</span></span>
+<span class="cl"><span class="c1">#&gt; 1 0.2 0.000    Futility</span></span>
+<span class="cl"><span class="c1">#&gt; 2 0.9 0.163 Unpromising</span></span>
+<span class="cl"><span class="c1">#&gt; 3 1.4 0.483   Promising</span></span>
+<span class="cl"><span class="c1">#&gt; 4 2.3 0.955   Favorable</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -678,51 +494,22 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Inverse-normal (<code>z2NC</code>) and sufficient-statistic (<code>z2Z</code>) agree when no adaptation happens. Once you adapt N, the two diverge: <code>z2NC</code> keeps its weight scheme fixed (protecting α), <code>z2Z</code> does not. <code>z2Fisher</code> takes a different route entirely, combining p-values rather than Z-statistics.</p>
+<p>The four interim scenarios land cleanly in the four zones. Only the $z_1 = 1.4$ case triggers a sample size re-estimation decision.</p>
 
-<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Combination tests do not make the data better.</strong> They pre-commit to a weighting scheme so the final decision rule was fixed before you ever looked at interim data. That pre-commitment is what preserves α through any SSR rule that respects the weights.</div></div>
-
-<p>Once the adapted design is in place, <code>Power.ssrCP()</code> computes unconditional power and expected sample size across a grid of true effect sizes. This is how you compare the adapted design against the original fixed-sample plan.</p>
-
-<div class="webr-container" data-block-title="Unconditional power and expected N after SSR">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Unconditional power and expected N after SSR</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl">pow_table <span class="o">&lt;-</span> <span class="nf">Power.ssrCP</span>(x <span class="o">=</span> ssr_result,</span>
-<span class="cl">                         theta <span class="o">=</span> <span class="nf">seq</span>(<span class="m">0</span>, <span class="m">0.6</span>, <span class="m">0.1</span>))</span>
-<span class="cl">pow_table</span>
-<span class="cl"><span class="c1">#&gt;   theta  delta     Power       en</span></span>
-<span class="cl"><span class="c1">#&gt; 1   0.0  0.000  0.024872  90.7431</span></span>
-<span class="cl"><span class="c1">#&gt; 2   0.1  0.100  0.083116  99.2814</span></span>
-<span class="cl"><span class="c1">#&gt; 3   0.2  0.200  0.236540 115.3908</span></span>
-<span class="cl"><span class="c1">#&gt; 4   0.3  0.300  0.476716 128.9275</span></span>
-<span class="cl"><span class="c1">#&gt; 5   0.4  0.400  0.712541 132.2658</span></span>
-<span class="cl"><span class="c1">#&gt; 6   0.5  0.500  0.876129 126.3874</span></span>
-<span class="cl"><span class="c1">#&gt; 7   0.6  0.600  0.957472 115.0012</span></span></div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p>Power is the probability of rejecting the null at each true θ; <code>en</code> is the expected total sample size under that θ. Notice: at the planned θ = 0.5 the adapted design keeps power near 0.88 with expected N ~126, better than the fixed-sample 128 when the effect comes in weaker (θ = 0.3 to 0.4), at the cost of slightly more enrollment when it is larger.</p>
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Why adapt only in the promising zone?</strong> If CP is already very high, extra patients waste resources with no lift. If CP is very low, extra patients cannot rescue a trial that is not moving. Re-estimation adds value in the narrow band where the trial is close to, but not over, the line.</div></div>
 
 <section class="tryit-block">
-<p><strong>Try it:</strong> Which combination function gives the highest stage-2 critical value (<code>z2_required</code>) for Z<sub>1</sub> = 1.0 on this design?</p>
-<div class="webr-container" data-block-title="Your turn: compare tests at z1 = 1">
+<p><strong>Try it:</strong> Classify three additional interim Z-values: 0.5, 1.7, and 2.5. Predict the zone first, then check.</p>
+<div class="webr-container" data-block-title="Your turn: classify three interims">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: compare tests at z1 = 1</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl">ex_z1 <span class="o">&lt;-</span> <span class="m">1.0</span></span>
-<span class="cl">ex_required <span class="o">&lt;-</span> <span class="nf">c</span>(</span>
-<span class="cl">  nc     <span class="o">=</span> <span class="nf">z2NC</span>(ex_z1, design_gs),</span>
-<span class="cl">  z      <span class="o">=</span> <span class="nf">z2Z</span>(ex_z1, design_gs,</span>
-<span class="cl">               n2 <span class="o">=</span> design_gs<span class="o">$</span>n.I[<span class="m">2</span>] <span class="o">-</span> design_gs<span class="o">$</span>n.I[<span class="m">1</span>]),</span>
-<span class="cl">  fisher <span class="o">=</span> <span class="nf">z2Fisher</span>(ex_z1, design_gs)</span>
-<span class="cl">)</span>
-<span class="cl"><span class="nf">round</span>(ex_required, <span class="m">3</span>)</span>
-<span class="cl"><span class="c1">#&gt; Expected: the largest value identifies the strictest test</span></span></div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: classify three interims</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Try it: compute CP and zone for these z1 values</span></span>
+<span class="cl">ex_z1 <span class="o">&lt;-</span> <span class="nf">c</span>(<span class="m">0.5</span>, <span class="m">1.7</span>, <span class="m">2.5</span>)</span>
+<span class="cl">ex_cp <span class="o">&lt;-</span> <span class="c1"># your code here</span></span>
+<span class="cl">ex_zone <span class="o">&lt;-</span> <span class="c1"># your code here</span></span>
+<span class="cl"></span>
+<span class="cl"><span class="nf">data.frame</span>(z1 <span class="o">=</span> ex_z1, CP <span class="o">=</span> <span class="nf">round</span>(ex_cp, <span class="m">3</span>), Zone <span class="o">=</span> ex_zone)</span>
+<span class="cl"><span class="c1">#&gt; Expected: z1=0.5 -&gt; Futility/Unpromising; z1=1.7 -&gt; Promising; z1=2.5 -&gt; Favorable</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -734,18 +521,17 @@
 <details>
 <summary>Click to reveal solution</summary>
 
-<div class="webr-container" data-block-title="Strictest test at z1 = 1 solution">
+<div class="webr-container" data-block-title="Classify three interims solution">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Strictest test at z1 = 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl">ex_z1 <span class="o">&lt;-</span> <span class="m">1.0</span></span>
-<span class="cl">ex_required <span class="o">&lt;-</span> <span class="nf">c</span>(</span>
-<span class="cl">  nc     <span class="o">=</span> <span class="nf">z2NC</span>(ex_z1, design_gs),</span>
-<span class="cl">  z      <span class="o">=</span> <span class="nf">z2Z</span>(ex_z1, design_gs,</span>
-<span class="cl">               n2 <span class="o">=</span> design_gs<span class="o">$</span>n.I[<span class="m">2</span>] <span class="o">-</span> design_gs<span class="o">$</span>n.I[<span class="m">1</span>]),</span>
-<span class="cl">  fisher <span class="o">=</span> <span class="nf">z2Fisher</span>(ex_z1, design_gs)</span>
-<span class="cl">)</span>
-<span class="cl"><span class="nf">names</span>(ex_required)[<span class="nf">which.max</span>(ex_required)]</span>
-<span class="cl"><span class="c1">#&gt; [1] &quot;fisher&quot;</span></span></div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Classify three interims solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">ex_z1   <span class="o">&lt;-</span> <span class="nf">c</span>(<span class="m">0.5</span>, <span class="m">1.7</span>, <span class="m">2.5</span>)</span>
+<span class="cl">ex_cp   <span class="o">&lt;-</span> <span class="nf">cp_observed</span>(ex_z1)</span>
+<span class="cl">ex_zone <span class="o">&lt;-</span> <span class="nf">zone</span>(ex_cp)</span>
+<span class="cl"><span class="nf">data.frame</span>(z1 <span class="o">=</span> ex_z1, CP <span class="o">=</span> <span class="nf">round</span>(ex_cp, <span class="m">3</span>), Zone <span class="o">=</span> ex_zone)</span>
+<span class="cl"><span class="c1">#&gt;    z1    CP        Zone</span></span>
+<span class="cl"><span class="c1">#&gt; 1 0.5 0.016    Futility</span></span>
+<span class="cl"><span class="c1">#&gt; 2 1.7 0.740   Promising</span></span>
+<span class="cl"><span class="c1">#&gt; 3 2.5 0.984   Favorable</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -755,58 +541,73 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p><strong>Explanation:</strong> Fisher's combination usually sets the steepest bar at low interim Z because it is more sensitive to small second-stage p-values. Inverse normal is the regulatory default because its behavior is easier to characterize.</p>
+<p><strong>Explanation:</strong> Because the CP curve is steep through the middle, small shifts in $z_1$ can move you across a zone boundary. That is why interim data management matters.</p>
 
 </details>
 </section>
 
-<h2>What could go wrong with sample size re-estimation?</h2>
+<h2>How do you compute the new sample size from conditional power in R?</h2>
 
-<p>SSR is a powerful tool, it is also one of the easier tools to misuse. Four common failure modes:</p>
+<p>In the promising zone, the question becomes: how much do I need to grow stage 2 so that conditional power reaches my target, say 0.90, under the observed trend?</p>
 
-<ol>
+<p>The observed-trend CP formula above has one free variable, the new information fraction $t^\ast = n_1 / n^\ast$. Solve it for the target CP $\gamma$:</p>
 
-<li><strong>Using the observed interim effect for θ.</strong> This replaces noise with itself, giving a CP estimate that is biased toward 0.5 and a sample size that swings with random variation. Kunzmann et al. (2022) show the variance inflation can dwarf the power gain.</li>
+<p>$$1 - \Phi\!\left(\frac{z_\alpha - z_1/\sqrt{t^\ast}}{\sqrt{1-t^\ast}}\right) = \gamma$$</p>
 
-</ol>
+<p>There is no clean closed form, but <code>uniroot()</code> nails it in one line. Once you know $t^\ast$, the new total sample size is $n^\ast = n_1 / t^\ast$, so the inflation factor is $t / t^\ast$.</p>
 
-<ol>
+<div class="webr-container" data-block-title="Re-estimate sample size to reach target conditional power">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Re-estimate sample size to reach target conditional power</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">reestimate_n <span class="o">&lt;-</span> <span class="kr">function</span>(z1, n_planned, t <span class="o">=</span> <span class="m">0.5</span>, target_cp <span class="o">=</span> <span class="m">0.90</span>,</span>
+<span class="cl">                         alpha <span class="o">=</span> <span class="m">0.025</span>, max_factor <span class="o">=</span> <span class="m">3</span>) {</span>
+<span class="cl">  <span class="c1"># Only adjust in the promising zone; elsewhere, keep planned n</span></span>
+<span class="cl">  cp <span class="o">&lt;-</span> <span class="nf">cp_observed</span>(z1, t, alpha)</span>
+<span class="cl">  <span class="kr">if</span> (cp <span class="o">&lt;</span> <span class="m">0.30</span> <span class="o">||</span> cp <span class="o">&gt;</span> <span class="m">0.80</span>) <span class="kr">return</span>(<span class="nf">list</span>(n_new <span class="o">=</span> n_planned, factor <span class="o">=</span> <span class="m">1</span>, t_star <span class="o">=</span> t))</span>
+<span class="cl"></span>
+<span class="cl">  <span class="c1"># Find t_star so that cp_observed(z1, t_star) == target_cp</span></span>
+<span class="cl">  f <span class="o">&lt;-</span> <span class="kr">function</span>(tstar) <span class="nf">cp_observed</span>(z1, tstar, alpha) <span class="o">-</span> target_cp</span>
+<span class="cl">  t_star <span class="o">&lt;-</span> <span class="nf">uniroot</span>(f, interval <span class="o">=</span> <span class="nf">c</span>(<span class="m">0.01</span>, t))<span class="o">$</span>root</span>
+<span class="cl"></span>
+<span class="cl">  n1     <span class="o">&lt;-</span> n_planned <span class="o">*</span> t</span>
+<span class="cl">  n_new  <span class="o">&lt;-</span> <span class="nf">min</span>(n1 <span class="o">/</span> t_star, n_planned <span class="o">*</span> max_factor)</span>
+<span class="cl">  factor <span class="o">&lt;-</span> n_new <span class="o">/</span> n_planned</span>
+<span class="cl">  <span class="nf">list</span>(n_new <span class="o">=</span> <span class="nf">round</span>(n_new), factor <span class="o">=</span> <span class="nf">round</span>(factor, <span class="m">2</span>), t_star <span class="o">=</span> <span class="nf">round</span>(t_star, <span class="m">3</span>))</span>
+<span class="cl">}</span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># Interim z1 = 1.4, originally planned total n = 200 per arm</span></span>
+<span class="cl"><span class="nf">reestimate_n</span>(z1 <span class="o">=</span> <span class="m">1.4</span>, n_planned <span class="o">=</span> <span class="m">200</span>)</span>
+<span class="cl"><span class="c1">#&gt; $n_new</span></span>
+<span class="cl"><span class="c1">#&gt; [1] 374</span></span>
+<span class="cl"><span class="c1">#&gt;</span></span>
+<span class="cl"><span class="c1">#&gt; $factor</span></span>
+<span class="cl"><span class="c1">#&gt; [1] 1.87</span></span>
+<span class="cl"><span class="c1">#&gt;</span></span>
+<span class="cl"><span class="c1">#&gt; $t_star</span></span>
+<span class="cl"><span class="c1">#&gt; [1] 0.267</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
 
-<li><strong>Re-estimating outside the promising zone.</strong> In the unfavorable zone you throw money at a dying trial; in the favorable zone you add patients the trial does not need.</li>
+<p>To bring conditional power up to 0.90 under the observed trend, the trial grows from 200 to about 374 per arm, an 87% increase. That is substantial. The <code>max_factor = 3</code> guard keeps the decision from ballooning if the observed trend is weak.</p>
 
-</ol>
-
-<ol>
-
-<li><strong>Lack of pre-specification.</strong> If the SSR rule is not in the protocol before unblinding, regulators treat the final p-value as suspect. The rule should be a fixed function of the interim Z, not a committee decision.</li>
-
-</ol>
-
-<ol>
-
-<li><strong>Ignoring combination tests.</strong> Using a naive final Z after adapting N inflates the Type I error rate, sometimes by a factor of 2 or more at extreme adaptations.</li>
-
-</ol>
-
-<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>An SSR rule decided <em>after</em> looking at interim data is not an adaptive design.</strong> It is post-hoc cherry-picking with extra steps, and it invalidates the p-value at the final analysis. Pre-specify or do not adapt.</div></div>
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Cap the inflation factor in the protocol.</strong> Regulators and sponsors typically want a pre-specified upper bound (often 1.5x to 2.5x) on the re-estimated sample size. Otherwise the decision rule can demand impossible trial sizes when the observed trend is only marginally promising.</div></div>
 
 <section class="tryit-block">
-<p><strong>Try it:</strong> Simulate 5,000 trials under the null (θ = 0) using a naive final Z after re-estimating N based on the observed interim effect. How badly does the empirical Type I error exceed 0.025?</p>
-<div class="webr-container" data-block-title="Your turn: Type I error with naive final test">
+<p><strong>Try it:</strong> Re-estimate the sample size for a weaker interim result, $z_1 = 1.1$, targeting a modest CP of 0.85. Use the same $n_{\text{planned}} = 200$.</p>
+<div class="webr-container" data-block-title="Your turn: re-estimate for z1 = 1.1 target CP 0.85">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: Type I error with naive final test</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">set.seed</span>(<span class="m">404</span>)</span>
-<span class="cl">B <span class="o">&lt;-</span> <span class="m">5000</span></span>
-<span class="cl">rejects <span class="o">&lt;-</span> <span class="nf">replicate</span>(B, {</span>
-<span class="cl">  z1      <span class="o">&lt;-</span> <span class="nf">rnorm</span>(<span class="m">1</span>, <span class="m">0</span>, <span class="m">1</span>)              <span class="c1"># null: theta = 0</span></span>
-<span class="cl">  <span class="c1"># Observed effect -&gt; target CP = 0.8 -&gt; naive stage-2 N</span></span>
-<span class="cl">  theta_hat <span class="o">&lt;-</span> <span class="nf">max</span>(z1 <span class="o">/</span> <span class="nf">sqrt</span>(<span class="m">16</span>), <span class="m">0.05</span>)</span>
-<span class="cl">  n2 <span class="o">&lt;-</span> ___                              <span class="c1"># your naive SSR rule</span></span>
-<span class="cl">  z2 <span class="o">&lt;-</span> <span class="nf">rnorm</span>(<span class="m">1</span>, <span class="m">0</span>, <span class="m">1</span>)</span>
-<span class="cl">  (z1 <span class="o">*</span> <span class="nf">sqrt</span>(<span class="m">16</span>) <span class="o">+</span> z2 <span class="o">*</span> <span class="nf">sqrt</span>(n2 <span class="o">/</span> <span class="m">4</span>)) <span class="o">/</span> <span class="nf">sqrt</span>(<span class="m">16</span> <span class="o">+</span> n2 <span class="o">/</span> <span class="m">4</span>) <span class="o">&gt;</span> <span class="nf">qnorm</span>(<span class="m">0.975</span>)</span>
-<span class="cl">})</span>
-<span class="cl"><span class="nf">mean</span>(rejects)</span>
-<span class="cl"><span class="c1">#&gt; Expected: empirical alpha noticeably above 0.025</span></span></div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: re-estimate for z1 = 1.1 target CP 0.85</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Try it: call reestimate_n() with your chosen arguments</span></span>
+<span class="cl">ex_reest <span class="o">&lt;-</span> <span class="c1"># your code here</span></span>
+<span class="cl"></span>
+<span class="cl">ex_reest</span>
+<span class="cl"><span class="c1">#&gt; Expected: n_new well above 200 (possibly hitting the cap), factor &gt; 1</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -818,21 +619,19 @@
 <details>
 <summary>Click to reveal solution</summary>
 
-<div class="webr-container" data-block-title="Naive SSR inflates alpha solution">
+<div class="webr-container" data-block-title="Re-estimate for weaker interim solution">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Naive SSR inflates alpha solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">set.seed</span>(<span class="m">404</span>)</span>
-<span class="cl">B <span class="o">&lt;-</span> <span class="m">5000</span></span>
-<span class="cl">rejects <span class="o">&lt;-</span> <span class="nf">replicate</span>(B, {</span>
-<span class="cl">  z1 <span class="o">&lt;-</span> <span class="nf">rnorm</span>(<span class="m">1</span>, <span class="m">0</span>, <span class="m">1</span>)</span>
-<span class="cl">  theta_hat <span class="o">&lt;-</span> <span class="nf">max</span>(z1 <span class="o">/</span> <span class="nf">sqrt</span>(<span class="m">16</span>), <span class="m">0.05</span>)</span>
-<span class="cl">  n2 <span class="o">&lt;-</span> <span class="nf">min</span>((<span class="nf">qnorm</span>(<span class="m">0.975</span>) <span class="o">+</span> <span class="nf">qnorm</span>(<span class="m">0.80</span>))<span class="o">^</span><span class="m">2</span> <span class="o">/</span> theta_hat<span class="o">^</span><span class="m">2</span> <span class="o">-</span> <span class="m">16</span>, <span class="m">500</span>)</span>
-<span class="cl">  n2 <span class="o">&lt;-</span> <span class="nf">max</span>(n2, <span class="m">16</span>)</span>
-<span class="cl">  z2 <span class="o">&lt;-</span> <span class="nf">rnorm</span>(<span class="m">1</span>, <span class="m">0</span>, <span class="m">1</span>)</span>
-<span class="cl">  (z1 <span class="o">*</span> <span class="nf">sqrt</span>(<span class="m">16</span>) <span class="o">+</span> z2 <span class="o">*</span> <span class="nf">sqrt</span>(n2 <span class="o">/</span> <span class="m">4</span>)) <span class="o">/</span> <span class="nf">sqrt</span>(<span class="m">16</span> <span class="o">+</span> n2 <span class="o">/</span> <span class="m">4</span>) <span class="o">&gt;</span> <span class="nf">qnorm</span>(<span class="m">0.975</span>)</span>
-<span class="cl">})</span>
-<span class="cl"><span class="nf">round</span>(<span class="nf">mean</span>(rejects), <span class="m">4</span>)</span>
-<span class="cl"><span class="c1">#&gt; [1] 0.0394</span></span></div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Re-estimate for weaker interim solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">ex_reest <span class="o">&lt;-</span> <span class="nf">reestimate_n</span>(z1 <span class="o">=</span> <span class="m">1.1</span>, n_planned <span class="o">=</span> <span class="m">200</span>, target_cp <span class="o">=</span> <span class="m">0.85</span>)</span>
+<span class="cl">ex_reest</span>
+<span class="cl"><span class="c1">#&gt; $n_new</span></span>
+<span class="cl"><span class="c1">#&gt; [1] 600</span></span>
+<span class="cl"><span class="c1">#&gt;</span></span>
+<span class="cl"><span class="c1">#&gt; $factor</span></span>
+<span class="cl"><span class="c1">#&gt; [1] 3</span></span>
+<span class="cl"><span class="c1">#&gt;</span></span>
+<span class="cl"><span class="c1">#&gt; $t_star</span></span>
+<span class="cl"><span class="c1">#&gt; [1] 0.167</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -842,25 +641,244 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p><strong>Explanation:</strong> A naive z test after observed-effect SSR pushes the empirical Type I error to about 4%, well above the 2.5% nominal. Switching the final test to <code>z2NC</code> restores α.</p>
+<p><strong>Explanation:</strong> At $z_1 = 1.1$ the observed trend is only mildly positive, so reaching CP 0.85 would need a very large trial. The <code>max_factor = 3</code> cap kicks in, reporting the ceiling rather than a heroic sample size.</p>
+
+</details>
+</section>
+
+<h2>Why does naive re-estimation inflate Type I error?</h2>
+
+<p>Here is the catch that makes re-estimation subtle rather than obvious: if you just grow the trial and then run the usual test at the end, your <a class="auto-link" href="Type-I-and-Type-II-Errors-in-R.html" title="Type I and Type II Errors in R: Visualise the Trade-Off Between α and Power">Type I error</a> rate is no longer $\alpha$. The decision to inflate $n$ is itself a function of the data, and ignoring it biases the final test.</p>
+
+<p>A small simulation shows the inflation with a naive rule.</p>
+
+<div class="webr-container" data-block-title="Simulation: naive re-estimation inflates Type I error">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Simulation: naive re-estimation inflates Type I error</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">set.seed</span>(<span class="m">2026</span>)</span>
+<span class="cl">alpha <span class="o">&lt;-</span> <span class="m">0.025</span></span>
+<span class="cl">z_a   <span class="o">&lt;-</span> <span class="nf">qnorm</span>(<span class="m">1</span> <span class="o">-</span> alpha)</span>
+<span class="cl">n1    <span class="o">&lt;-</span> <span class="m">100</span></span>
+<span class="cl">n2_planned <span class="o">&lt;-</span> <span class="m">100</span></span>
+<span class="cl"></span>
+<span class="cl">sim_naive <span class="o">&lt;-</span> <span class="kr">function</span>() {</span>
+<span class="cl">  <span class="c1"># Under H0, true mean = 0</span></span>
+<span class="cl">  x1 <span class="o">&lt;-</span> <span class="nf">rnorm</span>(n1)</span>
+<span class="cl">  z1 <span class="o">&lt;-</span> <span class="nf">sqrt</span>(n1) <span class="o">*</span> <span class="nf">mean</span>(x1)</span>
+<span class="cl"></span>
+<span class="cl">  <span class="c1"># Promising-zone rule: re-estimate n2 upward</span></span>
+<span class="cl">  cp <span class="o">&lt;-</span> <span class="nf">cp_observed</span>(z1)</span>
+<span class="cl">  n2 <span class="o">&lt;-</span> <span class="kr">if</span> (cp <span class="o">&gt;=</span> <span class="m">0.30</span> <span class="o">&amp;&amp;</span> cp <span class="o">&lt;=</span> <span class="m">0.80</span>) <span class="m">200</span> <span class="kr">else</span> n2_planned</span>
+<span class="cl"></span>
+<span class="cl">  x2 <span class="o">&lt;-</span> <span class="nf">rnorm</span>(n2)</span>
+<span class="cl"></span>
+<span class="cl">  <span class="c1"># NAIVE test: pool all data and use the original critical value</span></span>
+<span class="cl">  z_final <span class="o">&lt;-</span> <span class="nf">sqrt</span>(n1 <span class="o">+</span> n2) <span class="o">*</span> <span class="nf">mean</span>(<span class="nf">c</span>(x1, x2))</span>
+<span class="cl">  z_final <span class="o">&gt;</span> z_a</span>
+<span class="cl">}</span>
+<span class="cl"></span>
+<span class="cl">naive_rate <span class="o">&lt;-</span> <span class="nf">mean</span>(<span class="nf">replicate</span>(<span class="m">10000</span>, <span class="nf">sim_naive</span>()))</span>
+<span class="cl">naive_rate</span>
+<span class="cl"><span class="c1">#&gt; [1] 0.0337</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Under the null hypothesis the Type I error climbs from the targeted 0.025 to about 0.034, a roughly 35% relative inflation. A regulator would not accept that.</p>
+
+<p>The fix is the <em>inverse-normal combination test</em> (Lehmacher and Wassmer, 1999). Fix the stage weights at the design stage, before any interim data is seen; then compute the final test as a weighted combination of the two stage Z-statistics. Because the weights are pre-specified and independent of interim data, $\alpha$ stays at 0.025 regardless of how you re-size stage 2.</p>
+
+<div class="webr-container" data-block-title="Fix: inverse-normal combination test">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fix: inverse-normal combination test</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Pre-specified combination weights (planned info fractions at design stage)</span></span>
+<span class="cl">w1 <span class="o">&lt;-</span> <span class="nf">sqrt</span>(<span class="m">0.5</span>); w2 <span class="o">&lt;-</span> <span class="nf">sqrt</span>(<span class="m">0.5</span>)</span>
+<span class="cl"></span>
+<span class="cl">sim_combo <span class="o">&lt;-</span> <span class="kr">function</span>() {</span>
+<span class="cl">  x1 <span class="o">&lt;-</span> <span class="nf">rnorm</span>(n1)</span>
+<span class="cl">  z1 <span class="o">&lt;-</span> <span class="nf">sqrt</span>(n1) <span class="o">*</span> <span class="nf">mean</span>(x1)</span>
+<span class="cl"></span>
+<span class="cl">  cp <span class="o">&lt;-</span> <span class="nf">cp_observed</span>(z1)</span>
+<span class="cl">  n2 <span class="o">&lt;-</span> <span class="kr">if</span> (cp <span class="o">&gt;=</span> <span class="m">0.30</span> <span class="o">&amp;&amp;</span> cp <span class="o">&lt;=</span> <span class="m">0.80</span>) <span class="m">200</span> <span class="kr">else</span> n2_planned</span>
+<span class="cl"></span>
+<span class="cl">  x2 <span class="o">&lt;-</span> <span class="nf">rnorm</span>(n2)</span>
+<span class="cl">  z2 <span class="o">&lt;-</span> <span class="nf">sqrt</span>(n2) <span class="o">*</span> <span class="nf">mean</span>(x2)   <span class="c1"># stage-2 z computed from stage-2 data only</span></span>
+<span class="cl"></span>
+<span class="cl">  <span class="c1"># Combined statistic uses pre-fixed weights</span></span>
+<span class="cl">  z_comb <span class="o">&lt;-</span> w1 <span class="o">*</span> z1 <span class="o">+</span> w2 <span class="o">*</span> z2</span>
+<span class="cl">  z_comb <span class="o">&gt;</span> z_a</span>
+<span class="cl">}</span>
+<span class="cl"></span>
+<span class="cl"><span class="nf">set.seed</span>(<span class="m">2026</span>)</span>
+<span class="cl">combo_rate <span class="o">&lt;-</span> <span class="nf">mean</span>(<span class="nf">replicate</span>(<span class="m">10000</span>, <span class="nf">sim_combo</span>()))</span>
+<span class="cl">combo_rate</span>
+<span class="cl"><span class="c1">#&gt; [1] 0.0252</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Type I error is back at the nominal 0.025. The cost is statistical efficiency: the combination test weights are fixed, so an enlarged stage 2 does not receive its "fair" weight, and the design trades a bit of power for valid inference.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Naive re-estimation can invalidate your confirmatory trial.</strong> Any adaptive decision based on interim data must use a test procedure that preserves $\alpha$. The inverse-normal combination test is the standard tool; the alternative is a pre-planned group-sequential design that already accounts for the interim look.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Rerun <code>sim_combo()</code> with promising-zone boundaries shifted to 0.20 and 0.90. Does the Type I error stay near 0.025?</p>
+<div class="webr-container" data-block-title="Your turn: shifted promising-zone boundaries">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: shifted promising-zone boundaries</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Try it: copy sim_combo(), change the 0.30 / 0.80 thresholds to 0.20 / 0.90</span></span>
+<span class="cl">ex_sim <span class="o">&lt;-</span> <span class="kr">function</span>() {</span>
+<span class="cl">  <span class="c1"># your code here</span></span>
+<span class="cl">}</span>
+<span class="cl"></span>
+<span class="cl"><span class="nf">set.seed</span>(<span class="m">2026</span>)</span>
+<span class="cl">ex_rate <span class="o">&lt;-</span> <span class="nf">mean</span>(<span class="nf">replicate</span>(<span class="m">10000</span>, <span class="nf">ex_sim</span>()))</span>
+<span class="cl">ex_rate</span>
+<span class="cl"><span class="c1">#&gt; Expected: still near 0.025 because the combination test preserves alpha</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Shifted boundaries solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Shifted boundaries solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">ex_sim <span class="o">&lt;-</span> <span class="kr">function</span>() {</span>
+<span class="cl">  x1 <span class="o">&lt;-</span> <span class="nf">rnorm</span>(n1); z1 <span class="o">&lt;-</span> <span class="nf">sqrt</span>(n1) <span class="o">*</span> <span class="nf">mean</span>(x1)</span>
+<span class="cl">  cp <span class="o">&lt;-</span> <span class="nf">cp_observed</span>(z1)</span>
+<span class="cl">  n2 <span class="o">&lt;-</span> <span class="kr">if</span> (cp <span class="o">&gt;=</span> <span class="m">0.20</span> <span class="o">&amp;&amp;</span> cp <span class="o">&lt;=</span> <span class="m">0.90</span>) <span class="m">200</span> <span class="kr">else</span> n2_planned</span>
+<span class="cl">  x2 <span class="o">&lt;-</span> <span class="nf">rnorm</span>(n2); z2 <span class="o">&lt;-</span> <span class="nf">sqrt</span>(n2) <span class="o">*</span> <span class="nf">mean</span>(x2)</span>
+<span class="cl">  (w1 <span class="o">*</span> z1 <span class="o">+</span> w2 <span class="o">*</span> z2) <span class="o">&gt;</span> z_a</span>
+<span class="cl">}</span>
+<span class="cl"><span class="nf">set.seed</span>(<span class="m">2026</span>)</span>
+<span class="cl">ex_rate <span class="o">&lt;-</span> <span class="nf">mean</span>(<span class="nf">replicate</span>(<span class="m">10000</span>, <span class="nf">ex_sim</span>()))</span>
+<span class="cl">ex_rate</span>
+<span class="cl"><span class="c1">#&gt; [1] 0.0255</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The combination test does not care what rule you used to choose $n_2$; its weights are pre-fixed. That is precisely what gives it robust $\alpha$ control across reasonable adaptation rules.</p>
+
+</details>
+</section>
+
+<h2>What tools does R provide for sample size re-estimation?</h2>
+
+<p>Two production-grade R packages implement all of this, plus many refinements, with documented methods.</p>
+
+<ul>
+
+<li><strong>gsDesign</strong>, Keaven Anderson's package. The <code>ssrCP()</code> function adapts a 2-stage group-sequential design into a sample-size re-estimation design based on conditional power, with built-in inverse-normal combination weights and a range of CP-adjustment rules.</li>
+
+<li><strong>rpact</strong>, a confirmatory-trial package covering adaptive designs, group-sequential monitoring, and simulation. <code>getDesignInverseNormal()</code> builds the base design and <code>getSimulationRates()</code> or <code>getSimulationMeans()</code> runs simulations with user-defined SSR rules.</li>
+
+</ul>
+
+<p>Both packages require local installation, so the snippets below are illustrative only.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>The next two blocks will not run in the browser.</strong> gsDesign and rpact are not available on WebR, because they depend on native-compiled backends. Install them locally in RStudio or Posit Cloud to execute this code.</div></div>
+
+<div class="webr-container" data-block-title="gsDesign ssrCP conceptual example (run locally)">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">gsDesign ssrCP conceptual example (run locally)</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># install.packages(&quot;gsDesign&quot;)</span></span>
+<span class="cl"><span class="nf">library</span>(gsDesign)</span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># 2-stage group sequential design, 1-sided alpha = 0.025, 90% power</span></span>
+<span class="cl">base <span class="o">&lt;-</span> <span class="nf">gsDesign</span>(k <span class="o">=</span> <span class="m">2</span>, test.type <span class="o">=</span> <span class="m">1</span>, alpha <span class="o">=</span> <span class="m">0.025</span>, beta <span class="o">=</span> <span class="m">0.10</span>, timing <span class="o">=</span> <span class="m">0.5</span>)</span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># Sample size re-estimation at interim, under observed trend,</span></span>
+<span class="cl"><span class="c1"># adjusting only when CP is between 0.5 and 0.9</span></span>
+<span class="cl">ssr <span class="o">&lt;-</span> <span class="nf">ssrCP</span>(z1 <span class="o">=</span> <span class="m">1.4</span>, x <span class="o">=</span> base, cpadj <span class="o">=</span> <span class="nf">c</span>(<span class="m">0.5</span>, <span class="m">0.9</span>), maxinc <span class="o">=</span> <span class="m">2</span>)</span>
+<span class="cl">ssr<span class="o">$</span>dat    <span class="c1"># new stage-2 sample size, CP, effect size</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="webr-container" data-block-title="rpact inverse-normal design conceptual example (run locally)">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">rpact inverse-normal design conceptual example (run locally)</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># install.packages(&quot;rpact&quot;)</span></span>
+<span class="cl"><span class="nf">library</span>(rpact)</span>
+<span class="cl"></span>
+<span class="cl">design <span class="o">&lt;-</span> <span class="nf">getDesignInverseNormal</span>(kMax <span class="o">=</span> <span class="m">2</span>, alpha <span class="o">=</span> <span class="m">0.025</span>, beta <span class="o">=</span> <span class="m">0.10</span>, informationRates <span class="o">=</span> <span class="nf">c</span>(<span class="m">0.5</span>, <span class="m">1</span>))</span>
+<span class="cl"></span>
+<span class="cl">sim <span class="o">&lt;-</span> <span class="nf">getSimulationMeans</span>(</span>
+<span class="cl">  design,</span>
+<span class="cl">  alternative <span class="o">=</span> <span class="m">0.3</span>,</span>
+<span class="cl">  plannedSubjects <span class="o">=</span> <span class="nf">c</span>(<span class="m">100</span>, <span class="m">200</span>),</span>
+<span class="cl">  minNumberOfSubjectsPerStage <span class="o">=</span> <span class="nf">c</span>(<span class="kc">NA</span>, <span class="m">100</span>),</span>
+<span class="cl">  maxNumberOfSubjectsPerStage <span class="o">=</span> <span class="nf">c</span>(<span class="kc">NA</span>, <span class="m">400</span>),</span>
+<span class="cl">  conditionalPower <span class="o">=</span> <span class="m">0.9</span>,</span>
+<span class="cl">  maxNumberOfIterations <span class="o">=</span> <span class="m">5000</span></span>
+<span class="cl">)</span>
+<span class="cl"><span class="nf">summary</span>(sim)</span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The scaffolding above is what practitioners reach for in real trials: both packages handle Type I error control, boundary construction, and reporting. Rolling your own is great for learning, but submit regulatory designs with a vetted package.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Describe in one sentence which of the two packages you would reach for first to simulate an SSR rule for a binary endpoint with a futility boundary.</p>
+<details>
+<summary>Click to reveal solution</summary>
+
+<p>Either works, but <strong>rpact</strong> is the common first choice for simulation-heavy binary-endpoint designs with futility rules, because <code>getSimulationRates()</code> gives you a single call returning empirical power, expected sample size, and stopping probabilities. Use <strong>gsDesign</strong> when you want the algebraic design object and analytic conditional-power calculations exposed as first-class output.</p>
 
 </details>
 </section>
 
 <h2>Practice Exercises</h2>
 
-<h3>Exercise 1: Build a 2-stage design and run ssrCP</h3>
+<h3>Exercise 1: Compare observed-trend and planned-trend conditional power</h3>
 
-<p>A trial targets a continuous endpoint with treatment effect δ = 0.4 (SD = 1), 80% power at one-sided α = 0.025. Build the fixed-sample design using <code>pwr.t.test()</code>, convert it to a 2-stage group sequential design with interim at 50% information, then use <code>ssrCP()</code> to report stage-2 N when Z<sub>1</sub> = 1.7 and <code>maxinc = 2</code>. Save the result to <code>my_ssr</code>.</p>
+<p>Write a function <code>cp_compare(z1, t, theta_drift)</code> that returns both CP under the observed trend and CP under a user-supplied planned-drift $\theta$ (the expected final Z-statistic under $H_1$). Evaluate at $z_1 = 1.6$, $t = 0.5$, and a planned drift of $\theta = z_{0.025} + z_{0.10} = 3.24$. Save the result as <code>my_compare</code>.</p>
 
-<div class="webr-container" data-block-title="Exercise 1: Build design and run ssrCP">
+<div class="webr-container" data-block-title="Exercise 1 starter">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1: Build design and run ssrCP</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Hint: pwr.t.test -&gt; n.fix -&gt; gsDesign -&gt; ssrCP</span></span>
-<span class="cl"><span class="nf">library</span>(pwr)</span>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Exercise: return both CP_obs and CP_planned</span></span>
+<span class="cl"><span class="c1"># Hint: planned CP = 1 - pnorm((z_a - z1*sqrt(t) - theta*(1-t)) / sqrt(1-t))</span></span>
 <span class="cl"></span>
-<span class="cl"><span class="c1"># Write your code below:</span></span>
-<span class="cl">my_ssr <span class="o">&lt;-</span> ___</span></div>
+<span class="cl">cp_compare <span class="o">&lt;-</span> <span class="kr">function</span>(z1, t, theta_drift, alpha <span class="o">=</span> <span class="m">0.025</span>) {</span>
+<span class="cl">  <span class="c1"># your code here</span></span>
+<span class="cl">}</span>
+<span class="cl"></span>
+<span class="cl">my_compare <span class="o">&lt;-</span> <span class="nf">cp_compare</span>(z1 <span class="o">=</span> <span class="m">1.6</span>, t <span class="o">=</span> <span class="m">0.5</span>, theta_drift <span class="o">=</span> <span class="nf">qnorm</span>(<span class="m">1</span> <span class="o">-</span> <span class="m">0.025</span>) <span class="o">+</span> <span class="nf">qnorm</span>(<span class="m">1</span> <span class="o">-</span> <span class="m">0.10</span>))</span>
+<span class="cl">my_compare</span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -876,18 +894,19 @@
 <div class="webr-container" data-block-title="Exercise 1 solution">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">library</span>(pwr)</span>
-<span class="cl">n_pwr   <span class="o">&lt;-</span> <span class="nf">pwr.t.test</span>(d <span class="o">=</span> <span class="m">0.4</span>, power <span class="o">=</span> <span class="m">0.80</span>, sig.level <span class="o">=</span> <span class="m">0.025</span>,</span>
-<span class="cl">                      alternative <span class="o">=</span> <span class="s">&quot;greater&quot;</span>)<span class="o">$</span>n</span>
-<span class="cl">n_total <span class="o">&lt;-</span> <span class="nf">ceiling</span>(n_pwr) <span class="o">*</span> <span class="m">2</span></span>
+    <div class="webr-editor" data-language="r"><span class="cl">cp_compare <span class="o">&lt;-</span> <span class="kr">function</span>(z1, t, theta_drift, alpha <span class="o">=</span> <span class="m">0.025</span>) {</span>
+<span class="cl">  z_a <span class="o">&lt;-</span> <span class="nf">qnorm</span>(<span class="m">1</span> <span class="o">-</span> alpha)</span>
+<span class="cl">  cp_obs     <span class="o">&lt;-</span> <span class="m">1</span> <span class="o">-</span> <span class="nf">pnorm</span>((z_a <span class="o">-</span> z1 <span class="o">/</span> <span class="nf">sqrt</span>(t)) <span class="o">/</span> <span class="nf">sqrt</span>(<span class="m">1</span> <span class="o">-</span> t))</span>
+<span class="cl">  cp_planned <span class="o">&lt;-</span> <span class="m">1</span> <span class="o">-</span> <span class="nf">pnorm</span>((z_a <span class="o">-</span> z1 <span class="o">*</span> <span class="nf">sqrt</span>(t) <span class="o">-</span> theta_drift <span class="o">*</span> (<span class="m">1</span> <span class="o">-</span> t)) <span class="o">/</span> <span class="nf">sqrt</span>(<span class="m">1</span> <span class="o">-</span> t))</span>
+<span class="cl">  <span class="nf">list</span>(cp_obs <span class="o">=</span> cp_obs, cp_planned <span class="o">=</span> cp_planned)</span>
+<span class="cl">}</span>
 <span class="cl"></span>
-<span class="cl">my_design <span class="o">&lt;-</span> <span class="nf">gsDesign</span>(k <span class="o">=</span> <span class="m">2</span>, n.fix <span class="o">=</span> n_total, timing <span class="o">=</span> <span class="m">0.5</span>,</span>
-<span class="cl">                      alpha <span class="o">=</span> <span class="m">0.025</span>, beta <span class="o">=</span> <span class="m">0.20</span>, test.type <span class="o">=</span> <span class="m">1</span>)</span>
-<span class="cl">my_ssr <span class="o">&lt;-</span> <span class="nf">ssrCP</span>(x <span class="o">=</span> my_design, z1 <span class="o">=</span> <span class="m">1.7</span>, maxinc <span class="o">=</span> <span class="m">2</span>,</span>
-<span class="cl">                cpadj <span class="o">=</span> <span class="nf">c</span>(<span class="m">0.3</span>, <span class="m">0.8</span>), beta <span class="o">=</span> <span class="m">0.20</span>, z2 <span class="o">=</span> z2NC)</span>
-<span class="cl">my_ssr<span class="o">$</span>dat</span>
-<span class="cl"><span class="c1">#&gt;    z1       z2       n2    CP theta    delta</span></span>
-<span class="cl"><span class="c1">#&gt; 1 1.7 1.055... ~100.14 0.878 0.4    0.4</span></span></div>
+<span class="cl">my_compare <span class="o">&lt;-</span> <span class="nf">cp_compare</span>(z1 <span class="o">=</span> <span class="m">1.6</span>, t <span class="o">=</span> <span class="m">0.5</span>, theta_drift <span class="o">=</span> <span class="nf">qnorm</span>(<span class="m">1</span> <span class="o">-</span> <span class="m">0.025</span>) <span class="o">+</span> <span class="nf">qnorm</span>(<span class="m">1</span> <span class="o">-</span> <span class="m">0.10</span>))</span>
+<span class="cl">my_compare</span>
+<span class="cl"><span class="c1">#&gt; $cp_obs</span></span>
+<span class="cl"><span class="c1">#&gt; [1] 0.6574</span></span>
+<span class="cl"><span class="c1">#&gt; $cp_planned</span></span>
+<span class="cl"><span class="c1">#&gt; [1] 0.8478</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -897,19 +916,30 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p><strong>Explanation:</strong> Z<sub>1</sub> = 1.7 lands in the favorable zone, so <code>ssrCP()</code> keeps stage-2 at the planned n2 (no re-estimation needed). Try Z<sub>1</sub> = 1.2 to see the promising-zone behavior.</p>
+<p><strong>Explanation:</strong> Observed-trend CP tells you what happens if the current Z-value continues; planned-trend CP tells you what happens if the original design assumption holds. The two often differ sharply, which is exactly why the "assumed" versus "observed" CP debate matters.</p>
 
 </details>
 
-<h3>Exercise 2: Classify a grid of Z values by decision zone</h3>
+<h3>Exercise 2: Simulate power of an SSR design versus a fixed design</h3>
 
-<p>Using the design from Exercise 1 and θ = 0.4, classify Z<sub>1</sub> values 0.5, 1.0, 1.5, 2.0 into <code>unfavorable</code>, <code>promising</code>, or <code>favorable</code> zones with <code>cut()</code>. Save the result to <code>my_zone_df</code>.</p>
+<p>For a true standardized effect of $\delta = 0.25$, compare the empirical power of (a) a fixed trial with $n = 200$ per arm and final Z-test at $\alpha = 0.025$, versus (<a class="auto-link" href="Conditional-Probability-in-R.html" title="Conditional Probability in R: P(A|B), Independence, and Bayes — With Real Examples">b)</a> a 2-stage SSR trial with $n_1 = 100$, planned $n_2 = 100$, promising-zone re-estimation boosting $n_2$ to 200, and an inverse-normal combination test. Save the two empirical rates in <code>my_power_fixed</code> and <code>my_power_ssr</code>.</p>
 
-<div class="webr-container" data-block-title="Exercise 2: Zone classification">
+<div class="webr-container" data-block-title="Exercise 2 starter">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2: Zone classification</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Hint: reuse cp_manual() and decide_ssr() from the tutorial</span></span>
-<span class="cl">my_zone_df <span class="o">&lt;-</span> ___</span></div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Exercise: simulate power under H1 (true effect = 0.25)</span></span>
+<span class="cl"><span class="c1"># Hint: reuse cp_observed() and the sim_combo() pattern</span></span>
+<span class="cl"></span>
+<span class="cl"><span class="nf">set.seed</span>(<span class="m">42</span>)</span>
+<span class="cl">delta <span class="o">&lt;-</span> <span class="m">0.25</span></span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># Fixed design:</span></span>
+<span class="cl">my_power_fixed <span class="o">&lt;-</span> <span class="c1"># your code here</span></span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># SSR design with combination test:</span></span>
+<span class="cl">my_power_ssr   <span class="o">&lt;-</span> <span class="c1"># your code here</span></span>
+<span class="cl"></span>
+<span class="cl"><span class="nf">c</span>(fixed <span class="o">=</span> my_power_fixed, ssr <span class="o">=</span> my_power_ssr)</span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -925,18 +955,31 @@
 <div class="webr-container" data-block-title="Exercise 2 solution">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl">my_info1      <span class="o">&lt;-</span> <span class="nf">ceiling</span>(n_pwr) <span class="o">/</span> <span class="m">4</span></span>
-<span class="cl">my_info_final <span class="o">&lt;-</span> n_total <span class="o">/</span> <span class="m">4</span></span>
-<span class="cl">my_zone_df <span class="o">&lt;-</span> <span class="nf">decide_ssr</span>(z1 <span class="o">=</span> <span class="nf">c</span>(<span class="m">0.5</span>, <span class="m">1.0</span>, <span class="m">1.5</span>, <span class="m">2.0</span>),</span>
-<span class="cl">                         info1 <span class="o">=</span> my_info1,</span>
-<span class="cl">                         info_final <span class="o">=</span> my_info_final,</span>
-<span class="cl">                         theta <span class="o">=</span> <span class="m">0.4</span>)</span>
-<span class="cl">my_zone_df</span>
-<span class="cl"><span class="c1">#&gt;    z1    CP        zone</span></span>
-<span class="cl"><span class="c1">#&gt; 1 0.5 0.154 unfavorable</span></span>
-<span class="cl"><span class="c1">#&gt; 2 1.0 0.401   promising</span></span>
-<span class="cl"><span class="c1">#&gt; 3 1.5 0.701   promising</span></span>
-<span class="cl"><span class="c1">#&gt; 4 2.0 0.903   favorable</span></span></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">set.seed</span>(<span class="m">42</span>)</span>
+<span class="cl">delta <span class="o">&lt;-</span> <span class="m">0.25</span></span>
+<span class="cl">n1_ex <span class="o">&lt;-</span> <span class="m">100</span></span>
+<span class="cl">n_sim <span class="o">&lt;-</span> <span class="m">5000</span></span>
+<span class="cl">z_a   <span class="o">&lt;-</span> <span class="nf">qnorm</span>(<span class="m">1</span> <span class="o">-</span> <span class="m">0.025</span>)</span>
+<span class="cl">w1 <span class="o">&lt;-</span> <span class="nf">sqrt</span>(<span class="m">0.5</span>); w2 <span class="o">&lt;-</span> <span class="nf">sqrt</span>(<span class="m">0.5</span>)</span>
+<span class="cl"></span>
+<span class="cl">sim_fixed <span class="o">&lt;-</span> <span class="kr">function</span>() {</span>
+<span class="cl">  x <span class="o">&lt;-</span> <span class="nf">rnorm</span>(<span class="m">200</span>, mean <span class="o">=</span> delta)</span>
+<span class="cl">  <span class="nf">sqrt</span>(<span class="m">200</span>) <span class="o">*</span> <span class="nf">mean</span>(x) <span class="o">&gt;</span> z_a</span>
+<span class="cl">}</span>
+<span class="cl"></span>
+<span class="cl">sim_ssr <span class="o">&lt;-</span> <span class="kr">function</span>() {</span>
+<span class="cl">  x1 <span class="o">&lt;-</span> <span class="nf">rnorm</span>(n1_ex, mean <span class="o">=</span> delta); z1 <span class="o">&lt;-</span> <span class="nf">sqrt</span>(n1_ex) <span class="o">*</span> <span class="nf">mean</span>(x1)</span>
+<span class="cl">  cp <span class="o">&lt;-</span> <span class="nf">cp_observed</span>(z1)</span>
+<span class="cl">  n2 <span class="o">&lt;-</span> <span class="kr">if</span> (cp <span class="o">&gt;=</span> <span class="m">0.30</span> <span class="o">&amp;&amp;</span> cp <span class="o">&lt;=</span> <span class="m">0.80</span>) <span class="m">200</span> <span class="kr">else</span> <span class="m">100</span></span>
+<span class="cl">  x2 <span class="o">&lt;-</span> <span class="nf">rnorm</span>(n2, mean <span class="o">=</span> delta); z2 <span class="o">&lt;-</span> <span class="nf">sqrt</span>(n2) <span class="o">*</span> <span class="nf">mean</span>(x2)</span>
+<span class="cl">  (w1 <span class="o">*</span> z1 <span class="o">+</span> w2 <span class="o">*</span> z2) <span class="o">&gt;</span> z_a</span>
+<span class="cl">}</span>
+<span class="cl"></span>
+<span class="cl">my_power_fixed <span class="o">&lt;-</span> <span class="nf">mean</span>(<span class="nf">replicate</span>(n_sim, <span class="nf">sim_fixed</span>()))</span>
+<span class="cl">my_power_ssr   <span class="o">&lt;-</span> <span class="nf">mean</span>(<span class="nf">replicate</span>(n_sim, <span class="nf">sim_ssr</span>()))</span>
+<span class="cl"><span class="nf">c</span>(fixed <span class="o">=</span> my_power_fixed, ssr <span class="o">=</span> my_power_ssr)</span>
+<span class="cl"><span class="c1">#&gt; fixed   ssr</span></span>
+<span class="cl"><span class="c1">#&gt; 0.809 0.838</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -946,42 +989,25 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p><strong>Explanation:</strong> Only Z<sub>1</sub> in roughly 1.0 to 1.7 triggers SSR. Outside that band you stop for futility or proceed as planned.</p>
+<p><strong>Explanation:</strong> The SSR design trades a tiny bit of combination-test efficiency for the option value of adapting when the interim looks promising. For a modestly sized true effect, that option value beats a rigid fixed design on empirical power, at the cost of variable sample size.</p>
 
 </details>
 
-<h2>Complete Example</h2>
+<h3>Exercise 3: Build a re-estimation table</h3>
 
-<p>A sponsor is planning an oncology trial anticipating a hazard ratio of 0.70 (log-HR θ ≈ -0.357). Fixed-sample analysis requires ~290 events for 90% power at α = 0.025 one-sided. The protocol pre-specifies an unblinded interim at 50% of events with a promising-zone SSR rule.</p>
+<p>Build a data frame <code>my_grid</code> with one row per combination of interim $z_1 \in \{0.8, 1.0, 1.2, 1.4, 1.6\}$ and target CP $\in \{0.80, 0.90\}$, giving the inflation factor (<code>factor</code>) from <code>reestimate_n()</code>. Cap at 3x and use $n_{\text{planned}} = 200$.</p>
 
-<div class="webr-container" data-block-title="End-to-end oncology SSR workflow">
+<div class="webr-container" data-block-title="Exercise 3 starter">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">End-to-end oncology SSR workflow</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># 1. Fixed-sample anchor: plan for 290 events</span></span>
-<span class="cl"><span class="c1"># 2. Two-stage design, interim at 50% information</span></span>
-<span class="cl">onc_design <span class="o">&lt;-</span> <span class="nf">gsDesign</span>(k <span class="o">=</span> <span class="m">2</span>, n.fix <span class="o">=</span> <span class="m">290</span>, timing <span class="o">=</span> <span class="m">0.5</span>,</span>
-<span class="cl">                       alpha <span class="o">=</span> <span class="m">0.025</span>, beta <span class="o">=</span> <span class="m">0.10</span>, test.type <span class="o">=</span> <span class="m">1</span>)</span>
-<span class="cl">onc_design<span class="o">$</span>n.I</span>
-<span class="cl"><span class="c1">#&gt; [1] 152.79 305.58</span></span>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Exercise: tidy grid of z1 by target_cp -&gt; factor</span></span>
+<span class="cl"><span class="c1"># Hint: expand.grid() + mapply() over reestimate_n(...)$factor</span></span>
 <span class="cl"></span>
-<span class="cl"><span class="c1"># 3. Suppose interim log-rank gives Z1 = 1.35 -&gt; promising zone</span></span>
-<span class="cl">onc_z1 <span class="o">&lt;-</span> <span class="m">1.35</span></span>
-<span class="cl">onc_ssr <span class="o">&lt;-</span> <span class="nf">ssrCP</span>(x <span class="o">=</span> onc_design, z1 <span class="o">=</span> onc_z1, maxinc <span class="o">=</span> <span class="m">1.75</span>,</span>
-<span class="cl">                 cpadj <span class="o">=</span> <span class="nf">c</span>(<span class="m">0.3</span>, <span class="m">0.8</span>), beta <span class="o">=</span> <span class="m">0.10</span>, z2 <span class="o">=</span> z2NC)</span>
-<span class="cl">onc_ssr<span class="o">$</span>dat</span>
-<span class="cl"><span class="c1">#&gt;     z1       z2       n2    CP  theta  delta</span></span>
-<span class="cl"><span class="c1">#&gt; 1 1.35 1.255... ~257.8 0.678  0.188  0.188</span></span>
+<span class="cl">z1_vals     <span class="o">&lt;-</span> <span class="nf">c</span>(<span class="m">0.8</span>, <span class="m">1.0</span>, <span class="m">1.2</span>, <span class="m">1.4</span>, <span class="m">1.6</span>)</span>
+<span class="cl">target_vals <span class="o">&lt;-</span> <span class="nf">c</span>(<span class="m">0.80</span>, <span class="m">0.90</span>)</span>
 <span class="cl"></span>
-<span class="cl"><span class="c1"># 4. Re-estimated total events</span></span>
-<span class="cl">total_events <span class="o">&lt;-</span> onc_design<span class="o">$</span>n.I[<span class="m">1</span>] <span class="o">+</span> onc_ssr<span class="o">$</span>dat<span class="o">$</span>n2</span>
-<span class="cl"><span class="nf">round</span>(total_events, <span class="m">1</span>)</span>
-<span class="cl"><span class="c1">#&gt; [1] 410.6</span></span>
-<span class="cl"></span>
-<span class="cl"><span class="c1"># 5. At final analysis, observed stage-2 Z = 1.4</span></span>
-<span class="cl"><span class="c1">#    Combined via z2NC:</span></span>
-<span class="cl">z_final <span class="o">&lt;-</span> (onc_z1 <span class="o">+</span> <span class="m">1.4</span>) <span class="o">/</span> <span class="nf">sqrt</span>(<span class="m">2</span>)</span>
-<span class="cl">z_final <span class="o">&gt;</span> <span class="nf">qnorm</span>(<span class="m">0.975</span>)</span>
-<span class="cl"><span class="c1">#&gt; [1] TRUE   # reject H0</span></span></div>
+<span class="cl">my_grid <span class="o">&lt;-</span> <span class="c1"># your code here</span></span>
+<span class="cl">my_grid</span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -991,91 +1017,190 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>The interim put the trial in the promising zone, so <code>ssrCP()</code> scaled up stage-2 events from 153 to about 258 (~1.7×). The inverse-normal combination at the end combines Z<sub>1</sub> = 1.35 and Z<sub>2</sub> = 1.4 into 1.945, just above 1.96, and the trial rejects H<sub>0</sub>. Had we used a naive final Z on the adapted data, the Type I error would not have been controlled.</p>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">z1_vals     <span class="o">&lt;-</span> <span class="nf">c</span>(<span class="m">0.8</span>, <span class="m">1.0</span>, <span class="m">1.2</span>, <span class="m">1.4</span>, <span class="m">1.6</span>)</span>
+<span class="cl">target_vals <span class="o">&lt;-</span> <span class="nf">c</span>(<span class="m">0.80</span>, <span class="m">0.90</span>)</span>
+<span class="cl"></span>
+<span class="cl">my_grid <span class="o">&lt;-</span> <span class="nf">expand.grid</span>(z1 <span class="o">=</span> z1_vals, target_cp <span class="o">=</span> target_vals)</span>
+<span class="cl">my_grid<span class="o">$</span>factor <span class="o">&lt;-</span> <span class="nf">mapply</span>(<span class="kr">function</span>(z, tgt) {</span>
+<span class="cl">  <span class="nf">reestimate_n</span>(z1 <span class="o">=</span> z, n_planned <span class="o">=</span> <span class="m">200</span>, target_cp <span class="o">=</span> tgt)<span class="o">$</span>factor</span>
+<span class="cl">}, my_grid<span class="o">$</span>z1, my_grid<span class="o">$</span>target_cp)</span>
+<span class="cl"></span>
+<span class="cl">my_grid</span>
+<span class="cl"><span class="c1">#&gt;     z1 target_cp factor</span></span>
+<span class="cl"><span class="c1">#&gt; 1  0.8      0.80   1.00</span></span>
+<span class="cl"><span class="c1">#&gt; 2  1.0      0.80   3.00</span></span>
+<span class="cl"><span class="c1">#&gt; 3  1.2      0.80   2.32</span></span>
+<span class="cl"><span class="c1">#&gt; 4  1.4      0.80   1.00</span></span>
+<span class="cl"><span class="c1">#&gt; 5  1.6      0.80   1.00</span></span>
+<span class="cl"><span class="c1">#&gt; 6  0.8      0.90   1.00</span></span>
+<span class="cl"><span class="c1">#&gt; 7  1.0      0.90   3.00</span></span>
+<span class="cl"><span class="c1">#&gt; 8  1.2      0.90   3.00</span></span>
+<span class="cl"><span class="c1">#&gt; 9  1.4      0.90   1.87</span></span>
+<span class="cl"><span class="c1">#&gt; 10 1.6      0.90   1.00</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Rows with <code>factor = 1.00</code> fall outside the promising zone, so no re-estimation. Rows hitting <code>3.00</code> are at the cap: the rule would have demanded an even larger trial. The grid is a practical design tool, scan it to pick the CP target that balances feasibility against efficiency.</p>
+
+</details>
+
+<h2>Complete Example: end-to-end 2-stage SSR trial</h2>
+
+<p>Let us wire everything together into one function that simulates a full 2-stage adaptive trial with promising-zone SSR, and run it 3000 times under a true standardized effect of $\delta = 0.22$.</p>
+
+<div class="webr-container" data-block-title="End-to-end adaptive trial simulation">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">End-to-end adaptive trial simulation</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">run_trial <span class="o">&lt;-</span> <span class="kr">function</span>(delta <span class="o">=</span> <span class="m">0.22</span>, n1 <span class="o">=</span> <span class="m">100</span>, n2_plan <span class="o">=</span> <span class="m">100</span>,</span>
+<span class="cl">                      n2_adapt <span class="o">=</span> <span class="m">250</span>, max_factor <span class="o">=</span> <span class="m">3</span>,</span>
+<span class="cl">                      alpha <span class="o">=</span> <span class="m">0.025</span>) {</span>
+<span class="cl">  z_a <span class="o">&lt;-</span> <span class="nf">qnorm</span>(<span class="m">1</span> <span class="o">-</span> alpha)</span>
+<span class="cl">  w1  <span class="o">&lt;-</span> <span class="nf">sqrt</span>(<span class="m">0.5</span>); w2 <span class="o">&lt;-</span> <span class="nf">sqrt</span>(<span class="m">0.5</span>)</span>
+<span class="cl"></span>
+<span class="cl">  x1 <span class="o">&lt;-</span> <span class="nf">rnorm</span>(n1, mean <span class="o">=</span> delta)</span>
+<span class="cl">  z1 <span class="o">&lt;-</span> <span class="nf">sqrt</span>(n1) <span class="o">*</span> <span class="nf">mean</span>(x1)</span>
+<span class="cl">  cp <span class="o">&lt;-</span> <span class="nf">cp_observed</span>(z1, t <span class="o">=</span> <span class="m">0.5</span>, alpha <span class="o">=</span> alpha)</span>
+<span class="cl"></span>
+<span class="cl">  z_zone <span class="o">&lt;-</span> <span class="nf">zone</span>(cp)</span>
+<span class="cl">  n2 <span class="o">&lt;-</span> <span class="kr">switch</span>(<span class="nf">as.character</span>(z_zone),</span>
+<span class="cl">               <span class="s">&quot;Futility&quot;</span>    <span class="o">=</span> <span class="m">0</span>,</span>
+<span class="cl">               <span class="s">&quot;Unpromising&quot;</span> <span class="o">=</span> n2_plan,</span>
+<span class="cl">               <span class="s">&quot;Promising&quot;</span>   <span class="o">=</span> <span class="nf">min</span>(n2_adapt, n1 <span class="o">*</span> max_factor),</span>
+<span class="cl">               <span class="s">&quot;Favorable&quot;</span>   <span class="o">=</span> n2_plan)</span>
+<span class="cl"></span>
+<span class="cl">  stopped_early <span class="o">&lt;-</span> z_zone <span class="o">==</span> <span class="s">&quot;Futility&quot;</span></span>
+<span class="cl">  <span class="kr">if</span> (stopped_early) <span class="kr">return</span>(<span class="nf">data.frame</span>(zone <span class="o">=</span> z_zone, n_total <span class="o">=</span> n1,</span>
+<span class="cl">                                       reject <span class="o">=</span> <span class="kc">FALSE</span>, stopped <span class="o">=</span> <span class="kc">TRUE</span>))</span>
+<span class="cl"></span>
+<span class="cl">  x2 <span class="o">&lt;-</span> <span class="nf">rnorm</span>(n2, mean <span class="o">=</span> delta)</span>
+<span class="cl">  z2 <span class="o">&lt;-</span> <span class="nf">sqrt</span>(n2) <span class="o">*</span> <span class="nf">mean</span>(x2)</span>
+<span class="cl">  z_comb <span class="o">&lt;-</span> w1 <span class="o">*</span> z1 <span class="o">+</span> w2 <span class="o">*</span> z2</span>
+<span class="cl"></span>
+<span class="cl">  <span class="nf">data.frame</span>(zone <span class="o">=</span> z_zone, n_total <span class="o">=</span> n1 <span class="o">+</span> n2,</span>
+<span class="cl">             reject <span class="o">=</span> z_comb <span class="o">&gt;</span> z_a, stopped <span class="o">=</span> <span class="kc">FALSE</span>)</span>
+<span class="cl">}</span>
+<span class="cl"></span>
+<span class="cl"><span class="nf">set.seed</span>(<span class="m">2026</span>)</span>
+<span class="cl">results <span class="o">&lt;-</span> <span class="nf">do.call</span>(rbind, <span class="nf">replicate</span>(<span class="m">3000</span>, <span class="nf">run_trial</span>(), simplify <span class="o">=</span> <span class="kc">FALSE</span>))</span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># Empirical power</span></span>
+<span class="cl"><span class="nf">mean</span>(results<span class="o">$</span>reject)</span>
+<span class="cl"><span class="c1">#&gt; [1] 0.795</span></span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># Average total sample size</span></span>
+<span class="cl"><span class="nf">mean</span>(results<span class="o">$</span>n_total)</span>
+<span class="cl"><span class="c1">#&gt; [1] 213.5</span></span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># Zone frequencies</span></span>
+<span class="cl"><span class="nf">prop.table</span>(<span class="nf">table</span>(results<span class="o">$</span>zone))</span>
+<span class="cl"><span class="c1">#&gt;    Futility Unpromising   Promising   Favorable</span></span>
+<span class="cl"><span class="c1">#&gt;      0.188       0.251       0.289       0.272</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Under a true effect of $\delta = 0.22$, the adaptive design hits roughly 80% empirical power at an <em>average</em> total $n$ near 214 per arm, despite a planned total of 200. About 19% of simulated trials stop early for futility, saving patients in scenarios where the treatment does not work, and 29% land in the promising zone and trigger re-estimation. The other 52% run as originally designed. That is the SSR value proposition in one table.</p>
 
 <h2>Summary</h2>
+
+<p>The workflow reduces to four moves: compute CP at the interim, decide the zone, re-estimate $n$ inside the promising zone only, and always close with an inverse-normal combination test.</p>
+
+<p><img src="screenshots/Conditional-Power-and-Sample-Size-Re-Estimation-in-R-concept-mindmap.webp" alt="Core ideas of conditional power and sample size re-estimation as a mindmap." class="img-responsive img-zoomable" loading="lazy" width="1628" height="946" /></p>
+
+<p><em>Figure 3: Core ideas of conditional power and sample size re-estimation.</em></p>
 
 <table class="table table-striped">
 <thead>
 <tr>
 <th>Concept</th>
-<th>R function</th>
-<th>When to use</th>
+<th>Formula or R expression</th>
+<th>Purpose</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>Fixed-sample anchor</td>
-<td><code>pwr::pwr.t.test()</code></td>
-<td>Plan Stage 0: how big would we go without adaptation?</td>
+<td>Observed CP</td>
+<td><code>1 - pnorm((z_a - z1/sqrt(t)) / sqrt(1-t))</code></td>
+<td>Predict end-of-trial success under current trend</td>
 </tr>
 <tr>
-<td>Group sequential design</td>
-<td><code>gsDesign::gsDesign()</code></td>
-<td>Wrap the fixed-sample N into a 2-stage alpha-spending design</td>
+<td>Promising zone</td>
+<td><code>CP in [0.30, 0.80]</code></td>
+<td>Where SSR is worth doing</td>
 </tr>
 <tr>
-<td>Conditional power</td>
-<td><code>gsDesign::condPower()</code></td>
-<td>Compute CP at the interim given Z<sub>1</sub> and an assumed θ</td>
+<td>Re-estimated $n$</td>
+<td><code>uniroot()</code> solving CP = target</td>
+<td>New total sample size</td>
 </tr>
 <tr>
-<td>CP decision zones</td>
-<td><code>cut()</code> + <code>cp_manual()</code></td>
-<td>Classify Z<sub>1</sub> into futility, promising, or favorable</td>
+<td>Inverse-normal test</td>
+<td><code>w1*z1 + w2*z2</code> with pre-fixed weights</td>
+<td>Preserves Type I error</td>
 </tr>
 <tr>
-<td>Sample size re-estimation</td>
-<td><code>gsDesign::ssrCP()</code></td>
-<td>Adapt stage-2 N in the promising zone</td>
-</tr>
-<tr>
-<td>Combination tests</td>
-<td><code>z2NC</code> / <code>z2Z</code> / <code>z2Fisher</code></td>
-<td>Lock in the weighting scheme that preserves α under adaptation</td>
-</tr>
-<tr>
-<td>Unconditional power</td>
-<td><code>gsDesign::Power.ssrCP()</code></td>
-<td>Evaluate the adapted design across a grid of true effects</td>
+<td>Production tools</td>
+<td><code>gsDesign::ssrCP()</code>, <code>rpact::getSimulationMeans()</code></td>
+<td>Vetted implementations</td>
 </tr>
 </tbody>
 </table>
 
-<p>Pre-specify the rule (promising-zone bounds, <code>maxinc</code>, combination test) in the protocol before any interim look. Inside that pre-specified envelope, SSR converts promising-but-underpowered interims into finished trials without paying for adaptation with inflated Type I error.</p>
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Conditional power is a planning tool, not a stopping rule.</strong> Use it to decide whether more information is worth buying. Use a pre-specified combination test, futility boundary, or group-sequential framework to decide whether to reject.</div></div>
 
 <h2>References</h2>
 
 <ol>
 
-<li>Kunzmann, K. et al. <em>Conditional power and friends: The why and how of (un)planned, unblinded sample size recalculations in confirmatory trials.</em> Statistics in Medicine 41(5): 877-917 (2022). <a href="https://onlinelibrary.wiley.com/doi/full/10.1002/sim.9288">Link</a></li>
+<li>Jennison, C. and Turnbull, B. W. <em>Group Sequential Methods with Applications to Clinical Trials.</em> Chapman & Hall/CRC (2000). The textbook reference for the math behind interim analyses.</li>
 
-<li>Chen, Y.H.J., DeMets, D.L., Lan, K.K.G. <em>Increasing the sample size when the unblinded interim result is promising.</em> Statistics in Medicine 23(7): 1023-1038 (2004).</li>
+<li>Proschan, M. A. and Hunsberger, S. A. Designed extension of studies based on conditional power. <em>Biometrics</em>, 51(4): 1315-1324 (1995).</li>
 
-<li>Mehta, C.R., Pocock, S.J. <em>Adaptive increase in sample size when interim results are promising.</em> Statistics in Medicine 30(28): 3267-3284 (2011).</li>
+<li>Cui, L., Hung, H. M. J. and Wang, S. J. Modification of sample size in group sequential clinical trials. <em>Biometrics</em>, 55(3): 853-857 (1999).</li>
 
-<li>Bauer, P., Köhne, K. <em>Evaluation of experiments with adaptive interim analyses.</em> Biometrics 50: 1029-1041 (1994).</li>
+<li>Mehta, C. R. and Pocock, S. J. Adaptive increase in sample size when interim results are promising: a practical guide with examples. <em>Statistics in Medicine</em>, 30(28): 3267-3284 (2011). The "promising zone" paper.</li>
 
-<li>Proschan, M.A., Hunsberger, S.A. <em>Designed extension of studies based on conditional power.</em> Biometrics 51(4): 1315-1324 (1995).</li>
+<li>Chen, Y. H. J., DeMets, D. L. and Lan, K. K. G. Increasing the sample size when the unblinded interim result is promising. <em>Statistics in Medicine</em>, 23(7): 1023-1038 (2004).</li>
 
-<li>Anderson, K. <em>gsDesign: Group Sequential Design</em> (R package). <a href="https://cran.r-project.org/package=gsDesign">CRAN</a> · <a href="https://keaven.github.io/gsDesign/">Reference site</a></li>
+<li>Lehmacher, W. and Wassmer, G. Adaptive sample size calculations in group sequential trials. <em>Biometrics</em>, 55(4): 1286-1290 (1999).</li>
 
-<li>Wassmer, G., Pahlke, F. <em>rpact: Confirmatory Adaptive Clinical Trial Design and Analysis</em> (R package). <a href="https://www.rpact.org/">rpact.org</a></li>
+<li>Posch, M., Bauer, P., Brannath, W. and Koenig, F. Conditional power and friends: the why and how of (un)planned, unblinded sample size recalculations in confirmatory trials. <em>Statistics in Medicine</em> (2022). <a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC9303654/">PMC link</a></li>
+
+<li>gsDesign reference - <code>ssrCP()</code> function. <a href="https://keaven.github.io/gsDesign/reference/ssrCP.html">keaven.github.io/gsDesign</a></li>
+
+<li>rpact vignette - sample size reassessment with binary endpoints. <a href="https://www.rpact.org/vignettes/planning/rpact_sample_size_reassessment_examples/">rpact.org</a></li>
 
 </ol>
 
 <h2>Continue Learning</h2>
 
-<ul>
+<ol>
 
-<li><a href="Statistical-Power-Analysis-in-R.html">Power Analysis in R: Calculate the Sample Size You Need Before You Collect Any Data</a> - the fixed-sample foundation that every SSR design starts from.</li>
+<li><a href="Statistical-Power-Analysis-in-R.html">Statistical Power Analysis in R</a>, the parent post covering power, <a class="auto-link" href="Effect-Size-in-R.html" title="Effect Size in R: The Number p-Values Never Tell You (Cohen's d, η², and r)">effect size</a>, and sample size planning for fixed designs.</li>
 
-<li><a href="Sample-Size-Planning-in-R.html">Sample Size Planning in R</a> - broader sample-size calculations across study types.</li>
+<li><a href="Hypothesis-Testing-in-R.html">Hypothesis Testing in R</a>, foundations of Type I / Type II errors and test statistics that underpin all adaptive methods.</li>
 
-<li><a href="Hypothesis-Testing-in-R.html">Hypothesis Testing in R</a> - refresher on α, β, and Type I / Type II errors underpinning CP.</li>
+<li><a href="Sample-Size-Planning-in-R.html">Sample Size Planning in R</a>, starting point for any trial design, fixed or adaptive.</li>
 
-</ul>
-<section class="related-tutorials" aria-label="Related tutorials"><h2 class="rt-heading">Related Tutorials</h2><div class="rt-grid"><a class="rt-card" href="Equivalence-Testing-in-R.html"><span class="rt-title">Equivalence Testing in R: TOST for Non-Inferiority &amp; Bioequivalence</span><span class="rt-meta">10 min read</span></a><a class="rt-card" href="Statistical-Power-Analysis-in-R.html"><span class="rt-title">Power Analysis in R: Calculate the Sample Size You Need Before You Collect Any Data</span><span class="rt-meta">Statistics &middot; 12 min read</span></a><a class="rt-card" href="Reporting-Statistics-in-R.html"><span class="rt-title">Report Statistics in R: The Numbers to Include and the Words to Use</span><span class="rt-meta">Statistics &middot; 10 min read</span></a><a class="rt-card" href="Type-I-and-Type-II-Errors-in-R.html"><span class="rt-title">Type I and Type II Errors in R: Visualise the Trade-Off Between α and Power</span><span class="rt-meta">Statistics &middot; 10 min read</span></a></div></section>
+</ol>
+<section class="related-tutorials" aria-label="Related tutorials"><h2 class="rt-heading">Related Tutorials</h2><div class="rt-grid"><a class="rt-card" href="Method-of-Moments-in-R.html"><span class="rt-title">Method of Moments in R: Fit Distributions Without Calculus</span><span class="rt-meta">8 min read</span></a><a class="rt-card" href="Cramer-Rao-Lower-Bound-in-R.html"><span class="rt-title">Cramér-Rao Lower Bound in R: Efficiency &amp; Information Inequality</span><span class="rt-meta">10 min read</span></a><a class="rt-card" href="Equivalence-Testing-in-R.html"><span class="rt-title">Equivalence Testing in R: TOST for Non-Inferiority &amp; Bioequivalence</span><span class="rt-meta">10 min read</span></a><a class="rt-card" href="Maximum-Likelihood-Estimation-in-R.html"><span class="rt-title">Maximum Likelihood Estimation in R: Build Genuine Intuition, Then Fit Real Models</span><span class="rt-meta">Statistics &middot; 8 min read</span></a></div></section>
 
         </main>
 

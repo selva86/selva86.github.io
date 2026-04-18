@@ -683,4 +683,4 @@ The workflow reduces to four moves: compute CP at the interim, decide the zone, 
 
 1. [Statistical Power Analysis in R](Statistical-Power-Analysis-in-R.html), the parent post covering power, effect size, and sample size planning for fixed designs.
 2. [Hypothesis Testing in R](Hypothesis-Testing-in-R.html), foundations of Type I / Type II errors and test statistics that underpin all adaptive methods.
-3. [Sample Size Calculation in R](Sample-Size-Calculation-in-R.html), starting point for any trial design, fixed or adaptive.
+3. [Sample Size Planning in R](Sample-Size-Planning-in-R.html), starting point for any trial design, fixed or adaptive.
