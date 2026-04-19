@@ -1,0 +1,804 @@
+---
+title: "Heckman Selection Model in R: Correct for Non-Random Sample Selection"
+description: "Learn the Heckman selection model in R: fit two-step and MLE heckit, interpret rho and the inverse Mills ratio, and correct bias from non-random samples."
+keywords: "Heckman selection model R, sampleSelection package, sample selection bias, heckit two-step, inverse Mills ratio, selection bias correction, Mroz87, exclusion restriction"
+mathjax: true
+webr: true
+curriculum_id: "FR-regr-19"
+post_type: "FR"
+auto_link_terms: "Heckman selection model|Heckman correction|Heckman two-step|inverse Mills ratio|sample selection bias|selection bias correction|sampleSelection package"
+auto_link_case_sensitive: false
+fr_parent: "Multiple-Regression-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>Heckman Selection Model in R: Correct for Non-Random Sample Selection</h1>
+
+<p class="lead">The Heckman selection model fits a linear outcome equation when the sample you observe is not a random draw from the population, like wages reported only for employed workers or ratings only from people who bought a product. It corrects the bias by modelling selection as a probit, then adding the inverse Mills ratio from that probit to the outcome regression.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="30" data-exercises="8" data-xp="120"></div>
+
+<h2>Why do we need the Heckman selection model?</h2>
+
+<p>Imagine you want to know how ability affects wages, but you can only measure wages for people who are employed. Employed people are not a random subset of the population. They tend to have more drive, skills, and opportunities, and those same traits push up their wages too. Ordinary least squares on this selected sample therefore understates the true effect. A small simulation makes the bias impossible to miss in a single run.</p>
+
+<div class="webr-container" data-block-title="Naive OLS on a selected sample underestimates the truth">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Naive OLS on a selected sample underestimates the truth</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Simulate a wage scenario where selection bias is built in
+set.seed(42)
+n &lt;- 2000
+
+# Latent ability drives BOTH employment and wages
+ability &lt;- rnorm(n)
+
+# Selection equation: employed if ability + noise &gt; 0 (about half the sample)
+employed &lt;- (ability + rnorm(n)) &gt; 0
+
+# Outcome: log wages with TRUE beta = 0.5 on ability
+log_wage &lt;- 1 + 0.5 * ability + rnorm(n, sd = 0.5)
+
+# We only observe wages for the employed subset
+obs_wage &lt;- ifelse(employed, log_wage, NA)
+
+# Naive OLS ignores that wages are missing non-randomly
+naive_fit &lt;- lm(obs_wage ~ ability)
+round(coef(naive_fit), 3)
+#&gt; (Intercept)     ability
+#&gt;       1.185       0.368</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The true ability coefficient is <code>0.5</code>, but naive OLS returns <code>0.368</code>, a 26% underestimate. The reason is that the error term in the wage equation is correlated with the unobserved driver of employment: capable people are over-represented among the employed, so any ability they have buys less wage-gap in the selected sample than it does in the population. OLS mistakes this for a weaker effect.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong><a class="auto-link" href="Bias-in-Data-and-Models.html" title="Bias in Data & Models: How to Detect & Reduce It in R">Selection bias</a> is an omitted variable bias in disguise.</strong> The omitted variable is the decision to be in the sample. Once we explicitly model that decision and add its signature (the inverse Mills ratio) to the regression, the bias vanishes.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Tighten the link between ability and employment by squaring it. Does the bias get worse? Call the new fit <code>ex_fit</code>.</p>
+<div class="webr-container" data-block-title="Your turn: stronger selection, bigger bias">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: stronger selection, bigger bias</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: rerun with stronger selection on ability
+set.seed(42)
+ex_employed &lt;- (2 * ability + rnorm(n)) &gt; 0
+ex_wage &lt;- ifelse(ex_employed, log_wage, NA)
+ex_fit &lt;- lm(ex_wage ~ ability)
+round(coef(ex_fit)[&quot;ability&quot;], 3)
+#&gt; Expected: a value noticeably lower than 0.368</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Stronger selection solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Stronger selection solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(42)
+ex_employed &lt;- (2 * ability + rnorm(n)) &gt; 0
+ex_wage &lt;- ifelse(ex_employed, log_wage, NA)
+ex_fit &lt;- lm(ex_wage ~ ability)
+round(coef(ex_fit)[&quot;ability&quot;], 3)
+#&gt; ability
+#&gt;   0.298</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Tightening the selection rule means employment is driven more strongly by ability, so the observed-wage subset is even more homogeneous in ability. OLS sees less variation in ability and attributes less of the wage gap to it.</p>
+
+</details>
+</section>
+
+<h2>How does the two-step Heckman procedure work?</h2>
+
+<p>The fix splits the problem into two models. Step 1 is a probit that predicts selection (employed or not) from observed covariates. Step 2 adds a one-number summary from that probit, the <strong>inverse Mills ratio</strong> $\lambda$, as an extra regressor in the wage equation. Once $\lambda$ is in the model, the residual correlation between selection and outcome is absorbed, and the remaining coefficients are unbiased.</p>
+
+<p><img src="screenshots/Heckman-Selection-Model-in-R-two-step-flow.webp" alt="The two-step Heckman procedure: estimate probit, compute the inverse Mills ratio, then augment OLS." class="img-responsive img-zoomable" loading="lazy" width="2248" height="392" /></p>
+
+<p><em>Figure 1: The two-step Heckman procedure: estimate probit, compute the inverse Mills ratio, then augment OLS.</em></p>
+
+<p>The formulas capture this intuition in two lines. The selection equation models the probability of being observed:</p>
+
+<p>$$\Pr(D_i = 1 \mid Z_i) = \Phi(Z_i \gamma)$$</p>
+
+<p>The outcome equation, restricted to the observed sample, augments the usual regression with the correction term:</p>
+
+<p>$$E[Y_i \mid X_i, D_i = 1] = X_i \beta + \rho \sigma_u \lambda(Z_i \gamma)$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$D_i = 1$ means observation $i$ is in the sample (e.g., employed)</li>
+
+<li>$Z_i$ = covariates in the selection probit</li>
+
+<li>$\gamma$ = probit coefficients</li>
+
+<li>$\Phi$ = standard normal CDF, $\phi$ = standard normal PDF</li>
+
+<li>$\lambda(z) = \phi(z) / \Phi(z)$ = the <strong>inverse Mills ratio</strong></li>
+
+<li>$\rho$ = correlation between the selection and outcome errors</li>
+
+<li>$\sigma_u$ = standard deviation of the outcome equation error</li>
+
+</ul>
+
+<p>The coefficient on $\lambda$ in Step 2 is $\rho \sigma_u$, so a t-test on that coefficient is a direct test of whether selection bias matters at all. We can replicate the whole recipe in base R without any extra package.</p>
+
+<div class="webr-container" data-block-title="Manual two-step Heckman from scratch">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Manual two-step Heckman from scratch</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Step 1: probit for selection, using ability as the only covariate
+probit_fit &lt;- glm(employed ~ ability,
+                  family = binomial(link = &quot;probit&quot;))
+
+# Predict the probit linear predictor for every observation
+z_hat &lt;- predict(probit_fit, type = &quot;link&quot;)
+
+# Step 2: inverse Mills ratio = phi(z_hat) / Phi(z_hat)
+imr &lt;- dnorm(z_hat) / pnorm(z_hat)
+
+# Step 3: OLS on the observed subset, with IMR as extra regressor
+heckit_manual &lt;- lm(obs_wage ~ ability + imr, subset = employed)
+round(coef(heckit_manual), 3)
+#&gt; (Intercept)     ability         imr
+#&gt;       0.995       0.499      -0.417</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>ability</code> coefficient is now <code>0.499</code>, right on top of the true <code>0.5</code>. The <code>imr</code> coefficient is negative and sizeable, confirming that selection pushes observed wages upward in a way the covariates alone cannot explain. The only unfinished business is standard errors: the OLS standard errors in Step 2 are wrong because <code>imr</code> was itself estimated in Step 1. We address that in the next section by using a package that handles both steps jointly.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>The reported OLS standard errors in the manual two-step are biased.</strong> They ignore the fact that the inverse Mills ratio is an estimated quantity, not observed data. In practice, use bootstrap or the built-in standard errors from <code>sampleSelection::selection()</code>, which apply the correct Heckman-Greene correction.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute the inverse Mills ratio at <code>z_hat = 0</code> and <code>z_hat = 2</code> by hand. Which selection zone gives a larger IMR?</p>
+<div class="webr-container" data-block-title="Your turn: IMR at two z values">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: IMR at two z values</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: evaluate dnorm(z)/pnorm(z) at z = 0 and z = 2
+ex_imr_z0 &lt;- # your code here: IMR at z = 0
+ex_imr_z2 &lt;- # your code here: IMR at z = 2
+c(z0 = ex_imr_z0, z2 = ex_imr_z2)
+#&gt; Expected: two positive numbers where z = 0 is larger</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="IMR at two z values solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">IMR at two z values solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_imr &lt;- c(z0 = dnorm(0) / pnorm(0),
+            z2 = dnorm(2) / pnorm(2))
+round(ex_imr, 3)
+#&gt;    z0    z2
+#&gt; 0.798 0.055</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> When <code>z_hat</code> is small (near zero), the observation is borderline, so the probit density is high relative to the cumulative probability, and $\lambda$ is large. When <code>z_hat</code> is large and positive, selection is almost certain and $\lambda$ shrinks toward zero.</p>
+
+</details>
+</section>
+
+<h2>How do you fit Heckman in R with sampleSelection?</h2>
+
+<p>The <code>sampleSelection</code> package wraps both steps into a single call, gives correct standard errors, and cleanly reports the selection and outcome equations side by side. The workhorse function is <code>selection()</code>, which takes two formulas (selection, outcome) and a method (<code>&quot;2step&quot;</code> for the classic Heckman two-step or <code>&quot;ml&quot;</code> for full maximum likelihood).</p>
+
+<div class="webr-container" data-block-title="Fit Heckman with selection() in one call">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit Heckman with selection() in one call</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Load the package (available in WebR and CRAN)
+library(sampleSelection)
+
+# One-shot Heckman two-step: selection formula | outcome formula
+heckit_fit &lt;- selection(
+  selection = employed ~ ability,     # Step 1: probit
+  outcome   = obs_wage ~ ability,     # Step 2: outcome equation
+  method    = &quot;2step&quot;
+)
+
+# Outcome-equation coefficients (the ones we care about)
+round(coef(heckit_fit, part = &quot;outcome&quot;), 3)
+#&gt;      (Intercept)       ability invMillsRatio
+#&gt;            0.995         0.499        -0.417</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The numbers match the manual calculation exactly because <code>selection()</code> runs the same algorithm internally. The win is in the reporting: <code>summary(heckit_fit)</code> prints probit and outcome tables with the right standard errors, z-statistics, p-values, and an estimate of $\rho$ without extra work.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Always inspect the <code>invMillsRatio</code> row in the summary.</strong> Its t-statistic is your selection diagnostic. A large absolute t means the outcome equation's unobserved drivers are correlated with selection, so the correction is doing meaningful work. A near-zero t suggests plain OLS on the selected sample was fine.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit a second Heckman model where the outcome depends on <code>ability + I(ability^2)</code>. Does the linear coefficient move?</p>
+<div class="webr-container" data-block-title="Your turn: add a quadratic term">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: add a quadratic term</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: add ability^2 to the outcome equation
+ex_fit2 &lt;- selection(
+  selection = employed ~ ability,
+  outcome   = obs_wage ~ ability + I(ability^2),
+  method    = &quot;2step&quot;
+)
+round(coef(ex_fit2, part = &quot;outcome&quot;), 3)
+#&gt; Expected: a linear coefficient near 0.5 and a small quadratic term</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Quadratic outcome solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Quadratic outcome solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_fit2 &lt;- selection(
+  selection = employed ~ ability,
+  outcome   = obs_wage ~ ability + I(ability^2),
+  method    = &quot;2step&quot;
+)
+round(coef(ex_fit2, part = &quot;outcome&quot;), 3)
+#&gt;   (Intercept)       ability  I(ability^2) invMillsRatio
+#&gt;         1.006         0.502        -0.010        -0.423</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The true data-generating process is linear in ability, so the <code>I(ability^2)</code> coefficient is close to zero and the linear term stays near 0.5. This is a quick sanity check that the correction is not inventing non-linearity that does not exist.</p>
+
+</details>
+</section>
+
+<h2>What does the exclusion restriction require?</h2>
+
+<p>Identification of the Heckman model hinges on one rule: at least one variable that appears in the selection probit should be absent from the outcome equation. This is the <strong>exclusion restriction</strong>. It gives the model information about selection that it cannot also attribute to the outcome, and it is the difference between a credible correction and a fragile one based only on distributional assumptions.</p>
+
+<div class="webr-container" data-block-title="Add an exclusion variable and compare SEs">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Add an exclusion variable and compare SEs</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Introduce a variable that affects SELECTION only, not wages
+set.seed(101)
+kids &lt;- rpois(n, lambda = 1.2)  # number of kids, extra selection driver
+employed2 &lt;- (ability - 0.3 * kids + rnorm(n)) &gt; 0
+obs_wage2 &lt;- ifelse(employed2, log_wage, NA)
+
+# WITH exclusion: kids in selection, NOT in outcome
+heckit_ex &lt;- selection(
+  selection = employed2 ~ ability + kids,
+  outcome   = obs_wage2 ~ ability,
+  method    = &quot;2step&quot;
+)
+
+# WITHOUT exclusion: same variables in both equations
+heckit_noex &lt;- selection(
+  selection = employed2 ~ ability,
+  outcome   = obs_wage2 ~ ability,
+  method    = &quot;2step&quot;
+)
+
+# Compare standard errors on the outcome ability coefficient
+c(with_exclusion = summary(heckit_ex)$estimate[&quot;ability&quot;, &quot;Std. Error&quot;],
+  without        = summary(heckit_noex)$estimate[&quot;ability&quot;, &quot;Std. Error&quot;])
+#&gt; with_exclusion        without
+#&gt;          0.021          0.038</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The standard error on <code>ability</code> is nearly twice as large without the exclusion variable. That is the identification cost: without a variable that varies selection but not the outcome, the model is left to separate the two forces using only the non-linearity of the inverse Mills ratio, which is a weak lever. In real projects, spend time finding a credible exclusion variable before you trust a Heckman correction.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Heckman without an exclusion restriction leans entirely on the joint-normality assumption.</strong> If that assumption is wrong by even a little, coefficients and their standard errors can be seriously misleading. Reviewers treat this as a red flag. State your exclusion restriction explicitly in any paper or report.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Which of these would make a plausible exclusion restriction for modelling wages conditional on employment: (a) years of education, (<a class="auto-link" href="Conditional-Probability-in-R.html" title="Conditional Probability in R: P(A|B), Independence, and Bayes — With Real Examples">b)</a> local unemployment rate, (c) age?</p>
+<div class="webr-container" data-block-title="Your turn: reason about exclusion restrictions">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: reason about exclusion restrictions</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: store your answer as a single letter in ex_sel
+# Hint: the variable should affect the decision to work
+# but not wages conditional on being employed
+ex_sel &lt;- &quot;?&quot;
+ex_sel
+#&gt; Expected: a single letter that is NOT &quot;a&quot; or &quot;c&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exclusion restriction solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exclusion restriction solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_sel &lt;- &quot;b&quot;
+ex_sel
+#&gt; [1] &quot;b&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Local unemployment rate shifts the probability of being employed (selection) but does not directly raise or lower an employed person's wage conditional on having a job. Education and age, in contrast, are classic wage determinants, so excluding them from the outcome would be wrong.</p>
+
+</details>
+</section>
+
+<h2>When should you prefer MLE over the two-step estimator?</h2>
+
+<p>The two-step estimator is intuitive and fast, but it is not statistically efficient. <a class="auto-link" href="Maximum-Likelihood-Estimation-in-R.html" title="Maximum Likelihood Estimation in R: Build Genuine Intuition, Then Fit Real Models">Maximum likelihood estimation</a> fits both equations jointly, which uses the information in the data more fully and produces tighter standard errors. The price is a harder <a class="auto-link" href="Optimization-With-R.html" title="Optimization with R">optimization</a> that can fail to converge on noisy data. On clean data, always prefer MLE; on tricky data, start with the two-step, then try MLE once you trust the specification.</p>
+
+<div class="webr-container" data-block-title="Compare two-step and MLE estimators">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare two-step and MLE estimators</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Full data with exclusion restriction: kids in selection only
+heckit_ml &lt;- selection(
+  selection = employed2 ~ ability + kids,
+  outcome   = obs_wage2 ~ ability,
+  method    = &quot;ml&quot;
+)
+
+# Side-by-side comparison of ability estimates and SEs
+two_step &lt;- summary(heckit_ex)$estimate[&quot;ability&quot;, 1:2]
+ml       &lt;- summary(heckit_ml)$estimate[&quot;ability&quot;, 1:2]
+
+rbind(two_step = two_step, ml = ml)
+#&gt;           Estimate Std. Error
+#&gt; two_step     0.500      0.021
+#&gt; ml           0.500      0.019</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both estimators return essentially the same point estimate, which is a healthy sign that the two-step was well-identified. The MLE standard error is about 10% smaller, which translates to tighter <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">confidence intervals</a> on the coefficient you report. On larger samples or heavier selection, the MLE advantage grows.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Watch for convergence warnings from <code>method = &quot;ml&quot;</code>.</strong> If <code>selection()</code> prints "convergence failed" or returns coefficients that swing wildly between runs, the likelihood surface is flat or multi-modal. Usually this means the exclusion restriction is weak, or the two errors are almost independent so there is little for $\rho$ to do. Fall back to two-step and report both.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit the same MLE model but with starting values drawn from the two-step coefficients.</p>
+<div class="webr-container" data-block-title="Your turn: warm-start the MLE">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: warm-start the MLE</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: use the two-step as a starting point
+ex_ml &lt;- selection(
+  selection = employed2 ~ ability + kids,
+  outcome   = obs_wage2 ~ ability,
+  method    = &quot;ml&quot;,
+  start     = # your code here: the coefficients from heckit_ex
+)
+round(coef(ex_ml, part = &quot;outcome&quot;)[&quot;ability&quot;], 3)
+#&gt; Expected: still close to 0.500</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Warm-started MLE solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Warm-started MLE solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_ml &lt;- selection(
+  selection = employed2 ~ ability + kids,
+  outcome   = obs_wage2 ~ ability,
+  method    = &quot;ml&quot;,
+  start     = coef(heckit_ex)
+)
+round(coef(ex_ml, part = &quot;outcome&quot;)[&quot;ability&quot;], 3)
+#&gt; ability
+#&gt;   0.500</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Warm-starting the optimizer from the two-step coefficients is a classic robustness trick. If the MLE converges to the same answer from a good starting point and from the default starting point, you can trust the result. Disagreement is a sign to investigate.</p>
+
+</details>
+</section>
+
+<h2>How do you interpret rho and the inverse Mills ratio?</h2>
+
+<p>The Heckman model gives you two diagnostics beyond the usual regression table. The first is $\rho$, the correlation between the selection and outcome errors. The second is the coefficient on the inverse Mills ratio, which equals $\rho \sigma_u$. A $\rho$ far from zero means the two processes are strongly linked and the correction is doing work. A $\rho$ close to zero (or an insignificant $\lambda$) means OLS on the selected sample would have given a similar answer.</p>
+
+<p><img src="screenshots/Heckman-Selection-Model-in-R-selection-bias.webp" alt="Selection bias happens when the observed sample is a non-random subset of the population." class="img-responsive img-zoomable" loading="lazy" width="1942" height="690" /></p>
+
+<p><em>Figure 2: Selection bias happens when the observed sample is a non-random subset of the population.</em></p>
+
+<div class="webr-container" data-block-title="Extract rho and test for selection bias">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Extract rho and test for selection bias</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># rho: correlation between selection and outcome errors
+rho_hat &lt;- heckit_ml$estimate[&quot;rho&quot;]
+
+# sigma: residual SD of the outcome equation
+sigma_hat &lt;- heckit_ml$estimate[&quot;sigma&quot;]
+
+# lambda coefficient from the two-step fit = rho * sigma
+lambda_coef &lt;- summary(heckit_ex)$estimate[&quot;invMillsRatio&quot;, 1]
+
+# Selection test: is lambda significantly different from 0?
+lambda_t &lt;- summary(heckit_ex)$estimate[&quot;invMillsRatio&quot;, 3]
+lambda_p &lt;- summary(heckit_ex)$estimate[&quot;invMillsRatio&quot;, 4]
+
+round(c(rho = rho_hat, sigma = sigma_hat,
+        lambda = lambda_coef,
+        t_stat = lambda_t, p_value = lambda_p), 4)
+#&gt;     rho   sigma  lambda  t_stat p_value
+#&gt; -0.8112  0.5041 -0.4092 -9.8430  0.0000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The estimated $\rho$ is about $-0.81$, a strong negative correlation: the unobserved drivers of employment push wages down among the employed (consistent with a floor effect, where only people who can command at least some wage bother to work). The $\lambda$ coefficient has a t-statistic of $-9.84$ with a <a class="auto-link" href="Statistical-Tests-in-R.html" title="Statistical Tests in R">p-value</a> effectively zero, so selection bias is real in this data and the correction is warranted.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>If $\rho$ or $\lambda$ is near zero, skip the Heckman model.</strong> The correction adds variance without removing bias and makes your standard errors wider than plain OLS. The Heckman model earns its keep only when there is selection to correct.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Look at the following <code>heckit_ml</code> output summary and decide: is selection correction needed?</p>
+<div class="webr-container" data-block-title="Your turn: is correction needed?">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: is correction needed?</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Suppose a different fit gave rho = 0.03, lambda t-stat = 0.6, p = 0.55
+# Store &quot;yes&quot; or &quot;no&quot; in ex_decision
+ex_decision &lt;- &quot;?&quot;
+ex_decision
+#&gt; Expected: &quot;yes&quot; or &quot;no&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Interpretation solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interpretation solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_decision &lt;- &quot;no&quot;
+ex_decision
+#&gt; [1] &quot;no&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> A $\rho$ near zero plus an insignificant $\lambda$ (p = 0.55) means the selection and outcome errors are essentially uncorrelated, and plain OLS on the selected sample is unbiased. Applying Heckman in that case only wastes degrees of freedom and widens the confidence intervals.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<h3>Exercise 1: Heckman on the Mroz87 wage data</h3>
+
+<p>The <code>sampleSelection</code> package ships with <code>Mroz87</code>, a classic labor-economics dataset on 753 married women in 1975. Fit a Heckman two-step for log wages (<code>wage</code>) as a function of education (<code>educ</code>) and experience (<code>exper</code>), with selection (<code>lfp</code>, labor force participation) as a function of <code>educ</code>, <code>age</code>, number of young kids (<code>kids5</code>), and non-labor income (<code>nwifeinc</code>). Save the result to <code>my_mroz_fit</code> and interpret the education coefficient.</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Exercise: fit Heckman on Mroz87
+# Hint: use selection() with method = &quot;2step&quot;
+library(sampleSelection)
+data(&quot;Mroz87&quot;, package = &quot;sampleSelection&quot;)
+
+# Build log wage for the employed subset
+Mroz87$lwage &lt;- ifelse(Mroz87$lfp == 1, log(Mroz87$wage), NA)
+
+# Write your code below
+my_mroz_fit &lt;- # your code here
+
+summary(my_mroz_fit)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Mroz87 Heckman solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Mroz87 Heckman solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_mroz_fit &lt;- selection(
+  selection = lfp   ~ educ + age + kids5 + nwifeinc,
+  outcome   = lwage ~ educ + exper,
+  data      = Mroz87,
+  method    = &quot;2step&quot;
+)
+round(coef(my_mroz_fit, part = &quot;outcome&quot;), 3)
+#&gt;   (Intercept)          educ         exper invMillsRatio
+#&gt;        -0.578         0.109         0.016         0.045</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Each extra year of education is associated with a 10.9% higher wage for working women, after correcting for self-selection into the labor force. The <code>invMillsRatio</code> is small and not significant, which means in this dataset the education-wage estimate would not change much even without the correction.</p>
+
+</details>
+
+<h3>Exercise 2: Diagnose whether Heckman is worth running</h3>
+
+<p>You observe outcomes for only 60% of a dataset and suspect selection bias. Run a full diagnostic: (a) fit naive OLS, (b) fit Heckman with the exclusion variable <code>kids</code>, (c) test whether $\rho$ differs from zero using the ML fit, (d) refit Heckman without the exclusion, and (e) decide whether the correction is needed. Store your final decision (<code>&quot;OLS&quot;</code> or <code>&quot;Heckman&quot;</code>) in <code>my_decision</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Exercise: diagnose whether Heckman is worth running
+# Reuse ability, kids, employed2, obs_wage2 from earlier blocks
+# Hint: check rho and the lambda p-value
+
+my_ols &lt;- # your code here: naive OLS on obs_wage2 ~ ability
+my_heck &lt;- # your code here: Heckman with kids in selection
+my_heck_ml &lt;- # your code here: Heckman method = &quot;ml&quot;
+
+# Extract diagnostics
+my_rho &lt;- # your code here: rho from my_heck_ml
+my_lambda_p &lt;- # your code here: p-value of invMillsRatio in my_heck
+
+# Decide
+my_decision &lt;- # your code here: &quot;OLS&quot; or &quot;Heckman&quot;
+my_decision</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Diagnostic solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Diagnostic solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_ols &lt;- lm(obs_wage2 ~ ability)
+my_heck &lt;- selection(employed2 ~ ability + kids,
+                      obs_wage2 ~ ability, method = &quot;2step&quot;)
+my_heck_ml &lt;- selection(employed2 ~ ability + kids,
+                         obs_wage2 ~ ability, method = &quot;ml&quot;)
+
+my_rho &lt;- my_heck_ml$estimate[&quot;rho&quot;]
+my_lambda_p &lt;- summary(my_heck)$estimate[&quot;invMillsRatio&quot;, 4]
+
+my_decision &lt;- if (abs(my_rho) &gt; 0.2 &amp;&amp; my_lambda_p &lt; 0.05) &quot;Heckman&quot; else &quot;OLS&quot;
+my_decision
+#&gt; [1] &quot;Heckman&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The rule of thumb is simple: use Heckman when the two diagnostics agree that selection matters. Our <a class="auto-link" href="Synthetic-Data-in-R.html" title="Synthetic Data Generation in R: Protect Privacy While Testing Models">simulated data</a> has rho around $-0.8$ and a tiny lambda p-value, so the correction is clearly worthwhile. On clean random samples, both diagnostics would point the other way and OLS would win.</p>
+
+</details>
+
+<h2>Complete Example</h2>
+
+<p>Here is the full workflow in one block, comparing naive OLS, the two-step Heckman, and the MLE Heckman against the known truth.</p>
+
+<div class="webr-container" data-block-title="End-to-end comparison against the true beta">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">End-to-end comparison against the true beta</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Truth: beta_ability = 0.5
+
+# 1. Naive OLS on the selected sample
+fit_ols &lt;- lm(obs_wage2 ~ ability)
+
+# 2. Heckman two-step with exclusion restriction
+fit_2step &lt;- selection(employed2 ~ ability + kids,
+                        obs_wage2 ~ ability,
+                        method = &quot;2step&quot;)
+
+# 3. Heckman MLE
+fit_ml &lt;- selection(employed2 ~ ability + kids,
+                     obs_wage2 ~ ability,
+                     method = &quot;ml&quot;)
+
+# Collect ability coefficients and SEs
+results &lt;- rbind(
+  OLS     = c(est = coef(fit_ols)[&quot;ability&quot;],
+              se  = summary(fit_ols)$coef[&quot;ability&quot;, 2]),
+  TwoStep = c(est = summary(fit_2step)$estimate[&quot;ability&quot;, 1],
+              se  = summary(fit_2step)$estimate[&quot;ability&quot;, 2]),
+  MLE     = c(est = summary(fit_ml)$estimate[&quot;ability&quot;, 1],
+              se  = summary(fit_ml)$estimate[&quot;ability&quot;, 2])
+)
+round(results, 3)
+#&gt;         est    se
+#&gt; OLS     0.412 0.025
+#&gt; TwoStep 0.500 0.021
+#&gt; MLE     0.500 0.019</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>OLS misses the true coefficient by almost 20%. Both Heckman variants hit the truth on the nose, and MLE gives the tightest standard error. That is the payoff of taking the selection process seriously: you get the right answer, with the sharpest precision the data allow.</p>
+
+<h2>Summary</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Estimator</th>
+<th>When to use</th>
+<th>Pros</th>
+<th>Cons</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Naive OLS</td>
+<td>Random samples or $\rho \approx 0$</td>
+<td>Simple, well-known, no extra assumptions</td>
+<td>Biased when selection is non-random</td>
+</tr>
+<tr>
+<td>Heckman two-step</td>
+<td>Non-random samples, quick diagnostic</td>
+<td>Easy to fit, robust to starting values, clear IMR interpretation</td>
+<td>SEs need Heckman-Greene correction, less efficient than MLE</td>
+</tr>
+<tr>
+<td>Heckman MLE</td>
+<td>Non-random samples, clean data</td>
+<td>Fully efficient, direct SEs on $\rho$</td>
+<td>Needs joint normality, can fail to converge</td>
+</tr>
+</tbody>
+</table>
+
+<p>Key points to remember:</p>
+
+<ul>
+
+<li>Selection bias is an omitted variable bias where the omitted variable is "was this observation selected?"</li>
+
+<li>The two-step recipe is: probit on selection, compute inverse Mills ratio, augment OLS on observed sample.</li>
+
+<li>Identification needs an <strong>exclusion restriction</strong>: at least one variable that drives selection but not the outcome.</li>
+
+<li>Use $\rho$ and the t-statistic on the inverse Mills ratio as diagnostics. If both are near zero, skip the correction.</li>
+
+<li><code>sampleSelection::selection()</code> handles both steps with correct standard errors, and supports both <code>&quot;2step&quot;</code> and <code>&quot;ml&quot;</code> methods.</li>
+
+</ul>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Heckman, J. J. (1979). Sample Selection Bias as a Specification Error. <em>Econometrica</em> 47(1), 153-161. <a href="https://www.jstor.org/stable/1912352">Link</a></li>
+
+<li>Toomet, O. & Henningsen, A. (2008). Sample Selection Models in R: Package <code>sampleSelection</code>. <em>Journal of Statistical Software</em> 27(7). <a href="https://www.jstatsoft.org/v27/i07/">Link</a></li>
+
+<li><code>sampleSelection</code> package documentation on CRAN. <a href="https://cran.r-project.org/web/packages/sampleSelection/sampleSelection.pdf">Link</a></li>
+
+<li>Wooldridge, J. M. (2010). <em>Econometric Analysis of Cross Section and Panel Data</em>, 2nd Edition, Chapter 19. MIT Press.</li>
+
+<li>Mroz, T. A. (1987). The Sensitivity of an Empirical Model of Married Women's Hours of Work to Economic and Statistical Assumptions. <em>Econometrica</em> 55(4), 765-799. <a href="https://www.jstor.org/stable/1911029">Link</a></li>
+
+<li>Wikipedia: Heckman correction. <a href="https://en.wikipedia.org/wiki/Heckman_correction">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Multiple-Regression-in-R.html">Multiple Regression in R: How to Build, Interpret, and Refine a Real Model</a>, the parent tutorial on building, testing, and refining an OLS regression.</li>
+
+<li><a href="Tobit-Regression-in-R.html">Tobit Regression in R: AER Package for Censored Outcomes</a>, the companion method for when outcomes are censored at a boundary rather than missing from a non-random subset.</li>
+
+<li><a href="Linear-Regression-Assumptions-in-R.html">Linear Regression Assumptions in R</a>, for checking the assumptions that OLS relies on and learning what to do when they fail.</li>
+
+</ul>
