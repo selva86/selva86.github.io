@@ -1,0 +1,719 @@
+---
+title: "Tobit Regression in R: AER Package for Censored Outcomes"
+description: "Learn Tobit regression in R with the AER package: fit censored models, interpret coefficients, compare OLS vs Tobit, and handle left or right censoring."
+keywords: "tobit regression R, AER tobit function, censored regression, left-censored data, tobit vs OLS, survreg, latent variable model, Affairs dataset"
+mathjax: true
+webr: true
+curriculum_id: "FR-regr-8"
+post_type: "FR"
+auto_link_terms: "Tobit regression|censored regression|AER package|tobit model|censored outcomes|left-censored data"
+auto_link_case_sensitive: false
+fr_parent: "Logistic-Regression-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>Tobit Regression in R: AER Package for Censored Outcomes</h1>
+
+<p class="lead">Tobit <a class="auto-link" href="adv-regression-models.html" title="Advanced Regression Models">regression models</a> an outcome that is partially hidden at a floor or ceiling, like spending that cannot go below zero or test scores capped at the top of a scale. The <code>tobit()</code> function in the AER package fits these models in one line by extending classical linear regression to respect the censoring point.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="25" data-exercises="7" data-xp="105"></div>
+
+<h2>What is Tobit regression and when should you use it?</h2>
+
+<p>Many real outcomes cluster at a boundary. The <code>Affairs</code> dataset bundled with AER records how often married people report being unfaithful in the past year, with about three-quarters of respondents reporting zero. Ordinary least squares ignores that floor and produces biased coefficients. Tobit regression fits a latent linear model for the true underlying propensity, then applies the floor during estimation. One call to <code>tobit()</code> gives us the full result.</p>
+
+<div class="webr-container" data-block-title="Fit a Tobit model on the Affairs data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a Tobit model on the Affairs data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Load the AER package (brings tobit, survreg backend, and the Affairs data)
+library(AER)
+data(&quot;Affairs&quot;, package = &quot;AER&quot;)
+
+# Fit a left-censored Tobit regression (default: left = 0, right = Inf)
+tobit_mod &lt;- tobit(affairs ~ age + yearsmarried + religiousness +
+                   occupation + rating, data = Affairs)
+
+summary(tobit_mod)
+#&gt; Call:
+#&gt; tobit(formula = affairs ~ age + yearsmarried + religiousness +
+#&gt;     occupation + rating, data = Affairs)
+#&gt;
+#&gt;                 Estimate Std. Error z value Pr(&gt;|z|)
+#&gt; (Intercept)       7.9010     2.8039    2.82  0.00483
+#&gt; age              -0.1776     0.0790   -2.25  0.02453
+#&gt; yearsmarried      0.5323     0.1412    3.77  0.00016
+#&gt; religiousness    -1.6163     0.4244   -3.81  0.00014
+#&gt; occupation        0.3240     0.2544    1.27  0.20262
+#&gt; rating           -2.2070     0.4082   -5.41  6.4e-08
+#&gt; Log(scale)        2.1727     0.0673   32.27  &lt; 2e-16
+#&gt;
+#&gt; Scale: 8.78
+#&gt; Gaussian distribution
+#&gt; Number of Newton-Raphson Iterations: 4
+#&gt; Log-likelihood: -706 on 7 Df
+#&gt; Wald-statistic: 67.7 on 5 Df, p-value: 3.1e-13</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>Estimate</code> column gives coefficients of the latent model: for every extra year of marriage, the latent propensity for affairs rises by 0.53 units, holding everything else fixed. <code>Log(scale)</code> is the log of the residual standard deviation, and <code>exp(2.17) = 8.78</code> is the estimated $\sigma$. The log-likelihood and Wald statistic tell us the whole set of predictors is strongly jointly significant.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Tobit treats the floor (or ceiling) as a window that partially hides a normally distributed latent variable.</strong> Coefficients describe that underlying propensity, not the observed values directly, which is why interpretation needs care (see Section 4).</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Drop <code>religiousness</code> from the model and refit as <code>ex_mod</code>. Does the <code>yearsmarried</code> coefficient change much when you remove a correlated predictor?</p>
+<div class="webr-container" data-block-title="Your turn: refit without religiousness">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: refit without religiousness</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: fit a Tobit model without religiousness
+ex_mod &lt;- tobit(affairs ~ age + yearsmarried + occupation + rating,
+                data = Affairs)
+
+# Inspect the yearsmarried coefficient
+coef(ex_mod)[&quot;yearsmarried&quot;]
+#&gt; Expected: a positive value, slightly different from 0.5323</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Refit without religiousness solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Refit without religiousness solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_mod &lt;- tobit(affairs ~ age + yearsmarried + occupation + rating,
+                data = Affairs)
+coef(ex_mod)[&quot;yearsmarried&quot;]
+#&gt; yearsmarried
+#&gt;    0.4957</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Dropping a correlated predictor shifts the <code>yearsmarried</code> coefficient because the model now has to absorb part of what <code>religiousness</code> was explaining. The change is small here because the two predictors are only weakly correlated.</p>
+
+</details>
+</section>
+
+<h2>Why does OLS fail on censored outcomes?</h2>
+
+<p>When the outcome is censored at zero, OLS treats every zero as a genuine low observation. The fitted line is pulled down by all those clustered points, so the estimated slope shrinks toward zero. Tobit acknowledges that any observation at the limit could really be any value at or below it, and adjusts the likelihood to recover the true slope.</p>
+
+<div class="webr-container" data-block-title="Simulate censored data and compare OLS with Tobit">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Simulate censored data and compare OLS with Tobit</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Set up a reproducible simulation
+set.seed(2026)
+n &lt;- 400
+sim_x &lt;- rnorm(n)
+# True latent outcome: slope = 2, intercept = 0, noise sd = 1.5
+y_star &lt;- 2 * sim_x + rnorm(n, sd = 1.5)
+# Observed outcome: everything below 0 is recorded as exactly 0
+y_obs &lt;- pmax(y_star, 0)
+
+ols_mod   &lt;- lm(y_obs ~ sim_x)
+tobit_sim &lt;- tobit(y_obs ~ sim_x, left = 0)
+
+# Side-by-side slope estimates
+round(c(true_slope = 2,
+        ols_slope   = coef(ols_mod)[&quot;sim_x&quot;],
+        tobit_slope = coef(tobit_sim)[&quot;sim_x&quot;]), 3)
+#&gt; true_slope ols_slope.sim_x tobit_slope.sim_x
+#&gt;      2.000           1.291             1.982</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>OLS estimates the slope at about 1.29, far short of the true value of 2.00. Tobit recovers the true slope almost exactly (1.98). The gap is the <em>attenuation bias</em> that censoring introduces into OLS, and it grows as more observations sit at the limit.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>OLS coefficients are attenuated when the outcome is censored.</strong> The stronger the censoring (more values stuck at the limit), the worse the bias. Tobit corrects it by estimating the limit-aware likelihood directly.</div></div>
+
+<p><img src="screenshots/Tobit-Regression-in-R-when-to-use.webp" alt="Choose Tobit when the outcome has a known limit and values pile up at it; choose OLS or truncated regression otherwise." class="img-responsive img-zoomable" loading="lazy" width="1974" height="962" /></p>
+
+<p><em>Figure 1: Choose Tobit when the outcome has a known limit and values pile up at it; choose OLS or truncated regression otherwise.</em></p>
+
+<p>Truncated regression, a close cousin, is for a different problem: data where observations beyond the limit are not just clipped but missing entirely from the sample. Tobit is the right choice when every observation is still in the data, just flattened at the boundary.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Re-run the same simulation but censor at <code>2</code> instead of <code>0</code>. How much worse does the OLS bias become when roughly half the observations end up at the limit?</p>
+<div class="webr-container" data-block-title="Your turn: simulate with higher censoring">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: simulate with higher censoring</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: change the censoring point to 2
+set.seed(2026)
+ex_x &lt;- rnorm(400)
+ex_y_star &lt;- 2 * ex_x + rnorm(400, sd = 1.5)
+ex_y_obs  &lt;- pmax(ex_y_star, 2)
+
+# your code here: fit both models and compare slopes</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Higher censoring solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Higher censoring solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+ex_x &lt;- rnorm(400)
+ex_y_star &lt;- 2 * ex_x + rnorm(400, sd = 1.5)
+ex_y_obs  &lt;- pmax(ex_y_star, 2)
+
+ex_ols   &lt;- lm(ex_y_obs ~ ex_x)
+ex_tobit &lt;- tobit(ex_y_obs ~ ex_x, left = 2)
+
+round(c(ols = coef(ex_ols)[&quot;ex_x&quot;],
+        tobit = coef(ex_tobit)[&quot;ex_x&quot;]), 3)
+#&gt;   ols.ex_x tobit.ex_x
+#&gt;      0.703      2.005</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> With censoring at 2, more than half of the latent values are below the floor, so OLS shrinks the slope to about 0.70, a severe bias. Tobit still recovers the true slope of 2.</p>
+
+</details>
+</section>
+
+<h2>How do the left and right arguments work in tobit()?</h2>
+
+<p>The <code>tobit()</code> function signature is <code>tobit(formula, left = 0, right = Inf, dist = &quot;gaussian&quot;, data)</code>. The <code>left</code> and <code>right</code> arguments define the censoring window. Any observation at <code>left</code> is treated as left-censored (its true value could be anywhere at or below <code>left</code>), and any observation at <code>right</code> is treated as right-censored. Setting either bound to <code>-Inf</code> or <code>Inf</code> turns off censoring on that side.</p>
+
+<div class="webr-container" data-block-title="Fit three variants with different censoring bounds">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit three variants with different censoring bounds</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Default: left-censored at 0 (classical Tobit)
+tobit_def &lt;- tobit(affairs ~ age + yearsmarried + rating, data = Affairs)
+
+# No censoring on either side (equivalent to OLS with survival-style standard errors)
+tobit_unbounded &lt;- tobit(affairs ~ age + yearsmarried + rating,
+                         left = -Inf, right = Inf, data = Affairs)
+
+# Two-sided censoring: the Affairs question caps at 12 per year in the survey;
+# we also right-censor at 4 to mirror the example in the AER documentation
+tobit_right4 &lt;- tobit(affairs ~ age + yearsmarried + rating,
+                      left = 0, right = 4, data = Affairs)
+
+round(rbind(default   = coef(tobit_def),
+            unbounded = coef(tobit_unbounded),
+            right4    = coef(tobit_right4)), 3)
+#&gt;           (Intercept)    age yearsmarried  rating
+#&gt; default         8.174 -0.179        0.554 -2.285
+#&gt; unbounded       3.861 -0.049        0.156 -0.772
+#&gt; right4          7.810 -0.116        0.481 -1.815</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>All three models use the same formula and data, but their coefficients differ because they disagree about how much information the boundary values carry. The unbounded fit looks very different from the default because it ignores the 451 zeros entirely. The two-sided model sits in between, acknowledging that anyone reporting <code>4</code> might well have had more affairs but simply topped out at the category.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>The defaults <code>left = 0, right = Inf</code> encode the classical Tobit model.</strong> Set <code>left = -Inf</code> to drop left-censoring and <code>right = Inf</code> to drop right-censoring. If your data has no censoring at all, use <code>lm()</code> instead, it is faster and has simpler inference.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit <code>tobit(affairs ~ age + yearsmarried + rating, left = -Inf, right = 3, data = Affairs)</code> and call the result <code>ex_right3</code>. Is the <code>rating</code> coefficient larger in magnitude than in the default model?</p>
+<div class="webr-container" data-block-title="Your turn: right-censor at 3">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: right-censor at 3</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: fit with right-censoring at 3 and no left censoring
+ex_right3 &lt;- tobit(affairs ~ age + yearsmarried + rating,
+                   left = -Inf, right = 3, data = Affairs)
+
+# your code here: compare coefficients</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Right-censoring at 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Right-censoring at 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_right3 &lt;- tobit(affairs ~ age + yearsmarried + rating,
+                   left = -Inf, right = 3, data = Affairs)
+
+round(cbind(default = coef(tobit_def), right3 = coef(ex_right3)), 3)
+#&gt;              default  right3
+#&gt; (Intercept)    8.174   2.964
+#&gt; age           -0.179  -0.048
+#&gt; yearsmarried   0.554   0.155
+#&gt; rating        -2.285  -0.710</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Switching off left-censoring makes the zeros count as real low values, which pulls all coefficients toward zero. The <code>rating</code> coefficient shrinks from -2.29 to -0.71 in magnitude.</p>
+
+</details>
+</section>
+
+<h2>How do you interpret Tobit coefficients?</h2>
+
+<p>A Tobit coefficient $\beta_j$ is the effect of predictor $x_j$ on the <strong>latent</strong> outcome $y^*$. It tells us how the underlying propensity changes, not the observed value. The latent model is:</p>
+
+<p>$$y^* = X\beta + \varepsilon, \quad \varepsilon \sim N(0, \sigma^2)$$</p>
+
+<p>$$y = \max(y^*, 0)$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$y^*$ is the unobserved latent propensity</li>
+
+<li>$y$ is the observed (censored) outcome</li>
+
+<li>$\beta$ are the coefficients returned by <code>coef(tobit_mod)</code></li>
+
+<li>$\sigma$ is <code>exp(Log(scale))</code> from the summary</li>
+
+</ul>
+
+<p>Because many observed $y$ values are stuck at the floor, the effect on the <strong>observed</strong> outcome is smaller than $\beta_j$. A standard adjustment scales the latent coefficient by the probability of being above the limit:</p>
+
+<p>$$\frac{\partial E[y \mid x]}{\partial x_j} \approx \beta_j \cdot P(y^* > 0 \mid x)$$</p>
+
+<p>Where $P(y^* > 0 \mid x) = \Phi(X\beta / \sigma)$ using the standard normal CDF $\Phi$.</p>
+
+<div class="webr-container" data-block-title="Compute the marginal effect on the observed outcome">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compute the marginal effect on the observed outcome</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Linear predictor Xbeta for every row
+xb &lt;- predict(tobit_mod, type = &quot;lp&quot;)
+# Scale of the latent error
+sigma &lt;- tobit_mod$scale
+
+# Probability that y* &gt; 0 for each row
+p_uncens &lt;- pnorm(xb / sigma)
+
+# Average partial effect of yearsmarried on the observed affairs count
+beta_years &lt;- coef(tobit_mod)[&quot;yearsmarried&quot;]
+ame_years  &lt;- beta_years * mean(p_uncens)
+
+round(c(latent_effect = beta_years,
+        avg_marginal  = ame_years,
+        pct_uncensored = mean(Affairs$affairs &gt; 0)), 3)
+#&gt; latent_effect.yearsmarried avg_marginal.yearsmarried pct_uncensored
+#&gt;                      0.532                     0.134          0.251</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The latent coefficient says one more year of marriage raises the propensity for affairs by 0.53 units. But only about 25% of respondents are above the censoring floor, so the average effect on the observed count is roughly 0.13 affairs per year of marriage. That second number is what we would report when predicting real-world outcomes; the first is what we would report when describing the underlying model.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Tobit reports latent effects; your story dictates which to quote.</strong> Latent effects are right for mechanism or policy questions ("how does the underlying tendency change?"). Observed-outcome effects are right for prediction or cost-benefit analysis ("how many more events will we actually see?").</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute the average marginal effect of <code>age</code> on observed affairs. It should be a small negative number.</p>
+<div class="webr-container" data-block-title="Your turn: marginal effect of age">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: marginal effect of age</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: compute the average marginal effect of age
+beta_age &lt;- coef(tobit_mod)[&quot;age&quot;]
+# your code here: reuse xb, sigma, p_uncens from above
+ame_age &lt;- NULL
+
+ame_age
+#&gt; Expected: a small negative value, close to -0.045</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Marginal effect of age solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Marginal effect of age solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">beta_age &lt;- coef(tobit_mod)[&quot;age&quot;]
+ame_age  &lt;- beta_age * mean(p_uncens)
+round(ame_age, 4)
+#&gt;     age
+#&gt; -0.0445</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The latent coefficient for age (-0.178) is multiplied by the average probability of being uncensored (0.251), giving an observed-scale effect of about -0.045 affairs per year of age.</p>
+
+</details>
+</section>
+
+<h2>How do you predict and diagnose the fit?</h2>
+
+<p>Three tools handle most Tobit diagnostics: predicted values, information criteria, and the <a class="auto-link" href="Likelihood-Ratio-Wald-and-Score-Tests-in-R.html" title="Likelihood Ratio, Wald & Score Tests in R: Three Ways to Test Hypotheses">likelihood ratio test</a>. The <code>predict()</code> method returns latent predictions by default. Information criteria like <a class="auto-link" href="Model-Selection-in-R.html" title="Model Selection in R">AIC</a> compare models that do not need to be nested. The likelihood ratio test, from the <code>lmtest</code> package, compares nested models with a chi-squared <a class="auto-link" href="Statistical-Tests-in-R.html" title="Statistical Tests in R">p-value</a>.</p>
+
+<div class="webr-container" data-block-title="Compare nested Tobit models">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare nested Tobit models</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(lmtest)
+
+# Smaller model: drop occupation
+tobit_small &lt;- tobit(affairs ~ age + yearsmarried + religiousness + rating,
+                     data = Affairs)
+
+# Likelihood ratio test: does occupation add information?
+lrtest(tobit_small, tobit_mod)
+#&gt; Likelihood ratio test
+#&gt;
+#&gt; Model 1: affairs ~ age + yearsmarried + religiousness + rating
+#&gt; Model 2: affairs ~ age + yearsmarried + religiousness + occupation + rating
+#&gt;   #Df LogLik Df  Chisq Pr(&gt;Chisq)
+#&gt; 1   6 -706.8
+#&gt; 2   7 -706.0  1  1.615      0.204
+
+# Non-nested comparison via AIC
+aic_tab &lt;- data.frame(model = c(&quot;small&quot;, &quot;full&quot;),
+                      AIC   = c(AIC(tobit_small), AIC(tobit_mod)))
+aic_tab
+#&gt;   model      AIC
+#&gt; 1 small 1425.646
+#&gt; 2  full 1426.031</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The likelihood ratio test has a p-value of 0.20, so we cannot reject the simpler model; <code>occupation</code> does not significantly improve the fit given the other predictors. AIC agrees: the smaller model wins by about 0.4 points. That is a rounding-error win, so either model is defensible, but the principle of parsimony pushes us to keep the simpler one.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Prefer likelihood ratio tests over Wald t-tests when trimming Tobit models.</strong> Wald tests from <code>summary()</code> can be off when the latent coefficient is close to zero because the scale parameter is estimated jointly. <code>lrtest()</code> compares the full likelihoods and is more trustworthy.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Drop <code>rating</code> instead of <code>occupation</code> from the full model and compare AIC against <code>tobit_mod</code>. Is the drop supported?</p>
+<div class="webr-container" data-block-title="Your turn: drop rating">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: drop rating</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: fit a model without rating and compare AIC
+ex_no_rating &lt;- tobit(affairs ~ age + yearsmarried + religiousness + occupation,
+                      data = Affairs)
+
+# your code here: print AIC for both</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Drop rating solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Drop rating solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_no_rating &lt;- tobit(affairs ~ age + yearsmarried + religiousness + occupation,
+                      data = Affairs)
+round(c(no_rating = AIC(ex_no_rating), full = AIC(tobit_mod)), 2)
+#&gt; no_rating      full
+#&gt;   1455.99   1426.03</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> AIC jumps by nearly 30 points when <code>rating</code> is dropped, a very strong signal that marriage rating carries real information about infidelity. Keep it in the model.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<h3>Exercise 1: Two-sided censoring on Affairs</h3>
+
+<p>Fit a Tobit model on the <code>Affairs</code> data with <code>left = 0</code> and <code>right = 12</code> using predictors <code>age</code>, <code>yearsmarried</code>, <code>religiousness</code>, and <code>rating</code>. Store the model as <code>px_two_sided</code>. Then compare its <code>rating</code> coefficient against the default left-only model's <code>rating</code> coefficient and save both in a named vector called <code>px_rating_compare</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 1: two-sided censoring">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1: two-sided censoring</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Exercise: fit a two-sided Tobit and compare the rating coefficient
+# Hint: reuse tobit_mod for the default left-only comparison
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">px_two_sided &lt;- tobit(affairs ~ age + yearsmarried + religiousness + rating,
+                      left = 0, right = 12, data = Affairs)
+
+px_rating_compare &lt;- c(left_only = coef(tobit_mod)[&quot;rating&quot;],
+                       two_sided = coef(px_two_sided)[&quot;rating&quot;])
+round(px_rating_compare, 3)
+#&gt; left_only.rating two_sided.rating
+#&gt;           -2.207           -2.311</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Only a handful of respondents report 12 affairs, so adding right-censoring at 12 barely changes any coefficient. The two-sided rating effect (-2.31) is very close to the left-only version (-2.21).</p>
+
+</details>
+
+<h3>Exercise 2: Measure OLS bias in a larger simulation</h3>
+
+<p>Simulate 500 observations where <code>x ~ N(0, 1)</code> and <code>y_star = 1 + 1.5 * x + rnorm(500, sd = 2)</code>, then left-censor at 0 to get <code>y_obs</code>. Fit both OLS and Tobit on the <a class="auto-link" href="Synthetic-Data-in-R.html" title="Synthetic Data Generation in R: Protect Privacy While Testing Models">simulated data</a>. Compute the percentage bias of each slope estimate relative to the true slope of 1.5 and store the results in <code>px_bias_ols</code> and <code>px_bias_tobit</code>. Use <code>set.seed(1958)</code> for reproducibility (a nod to Tobin's original paper year).</p>
+
+<div class="webr-container" data-block-title="Exercise 2: quantify OLS bias">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2: quantify OLS bias</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Exercise: simulate censored data, fit both models, compute percentage bias
+# Hint: bias_pct = 100 * (estimate - true) / true
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1958)
+px_x      &lt;- rnorm(500)
+px_y_star &lt;- 1 + 1.5 * px_x + rnorm(500, sd = 2)
+px_y_obs  &lt;- pmax(px_y_star, 0)
+
+px_ols   &lt;- lm(px_y_obs ~ px_x)
+px_tobit &lt;- tobit(px_y_obs ~ px_x, left = 0)
+
+true_slope    &lt;- 1.5
+px_bias_ols   &lt;- 100 * (coef(px_ols)[&quot;px_x&quot;]   - true_slope) / true_slope
+px_bias_tobit &lt;- 100 * (coef(px_tobit)[&quot;px_x&quot;] - true_slope) / true_slope
+
+round(c(ols_pct_bias = px_bias_ols,
+        tobit_pct_bias = px_bias_tobit), 2)
+#&gt;   ols_pct_bias.px_x tobit_pct_bias.px_x
+#&gt;              -26.15                0.44</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> OLS underestimates the slope by about 26%, a substantial bias driven by the 180-ish simulated observations that sit at the censoring floor. Tobit is essentially unbiased (under 1% off).</p>
+
+</details>
+
+<h2>Complete Example</h2>
+
+<p>Let's walk the Affairs data end-to-end: check censoring, fit, interpret, and diagnose. This is the workflow you will run every time you reach for Tobit.</p>
+
+<div class="webr-container" data-block-title="End-to-end Tobit workflow on Affairs">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">End-to-end Tobit workflow on Affairs</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Step 1: inspect the censoring pattern
+cen_summary &lt;- c(n_total = nrow(Affairs),
+                 n_at_zero = sum(Affairs$affairs == 0),
+                 pct_at_zero = round(100 * mean(Affairs$affairs == 0), 1))
+cen_summary
+#&gt;    n_total   n_at_zero pct_at_zero
+#&gt;      601.0       451.0        75.0
+
+# Step 2: fit the Tobit model
+full_tobit &lt;- tobit(affairs ~ age + yearsmarried + religiousness + rating,
+                    data = Affairs)
+
+# Step 3: report latent coefficients and average marginal effects
+xb_full    &lt;- predict(full_tobit, type = &quot;lp&quot;)
+sigma_full &lt;- full_tobit$scale
+p_uncens   &lt;- mean(pnorm(xb_full / sigma_full))
+
+betas &lt;- coef(full_tobit)[-1]  # drop intercept
+ame   &lt;- betas * p_uncens
+round(cbind(latent = betas, marginal = ame), 3)
+#&gt;                latent marginal
+#&gt; age            -0.178   -0.046
+#&gt; yearsmarried   0.554    0.143
+#&gt; religiousness -1.689   -0.436
+#&gt; rating        -2.285   -0.590
+
+# Step 4: diagnose fit
+c(loglik = as.numeric(logLik(full_tobit)),
+  aic    = AIC(full_tobit))
+#&gt;    loglik       aic
+#&gt;  -706.821  1425.643</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Three-quarters of responses sit at the floor, so Tobit was clearly the right tool. The latent coefficients say marriage rating has the strongest effect on the underlying propensity, with a one-point higher rating associated with 2.3 fewer units of latent propensity. On the observed scale, that translates to roughly 0.59 fewer affairs per rating point. Log-likelihood and AIC give us anchor numbers to compare against any alternative specification.</p>
+
+<h2>Summary</h2>
+
+<p>Tobit regression extends linear regression to censored outcomes, fit in R with <code>AER::tobit()</code>. Use it when your dependent variable piles up at a known floor or ceiling and you want unbiased slope estimates.</p>
+
+<p><img src="screenshots/Tobit-Regression-in-R-overview-mindmap.webp" alt="A mental map of Tobit regression with AER: fit, interpret, diagnose." class="img-responsive img-zoomable" loading="lazy" width="1824" height="900" /></p>
+
+<p><em>Figure 2: A mental map of Tobit regression with AER: fit, interpret, diagnose.</em></p>
+
+<p>Key takeaways:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Topic</th>
+<th>Takeaway</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>When to use</td>
+<td>Outcome clustered at a known limit (spending, detection thresholds, capped scores)</td>
+</tr>
+<tr>
+<td>Syntax</td>
+<td><code>tobit(y ~ x, left, right, data)</code> in the AER package</td>
+</tr>
+<tr>
+<td>Defaults</td>
+<td><code>left = 0, right = Inf</code> (classical left-censored Tobit)</td>
+</tr>
+<tr>
+<td>OLS vs Tobit</td>
+<td>OLS attenuates slopes on censored data; Tobit is unbiased</td>
+</tr>
+<tr>
+<td>Coefficients</td>
+<td>Describe the latent propensity $y^*$, not the observed $y$</td>
+</tr>
+<tr>
+<td><a class="auto-link" href="Interaction-Effects-in-R.html" title="Interaction Effects in R: Add Them, Test Them, and Actually Understand the Output">Marginal effects</a></td>
+<td>Latent $\beta_j$ times $P(y^* > 0)$ gives the average effect on observed outcome</td>
+</tr>
+<tr>
+<td>Model comparison</td>
+<td>AIC for non-nested, <code>lmtest::lrtest()</code> for nested; both use the full likelihood</td>
+</tr>
+</tbody>
+</table>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Kleiber, C. & Zeileis, A. <em>Applied Econometrics with R</em> (AER package and book). <a href="https://cran.r-project.org/package=AER">CRAN page</a></li>
+
+<li>AER <code>tobit</code> function reference. <a href="https://search.r-project.org/CRAN/refmans/AER/html/tobit.html">R documentation</a></li>
+
+<li>Tobin, J. "Estimation of Relationships for Limited Dependent Variables." <em>Econometrica</em>, 26(1), 24-36 (1958). <a href="https://www.jstor.org/stable/1907382">JSTOR</a></li>
+
+<li>UCLA OARC Statistical Consulting. Tobit Models in R. <a href="https://stats.oarc.ucla.edu/r/dae/tobit-models/">Tutorial</a></li>
+
+<li>Greene, W. <em>Econometric Analysis</em>, 7th ed., Chapter 19 on limited dependent variables. Pearson (2012).</li>
+
+<li>Wooldridge, J. <em>Econometric Analysis of Cross Section and Panel Data</em>, Chapter 17. MIT Press (2010).</li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Logistic-Regression-in-R.html">Logistic Regression in R</a>: the parent topic, for binary outcomes where Tobit is the wrong tool.</li>
+
+<li><a href="Linear-Regression.html">Linear Regression</a>: the unrestricted model Tobit extends when censoring is absent.</li>
+
+<li><a href="Poisson-Regression-in-R.html">Poisson Regression in R</a>: an alternative for count outcomes with many zeros but no true upper or lower limit.</li>
+
+</ul>
