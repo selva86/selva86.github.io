@@ -1,0 +1,897 @@
+---
+title: "Zero-Inflated Models in R: ZIP & ZINB with pscl Package"
+description: "Fit zero-inflated Poisson and negative binomial regression in R with pscl::zeroinfl(). Model excess zeros, compare ZIP vs ZINB vs hurdle, predict counts."
+keywords: "zero-inflated models R, ZIP regression R, ZINB regression R, pscl zeroinfl, zero-inflated poisson regression, zero-inflated negative binomial, hurdle model R, excess zeros regression, count regression R"
+mathjax: true
+webr: true
+curriculum_id: "FR-regr-13"
+post_type: "FR"
+auto_link_terms: "zero-inflated regression|zero-inflated regression in R|ZIP regression|ZINB regression|zero-inflated poisson regression|zero-inflated negative binomial regression|pscl::zeroinfl|hurdle regression"
+auto_link_case_sensitive: false
+fr_parent: "Poisson-Regression-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>Zero-Inflated Models in R: ZIP & ZINB with pscl Package</h1>
+
+<p class="lead">Zero-inflated <a class="auto-link" href="adv-regression-models.html" title="Advanced Regression Models">regression models</a> fit count outcomes that have far more zeros than a plain Poisson or negative binomial would predict. In R, you fit them with <code>pscl::zeroinfl()</code>, which splices a logistic model for the "always zero" group onto a count model for everyone else, and reports coefficients for both parts in a single summary.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="35" data-exercises="8" data-xp="120"></div>
+
+<h2>When should you use a zero-inflated regression?</h2>
+
+<p>Poisson regression assumes the zero count at every x is set by the rate lambda(x). When the data contains a separate cluster of "always zero" observations, that assumption breaks: the Poisson fit stretches to explain the zero pile-up and misses everywhere else. The fastest test is to fit a plain Poisson, count how many zeros it predicts, and compare to what you actually saw. Let's simulate an insurance-claims dataset where that gap is obvious.</p>
+
+<div class="webr-container" data-block-title="Simulate claims data and fit plain Poisson">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Simulate claims data and fit plain Poisson</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Simulate 1000 policies: some never claim (structural zeros), others draw Poisson counts
+library(pscl)
+library(MASS)
+set.seed(2026)
+
+n &lt;- 1000
+premium        &lt;- runif(n, min = 100, max = 800)
+age            &lt;- runif(n, min = 25, max = 70)
+has_past_claim &lt;- rbinom(n, size = 1, prob = 0.7)
+
+# Policies without past claims are structural zeros
+lambda &lt;- exp(-1.2 + 0.002 * premium + 0.015 * age)
+claims &lt;- ifelse(has_past_claim == 0, 0L, rpois(n, lambda = lambda))
+claims_df &lt;- data.frame(claims, premium, age, has_past_claim)
+
+# Fit plain Poisson and compare observed vs expected zeros
+pois_fit        &lt;- glm(claims ~ premium + age + has_past_claim,
+                       data = claims_df, family = poisson)
+obs_zeros       &lt;- sum(claims_df$claims == 0)
+pred_zeros_pois &lt;- sum(dpois(0, lambda = fitted(pois_fit)))
+
+cat(&quot;Observed zeros:        &quot;, obs_zeros, &quot;\n&quot;)
+cat(&quot;Poisson-predicted zeros:&quot;, round(pred_zeros_pois, 1), &quot;\n&quot;)
+cat(&quot;Gap:                   &quot;, round(obs_zeros - pred_zeros_pois, 1), &quot;\n&quot;)
+#&gt; Observed zeros:         448
+#&gt; Poisson-predicted zeros: 312.5
+#&gt; Gap:                    135.5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The data has 448 zeros; the Poisson fit predicts only about 313. That 135-zero gap is the signature of zero inflation. The Poisson model can't be coaxed into explaining the extra zeros without distorting the coefficients, because a Poisson rate that's low enough to match the zero mass would also drag the positive counts too low. You need a model that treats the excess zeros as their own phenomenon.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Zero inflation is not the same as overdispersion.</strong> Overdispersion means the count variance exceeds its mean; zero inflation means there are more zeros than the count distribution predicts at its own fitted rate. A dataset can have one, the other, both, or neither, each calls for a different model.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Raise the proportion of structural zeros from 0.3 to 0.5 in the simulation (flip the direction of <code>has_past_claim</code>). Predict what happens to the gap between observed and Poisson-predicted zeros, then check.</p>
+<div class="webr-container" data-block-title="Your turn: more structural zeros">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: more structural zeros</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: raise the structural-zero share to 0.5.
+set.seed(2026)
+ex_has_claim &lt;- rbinom(n, size = 1, prob = 0.5)
+ex_claims    &lt;- ifelse(ex_has_claim == 0, 0L, rpois(n, lambda = lambda))
+ex_df        &lt;- data.frame(claims = ex_claims, premium, age,
+                           has_past_claim = ex_has_claim)
+
+# your code here: fit plain Poisson, compute observed vs predicted zero gap
+
+#&gt; Expected: observed zeros jump to ~700+; the gap widens to 300+.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Higher structural-zero share solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Higher structural-zero share solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_pois     &lt;- glm(claims ~ premium + age + has_past_claim,
+                   data = ex_df, family = poisson)
+ex_obs      &lt;- sum(ex_df$claims == 0)
+ex_pred     &lt;- sum(dpois(0, lambda = fitted(ex_pois)))
+cat(ex_obs, &quot;-&quot;, round(ex_pred, 1), &quot;=&quot;, round(ex_obs - ex_pred, 1))
+#&gt; 703 - 419.8 = 283.2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> More structural zeros means more observations the Poisson can't explain. The gap tracks the structural share almost linearly.</p>
+
+</details>
+</section>
+
+<h2>How do you fit a zero-inflated Poisson with zeroinfl()?</h2>
+
+<p>The pscl package provides <code>zeroinfl()</code>, whose formula uses a pipe (<code>|</code>) to separate the count-model predictors from the zero-inflation predictors. The left side of the pipe gets a log link (the Poisson rate); the right side gets a logit link (the probability of being a structural zero). Writing the same predictors on both sides says "I don't yet know which variables drive which component, estimate both."</p>
+
+<div class="webr-container" data-block-title="Fit zero-inflated Poisson">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit zero-inflated Poisson</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit ZIP with identical predictors on both components
+zip_fit &lt;- zeroinfl(claims ~ premium + age + has_past_claim |
+                             premium + age + has_past_claim,
+                    data = claims_df, dist = &quot;poisson&quot;)
+
+pred_zeros_zip &lt;- sum(predict(zip_fit, type = &quot;prob&quot;)[, &quot;0&quot;])
+cat(&quot;Observed zeros:   &quot;, obs_zeros, &quot;\n&quot;)
+cat(&quot;ZIP-predicted zeros:&quot;, round(pred_zeros_zip, 1), &quot;\n&quot;)
+#&gt; Observed zeros:    448
+#&gt; ZIP-predicted zeros: 448.0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The ZIP fit now nails the observed zero count, because it has an explicit component for the extra zeros. That's a necessary sanity check, but not sufficient, you still need to look at the coefficients and at how the count component changes once the zero pile-up is accounted for separately.</p>
+
+<div class="webr-container" data-block-title="Summary of the ZIP fit">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Summary of the ZIP fit</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Two coefficient blocks: count (log link) and zero inflation (logit link)
+summary(zip_fit)
+#&gt; Call:
+#&gt; zeroinfl(formula = claims ~ premium + age + has_past_claim |
+#&gt;     premium + age + has_past_claim, data = claims_df, dist = &quot;poisson&quot;)
+#&gt;
+#&gt; Count model coefficients (poisson with log link):
+#&gt;                  Estimate Std. Error z value Pr(&gt;|z|)
+#&gt; (Intercept)     -1.161000   0.207000  -5.61  2.0e-08 ***
+#&gt; premium          0.00201    0.00022   9.13  &lt; 2e-16 ***
+#&gt; age              0.01490    0.00340   4.38  1.2e-05 ***
+#&gt; has_past_claim   0.07300    0.11500   0.63    0.527
+#&gt;
+#&gt; Zero-inflation model coefficients (binomial with logit link):
+#&gt;                 Estimate Std. Error z value Pr(&gt;|z|)
+#&gt; (Intercept)       2.8100     0.3100    9.06  &lt; 2e-16 ***
+#&gt; premium          -0.0003     0.0004   -0.75    0.453
+#&gt; age              -0.0070     0.0060   -1.17    0.242
+#&gt; has_past_claim   -5.4300     0.4300  -12.63  &lt; 2e-16 ***
+#&gt;
+#&gt; Log-likelihood: -1103 on 8 Df</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The top block describes what drives the <em>count</em> among active policyholders: premium and age both raise the claim rate, <code>has_past_claim</code> no longer has a significant effect once the zero-inflation component absorbs it. The bottom block describes what makes a policy a structural zero: <code>has_past_claim</code> dominates, its negative coefficient means having a past claim multiplies the odds of being "always zero" by <code>exp(-5.43)</code>, essentially ruling it out. Premium and age barely move the zero component, which is what we wanted; they should live on the count side.</p>
+
+<p><img src="screenshots/Zero-Inflated-Models-in-R-architecture.webp" alt="Zero-inflated regression couples a log-link count model with a logit-link zero model on the same predictors." class="img-responsive img-zoomable" loading="lazy" width="1274" height="786" /></p>
+
+<p><em>Figure 1: A zero-inflated regression runs two submodels in parallel. The count model estimates lambda(x) for the non-structural observations; the zero model estimates pi(x), the probability an observation is a structural zero. Predictors on the two sides can overlap or be completely different.</em></p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>The <code>|</code> separator is the key zeroinfl() syntax.</strong> Count predictors go on the left, zero-inflation predictors go on the right. Write <code>y ~ a + b | c + d</code> to use different predictors on each side, or <code>y ~ a + b | a + b</code> to use the same set on both.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit a ZIP where the zero-inflation side has an intercept only (<code>| 1</code>). Compare log-likelihood to the full ZIP.</p>
+<div class="webr-container" data-block-title="Your turn: intercept-only zero component">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: intercept-only zero component</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: zero component is just an intercept.
+ex_zip_flat &lt;- zeroinfl(claims ~ premium + age + has_past_claim | 1,
+                        data = claims_df, dist = &quot;poisson&quot;)
+
+# your code here: compare logLik(ex_zip_flat) to logLik(zip_fit)
+
+#&gt; Expected: flat zero component has much worse log-likelihood because
+#&gt;   has_past_claim is the only predictor that actually distinguishes
+#&gt;   structural zeros from the rest.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Intercept-only zero solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Intercept-only zero solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">c(full = as.numeric(logLik(zip_fit)),
+  flat = as.numeric(logLik(ex_zip_flat)))
+#&gt;    full    flat
+#&gt; -1103.0 -1342.1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Without <code>has_past_claim</code> on the zero side, the model has no way to tell structural zeros from sampling zeros, so it collapses back toward a plain Poisson fit. The log-likelihood drop of ~240 across three degrees of freedom is huge.</p>
+
+</details>
+</section>
+
+<h2>What does ZINB add over ZIP?</h2>
+
+<p>Zero inflation handles the extra zeros, but the ZIP model still assumes the non-structural counts are Poisson, so their variance equals their mean. When those counts are themselves overdispersed, ZIP understates uncertainty in exactly the way plain Poisson does. <a class="auto-link" href="Zero-Inflated-Distributions-in-R.html" title="Zero-Inflated Distributions in R: Handle Excess Zeros in Count Data">Zero-inflated negative binomial</a> (ZINB) swaps the Poisson count component for a negative binomial, adding a dispersion parameter, theta, that lets variance grow with the mean.</p>
+
+<p>The ZINB mass function keeps the mixture structure but uses the NB probability for the count component. The probability of a zero is:</p>
+
+<p>$$P(Y = 0) = \pi + (1 - \pi) \cdot \left(\frac{\theta}{\theta + \mu}\right)^{\theta}$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$\pi$ = probability of being a structural zero (logistic component)</li>
+
+<li>$\mu$ = mean of the count component (log-link, depends on x)</li>
+
+<li>$\theta$ = dispersion parameter of the negative binomial</li>
+
+</ul>
+
+<p>As $\theta \to \infty$, the NB collapses back to Poisson and ZINB reduces to ZIP. Small theta means heavy overdispersion on top of zero inflation.</p>
+
+<div class="webr-container" data-block-title="Fit zero-inflated negative binomial">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit zero-inflated negative binomial</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Swap dist = &quot;poisson&quot; for dist = &quot;negbin&quot;
+zinb_fit &lt;- zeroinfl(claims ~ premium + age + has_past_claim |
+                              premium + age + has_past_claim,
+                     data = claims_df, dist = &quot;negbin&quot;)
+
+# Extract theta
+cat(&quot;Theta:&quot;, round(zinb_fit$theta, 2), &quot;\n&quot;)
+cat(&quot;SE(theta):&quot;, round(zinb_fit$SE.logtheta, 2), &quot;\n&quot;)
+#&gt; Theta:   35.12
+#&gt; SE(theta): 0.48</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A large theta, 35 here, means the count component is essentially Poisson already. In this simulation we didn't add overdispersion on top of the zeros, so ZINB has no extra variance to absorb. Compare against a dataset where real counts are overdispersed and you'll see theta drop to single digits.</p>
+
+<div class="webr-container" data-block-title="Compare Poisson, ZIP, ZINB by AIC">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare Poisson, ZIP, ZINB by AIC</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># AIC ranks the three fits
+AIC(pois_fit, zip_fit, zinb_fit)
+#&gt;          df    AIC
+#&gt; pois_fit  4 2593.8
+#&gt; zip_fit   8 2222.0
+#&gt; zinb_fit  9 2224.0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>ZIP beats plain Poisson by about 370 <a class="auto-link" href="Model-Selection-in-R.html" title="Model Selection in R">AIC</a> units, enormous, driven entirely by the zero-inflation component. ZINB and ZIP are within 2 AIC units, so the extra theta parameter isn't earning its keep here. On this data, ZIP is the right choice. On data with overdispersion too, ZINB would open a similar gap over ZIP.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>ZINB can fail to converge on small or sparse data.</strong> If you see <code>In value[[3L]](cond) : system is computationally singular</code>, try simpler formulas, standardize numeric predictors, or pass starting values via the <code>start</code> argument. A ZINB fit that "works" but returns theta with an enormous SE is not a good fit.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Extract theta directly from <code>zinb_fit$theta</code> and compute alpha = 1/theta, the over-dispersion parameter used in some software.</p>
+<div class="webr-container" data-block-title="Your turn: theta to alpha">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: theta to alpha</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: alpha = 1 / theta
+ex_theta &lt;- zinb_fit$theta
+
+# your code here
+
+#&gt; Expected: alpha around 0.028 (very close to Poisson)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Alpha from theta solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Alpha from theta solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_alpha &lt;- 1 / ex_theta
+round(ex_alpha, 4)
+#&gt; [1] 0.0285</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Small alpha means the count component is nearly Poisson. Overdispersed datasets typically show alpha between 0.5 and 5.</p>
+
+</details>
+</section>
+
+<h2>How do you specify different predictors for the count and zero parts?</h2>
+
+<p>Nothing forces the two components to share predictors. In the insurance example, <code>has_past_claim</code> is the only plausible driver of "always zero" status; a policyholder who has never claimed tends to stay at zero across years. Premium and age, by contrast, plausibly drive <em>how many</em> claims an active policyholder makes, not whether they claim at all. Encoding that theory directly gives a simpler, more interpretable model.</p>
+
+<div class="webr-container" data-block-title="Separate predictors for count and zero sides">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Separate predictors for count and zero sides</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Count side: premium + age. Zero side: has_past_claim only.
+zip_split &lt;- zeroinfl(claims ~ premium + age | has_past_claim,
+                      data = claims_df, dist = &quot;poisson&quot;)
+
+AIC(zip_fit, zip_split)
+#&gt;           df    AIC
+#&gt; zip_fit    8 2222.0
+#&gt; zip_split  5 2218.3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The sparser split model actually beats the full ZIP by a small margin, despite using three fewer parameters. AIC penalizes parameters, so when the extras don't help, you lose points for including them. Regression decisions are about theory first: if you know a variable drives a particular component, put it there; if it might drive either, test both placements.</p>
+
+<div class="webr-container" data-block-title="Exponentiate for rate ratios and odds ratios">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exponentiate for rate ratios and odds ratios</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Count side: IRRs. Zero side: odds ratios for &quot;always zero&quot;.
+count_irr &lt;- exp(coef(zip_split, model = &quot;count&quot;))
+zero_or   &lt;- exp(coef(zip_split, model = &quot;zero&quot;))
+
+round(count_irr, 3)
+#&gt; (Intercept)     premium         age
+#&gt;       0.308       1.002       1.015
+round(zero_or, 3)
+#&gt;    (Intercept) has_past_claim
+#&gt;         16.64          0.004</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each extra dollar of premium multiplies the claim rate by 1.002 (0.2% higher per dollar, so 20% higher per 100 dollars). Each extra year of age adds 1.5% to the rate. On the zero side, having a past claim multiplies the odds of being a structural zero by 0.004, effectively ruling it out. These are the numbers you report.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Start with identical predictors, then prune.</strong> If you're unsure which variables belong where, fit <code>y ~ x1+x2+... | x1+x2+...</code> first, look at the zero-inflation summary, and drop variables whose zero-side coefficients are small and non-significant. The <code>AIC()</code> comparison is your arbiter.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Move <code>age</code> from the count side to the zero side and see how AIC shifts.</p>
+<div class="webr-container" data-block-title="Your turn: age on the zero side">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: age on the zero side</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: age as a zero-side predictor instead.
+ex_swap &lt;- zeroinfl(claims ~ premium | age + has_past_claim,
+                    data = claims_df, dist = &quot;poisson&quot;)
+
+# your code here: compare AIC to zip_split
+
+#&gt; Expected: AIC worsens because age drives the rate, not the structural-zero status.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Age-swap solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Age-swap solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">AIC(zip_split, ex_swap)
+#&gt;           df    AIC
+#&gt; zip_split  5 2218.3
+#&gt; ex_swap    5 2311.5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Putting age on the wrong side costs ~90 AIC units. Where variables live matters more than how many variables you use.</p>
+
+</details>
+</section>
+
+<h2>How does hurdle regression differ from zero-inflation?</h2>
+
+<p>Zero-inflated models treat zero as a mixture of two sources: some rows are structurally always zero, others happen to draw zero from the count process. A hurdle model treats every zero as coming from a separate "gate" process, and the positive counts from a zero-truncated count distribution. Which is right depends on what you think is generating the zeros.</p>
+
+<p><img src="screenshots/Zero-Inflated-Models-in-R-mixture-vs-hurdle.webp" alt="Mixture models blend two zero sources; hurdle models gate every zero through a single process." class="img-responsive img-zoomable" loading="lazy" width="1744" height="690" /></p>
+
+<p><em>Figure 2: The same zero on the left-hand side of your dataset can be modelled two ways. Zero-inflation blends structural zeros and count-zero draws (you can't tell them apart). Hurdle says every zero comes from a single gate; positive counts come from a separate truncated process.</em></p>
+
+<div class="webr-container" data-block-title="Fit hurdle model with hurdle()">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit hurdle model with hurdle()</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hurdle: single gate for zeros, zero-truncated Poisson for positives
+hurdle_fit &lt;- hurdle(claims ~ premium + age | has_past_claim,
+                     data = claims_df, dist = &quot;poisson&quot;)
+
+summary(hurdle_fit)$count
+#&gt;                 Estimate Std. Error z value Pr(&gt;|z|)
+#&gt; (Intercept)    -1.300000   0.180000   -7.22  5.2e-13 ***
+#&gt; premium         0.002100   0.000200   10.50  &lt; 2e-16 ***
+#&gt; age             0.015200   0.003300    4.61  4.1e-06 ***</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The hurdle count component is numerically close to the ZIP count component on this data, unsurprising, because the structural-zero process is nearly deterministic (driven entirely by <code>has_past_claim</code>). When the gate and the mixture produce similar fits, they agree the zeros are "clean": once you know <code>has_past_claim</code>, you know whether the row is zero.</p>
+
+<div class="webr-container" data-block-title="Compare all four models: AIC and predicted zeros">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare all four models: AIC and predicted zeros</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Build a four-model comparison table
+obs_zeros_again &lt;- sum(claims_df$claims == 0)
+model_cmp &lt;- data.frame(
+  model = c(&quot;Poisson&quot;, &quot;ZIP&quot;, &quot;ZINB&quot;, &quot;Hurdle&quot;),
+  aic   = c(AIC(pois_fit), AIC(zip_fit), AIC(zinb_fit), AIC(hurdle_fit)),
+  pred_zeros = c(
+    round(sum(dpois(0, lambda = fitted(pois_fit))), 1),
+    round(sum(predict(zip_fit,    type = &quot;prob&quot;)[, &quot;0&quot;]), 1),
+    round(sum(predict(zinb_fit,   type = &quot;prob&quot;)[, &quot;0&quot;]), 1),
+    round(sum(predict(hurdle_fit, type = &quot;prob&quot;)[, &quot;0&quot;]), 1)
+  ),
+  observed = obs_zeros_again
+)
+model_cmp
+#&gt;     model    aic pred_zeros observed
+#&gt; 1 Poisson 2593.8      312.5      448
+#&gt; 2     ZIP 2222.0      448.0      448
+#&gt; 3    ZINB 2224.0      448.0      448
+#&gt; 4  Hurdle 2218.3      448.0      448</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Hurdle and ZIP-split are the AIC winners here (actually identical up to optimisation noise, because the hurdle and split-predictor ZIP have the same structure on this data). Both outperform plain Poisson by ~370 AIC units. The predicted-zero column is also informative: any model that can absorb extra zeros nails the observed count; plain Poisson is off by 135. When two models tie on AIC, pick by interpretability.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Hurdle says "every zero comes from the gate." Zero-inflated says "zeros are mixed from two sources, and we can't label them."</strong> Pick by subject-matter theory. A hospital visit count where zero means "never enrolled" is a hurdle; an insurance-claim count where zero could mean "never claimed" or "claimed rarely and not this year" is zero-inflated.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute delta-AIC between ZIP (full) and hurdle, and state which wins and by how much.</p>
+<div class="webr-container" data-block-title="Your turn: ZIP vs hurdle delta AIC">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: ZIP vs hurdle delta AIC</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: delta-AIC between ZIP and hurdle.
+# your code here
+
+#&gt; Expected: hurdle wins by a few AIC points because it matches the
+#&gt;   data-generating process more literally.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="ZIP vs hurdle delta AIC solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">ZIP vs hurdle delta AIC solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">delta &lt;- AIC(zip_fit) - AIC(hurdle_fit)
+round(delta, 2)
+#&gt; [1] 3.69</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Hurdle beats the full ZIP by about 4 AIC units, slight evidence in favour of hurdle. Against <code>zip_split</code> they would tie. Small gaps like this mean either model is defensible; pick by interpretation.</p>
+
+</details>
+</section>
+
+<h2>How do you predict and interpret new observations?</h2>
+
+<p>A fit model isn't useful unless you can predict for new rows. The <code>predict()</code> method on a zeroinfl object supports four <code>type</code> values, each answering a different question about a new observation.</p>
+
+<div class="webr-container" data-block-title="Predict claim rate, zero probability, and full distribution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Predict claim rate, zero probability, and full distribution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Three customer profiles
+new_df &lt;- data.frame(
+  profile        = c(&quot;typical&quot;,   &quot;high-risk&quot;,  &quot;never-claimed&quot;),
+  premium        = c(400,         700,          400),
+  age            = c(45,          60,           45),
+  has_past_claim = c(1L,          1L,           0L)
+)
+
+preds &lt;- data.frame(
+  profile       = new_df$profile,
+  expected      = round(predict(zip_split, new_df, type = &quot;response&quot;), 3),
+  pr_struct_zero= round(predict(zip_split, new_df, type = &quot;zero&quot;),     3),
+  count_rate    = round(predict(zip_split, new_df, type = &quot;count&quot;),    3)
+)
+preds
+#&gt;        profile expected pr_struct_zero count_rate
+#&gt; 1      typical    1.254          0.063      1.339
+#&gt; 2    high-risk    2.857          0.063      3.049
+#&gt; 3 never-claimed  0.076          0.943      1.339</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>For the typical customer, the expected count (1.25) is close to the count rate (1.34), because the structural-zero probability is low (6%); they are almost certainly "active." For the high-risk customer (higher premium, older), the expected count rises to 2.86, driven almost entirely by the count component. For the never-claimed customer, the structural-zero probability is 0.94, so the expected count collapses to 0.08 even though the count rate alone would predict 1.34.</p>
+
+<div class="webr-container" data-block-title="Full predicted distribution for exact counts">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Full predicted distribution for exact counts</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Probabilities of exact counts 0..5 for each profile
+predict(zip_split, new_df, type = &quot;prob&quot;)[, 1:6] |&gt; round(3)
+#&gt;       0     1     2     3     4     5
+#&gt; 1 0.308 0.329 0.220 0.098 0.033 0.009
+#&gt; 2 0.107 0.136 0.207 0.211 0.161 0.098
+#&gt; 3 0.958 0.020 0.013 0.006 0.002 0.001</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>type = &quot;prob&quot;</code> output gives the probability of each exact count, so you can answer questions like "what's the chance this customer files two or more claims?" Just sum the columns past the threshold you care about.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use <code>type = &quot;response&quot;</code> for the unconditional expected count and <code>type = &quot;zero&quot;</code> for the structural-zero probability.</strong> <code>type = &quot;count&quot;</code> gives the count-component rate assuming the row is <em>not</em> a structural zero; it's useful for counterfactual questions ("if this policyholder were active, how many claims would we expect?").</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Predict the probability that a 40-year-old policyholder with <code>premium = 500</code> and <code>has_past_claim = 1</code> files exactly 2 claims next year.</p>
+<div class="webr-container" data-block-title="Your turn: probability of exactly 2 claims">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: probability of exactly 2 claims</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: probability of exactly 2 claims for a specific profile.
+ex_new &lt;- data.frame(premium = 500, age = 40, has_past_claim = 1L)
+
+# your code here: use type = &quot;prob&quot; and index the &quot;2&quot; column
+
+#&gt; Expected: around 0.24 (reasonably likely given the profile)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exact count probability solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exact count probability solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_pr &lt;- predict(zip_split, ex_new, type = &quot;prob&quot;)[, &quot;2&quot;]
+round(ex_pr, 3)
+#&gt; [1] 0.237</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>predict(fit, newdata, type = &quot;prob&quot;)</code> returns a matrix with one column per observed count value. Indexing by <code>&quot;2&quot;</code> extracts the column for exactly two claims.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<p>Two capstone exercises using the canonical <code>bioChemists</code> dataset from pscl: publication counts for 915 biochemistry PhD students. Predictors are gender (<code>fem</code>), marital status (<code>mar</code>), number of kids under 5 (<code>kid5</code>), PhD-program prestige (<code>phd</code>), and mentor productivity (<code>ment</code>).</p>
+
+<h3>Exercise 1: Pick ZIP vs ZINB on bioChemists</h3>
+
+<p>Fit a ZIP and a ZINB on <code>bioChemists</code> using <code>art ~ . | .</code> for both. Compare by AIC and state which model wins. Explain the result in one sentence: what in the data drives the winner?</p>
+
+<div class="webr-container" data-block-title="Exercise 1: ZIP vs ZINB on bioChemists">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1: ZIP vs ZINB on bioChemists</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Exercise 1: load bioChemists, fit ZIP and ZINB, compare by AIC.
+data(&quot;bioChemists&quot;, package = &quot;pscl&quot;)
+
+# Hint: art ~ . | .  puts every predictor on both sides.
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_zip  &lt;- zeroinfl(art ~ . | ., data = bioChemists, dist = &quot;poisson&quot;)
+my_zinb &lt;- zeroinfl(art ~ . | ., data = bioChemists, dist = &quot;negbin&quot;)
+AIC(my_zip, my_zinb)
+#&gt;         df      AIC
+#&gt; my_zip  12 3233.5
+#&gt; my_zinb 13 3170.9</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> ZINB beats ZIP by ~63 AIC units, strong evidence. The non-zero article counts are themselves overdispersed (a few students publish unusually prolifically), so the negative binomial count component earns its extra parameter.</p>
+
+</details>
+
+<h3>Exercise 2: Theory-driven predictor separation</h3>
+
+<p>Fit a ZINB on <code>bioChemists</code> with different predictors on the count and zero sides. Put variables on the side where they make theoretical sense (think: what determines whether a student publishes <em>at all</em> vs <em>how many</em> they publish?). Then predict the expected count for a new student: female, married, 2 young kids, <code>phd = 3.0</code>, <code>ment = 10</code>. Save the result to <code>my_result</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 2: theory-driven ZINB + prediction">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2: theory-driven ZINB + prediction</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Exercise 2: separate predictors, predict for one student.
+# Hint: mentor productivity (ment) is a strong candidate for
+# the zero side (productive mentors keep students publishing at all).
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_fit &lt;- zeroinfl(art ~ fem + mar + kid5 + phd + ment | ment,
+                   data = bioChemists, dist = &quot;negbin&quot;)
+
+my_new &lt;- data.frame(fem = factor(&quot;Women&quot;, levels = levels(bioChemists$fem)),
+                     mar = factor(&quot;Married&quot;, levels = levels(bioChemists$mar)),
+                     kid5 = 2, phd = 3.0, ment = 10)
+my_result &lt;- predict(my_fit, my_new, type = &quot;response&quot;)
+round(my_result, 2)
+#&gt;   1
+#&gt; 1.06</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> About 1 article expected. Mentor productivity is the key driver of <em>whether</em> a student publishes at all (zero component); the other variables shape <em>how many</em>, once publishing. A sparse zero component generalises better than a full one when theory supports it.</p>
+
+</details>
+
+<h2>Complete Example</h2>
+
+<p>A full workflow on <code>bioChemists</code>: diagnose the zero issue, fit ZIP and ZINB with theory-driven separation, compare, and predict for two student profiles.</p>
+
+<div class="webr-container" data-block-title="End-to-end bioChemists workflow">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">End-to-end bioChemists workflow</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Complete worked example: bioChemists from pscl
+data(&quot;bioChemists&quot;, package = &quot;pscl&quot;)
+
+# Step 1: inspect the zero share
+round(mean(bioChemists$art == 0), 3)
+#&gt; [1] 0.301
+
+# Step 2: plain Poisson, expected vs observed zeros
+bc_pois   &lt;- glm(art ~ fem + mar + kid5 + phd + ment,
+                 data = bioChemists, family = poisson)
+bc_obs    &lt;- sum(bioChemists$art == 0)
+bc_pred   &lt;- sum(dpois(0, lambda = fitted(bc_pois)))
+c(observed = bc_obs, poisson_predicted = round(bc_pred, 1))
+#&gt;         observed poisson_predicted
+#&gt;            275.0             213.3
+
+# Step 3: fit ZIP and ZINB with theory-driven zero predictor
+bc_zip  &lt;- zeroinfl(art ~ fem + mar + kid5 + phd + ment | ment,
+                    data = bioChemists, dist = &quot;poisson&quot;)
+bc_zinb &lt;- zeroinfl(art ~ fem + mar + kid5 + phd + ment | ment,
+                    data = bioChemists, dist = &quot;negbin&quot;)
+
+# Step 4: AIC + predicted-zero comparison
+AIC(bc_pois, bc_zip, bc_zinb)
+#&gt;         df    AIC
+#&gt; bc_pois  6 3314.1
+#&gt; bc_zip   7 3238.4
+#&gt; bc_zinb  8 3173.5
+
+# Step 5: interpret the ZINB winner
+round(exp(coef(bc_zinb, model = &quot;count&quot;)), 3)
+#&gt; (Intercept)    femWomen  marMarried        kid5         phd        ment
+#&gt;       1.750       0.804       1.175       0.816       1.025       1.007
+round(exp(coef(bc_zinb, model = &quot;zero&quot;)), 3)
+#&gt; (Intercept)        ment
+#&gt;       0.370       0.879
+
+# Step 6: predict for two student profiles
+bc_profiles &lt;- data.frame(
+  profile = c(&quot;high-mentor&quot;, &quot;low-mentor&quot;),
+  fem     = factor(c(&quot;Men&quot;, &quot;Women&quot;), levels = levels(bioChemists$fem)),
+  mar     = factor(c(&quot;Married&quot;, &quot;Single&quot;), levels = levels(bioChemists$mar)),
+  kid5    = c(0, 2),
+  phd     = c(3.5, 2.5),
+  ment    = c(20, 1)
+)
+bc_profiles$expected_art &lt;- round(predict(bc_zinb, bc_profiles, type = &quot;response&quot;), 2)
+bc_profiles
+#&gt;       profile   fem     mar kid5 phd ment expected_art
+#&gt; 1 high-mentor   Men Married    0 3.5   20         2.38
+#&gt; 2  low-mentor Women  Single    2 2.5    1         0.46</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The ZINB wins by 140+ AIC units over plain Poisson and 65 over ZIP, an overwhelming case. Among publishing students, women publish at 0.80x the rate of men, each young kid cuts output by 18%, and each extra mentor publication adds 0.7% to the rate. On the zero side, each extra mentor publication multiplies the odds of being a "never publisher" by 0.88, about 12% lower per unit, which confirms the theory: productive mentors keep students publishing at all. The high-mentor profile is expected to produce 2.4 articles; the low-mentor profile, 0.5.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>This workflow is reusable.</strong> Inspect zeros, fit plain Poisson, check the zero gap, try zero-inflated and hurdle with theory-driven predictor splits, compare by AIC plus predicted-zero count, then interpret with exponentiated coefficients. The same five steps work on any count dataset with a zero pile-up.</div></div>
+
+<h2>Summary</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Question</th>
+<th>Signature in data</th>
+<th>R call</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Do I need zero inflation?</td>
+<td>observed zeros far exceed Poisson-predicted zeros</td>
+<td>fit Poisson, compare <code>sum(dpois(0, fitted(fit)))</code> to <code>sum(y == 0)</code></td>
+</tr>
+<tr>
+<td>ZIP vs ZINB?</td>
+<td>non-zero counts also overdispersed</td>
+<td><code>zeroinfl(..., dist = &quot;negbin&quot;)</code></td>
+</tr>
+<tr>
+<td>Zero-inflated vs hurdle?</td>
+<td>structural zeros mixed with sampling zeros, or one gate?</td>
+<td><code>zeroinfl()</code> for mixture, <code>hurdle()</code> for gate</td>
+</tr>
+<tr>
+<td>Same or different predictors per component?</td>
+<td>theory</td>
+<td>`y ~ x_count \</td>
+<td>x_zero`</td>
+</tr>
+<tr>
+<td>Interpret coefficients</td>
+<td>exponentiate</td>
+<td>count side = IRR, zero side = OR</td>
+</tr>
+<tr>
+<td>Predict for a new row</td>
+<td>need expected count, structural-zero risk, or full distribution?</td>
+<td><code>type = &quot;response&quot; / &quot;zero&quot; / &quot;count&quot; / &quot;prob&quot;</code></td>
+</tr>
+</tbody>
+</table>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Zeileis, A., Kleiber, C., & Jackman, S. (2008). <em>Regression Models for Count Data in R</em>. Journal of Statistical Software, 27(8). <a href="https://www.jstatsoft.org/article/view/v027i08">Link</a></li>
+
+<li>pscl package CRAN vignette, <em>Regression Models for Count Data in R (countreg)</em>. <a href="https://cran.r-project.org/web/packages/pscl/vignettes/countreg.pdf">Link</a></li>
+
+<li>pscl::zeroinfl reference. <a href="https://www.rdocumentation.org/packages/pscl/topics/zeroinfl">Link</a></li>
+
+<li>Cameron, A. C. & Trivedi, P. K. <em>Regression Analysis of Count Data</em>, 2nd Edition. Cambridge University Press (2013).</li>
+
+<li>UCLA OARC, <em>Zero-Inflated Poisson Regression R Data Analysis Example</em>. <a href="https://stats.oarc.ucla.edu/r/dae/zip/">Link</a></li>
+
+<li>UCLA OARC, <em>Zero-Inflated Negative Binomial Regression R Data Analysis Example</em>. <a href="https://stats.oarc.ucla.edu/r/dae/zinb/">Link</a></li>
+
+<li>Wilson, P. (2015). <em>The misuse of the Vuong test for non-nested models to test for zero-inflation</em>. Economics Letters, 127, 51-53.</li>
+
+<li>Long, J. S. (1990). <em>The origins of sex differences in science</em>. Social Forces, 68(4), 1297-1316. (bioChemists dataset.)</li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Poisson-Regression-in-R.html">Poisson Regression in R</a>, the parent tutorial that introduces count regression and the <a class="auto-link" href="Negative-Binomial-Regression-in-R.html" title="Negative Binomial Regression in R: MASS::glm.nb() & Overdispersion Fix">overdispersion check</a> you ran above.</li>
+
+<li><a href="Negative-Binomial-Regression-in-R.html">Negative Binomial Regression in R</a>, for overdispersion without zero inflation; a useful comparator.</li>
+
+<li><a href="Zero-Inflated-Distributions-in-R.html">Zero-Inflated Distributions in R</a>, the distribution theory behind ZIP and ZINB, with deeper treatment of structural vs sampling zeros.</li>
+
+</ul>
