@@ -40,7 +40,7 @@ PROJECT_ROOT = REPO_ROOT.parent  # D:/09_rstatisticsco — where .claude/ lives
 QUEUE_FILE = REPO_ROOT / "post_queue.json"
 LOG_FILE = REPO_ROOT / "Scripts" / "orchestrate.log"
 LOCK_FILE = REPO_ROOT / "Scripts" / "orchestrate.lock"
-SESSION_TIMEOUT = 3000  # 50 minutes per post
+SESSION_TIMEOUT = 4500  # 75 minutes per post
 MAX_ATTEMPTS = 2
 
 
@@ -364,10 +364,13 @@ def publish(entry):
         capture_output=True, text=True, cwd=REPO_ROOT
     )
     if result.returncode != 0:
-        if "nothing to commit" in result.stdout:
+        clean_markers = ("nothing to commit", "no changes added to commit")
+        if any(m in result.stdout for m in clean_markers):
             log("  Nothing new to commit (already committed?)")
         else:
-            return f"git commit failed: {result.stderr.strip()}"
+            # Include stdout in error — git often reports the real reason there
+            err = (result.stderr.strip() or result.stdout.strip())[:300]
+            return f"git commit failed: {err}"
     else:
         log(f"  commit: {result.stdout.strip().splitlines()[-1]}")
 
