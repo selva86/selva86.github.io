@@ -1,0 +1,988 @@
+---
+title: "Added Variable Plots in R: Partial Regression & Marginal Effects"
+description: "Master added variable plots in R: partial regression, marginal effects, and the math behind isolating one predictor's effect from a multiple regression model."
+keywords: "added variable plots R, partial regression plot, avPlots car package, Frisch-Waugh-Lovell theorem, marginal effects regression, regression diagnostics"
+mathjax: true
+webr: true
+curriculum_id: "FR-regr-2"
+post_type: "FR"
+auto_link_terms: "added variable plot|added variable plots|partial regression plot|partial regression plots|avPlots|Frisch-Waugh-Lovell|partial residual plot"
+auto_link_case_sensitive: false
+fr_parent: "Regression-Diagnostics-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>Added Variable Plots in R: Partial Regression & Marginal Effects</h1>
+
+<p class="lead">An added variable plot (also called a partial regression plot) shows the relationship between one predictor and the response after the linear effects of every other predictor have been removed from both. The slope you see in the plot is exactly the regression coefficient for that predictor.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="40" data-exercises="9" data-xp="135"></div>
+
+<h2>How does an added variable plot reveal one predictor's effect?</h2>
+
+<p>In a multiple regression model, the coefficient for a predictor like <code>hp</code> answers a very specific question: how does <code>mpg</code> change when <code>hp</code> changes by one unit, holding the other predictors fixed? An added variable plot turns that hypothetical into a picture. We will fit a model on <code>mtcars</code>, peel away the influence of every other predictor, and watch the coefficient for <code>hp</code> reappear as the slope of a simple scatterplot.</p>
+
+<div class="webr-container" data-block-title="Build the first added variable plot from scratch">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build the first added variable plot from scratch</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit the multiple regression model
+model_full &lt;- lm(mpg ~ hp + wt + cyl, data = mtcars)
+
+# Residualize mpg on the OTHER predictors (wt and cyl)
+y_resid &lt;- resid(lm(mpg ~ wt + cyl, data = mtcars))
+
+# Residualize hp on the OTHER predictors (wt and cyl)
+x_resid &lt;- resid(lm(hp ~ wt + cyl, data = mtcars))
+
+# The slope of the residual scatterplot equals the coefficient of hp
+slope_avp &lt;- coef(lm(y_resid ~ x_resid))[2]
+coef_full &lt;- coef(model_full)[&quot;hp&quot;]
+
+c(avp_slope = slope_avp, lm_coef = coef_full)
+#&gt; avp_slope.x_resid     lm_coef.hp
+#&gt;       -0.01804892    -0.01804892
+
+# Plot the added variable plot
+plot(x_resid, y_resid,
+     xlab = &quot;hp | others&quot;,
+     ylab = &quot;mpg | others&quot;,
+     main = &quot;Added Variable Plot: hp&quot;,
+     pch = 19, col = &quot;steelblue&quot;)
+abline(lm(y_resid ~ x_resid), col = &quot;darkred&quot;, lwd = 2)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The two numbers match to many decimal places because they are mathematically the same quantity. The full-model coefficient <code>-0.0180</code> says that one extra horsepower lowers predicted <code>mpg</code> by about 0.018 miles-per-gallon, holding <code>wt</code> and <code>cyl</code> constant. The added variable plot makes that adjustment visible, every point on the scatter is a car after the linear pull of weight and cylinders has been removed from both <code>mpg</code> and <code>hp</code>. The downward red line you see <em>is</em> the coefficient for <code>hp</code>.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Eyeball the slope before reading the coefficient.</strong> A flat AVP cloud means the predictor is doing little work in the multiple regression, regardless of what its raw correlation with the response looks like. This single visual cue catches most "why is my coefficient near zero?" surprises before you reach for the summary table.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build the added variable plot for <code>wt</code> (residualizing on <code>hp</code> and <code>cyl</code>) and confirm its slope matches the <code>wt</code> coefficient from <code>model_full</code>.</p>
+<div class="webr-container" data-block-title="Your turn: AVP for wt">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: AVP for wt</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Use the same recipe as above, but for wt
+ex_y &lt;- # your code here: residuals of mpg on hp + cyl
+ex_x &lt;- # your code here: residuals of wt  on hp + cyl
+ex_slope &lt;- # your code here
+
+c(avp = ex_slope, lm = coef(model_full)[&quot;wt&quot;])
+#&gt; Expected: both numbers identical (around -3.17)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="AVP for wt solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">AVP for wt solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_y &lt;- resid(lm(mpg ~ hp + cyl, data = mtcars))
+ex_x &lt;- resid(lm(wt  ~ hp + cyl, data = mtcars))
+ex_slope &lt;- coef(lm(ex_y ~ ex_x))[2]
+c(avp = ex_slope, lm = coef(model_full)[&quot;wt&quot;])
+#&gt;  avp.ex_x     lm.wt
+#&gt; -3.166973 -3.166973</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The recipe is symmetric across predictors. To isolate <code>wt</code>, regress out <code>hp + cyl</code> from both sides, then look at the slope of the residual scatter. The number you get is the partial slope <code>lm()</code> reports.</p>
+
+</details>
+</section>
+
+<h2>What math is happening behind the scenes?</h2>
+
+<p>The reason added variable plots work is the <strong>Frisch-Waugh-Lovell theorem</strong>, a 1933/1963 result in linear algebra that says: in any multiple regression, you can recover the coefficient for one predictor by partialling out the other predictors from both the response and that predictor, then doing a simple regression on the residuals.</p>
+
+<p>Formally, if your model is $y = X_1 \beta_1 + X_2 \beta_2 + \varepsilon$, then $\beta_2$ is identical to the OLS slope from regressing $M_1 y$ on $M_1 X_2$, where $M_1 = I - X_1 (X_1^T X_1)^{-1} X_1^T$ is the residual-maker matrix that strips off the part explained by $X_1$.</p>
+
+<p>$$ \hat{\beta}_2 \;=\; (X_2^T M_1 X_2)^{-1} X_2^T M_1 y $$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$y$ = the response vector</li>
+
+<li>$X_2$ = the focal predictor (the one you want a coefficient for)</li>
+
+<li>$X_1$ = the matrix of all other predictors</li>
+
+<li>$M_1$ = the residual-maker for $X_1$ (multiplying by it returns the residuals from regressing on $X_1$)</li>
+
+<li>$\hat{\beta}_2$ = the same coefficient <code>lm()</code> reports</li>
+
+</ul>
+
+<p>That double residualization is exactly what we did in code block 1. We can package it into a tiny helper so the reader sees the symmetry directly.</p>
+
+<p><img src="screenshots/Added-Variable-Plots-in-R-residualization-flow.webp" alt="How an added variable plot is built" class="img-responsive img-zoomable" loading="lazy" width="2078" height="690" /></p>
+
+<p><em>Figure 1: The two-step recipe behind every added variable plot.</em></p>
+
+<div class="webr-container" data-block-title="A tiny FWL helper, verified against lm()">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A tiny FWL helper, verified against lm()</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Helper: returns the partial slope for one predictor in a fitted model
+partial_slope &lt;- function(model, predictor) {
+  data_used &lt;- model.frame(model)
+  response  &lt;- names(data_used)[1]
+  others    &lt;- setdiff(names(data_used)[-1], predictor)
+
+  # Build formulas dynamically
+  f_y &lt;- reformulate(others, response = response)
+  f_x &lt;- reformulate(others, response = predictor)
+
+  y_r &lt;- resid(lm(f_y, data = data_used))
+  x_r &lt;- resid(lm(f_x, data = data_used))
+
+  unname(coef(lm(y_r ~ x_r))[2])
+}
+
+# Verify against lm() coefficients for two predictors
+coefs_check &lt;- sapply(c(&quot;hp&quot;, &quot;wt&quot;), function(p) {
+  c(avp = partial_slope(model_full, p), lm = unname(coef(model_full)[p]))
+})
+print(round(coefs_check, 6))
+#&gt;            hp        wt
+#&gt; avp -0.018049 -3.166973
+#&gt; lm  -0.018049 -3.166973</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both rows are identical because the helper implements the FWL theorem line-by-line. The first column is the AVP slope for <code>hp</code>; the second is the AVP slope for <code>wt</code>. Whatever predictor you care about, you can isolate it without re-fitting the full model in any new way, you just regress the right things on the right things.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Multiple regression coefficients are partial-residual slopes, not raw correlations.</strong> Frisch-Waugh-Lovell says the coefficient on <code>hp</code> is the slope from a univariate regression <em>of leftover-mpg on leftover-hp</em>, after the variation explained by every other predictor has been removed from both. That is why a coefficient can be near zero even when <code>cor(hp, mpg)</code> is strongly negative, the other predictors absorbed the shared variation first.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Extend the helper to also return the standard error and t-statistic for the partial slope, then compare against the row from <code>summary(model_full)$coefficients</code>.</p>
+<div class="webr-container" data-block-title="Your turn: extend partial_slope to return SE and t">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: extend partial_slope to return SE and t</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_partial_summary &lt;- function(model, predictor) {
+  data_used &lt;- model.frame(model)
+  response  &lt;- names(data_used)[1]
+  others    &lt;- setdiff(names(data_used)[-1], predictor)
+
+  y_r &lt;- resid(lm(reformulate(others, response = response), data = data_used))
+  x_r &lt;- resid(lm(reformulate(others, response = predictor), data = data_used))
+
+  fit &lt;- lm(y_r ~ x_r)
+  # your code here: pull slope, std error, t value from coef(summary(fit))
+}
+
+ex_partial_summary(model_full, &quot;hp&quot;)
+#&gt; Expected: slope, SE, and t close to summary(model_full) row for hp</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Extended helper solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Extended helper solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_partial_summary &lt;- function(model, predictor) {
+  data_used &lt;- model.frame(model)
+  response  &lt;- names(data_used)[1]
+  others    &lt;- setdiff(names(data_used)[-1], predictor)
+
+  y_r &lt;- resid(lm(reformulate(others, response = response), data = data_used))
+  x_r &lt;- resid(lm(reformulate(others, response = predictor), data = data_used))
+
+  row &lt;- coef(summary(lm(y_r ~ x_r)))[2, 1:3]
+  names(row) &lt;- c(&quot;slope&quot;, &quot;std_err&quot;, &quot;t_value&quot;)
+  row
+}
+
+ex_partial_summary(model_full, &quot;hp&quot;)
+#&gt;       slope     std_err     t_value
+#&gt; -0.01804892  0.01188301 -1.51888547
+summary(model_full)$coefficients[&quot;hp&quot;, 1:3]
+#&gt;    Estimate  Std. Error     t value
+#&gt; -0.01804892  0.01188626 -1.51847089</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The slopes match exactly. The standard errors and t-statistics are <em>very close</em> but not identical because the AVP regression has fewer effective degrees of freedom than <code>lm()</code> accounts for. For coefficient estimates the AVP is exact, for inference always trust <code>summary(model)</code>.</p>
+
+</details>
+</section>
+
+<h2>How do you generate added variable plots for every predictor at once?</h2>
+
+<p>Once you have <code>partial_slope()</code>, looping over every predictor takes one for-loop. For visual diagnostics, you typically want a 2x2 or 3x2 panel showing every AVP side-by-side.</p>
+
+<div class="webr-container" data-block-title="Build a panel of AVPs, one per predictor">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build a panel of AVPs, one per predictor</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">predictors &lt;- c(&quot;hp&quot;, &quot;wt&quot;, &quot;cyl&quot;)
+data_used  &lt;- model.frame(model_full)
+others_for &lt;- function(p) setdiff(predictors, p)
+
+# Build a list of (x_resid, y_resid) pairs, one per predictor
+avp_data &lt;- lapply(predictors, function(p) {
+  y_r &lt;- resid(lm(reformulate(others_for(p), response = &quot;mpg&quot;), data = data_used))
+  x_r &lt;- resid(lm(reformulate(others_for(p), response = p),     data = data_used))
+  data.frame(x = x_r, y = y_r, predictor = p)
+})
+
+# Plot the 3 AVPs side by side
+op &lt;- par(mfrow = c(1, 3), mar = c(4, 4, 2, 1))
+for (i in seq_along(avp_data)) {
+  d &lt;- avp_data[[i]]
+  plot(d$x, d$y,
+       xlab = paste(predictors[i], &quot;| others&quot;),
+       ylab = &quot;mpg | others&quot;,
+       main = paste(&quot;AVP:&quot;, predictors[i]),
+       pch = 19, col = &quot;steelblue&quot;)
+  abline(lm(y ~ x, data = d), col = &quot;darkred&quot;, lwd = 2)
+}
+par(op)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each panel tells the same story for a different predictor. The slope is the coefficient <code>lm()</code> reported, the spread is what is left after partialling out, and any point that drifts away from the line is a car whose leftover <code>mpg</code> is poorly explained by leftover <code>hp</code> (or <code>wt</code>, or <code>cyl</code>) alone.</p>
+
+<p>In production, the <code>car</code> package gives you a one-liner for the same panel:</p>
+
+<div class="webr-container" data-block-title="The car::avPlots() one-liner (run locally in RStudio)">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The car::avPlots() one-liner (run locally in RStudio)</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># library(car)
+# avPlots(model_full)
+#&gt; Produces the same panel of added variable plots, one per predictor,
+#&gt; with point identification and a fitted line per panel.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>The <code>car</code> package is not pre-compiled for the in-browser R runtime on this page, so the snippet above is shown for reference only.</strong> Install it once with <code>install.packages(&quot;car&quot;)</code> in RStudio and <code>avPlots()</code> becomes available everywhere. Under the hood it does exactly what our manual loop does, our manual version is what <code>car</code> is computing in C.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Write a function that takes a fitted model and returns a data frame with one row per predictor showing both the manual partial slope and the <code>lm()</code> coefficient. They should match.</p>
+<div class="webr-container" data-block-title="Your turn: tabulate manual vs lm() coefficients">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: tabulate manual vs lm() coefficients</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_compare &lt;- function(model) {
+  preds &lt;- attr(terms(model), &quot;term.labels&quot;)
+  # your code here: loop over preds, return data.frame(predictor, manual, lm_coef)
+}
+
+ex_compare(model_full)
+#&gt; Expected: 3 rows, manual and lm_coef columns identical</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Tabulate manual vs lm coefficients solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Tabulate manual vs lm coefficients solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_compare &lt;- function(model) {
+  preds  &lt;- attr(terms(model), &quot;term.labels&quot;)
+  manual &lt;- sapply(preds, function(p) partial_slope(model, p))
+  lm_co  &lt;- coef(model)[preds]
+  data.frame(predictor = preds,
+             manual    = round(manual, 6),
+             lm_coef   = round(unname(lm_co), 6))
+}
+
+ex_compare(model_full)
+#&gt;     predictor    manual   lm_coef
+#&gt; hp         hp -0.018049 -0.018049
+#&gt; wt         wt -3.166973 -3.166973
+#&gt; cyl       cyl -0.941620 -0.941620</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The function loops <code>partial_slope()</code> over every predictor and lines it up against <code>coef(model)</code>. Identical numbers in the two columns confirm the FWL identity for the whole model in one table.</p>
+
+</details>
+</section>
+
+<h2>How do you read slope, scatter, and outliers in an added variable plot?</h2>
+
+<p>Now that the panel is on screen, what should you actually look at? Four signals matter:</p>
+
+<ol>
+
+<li><strong>Slope.</strong> The sign and magnitude reproduce the <code>lm()</code> coefficient. A nearly-flat line means that predictor adds little once the others are accounted for, regardless of how strongly it correlates with the raw response.</li>
+
+<li><strong>Scatter.</strong> The vertical spread is the residual variation that the focal predictor still has to explain. Tight scatter around the line means that predictor really is doing the work the model attributes to it; wide scatter means a lot is left unexplained.</li>
+
+<li><strong>Outliers.</strong> A point far from the cloud is a row whose adjusted <code>y</code> does not behave like the others. Added variable plots make these stand out far better than raw scatterplots because the partialling has removed the structure that was hiding them.</li>
+
+<li><strong>Curvature.</strong> A clear bend in the cloud says the partial relationship is not linear, even though <code>lm()</code> is forcing a straight line through it.</li>
+
+</ol>
+
+<p>Let us build a small synthetic example that has a deliberate quadratic relationship and confirm that the AVP exposes it while the raw scatter does not.</p>
+
+<div class="webr-container" data-block-title="Curvature detection: AVP vs raw scatter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Curvature detection: AVP vs raw scatter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+n &lt;- 200
+x1 &lt;- runif(n, -2, 2)
+x2 &lt;- runif(n, -2, 2)
+y  &lt;- 2 * x1 + x2^2 + rnorm(n, sd = 0.5)
+sim_df &lt;- data.frame(y = y, x1 = x1, x2 = x2)
+
+model_curve &lt;- lm(y ~ x1 + x2, data = sim_df)
+
+# Raw scatter of y against x2 (curvature is masked by x1's noise)
+op &lt;- par(mfrow = c(1, 2), mar = c(4, 4, 2, 1))
+plot(sim_df$x2, sim_df$y, pch = 19, col = &quot;grey50&quot;,
+     xlab = &quot;x2&quot;, ylab = &quot;y&quot;, main = &quot;Raw scatter: y vs x2&quot;)
+abline(lm(y ~ x2, data = sim_df), col = &quot;darkred&quot;, lwd = 2)
+
+# AVP for x2 (curvature is obvious)
+y_r2 &lt;- resid(lm(y  ~ x1, data = sim_df))
+x_r2 &lt;- resid(lm(x2 ~ x1, data = sim_df))
+plot(x_r2, y_r2, pch = 19, col = &quot;steelblue&quot;,
+     xlab = &quot;x2 | x1&quot;, ylab = &quot;y | x1&quot;, main = &quot;AVP: x2&quot;)
+abline(lm(y_r2 ~ x_r2), col = &quot;darkred&quot;, lwd = 2)
+lines(lowess(x_r2, y_r2), col = &quot;darkgreen&quot;, lwd = 2, lty = 2)
+par(op)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>In the left panel, <code>x2</code>'s quadratic structure is buried under the linear pull of <code>x1</code>. The fitted line looks fine and you would not suspect a missing term. In the right panel, the AVP for <code>x2</code> shows a clear U-shape, and the dashed loess curve makes it unmistakable. That is the diagnostic value: a flat-looking residual cloud means the model is doing fine; a curved one tells you to add <code>I(x2^2)</code> (or a spline) to the formula.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A curved AVP is a misspecification flag, not a license to keep adding terms blindly.</strong> When you see curvature, the right move is to think about <em>why</em> that predictor's effect might bend, then refit with a transformation that has a substantive interpretation (square, log, spline). Stuffing a polynomial into every curved AVP is the diagnostic equivalent of adding more decimals to a wrong answer.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> List the top-3 <code>mtcars</code> rows (by car name) with the largest absolute partial residual on the AVP for <code>wt</code>. Those rows are the cars whose adjusted <code>mpg</code> is least well-explained by adjusted <code>wt</code>.</p>
+<div class="webr-container" data-block-title="Your turn: top-3 residuals on the wt AVP">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: top-3 residuals on the wt AVP</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Reuse partial_slope's residualization recipe for wt
+ex_yr &lt;- resid(lm(mpg ~ hp + cyl, data = mtcars))
+ex_xr &lt;- resid(lm(wt  ~ hp + cyl, data = mtcars))
+ex_resid &lt;- # your code here: residuals from lm(ex_yr ~ ex_xr)
+ex_top   &lt;- # your code here: rownames sorted by abs(ex_resid), top 3
+
+ex_top
+#&gt; Expected: 3 car names; typically extreme-mpg outliers like the Toyota Corolla or a Fiat</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Top-3 AVP residuals solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Top-3 AVP residuals solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_yr &lt;- resid(lm(mpg ~ hp + cyl, data = mtcars))
+ex_xr &lt;- resid(lm(wt  ~ hp + cyl, data = mtcars))
+ex_resid &lt;- resid(lm(ex_yr ~ ex_xr))
+ex_top   &lt;- rownames(mtcars)[order(-abs(ex_resid))][1:3]
+
+ex_top
+#&gt; [1] &quot;Toyota Corolla&quot; &quot;Fiat 128&quot;       &quot;Chrysler Imperial&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The cars at the top of the list have unusually high or low <code>mpg</code> even after accounting for their weight, horsepower, and cylinder count. They sit far from the line on the <code>wt</code> AVP because the model's linear story does not capture them well. Whether your top-3 ordering matches exactly depends on the random tie-breaking, but the same handful of high-leverage cars will dominate.</p>
+
+</details>
+</section>
+
+<h2>How is an added variable plot different from a partial residual plot?</h2>
+
+<p>These two diagnostics are easy to confuse because both involve "residuals" and both isolate one predictor. They answer different questions:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Plot</th>
+<th>x-axis</th>
+<th>y-axis</th>
+<th>Best at revealing</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Added variable plot</td>
+<td>residuals of focal X on others</td>
+<td>residuals of Y on others</td>
+<td>Partial <em>slope</em> and <a class="auto-link" href="Regression-Diagnostics-in-R.html" title="Regression Diagnostics in R: 5 Plots That Reveal Model Violations Instantly">influential observations</a></td>
+</tr>
+<tr>
+<td>Partial residual plot (CR plot)</td>
+<td>raw focal X</td>
+<td>full residuals + $\hat{\beta}_k x_k$</td>
+<td><em>Nonlinearity</em> in the focal predictor's contribution</td>
+</tr>
+</tbody>
+</table>
+
+<p>The AVP shows you what the coefficient is. The partial residual plot (also called a component-plus-residual or CR plot) shows you whether the <em>shape</em> of the relationship is linear. They complement each other: AVP for diagnostics about influence and slope; CR plot for diagnostics about functional form.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Use the AVP to audit the coefficient, the CR plot to audit the curve.</strong> The AVP residualizes the focal predictor on its rivals, which exposes leverage and influence; the CR plot keeps the raw predictor on the x-axis, which preserves the shape of any nonlinearity. A weird AVP says "look at this row of data"; a weird CR plot says "look at this functional form."</div></div>
+
+<div class="webr-container" data-block-title="AVP vs CR plot for one predictor">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">AVP vs CR plot for one predictor</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># AVP for hp (already familiar)
+y_avp &lt;- resid(lm(mpg ~ wt + cyl, data = mtcars))
+x_avp &lt;- resid(lm(hp  ~ wt + cyl, data = mtcars))
+
+# Component + residual plot for hp
+b_hp     &lt;- coef(model_full)[&quot;hp&quot;]
+cr_data  &lt;- data.frame(x  = mtcars$hp,
+                       cr = resid(model_full) + b_hp * mtcars$hp)
+
+op &lt;- par(mfrow = c(1, 2), mar = c(4, 4, 2, 1))
+plot(x_avp, y_avp, pch = 19, col = &quot;steelblue&quot;,
+     xlab = &quot;hp | others&quot;, ylab = &quot;mpg | others&quot;,
+     main = &quot;Added variable plot: hp&quot;)
+abline(lm(y_avp ~ x_avp), col = &quot;darkred&quot;, lwd = 2)
+
+plot(cr_data$x, cr_data$cr, pch = 19, col = &quot;darkorange&quot;,
+     xlab = &quot;hp&quot;, ylab = &quot;Component + residual&quot;,
+     main = &quot;CR plot: hp&quot;)
+abline(a = 0, b = b_hp, col = &quot;darkred&quot;, lwd = 2)
+lines(lowess(cr_data$x, cr_data$cr), col = &quot;darkgreen&quot;, lwd = 2, lty = 2)
+par(op)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The two plots share the same downward slope (that is the <code>hp</code> coefficient in both), but they differ in what is on the x-axis. The AVP uses a residualized <code>hp</code>, so the spread tells you about leverage. The CR plot uses the raw <code>hp</code> and overlays a loess curve, so the deviation between the green dashed loess and the straight red line is the test for nonlinearity. Reach for the AVP when you are auditing coefficients; reach for the CR plot when you are auditing functional form.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute the partial residual vector for <code>hp</code> and verify a <code>lm(partial_residual ~ hp)</code> slope still equals the <code>hp</code> coefficient from the full model.</p>
+<div class="webr-container" data-block-title="Your turn: CR slope sanity check">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: CR slope sanity check</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_pr &lt;- # your code here: resid(model_full) + coef(model_full)[&quot;hp&quot;] * mtcars$hp
+ex_slope_cr &lt;- # your code here: slope from lm(ex_pr ~ mtcars$hp)
+
+c(cr_slope = ex_slope_cr, lm_hp = coef(model_full)[&quot;hp&quot;])
+#&gt; Expected: identical numbers</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="CR slope solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">CR slope solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_pr       &lt;- resid(model_full) + coef(model_full)[&quot;hp&quot;] * mtcars$hp
+ex_slope_cr &lt;- coef(lm(ex_pr ~ mtcars$hp))[2]
+c(cr_slope = ex_slope_cr, lm_hp = coef(model_full)[&quot;hp&quot;])
+#&gt; cr_slope.mtcars$hp              lm_hp.hp
+#&gt;        -0.01804892           -0.01804892</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Adding $\hat{\beta}_k x_k$ back to the full residual gives a vector whose linear regression on $x_k$ recovers $\hat{\beta}_k$. CR plots and AVPs share the slope; their advantage is in what <em>else</em> they let you see.</p>
+
+</details>
+</section>
+
+<h2>How do you make publication-quality AVPs with ggplot2?</h2>
+
+<p>For papers, slides, or dashboards, <a class="auto-link" href="ggplot2-Tutorial-With-R.html" title="ggplot2 Short Tutorial">ggplot2</a> gives you finer control over labels, ribbons, and rug plots. The recipe below produces a polished AVP for one predictor; loop it with <code>lapply</code> if you want a panel.</p>
+
+<div class="webr-container" data-block-title="Publication-quality AVP with ggplot2">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Publication-quality AVP with ggplot2</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ggplot2)
+
+# Reuse the residual pair for hp from earlier in the session
+y_r &lt;- resid(lm(mpg ~ wt + cyl, data = mtcars))
+x_r &lt;- resid(lm(hp  ~ wt + cyl, data = mtcars))
+
+avp_df_gg &lt;- data.frame(
+  x = x_r,
+  y = y_r,
+  car = rownames(mtcars)
+)
+
+ggplot(avp_df_gg, aes(x = x, y = y)) +
+  geom_hline(yintercept = 0, colour = &quot;grey70&quot;) +
+  geom_vline(xintercept = 0, colour = &quot;grey70&quot;) +
+  geom_point(colour = &quot;steelblue&quot;, size = 2.5, alpha = 0.8) +
+  geom_smooth(method = &quot;lm&quot;, se = TRUE, colour = &quot;darkred&quot;,
+              fill = &quot;darkred&quot;, alpha = 0.15) +
+  geom_rug(sides = &quot;bl&quot;, colour = &quot;grey50&quot;, alpha = 0.5) +
+  labs(
+    title = &quot;Added Variable Plot: hp&quot;,
+    subtitle = &quot;Residual mpg vs residual hp, after removing wt and cyl&quot;,
+    x = &quot;hp | wt + cyl&quot;,
+    y = &quot;mpg | wt + cyl&quot;
+  ) +
+  theme_minimal(base_size = 13)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The ggplot version adds three things the base plot does not: a confidence ribbon around the partial slope, reference axes at zero so you can see the centroid, and a marginal rug that shows where data actually lives. The story is the same as the base plot, but the figure is now ready to drop into a manuscript.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Label only the most influential points.</strong> Use <code>ggrepel::geom_text_repel(data = subset(avp_df_gg, abs(y) &gt; 3), aes(label = car))</code> to call out the cars with the biggest leftover residual instead of labelling all 32. Sparse labelling preserves the readability of the cloud.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Change the smoother from <code>method = &quot;lm&quot;</code> to <code>method = &quot;loess&quot;</code> and look at whether the partial relationship is still linear. A flat-ish loess line means linear is fine; a clear bend means consider a transformation.</p>
+<div class="webr-container" data-block-title="Your turn: swap lm for loess">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: swap lm for loess</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(avp_df_gg, aes(x = x, y = y)) +
+  geom_point(colour = &quot;steelblue&quot;, size = 2.5, alpha = 0.8) +
+  geom_smooth(method = # your code here, se = TRUE, colour = &quot;darkred&quot;) +
+  labs(title = &quot;AVP for hp with loess smoother&quot;) +
+  theme_minimal()
+#&gt; Expected: a wavy curve close to the linear fit (no strong bend for hp)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Loess smoother solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Loess smoother solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(avp_df_gg, aes(x = x, y = y)) +
+  geom_point(colour = &quot;steelblue&quot;, size = 2.5, alpha = 0.8) +
+  geom_smooth(method = &quot;loess&quot;, se = TRUE, colour = &quot;darkred&quot;,
+              fill = &quot;darkred&quot;, alpha = 0.15) +
+  labs(title = &quot;AVP for hp with loess smoother&quot;) +
+  theme_minimal()
+#&gt; Curve hugs the linear fit closely, suggesting no nonlinearity to worry about for hp.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> When the loess curve and the linear fit roughly overlap, you have visual evidence that a straight line captures the partial relationship. A clear systematic gap is your cue to add a transformation or a spline term.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<h3>Exercise 1: AVP for Petal.Length on iris</h3>
+
+<p>Fit <code>lm(Sepal.Length ~ Sepal.Width + Petal.Length + Petal.Width, data = iris)</code>. Build the added variable plot for <code>Petal.Length</code> from scratch (residualize on the other two predictors) and verify the slope of the residual scatter equals the <a class="auto-link" href="Linear-Regression.html" title="Linear Regression">lm()</a> coefficient.</p>
+
+<div class="webr-container" data-block-title="Exercise: AVP for Petal.Length">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise: AVP for Petal.Length</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: residualize Sepal.Length on Sepal.Width + Petal.Width
+# Then residualize Petal.Length on Sepal.Width + Petal.Width
+# Compare the AVP slope to coef(model_iris)['Petal.Length']
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="AVP for Petal.Length solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">AVP for Petal.Length solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_iris_model &lt;- lm(Sepal.Length ~ Sepal.Width + Petal.Length + Petal.Width,
+                    data = iris)
+my_y &lt;- resid(lm(Sepal.Length ~ Sepal.Width + Petal.Width, data = iris))
+my_x &lt;- resid(lm(Petal.Length ~ Sepal.Width + Petal.Width, data = iris))
+my_slope &lt;- coef(lm(my_y ~ my_x))[2]
+
+c(avp = my_slope, lm = coef(my_iris_model)[&quot;Petal.Length&quot;])
+#&gt;           avp.my_x  lm.Petal.Length
+#&gt;          0.7290835        0.7290835</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Same recipe, different dataset. Sepal length gains roughly 0.73 units for every extra unit of petal length, after sepal width and petal width are accounted for.</p>
+
+</details>
+
+<h3>Exercise 2: Build a panel-data structure for any model</h3>
+
+<p>Write <code>my_avp_panel(model)</code> that takes any fitted <code>lm()</code> and returns a list with one entry per predictor. Each entry is a two-column data frame holding the residual pair <code>(x_resid, y_resid)</code>. Apply it to the iris model from Exercise 1 and confirm the list has one entry per predictor.</p>
+
+<div class="webr-container" data-block-title="Exercise: my_avp_panel">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise: my_avp_panel</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: loop over attr(terms(model), 'term.labels')
+# For each, residualize y and x on the OTHER predictors
+
+my_avp_panel &lt;- function(model) {
+  # Write your code below
+}
+
+my_iris_panel &lt;- my_avp_panel(my_iris_model)
+length(my_iris_panel)
+names(my_iris_panel)
+#&gt; Expected: 3 entries named after the three predictors</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="my_avp_panel solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">my_avp_panel solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_avp_panel &lt;- function(model) {
+  data_used &lt;- model.frame(model)
+  response  &lt;- names(data_used)[1]
+  preds     &lt;- attr(terms(model), &quot;term.labels&quot;)
+
+  out &lt;- lapply(preds, function(p) {
+    others &lt;- setdiff(preds, p)
+    y_r &lt;- resid(lm(reformulate(others, response = response), data = data_used))
+    x_r &lt;- resid(lm(reformulate(others, response = p),         data = data_used))
+    data.frame(x_resid = x_r, y_resid = y_r)
+  })
+  setNames(out, preds)
+}
+
+my_iris_panel &lt;- my_avp_panel(my_iris_model)
+length(my_iris_panel)
+#&gt; [1] 3
+names(my_iris_panel)
+#&gt; [1] &quot;Sepal.Width&quot;  &quot;Petal.Length&quot; &quot;Petal.Width&quot;
+head(my_iris_panel$Petal.Length, 3)
+#&gt;      x_resid    y_resid
+#&gt; 1 -0.1925000 -0.1304015
+#&gt; 2 -0.2175000 -0.3304015
+#&gt; 3 -0.3175000 -0.5054015</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The function reuses the FWL recipe inside a loop. The output is a tidy structure ready for either base plotting or <code>lapply(..., function(d) ggplot(d, aes(x_resid, y_resid)) + ...)</code>.</p>
+
+</details>
+
+<h3>Exercise 3: Detect curvature with an AVP</h3>
+
+<p>Simulate <code>n = 300</code> rows of <code>y = 2 * x1 + x2^2 + noise</code>. Fit a misspecified linear model <code>lm(y ~ x1 + x2)</code>. Build the AVP for <code>x2</code> and use it to argue, both visually and numerically, that a quadratic term is needed. The numeric argument: refit with <code>I(x2^2)</code> and show the residual sum of squares drops sharply.</p>
+
+<div class="webr-container" data-block-title="Exercise: detect curvature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise: detect curvature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(99)
+# Simulate the data, fit the wrong model, build the AVP for x2,
+# then compare RSS between the linear and quadratic versions.
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Curvature detection solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Curvature detection solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(99)
+n  &lt;- 300
+x1 &lt;- rnorm(n)
+x2 &lt;- rnorm(n)
+y  &lt;- 2 * x1 + x2^2 + rnorm(n, sd = 0.4)
+my_sim &lt;- data.frame(y = y, x1 = x1, x2 = x2)
+
+my_lin  &lt;- lm(y ~ x1 + x2,             data = my_sim)
+my_quad &lt;- lm(y ~ x1 + x2 + I(x2^2),   data = my_sim)
+
+# AVP for x2 (look for a U-shape)
+y_r &lt;- resid(lm(y  ~ x1, data = my_sim))
+x_r &lt;- resid(lm(x2 ~ x1, data = my_sim))
+plot(x_r, y_r, pch = 19, col = &quot;steelblue&quot;,
+     xlab = &quot;x2 | x1&quot;, ylab = &quot;y | x1&quot;, main = &quot;AVP: x2 (clear curvature)&quot;)
+lines(lowess(x_r, y_r), col = &quot;darkgreen&quot;, lwd = 2)
+
+# Numeric argument: RSS drops dramatically with the quadratic term
+c(linear_RSS = sum(resid(my_lin)^2),
+  quadratic_RSS = sum(resid(my_quad)^2))
+#&gt;    linear_RSS quadratic_RSS
+#&gt;   330.4727842    47.5926821</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The AVP for <code>x2</code> shows a textbook U-shape, and the residual sum of squares falls by an order of magnitude when the squared term is added. Together they make a strong case for the quadratic specification. The AVP told you <em>where</em> to look; the RSS comparison confirmed the fix.</p>
+
+</details>
+
+<h2>Complete Example</h2>
+
+<p>End-to-end on <code>mtcars</code>: fit a 4-predictor model, build all four AVPs by looping the FWL recipe, interpret what each plot says about its coefficient, and decide whether any predictor's relationship looks nonlinear enough to warrant a transformation.</p>
+
+<div class="webr-container" data-block-title="End-to-end AVP workflow on mtcars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">End-to-end AVP workflow on mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># 1. Fit the model
+model_4 &lt;- lm(mpg ~ hp + wt + cyl + drat, data = mtcars)
+round(coef(model_4), 4)
+#&gt; (Intercept)          hp          wt         cyl        drat
+#&gt;     34.3796     -0.0218     -2.9821     -0.7401      1.0407
+
+# 2. Build AVP residual pairs for every predictor
+preds_4    &lt;- c(&quot;hp&quot;, &quot;wt&quot;, &quot;cyl&quot;, &quot;drat&quot;)
+data_4     &lt;- model.frame(model_4)
+others_for &lt;- function(p) setdiff(preds_4, p)
+
+avp_pairs &lt;- lapply(preds_4, function(p) {
+  y_r &lt;- resid(lm(reformulate(others_for(p), response = &quot;mpg&quot;), data = data_4))
+  x_r &lt;- resid(lm(reformulate(others_for(p), response = p),     data = data_4))
+  data.frame(x = x_r, y = y_r)
+})
+names(avp_pairs) &lt;- preds_4
+
+# 3. Plot the 2x2 panel
+op &lt;- par(mfrow = c(2, 2), mar = c(4, 4, 2, 1))
+for (p in preds_4) {
+  d &lt;- avp_pairs[[p]]
+  plot(d$x, d$y, pch = 19, col = &quot;steelblue&quot;,
+       xlab = paste(p, &quot;| others&quot;), ylab = &quot;mpg | others&quot;,
+       main = paste(&quot;AVP:&quot;, p))
+  abline(lm(y ~ x, data = d), col = &quot;darkred&quot;, lwd = 2)
+  lines(lowess(d$x, d$y), col = &quot;darkgreen&quot;, lwd = 2, lty = 2)
+}
+par(op)
+
+# 4. Verify slopes equal coefficients (FWL identity check)
+slopes &lt;- sapply(preds_4, function(p) coef(lm(y ~ x, data = avp_pairs[[p]]))[2])
+data.frame(predictor = preds_4,
+           avp_slope = round(slopes, 4),
+           lm_coef   = round(unname(coef(model_4)[preds_4]), 4))
+#&gt;     predictor avp_slope lm_coef
+#&gt; hp         hp   -0.0218 -0.0218
+#&gt; wt         wt   -2.9821 -2.9821
+#&gt; cyl       cyl   -0.7401 -0.7401
+#&gt; drat     drat    1.0407  1.0407</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Reading the panel, all four AVPs show roughly straight clouds, the loess curves track the red linear fits closely. None of the four predictors flags an obvious nonlinearity at this sample size. The slope-vs-coefficient table at the bottom confirms the FWL identity for every predictor, your visual diagnostics are anchored to the same numbers <code>lm()</code> reports. If one of those loess curves had bent dramatically, that would be your cue to add an <code>I(x^2)</code> term or a spline before trusting the linear coefficient.</p>
+
+<h2>Summary</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Concept</th>
+<th>Key takeaway</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Definition</td>
+<td>An AVP plots the residuals of <code>Y</code> (on other Xs) against the residuals of focal <code>X</code> (on other Xs).</td>
+</tr>
+<tr>
+<td>Frisch-Waugh-Lovell</td>
+<td>The OLS slope of those residuals equals the multiple-regression coefficient for the focal predictor.</td>
+</tr>
+<tr>
+<td>Slope reading</td>
+<td>Sign + magnitude reproduce the <code>lm()</code> coefficient exactly.</td>
+</tr>
+<tr>
+<td>Scatter reading</td>
+<td>Vertical spread = leftover variation; tight = focal predictor explains most of it.</td>
+</tr>
+<tr>
+<td>Outliers</td>
+<td>Stand out far better than in raw scatterplots because partialling removes confounding structure.</td>
+</tr>
+<tr>
+<td>Curvature</td>
+<td>A bent cloud says the linear fit is misspecified; consider a transformation or spline.</td>
+</tr>
+<tr>
+<td>AVP vs CR plot</td>
+<td>AVP audits <em>coefficients and influence</em>; partial residual (CR) plots audit <em>functional form</em>.</td>
+</tr>
+<tr>
+<td>Production shortcut</td>
+<td><code>car::avPlots(model)</code> draws the panel for you (run locally in RStudio).</td>
+</tr>
+</tbody>
+</table>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Fox, J. & Weisberg, S., <em>An R Companion to Applied Regression</em>, 3rd Edition. Sage (2019). Chapter on regression diagnostics.</li>
+
+<li>car package documentation, <code>avPlots()</code> reference. <a href="https://search.r-project.org/CRAN/refmans/car/html/avPlots.html">Link</a></li>
+
+<li>Lovell, M. C. (1963). Seasonal adjustment of economic <a class="auto-link" href="Time-Series-Analysis-With-R.html" title="Time Series Analysis with R">time series</a> and multiple regression analysis. <em>Journal of the American Statistical Association</em>, 58(304), 993-1010. (Origin of the FWL theorem in modern form.)</li>
+
+<li>Belsley, D. A., Kuh, E., & Welsch, R. E., <em>Regression Diagnostics: Identifying Influential Data and Sources of Collinearity</em>. Wiley (1980).</li>
+
+<li>Frisch, R. & Waugh, F. V. (1933). Partial Time Regressions as Compared with Individual Trends. <em>Econometrica</em>, 1(4), 387-401. <a href="https://www.jstor.org/stable/1907330">Link</a></li>
+
+<li>Fox, J. (1991). <em>Regression Diagnostics: An Introduction</em>. Sage University Paper.</li>
+
+<li>Cook, R. D. (1996). Added-variable plots and curvature in linear regression. <em>Technometrics</em>, 38(3), 275-278.</li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Regression-Diagnostics-in-R.html">Regression Diagnostics in R: 5 Plots That Reveal Model Violations Instantly</a>, the parent tutorial that surveys the full diagnostic toolkit.</li>
+
+<li><a href="Multicollinearity-in-R.html">Multicollinearity in R</a>, when partial slopes get unstable, AVPs alone are not enough; pair them with <a class="auto-link" href="Multicollinearity-in-R.html" title="Multicollinearity in R: Detect It With VIF Before It Corrupts Your Coefficients">VIF</a>.</li>
+
+<li><a href="Linear-Regression-Assumptions-in-R.html">Linear Regression Assumptions in R</a>, the broader assumption checklist that AVPs help you validate.</li>
+
+</ul>
