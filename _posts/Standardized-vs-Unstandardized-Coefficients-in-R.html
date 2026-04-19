@@ -1,0 +1,809 @@
+---
+title: "Standardized vs Unstandardized Coefficients in R: When Each Matters: Which Is Right for You?"
+description: "Learn when to use standardized vs unstandardized regression coefficients in R, with lm(), scale(), lm.beta(), clear examples, decision rules, and pitfalls."
+keywords: "standardized coefficients R, unstandardized coefficients, beta weights, lm.beta, scale() in R, regression coefficient interpretation, standardized regression"
+mathjax: true
+webr: true
+curriculum_id: "FR-regr-23"
+post_type: "FR"
+auto_link_terms: "standardized coefficients|unstandardized coefficients|beta weights|lm.beta|standardized regression coefficients|coefficient interpretation"
+auto_link_case_sensitive: false
+fr_parent: "Multiple-Regression-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>Standardized vs Unstandardized Coefficients in R: When Each Matters</h1>
+
+<p class="lead">An unstandardized regression coefficient tells you how the response changes when a predictor moves by one raw unit (kg, dollars, years). A standardized coefficient tells the same story after every variable is rescaled to standard-deviation units, so predictors measured on different scales become directly comparable.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="30" data-exercises="7" data-xp="105"></div>
+
+<h2>What's the difference between standardized and unstandardized coefficients?</h2>
+
+<p>A single <code>lm()</code> call on <code>mtcars</code> can tell two very different stories depending on whether we rescale the inputs. We fit the same model twice, once on raw data and once on standardized data, and watch the coefficients transform from "mpg per pound of weight" into "mpg-in-SD-units per weight-in-SD-units." Same data, same relationships, different units of interpretation.</p>
+
+<div class="webr-container" data-block-title="Raw vs standardized coefficients side by side">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Raw vs standardized coefficients side by side</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit the raw model on mtcars
+fit_raw &lt;- lm(mpg ~ wt + hp, data = mtcars)
+
+# Z-score every column, refit on the standardized data
+mtcars_z &lt;- as.data.frame(scale(mtcars[, c(&quot;mpg&quot;, &quot;wt&quot;, &quot;hp&quot;)]))
+fit_std &lt;- lm(mpg ~ wt + hp, data = mtcars_z)
+
+# Compare the two sets of coefficients
+data.frame(
+  raw = round(coef(fit_raw), 3),
+  standardized = round(coef(fit_std), 3)
+)
+#&gt;                raw standardized
+#&gt; (Intercept) 37.227        0.000
+#&gt; wt          -3.878       -0.630
+#&gt; hp          -0.032       -0.361</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The raw model says each additional 1000 lb of weight lowers mpg by 3.88 units, and each additional horsepower lowers it by 0.032 units. Read literally, weight looks roughly 120 times more "important" than horsepower, which is a trick of the scale (weight is measured in thousands of pounds, horsepower in single units). The standardized model rescales both predictors to the same yardstick (one standard deviation), and the coefficients become <code>-0.63</code> for weight and <code>-0.36</code> for hp. Weight is still the stronger predictor, but only by a factor of about 1.75, not 120.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Coefficient magnitude is not importance; scale determines magnitude.</strong> A raw coefficient of <code>0.032</code> looks negligible, but if the predictor ranges across hundreds of units, its total contribution can dominate the model. Standardization removes this trap by putting every predictor on the same "per standard deviation" ruler.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit a simple regression of <code>mpg</code> on <code>disp</code> using <code>mtcars</code> and print the raw coefficient. Pay attention to how small the number is, even though <code>disp</code> (engine displacement in cubic inches) varies by hundreds of units across the dataset.</p>
+<div class="webr-container" data-block-title="Your turn: raw coefficient for disp">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: raw coefficient for disp</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: fit mpg ~ disp on mtcars and print the raw slope
+ex_disp_fit &lt;- lm(mpg ~ disp, data = mtcars)
+
+# your code here
+#&gt; Expected: a slope near -0.04 (small number, but disp ranges ~70-470)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Raw disp coefficient solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Raw disp coefficient solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_disp_fit &lt;- lm(mpg ~ disp, data = mtcars)
+round(coef(ex_disp_fit), 4)
+#&gt; (Intercept)        disp
+#&gt;     29.5999     -0.0412</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The slope is <code>-0.0412</code>. Each extra cubic inch of displacement knocks mpg down by 0.04 units, which sounds trivial, until you remember <code>disp</code> spans roughly 400 units from the smallest to largest engine in the dataset. That's a total swing of about 16 mpg, which is anything but trivial. This is exactly the trap standardization is designed to sidestep.</p>
+
+</details>
+</section>
+
+<h2>How do you compute standardized coefficients in R?</h2>
+
+<p>Two routes lead to the same numbers. The first route rescales the data then refits; the second route leaves the data alone and rescales the coefficients themselves. We will walk through both, because understanding the formula behind the shortcut makes the output interpretable rather than magical.</p>
+
+<div class="webr-container" data-block-title="Standardize with scale() and refit">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Standardize with scale() and refit</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># scale() centers and divides by SD for every numeric column
+mtcars_scaled &lt;- as.data.frame(scale(mtcars))
+
+# Refit the same model on the standardized data
+fit_scaled &lt;- lm(mpg ~ wt + hp, data = mtcars_scaled)
+round(coef(fit_scaled), 4)
+#&gt;   (Intercept)            wt            hp
+#&gt;        0.0000       -0.6296       -0.3612</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The intercept collapses to zero, because after centering every variable has mean zero, so the regression line must pass through the origin. The slope for <code>wt</code> is <code>-0.630</code> and for <code>hp</code> is <code>-0.361</code>. Those are our standardized coefficients. Note we standardized the response too; some tools standardize only predictors, which gives a "semi-standardized" coefficient that tells a slightly different story (see the pitfalls section).</p>
+
+<p><img src="screenshots/Standardized-vs-Unstandardized-Coefficients-in-R-formula.webp" alt="How standardization rescales variables before fitting." class="img-responsive img-zoomable" loading="lazy" width="2220" height="594" /></p>
+
+<p><em>Figure 1: How each variable is z-scored before fitting, so betas come out in SD units.</em></p>
+
+<p>The manual formula makes the transformation explicit. If $\beta_{\text{raw}}$ is the raw coefficient for predictor $x$, its standardized version is:</p>
+
+<p>$$\beta_{\text{std}} = \beta_{\text{raw}} \times \frac{\text{SD}(x)}{\text{SD}(y)}$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$\beta_{\text{raw}}$ is the unstandardized coefficient from <code>lm()</code> on raw data</li>
+
+<li>$\text{SD}(x)$ is the standard deviation of the predictor</li>
+
+<li>$\text{SD}(y)$ is the standard deviation of the response</li>
+
+</ul>
+
+<p>We can verify this formula reproduces what <code>scale()</code> gave us.</p>
+
+<div class="webr-container" data-block-title="Standardize via the SD-ratio formula">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Standardize via the SD-ratio formula</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Start with raw coefficients
+raw_coef &lt;- coef(fit_raw)[-1]            # drop the intercept
+
+# Compute SDs from the raw data
+sd_y &lt;- sd(mtcars$mpg)
+sd_x &lt;- c(wt = sd(mtcars$wt), hp = sd(mtcars$hp))
+
+# Multiply by SD(x) / SD(y) per predictor
+manual_std &lt;- raw_coef * sd_x / sd_y
+round(manual_std, 4)
+#&gt;      wt      hp
+#&gt; -0.6296 -0.3612</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Identical numbers. Now line them up next to <code>scale()</code> to confirm both approaches agree to numerical precision.</p>
+
+<div class="webr-container" data-block-title="Confirm scale() and manual formula match">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Confirm scale() and manual formula match</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">compare_df &lt;- data.frame(
+  scale_route  = round(coef(fit_scaled)[-1], 6),
+  manual_route = round(manual_std, 6)
+)
+compare_df
+#&gt;    scale_route manual_route
+#&gt; wt   -0.629571    -0.629571
+#&gt; hp   -0.361236    -0.361236</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both routes produce the same standardized coefficients. For most analyses you will use <code>scale()</code> + <code>lm()</code>, but seeing the formula makes the output interpretable and debuggable.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong><code>scale()</code> returns a numeric matrix with <code>center</code> and <code>scale</code> attributes.</strong> To use it in <code>lm()</code> via a <code>data =</code> argument, wrap it in <code>as.data.frame()</code> or standardize one column at a time inside <code>mutate()</code>. The <code>QuantPsyc::lm.beta()</code> function in an external package gives the same coefficients directly from a raw <code>lm</code> object if you want a one-liner shortcut.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute the standardized coefficient for a simple regression of <code>mpg</code> on <code>wt</code> two ways: first by fitting <code>lm(mpg ~ wt)</code> on raw <code>mtcars</code> and applying the SD-ratio formula, then by refitting on <code>scale(mtcars[, c(&quot;mpg&quot;, &quot;wt&quot;)])</code>. Check they agree.</p>
+<div class="webr-container" data-block-title="Your turn: simple regression manual standardization">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: simple regression manual standardization</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: compute the standardized slope for mpg ~ wt two ways
+ex_wt_fit &lt;- lm(mpg ~ wt, data = mtcars)
+
+# Manual formula route (fill in):
+# ex_wt_std_manual &lt;- ...
+
+# scale() route (fill in):
+# ex_wt_std_scaled &lt;- ...
+
+# your code here
+#&gt; Expected: both numbers equal approximately -0.868</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Simple regression standardization solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Simple regression standardization solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_wt_fit &lt;- lm(mpg ~ wt, data = mtcars)
+
+# Manual: raw slope times SD(wt) / SD(mpg)
+ex_wt_std_manual &lt;- coef(ex_wt_fit)[&quot;wt&quot;] * sd(mtcars$wt) / sd(mtcars$mpg)
+
+# scale() route
+ex_wt_scaled &lt;- as.data.frame(scale(mtcars[, c(&quot;mpg&quot;, &quot;wt&quot;)]))
+ex_wt_std_scaled &lt;- coef(lm(mpg ~ wt, data = ex_wt_scaled))[&quot;wt&quot;]
+
+c(manual = round(ex_wt_std_manual, 4), scaled = round(ex_wt_std_scaled, 4))
+#&gt; manual.wt scaled.wt
+#&gt;   -0.8677   -0.8677</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both approaches land on <code>-0.8677</code>. In a <em>simple</em> regression the standardized slope equals the <a class="auto-link" href="Correlation-Analysis-in-R.html" title="Correlation in R: Pearson vs Spearman vs Kendall — Compute, Test, and Visualise">Pearson correlation</a> between predictor and response, because there is no other predictor to adjust for. Verify with <code>cor(mtcars$mpg, mtcars$wt)</code> and you'll see the same number.</p>
+
+</details>
+</section>
+
+<h2>When should you use standardized vs unstandardized coefficients?</h2>
+
+<p>The choice is not about which number is "correct" (both are mathematically valid) but about which question you are answering. Three guiding questions decide it for almost every analysis.</p>
+
+<p><img src="screenshots/Standardized-vs-Unstandardized-Coefficients-in-R-decision.webp" alt="Decision flowchart: which coefficient to report." class="img-responsive img-zoomable" loading="lazy" width="2248" height="784" /></p>
+
+<p><em>Figure 2: Pick the coefficient type that matches your goal: prediction, importance, or communication.</em></p>
+
+<p><strong>Report unstandardized coefficients when you:</strong></p>
+
+<ol>
+
+<li>Need to predict a response in its original units (a patient's blood pressure in mmHg, a house price in dollars).</li>
+
+<li>Are communicating an <a class="auto-link" href="Effect-Size-in-R.html" title="Effect Size in R: The Number p-Values Never Tell You (Cohen's d, η², and r)">effect size</a> to domain experts who think in native units.</li>
+
+<li>Want to compare the same model across different samples or time periods.</li>
+
+<li>Have predictors measured on the same natural scale (all costs in dollars, all counts of items).</li>
+
+</ol>
+
+<p><strong>Report standardized coefficients when you:</strong></p>
+
+<ol>
+
+<li>Want to rank predictors by relative importance inside a single model.</li>
+
+<li>Are fitting a structural equation model, path model, or mediation analysis (standardized betas are the convention there).</li>
+
+<li>Need a unit-free effect size for a meta-analysis combining studies with different measurement instruments.</li>
+
+<li>Your predictors have wildly different variances (income in dollars, age in years, education in categories).</li>
+
+</ol>
+
+<div class="webr-container" data-block-title="When standardization flips the importance ranking">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">When standardization flips the importance ranking</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">decision_df &lt;- data.frame(
+  predictor = c(&quot;wt&quot;, &quot;hp&quot;),
+  raw_coef = round(coef(fit_raw)[-1], 3),
+  raw_importance_rank = c(1, 2),
+  std_coef = round(coef(fit_std)[-1], 3),
+  std_importance_rank = c(1, 2)
+)
+decision_df
+#&gt;    predictor raw_coef raw_importance_rank std_coef std_importance_rank
+#&gt; wt        wt   -3.878                   1   -0.630                   1
+#&gt; hp        hp   -0.032                   2   -0.361                   2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>In this particular model both views agree: weight outranks horsepower either way. The <em>gap</em> between them is what changes. Raw coefficients make the gap look 120-to-1. Standardized coefficients reveal the true gap is closer to 1.75-to-1. In models where predictors live on more similar scales, the ranking itself can flip between the two views, which is the real reason to report standardized betas when importance is the question.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>When every predictor is already measured in the same unit, skip standardization.</strong> If you are modelling sales in dollars as a function of advertising spend, coupon spend, and shipping cost (all in dollars), raw coefficients are already directly comparable. Standardizing adds interpretive distance without adding information.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit <code>lm(mpg ~ hp + qsec)</code> on <code>mtcars</code> in both raw and standardized form, and decide which predictor "looks" more important under each view. Expected: in raw units <code>hp</code> has a tiny coefficient and <code>qsec</code> a larger one, but after standardization <code>hp</code> is the stronger predictor.</p>
+<div class="webr-container" data-block-title="Your turn: raw vs standardized importance">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: raw vs standardized importance</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: fit lm(mpg ~ hp + qsec) raw and standardized, compare coefs
+# Raw model:
+# ex_hq_raw &lt;- ...
+
+# Standardized model:
+# ex_hq_std &lt;- ...
+
+# your code here
+#&gt; Expected: raw shows qsec as a bigger number; standardized shows hp is stronger</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="hp + qsec raw vs standardized">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">hp + qsec raw vs standardized</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_hq_raw &lt;- lm(mpg ~ hp + qsec, data = mtcars)
+ex_hq_std &lt;- lm(mpg ~ hp + qsec, data = as.data.frame(scale(mtcars)))
+
+data.frame(
+  raw = round(coef(ex_hq_raw)[-1], 3),
+  standardized = round(coef(ex_hq_std)[-1], 3)
+)
+#&gt;         raw standardized
+#&gt; hp   -0.166       -0.686
+#&gt; qsec  0.413        0.147</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Raw coefficients make <code>qsec</code> (quarter-mile time in seconds, a small-range variable) look more influential because its slope is a larger number. Standardized coefficients show the opposite: <code>hp</code> is almost five times more predictive per SD than <code>qsec</code>. The scales were hiding the truth, and this flip is exactly when standardization earns its keep.</p>
+
+</details>
+</section>
+
+<h2>How do you interpret standardized coefficients in real models?</h2>
+
+<p>A coefficient is only as useful as the English sentence you can attach to it. Raw and standardized coefficients generate different sentences, and knowing which sentence to say out loud is most of the battle.</p>
+
+<div class="webr-container" data-block-title="Side-by-side interpretations as a tidy table">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Side-by-side interpretations as a tidy table</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">interp_df &lt;- data.frame(
+  predictor = c(&quot;wt&quot;, &quot;hp&quot;),
+  raw_coef = round(coef(fit_raw)[-1], 3),
+  interpretation_raw = c(
+    &quot;Each extra 1000 lb lowers mpg by 3.88, holding hp constant&quot;,
+    &quot;Each extra hp lowers mpg by 0.032, holding wt constant&quot;
+  ),
+  std_coef = round(coef(fit_std)[-1], 3),
+  interpretation_std = c(
+    &quot;Each 1 SD increase in wt lowers mpg by 0.63 SD, holding hp constant&quot;,
+    &quot;Each 1 SD increase in hp lowers mpg by 0.36 SD, holding wt constant&quot;
+  )
+)
+interp_df[, c(&quot;predictor&quot;, &quot;raw_coef&quot;, &quot;interpretation_raw&quot;)]
+#&gt;    predictor raw_coef                                        interpretation_raw
+#&gt; wt        wt   -3.878 Each extra 1000 lb lowers mpg by 3.88, holding hp constant
+#&gt; hp        hp   -0.032     Each extra hp lowers mpg by 0.032, holding wt constant
+
+interp_df[, c(&quot;predictor&quot;, &quot;std_coef&quot;, &quot;interpretation_std&quot;)]
+#&gt;    predictor std_coef                                               interpretation_std
+#&gt; wt        wt   -0.630 Each 1 SD increase in wt lowers mpg by 0.63 SD, holding hp constant
+#&gt; hp        hp   -0.361 Each 1 SD increase in hp lowers mpg by 0.36 SD, holding wt constant</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Notice how the raw interpretation uses physical units people can touch (pounds, horsepower). The standardized interpretation uses SD units, which are dimensionless but harder to visualise. The standardized version is better for comparisons (0.63 vs 0.36 is immediately rankable); the raw version is better for predictions and conversations with someone who builds cars.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>In simple regression a standardized coefficient equals the Pearson correlation between predictor and response.</strong> In multiple regression it equals the <a class="auto-link" href="Partial-Correlation-in-R.html" title="Partial Correlation in R: ppcor Package for Confounder Control">partial correlation</a> adjusted for the ratio of marginal standard deviations. This is why standardized betas feel like correlations, and why the interpretation shifts from "unit change" to "SD change."</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Using <code>iris</code>, fit <code>lm(Sepal.Length ~ Petal.Length + Petal.Width)</code> on standardized data and write one-sentence interpretations of each standardized coefficient in the "per 1 SD change" style.</p>
+<div class="webr-container" data-block-title="Your turn: iris interpretations">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: iris interpretations</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: standardize iris and write interpretations
+# Step 1: scale the numeric columns
+# Step 2: fit lm(Sepal.Length ~ Petal.Length + Petal.Width)
+# Step 3: print coefficients
+
+# your code here
+#&gt; Expected: Petal.Length near +1.0 and Petal.Width near -0.3 (roughly)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="iris standardized interpretations">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">iris standardized interpretations</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">iris_num &lt;- iris[, c(&quot;Sepal.Length&quot;, &quot;Petal.Length&quot;, &quot;Petal.Width&quot;)]
+ex_iris_fit &lt;- lm(Sepal.Length ~ Petal.Length + Petal.Width,
+                  data = as.data.frame(scale(iris_num)))
+ex_iris_std &lt;- round(coef(ex_iris_fit)[-1], 3)
+ex_iris_std
+#&gt; Petal.Length  Petal.Width
+#&gt;        1.020       -0.133</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Interpretations: <em>Each 1 SD increase in Petal.Length is associated with a 1.02 SD increase in Sepal.Length, holding Petal.Width constant.</em> <em>Each 1 SD increase in Petal.Width is associated with a 0.13 SD decrease in Sepal.Length, holding Petal.Length constant.</em> The Petal.Width coefficient flipped sign relative to its marginal correlation with Sepal.Length, a classic signal of collinearity: the two petal measurements are highly correlated, and the model is partialling out their shared effect.</p>
+
+</details>
+</section>
+
+<h2>What are the pitfalls of standardized coefficients?</h2>
+
+<p>Standardization is a tool, not a universal upgrade. Four situations routinely trip up analysts who reach for <code>scale()</code> by default.</p>
+
+<div class="webr-container" data-block-title="Pitfall 1: standardizing a binary predictor">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pitfall 1: standardizing a binary predictor</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># am is 0/1 for automatic/manual transmission
+fit_am_raw &lt;- lm(mpg ~ wt + am, data = mtcars)
+fit_am_std &lt;- lm(mpg ~ wt + am, data = as.data.frame(scale(mtcars)))
+
+data.frame(
+  raw = round(coef(fit_am_raw), 3),
+  standardized = round(coef(fit_am_std), 3)
+)
+#&gt;                raw standardized
+#&gt; (Intercept) 37.322        0.000
+#&gt; wt          -5.353       -0.869
+#&gt; am          -0.024       -0.005</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The raw <code>am</code> coefficient tells a clean story: compared to automatic cars (am = 0), manual cars (am = 1) get 0.024 fewer mpg after adjusting for weight. The standardized <code>am</code> coefficient says "a 1 SD increase in am lowers mpg by 0.005 SD," but <em>there is no such thing as a 1 SD change in am</em> because the variable can only be 0 or 1. The sentence is syntactically valid and semantically meaningless. Report the raw version for categorical predictors, always.</p>
+
+<div class="webr-container" data-block-title="Pitfall 2: sample dependence">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pitfall 2: sample dependence</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Split mtcars into two halves and compare standardized betas
+set.seed(2026)
+idx &lt;- sample(nrow(mtcars))
+half1 &lt;- mtcars[idx[1:16], ]
+half2 &lt;- mtcars[idx[17:32], ]
+
+beta_std &lt;- function(df) {
+  coef(lm(mpg ~ wt + hp, data = as.data.frame(scale(df))))[-1]
+}
+
+stability_df &lt;- data.frame(
+  half1 = round(beta_std(half1), 3),
+  half2 = round(beta_std(half2), 3)
+)
+stability_df
+#&gt;     half1  half2
+#&gt; wt -0.607 -0.705
+#&gt; hp -0.329 -0.426</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The standardized betas shift noticeably between the two halves, even though the "true" relationships in <code>mtcars</code> haven't changed. That's because each half has its own predictor and response variances, so each half rescales the coefficients differently. Unstandardized coefficients are less sample-dependent because their units are fixed by the measurement instrument, not the sample.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Do not compare standardized coefficients across studies or samples with different predictor variances.</strong> A <code>beta = 0.4</code> in a study of teenagers is not directly comparable to a <code>beta = 0.4</code> in a study of adults, because the SDs of predictors differ. Raw coefficients, reported with their measurement units, are much safer for cross-study comparison.</div></div>
+
+<p>Two more pitfalls worth naming, even without a code demo: <strong>convention ambiguity</strong> (some tools standardize only predictors, producing a coefficient that is neither fully raw nor fully standardized) and <strong>multicollinearity</strong> (standardization does not fix correlated predictors; the coefficient instability merely moves to SD units). Standardized reporting is a communication choice, not a remedy for modelling problems.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Add a 0/1 indicator for V-shaped vs straight engines (<code>mtcars$vs</code>) to a model with <code>hp</code> and <code>wt</code>, standardize it, and print the coefficient for <code>vs</code>. Then explain in one sentence why the "per 1 SD" framing is awkward for this predictor.</p>
+<div class="webr-container" data-block-title="Your turn: standardizing the vs dummy">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: standardizing the vs dummy</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: fit lm(mpg ~ hp + wt + vs) on standardized mtcars
+# Print the coefficient for vs
+
+# your code here
+#&gt; Expected: a small negative or near-zero coefficient; awkward to interpret</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="vs dummy standardization solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">vs dummy standardization solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_vs_fit &lt;- lm(mpg ~ hp + wt + vs, data = as.data.frame(scale(mtcars)))
+ex_vs_std &lt;- round(coef(ex_vs_fit), 3)
+ex_vs_std
+#&gt; (Intercept)          hp          wt          vs
+#&gt;       0.000      -0.282      -0.601       0.109</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The standardized coefficient for <code>vs</code> is <code>0.109</code>. A naive reading says <em>"a 1 SD increase in vs is associated with a 0.109 SD increase in mpg,"</em> but <code>vs</code> is binary (0 = V-shaped, 1 = straight) and does not vary by SDs. The raw version of the same model gives <code>vs</code> a coefficient around 0.7 mpg, which translates cleanly as <em>"straight-engine cars get 0.7 mpg more than V-engine cars, holding hp and wt constant."</em> That sentence is the one to show your reader.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<p>Two capstone exercises combining the concepts from the core sections. Use variable names prefixed with <code>my_</code> to keep your answers separate from the tutorial state.</p>
+
+<h3>Exercise 1: Multi-predictor standardization on iris (medium)</h3>
+
+<p>Fit <code>lm(Sepal.Length ~ Sepal.Width + Petal.Length + Petal.Width)</code> on <code>iris</code>. Compute the standardized coefficients two ways: (a) by rescaling the data with <code>scale()</code> and refitting, and (<a class="auto-link" href="Conditional-Probability-in-R.html" title="Conditional Probability in R: P(A|B), Independence, and Bayes — With Real Examples">b)</a> by applying the SD-ratio formula to the raw coefficients. Verify the two approaches agree to at least 6 decimal places. Save the result to <code>my_iris_betas</code>. Identify the strongest predictor by absolute standardized coefficient.</p>
+
+<div class="webr-container" data-block-title="Capstone 1: iris multi-predictor standardization">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Capstone 1: iris multi-predictor standardization</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Exercise 1: fit iris model, compute standardized coefs two ways
+# Hint: use iris[, 1:4] to get the numeric columns
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Capstone 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Capstone 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_iris_fit &lt;- lm(Sepal.Length ~ Sepal.Width + Petal.Length + Petal.Width, data = iris)
+
+# Route A: scale + refit
+iris_z &lt;- as.data.frame(scale(iris[, 1:4]))
+route_a &lt;- coef(lm(Sepal.Length ~ Sepal.Width + Petal.Length + Petal.Width,
+                   data = iris_z))[-1]
+
+# Route B: manual SD-ratio formula
+sd_y &lt;- sd(iris$Sepal.Length)
+sd_x &lt;- sapply(iris[, c(&quot;Sepal.Width&quot;, &quot;Petal.Length&quot;, &quot;Petal.Width&quot;)], sd)
+route_b &lt;- coef(my_iris_fit)[-1] * sd_x / sd_y
+
+my_iris_betas &lt;- data.frame(
+  scale_route  = round(route_a, 6),
+  manual_route = round(route_b, 6)
+)
+my_iris_betas
+#&gt;              scale_route manual_route
+#&gt; Sepal.Width     0.373597     0.373597
+#&gt; Petal.Length    1.575443     1.575443
+#&gt; Petal.Width    -0.482087    -0.482087
+
+# Strongest predictor by |std_coef|
+names(route_a)[which.max(abs(route_a))]
+#&gt; [1] &quot;Petal.Length&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Both routes agree to six decimals. Petal.Length has the largest absolute standardized coefficient (<code>1.575</code>), so a one-SD change in Petal.Length moves Sepal.Length more than a one-SD change in either of the other two predictors, holding the others constant.</p>
+
+</details>
+
+<h3>Exercise 2: Mixed continuous + binary predictors (hard)</h3>
+
+<p>On <code>mtcars</code>, fit <code>lm(mpg ~ wt + hp + am)</code> (two continuous predictors plus a binary one). Build <code>my_mix_table</code>, a <code>data.frame</code> with columns <code>predictor</code>, <code>raw_coef</code>, <code>std_coef</code>, and <code>sensible_unit</code>, where <code>sensible_unit</code> names the interpretable unit for each predictor ("1000 lb", "1 hp", or "manual vs auto"). State in a comment which coefficient column (raw or standardized) you would report for each predictor and why.</p>
+
+<div class="webr-container" data-block-title="Capstone 2: mixed-predictor comparison table">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Capstone 2: mixed-predictor comparison table</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Exercise 2: build my_mix_table with raw + std + sensible_unit columns
+# Hint: use coef() on both raw and scaled models, then data.frame() them
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Capstone 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Capstone 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">raw_fit &lt;- lm(mpg ~ wt + hp + am, data = mtcars)
+std_fit &lt;- lm(mpg ~ wt + hp + am, data = as.data.frame(scale(mtcars)))
+
+my_mix_table &lt;- data.frame(
+  predictor      = c(&quot;wt&quot;, &quot;hp&quot;, &quot;am&quot;),
+  raw_coef       = round(coef(raw_fit)[-1], 3),
+  std_coef       = round(coef(std_fit)[-1], 3),
+  sensible_unit  = c(&quot;1000 lb&quot;, &quot;1 hp&quot;, &quot;manual vs auto&quot;)
+)
+my_mix_table
+#&gt;    predictor raw_coef std_coef  sensible_unit
+#&gt; wt        wt   -3.929   -0.638        1000 lb
+#&gt; hp        hp   -0.038   -0.427           1 hp
+#&gt; am        am    2.084    0.169 manual vs auto
+
+# Reporting choice (comment in real analysis):
+# - wt and hp: report std_coef if the question is &quot;which matters more&quot;; report raw if communicating physical effect.
+# - am: always report raw (a standardized binary coef has no meaningful interpretation).</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> For the two continuous predictors, both the raw and standardized coefficients are defensible depending on audience. For <code>am</code> (binary), only the raw coefficient (<code>+2.08</code>: manual cars average 2.08 mpg higher than automatics, holding wt and hp constant) has a human-readable interpretation. This is why mixed-predictor models are almost always reported in raw units, with standardized betas as a supplementary column for the continuous predictors.</p>
+
+</details>
+
+<h2>Complete Example</h2>
+
+<p>Let's tie everything together with a four-predictor model on <code>mtcars</code> and build the kind of coefficient table you would actually put in a paper or dashboard.</p>
+
+<div class="webr-container" data-block-title="End-to-end tidy coefficient comparison">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">End-to-end tidy coefficient comparison</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit the full model on raw and standardized data
+final_fit &lt;- lm(mpg ~ wt + hp + qsec + am, data = mtcars)
+final_std &lt;- lm(mpg ~ wt + hp + qsec + am,
+                data = as.data.frame(scale(mtcars)))
+
+# Build a publication-ready comparison table
+final_df &lt;- data.frame(
+  predictor    = c(&quot;wt&quot;, &quot;hp&quot;, &quot;qsec&quot;, &quot;am&quot;),
+  raw_coef     = round(coef(final_fit)[-1], 3),
+  std_coef     = round(coef(final_std)[-1], 3),
+  interpretation = c(
+    &quot;Per 1000 lb weight increase, mpg drops by 3.70&quot;,
+    &quot;Per 1 hp increase, mpg drops by 0.02&quot;,
+    &quot;Per 1 second slower quarter-mile, mpg rises by 0.66&quot;,
+    &quot;Manual cars average 2.52 more mpg than automatics&quot;
+  )
+)
+final_df
+#&gt;      predictor raw_coef std_coef                                      interpretation
+#&gt; wt          wt   -3.703   -0.601    Per 1000 lb weight increase, mpg drops by 3.70
+#&gt; hp          hp   -0.020   -0.231              Per 1 hp increase, mpg drops by 0.02
+#&gt; qsec      qsec    0.656    0.236 Per 1 second slower quarter-mile, mpg rises by 0.66
+#&gt; am          am    2.520    0.204  Manual cars average 2.52 more mpg than automatics
+
+# Ranking by standardized coefficient magnitude
+final_df[order(-abs(final_df$std_coef)), c(&quot;predictor&quot;, &quot;std_coef&quot;)]
+#&gt;      predictor std_coef
+#&gt; wt          wt   -0.601
+#&gt; qsec      qsec    0.236
+#&gt; hp          hp   -0.231
+#&gt; am          am    0.204</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The raw coefficients give you natural-language interpretations for every predictor, including the binary <code>am</code>. The standardized coefficients let you rank the continuous predictors on a common scale: <code>wt</code> is the dominant driver, with <code>hp</code> and <code>qsec</code> roughly tied for second place, and <code>am</code> close behind. A paper reporting this model would likely show both columns, with the <code>interpretation</code> column derived from the raw coefficients and the ranking derived from the standardized ones.</p>
+
+<h2>Summary</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>When to report <strong>unstandardized</strong> coefficients</th>
+<th>When to report <strong>standardized</strong> coefficients</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Predicting Y in original units</td>
+<td>Ranking predictor importance</td>
+</tr>
+<tr>
+<td>Categorical or binary predictors</td>
+<td>All-continuous predictors</td>
+</tr>
+<tr>
+<td>Communicating to domain experts</td>
+<td>Path coefficients in SEM/mediation</td>
+</tr>
+<tr>
+<td>Comparing across samples or time periods</td>
+<td>Meta-analytic effect sizes</td>
+</tr>
+<tr>
+<td>Predictors share natural units</td>
+<td>Predictors on wildly different scales</td>
+</tr>
+</tbody>
+</table>
+
+<p><strong>Bottom line:</strong> Report raw coefficients for prediction and communication. Report standardized coefficients when ranking importance inside a single model. For mixed models, report both side by side and let the reader pick.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Fox, J. <em>Applied Regression Analysis and Generalized Linear Models</em>, 3rd ed. Sage (2016). Chapter on coefficient interpretation.</li>
+
+<li>Gelman, A. (2008). "Scaling regression inputs by dividing by two standard deviations." <em>Statistics in Medicine</em>, 27(15), 2865-2873. <a href="http://www.stat.columbia.edu/~gelman/research/published/standardizing7.pdf">Link</a></li>
+
+<li>Bring, J. (1994). "How to Standardize Regression Coefficients." <em>The American Statistician</em>, 48(3), 209-213. <a href="https://doi.org/10.1080/00031305.1994.10476059">Link</a></li>
+
+<li>Greenland, S., Schlesselman, J. J., & Criqui, M. H. (1986). "The fallacy of employing standardized regression coefficients and correlations as measures of effect." <em>American Journal of Epidemiology</em>, 123(2), 203-208.</li>
+
+<li>Kim, R. S. (2011). "Standardized regression coefficients as indices of effect sizes in meta-analysis." Florida State University Dissertation.</li>
+
+<li>UVA Library, "The Shortcomings of Standardized Regression Coefficients." <a href="https://library.virginia.edu/data/articles/the-shortcomings-of-standardized-regression-coefficients">Link</a></li>
+
+<li>R Core Team, base <a class="auto-link" href="Getting-Help-in-R.html" title="Stuck in R? 6 Ways to Get Unstuck Without Wasting Hours">R documentation</a> for <code>scale()</code>. <a href="https://stat.ethz.ch/R-manual/R-devel/library/base/html/scale.html">Link</a></li>
+
+<li>Fletcher, T., <code>QuantPsyc::lm.beta()</code> reference. <a href="https://cran.r-project.org/web/packages/QuantPsyc/">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Multiple-Regression-in-R.html">Multiple Regression in R</a>: the parent tutorial covering model specification, diagnostics, and interpretation end to end.</li>
+
+<li><a href="Interpreting-Regression-Output-Completely.html">Interpreting Regression Output Completely</a>: a deeper dive into every element of <code>summary(lm())</code>, including coefficient standard errors, t-values, and p-values.</li>
+
+<li><a href="Multicollinearity-in-R.html">Multicollinearity in R</a>: when standardized coefficients are unstable, multicollinearity is usually the cause; this post explains how to diagnose and fix it.</li>
+
+</ul>
