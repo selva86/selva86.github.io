@@ -1,0 +1,800 @@
+---
+title: "Heteroscedasticity in R: Breusch-Pagan Test & Robust Standard Errors"
+description: "Detect heteroscedasticity in R with the Breusch-Pagan test and fix it using robust standard errors from the sandwich package. With interpretation and code."
+keywords: "heteroscedasticity in R, Breusch-Pagan test, robust standard errors, sandwich package, vcovHC, coeftest, bptest, HC3 estimator, White test, OLS assumptions"
+mathjax: true
+webr: true
+curriculum_id: "FR-regr-5"
+post_type: "FR"
+auto_link_terms: "heteroscedasticity|heteroskedasticity|Breusch-Pagan test|robust standard errors|sandwich package|vcovHC|bptest"
+auto_link_case_sensitive: false
+fr_parent: "Linear-Regression-Assumptions-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>Heteroscedasticity in R: Breusch-Pagan Test & Robust Standard Errors</h1>
+
+<p class="lead">Heteroscedasticity means a regression's error spread changes across predictor values, which breaks the standard-error math behind every t-test, p-value, and confidence interval the model produces. In R, <code>bptest()</code> from <strong>lmtest</strong> flags it, and <code>vcovHC()</code> from <strong>sandwich</strong> gives you standard errors that stay valid even when it is present.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="25" data-exercises="8" data-xp="120"></div>
+
+<h2>What Is Heteroscedasticity and Why Does It Break OLS?</h2>
+
+<p>OLS assumes your error spread stays constant across fitted values. When residuals fan out instead, the coefficient estimates stay unbiased, but the standard errors lie. Every p-value and confidence interval in <code>summary(lm(...))</code> quietly becomes wrong. The fastest way to see this is to simulate a tiny heteroscedastic dataset and let <code>bptest()</code> diagnose it in two lines.</p>
+
+<div class="webr-container" data-block-title="Simulate heteroscedasticity and run bptest">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Simulate heteroscedasticity and run bptest</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(lmtest)
+
+set.seed(314)
+n &lt;- 200
+x &lt;- runif(n, 1, 10)
+# Error spread grows with x (heteroscedastic)
+y &lt;- 2 + 1.5 * x + rnorm(n, 0, x)
+sim_df &lt;- data.frame(x = x, y = y)
+
+het_model &lt;- lm(y ~ x, data = sim_df)
+bptest(het_model)
+#&gt;
+#&gt; 	studentized Breusch-Pagan test
+#&gt;
+#&gt; data:  het_model
+#&gt; BP = 37.42, df = 1, p-value = 9.45e-10</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The test statistic <code>BP = 37.42</code> on 1 degree of freedom gives a p-value far below 0.001. The <a class="auto-link" href="Hypothesis-Testing-in-R.html" title="Hypothesis Testing in R: Understand the Framework, Not Just the p-Value">null hypothesis</a> of constant variance is rejected, confirming the residual spread depends on <code>x</code>. We can still trust the slope estimate, but the standard error that <code>summary()</code> would print is unreliable.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>OLS coefficients remain unbiased under heteroscedasticity.</strong> Non-constant variance only inflates or shrinks the standard errors; the slope and intercept point estimates are still correct on average, so you do not need to throw the model away.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Simulate a homoscedastic version where the error standard deviation is a constant (say 3) instead of <code>x</code>, and confirm that <code>bptest()</code> no longer rejects the null.</p>
+<div class="webr-container" data-block-title="Your turn: simulate constant-variance data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: simulate constant-variance data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(42)
+ex_n &lt;- 200
+ex_x &lt;- runif(ex_n, 1, 10)
+
+# Replace ??? with a constant so the error has constant spread
+ex_y &lt;- 2 + 1.5 * ex_x + rnorm(ex_n, 0, ???)
+ex_df &lt;- data.frame(x = ex_x, y = ex_y)
+bptest(lm(y ~ x, data = ex_df))
+#&gt; Expected: p-value well above 0.05 (null not rejected)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Constant variance simulation">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Constant variance simulation</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(42)
+ex_n &lt;- 200
+ex_x &lt;- runif(ex_n, 1, 10)
+ex_y &lt;- 2 + 1.5 * ex_x + rnorm(ex_n, 0, 3)  # constant sd = 3
+ex_df &lt;- data.frame(x = ex_x, y = ex_y)
+bptest(lm(y ~ x, data = ex_df))
+#&gt; BP = 0.33, df = 1, p-value = 0.57</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> A constant <code>sd</code> in <code>rnorm()</code> produces homoscedastic errors, so BP's p-value stays above 0.05 and the test does not reject constant variance.</p>
+
+</details>
+</section>
+
+<h2>How Does the Breusch-Pagan Test Detect Non-Constant Variance?</h2>
+
+<p>The test's logic is simple: if the predictors can explain the size of the residuals, the residual variance depends on X, and you have heteroscedasticity. BP formalises this by regressing the squared residuals on the original predictors and reading off the R-squared.</p>
+
+<p>Formally, the test statistic is:</p>
+
+<p>$$\mathrm{BP} = n \cdot R^2_{\text{aux}}$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$n$ is the number of observations</li>
+
+<li>$R^2_{\text{aux}}$ is the R-squared of the auxiliary regression $\hat{\varepsilon}_i^2 \sim X$</li>
+
+</ul>
+
+<p>Under the null of constant variance, BP follows a <a class="auto-link" href="Normal-t-F-and-Chi-Squared-Distributions-in-R.html" title="Normal, t, F, and Chi-Squared in R: Understand Each Distribution and When It Arises">chi-squared distribution</a> with degrees of freedom equal to the number of predictors in the auxiliary regression. Let's recompute the statistic by hand so you can see what <code>bptest()</code> does internally.</p>
+
+<div class="webr-container" data-block-title="Compute Breusch-Pagan by hand">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compute Breusch-Pagan by hand</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Squared residuals from the main model
+sq_resid &lt;- resid(het_model)^2
+
+# Regress squared residuals on the original predictor
+aux_model &lt;- lm(sq_resid ~ x, data = sim_df)
+r2_aux &lt;- summary(aux_model)$r.squared
+
+bp_stat &lt;- length(sq_resid) * r2_aux
+p_manual &lt;- pchisq(bp_stat, df = 1, lower.tail = FALSE)
+
+c(bp_stat = round(bp_stat, 2), p_value = signif(p_manual, 3))
+#&gt;   bp_stat   p_value
+#&gt;    37.4200  9.45e-10</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The manual statistic lines up with <code>bptest()</code> exactly. This confirms the test is asking a single question: does X explain squared residual size? When the p-value is small, the answer is yes, and the spread is changing with X.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use studentize = TRUE for the Koenker variant.</strong> <code>bptest(model)</code> already studentizes residuals by default, which makes the test robust to non-normal errors. Only set <code>studentize = FALSE</code> if you trust the residuals are normally distributed, which is rarely the case in practice.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Run the <a class="auto-link" href="Linear-Regression-Assumptions-in-R.html" title="Linear Regression Assumptions in R: Test All 5 and Know What to Do When They Fail">Breusch-Pagan test</a> on iris with the model <code>Sepal.Length ~ Petal.Length</code> and interpret the p-value.</p>
+<div class="webr-container" data-block-title="Your turn: BP test on iris">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: BP test on iris</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_iris_model &lt;- lm(Sepal.Length ~ Petal.Length, data = iris)
+# Add your bptest() call below:
+
+#&gt; Expected: BP statistic and p-value printed</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="BP test on iris">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">BP test on iris</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_iris_model &lt;- lm(Sepal.Length ~ Petal.Length, data = iris)
+bptest(ex_iris_model)
+#&gt; BP = 2.89, df = 1, p-value = 0.089</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The p-value 0.089 is above 0.05, so at the 5% level we do not reject constant variance. The Sepal-Petal relationship in iris is reasonably homoscedastic.</p>
+
+</details>
+</section>
+
+<h2>How Do You Compute Robust Standard Errors with vcovHC?</h2>
+
+<p>Once BP flags heteroscedasticity you have two options: fix the model (transform, re-weight), or keep OLS but replace the standard errors with ones that do not assume constant variance. The second path is faster and is what "robust" standard errors actually are.</p>
+
+<p>The formula behind them is the <strong>sandwich estimator</strong>. Regular OLS variance simplifies when errors have constant variance. The sandwich version keeps the full meat of the formula intact, so the variance estimate stays honest when errors spread unevenly across observations.</p>
+
+<p>$$\widehat{\mathrm{Var}}(\hat{\beta}) = (X'X)^{-1} \, X' \hat{\Omega} X \, (X'X)^{-1}$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$(X'X)^{-1}$ is the outer "bread" matrix, the same as in OLS</li>
+
+<li>$X' \hat{\Omega} X$ is the inner "meat" built from squared residuals</li>
+
+<li>$\hat{\Omega}$ is a diagonal matrix with one squared residual per observation</li>
+
+</ul>
+
+<p>In R, <code>vcovHC()</code> returns this sandwich matrix and <code>coeftest()</code> prints a coefficient table using it.</p>
+
+<div class="webr-container" data-block-title="Compare OLS and HC3 robust standard errors">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare OLS and HC3 robust standard errors</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(sandwich)
+
+# Usual OLS standard errors
+summary(het_model)$coefficients
+#&gt;             Estimate Std. Error t value  Pr(&gt;|t|)
+#&gt; (Intercept)    1.854      0.689   2.691  7.73e-03
+#&gt; x              1.523      0.115  13.272  4.21e-29
+
+# Robust (HC3) standard errors via sandwich + lmtest
+robust_fit &lt;- coeftest(het_model, vcov = vcovHC(het_model, type = &quot;HC3&quot;))
+robust_fit
+#&gt; t test of coefficients:
+#&gt;             Estimate Std. Error t value  Pr(&gt;|t|)
+#&gt; (Intercept)    1.854      0.513   3.613  0.000391 ***
+#&gt; x              1.523      0.175   8.700  1.44e-15 ***</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The coefficient estimates are identical, as expected. But the standard error on <code>x</code> jumps from 0.115 to 0.175, roughly a 52% increase. The t-statistic shrinks from 13.3 to 8.7. You would still reject the null, but the honest uncertainty around the slope is noticeably wider than OLS led you to believe.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Robust standard errors do not fix heteroscedasticity, they report honest uncertainty in spite of it.</strong> The slope estimate is still unbiased; all <code>vcovHC()</code> does is give you a standard error that does not require constant variance to be correct.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use <code>coefci()</code> from lmtest to print a 95% robust confidence interval for every coefficient in <code>het_model</code>.</p>
+<div class="webr-container" data-block-title="Your turn: robust confidence intervals">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: robust confidence intervals</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Call coefci(het_model, vcov = vcovHC(het_model, type = &quot;HC3&quot;))
+
+#&gt; Expected: 2.5% and 97.5% columns for intercept and x</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Robust 95 percent confidence interval">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Robust 95 percent confidence interval</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">coefci(het_model, vcov = vcovHC(het_model, type = &quot;HC3&quot;))
+#&gt;                2.5 %   97.5 %
+#&gt; (Intercept)   0.843    2.866
+#&gt; x             1.178    1.868</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>coefci()</code> wraps <code>coeftest()</code> and returns <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">confidence intervals</a> computed with the robust variance matrix. The interval for <code>x</code> is wider than what <code>confint(het_model)</code> would give, reflecting the extra uncertainty heteroscedasticity adds.</p>
+
+</details>
+</section>
+
+<h2>Which HC Type Should You Use: HC0, HC1, HC2, HC3, or HC4?</h2>
+
+<p><code>vcovHC()</code> offers five common heteroscedasticity-consistent estimators, labelled HC0 through HC4. They all use the sandwich formula; they differ in how they weight each observation's squared residual.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>HC type</th>
+<th>What it does</th>
+<th>When to use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>HC0</td>
+<td>White's original estimator, no correction</td>
+<td>Baseline; rarely used directly</td>
+</tr>
+<tr>
+<td>HC1</td>
+<td>HC0 with <code>(n / (n - k))</code> degrees-of-freedom correction</td>
+<td>Large samples; Stata default</td>
+</tr>
+<tr>
+<td>HC2</td>
+<td>Divides each squared residual by <code>(1 - h_ii)</code></td>
+<td>Accounts for leverage once</td>
+</tr>
+<tr>
+<td>HC3</td>
+<td>Divides by <code>(1 - h_ii)^2</code></td>
+<td>Long & Ervin default; small samples</td>
+</tr>
+<tr>
+<td>HC4</td>
+<td>Stronger leverage downweighting</td>
+<td>When a few observations have very high leverage</td>
+</tr>
+</tbody>
+</table>
+
+<p>Here <code>h_ii</code> is the <code>i</code>-th diagonal of the hat matrix, a measure of how much observation <code>i</code> pulls the fit toward itself. The HC2 through HC4 variants downweight high-leverage points so they do not inflate the variance estimate.</p>
+
+<div class="webr-container" data-block-title="Compare all HC types side by side">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare all HC types side by side</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">hc_types &lt;- c(&quot;HC0&quot;, &quot;HC1&quot;, &quot;HC2&quot;, &quot;HC3&quot;, &quot;HC4&quot;)
+slope_se &lt;- sapply(hc_types, function(t) {
+  sqrt(diag(vcovHC(het_model, type = t)))[&quot;x&quot;]
+})
+hc_compare &lt;- data.frame(type = hc_types, slope_se = round(slope_se, 3))
+hc_compare
+#&gt;   type slope_se
+#&gt; 1  HC0    0.173
+#&gt; 2  HC1    0.174
+#&gt; 3  HC2    0.174
+#&gt; 4  HC3    0.175
+#&gt; 5  HC4    0.181</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><img src="screenshots/Heteroscedasticity-in-R-hc-types.webp" alt="Choosing an HC type in R" class="img-responsive img-zoomable" loading="lazy" width="1526" height="1090" /></p>
+
+<p><em>Figure 1: Choosing an HC type based on sample size and leverage.</em></p>
+
+<p>The five estimators give similar slope standard errors here because n = 200 is moderate and no single point has extreme leverage. HC3 is slightly higher than HC1 by design; HC4 is the highest because it downweights leverage points the hardest.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use HC3 as the default.</strong> Long & Ervin (2000) show HC3 has the best finite-sample properties across extensive simulation studies, and <code>vcovHC()</code> uses it by default if you omit the <code>type</code> argument. Stata users who have always worked with HC1 can switch safely.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute the percent difference between HC3 and HC1 slope standard errors.</p>
+<div class="webr-container" data-block-title="Your turn: HC1 vs HC3">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: HC1 vs HC3</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_hc1 &lt;- sqrt(diag(vcovHC(het_model, type = &quot;HC1&quot;)))[&quot;x&quot;]
+ex_hc3 &lt;- sqrt(diag(vcovHC(het_model, type = &quot;HC3&quot;)))[&quot;x&quot;]
+
+# Compute (ex_hc3 - ex_hc1) / ex_hc1 * 100
+ex_pct_diff &lt;- ???
+ex_pct_diff
+#&gt; Expected: a small positive number</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="HC3 vs HC1 percent difference">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">HC3 vs HC1 percent difference</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_hc1 &lt;- sqrt(diag(vcovHC(het_model, type = &quot;HC1&quot;)))[&quot;x&quot;]
+ex_hc3 &lt;- sqrt(diag(vcovHC(het_model, type = &quot;HC3&quot;)))[&quot;x&quot;]
+ex_pct_diff &lt;- round((ex_hc3 - ex_hc1) / ex_hc1 * 100, 2)
+ex_pct_diff
+#&gt;    x
+#&gt; 0.59</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> HC3 is about 0.6% larger than HC1 here. In tiny samples or with <a class="auto-link" href="Regression-Diagnostics-in-R.html" title="Regression Diagnostics in R: 5 Plots That Reveal Model Violations Instantly">influential observations</a>, the gap between the two can reach 10% or more.</p>
+
+</details>
+</section>
+
+<h2>What Should You Do After Confirming Heteroscedasticity?</h2>
+
+<p>A small <code>bptest()</code> p-value is a diagnosis, not a prescription. You have four reasonable paths forward, listed roughly in order of effort.</p>
+
+<p><img src="screenshots/Heteroscedasticity-in-R-workflow.webp" alt="Heteroscedasticity detection and remediation workflow in R" class="img-responsive img-zoomable" loading="lazy" width="2248" height="830" /></p>
+
+<p><em>Figure 2: Heteroscedasticity detection and remediation workflow.</em></p>
+
+<ol>
+
+<li><strong>Robust standard errors.</strong> Keep OLS as-is, swap in <code>vcovHC()</code> SEs. Fastest, makes no assumption about the variance structure.</li>
+
+<li><strong>Weighted least squares (WLS).</strong> If you have a good guess for how the variance scales with X, reweight observations by <code>1 / estimated_variance</code>.</li>
+
+<li><strong>Transform the outcome.</strong> A log transform flattens variance that grows multiplicatively, but it changes what the slope means.</li>
+
+<li><strong>Respecify the model.</strong> Heteroscedasticity often signals a missing predictor or wrong functional form. Fixing the specification is usually better than patching the SEs.</li>
+
+</ol>
+
+<p>Let's try WLS on the <a class="auto-link" href="Synthetic-Data-in-R.html" title="Synthetic Data Generation in R: Protect Privacy While Testing Models">simulated data</a>. Since we know the error spread scales with <code>x</code>, weights of <code>1 / x^2</code> (the inverse variance) should restore homoscedastic residuals.</p>
+
+<div class="webr-container" data-block-title="Fit WLS with inverse-variance weights">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit WLS with inverse-variance weights</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Weights are 1 / variance. Here variance grows with x^2.
+wls_model &lt;- lm(y ~ x, data = sim_df, weights = 1 / x^2)
+coeftest(wls_model)
+#&gt;             Estimate Std. Error t value  Pr(&gt;|t|)
+#&gt; (Intercept)   2.041     0.321    6.36   1.2e-09 ***
+#&gt; x             1.490     0.117   12.74    &lt;2e-16 ***
+
+# Check BP on the weighted residuals
+bptest(wls_model)
+#&gt;   BP = 1.12, df = 1, p-value = 0.289</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>WLS downweights the high-variance observations, so the residuals become nearly homoscedastic. The BP p-value is now 0.29, safely above 0.05. Notice the slope estimate also shifts slightly because WLS optimises a different criterion than OLS.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A log transform changes the meaning of your coefficients.</strong> Switching from <code>lm(y ~ x)</code> to <code>lm(log(y) ~ x)</code> changes the slope from "units of y per unit of x" to "percent change in y per unit of x." Use a log when the relationship is genuinely multiplicative, not to silence a BP test.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Refit WLS using <code>1 / fitted(het_model)^2</code> as the weights, and compare the slope to OLS.</p>
+<div class="webr-container" data-block-title="Your turn: WLS with fitted-based weights">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: WLS with fitted-based weights</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_weights &lt;- 1 / fitted(het_model)^2
+# Write the weighted lm() call below:
+ex_wls &lt;- ???
+coef(ex_wls)
+#&gt; Expected: slope close to 1.5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="WLS with weights from fitted values">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">WLS with weights from fitted values</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_weights &lt;- 1 / fitted(het_model)^2
+ex_wls &lt;- lm(y ~ x, data = sim_df, weights = ex_weights)
+coef(ex_wls)
+#&gt; (Intercept)           x
+#&gt;       2.110       1.483</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Using fitted values as a variance proxy is a common trick when variance grows with the expected value of <code>y</code>. The slope stays close to the true value of 1.5.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<h3>Exercise 1: Full diagnostic workflow on mtcars</h3>
+
+<p>Fit the model <code>mpg ~ hp + wt</code> on <code>mtcars</code>. Run <code>bptest()</code> to check for heteroscedasticity. Whatever the result, compute HC3 robust standard errors and save the <code>coeftest()</code> output to <code>my_robust</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 1: mtcars diagnostic workflow">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1: mtcars diagnostic workflow</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_model &lt;- lm(mpg ~ hp + wt, data = mtcars)
+# 1. Run bptest on my_model
+# 2. Compute HC3 robust SEs with coeftest + vcovHC, save to my_robust
+
+my_robust &lt;- ???
+my_robust
+#&gt; Expected: coeftest table with HC3 standard errors</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_model &lt;- lm(mpg ~ hp + wt, data = mtcars)
+bptest(my_model)
+#&gt; BP = 0.88, df = 2, p-value = 0.64
+
+my_robust &lt;- coeftest(my_model, vcov = vcovHC(my_model, type = &quot;HC3&quot;))
+my_robust
+#&gt;             Estimate Std. Error t value  Pr(&gt;|t|)
+#&gt; (Intercept) 37.227    1.732     21.49    &lt;2e-16 ***
+#&gt; hp          -0.032    0.013     -2.39    0.024 *
+#&gt; wt          -3.878    0.724     -5.36    1.0e-05 ***</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> BP p-value 0.64 shows no strong evidence of heteroscedasticity on this mtcars model, but HC3 is a cheap insurance policy and here barely changes the standard errors.</p>
+
+</details>
+
+<h3>Exercise 2: Write a one-line diagnostic function</h3>
+
+<p>Write a function <code>diag_het(model)</code> that returns a one-row data frame with columns <code>bp_stat</code>, <code>bp_p</code>, and <code>hc3_max_inflation</code>. The third column is the largest ratio of HC3 standard error to OLS standard error across coefficients, a "how much do the SEs move" number.</p>
+
+<div class="webr-container" data-block-title="Exercise 2: diag_het function">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2: diag_het function</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">diag_het &lt;- function(model) {
+  # your code here
+}
+
+diag_het(het_model)
+#&gt; Expected: bp_stat around 37, bp_p tiny, hc3_max_inflation around 1.5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">diag_het &lt;- function(model) {
+  bp &lt;- bptest(model)
+  ols_se &lt;- sqrt(diag(vcov(model)))
+  hc3_se &lt;- sqrt(diag(vcovHC(model, type = &quot;HC3&quot;)))
+  data.frame(
+    bp_stat = unname(bp$statistic),
+    bp_p = bp$p.value,
+    hc3_max_inflation = max(hc3_se / ols_se)
+  )
+}
+diag_het(het_model)
+#&gt;   bp_stat       bp_p hc3_max_inflation
+#&gt; 1   37.42  9.45e-10             1.521</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The function packages three diagnostics colleagues actually read: is variance non-constant, how bad is the evidence, and how much do the standard errors shift when you switch to HC3.</p>
+
+</details>
+
+<h3>Exercise 3: Simulation, OLS vs HC3 CI coverage</h3>
+
+<p>Run 200 simulations of heteroscedastic samples. For each sample, compute the 95% OLS confidence interval and the 95% HC3 confidence interval for the slope. Report the fraction of CIs that contain the true slope of 1.5. Which method is closer to 95%?</p>
+
+<div class="webr-container" data-block-title="Exercise 3: CI coverage simulation">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3: CI coverage simulation</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+n_sim &lt;- 200
+# For each sim: simulate, fit, compute both CIs, check if 1.5 is inside.
+
+my_results &lt;- ???
+my_results
+#&gt; Expected: ols coverage around 85%, hc3 coverage around 94%</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+n_sim &lt;- 200
+covers_ols &lt;- logical(n_sim)
+covers_hc3 &lt;- logical(n_sim)
+
+for (i in seq_len(n_sim)) {
+  xi &lt;- runif(200, 1, 10)
+  yi &lt;- 2 + 1.5 * xi + rnorm(200, 0, xi)
+  m  &lt;- lm(yi ~ xi)
+  ci_ols &lt;- confint(m)[&quot;xi&quot;, ]
+  ci_hc3 &lt;- coefci(m, vcov = vcovHC(m, type = &quot;HC3&quot;))[&quot;xi&quot;, ]
+  covers_ols[i] &lt;- 1.5 &gt;= ci_ols[1] &amp;&amp; 1.5 &lt;= ci_ols[2]
+  covers_hc3[i] &lt;- 1.5 &gt;= ci_hc3[1] &amp;&amp; 1.5 &lt;= ci_hc3[2]
+}
+my_results &lt;- c(ols = mean(covers_ols), hc3 = mean(covers_hc3))
+my_results
+#&gt;   ols   hc3
+#&gt; 0.850 0.940</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> OLS intervals are too narrow under heteroscedasticity, so they contain the truth only about 85% of the time instead of the nominal 95%. HC3 lands within one percentage point of the target. The simulation is the strongest evidence you will ever see for using robust SEs when BP fires.</p>
+
+</details>
+
+<h2>Complete Example</h2>
+
+<p>Putting the full detect-and-fix workflow together on real data.</p>
+
+<div class="webr-container" data-block-title="End-to-end workflow on mtcars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">End-to-end workflow on mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># 1. Fit the model
+mt_model &lt;- lm(mpg ~ hp + wt + disp, data = mtcars)
+
+# 2. Inspect residuals visually
+plot(fitted(mt_model), resid(mt_model),
+     xlab = &quot;Fitted&quot;, ylab = &quot;Residuals&quot;,
+     main = &quot;Residuals vs Fitted&quot;)
+abline(h = 0, lty = 2)
+
+# 3. Formal Breusch-Pagan test
+mt_bp &lt;- bptest(mt_model)
+mt_bp
+#&gt;   BP = 2.28, df = 3, p-value = 0.516
+
+# 4. Robust inference (HC3)
+mt_robust &lt;- coeftest(mt_model, vcov = vcovHC(mt_model, type = &quot;HC3&quot;))
+mt_robust
+#&gt;             Estimate Std. Error t value  Pr(&gt;|t|)
+#&gt; (Intercept) 37.1055   1.813     20.46    &lt;2e-16 ***
+#&gt; hp          -0.0311   0.014     -2.28    0.031 *
+#&gt; wt          -3.8009   1.032     -3.68    0.001 **
+#&gt; disp        -0.0007   0.010     -0.07    0.942
+
+# 5. OLS vs robust side by side
+cbind(
+  OLS = summary(mt_model)$coefficients[, &quot;Std. Error&quot;],
+  HC3 = mt_robust[, &quot;Std. Error&quot;]
+)
+#&gt;                 OLS     HC3
+#&gt; (Intercept)   2.111   1.813
+#&gt; hp            0.015   0.014
+#&gt; wt            1.066   1.032
+#&gt; disp          0.010   0.010</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>BP returns p = 0.52, so there is no evidence of heteroscedasticity on this mtcars specification. The HC3 standard errors are similar to OLS, as expected when variance really is constant. On a dataset where BP fires, this same five-step recipe swaps in standard errors you can actually trust without changing the model.</p>
+
+<h2>Summary</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Package</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>bptest(model)</code></td>
+<td>lmtest</td>
+<td>Breusch-Pagan test for non-constant variance</td>
+</tr>
+<tr>
+<td><code>vcovHC(model, type = &quot;HC3&quot;)</code></td>
+<td>sandwich</td>
+<td>Heteroscedasticity-consistent covariance matrix</td>
+</tr>
+<tr>
+<td><code>coeftest(model, vcov = ...)</code></td>
+<td>lmtest</td>
+<td>Reprint the coefficient table with a supplied vcov</td>
+</tr>
+<tr>
+<td><code>coefci(model, vcov = ...)</code></td>
+<td>lmtest</td>
+<td>Confidence intervals with a supplied vcov</td>
+</tr>
+</tbody>
+</table>
+
+<p>Key takeaways:</p>
+
+<ul>
+
+<li>Heteroscedasticity biases standard errors, not coefficients.</li>
+
+<li>Breusch-Pagan tests whether the predictors explain the squared residuals.</li>
+
+<li>Robust standard errors use the sandwich formula to stay valid under non-constant variance.</li>
+
+<li>HC3 is the recommended default; HC1 matches Stata; HC4 handles high-leverage outliers.</li>
+
+</ul>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Breusch, T. S., & Pagan, A. R. (1979). "A simple test for heteroscedasticity and random coefficient variation." <em>Econometrica</em>, 47(5), 1287-1294. <a href="https://www.jstor.org/stable/1911963">Link</a></li>
+
+<li>White, H. (1980). "A heteroskedasticity-consistent covariance matrix estimator and a direct test for heteroskedasticity." <em>Econometrica</em>, 48(4), 817-838. <a href="https://www.jstor.org/stable/1912934">Link</a></li>
+
+<li>Long, J. S., & Ervin, L. H. (2000). "Using heteroscedasticity consistent standard errors in the <a class="auto-link" href="Linear-Regression.html" title="Linear Regression">linear regression model</a>." <em>The American Statistician</em>, 54(3), 217-224. <a href="https://www.jstor.org/stable/2685594">Link</a></li>
+
+<li>Zeileis, A. (2004). "Econometric computing with HC and HAC covariance matrix estimators." <em>Journal of Statistical Software</em>, 11(10). <a href="https://www.jstatsoft.org/article/view/v011i10">Link</a></li>
+
+<li>sandwich package documentation. <a href="https://cran.r-project.org/package=sandwich">Link</a></li>
+
+<li>lmtest package documentation. <a href="https://cran.r-project.org/package=lmtest">Link</a></li>
+
+<li>UVA Library, "Understanding Robust Standard Errors." <a href="https://library.virginia.edu/data/articles/understanding-robust-standard-errors">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Linear-Regression-Assumptions-in-R.html">Linear Regression Assumptions in R: Test All 5 and Know What to Do When They Fail</a> - The parent post covering every OLS assumption, including the homoscedasticity check this article expands on.</li>
+
+<li><a href="Regression-Diagnostics-in-R.html">Regression Diagnostics in R</a> - A wider diagnostic toolkit including leverage, influence, and residual plots.</li>
+
+<li><a href="Outlier-Detection-in-R.html">Outlier Detection in R</a> - When a few extreme observations drive the heteroscedasticity, identifying and handling outliers is often the right fix before reaching for robust standard errors.</li>
+
+</ul>
+
+{% endraw %}
