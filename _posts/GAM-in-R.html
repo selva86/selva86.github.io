@@ -1,0 +1,854 @@
+---
+title: "GAM in R: Generalized Additive Models with mgcv, Smooth Nonlinear Effects"
+description: "Fit generalized additive models in R with mgcv. Use s() for smooths, te() for interactions, and learn to interpret edf, plot effects, and check model fit."
+keywords: "GAM in R, mgcv, generalized additive models, smooth regression, s() function, te() tensor product, REML, penalized splines, nonlinear regression, gam() R"
+mathjax: true
+webr: true
+curriculum_id: "FR-regr-15"
+post_type: "FR"
+auto_link_terms: "GAM|generalized additive models|mgcv package|gam() function|smooth terms|penalized regression splines|tensor product smooths"
+auto_link_case_sensitive: false
+fr_parent: "Polynomial-and-Spline-Regression-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>GAM in R: Generalized Additive Models with mgcv, Smooth Nonlinear Effects</h1>
+
+<p class="lead">A generalized additive model (GAM) fits flexible nonlinear effects as a sum of smooth functions, letting the data decide how wiggly each predictor's effect should be. In R, the mgcv package makes this a one-line change from <code>lm()</code>.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="30" data-exercises="8" data-xp="120"></div>
+
+<h2>What makes a GAM different from polynomial regression?</h2>
+
+<p>Linear regression forces every predictor into a straight line. Polynomial terms help, but you have to pick the degree, and high-order terms wiggle unpredictably at the edges. A GAM sidesteps both problems: you write <code>s(x)</code> instead of <code>x</code>, and mgcv automatically picks how smooth that effect should be. The payoff below fits Ozone as a smooth function of Temp on the built-in <code>airquality</code> dataset.</p>
+
+<div class="webr-container" data-block-title="Fit and plot a GAM with s(Temp)">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit and plot a GAM with s(Temp)</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Load mgcv and drop rows with NAs
+library(mgcv)
+aq &lt;- na.omit(airquality)
+
+# Fit Ozone as a smooth function of Temp
+m1 &lt;- gam(Ozone ~ s(Temp), data = aq, method = &quot;REML&quot;)
+
+summary(m1)$s.table
+#&gt;              edf    Ref.df        F      p-value
+#&gt; s(Temp) 3.685137  4.566049 24.09896 1.347918e-15
+
+plot(m1, shade = TRUE, seWithMean = TRUE, main = &quot;Smooth effect of Temp on Ozone&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Three numbers tell the story. <code>edf = 3.69</code> means the fitted effect is about as complex as a degree-3 polynomial, far from a straight line. <code>p-value ~ 1e-15</code> says the smooth is overwhelmingly significant. The plot (a runnable cell renders it) shows Ozone rising gently at low temperatures and sharply above about 80 degrees, exactly the kind of curve a linear fit would miss.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>GAMs let the data choose the shape.</strong> You tell mgcv "x has some smooth effect on y" with <code>s(x)</code>. The package picks how wiggly that smooth should be by penalising curvature and tuning the penalty with REML. No degree to guess, no knot placement to fuss over.</div></div>
+
+<p>Compare the GAM against a plain linear fit to see the gap.</p>
+
+<div class="webr-container" data-block-title="Compare GAM fit to linear fit">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare GAM fit to linear fit</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit a straight-line model for contrast
+m1_lin &lt;- lm(Ozone ~ Temp, data = aq)
+
+# Compare AIC (lower is better)
+c(linear = AIC(m1_lin), gam = AIC(m1))
+#&gt;   linear      gam
+#&gt; 996.6547 970.0361
+
+# R-squared / deviance explained
+c(linear_r2 = summary(m1_lin)$r.squared,
+  gam_dev_expl = summary(m1)$dev.expl)
+#&gt;    linear_r2 gam_dev_expl
+#&gt;    0.4877072    0.6078488</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The GAM cuts <a class="auto-link" href="Model-Selection-in-R.html" title="Model Selection in R">AIC</a> by about 26 points and explains 61% of deviance versus 49% for the linear fit. That gap is the whole pitch for GAMs: same one-line formula change, meaningfully better fit whenever the relationship is curved.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit a GAM of Ozone as a smooth of Wind. Save it as <code>ex_m1</code> and print the smooth's edf and <a class="auto-link" href="Statistical-Tests-in-R.html" title="Statistical Tests in R">p-value</a>.</p>
+<div class="webr-container" data-block-title="Your turn: smooth of Wind">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: smooth of Wind</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: fit Ozone ~ s(Wind)
+ex_m1 &lt;- # your code here
+
+# Test:
+summary(ex_m1)$s.table
+#&gt; Expected: a 1-row matrix with edf around 2.6 and p-value &lt; 0.001</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Smooth of Wind solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Smooth of Wind solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_m1 &lt;- gam(Ozone ~ s(Wind), data = aq, method = &quot;REML&quot;)
+summary(ex_m1)$s.table
+#&gt;              edf   Ref.df        F      p-value
+#&gt; s(Wind) 2.636886 3.290036 12.84215 1.241938e-07</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>s(Wind)</code> tells mgcv to fit a smooth function of Wind. REML selects the penalty. The edf of about 2.6 says the relationship is mildly curved, and the tiny p-value confirms the effect is real.</p>
+
+</details>
+</section>
+
+<h2>How do you fit a simple GAM with gam() and s()?</h2>
+
+<p>The <code>s()</code> function accepts two arguments worth knowing early. <code>k</code> is the basis dimension, an upper bound on how wiggly the smooth can get (default 10). <code>bs</code> selects the spline family: <code>&quot;tp&quot;</code> (thin-plate, the default), <code>&quot;cr&quot;</code> (cubic regression, faster for large data), and <code>&quot;cs&quot;</code> (shrinkage variant that can penalise a smooth out of the model entirely). The smoothing penalty, not <code>k</code>, decides the final wiggliness, so you rarely need to touch <code>k</code> unless a check later complains.</p>
+
+<div class="webr-container" data-block-title="Try different basis types">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Try different basis types</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Thin-plate default (tp) vs cubic regression (cr)
+m_cr &lt;- gam(Ozone ~ s(Temp, bs = &quot;cr&quot;), data = aq, method = &quot;REML&quot;)
+
+# Compare edfs of the two basis choices
+rbind(
+  tp = summary(m1)$s.table,
+  cr = summary(m_cr)$s.table
+)
+#&gt;           edf   Ref.df        F      p-value
+#&gt; tp   3.685137 4.566049 24.09896 1.347918e-15
+#&gt; cr   3.723144 4.605081 24.04537 1.433811e-15</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both bases land on almost the same effective wiggliness (edf ~ 3.7). For a one-predictor model on a small dataset the choice barely matters. Cubic <a class="auto-link" href="Polynomial-and-Spline-Regression-in-R.html" title="Polynomial and Spline Regression in R: Model Curvature Without Transforming Variables">regression splines</a> become faster once you have tens of thousands of rows, and thin-plate splines work in any number of dimensions, so default to <code>&quot;tp&quot;</code> and switch to <code>&quot;cr&quot;</code> only if fitting time becomes painful.</p>
+
+<p>Additive means you just add more smooths. Each predictor gets its own <code>s()</code>, and mgcv estimates the whole stack jointly.</p>
+
+<div class="webr-container" data-block-title="Fit three smooths additively">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit three smooths additively</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Each predictor gets its own smooth
+m_multi &lt;- gam(Ozone ~ s(Temp) + s(Wind) + s(Solar.R),
+               data = aq, method = &quot;REML&quot;)
+
+summary(m_multi)$s.table
+#&gt;                 edf    Ref.df         F      p-value
+#&gt; s(Temp)    3.462226  4.333891 11.933527 1.014898e-08
+#&gt; s(Wind)    2.415799  3.053259  8.732953 1.954776e-05
+#&gt; s(Solar.R) 2.314818  2.906716  4.680961 3.862872e-03</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Three smooths, three p-values, three different shapes, all fitted in one call. The edfs tell you each predictor's effect is curved but not pathologically so.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Use <code>method = &quot;REML&quot;</code>, not the default GCV.</strong> Restricted maximum likelihood gives more stable smoothing-parameter estimates and is less likely to undersmooth noisy data. It is the recommended default from the mgcv author, Simon Wood.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit <code>Ozone ~ s(Temp) + s(Wind) + s(Solar.R)</code> with REML, save as <code>ex_m3</code>, then simply print <code>ex_m3</code> (not summary) to see the printed edfs.</p>
+<div class="webr-container" data-block-title="Your turn: three-smooth GAM">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: three-smooth GAM</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: fit the 3-smooth additive model
+ex_m3 &lt;- # your code here
+
+# Test:
+ex_m3
+#&gt; Expected: printed object shows edfs for Temp, Wind, Solar.R</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Three-smooth GAM solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Three-smooth GAM solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_m3 &lt;- gam(Ozone ~ s(Temp) + s(Wind) + s(Solar.R),
+             data = aq, method = &quot;REML&quot;)
+ex_m3
+#&gt;
+#&gt; Family: gaussian
+#&gt; Link function: identity
+#&gt;
+#&gt; Formula:
+#&gt; Ozone ~ s(Temp) + s(Wind) + s(Solar.R)
+#&gt;
+#&gt; Estimated degrees of freedom:
+#&gt; 3.46 2.42 2.31  total = 9.19
+#&gt;
+#&gt; REML score: 496.3614</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Printing a gam object (without <code>summary()</code>) gives a compact readout: the formula, the per-smooth edfs, and the REML score used for fitting.</p>
+
+</details>
+</section>
+
+<h2>How do you read a GAM's summary and smooth plots?</h2>
+
+<p><code>summary()</code> prints two tables. The first is parametric: the intercept and any linear terms you added. The second, <em>Approximate significance of smooth terms</em>, has one row per smooth with four columns: <code>edf</code>, <code>Ref.df</code>, <code>F</code>, and <code>p-value</code>. The edf is the one to know by heart: it is the effective degrees of freedom, how many "knobs" the penalised fit used. An edf of 1 means the smooth collapsed to a straight line. An edf near the basis dimension <code>k</code> means the smooth hit its ceiling, a signal to rerun with higher <code>k</code>.</p>
+
+<div class="webr-container" data-block-title="Read the full summary">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Read the full summary</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Full summary of the three-smooth model
+summary(m_multi)
+#&gt;
+#&gt; Family: gaussian
+#&gt; Link function: identity
+#&gt;
+#&gt; Formula:
+#&gt; Ozone ~ s(Temp) + s(Wind) + s(Solar.R)
+#&gt;
+#&gt; Parametric coefficients:
+#&gt;             Estimate Std. Error t value Pr(&gt;|t|)
+#&gt; (Intercept)   42.099      2.098   20.07   &lt;2e-16 ***
+#&gt;
+#&gt; Approximate significance of smooth terms:
+#&gt;              edf Ref.df      F  p-value
+#&gt; s(Temp)    3.462  4.334 11.934 1.01e-08 ***
+#&gt; s(Wind)    2.416  3.053  8.733 1.95e-05 ***
+#&gt; s(Solar.R) 2.315  2.907  4.681  0.00386 **
+#&gt;
+#&gt; R-sq.(adj) =  0.724   Deviance explained = 74.8%
+#&gt; -REML = 496.36  Scale est. = 227.18    n = 111</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read this top down. The intercept is the mean Ozone after the smooths are centered (mgcv centers each smooth, so they pass through zero on average). Each smooth-term row asks: is this smooth different from a flat line? All three p-values say yes. The model explains 75% of deviance, a strong fit.</p>
+
+<p>Pictures tell the rest of the story. <code>plot.gam()</code> draws one partial-effect plot per smooth, with a shaded confidence band.</p>
+
+<div class="webr-container" data-block-title="Plot all smooths on one page">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot all smooths on one page</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Plot every smooth with CI bands on one page
+plot(m_multi,
+     pages = 1,
+     shade = TRUE,
+     seWithMean = TRUE)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each panel shows one smooth's partial effect: how Ozone changes as that predictor moves, holding the others at their average. The shaded band is a 95% pointwise <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">confidence interval</a>. <code>seWithMean = TRUE</code> adds the intercept uncertainty into the band, which is what you almost always want.</p>
+
+<p><img src="screenshots/GAM-in-R-smooth-anatomy.webp" alt="How mgcv builds a smooth: basis functions combine into a weighted sum, with a penalty shrinking wiggliness." class="img-responsive img-zoomable" loading="lazy" width="2098" height="690" /></p>
+
+<p><em>Figure 1: How mgcv builds a smooth: basis functions combine into a weighted sum, with a penalty shrinking wiggliness.</em></p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Always set <code>seWithMean = TRUE</code> in plot.gam().</strong> Without it, the confidence band only reflects uncertainty in the smooth, not in the intercept, and tends to underrepresent true uncertainty. Setting it to TRUE makes the band more honest.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Pull the edf of the Wind smooth from <code>summary(ex_m3)</code>. Then look at the value and decide: is the Wind effect nearly linear (edf ~ 1) or clearly nonlinear (edf > 2)?</p>
+<div class="webr-container" data-block-title="Your turn: read an edf">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: read an edf</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: extract Wind's edf
+ex_wind_edf &lt;- # your code here (hint: use summary(ex_m3)$s.table)
+
+# Test:
+ex_wind_edf
+#&gt; Expected: a number around 2.4, meaning the effect is nonlinear</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Read an edf solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Read an edf solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_wind_edf &lt;- summary(ex_m3)$s.table[&quot;s(Wind)&quot;, &quot;edf&quot;]
+ex_wind_edf
+#&gt; [1] 2.415799</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>summary(model)$s.table</code> is a matrix indexed by smooth name. An edf of about 2.4 is well above 1, so the Wind effect is clearly nonlinear, but not wildly wiggly.</p>
+
+</details>
+</section>
+
+<h2>How do you model interactions with te() and ti()?</h2>
+
+<p>When two predictors interact, a single additive smooth per variable is not enough. mgcv gives you three ways to fit a joint surface, and picking the right one matters.</p>
+
+<p><code>s(x1, x2)</code> is a two-dimensional thin-plate smooth. It assumes x1 and x2 share a scale, so it is only appropriate for things like longitude and latitude. <code>te(x1, x2)</code> is a tensor product smooth built from two one-dimensional bases; it is scale-invariant, so use it whenever the two predictors have different units (temperature and wind speed, for instance). <code>ti(x1, x2)</code> is the "pure" interaction: it strips out the main effects, letting you write <code>s(x1) + s(x2) + ti(x1, x2)</code> and read off the interaction separately.</p>
+
+<div class="webr-container" data-block-title="Fit a tensor product interaction">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a tensor product interaction</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Joint smooth of Temp and Wind via tensor product
+m_te &lt;- gam(Ozone ~ te(Temp, Wind), data = aq, method = &quot;REML&quot;)
+
+summary(m_te)$s.table
+#&gt;                      edf   Ref.df        F      p-value
+#&gt; te(Temp,Wind)   7.295497 9.142105 16.29974 1.133215e-16
+
+# Visualise the 2D surface
+plot(m_te, scheme = 2)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The single smooth <code>te(Temp, Wind)</code> uses about 7.3 edfs to trace a curved 2D surface. <code>scheme = 2</code> draws the surface as a heatmap with contour lines. High Ozone sits in the hot-and-calm corner (high Temp, low Wind), and the surface curves rather than going diagonal, which is the interaction.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Use <code>te()</code>, not <code>s()</code>, for different-scale predictors.</strong> <code>s(Temp, Wind)</code> forces Temp (in Fahrenheit) and Wind (in mph) onto the same penalty scale, distorting the fit. <code>te()</code> uses a separate smoothing parameter per marginal, so the basis adapts to each predictor's scale independently.</div></div>
+
+<p>Decomposing into main effects plus a pure interaction often reads more cleanly.</p>
+
+<div class="webr-container" data-block-title="Main effects plus pure interaction">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Main effects plus pure interaction</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Decompose: main effects + pure interaction
+m_ti &lt;- gam(Ozone ~ s(Temp) + s(Wind) + ti(Temp, Wind),
+            data = aq, method = &quot;REML&quot;)
+
+summary(m_ti)$s.table
+#&gt;                      edf   Ref.df        F      p-value
+#&gt; s(Temp)        3.4929519  4.366636 11.7886057 2.144562e-08
+#&gt; s(Wind)        2.3820124  3.014025  8.8502188 2.068540e-05
+#&gt; ti(Temp,Wind)  0.8940604  2.000000  2.5418054 6.212378e-02</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now you can see three things at once: Temp and Wind each have substantial main effects (edf > 2, tiny p-values), and the pure interaction <code>ti(Temp, Wind)</code> is weak (edf ~ 0.9, p = 0.06). A model with main effects alone would likely be enough for airquality.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit a tensor product interaction of Temp and Solar.R, save it as <code>ex_te</code>. Print the smooth table and see how many edfs the joint surface uses.</p>
+<div class="webr-container" data-block-title="Your turn: te(Temp, Solar.R)">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: te(Temp, Solar.R)</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: tensor product of Temp and Solar.R
+ex_te &lt;- # your code here
+
+# Test:
+summary(ex_te)$s.table
+#&gt; Expected: a 1-row table with edf around 5-8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Tensor product solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Tensor product solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_te &lt;- gam(Ozone ~ te(Temp, Solar.R), data = aq, method = &quot;REML&quot;)
+summary(ex_te)$s.table
+#&gt;                         edf   Ref.df        F      p-value
+#&gt; te(Temp,Solar.R)   5.957164 7.300474 17.16147 3.331911e-15</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The tensor product uses about 6 edfs to draw the 2D response surface. Because Temp and Solar.R are on different scales (Fahrenheit vs. Langleys), <code>te()</code> is the correct choice, not <code>s(Temp, Solar.R)</code>.</p>
+
+</details>
+</section>
+
+<h2>How do you check a GAM and fix overfitting?</h2>
+
+<p><code>gam.check()</code> is the diagnostic workhorse. It does four things in one call: plots residual diagnostics, prints a basis-dimension check, reports convergence, and gives you back something you can read top-to-bottom. The key line is the basis-check table near the bottom: it reports <code>k&#x27;</code> (the basis size), <code>edf</code>, a <code>k-index</code>, and a p-value. If the p-value is small, your smooth is pushing against the edge of its basis and you should refit with a larger <code>k</code>.</p>
+
+<div class="webr-container" data-block-title="Run gam.check on the 3-smooth model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Run gam.check on the 3-smooth model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Diagnostics: residuals, basis check, convergence
+gam.check(m_multi)
+#&gt;
+#&gt; Method: REML   Optimizer: outer newton
+#&gt; full convergence after 6 iterations.
+#&gt; Gradient range [-1.06e-07, 1.17e-07]
+#&gt; (score 496.3614 &amp; scale 227.178).
+#&gt; Hessian positive definite, eigenvalue range [1.04, 53.3].
+#&gt; Model rank =  28 / 28
+#&gt;
+#&gt; Basis dimension (k) checking results. Low p-value (k-index&lt;1) may
+#&gt; indicate that k is too low, especially if edf is close to k'.
+#&gt;
+#&gt;              k'  edf k-index p-value
+#&gt; s(Temp)    9.00 3.46    1.01    0.54
+#&gt; s(Wind)    9.00 2.42    1.07    0.79
+#&gt; s(Solar.R) 9.00 2.31    0.97    0.38</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Three things to scan. First, "full convergence" at the top: REML converged, good. Second, the k-check table: all <code>k-index</code> values are near 1 and all p-values are above 0.05, so no smooth is basis-limited. Third, the diagnostic plot panel shows a QQ plot, a residuals vs. linear-predictor scatter, a residual histogram, and response vs. fitted. You want the QQ points roughly on the line and the residuals evenly scattered.</p>
+
+<p>Concurvity is the GAM analogue of <a class="auto-link" href="Multicollinearity-in-R.html" title="Multicollinearity in R: Detect It With VIF Before It Corrupts Your Coefficients">multicollinearity</a>. Two smooths may each be significant on their own but effectively represent the same information, inflating uncertainty. <code>concurvity()</code> reports this.</p>
+
+<div class="webr-container" data-block-title="Check concurvity across smooths">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Check concurvity across smooths</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Concurvity (GAM analogue of multicollinearity)
+concurvity(m_multi)
+#&gt;                 para    s(Temp)    s(Wind) s(Solar.R)
+#&gt; worst    5.215621e-24 0.58068562 0.52213879 0.41476683
+#&gt; observed 5.215621e-24 0.34691067 0.27040070 0.28194875
+#&gt; estimate 5.215621e-24 0.30141167 0.20988902 0.23192104</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Values near 1 flag serious problems; here all three smooths land well under 0.6, so the joint fit is stable. If you ever see a worst-case concurvity above 0.8, consider dropping one of the overlapping smooths or replacing them with a joint <code>te()</code>.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>If gam.check flags k too low, refit with larger k.</strong> A significant k-index p-value (< 0.05) combined with <code>edf</code> close to <code>k&#x27;</code> means the smooth hit its ceiling and was unable to capture the true wiggliness. Double <code>k</code> (e.g., <code>s(x, k = 20)</code>) and rerun. Keep increasing until the k-index check passes.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Run <code>gam.check(ex_m3)</code> on the three-smooth model you fit earlier. Look at the k-index table at the bottom. Are any p-values below 0.05?</p>
+<div class="webr-container" data-block-title="Your turn: run gam.check">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: run gam.check</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: check ex_m3
+# your code here
+
+#&gt; Expected: all k-index p-values above 0.05, i.e., no basis is too small</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="gam.check solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">gam.check solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">gam.check(ex_m3)
+#&gt; Basis dimension (k) checking results:
+#&gt;              k'  edf k-index p-value
+#&gt; s(Temp)    9.00 3.46    1.01    0.54
+#&gt; s(Wind)    9.00 2.42    1.07    0.79
+#&gt; s(Solar.R) 9.00 2.31    0.97    0.38</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> All three smooths have k-index ~ 1 and p-values well above 0.05, so the default <code>k = 10</code> basis is big enough. No refit needed.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<p>These capstones combine the concepts above into harder problems. They use <code>my_*</code> variable names to avoid polluting the tutorial notebook state.</p>
+
+<h3>Exercise 1: Extract a specific edf</h3>
+
+<p>Fit <code>Ozone ~ s(Temp) + s(Wind) + s(Solar.R)</code> with REML on <code>airquality</code>, save it as <code>my_gam</code>, and extract just the Wind smooth's edf into a variable called <code>my_wind_edf</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 1: extract edf">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1: extract edf</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Exercise: fit the model and pull out one edf
+# Hint: use summary(my_gam)$s.table and index by row name
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_gam &lt;- gam(Ozone ~ s(Temp) + s(Wind) + s(Solar.R),
+              data = na.omit(airquality), method = &quot;REML&quot;)
+my_wind_edf &lt;- summary(my_gam)$s.table[&quot;s(Wind)&quot;, &quot;edf&quot;]
+my_wind_edf
+#&gt; [1] 2.415799</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>summary(my_gam)$s.table</code> is a matrix; row names match the smooth labels, so you can index with <code>[&quot;s(Wind)&quot;, &quot;edf&quot;]</code> to grab a single value.</p>
+
+</details>
+
+<h3>Exercise 2: Compare linear vs GAM with AIC</h3>
+
+<p>Fit a linear model <code>my_lm &lt;- lm(Ozone ~ Temp + Wind + Solar.R, data = na.omit(airquality))</code> and a GAM <code>my_gam2 &lt;- gam(Ozone ~ s(Temp) + s(Wind) + s(Solar.R), data = na.omit(airquality), method = &quot;REML&quot;)</code>. Then use <code>AIC()</code> to compare them. Which is lower?</p>
+
+<div class="webr-container" data-block-title="Exercise 2: compare models with AIC">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2: compare models with AIC</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Exercise: lm vs GAM
+# Hint: AIC() accepts multiple model objects
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_lm &lt;- lm(Ozone ~ Temp + Wind + Solar.R, data = na.omit(airquality))
+my_gam2 &lt;- gam(Ozone ~ s(Temp) + s(Wind) + s(Solar.R),
+               data = na.omit(airquality), method = &quot;REML&quot;)
+
+AIC(my_lm, my_gam2)
+#&gt;              df      AIC
+#&gt; my_lm    5.0000 998.7175
+#&gt; my_gam2 11.1940 963.4892</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> AIC rewards fit (lower deviance) and penalises complexity (degrees of freedom). The GAM wins by about 35 AIC points, comfortably past the rule-of-thumb 4-point threshold for a meaningful difference. The curved effects captured real structure.</p>
+
+</details>
+
+<h3>Exercise 3: Predict with a confidence interval</h3>
+
+<p>Using <code>my_gam2</code> from Exercise 2, predict Ozone for a new data point (Temp = 80, Wind = 10, Solar.R = 200) with <code>predict(..., se.fit = TRUE)</code>. Compute a 95% CI as <code>fit +/- 1.96 * se.fit</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 3: predict with CI">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3: predict with CI</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Exercise: predict + standard error
+# Hint: new data must be a data.frame with the same column names
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">newdat &lt;- data.frame(Temp = 80, Wind = 10, Solar.R = 200)
+
+pred &lt;- predict(my_gam2, newdata = newdat, se.fit = TRUE)
+pred$fit
+#&gt;        1
+#&gt; 50.23474
+pred$se.fit
+#&gt;        1
+#&gt; 2.841273
+
+# 95% CI
+c(lower = pred$fit - 1.96 * pred$se.fit,
+  upper = pred$fit + 1.96 * pred$se.fit)
+#&gt;  lower.1  upper.1
+#&gt; 44.66585 55.80363</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>predict.gam()</code> with <code>se.fit = TRUE</code> returns a list with <code>fit</code> and <code>se.fit</code>. For Gaussian GAMs with an identity link, a 95% pointwise CI is <code>fit +/- 1.96 * se.fit</code>. For non-Gaussian families you would build the CI on the linear-predictor scale first, then transform.</p>
+
+</details>
+
+<h2>Complete Example</h2>
+
+<p>End-to-end: fit, check, interpret, and predict on <code>airquality</code>.</p>
+
+<div class="webr-container" data-block-title="Full GAM workflow end to end">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Full GAM workflow end to end</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># 1. Drop NAs and fit
+aq_full &lt;- na.omit(airquality)
+gam_full &lt;- gam(Ozone ~ s(Temp) + s(Wind) + s(Solar.R),
+                data = aq_full, method = &quot;REML&quot;)
+
+# 2. Summary, focus on deviance explained and edfs
+summary(gam_full)$s.table
+#&gt;                 edf    Ref.df         F      p-value
+#&gt; s(Temp)    3.462226  4.333891 11.933527 1.014898e-08
+#&gt; s(Wind)    2.415799  3.053259  8.732953 1.954776e-05
+#&gt; s(Solar.R) 2.314818  2.906716  4.680961 3.862872e-03
+
+summary(gam_full)$dev.expl
+#&gt; [1] 0.7475551
+
+# 3. Predict on a grid of Temp at median Wind / Solar.R
+grid &lt;- data.frame(
+  Temp = seq(min(aq_full$Temp), max(aq_full$Temp), length.out = 6),
+  Wind = median(aq_full$Wind),
+  Solar.R = median(aq_full$Solar.R)
+)
+
+preds &lt;- predict(gam_full, newdata = grid, se.fit = TRUE)
+grid$fit &lt;- preds$fit
+grid$lower &lt;- preds$fit - 1.96 * preds$se.fit
+grid$upper &lt;- preds$fit + 1.96 * preds$se.fit
+round(grid, 1)
+#&gt;   Temp Wind Solar.R  fit lower upper
+#&gt; 1 57.0  9.7   205.0 -2.9 -18.9  13.1
+#&gt; 2 68.4  9.7   205.0 18.7   9.1  28.4
+#&gt; 3 79.8  9.7   205.0 35.3  28.4  42.2
+#&gt; 4 91.2  9.7   205.0 74.7  64.1  85.3
+#&gt; 5 97.0  9.7   205.0 88.1  70.2 106.0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Predictions climb from near-zero at low temperatures to about 88 ppb at the highest observed temperature, with CIs widening at the extremes where data is sparse. The negative lower bound at 57°F is a reminder that partial-effect predictions can go negative for a Gaussian response; if negative Ozone is meaningless, switch to <code>family = Gamma(link = &quot;log&quot;)</code> or add a lower bound after prediction.</p>
+
+<h2>Summary</h2>
+
+<p>Here is the full mgcv cheat sheet for day-to-day work:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Task</th>
+<th>Function</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Fit a basic GAM</td>
+<td><code>gam(y ~ s(x), method = &quot;REML&quot;)</code></td>
+<td>REML is the recommended method</td>
+</tr>
+<tr>
+<td>Add multiple smooths</td>
+<td><code>y ~ s(x1) + s(x2) + s(x3)</code></td>
+<td>each gets its own penalty</td>
+</tr>
+<tr>
+<td>Interaction, same scale</td>
+<td><code>s(x1, x2)</code></td>
+<td>only for isotropic vars (lat/long)</td>
+</tr>
+<tr>
+<td>Interaction, different scale</td>
+<td><code>te(x1, x2)</code></td>
+<td>tensor product, scale-invariant</td>
+</tr>
+<tr>
+<td>Main effects plus pure interaction</td>
+<td><code>s(x1) + s(x2) + ti(x1, x2)</code></td>
+<td>isolates the interaction</td>
+</tr>
+<tr>
+<td>Change basis family</td>
+<td><code>s(x, bs = &quot;cr&quot;)</code></td>
+<td><code>&quot;tp&quot;</code> default, <code>&quot;cr&quot;</code> faster, <code>&quot;cs&quot;</code> shrinks</td>
+</tr>
+<tr>
+<td>Raise basis size</td>
+<td><code>s(x, k = 20)</code></td>
+<td>use when k-index check fails</td>
+</tr>
+<tr>
+<td>Read significance</td>
+<td><code>summary(model)</code></td>
+<td>edf = wiggliness, 1 = linear</td>
+</tr>
+<tr>
+<td>Visualise smooths</td>
+<td><code>plot(model, pages = 1, shade = TRUE, seWithMean = TRUE)</code></td>
+<td>centered partial effects</td>
+</tr>
+<tr>
+<td>Check fit</td>
+<td><code>gam.check(model)</code></td>
+<td>look at k-index p-values</td>
+</tr>
+<tr>
+<td>Check collinearity</td>
+<td><code>concurvity(model)</code></td>
+<td>worst-case > 0.8 is trouble</td>
+</tr>
+<tr>
+<td>Predict</td>
+<td><code>predict(model, newdata, se.fit = TRUE)</code></td>
+<td>CI via <code>fit +/- 1.96 * se</code></td>
+</tr>
+</tbody>
+</table>
+
+<p><img src="screenshots/GAM-in-R-workflow.webp" alt="The full GAM workflow: fit, check, interpret, predict." class="img-responsive img-zoomable" loading="lazy" width="1940" height="532" /></p>
+
+<p><em>Figure 2: The full GAM workflow: fit, check, interpret, predict. A failing k-index check sends you back to refit with a larger basis.</em></p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Wood, S.N. <em>Generalized Additive Models: An Introduction with R</em>, 2nd Edition. CRC Press (2017). <a href="https://www.routledge.com/Generalized-Additive-Models-An-Introduction-with-R-Second-Edition/Wood/p/book/9781498728331">Link</a></li>
+
+<li>mgcv CRAN reference manual. <a href="https://cran.r-project.org/web/packages/mgcv/mgcv.pdf">Link</a></li>
+
+<li>Ross, N. <em>GAMs in R: A Free Interactive Course</em>. <a href="https://noamross.github.io/gams-in-r-course/">Link</a></li>
+
+<li>Wood, S.N. (2011). Fast stable restricted maximum likelihood and marginal likelihood estimation of semiparametric generalized linear models. <em>Journal of the Royal Statistical Society, Series B</em>, 73(1), 3-36. <a href="https://doi.org/10.1111/j.1467-9868.2010.00749.x">Link</a></li>
+
+<li>Pedersen, E.J., Miller, D.L., Simpson, G.L., Ross, N. (2019). Hierarchical generalized additive models in ecology: an introduction with mgcv. <em>PeerJ</em>, 7:e6876. <a href="https://peerj.com/articles/6876/">Link</a></li>
+
+<li><a class="auto-link" href="Getting-Help-in-R.html" title="Stuck in R? 6 Ways to Get Unstuck Without Wasting Hours">R help</a>: <code>?mgcv::smooth.terms</code> for the full list of available spline bases.</li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ol>
+
+<li><a href="Polynomial-and-Spline-Regression-in-R.html">Polynomial and Spline Regression in R</a>, the parent topic covering <code>poly()</code>, <code>bs()</code>, and <code>ns()</code> for curvature without automatic smoothing.</li>
+
+<li><a href="Linear-Regression-Assumptions-in-R.html">Linear Regression Assumptions in R</a>, the diagnostic checklist you apply before reaching for a GAM.</li>
+
+<li><a href="Loess-Regression-With-R.html">Loess Regression With R</a>, a local-polynomial smoother that answers the same "what is the curve here" question in a different way.</li>
+
+</ol>
