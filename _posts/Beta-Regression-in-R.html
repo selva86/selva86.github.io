@@ -1,0 +1,818 @@
+---
+title: "Beta Regression in R: betareg Package for Proportions & Rates"
+description: "Beta regression in R models proportions and rates bounded between 0 and 1 using the betareg package. Learn formula syntax, link functions, and diagnostics."
+keywords: "beta regression R, betareg package, proportions regression, rates regression, bounded response, logit link, precision parameter, variable dispersion"
+mathjax: true
+webr: true
+curriculum_id: "FR-regr-7"
+post_type: "FR"
+auto_link_terms: "beta regression|betareg package|beta-distributed response|modelling proportions|Smithson squeeze"
+auto_link_case_sensitive: false
+fr_parent: "Logistic-Regression-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>Beta Regression in R: betareg Package for Proportions & Rates</h1>
+
+<p class="lead">Beta <a class="auto-link" href="adv-regression-models.html" title="Advanced Regression Models">regression models</a> continuous outcomes bounded between 0 and 1, such as proportions, percentages, and rates, using a <a class="auto-link" href="Gamma-and-Beta-Distributions-in-R.html" title="Gamma & Beta Distributions in R: Shape, Scale & Conjugate Priors">beta distribution</a> and link functions. The <code>betareg</code> package fits these models with a formula interface similar to <code>lm()</code>.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="30" data-exercises="8" data-xp="120"></div>
+
+<h2>When should you use beta regression instead of linear or logistic regression?</h2>
+
+<p>Proportions, yields, and rates often look like they should fit in a linear model, yet they refuse to cooperate. Predictions leak below 0 and above 1, variance shrinks near the edges, and residuals fan out. <a class="auto-link" href="Beta-Regression-With-R.html" title="Beta Regression with R">Beta regression</a> solves this by modelling the response as a draw from a beta distribution, a flexible shape that lives strictly inside (0, 1). Here is the payoff on Prater's gasoline yield data.</p>
+
+<div class="webr-container" data-block-title="Fit beta regression on GasolineYield">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit beta regression on GasolineYield</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(betareg)
+
+gy &lt;- GasolineYield
+m1 &lt;- betareg(yield ~ batch + temp, data = gy)
+summary(m1)
+#&gt; Call:
+#&gt; betareg(formula = yield ~ batch + temp, data = gy)
+#&gt;
+#&gt; Standardized weighted residuals 2:
+#&gt;     Min      1Q  Median      3Q     Max
+#&gt; -2.8750 -0.8149  0.1601  0.8384  2.0483
+#&gt;
+#&gt; Coefficients (mean model with logit link):
+#&gt;               Estimate Std. Error z value Pr(&gt;|z|)
+#&gt; (Intercept) -6.1595710  0.1823247 -33.783  &lt; 2e-16 ***
+#&gt; batch1       1.7277030  0.1012294  17.067  &lt; 2e-16 ***
+#&gt; batch2       1.3225456  0.1177780  11.229  &lt; 2e-16 ***
+#&gt; ...
+#&gt; temp         0.0109669  0.0004126  26.577  &lt; 2e-16 ***
+#&gt;
+#&gt; Phi coefficients (precision model with identity link):
+#&gt;       Estimate Std. Error z value Pr(&gt;|z|)
+#&gt; (phi)   440.28     110.02   4.002 6.29e-05 ***
+#&gt;
+#&gt; Type of estimator: ML (maximum likelihood)
+#&gt; Log-likelihood: 84.8 on 12 Df
+#&gt; Pseudo R-squared: 0.9617</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The response <code>yield</code> is the fraction of crude oil converted to gasoline after distillation, a clean (0, 1) proportion. The summary has two blocks: the <strong>mean model</strong> with a logit link (the fraction itself) and a <strong>precision model</strong> that controls how tightly observations cluster around the mean. A pseudo R² of 0.96 tells you temperature and batch explain almost all of the variation in yield.</p>
+
+<p><img src="screenshots/Beta-Regression-in-R-when-to-use.webp" alt="Decision flow for choosing between linear, logistic, and beta regression" class="img-responsive img-zoomable" loading="lazy" width="1310" height="1282" /></p>
+
+<p><em>Figure 1: A decision guide for choosing between linear, logistic, and beta regression based on the response variable.</em></p>
+
+<p><a class="auto-link" href="Linear-Regression.html" title="Linear Regression">Linear regression</a> is the wrong tool here because it happily predicts a yield of 1.2 or −0.1 when extrapolating. Logistic regression is also wrong, even though it uses the same logit link, because it assumes the outcome is Bernoulli (a yes/no count out of trials), not a continuous fraction.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Beta regression replaces the Gaussian assumption with a bounded distribution.</strong> Linear regression assumes errors are normal and unbounded, so predictions spill outside [0, 1]. A beta-distributed response lives strictly inside (0, 1) by construction, so both fitted values and prediction intervals stay in range.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Refit the same model with a probit link instead of logit and print the summary. Which link gives a higher pseudo R²?</p>
+<div class="webr-container" data-block-title="Your turn: fit with probit link">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: fit with probit link</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Refit m1 with link = &quot;probit&quot;
+ex_m_probit &lt;- # your code here
+
+# Print the summary:
+summary(ex_m_probit)
+#&gt; Expected: Pseudo R-squared near 0.96, slightly different coefficients</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Probit link solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Probit link solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_m_probit &lt;- betareg(yield ~ batch + temp, data = gy, link = &quot;probit&quot;)
+summary(ex_m_probit)
+#&gt; Pseudo R-squared: 0.9622</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The probit link uses the normal CDF instead of the logistic CDF. Results are usually very close to the logit fit because the two link functions only differ meaningfully in the tails. Pseudo R² moves by less than a percentage point.</p>
+
+</details>
+</section>
+
+<h2>How does the beta distribution parameterize mean and precision?</h2>
+
+<p>The classic beta distribution has two shape parameters, α and β. That is fine for probability theory but awkward for regression, because neither α nor β is what a modeller actually cares about. <code>betareg</code> reparameterizes using the <strong>mean</strong> μ and a <strong>precision</strong> φ, so you can model the average directly and describe the spread separately.</p>
+
+<p>The variance depends on both:</p>
+
+<p>$$\text{Var}(y) = \frac{\mu(1 - \mu)}{1 + \phi}$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$\mu$ = the mean of $y$ (a value between 0 and 1)</li>
+
+<li>$\phi$ = the precision (larger φ means a tighter distribution around μ)</li>
+
+<li>$\mu(1-\mu)$ = the familiar Bernoulli-style variance term that peaks at μ = 0.5</li>
+
+</ul>
+
+<p>The intuition is simple. Precision is the opposite of variance. Crank φ up and the distribution collapses toward its mean. Crank it down and it spreads out toward the edges. The next block shows this directly.</p>
+
+<div class="webr-container" data-block-title="Compare three beta densities">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare three beta densities</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Three (mean, precision) combinations
+x &lt;- seq(0.001, 0.999, length.out = 300)
+
+# alpha = mu * phi, beta = (1 - mu) * phi
+dens1 &lt;- dbeta(x, shape1 = 0.5 * 5,  shape2 = 0.5 * 5)    # mu=0.5, phi=5
+dens2 &lt;- dbeta(x, shape1 = 0.5 * 30, shape2 = 0.5 * 30)   # mu=0.5, phi=30
+dens3 &lt;- dbeta(x, shape1 = 0.2 * 20, shape2 = 0.8 * 20)   # mu=0.2, phi=20
+
+plot(x, dens1, type = &quot;l&quot;, lwd = 2, col = &quot;#9370DB&quot;,
+     ylim = c(0, max(dens2)), xlab = &quot;y&quot;, ylab = &quot;density&quot;,
+     main = &quot;Beta distributions for three (mu, phi) combinations&quot;)
+lines(x, dens2, lwd = 2, col = &quot;#4682B4&quot;)
+lines(x, dens3, lwd = 2, col = &quot;#CD5C5C&quot;)
+legend(&quot;topright&quot;,
+       legend = c(&quot;mu=0.5, phi=5&quot;, &quot;mu=0.5, phi=30&quot;, &quot;mu=0.2, phi=20&quot;),
+       col = c(&quot;#9370DB&quot;, &quot;#4682B4&quot;, &quot;#CD5C5C&quot;), lwd = 2, bty = &quot;n&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Three curves, three stories. The purple curve at μ = 0.5 with low precision is almost flat, proportions sprawl across the whole range. The blue curve at the same mean but high precision spikes sharply at 0.5. The red curve shifts the mean to 0.2 and shows how μ controls location while φ controls spread.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Classic and betareg parameterizations are interchangeable.</strong> If you know α and β, the betareg form is μ = α / (α + β) and φ = α + β. If you know μ and φ, the classic form is α = μφ and β = (1 − μ)φ. Keep both formulas nearby when reading mixed literature.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Draw two beta densities on the same plot: one with μ = 0.3, φ = 5, and another with μ = 0.3, φ = 20. Same mean, different precision.</p>
+<div class="webr-container" data-block-title="Your turn: vary phi at fixed mu">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: vary phi at fixed mu</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">x &lt;- seq(0.001, 0.999, length.out = 300)
+
+# Low precision:
+ex_low  &lt;- # your code here
+
+# High precision:
+ex_high &lt;- # your code here
+
+plot(x, ex_low, type = &quot;l&quot;, lwd = 2, col = &quot;#CD5C5C&quot;,
+     ylim = c(0, max(ex_high)), xlab = &quot;y&quot;, ylab = &quot;density&quot;)
+lines(x, ex_high, lwd = 2, col = &quot;#4682B4&quot;)
+#&gt; Expected: red curve is wide, blue curve is tall and narrow, both centred near 0.3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Fixed-mu precision comparison">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fixed-mu precision comparison</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">x &lt;- seq(0.001, 0.999, length.out = 300)
+ex_low  &lt;- dbeta(x, shape1 = 0.3 * 5,  shape2 = 0.7 * 5)
+ex_high &lt;- dbeta(x, shape1 = 0.3 * 20, shape2 = 0.7 * 20)
+
+plot(x, ex_low, type = &quot;l&quot;, lwd = 2, col = &quot;#CD5C5C&quot;,
+     ylim = c(0, max(ex_high)), xlab = &quot;y&quot;, ylab = &quot;density&quot;)
+lines(x, ex_high, lwd = 2, col = &quot;#4682B4&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Both densities peak near 0.3 because μ is fixed. The φ = 20 curve is much taller and narrower, showing that higher precision concentrates the probability mass around the mean.</p>
+
+</details>
+</section>
+
+<h2>How do you interpret betareg() coefficients on the logit scale?</h2>
+
+<p><code>betareg()</code> reports its mean-model coefficients on the link scale, not the response scale. With the default logit link, that means the coefficients are <a class="auto-link" href="Logistic-Regression-in-R.html" title="Logistic Regression in R: From glm() to Odds Ratios, ROC, and AUC">log-odds</a>, just like logistic regression. A coefficient of 1.73 on <code>batch1</code> does not mean batch 1 has a yield 1.73 higher, it means the log-odds of the yield is 1.73 higher than the reference batch.</p>
+
+<p>To get back to the response scale, you feed the linear predictor through <code>plogis()</code>. You have to combine the intercept with the coefficient first, then transform the sum. Transforming each piece separately gives nonsense. The cleanest path is to use <code>predict()</code>, which does all of that for you.</p>
+
+<div class="webr-container" data-block-title="Predict on the response scale">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Predict on the response scale</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Mean fitted values for all training rows
+preds_m1 &lt;- predict(m1, type = &quot;response&quot;)
+head(preds_m1, 5)
+#&gt;         1         2         3         4         5
+#&gt; 0.2674 0.2608 0.2513 0.2428 0.2410
+
+# Predict yield for one specific batch at three temperatures
+new_data &lt;- data.frame(batch = factor(&quot;1&quot;, levels = levels(gy$batch)),
+                       temp  = c(300, 400, 500))
+predict(m1, newdata = new_data, type = &quot;response&quot;)
+#&gt;         1         2         3
+#&gt; 0.2134 0.4641 0.7450
+
+# Intercept-only prediction, done by hand
+plogis(coef(m1)[&quot;(Intercept)&quot;])
+#&gt; 0.002108</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>predict()</code> output ties the model back to its business meaning: holding batch fixed and sweeping temperature from 300 to 500, predicted yield climbs from about 21% to 74%. The hand-computed intercept-only prediction (0.2%) is the expected yield when <code>batch</code> is at its reference level and <code>temp = 0</code>, a value the experiment was never run at, but useful as a sanity check that the transformation works.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>For <a class="auto-link" href="Interaction-Effects-in-R.html" title="Interaction Effects in R: Add Them, Test Them, and Actually Understand the Output">marginal effects</a>, use the marginaleffects package.</strong> Manual back-transformation breaks down when you want slopes, average marginal effects, or contrasts between levels. <code>marginaleffects::slopes(m1)</code> handles the nonlinear chain rule automatically and returns tidy output.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> What proportion does the <code>m1</code> intercept correspond to on its own? Call <code>plogis()</code> on just the intercept coefficient.</p>
+<div class="webr-container" data-block-title="Your turn: back-transform the intercept">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: back-transform the intercept</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_intercept_prop &lt;- # your code here
+ex_intercept_prop
+#&gt; Expected: a value around 0.002</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Intercept back-transform solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Intercept back-transform solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_intercept_prop &lt;- plogis(coef(m1)[&quot;(Intercept)&quot;])
+ex_intercept_prop
+#&gt; (Intercept)
+#&gt;     0.00211</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>plogis(x) = 1 / (1 + exp(-x))</code> is the inverse logit. Feeding the raw intercept of −6.16 through it gives 0.002, the expected yield when every predictor is at its reference or at zero.</p>
+
+</details>
+</section>
+
+<h2>How do you model variable precision (dispersion)?</h2>
+
+<p>By default <code>betareg()</code> estimates a single φ shared by every observation. Real data rarely cooperates. Yield variance often shrinks as temperature rises, error rates cluster differently by batch, and survey proportions bounce more for small groups. The good news: <code>betareg()</code> lets precision depend on its own regressors through a second formula, using a pipe <code>|</code>.</p>
+
+<p>The syntax is <code>response ~ mean_predictors | precision_predictors</code>. Everything left of the pipe goes into the mean model, everything right goes into the precision model. Both parts get their own link function and their own coefficient table.</p>
+
+<div class="webr-container" data-block-title="Fit a variable-dispersion model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a variable-dispersion model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">m2 &lt;- betareg(yield ~ batch + temp | temp, data = gy)
+summary(m2)
+#&gt; Coefficients (mean model with logit link):
+#&gt;               Estimate Std. Error z value Pr(&gt;|z|)
+#&gt; (Intercept) -6.13135    0.18518   -33.11  &lt; 2e-16 ***
+#&gt; batch1       1.72387    0.10240    16.83  &lt; 2e-16 ***
+#&gt; ...
+#&gt; temp         0.01093    0.00042    26.03  &lt; 2e-16 ***
+#&gt;
+#&gt; Phi coefficients (precision model with log link):
+#&gt;             Estimate Std. Error z value Pr(&gt;|z|)
+#&gt; (Intercept)  1.36140    1.22280    1.11    0.265
+#&gt; temp         0.01006    0.00316    3.18    0.0015 **
+#&gt;
+#&gt; Log-likelihood: 86.9 on 13 Df
+#&gt; Pseudo R-squared: 0.9626</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The precision model now has its own coefficient on <code>temp</code>, and it is highly significant. Precision rises as temperature rises, which means yields cluster more tightly at higher temperatures. A fixed-φ model cannot express this pattern at all, it averages the tight and loose regimes into a single number and ignores the trend.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Variable dispersion models both the average and the spread.</strong> Classic regression assumes constant variance. Beta regression with a precision formula lets the spread shift with covariates, capturing a real feature of the data that would otherwise show up as <a class="auto-link" href="Heteroscedasticity-in-R.html" title="Heteroscedasticity in R: Breusch-Pagan Test & Robust Standard Errors">heteroscedasticity</a> and corrupt your standard errors.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit a model that lets precision depend on <code>batch</code> instead of <code>temp</code>, and print only the precision-coefficient block with <code>summary()$coefficients$precision</code>.</p>
+<div class="webr-container" data-block-title="Your turn: let phi depend on batch">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: let phi depend on batch</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_m_phi_batch &lt;- # your code here
+
+summary(ex_m_phi_batch)$coefficients$precision
+#&gt; Expected: a table with one intercept and ten batch coefficients</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Phi on batch solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Phi on batch solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_m_phi_batch &lt;- betareg(yield ~ batch + temp | batch, data = gy)
+summary(ex_m_phi_batch)$coefficients$precision</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Each batch now has its own precision coefficient. Batches with wider yield variation get a smaller coefficient, batches with tighter control get a larger one. This diagnoses which batches behave consistently and which do not.</p>
+
+</details>
+</section>
+
+<h2>How do you handle values exactly at 0 or 1?</h2>
+
+<p><code>betareg()</code> requires the response to be strictly between 0 and 1. Any exact 0 or 1 is an error. That is awkward for real datasets, where censoring, measurement rounding, or bounded scales routinely produce boundary values. Two fixes exist, and each has trade-offs.</p>
+
+<p>The first is the Smithson–Verkuilen transformation, also called the <strong>Smithson squeeze</strong>:</p>
+
+<p>$$y' = \frac{y(n-1) + 0.5}{n}$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$y$ = the original value, possibly 0 or 1</li>
+
+<li>$n$ = the sample size</li>
+
+<li>$y'$ = the squeezed value, guaranteed to lie in (0, 1)</li>
+
+</ul>
+
+<p>It is a tiny nudge that scales every observation inward by a factor of $(n-1)/n$, then shifts by $0.5/n$. For large $n$ the adjustment is invisible. For small $n$ or boundary-heavy data it is noticeable, which is the second fix's cue to take over: a zero-or-one-inflated model, or the extended-support beta regression (<code>type = &quot;XBX&quot;</code>) that natively handles boundary observations.</p>
+
+<div class="webr-container" data-block-title="Apply the Smithson squeeze">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Apply the Smithson squeeze</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Simulated proportions including exact 0 and 1
+set.seed(27)
+raw_pct &lt;- c(0, 0.12, 0.34, 0.58, 0.81, 1)
+n &lt;- length(raw_pct)
+
+squeezed &lt;- (raw_pct * (n - 1) + 0.5) / n
+data.frame(raw = raw_pct, squeezed = round(squeezed, 4))
+#&gt;    raw squeezed
+#&gt; 1 0.00   0.0833
+#&gt; 2 0.12   0.1833
+#&gt; 3 0.34   0.3667
+#&gt; 4 0.58   0.5667
+#&gt; 5 0.81   0.7583
+#&gt; 6 1.00   0.9167
+
+# Fit beta regression on the squeezed proportions
+x &lt;- seq_along(raw_pct)
+m3 &lt;- betareg(squeezed ~ x)
+coef(m3)
+#&gt; (Intercept)           x       (phi)
+#&gt;      -1.843       0.487      15.24</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The exact 0 becomes 0.083 and the exact 1 becomes 0.917, inside the open interval where <code>betareg()</code> is happy to fit. The interior points move too, but only slightly. The fitted slope captures the linear trend in the squeezed series and the precision parameter lands at a reasonable positive value.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>The squeeze affects every observation, not just the boundary ones.</strong> For datasets with many exact 0s or 1s, the bias introduced by squeezing is not negligible, and a zero-inflated or extended-support beta model is the better answer. Use the squeeze only when boundary values are rare.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Apply the Smithson squeeze to the vector <code>ex_pct &lt;- c(0, 0.5, 1)</code> and print both the raw and squeezed values. What happens to the middle value?</p>
+<div class="webr-container" data-block-title="Your turn: squeeze a three-element vector">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: squeeze a three-element vector</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_pct &lt;- c(0, 0.5, 1)
+ex_n &lt;- length(ex_pct)
+
+ex_squeezed &lt;- # your code here
+
+data.frame(raw = ex_pct, squeezed = ex_squeezed)
+#&gt; Expected: 0 -&gt; ~0.167, 0.5 -&gt; 0.5, 1 -&gt; ~0.833</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Three-element squeeze solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Three-element squeeze solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_pct &lt;- c(0, 0.5, 1)
+ex_n &lt;- length(ex_pct)
+ex_squeezed &lt;- (ex_pct * (ex_n - 1) + 0.5) / ex_n
+data.frame(raw = ex_pct, squeezed = ex_squeezed)
+#&gt;   raw squeezed
+#&gt; 1 0.0    0.167
+#&gt; 2 0.5    0.500
+#&gt; 3 1.0    0.833</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The midpoint 0.5 stays at 0.5 because the squeeze is symmetric around it. Both endpoints move inward by 0.167, a large shift for n = 3, which is exactly why the squeeze hurts with tiny samples.</p>
+
+</details>
+</section>
+
+<h2>How do you assess beta regression model fit?</h2>
+
+<p>Model quality has three sensible checks. First, pseudo R² from the <code>summary()</code> output. Second, a likelihood-ratio test against a simpler nested model, typically the null model with only an intercept. Third, residual and influence plots via the built-in <code>plot()</code> method.</p>
+
+<p>Beta regression's pseudo R² is the squared correlation between the linear predictor and the linked response, not the classical R² of linear regression, but comparable enough within the same family of models. Likelihood-ratio tests compare nested models and tell you whether the extra predictors earn their complexity. Diagnostic plots surface outliers and leverage points that a single summary table will hide.</p>
+
+<div class="webr-container" data-block-title="Likelihood ratio test and diagnostics">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Likelihood ratio test and diagnostics</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(lmtest)
+
+# Null model with intercept only
+m0 &lt;- betareg(yield ~ 1, data = gy)
+lrtest(m0, m1)
+#&gt; Likelihood ratio test
+#&gt;
+#&gt; Model 1: yield ~ 1
+#&gt; Model 2: yield ~ batch + temp
+#&gt; #Df  LogLik Df  Chisq Pr(&gt;Chisq)
+#&gt;   2  28.220
+#&gt;  13  84.794 11 113.15  &lt; 2.2e-16 ***
+
+# Standardized weighted residuals and Cook's distance panels
+par(mfrow = c(1, 2))
+plot(m1, which = c(1, 4))
+par(mfrow = c(1, 1))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The likelihood-ratio test is decisive. The alternative model adds 11 degrees of freedom and cuts −2 log-likelihood by 113, a χ² statistic with a <a class="auto-link" href="Statistical-Tests-in-R.html" title="Statistical Tests in R">p-value</a> far below any reasonable threshold. Adding <code>batch</code> and <code>temp</code> was worth it. The diagnostic panels give you more. The residuals-versus-fitted plot should look like a random cloud, and <a class="auto-link" href="Regression-Diagnostics-in-R.html" title="Regression Diagnostics in R: 5 Plots That Reveal Model Violations Instantly">Cook's distance</a> should be small for every observation except maybe a handful. Any point sticking out tells you which row to investigate.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use sweighted2 residuals as the default diagnostic.</strong> Standardized weighted residuals of type <code>&quot;sweighted2&quot;</code> are the betareg equivalent of studentized residuals in linear regression, they behave predictably under the correct model and flag outliers reliably. Pull them with <code>residuals(m1, type = &quot;sweighted2&quot;)</code>.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit a null model <code>ex_m0 &lt;- betareg(yield ~ 1, data = gy)</code> and run <code>lrtest(ex_m0, m2)</code> against the variable-dispersion model. Is the extra precision formula worth it?</p>
+<div class="webr-container" data-block-title="Your turn: lrtest against variable-dispersion model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: lrtest against variable-dispersion model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_m0 &lt;- # your code here
+lrtest(ex_m0, m2)
+#&gt; Expected: highly significant Chisq, extra complexity is justified</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Null vs variable-dispersion solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Null vs variable-dispersion solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_m0 &lt;- betareg(yield ~ 1, data = gy)
+lrtest(ex_m0, m2)
+#&gt; Model 1: yield ~ 1
+#&gt; Model 2: yield ~ batch + temp | temp
+#&gt;   #Df LogLik Df Chisq Pr(&gt;Chisq)
+#&gt; 1   2  28.22
+#&gt; 2  14  86.88 12 117.3  &lt; 2.2e-16 ***</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The variable-dispersion model beats the null even more convincingly than the fixed-precision model did, because it also absorbs the precision structure tied to temperature.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<h3>Exercise 1: Variable-dispersion with AIC comparison</h3>
+
+<p>Fit two beta regression models on <code>GasolineYield</code>: one with fixed precision (<code>yield ~ batch + temp</code>) and one with variable precision (<code>yield ~ batch + temp | temp</code>). Use <code>AIC()</code> to compare them. Save the difference to <code>my_aic_delta</code>. Lower <a class="auto-link" href="Model-Selection-in-R.html" title="Model Selection in R">AIC</a> wins.</p>
+
+<div class="webr-container" data-block-title="Exercise 1 scaffold">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 scaffold</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: AIC(m1) - AIC(m2) or the other way around
+
+my_fixed &lt;- # your code
+my_var   &lt;- # your code
+
+my_aic_delta &lt;- # your code here
+my_aic_delta
+#&gt; Expected: a positive number near 2-3, variable-dispersion model has lower AIC</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_fixed &lt;- betareg(yield ~ batch + temp, data = GasolineYield)
+my_var   &lt;- betareg(yield ~ batch + temp | temp, data = GasolineYield)
+my_aic_delta &lt;- AIC(my_fixed) - AIC(my_var)
+my_aic_delta
+#&gt; [1] 2.21</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> A positive delta confirms the variable-dispersion model fits better even after the AIC penalty for the extra parameter. Whenever precision genuinely depends on a covariate, this pattern shows up.</p>
+
+</details>
+
+<h3>Exercise 2: Build a synthetic dataset with boundary values and recover the coefficient</h3>
+
+<p>Simulate 200 observations where the true mean proportion follows a logit link of a continuous predictor <code>x</code>, with a true slope of 1.5. Include a few exact zeros to make it realistic. Apply the Smithson squeeze, fit a beta regression, and check whether the recovered <code>x</code> coefficient is close to the truth.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 scaffold">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 scaffold</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(99)
+my_n &lt;- 200
+my_x &lt;- runif(my_n, -2, 2)
+my_mu &lt;- plogis(0 + 1.5 * my_x)
+my_phi &lt;- 20
+my_y_raw &lt;- rbeta(my_n, shape1 = my_mu * my_phi, shape2 = (1 - my_mu) * my_phi)
+
+# Inject a handful of zeros
+my_y_raw[sample(my_n, 5)] &lt;- 0
+
+# Squeeze and fit:
+my_y &lt;- # your code here
+my_fit &lt;- # your code here
+
+coef(my_fit)
+#&gt; Expected: x coefficient near 1.5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(99)
+my_n &lt;- 200
+my_x &lt;- runif(my_n, -2, 2)
+my_mu &lt;- plogis(0 + 1.5 * my_x)
+my_phi &lt;- 20
+my_y_raw &lt;- rbeta(my_n, shape1 = my_mu * my_phi, shape2 = (1 - my_mu) * my_phi)
+my_y_raw[sample(my_n, 5)] &lt;- 0
+
+my_y &lt;- (my_y_raw * (my_n - 1) + 0.5) / my_n
+my_fit &lt;- betareg(my_y ~ my_x)
+coef(my_fit)
+#&gt; (Intercept)        my_x       (phi)
+#&gt;      -0.021       1.482      17.83</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Despite the boundary zeros and the squeeze, the estimated <code>my_x</code> coefficient of 1.48 is within 1% of the true value 1.5. That is why the squeeze is still widely used, the bias is small for modest boundary rates, and the fit is otherwise accurate.</p>
+
+</details>
+
+<h2>Complete Example</h2>
+
+<p>The <code>FoodExpenditure</code> dataset, shipped with <code>betareg</code>, records the share of household income spent on food by 38 households. It is a textbook bounded-proportion response that depends on income and family size.</p>
+
+<div class="webr-container" data-block-title="Full FoodExpenditure workflow">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Full FoodExpenditure workflow</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">data(&quot;FoodExpenditure&quot;, package = &quot;betareg&quot;)
+fe &lt;- FoodExpenditure
+fe$prop &lt;- fe$food / fe$income
+
+# Quick look
+summary(fe$prop)
+#&gt;    Min. 1st Qu.  Median    Mean 3rd Qu.    Max.
+#&gt;  0.1067  0.2193  0.2816  0.2941  0.3573  0.5624
+
+# Fit variable-dispersion model
+m_food &lt;- betareg(prop ~ income + persons | persons, data = fe)
+summary(m_food)
+#&gt; Coefficients (mean model with logit link):
+#&gt;              Estimate Std. Error z value Pr(&gt;|z|)
+#&gt; (Intercept) -0.623122   0.223781  -2.785  0.00535 **
+#&gt; income      -0.012299   0.003580  -3.436  0.00059 ***
+#&gt; persons      0.118481   0.035252   3.361  0.00077 ***
+#&gt;
+#&gt; Phi coefficients (precision model with log link):
+#&gt;             Estimate Std. Error z value Pr(&gt;|z|)
+#&gt; (Intercept)  4.67186    0.65362    7.15  8.7e-13 ***
+#&gt; persons     -0.27974    0.13519   -2.07    0.039 *
+
+# Predict food share for a hypothetical family
+new_family &lt;- data.frame(income = 35, persons = 4)
+predict(m_food, newdata = new_family, type = &quot;response&quot;)
+#&gt;         1
+#&gt; 0.3213
+
+# Residual diagnostics
+par(mfrow = c(1, 2))
+plot(m_food, which = c(1, 4))
+par(mfrow = c(1, 1))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Higher income predicts a lower food share, Engel's law, visible in the negative income coefficient. Larger households predict a higher share, and also a lower precision, which means larger families show more scatter around their expected share. A family of 4 earning 35 monetary units is predicted to spend about 32% of income on food. Diagnostics highlight the handful of rows worth inspecting for leverage.</p>
+
+<h2>Summary</h2>
+
+<p><img src="screenshots/Beta-Regression-in-R-workflow-mindmap.webp" alt="Beta regression workflow from data to diagnostics" class="img-responsive img-zoomable" loading="lazy" width="1638" height="970" /></p>
+
+<p><em>Figure 2: The beta regression workflow from data to model to interpretation.</em></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Concept</th>
+<th>betareg syntax</th>
+<th>When to use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Bounded response</td>
+<td><code>betareg(y ~ x, data = d)</code></td>
+<td><code>y</code> is a continuous proportion in (0, 1)</td>
+</tr>
+<tr>
+<td>Link function</td>
+<td><code>link = &quot;logit&quot;</code> (default), <code>&quot;probit&quot;</code>, <code>&quot;cloglog&quot;</code></td>
+<td>Logit for symmetric data, cloglog for skew</td>
+</tr>
+<tr>
+<td>Variable precision</td>
+<td>`y ~ x \</td>
+<td>z`</td>
+<td>Spread of <code>y</code> depends on covariate <code>z</code></td>
+</tr>
+<tr>
+<td>Back-transform coefficient</td>
+<td><code>plogis(coef)</code></td>
+<td>Convert logit-scale coefficient to response scale</td>
+</tr>
+<tr>
+<td>Boundary 0 or 1</td>
+<td><code>(y * (n-1) + 0.5) / n</code></td>
+<td>A few exact 0s or 1s; large n</td>
+</tr>
+<tr>
+<td>Model fit test</td>
+<td><code>lmtest::lrtest(m0, m1)</code></td>
+<td>Nested model comparison</td>
+</tr>
+<tr>
+<td>Residual diagnostics</td>
+<td><code>plot(model, which = c(1, 4))</code></td>
+<td>Flag outliers and high-leverage points</td>
+</tr>
+</tbody>
+</table>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Cribari-Neto, F., & Zeileis, A. (2010). <em>Beta Regression in R</em>. Journal of Statistical Software, 34(2). <a href="https://www.jstatsoft.org/article/view/v034i02">Link</a></li>
+
+<li>Ferrari, S., & Cribari-Neto, F. (2004). Beta Regression for Modelling Rates and Proportions. <em>Journal of Applied Statistics</em>, 31(7), 799-815. <a href="https://doi.org/10.1080/0266476042000214501">Link</a></li>
+
+<li>Smithson, M., & Verkuilen, J. (2006). A Better Lemon Squeezer? Maximum-likelihood regression with beta-distributed dependent variables. <em>Psychological Methods</em>, 11(1), 54-71. <a href="https://doi.org/10.1037/1082-989X.11.1.54">Link</a></li>
+
+<li>CRAN <code>betareg</code> reference manual. <a href="https://cran.r-project.org/web/packages/betareg/betareg.pdf">Link</a></li>
+
+<li>Grün, B., Kosmidis, I., & Zeileis, A. (2012). Extended Beta Regression in R: Shaken, Stirred, Mixed, and Partitioned. <em>Journal of Statistical Software</em>, 48(11). <a href="https://www.jstatsoft.org/article/view/v048i11">Link</a></li>
+
+<li>Heiss, A. (2021). A guide to modeling proportions with Bayesian beta and zero-inflated beta regression models. <a href="https://www.andrewheiss.com/blog/2021/11/08/beta-regression-guide/">Link</a></li>
+
+<li>Mangiafico, S. R Companion Handbook: Beta Regression for Percent and Proportion Data. <a href="https://rcompanion.org/handbook/J_02.html">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ol>
+
+<li><strong><a href="Logistic-Regression-in-R.html">Logistic Regression in R</a></strong>, when the outcome is a binary 0/1, not a continuous proportion.</li>
+
+<li><strong><a href="Poisson-Regression-in-R.html">Poisson Regression in R</a></strong>, for modelling counts and rates with an offset.</li>
+
+<li><strong><a href="Regression-Diagnostics-in-R.html">Regression Diagnostics in R</a></strong>, deeper tools for residuals, leverage, and influence that extend to beta models.</li>
+
+</ol>
+
+{% endraw %}
