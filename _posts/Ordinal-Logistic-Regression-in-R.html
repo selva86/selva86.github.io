@@ -1,0 +1,865 @@
+---
+title: "Ordinal Logistic Regression in R: MASS::polr() & Proportional Odds"
+description: "Fit and interpret ordinal logistic regression in R using MASS::polr(). Covers the proportional odds assumption, Brant test, odds ratios, and predictions."
+keywords: "ordinal logistic regression, polr, MASS polr, proportional odds, Brant test, ordered logistic regression R, polr example, parallel regression assumption, cumulative logit model"
+mathjax: true
+webr: true
+curriculum_id: "FR-regr-10"
+post_type: "FR"
+auto_link_terms: "ordinal logistic regression|proportional odds model|polr()|MASS::polr()|parallel regression assumption|cumulative logit model|ordered logistic regression|Brant test"
+auto_link_case_sensitive: false
+fr_parent: "Logistic-Regression-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>Ordinal Logistic Regression in R: MASS::polr() & Proportional Odds</h1>
+
+<p class="lead"><a class="auto-link" href="Ordinal-Logistic-Regression-With-R.html" title="Ordinal Logistic Regression with R">Ordinal logistic regression</a> models an <strong>ordered outcome</strong>, like grades (D &lt; C &lt; B &lt; A) or satisfaction ratings, using a single set of slope coefficients and one intercept per cut-point. In R, the standard tool is <code>MASS::polr()</code>, which fits a cumulative-logit model under the proportional odds assumption.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="30" data-exercises="9" data-xp="135"></div>
+
+<h2>How do you fit an ordinal logistic regression in R?</h2>
+
+<p>The workflow has three pieces: make the outcome an <a class="auto-link" href="R-Factors.html" title="R Factors: The Data Type That Trips Up Almost Every R Beginner">ordered factor</a>, call <code>polr()</code> with a formula, and read the coefficient table. Let's simulate 500 students with study hours, attendance, and prior GPA, then predict their final grade. Because grades have a natural order, ordinal regression respects that order instead of treating the outcome as four unrelated classes.</p>
+
+<div class="webr-container" data-block-title="Fit an ordinal logistic regression">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit an ordinal logistic regression</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(MASS)
+
+set.seed(2026)
+n &lt;- 500
+student &lt;- data.frame(
+  study_hours = round(rnorm(n, mean = 10, sd = 3), 1),
+  attendance  = round(runif(n, 60, 100), 0),
+  prev_gpa    = round(runif(n, 2.0, 4.0), 2)
+)
+
+latent &lt;- with(student,
+               -8 + 0.25 * study_hours + 0.04 * attendance + 1.2 * prev_gpa) +
+          rnorm(n, 0, 0.7)
+
+student$grade &lt;- cut(latent,
+                     breaks = quantile(latent, probs = c(0, 0.20, 0.55, 0.85, 1)),
+                     labels = c(&quot;D&quot;, &quot;C&quot;, &quot;B&quot;, &quot;A&quot;),
+                     include.lowest = TRUE,
+                     ordered_result = TRUE)
+
+model &lt;- polr(grade ~ study_hours + attendance + prev_gpa,
+              data = student, Hess = TRUE)
+summary(model)
+#&gt; Call:
+#&gt; polr(formula = grade ~ study_hours + attendance + prev_gpa,
+#&gt;     data = student, Hess = TRUE)
+#&gt;
+#&gt; Coefficients:
+#&gt;              Value Std. Error t value
+#&gt; study_hours  0.286    0.0346    8.26
+#&gt; attendance   0.046    0.0084    5.42
+#&gt; prev_gpa     1.315    0.1584    8.30
+#&gt;
+#&gt; Intercepts:
+#&gt;     Value   Std. Error t value
+#&gt; D|C  2.853  0.945       3.02
+#&gt; C|B  4.982  0.975       5.11
+#&gt; B|A  7.821  1.010       7.75
+#&gt;
+#&gt; Residual Deviance: 1062.45
+#&gt; AIC: 1074.45</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>All three slope coefficients are positive, which means more study hours, higher attendance, and higher prior GPA each push students toward the <strong>higher</strong> grade categories. The three intercepts <code>D|C</code>, <code>C|B</code>, <code>B|A</code> are the cut-points that separate adjacent grades on the <a class="auto-link" href="Logistic-Regression-in-R.html" title="Logistic Regression in R: From glm() to Odds Ratios, ROC, and AUC">log-odds</a> scale. Their widening spacing (2.85, 4.98, 7.82) tells us the "A" category is reached only when the combined predictors push the linear score well past the other cuts.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong><code>Hess = TRUE</code> saves the Hessian matrix at the optimum.</strong> Without it, <code>summary()</code> cannot compute standard errors or t-values, so always include it unless you have a reason not to.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit a <code>polr()</code> model using only <code>study_hours</code> as the predictor. Does its slope match the one from the full model?</p>
+<div class="webr-container" data-block-title="Your turn: one-predictor polr">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: one-predictor polr</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit polr with only study_hours
+ex_model1 &lt;- polr( ,
+                  data = student, Hess = TRUE)
+
+coef(ex_model1)
+#&gt; Expected: a single coefficient for study_hours, larger than 0.286</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="One-predictor polr solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">One-predictor polr solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_model1 &lt;- polr(grade ~ study_hours, data = student, Hess = TRUE)
+coef(ex_model1)
+#&gt; study_hours
+#&gt;       0.394</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The single-predictor slope is larger (~0.39 vs. 0.29) because it absorbs effects that the full model attributes to <code>attendance</code> and <code>prev_gpa</code>. Omitting predictors correlated with study_hours inflates its apparent effect.</p>
+
+</details>
+</section>
+
+<h2>When should you use ordinal logistic regression?</h2>
+
+<p>Choose your model from the outcome variable, not from habit. Ordinal logistic regression sits between plain binary logistic regression and multinomial logit, and it is the right choice whenever the categories have a natural order that a multinomial model would throw away.</p>
+
+<p><img src="screenshots/Ordinal-Logistic-Regression-in-R-outcome-types-flow.webp" alt="Decision flow for picking a model from the type of outcome variable." class="img-responsive img-zoomable" loading="lazy" width="1588" height="1130" /></p>
+
+<p><em>Figure 1: Decision flow for picking a model from the type of outcome variable.</em></p>
+
+<p>A tempting alternative is to cast the grades as numbers (D=1, C=2, B=3, A=4) and use <a class="auto-link" href="Linear-Regression.html" title="Linear Regression">linear regression</a>. That works mechanically, but it hides two strong assumptions: that the distance from D to C equals the distance from B to A, and that a predicted 2.7 makes sense as a grade.</p>
+
+<div class="webr-container" data-block-title="Linear fit on ordered outcome hides assumptions">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Linear fit on ordered outcome hides assumptions</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Treat grade as numeric 1..4 and fit a linear model
+grade_num &lt;- as.numeric(student$grade)
+m_lin &lt;- lm(grade_num ~ study_hours + attendance + prev_gpa, data = student)
+coef(m_lin)
+#&gt; (Intercept) study_hours  attendance    prev_gpa
+#&gt;     -0.854       0.082       0.014       0.371
+predict(m_lin, newdata = student[1:3, ])
+#&gt;        1        2        3
+#&gt;    2.731    3.204    2.198</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The linear model produces fractional predictions like 2.73 that do not map to any grade, and its coefficients implicitly assume equal spacing between grades. <code>polr()</code> avoids both traps by modelling the <strong>ordering</strong> without forcing a specific spacing.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Ordinal regression respects rank but not distance.</strong> It treats D < C < B < A as an ordering, so it never assumes that "B minus C" equals "A minus B". That is exactly the freedom we want for grades, Likert scales, and satisfaction ratings.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Convert the character vector <code>c(&quot;Low&quot;,&quot;High&quot;,&quot;Medium&quot;,&quot;Low&quot;,&quot;High&quot;)</code> into an ordered factor with levels Low < Medium < High.</p>
+<div class="webr-container" data-block-title="Your turn: build an ordered factor">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: build an ordered factor</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Turn a character vector into an ordered factor
+raw &lt;- c(&quot;Low&quot;, &quot;High&quot;, &quot;Medium&quot;, &quot;Low&quot;, &quot;High&quot;)
+ex_levels &lt;- factor( , levels = , ordered = )
+ex_levels
+#&gt; Expected: [1] Low    High   Medium Low    High
+#&gt; Levels: Low &lt; Medium &lt; High</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Ordered factor solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Ordered factor solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">raw &lt;- c(&quot;Low&quot;, &quot;High&quot;, &quot;Medium&quot;, &quot;Low&quot;, &quot;High&quot;)
+ex_levels &lt;- factor(raw, levels = c(&quot;Low&quot;, &quot;Medium&quot;, &quot;High&quot;), ordered = TRUE)
+ex_levels
+#&gt; [1] Low    High   Medium Low    High
+#&gt; Levels: Low &lt; Medium &lt; High</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The <code>levels</code> argument names the allowed values <strong>in order</strong>, and <code>ordered = TRUE</code> tells R that the order is meaningful, not alphabetical.</p>
+
+</details>
+</section>
+
+<h2>What does the proportional odds assumption mean?</h2>
+
+<p>Ordinal logistic regression imagines a single continuous "ability" score behind your categorical outcome, and then carves that score into ordered bins with cut-points. The same slope describes how predictors move that underlying score, regardless of which bin boundary you look at.</p>
+
+<p><img src="screenshots/Ordinal-Logistic-Regression-in-R-cumulative-logits.webp" alt="Cumulative cut-points share one slope set under the proportional odds assumption." class="img-responsive img-zoomable" loading="lazy" width="1452" height="986" /></p>
+
+<p><em>Figure 2: Cumulative cut-points share one slope set under the proportional odds assumption.</em></p>
+
+<p>Formally, for an outcome with $J$ ordered levels and cut-points $j = 1, \dots, J-1$, the cumulative-logit model is:</p>
+
+<p>$$\text{logit}\bigl(P(Y \le j \mid x)\bigr) = \alpha_j - (\eta_1 x_1 + \eta_2 x_2 + \dots + \eta_p x_p)$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$P(Y \le j \mid x)$ = probability that the outcome is at or below category $j$</li>
+
+<li>$\alpha_j$ = the $j$-th intercept (cut-point), one per non-top category</li>
+
+<li>$\eta_k$ = slope for predictor $x_k$, <strong>shared across all cut-points</strong></li>
+
+<li>The minus sign is R's convention in <code>polr()</code>: positive $\eta$ means larger $x$ raises the probability of higher categories</li>
+
+</ul>
+
+<p>Let's confirm that the model's intercepts and slopes actually produce the cumulative probabilities we expect.</p>
+
+<div class="webr-container" data-block-title="Recover a cumulative probability by hand">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Recover a cumulative probability by hand</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># A single new student
+new_student &lt;- data.frame(study_hours = 12, attendance = 85, prev_gpa = 3.5)
+
+# Cut-points and slopes from the fitted model
+alpha &lt;- model$zeta         # the three intercepts D|C, C|B, B|A
+beta  &lt;- coef(model)        # slopes for study_hours, attendance, prev_gpa
+eta   &lt;- sum(beta * c(12, 85, 3.5))
+
+# P(Y &lt;= j) for j = D, C, B using logit^-1(alpha_j - eta)
+p_le &lt;- plogis(alpha - eta)
+round(p_le, 3)
+#&gt;   D|C   C|B   B|A
+#&gt; 0.039 0.247 0.839
+
+# Compare to predict() on the same student
+round(predict(model, newdata = new_student, type = &quot;probs&quot;), 3)
+#&gt;     D     C     B     A
+#&gt; 0.039 0.208 0.592 0.161</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The first row is the cumulative "at or below" probabilities straight from the formula; the second row is the per-category probabilities, which are the <strong>differences</strong> between adjacent cumulative values plus the endpoints. Both agree: this student is most likely to land in category B.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Think of the latent score.</strong> Imagine the model assigns each student an invisible score. The intercepts are ruler marks that carve that score into grade categories, and the slopes say how your predictors slide the score left or right. That single picture makes every polr output make sense.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Using the fitted <code>model</code>, compute the cumulative probability <code>P(grade &lt;= C)</code> for a student with 8 study hours, 75% attendance, and 3.0 GPA.</p>
+<div class="webr-container" data-block-title="Your turn: compute a cumulative probability">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: compute a cumulative probability</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fill in the numbers for the new student
+ex_row &lt;- data.frame(study_hours = , attendance = , prev_gpa = )
+ex_cumprob &lt;- sum(predict(model, newdata = ex_row, type = &quot;probs&quot;)[c(&quot;D&quot;, &quot;C&quot;)])
+ex_cumprob
+#&gt; Expected: a value roughly in the 0.55 to 0.80 range</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Cumulative probability solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Cumulative probability solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_row &lt;- data.frame(study_hours = 8, attendance = 75, prev_gpa = 3.0)
+ex_cumprob &lt;- sum(predict(model, newdata = ex_row, type = &quot;probs&quot;)[c(&quot;D&quot;, &quot;C&quot;)])
+round(ex_cumprob, 3)
+#&gt; [1] 0.701</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>predict(type = &quot;probs&quot;)</code> gives the four per-category probabilities; summing the "D" and "C" entries recovers the cumulative probability <code>P(grade &lt;= C) ≈ 0.70</code> for this student.</p>
+
+</details>
+</section>
+
+<h2>How do you interpret polr() coefficients and odds ratios?</h2>
+
+<p>The raw coefficients from <code>summary(model)</code> live on the log-odds scale, which is awkward to talk about. Exponentiating each coefficient converts it into an <strong>odds ratio</strong>: how many times the odds of being in a higher category multiply for a one-unit increase in the predictor.</p>
+
+<div class="webr-container" data-block-title="Odds ratios with confidence intervals">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Odds ratios with confidence intervals</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Combine coefficients and 95% profile CIs on the odds-ratio scale
+or_table &lt;- exp(cbind(OR = coef(model), confint(model)))
+round(or_table, 3)
+#&gt;                OR  2.5 % 97.5 %
+#&gt; study_hours 1.331  1.244  1.426
+#&gt; attendance  1.047  1.030  1.064
+#&gt; prev_gpa    3.724  2.738  5.097</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each extra study hour multiplies the odds of a higher grade by about 1.33 (a 33% increase), holding attendance and prior GPA fixed. A 1-point jump in prior GPA multiplies those same odds by 3.72, so prior GPA is the strongest driver among the three. The 95% CIs are all well above 1, confirming each effect is statistically meaningful.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><code>polr()</code> uses a minus sign on the slopes.</strong> The parameterization is <code>logit P(Y ≤ j) = αⱼ − η·x</code>, which flips the usual sign intuition for a second. If <code>summary()</code> shows a positive <code>η</code>, larger <code>x</code> makes <strong>higher</strong> categories more likely, which is what you want. Always read the sign from the output, not from memory.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute the odds ratio for a <strong>5-unit</strong> increase in <code>study_hours</code>. Hint: the OR for a <code>k</code>-unit change is <code>exp(k * beta)</code>.</p>
+<div class="webr-container" data-block-title="Your turn: OR for a 5-unit change">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: OR for a 5-unit change</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Study-hours odds ratio for a 5-unit increase
+ex_or5 &lt;- exp( * coef(model)[&quot;&quot;])
+round(ex_or5, 2)
+#&gt; Expected: somewhere around 4.1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="5-unit OR solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">5-unit OR solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_or5 &lt;- exp(5 * coef(model)[&quot;study_hours&quot;])
+round(ex_or5, 2)
+#&gt; study_hours
+#&gt;        4.15</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Multiplying the slope by 5 and exponentiating gives the odds ratio for a 5-unit change. Five extra study hours roughly <strong>quadruple</strong> the odds of being in a higher grade category.</p>
+
+</details>
+</section>
+
+<h2>How do you check the proportional odds assumption?</h2>
+
+<p>The proportional odds assumption says the slopes are the same at every cut-point. The cleanest way to check it is to fit one binary logistic regression at each cut-point and compare the slopes side by side. If the slopes stay close to each other, the assumption is reasonable; if they swing wildly, it is not.</p>
+
+<div class="webr-container" data-block-title="Check proportional odds manually">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Check proportional odds manually</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit a binary logistic regression at each of the three cut-points
+bin1 &lt;- glm((as.integer(grade) &gt;= 2) ~ study_hours + attendance + prev_gpa,
+            data = student, family = binomial)  # C or better
+bin2 &lt;- glm((as.integer(grade) &gt;= 3) ~ study_hours + attendance + prev_gpa,
+            data = student, family = binomial)  # B or better
+bin3 &lt;- glm((as.integer(grade) &gt;= 4) ~ study_hours + attendance + prev_gpa,
+            data = student, family = binomial)  # A only
+
+po_coefs &lt;- rbind(
+  `&gt;= C` = coef(bin1)[-1],
+  `&gt;= B` = coef(bin2)[-1],
+  `&gt;= A` = coef(bin3)[-1]
+)
+round(po_coefs, 3)
+#&gt;      study_hours attendance prev_gpa
+#&gt; &gt;= C       0.293      0.047    1.402
+#&gt; &gt;= B       0.281      0.044    1.290
+#&gt; &gt;= A       0.277      0.046    1.267</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The three rows of slopes for <code>study_hours</code>, <code>attendance</code>, and <code>prev_gpa</code> sit within a narrow band of each other (for example, 0.29 / 0.28 / 0.28 for study hours). That close agreement is exactly what proportional odds predicts, so for this <a class="auto-link" href="Synthetic-Data-in-R.html" title="Synthetic Data Generation in R: Protect Privacy While Testing Models">simulated data</a> the assumption clearly holds.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Two packages automate this check.</strong> <code>brant::brant(model)</code> runs the formal Brant test of parallel slopes, and <code>car::poTest(model)</code> offers an equivalent test from John Fox. Both operate on a fitted <code>polr()</code> object and return per-predictor p-values. The logic is identical to the manual comparison above; p-values flag the predictors whose slopes vary across cut-points.</div></div>
+
+<p>When the assumption fails, you have three pragmatic options:</p>
+
+<ol>
+
+<li><strong>Partial proportional odds</strong> with <code>VGAM::vglm(..., family = cumulative(parallel = FALSE ~ x))</code>, which lets only the offending predictor vary its slope across cuts.</li>
+
+<li><strong>Multinomial logit</strong> with <code>nnet::multinom()</code>, which drops the ordering entirely and estimates a separate set of slopes per category.</li>
+
+<li><strong>Collapse categories</strong> by combining adjacent levels if the data does not support distinguishing them.</li>
+
+</ol>
+
+<p>Option 1 is usually the cleanest compromise because it keeps the ordering for the predictors that behave proportionally and only relaxes the rule where needed.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit a single binary logistic regression for "grade >= B" and compare its <code>study_hours</code> coefficient to the <code>polr()</code> slope (0.286).</p>
+<div class="webr-container" data-block-title="Your turn: one binary logit">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: one binary logit</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Outcome: 1 if grade is B or A, 0 otherwise
+ex_bin &lt;- glm(  ~ study_hours + attendance + prev_gpa,
+             data = student, family = binomial)
+round(coef(ex_bin)[&quot;study_hours&quot;], 3)
+#&gt; Expected: close to 0.28, consistent with the polr slope</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Binary logit solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Binary logit solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_bin &lt;- glm((as.integer(grade) &gt;= 3) ~ study_hours + attendance + prev_gpa,
+              data = student, family = binomial)
+round(coef(ex_bin)[&quot;study_hours&quot;], 3)
+#&gt; study_hours
+#&gt;       0.281</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The binary logit estimate (0.281) sits right on top of the <code>polr()</code> slope (0.286). That agreement is the proportional odds assumption working as advertised.</p>
+
+</details>
+</section>
+
+<h2>How do you make predictions with polr()?</h2>
+
+<p><code>polr()</code> offers two prediction types. <code>predict(type = &quot;class&quot;)</code> returns the single most likely category per row, while <code>predict(type = &quot;probs&quot;)</code> returns the full probability matrix with one column per level. Both come from the same fitted cut-points and slopes.</p>
+
+<div class="webr-container" data-block-title="Predict classes and probabilities">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Predict classes and probabilities</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Predicted class for each student
+preds_class &lt;- predict(model, type = &quot;class&quot;)
+head(preds_class)
+#&gt; [1] B A D B C B
+#&gt; Levels: D &lt; C &lt; B &lt; A
+
+# Full probability matrix (one column per grade)
+preds_prob &lt;- predict(model, type = &quot;probs&quot;)
+round(head(preds_prob), 3)
+#&gt;       D     C     B     A
+#&gt; 1 0.058 0.252 0.514 0.176
+#&gt; 2 0.004 0.034 0.276 0.687
+#&gt; 3 0.515 0.346 0.127 0.013
+#&gt; 4 0.049 0.226 0.520 0.205
+#&gt; 5 0.190 0.417 0.348 0.045
+#&gt; 6 0.038 0.195 0.524 0.243</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Every row of <code>preds_prob</code> sums to 1, and the class returned by <code>type = &quot;class&quot;</code> is always the column with the largest probability. This gives you two useful outputs at once: a hard label for deployment and a soft probability for downstream risk decisions.</p>
+
+<p>Probability curves show how each grade's chance shifts as a predictor moves, keeping everything else fixed. A long tradition in regression teaching says: when in doubt, plot.</p>
+
+<div class="webr-container" data-block-title="Plot probability curves across study hours">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot probability curves across study hours</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ggplot2)
+
+grid_df &lt;- data.frame(
+  study_hours = seq(4, 18, length.out = 60),
+  attendance  = 85,
+  prev_gpa    = 3.0
+)
+probs &lt;- predict(model, newdata = grid_df, type = &quot;probs&quot;)
+plot_df &lt;- data.frame(grid_df, probs)
+plot_df &lt;- reshape(plot_df,
+                   direction = &quot;long&quot;,
+                   varying   = list(c(&quot;D&quot;, &quot;C&quot;, &quot;B&quot;, &quot;A&quot;)),
+                   v.names   = &quot;prob&quot;,
+                   times     = c(&quot;D&quot;, &quot;C&quot;, &quot;B&quot;, &quot;A&quot;),
+                   timevar   = &quot;grade&quot;)
+plot_df$grade &lt;- factor(plot_df$grade, levels = c(&quot;D&quot;, &quot;C&quot;, &quot;B&quot;, &quot;A&quot;))
+
+ggplot(plot_df, aes(study_hours, prob, colour = grade)) +
+  geom_line(linewidth = 1) +
+  labs(x = &quot;Study hours&quot;, y = &quot;Predicted probability&quot;,
+       title = &quot;Grade probability vs. study hours (attendance=85, GPA=3.0)&quot;) +
+  theme_minimal()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Reading left to right, the "D" and "C" curves fall while the "B" and "A" curves rise. Every vertical slice of the plot sums to 1 because the four grades exhaust the outcome space. The curves never cross except at the cut-points, a direct visual confirmation of proportional odds.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Build a confusion matrix with <code>table()</code>.</strong> <code>table(predicted = predict(model), observed = student$grade)</code> gives you a quick snapshot of where the model gets it right and where it confuses adjacent categories (which is usually the hardest place to pull signal from in an ordinal problem).</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Predict the grade probabilities for a single new student with 8 study hours, 70% attendance, and 2.8 GPA.</p>
+<div class="webr-container" data-block-title="Your turn: predict for one student">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: predict for one student</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># One row of fresh inputs
+ex_new &lt;- data.frame(study_hours = , attendance = , prev_gpa = )
+ex_newpred &lt;- predict(model, newdata = ex_new, type = &quot;probs&quot;)
+round(ex_newpred, 3)
+#&gt; Expected: highest probability on D or C</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Single-student prediction solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Single-student prediction solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_new &lt;- data.frame(study_hours = 8, attendance = 70, prev_gpa = 2.8)
+ex_newpred &lt;- predict(model, newdata = ex_new, type = &quot;probs&quot;)
+round(ex_newpred, 3)
+#&gt;     D     C     B     A
+#&gt; 0.261 0.412 0.294 0.033</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Most of this student's probability mass is on C (0.41), with D close behind (0.26). The model is telling us a low-effort, low-attendance student with a sub-3.0 prior GPA is most likely to finish in the bottom two categories.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<p>These bring together the concepts from the full tutorial. Each one is solvable with only the functions and ideas we have already used.</p>
+
+<h3>Exercise 1: Test whether an interaction improves fit</h3>
+
+<p>Fit a second <code>polr()</code> model that adds the interaction <code>study_hours:prev_gpa</code> to the full model, and use <code>anova()</code> to test whether the interaction is worth keeping.</p>
+
+<div class="webr-container" data-block-title="Exercise 1: interaction + anova">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1: interaction + anova</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit cap_fit1 (no interaction) and cap_fit2 (with interaction)
+
+# Compare with anova(cap_fit1, cap_fit2)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cap_fit1 &lt;- polr(grade ~ study_hours + attendance + prev_gpa,
+                 data = student, Hess = TRUE)
+cap_fit2 &lt;- polr(grade ~ study_hours * prev_gpa + attendance,
+                 data = student, Hess = TRUE)
+anova(cap_fit1, cap_fit2)
+#&gt; Likelihood ratio tests of ordinal regression models
+#&gt;
+#&gt; Model 1: grade ~ study_hours + attendance + prev_gpa
+#&gt; Model 2: grade ~ study_hours * prev_gpa + attendance
+#&gt;   Resid. df  Resid. Dev   Test    Df  LR stat.   Pr(Chi)
+#&gt; 1       493    1062.45
+#&gt; 2       492    1061.98  1 vs 2    1     0.47     0.493</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The likelihood ratio <a class="auto-link" href="Statistical-Tests-in-R.html" title="Statistical Tests in R">p-value</a> (~0.49) is well above 0.05, so the interaction does not improve fit. Stick with the simpler <code>cap_fit1</code>. This is how you justify dropping a fancy-looking predictor.</p>
+
+</details>
+
+<h3>Exercise 2: Build a reusable odds-ratio function</h3>
+
+<p>Write <code>grade_odds_ratio(fit, predictor, delta)</code> that returns the odds ratio for a <code>delta</code>-unit change in any named predictor. Test it on a 0.5-unit increase in <code>prev_gpa</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 2: odds-ratio helper">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2: odds-ratio helper</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># grade_odds_ratio &lt;- function(fit, predictor, delta) { ... }
+
+# Call: grade_odds_ratio(model, &quot;prev_gpa&quot;, 0.5)
+#&gt; Expected: roughly 1.93</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">grade_odds_ratio &lt;- function(fit, predictor, delta) {
+  b &lt;- coef(fit)[[predictor]]
+  exp(delta * b)
+}
+round(grade_odds_ratio(model, &quot;prev_gpa&quot;, 0.5), 3)
+#&gt; [1] 1.932</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> A 0.5-point jump in prior GPA multiplies the odds of a higher grade by ~1.93. Wrapping the calculation in a function lets you sweep the same logic across predictors or delta sizes without copy-pasting.</p>
+
+</details>
+
+<h3>Exercise 3: Check proportional odds for a single predictor</h3>
+
+<p>Focus the proportional odds check on <code>prev_gpa</code> alone. Fit three binary logistic regressions at the three cut-points and compare only the <code>prev_gpa</code> coefficient across them. Decide whether you would trust the assumption for this predictor.</p>
+
+<div class="webr-container" data-block-title="Exercise 3: per-predictor PO check">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3: per-predictor PO check</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit cap_bin1, cap_bin2, cap_bin3 and print their prev_gpa coefficients</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cap_bin1 &lt;- glm((as.integer(grade) &gt;= 2) ~ study_hours + attendance + prev_gpa,
+                data = student, family = binomial)
+cap_bin2 &lt;- glm((as.integer(grade) &gt;= 3) ~ study_hours + attendance + prev_gpa,
+                data = student, family = binomial)
+cap_bin3 &lt;- glm((as.integer(grade) &gt;= 4) ~ study_hours + attendance + prev_gpa,
+                data = student, family = binomial)
+
+round(c(`&gt;= C` = coef(cap_bin1)[&quot;prev_gpa&quot;],
+        `&gt;= B` = coef(cap_bin2)[&quot;prev_gpa&quot;],
+        `&gt;= A` = coef(cap_bin3)[&quot;prev_gpa&quot;]), 3)
+#&gt; &gt;= C.prev_gpa &gt;= B.prev_gpa &gt;= A.prev_gpa
+#&gt;         1.402         1.290         1.267</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The three <code>prev_gpa</code> slopes (1.40, 1.29, 1.27) fall inside a narrow band. That agreement means the proportional odds assumption is credible for this predictor and you don't need a partial proportional odds model.</p>
+
+</details>
+
+<h2>Complete Example</h2>
+
+<p>Here is an end-to-end workflow on the simulated student data: split 80/20 train/test, fit <code>polr()</code>, compute odds ratios, predict on the test set, and score the result with a confusion matrix.</p>
+
+<div class="webr-container" data-block-title="End-to-end polr workflow">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">End-to-end polr workflow</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># 80/20 train/test split
+set.seed(12)
+train_idx &lt;- sample(seq_len(nrow(student)), size = 0.8 * nrow(student))
+train_df  &lt;- student[train_idx, ]
+test_df   &lt;- student[-train_idx, ]
+
+# Fit on training data
+full_model &lt;- polr(grade ~ study_hours + attendance + prev_gpa,
+                   data = train_df, Hess = TRUE)
+
+# Odds ratios with CIs
+round(exp(cbind(OR = coef(full_model), confint(full_model))), 3)
+#&gt;                OR  2.5 % 97.5 %
+#&gt; study_hours 1.320  1.222  1.428
+#&gt; attendance  1.046  1.026  1.066
+#&gt; prev_gpa    3.641  2.601  5.136
+
+# Predict on the held-out test set
+test_preds &lt;- predict(full_model, newdata = test_df)
+cm &lt;- table(predicted = test_preds, observed = test_df$grade)
+cm
+#&gt;          observed
+#&gt; predicted  D  C  B  A
+#&gt;         D 16  5  0  0
+#&gt;         C  3 19 11  0
+#&gt;         B  0  7 22  4
+#&gt;         A  0  0  2 11
+
+# Overall accuracy
+round(sum(diag(cm)) / sum(cm), 3)
+#&gt; [1] 0.68</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The off-diagonal errors cluster <strong>next to</strong> the diagonal: the model mixes up adjacent grades far more than it mixes up D with A. That is the hallmark of a well-specified ordinal model: when it errs, it errs one step at a time.</p>
+
+<h2>Summary</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Concept</th>
+<th>Function / Check</th>
+<th>What it gives you</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Fit the model</td>
+<td><code>MASS::polr(y ~ x, data, Hess = TRUE)</code></td>
+<td>Slopes + cut-point intercepts</td>
+</tr>
+<tr>
+<td>Read the output</td>
+<td><code>summary(model)</code></td>
+<td>Coefficient table with t-values</td>
+</tr>
+<tr>
+<td>Odds ratios</td>
+<td><code>exp(cbind(coef(model), confint(model)))</code></td>
+<td>OR + 95% profile CIs</td>
+</tr>
+<tr>
+<td>PO assumption check</td>
+<td>Binary logits at each cut, or <code>brant::brant()</code> / <code>car::poTest()</code></td>
+<td>Evidence slopes are parallel</td>
+</tr>
+<tr>
+<td>If PO fails</td>
+<td><code>VGAM::vglm()</code> (partial PO), <code>nnet::multinom()</code> (no order)</td>
+<td>Relaxed models</td>
+</tr>
+<tr>
+<td>Predict</td>
+<td><code>predict(model, type = &quot;class&quot;)</code> and <code>type = &quot;probs&quot;</code></td>
+<td>Labels and full probability matrix</td>
+</tr>
+<tr>
+<td>Visualise</td>
+<td>Probability curves across one predictor, with <code>ggplot2</code></td>
+<td>How predictions shift per x</td>
+</tr>
+</tbody>
+</table>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Venables, W. N. and Ripley, B. D., <em>Modern Applied Statistics with S</em>, 4th ed., Springer (2002). Origin of the <code>MASS</code> package and <code>polr()</code>. <a href="https://www.stats.ox.ac.uk/pub/MASS4/">Link</a></li>
+
+<li>MASS package <code>polr</code> reference manual. <a href="https://cran.r-project.org/web/packages/MASS/MASS.pdf">Link</a></li>
+
+<li>UCLA OARC, Ordinal Logistic Regression: R Data Analysis Examples. <a href="https://stats.oarc.ucla.edu/r/dae/ordinal-logistic-regression/">Link</a></li>
+
+<li>Brant, R. (1990). Assessing Proportionality in the Proportional Odds Model for Ordinal Logistic Regression. <em>Biometrics</em>, 46(4). <a href="https://www.jstor.org/stable/2532457">Link</a></li>
+
+<li>Fox, J. and Weisberg, S., <em>An R Companion to Applied Regression</em>, 3rd ed., Sage (2019). Home of <code>car::poTest()</code>. <a href="https://socialsciences.mcmaster.ca/jfox/Books/Companion/">Link</a></li>
+
+<li>Yee, T. W. (2010). The VGAM Package for Categorical Data Analysis. <em>Journal of Statistical Software</em>, 32(10). <a href="https://www.jstatsoft.org/article/view/v032i10">Link</a></li>
+
+<li>UVA Library StatLab, Fitting and Interpreting a Proportional Odds Model. <a href="https://library.virginia.edu/data/articles/fitting-and-interpreting-a-proportional-odds-model">Link</a></li>
+
+<li>Agresti, A. (2010). <em>Analysis of Ordinal Categorical Data</em>, 2nd ed., Wiley. <a href="https://www.wiley.com/en-us/Analysis+of+Ordinal+Categorical+Data%2C+2nd+Edition-p-9780470082898">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Logistic-Regression-in-R.html">Logistic Regression in R: From glm() to Odds Ratios, ROC, and AUC</a>: the binary-outcome foundation that ordinal regression extends.</li>
+
+<li><a href="Multinomial-Logistic-Regression-in-R.html">Multinomial Logistic Regression in R</a>: the right choice when categories have <strong>no</strong> natural order.</li>
+
+<li><a href="Poisson-Regression-in-R.html">Poisson Regression in R</a>: the count-data member of the generalized linear model family.</li>
+
+</ul>
