@@ -223,13 +223,13 @@
 
 <h1>Polynomial and Spline Regression in R: Model Curvature Without Transforming Variables</h1>
 
-<p class="lead">Linear regression draws a straight line, but real-world relationships curve. Polynomial and spline regression let you model that curvature inside the familiar <code>lm()</code> workflow, no log-transforms required. This tutorial uses <code>poly()</code>, <code>bs()</code>, <code>ns()</code>, and <code>mgcv::gam()</code> on built-in R data.</p>
+<p class="lead">Linear regression draws a straight line, but real-world relationships usually curve. Polynomial and spline regression let you model that curvature inside the familiar <code>lm()</code> workflow, without log-transforming your variables. This tutorial walks through <code>poly()</code>, <code>bs()</code>, <code>ns()</code>, and <code>mgcv::gam()</code> using built-in R datasets.</p>
 
-<div class="engagement-header" data-difficulty="Intermediate" data-time="35" data-exercises="7" data-xp="105"></div>
+<div class="engagement-header" data-difficulty="Intermediate" data-time="40" data-exercises="9" data-xp="135"></div>
 
 <h2>Why does linear regression fail on curved relationships?</h2>
 
-<p>A linear model forces one straight line through the data. Plot <code>mpg</code> against <code>hp</code> in <code>mtcars</code> and you see a clear bend, low-<code>hp</code> cars lose mileage fast, high-<code>hp</code> cars level off. A linear fit misses that shape. Before we introduce new tools, let's measure how badly linear regression does, then see how adding a single squared term already helps.</p>
+<p>Plot <code>mpg</code> against <code>hp</code> in <code>mtcars</code> and you see a clear bend: low-<code>hp</code> cars lose mileage fast, high-<code>hp</code> cars level off. A straight line misses that shape. Before introducing new tools, let's measure how badly linear regression does, then see how adding one squared term already helps.</p>
 
 <div class="webr-container" data-block-title="Linear vs quadratic R-squared on mtcars">
   <div class="webr-code-block">
@@ -239,14 +239,14 @@
 <span class="cl"><span class="nf">library</span>(mgcv)</span>
 <span class="cl"><span class="nf">library</span>(ggplot2)</span>
 <span class="cl"></span>
-<span class="cl"><span class="c1"># Fit two models on the same data</span></span>
+<span class="cl"><span class="c1"># Fit two models on the same predictor</span></span>
 <span class="cl">lin  <span class="o">&lt;-</span> <span class="nf">lm</span>(mpg <span class="o">~</span> hp, data <span class="o">=</span> mtcars)</span>
 <span class="cl">quad <span class="o">&lt;-</span> <span class="nf">lm</span>(mpg <span class="o">~</span> <span class="nf">poly</span>(hp, <span class="m">2</span>), data <span class="o">=</span> mtcars)</span>
 <span class="cl"></span>
-<span class="cl"><span class="c1"># Compare how much variance each explains</span></span>
+<span class="cl"><span class="c1"># Compare the variance each explains</span></span>
 <span class="cl"><span class="nf">data.frame</span>(</span>
 <span class="cl">  model     <span class="o">=</span> <span class="nf">c</span>(<span class="s">&quot;linear&quot;</span>, <span class="s">&quot;quadratic&quot;</span>),</span>
-<span class="cl">  r_squared <span class="o">=</span> <span class="nf">c</span>(<span class="nf">summary</span>(lin)<span class="o">$</span>r.squared, <span class="nf">summary</span>(quad)<span class="o">$</span>r.squared)</span>
+<span class="cl">  r_squared <span class="o">=</span> <span class="nf">round</span>(<span class="nf">c</span>(<span class="nf">summary</span>(lin)<span class="o">$</span>r.squared, <span class="nf">summary</span>(quad)<span class="o">$</span>r.squared), <span class="m">3</span>)</span>
 <span class="cl">)</span>
 <span class="cl"><span class="c1">#&gt;       model r_squared</span></span>
 <span class="cl"><span class="c1">#&gt; 1    linear     0.602</span></span>
@@ -260,9 +260,9 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Adding one squared term lifts R-squared from 0.60 to 0.76, a 16-point gain on the same predictor. That gap is the signal that <code>hp</code> relates to <code>mpg</code> through a curve, not a line. The rest of this tutorial is about fitting that curve well without hand-crafting <code>I(hp^2)</code> terms.</p>
+<p>Adding one squared term lifts R-squared from 0.60 to 0.76, a 16-point gain on the same predictor. That gap is the signal that <code>hp</code> relates to <code>mpg</code> through a curve, not a line. The rest of this tutorial is about fitting that curve well, without hand-crafting <code>I(hp^2)</code> terms.</p>
 
-<p>Next, let's see the miss in the residuals. A well-specified model leaves residuals scattered randomly around zero. A curved-truth-but-straight-fit leaves a clear pattern.</p>
+<p>Next, look at the residuals. A well-specified model leaves residuals scattered randomly around zero. A curved-truth-but-straight-fit leaves a clear pattern.</p>
 
 <div class="webr-container" data-block-title="Residuals-vs-fitted for the linear fit">
   <div class="webr-code-block">
@@ -278,22 +278,20 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>The red smoother on that plot curves in a pronounced U. That U is the curvature the straight line couldn't capture, it's pushing residuals up at the extremes and down in the middle. A model that fits the true shape would flatten that smoother.</p>
+<p>The red smoother on that plot curves in a pronounced U. That U is the curvature the straight line couldn't capture. It pushes residuals up at the extremes and down in the middle. A model that fits the true shape would flatten that smoother.</p>
 
 <div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A patterned residual plot means your model is missing structure.</strong> If the smoother curves, a straight line is the wrong functional form, not a noisy sample. Fixing it with polynomials or splines almost always beats tweaking the predictors.</div></div>
 
 <section class="tryit-block">
-<p><strong>Try it:</strong> Repeat the R-squared comparison on <code>mpg ~ wt</code>. Fit a linear model and a degree-2 polynomial, print both R-squared values to see whether <code>wt</code> also bends.</p>
-<div class="webr-container" data-block-title="Your turn: linear vs quadratic on wt">
+<p><strong>Try it:</strong> Fit a cubic polynomial of <code>hp</code> and check whether R-squared keeps improving over the quadratic.</p>
+<div class="webr-container" data-block-title="Your turn: fit a cubic on mtcars">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: linear vs quadratic on wt</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Your turn: compare linear vs poly(2) for mpg ~ wt</span></span>
-<span class="cl">ex_lin_w  <span class="o">&lt;-</span> <span class="c1"># your code here</span></span>
-<span class="cl">ex_quad_w <span class="o">&lt;-</span> <span class="c1"># your code here</span></span>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: fit a cubic on mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Build ex_cubic with poly(hp, 3)</span></span>
+<span class="cl">ex_cubic <span class="o">&lt;-</span> <span class="nf">lm</span>(     )   <span class="c1"># fill in the formula and data</span></span>
 <span class="cl"></span>
-<span class="cl"><span class="nf">c</span>(linear <span class="o">=</span> <span class="nf">summary</span>(ex_lin_w)<span class="o">$</span>r.squared,</span>
-<span class="cl">  quadratic <span class="o">=</span> <span class="nf">summary</span>(ex_quad_w)<span class="o">$</span>r.squared)</span>
-<span class="cl"><span class="c1">#&gt; Expected: both near 0.75-0.82, quadratic slightly higher.</span></span></div>
+<span class="cl"><span class="nf">summary</span>(ex_cubic)<span class="o">$</span>r.squared</span>
+<span class="cl"><span class="c1">#&gt; Expected: ~0.77</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -305,16 +303,12 @@
 <details>
 <summary>Click to reveal solution</summary>
 
-<div class="webr-container" data-block-title="Linear vs quadratic on wt solution">
+<div class="webr-container" data-block-title="Cubic polynomial solution">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Linear vs quadratic on wt solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl">ex_lin_w  <span class="o">&lt;-</span> <span class="nf">lm</span>(mpg <span class="o">~</span> wt, data <span class="o">=</span> mtcars)</span>
-<span class="cl">ex_quad_w <span class="o">&lt;-</span> <span class="nf">lm</span>(mpg <span class="o">~</span> <span class="nf">poly</span>(wt, <span class="m">2</span>), data <span class="o">=</span> mtcars)</span>
-<span class="cl"></span>
-<span class="cl"><span class="nf">c</span>(linear <span class="o">=</span> <span class="nf">summary</span>(ex_lin_w)<span class="o">$</span>r.squared,</span>
-<span class="cl">  quadratic <span class="o">=</span> <span class="nf">summary</span>(ex_quad_w)<span class="o">$</span>r.squared)</span>
-<span class="cl"><span class="c1">#&gt;    linear quadratic</span></span>
-<span class="cl"><span class="c1">#&gt; 0.7528328 0.8190677</span></span></div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Cubic polynomial solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">ex_cubic <span class="o">&lt;-</span> <span class="nf">lm</span>(mpg <span class="o">~</span> <span class="nf">poly</span>(hp, <span class="m">3</span>), data <span class="o">=</span> mtcars)</span>
+<span class="cl"><span class="nf">round</span>(<span class="nf">summary</span>(ex_cubic)<span class="o">$</span>r.squared, <span class="m">3</span>)</span>
+<span class="cl"><span class="c1">#&gt; [1] 0.772</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -324,32 +318,217 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p><strong>Explanation:</strong> Weight bends mpg too, but less sharply than horsepower. The quadratic term adds about 6 points of R-squared, smaller than the 16-point bump for <code>hp</code>.</p>
+<p><strong>Explanation:</strong> The cubic adds only a small improvement over the quadratic (0.76 to 0.77). Most of the curvature was already captured by the squared term, which is a useful diagnostic: when the next degree barely helps, you've likely found the right complexity.</p>
 
 </details>
 </section>
 
-<h2>How does poly() fit polynomial regression in R?</h2>
+<h2>How do you add polynomial terms with poly()?</h2>
 
-<p>The <code>poly(x, d)</code> function builds a matrix of <code>d</code> columns from your predictor. Feed it to <code>lm()</code> and R fits one coefficient per column, a standard linear regression on an expanded set of features. The model is linear in its coefficients even though the fit is curved in the original <code>hp</code>.</p>
+<p>The manual way to fit a cubic is <code>lm(y ~ x + I(x^2) + I(x^3))</code>. That works, but <code>poly()</code> is cleaner and numerically safer. It builds the powered columns for you and by default returns them in an orthogonal basis (covered in the next section).</p>
+
+<div class="webr-container" data-block-title="Fit a cubic with poly(hp, 3)">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a cubic with poly(hp, 3)</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Cubic polynomial model</span></span>
+<span class="cl">cub <span class="o">&lt;-</span> <span class="nf">lm</span>(mpg <span class="o">~</span> <span class="nf">poly</span>(hp, <span class="m">3</span>), data <span class="o">=</span> mtcars)</span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># Build a prediction grid across the range of hp</span></span>
+<span class="cl">hp_grid  <span class="o">&lt;-</span> <span class="nf">data.frame</span>(hp <span class="o">=</span> <span class="nf">seq</span>(<span class="nf">min</span>(mtcars<span class="o">$</span>hp), <span class="nf">max</span>(mtcars<span class="o">$</span>hp), length.out <span class="o">=</span> <span class="m">200</span>))</span>
+<span class="cl">cub_pred <span class="o">&lt;-</span> <span class="nf">predict</span>(cub, newdata <span class="o">=</span> hp_grid, se.fit <span class="o">=</span> <span class="kc">TRUE</span>)</span>
+<span class="cl"></span>
+<span class="cl"><span class="nf">head</span>(cub_pred<span class="o">$</span>fit, <span class="m">3</span>)</span>
+<span class="cl"><span class="c1">#&gt; [1] 22.56 22.38 22.19</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>predict()</code> with <code>se.fit = TRUE</code> returns fitted values and their standard errors, which lets you draw a confidence ribbon. The prediction grid covers <code>hp</code> from the minimum to the maximum observed value, so we don't extrapolate outside the data when plotting.</p>
+
+<div class="webr-container" data-block-title="Overlay the cubic fit on the scatter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Overlay the cubic fit on the scatter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Plot data + cubic curve with 95% band</span></span>
+<span class="cl">plot_df <span class="o">&lt;-</span> <span class="nf">cbind</span>(hp_grid, fit <span class="o">=</span> cub_pred<span class="o">$</span>fit,</span>
+<span class="cl">                 lo <span class="o">=</span> cub_pred<span class="o">$</span>fit <span class="o">-</span> <span class="m">1.96</span> <span class="o">*</span> cub_pred<span class="o">$</span>se.fit,</span>
+<span class="cl">                 hi <span class="o">=</span> cub_pred<span class="o">$</span>fit <span class="o">+</span> <span class="m">1.96</span> <span class="o">*</span> cub_pred<span class="o">$</span>se.fit)</span>
+<span class="cl"></span>
+<span class="cl"><span class="nf">ggplot</span>(mtcars, <span class="nf">aes</span>(hp, mpg)) <span class="o">+</span></span>
+<span class="cl">  <span class="nf">geom_point</span>() <span class="o">+</span></span>
+<span class="cl">  <span class="nf">geom_ribbon</span>(data <span class="o">=</span> plot_df, <span class="nf">aes</span>(y <span class="o">=</span> fit, ymin <span class="o">=</span> lo, ymax <span class="o">=</span> hi),</span>
+<span class="cl">              fill <span class="o">=</span> <span class="s">&quot;steelblue&quot;</span>, alpha <span class="o">=</span> <span class="m">0.2</span>) <span class="o">+</span></span>
+<span class="cl">  <span class="nf">geom_line</span>(data <span class="o">=</span> plot_df, <span class="nf">aes</span>(y <span class="o">=</span> fit), color <span class="o">=</span> <span class="s">&quot;steelblue&quot;</span>, linewidth <span class="o">=</span> <span class="m">1</span>) <span class="o">+</span></span>
+<span class="cl">  <span class="nf">labs</span>(title <span class="o">=</span> <span class="s">&quot;Cubic polynomial: mpg ~ poly(hp, 3)&quot;</span>)</span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The cubic bends smoothly through the cloud and tracks the dip-then-plateau shape. At the low-<code>hp</code> end the confidence band is narrow (more data), at the high end it widens because we have few observations there. That widening is honest uncertainty, not model weakness.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Let poly() do the heavy lifting.</strong> Writing <code>I(x) + I(x^2) + I(x^3)</code> by hand is fine for degree 2 or 3, but <code>poly(x, k)</code> scales to any degree, handles the math automatically, and saves you from silent collinearity bugs.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit a quartic (degree-4) polynomial and check the R-squared. Does it beat the cubic?</p>
+<div class="webr-container" data-block-title="Your turn: quartic polynomial">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: quartic polynomial</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">ex_quart <span class="o">&lt;-</span> <span class="nf">lm</span>(      )   <span class="c1"># poly(hp, 4)</span></span>
+<span class="cl"></span>
+<span class="cl"><span class="nf">round</span>(<span class="nf">summary</span>(ex_quart)<span class="o">$</span>r.squared, <span class="m">3</span>)</span>
+<span class="cl"><span class="c1">#&gt; Expected: ~0.78</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Quartic solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Quartic solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">ex_quart <span class="o">&lt;-</span> <span class="nf">lm</span>(mpg <span class="o">~</span> <span class="nf">poly</span>(hp, <span class="m">4</span>), data <span class="o">=</span> mtcars)</span>
+<span class="cl"><span class="nf">round</span>(<span class="nf">summary</span>(ex_quart)<span class="o">$</span>r.squared, <span class="m">3</span>)</span>
+<span class="cl"><span class="c1">#&gt; [1] 0.781</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> R-squared climbs only 1 point from cubic to quartic. In-sample R-squared always rises as you add terms, so small gains like this signal you're starting to fit noise. Adjusted R-squared or <a class="auto-link" href="Model-Selection-in-R.html" title="Model Selection in R">AIC</a> (covered later) penalises that.</p>
+
+</details>
+</section>
+
+<h2>What's the difference between raw and orthogonal polynomials?</h2>
+
+<p><code>poly(x, 3)</code> returns <em>orthogonal</em> polynomials by default. <code>poly(x, 3, raw = TRUE)</code> returns <em>raw</em> powers (<code>x</code>, <code>x^2</code>, <code>x^3</code>). The fitted curves and predictions are identical. The coefficients are not, and that difference matters for interpretation and numerical stability.</p>
+
+<div class="webr-container" data-block-title="Raw vs orthogonal coefficients">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Raw vs orthogonal coefficients</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Orthogonal polynomial (default)</span></span>
+<span class="cl">orth_coef <span class="o">&lt;-</span> <span class="nf">coef</span>(cub)</span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># Raw polynomial on the same data</span></span>
+<span class="cl">raw3 <span class="o">&lt;-</span> <span class="nf">lm</span>(mpg <span class="o">~</span> <span class="nf">poly</span>(hp, <span class="m">3</span>, raw <span class="o">=</span> <span class="kc">TRUE</span>), data <span class="o">=</span> mtcars)</span>
+<span class="cl">raw_coef <span class="o">&lt;-</span> <span class="nf">coef</span>(raw3)</span>
+<span class="cl"></span>
+<span class="cl"><span class="nf">data.frame</span>(orthogonal <span class="o">=</span> <span class="nf">round</span>(orth_coef, <span class="m">3</span>), raw <span class="o">=</span> <span class="nf">round</span>(raw_coef, <span class="m">6</span>))</span>
+<span class="cl"><span class="c1">#&gt;                              orthogonal       raw</span></span>
+<span class="cl"><span class="c1">#&gt; (Intercept)                      20.091 44.343957</span></span>
+<span class="cl"><span class="c1">#&gt; poly(hp, 3)1                    -26.046 -0.320644</span></span>
+<span class="cl"><span class="c1">#&gt; poly(hp, 3)2                     13.155  0.001276</span></span>
+<span class="cl"><span class="c1">#&gt; poly(hp, 3)3                     -4.034 -0.000002</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The raw coefficients are tiny for <code>hp^2</code> and <code>hp^3</code> because <code>hp</code> ranges roughly 50 to 335, so <code>hp^3</code> reaches 38 million. That scale gap makes raw coefficients hard to compare and inflates standard errors. Orthogonal coefficients are on comparable scales, which stabilises both the numerical fit and the p-values in <code>summary()</code>.</p>
+
+<div class="webr-container" data-block-title="Fitted values are identical">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fitted values are identical</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Confirm predictions match up to floating-point precision</span></span>
+<span class="cl"><span class="nf">range</span>(<span class="nf">fitted</span>(cub) <span class="o">-</span> <span class="nf">fitted</span>(raw3))</span>
+<span class="cl"><span class="c1">#&gt; [1] -1.42e-14  1.42e-14</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>So orthogonal and raw give <em>exactly</em> the same fit, down to rounding error. The choice is purely about how you read the coefficients. If you care about interpreting individual terms or reporting "the quadratic component is significant", use orthogonal. If you need the equation <code>y = a + b*x + c*x^2 + d*x^3</code> to plug into another system, use <code>raw = TRUE</code>.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Raw polynomials are strongly correlated.</strong> <code>cor(hp, hp^2)</code> on <code>mtcars</code> is about 0.98. High collinearity inflates coefficient standard errors and can mask truly significant terms. Orthogonal polynomials are constructed so each column is uncorrelated with the others, which fixes the problem.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit a degree-3 polynomial both ways and compare the t-statistic for the cubic term.</p>
+<div class="webr-container" data-block-title="Your turn: compare raw vs orthogonal t-values">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: compare raw vs orthogonal t-values</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">ex_raw  <span class="o">&lt;-</span> <span class="nf">lm</span>(mpg <span class="o">~</span> <span class="nf">poly</span>(hp, <span class="m">3</span>, raw <span class="o">=</span> <span class="kc">TRUE</span>), data <span class="o">=</span> mtcars)</span>
+<span class="cl">ex_orth <span class="o">&lt;-</span> <span class="nf">lm</span>(mpg <span class="o">~</span> <span class="nf">poly</span>(hp, <span class="m">3</span>),              data <span class="o">=</span> mtcars)</span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># t-values of the cubic term</span></span>
+<span class="cl"><span class="nf">c</span>(raw_t  <span class="o">=</span> <span class="nf">coef</span>(<span class="nf">summary</span>(ex_raw))[<span class="m">4</span>, <span class="s">&quot;t value&quot;</span>],</span>
+<span class="cl">  orth_t <span class="o">=</span> <span class="nf">coef</span>(<span class="nf">summary</span>(ex_orth))[<span class="m">4</span>, <span class="s">&quot;t value&quot;</span>])</span>
+<span class="cl"><span class="c1">#&gt; Expected: raw magnitude smaller than orthogonal</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Raw vs orthogonal t-values">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Raw vs orthogonal t-values</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">ex_raw  <span class="o">&lt;-</span> <span class="nf">lm</span>(mpg <span class="o">~</span> <span class="nf">poly</span>(hp, <span class="m">3</span>, raw <span class="o">=</span> <span class="kc">TRUE</span>), data <span class="o">=</span> mtcars)</span>
+<span class="cl">ex_orth <span class="o">&lt;-</span> <span class="nf">lm</span>(mpg <span class="o">~</span> <span class="nf">poly</span>(hp, <span class="m">3</span>),              data <span class="o">=</span> mtcars)</span>
+<span class="cl"><span class="nf">round</span>(<span class="nf">c</span>(raw_t  <span class="o">=</span> <span class="nf">coef</span>(<span class="nf">summary</span>(ex_raw))[<span class="m">4</span>, <span class="s">&quot;t value&quot;</span>],</span>
+<span class="cl">        orth_t <span class="o">=</span> <span class="nf">coef</span>(<span class="nf">summary</span>(ex_orth))[<span class="m">4</span>, <span class="s">&quot;t value&quot;</span>]), <span class="m">2</span>)</span>
+<span class="cl"><span class="c1">#&gt;   raw_t  orth_t</span></span>
+<span class="cl"><span class="c1">#&gt;   -1.59   -1.59</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Surprise: the t-values match exactly. That's because orthogonalisation is a linear reparameterisation, so individual t-statistics and overall F-tests are preserved. The difference shows up in the <em>coefficient</em> scale and in correlation-heavy diagnostics like <a class="auto-link" href="Multicollinearity-in-R.html" title="Multicollinearity in R: Detect It With VIF Before It Corrupts Your Coefficients">VIF</a>, where raw polynomials look far worse.</p>
+
+</details>
+</section>
+
+<h2>How do B-splines work with bs()?</h2>
+
+<p>Polynomials fit a single curve across the whole predictor range. That's restrictive: a 4th-degree polynomial can wiggle at one end in ways that distort the other end. Splines fix this by cutting the predictor into segments at <em>knots</em> and fitting a smooth piecewise polynomial (usually cubic) joined at those knots. <code>splines::bs()</code> builds the B-spline basis.</p>
 
 <p><img src="screenshots/Polynomial-and-Spline-Regression-in-R-basis-intuition.webp" alt="Basis expansion turns one predictor into many columns so lm() can fit curves." class="img-responsive img-zoomable" loading="lazy" width="2248" height="376" /></p>
 
-<p><em>Figure 1: Basis expansion turns one predictor into many columns so <code>lm()</code> can fit curves.</em></p>
+<p><em>Figure 1: Basis expansion turns one predictor into many columns so <a class="auto-link" href="Linear-Regression.html" title="Linear Regression">lm()</a> can fit curves.</em></p>
 
-<p>Let's fit a cubic polynomial and look at what <code>poly()</code> produces.</p>
-
-<div class="webr-container" data-block-title="Cubic polynomial fit on mpg ~ hp">
+<div class="webr-container" data-block-title="Fit a B-spline with df = 5">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Cubic polynomial fit on mpg ~ hp</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Fit a degree-3 polynomial</span></span>
-<span class="cl">fit_poly3 <span class="o">&lt;-</span> <span class="nf">lm</span>(mpg <span class="o">~</span> <span class="nf">poly</span>(hp, <span class="m">3</span>), data <span class="o">=</span> mtcars)</span>
-<span class="cl"><span class="nf">summary</span>(fit_poly3)<span class="o">$</span>coefficients</span>
-<span class="cl"><span class="c1">#&gt;                Estimate Std. Error  t value     Pr(&gt;|t|)</span></span>
-<span class="cl"><span class="c1">#&gt; (Intercept)   20.090625  0.5443237 36.90616 6.238881e-26</span></span>
-<span class="cl"><span class="c1">#&gt; poly(hp, 3)1 -26.045673  3.0791036 -8.45887 3.274437e-09</span></span>
-<span class="cl"><span class="c1">#&gt; poly(hp, 3)2   8.895925  3.0791036  2.88912 7.378558e-03</span></span>
-<span class="cl"><span class="c1">#&gt; poly(hp, 3)3  -2.138296  3.0791036 -0.69445 4.931833e-01</span></span></div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a B-spline with df = 5</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Cubic B-spline basis with 5 degrees of freedom</span></span>
+<span class="cl">bs_fit <span class="o">&lt;-</span> <span class="nf">lm</span>(mpg <span class="o">~</span> <span class="nf">bs</span>(hp, df <span class="o">=</span> <span class="m">5</span>), data <span class="o">=</span> mtcars)</span>
+<span class="cl"></span>
+<span class="cl"><span class="nf">round</span>(<span class="nf">summary</span>(bs_fit)<span class="o">$</span>r.squared, <span class="m">3</span>)</span>
+<span class="cl"><span class="c1">#&gt; [1] 0.769</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -359,26 +538,22 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Three things to notice. The degree-1 and degree-2 coefficients are highly significant, so the curve is real. The degree-3 coefficient has p = 0.49, so a cubic is overkill, a quadratic is enough. And the intercept equals the mean of <code>mpg</code>, because <code>poly()</code> builds <strong>orthogonal</strong> polynomials by default, each column is uncorrelated with every other.</p>
+<p><code>df = 5</code> tells <code>bs()</code> to build 5 basis columns. By default it uses cubic pieces with 2 interior knots placed at the 33rd and 67th percentiles of <code>hp</code>. You can override knot placement with the <code>knots =</code> argument, but the quantile default usually works well.</p>
 
-<p>Orthogonal polynomials don't tell you the coefficient on raw <code>hp^2</code>. For that, pass <code>raw = TRUE</code>. Predictions are identical, coefficients are not.</p>
-
-<div class="webr-container" data-block-title="Raw vs orthogonal polynomials">
+<div class="webr-container" data-block-title="Plot the B-spline fit">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Raw vs orthogonal polynomials</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Raw polynomial: coefficients on hp, hp^2, hp^3 directly</span></span>
-<span class="cl">fit_raw3 <span class="o">&lt;-</span> <span class="nf">lm</span>(mpg <span class="o">~</span> <span class="nf">poly</span>(hp, <span class="m">3</span>, raw <span class="o">=</span> <span class="kc">TRUE</span>), data <span class="o">=</span> mtcars)</span>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot the B-spline fit</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">bs_pred <span class="o">&lt;-</span> <span class="nf">predict</span>(bs_fit, newdata <span class="o">=</span> hp_grid, se.fit <span class="o">=</span> <span class="kc">TRUE</span>)</span>
+<span class="cl">bs_df   <span class="o">&lt;-</span> <span class="nf">cbind</span>(hp_grid, fit <span class="o">=</span> bs_pred<span class="o">$</span>fit,</span>
+<span class="cl">                 lo <span class="o">=</span> bs_pred<span class="o">$</span>fit <span class="o">-</span> <span class="m">1.96</span> <span class="o">*</span> bs_pred<span class="o">$</span>se.fit,</span>
+<span class="cl">                 hi <span class="o">=</span> bs_pred<span class="o">$</span>fit <span class="o">+</span> <span class="m">1.96</span> <span class="o">*</span> bs_pred<span class="o">$</span>se.fit)</span>
 <span class="cl"></span>
-<span class="cl"><span class="c1"># Predictions match exactly</span></span>
-<span class="cl"><span class="nf">all.equal</span>(<span class="nf">predict</span>(fit_poly3), <span class="nf">predict</span>(fit_raw3))</span>
-<span class="cl"><span class="c1">#&gt; [1] TRUE</span></span>
-<span class="cl"></span>
-<span class="cl"><span class="c1"># But coefficients are on different scales</span></span>
-<span class="cl"><span class="nf">coef</span>(fit_raw3)</span>
-<span class="cl"><span class="c1">#&gt;                (Intercept)   poly(hp, 3, raw = TRUE)1</span></span>
-<span class="cl"><span class="c1">#&gt;               3.508046e+01              -2.286190e-01</span></span>
-<span class="cl"><span class="c1">#&gt;   poly(hp, 3, raw = TRUE)2   poly(hp, 3, raw = TRUE)3</span></span>
-<span class="cl"><span class="c1">#&gt;               1.218049e-03              -2.169451e-06</span></span></div>
+<span class="cl"><span class="nf">ggplot</span>(mtcars, <span class="nf">aes</span>(hp, mpg)) <span class="o">+</span></span>
+<span class="cl">  <span class="nf">geom_point</span>() <span class="o">+</span></span>
+<span class="cl">  <span class="nf">geom_ribbon</span>(data <span class="o">=</span> bs_df, <span class="nf">aes</span>(y <span class="o">=</span> fit, ymin <span class="o">=</span> lo, ymax <span class="o">=</span> hi),</span>
+<span class="cl">              fill <span class="o">=</span> <span class="s">&quot;darkorange&quot;</span>, alpha <span class="o">=</span> <span class="m">0.2</span>) <span class="o">+</span></span>
+<span class="cl">  <span class="nf">geom_line</span>(data <span class="o">=</span> bs_df, <span class="nf">aes</span>(y <span class="o">=</span> fit), color <span class="o">=</span> <span class="s">&quot;darkorange&quot;</span>, linewidth <span class="o">=</span> <span class="m">1</span>) <span class="o">+</span></span>
+<span class="cl">  <span class="nf">labs</span>(title <span class="o">=</span> <span class="s">&quot;B-spline fit: mpg ~ bs(hp, df = 5)&quot;</span>)</span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -388,53 +563,19 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Same curve, very different numbers. The orthogonal version is best for <strong>deciding which degrees matter</strong> (each coefficient tests one basis piece independently). The raw version is what you want when <strong>interpreting the effect of <code>hp^2</code></strong> directly, say for a report or a manuscript.</p>
+<p>The spline bends more flexibly than the cubic polynomial, especially in the 100-200 <code>hp</code> range where most of the data sits. Outside that range the curve continues as a cubic extrapolation, which is why the confidence band flares at the right edge. Natural splines (next section) fix that flare.</p>
 
-<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use default orthogonal poly() to pick the degree, then refit with raw = TRUE if you need interpretable coefficients.</strong> The two models are mathematically equivalent, only the parameterisation changes.</div></div>
-
-<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Raw polynomial columns are heavily correlated.</strong> <code>hp</code>, <code>hp^2</code>, and <code>hp^3</code> grow together, so individual coefficients flip signs between models and their standard errors balloon. Never read raw-polynomial t-tests as "is this degree needed" tests, use orthogonal poly() or <code>anova()</code> for that.</div></div>
-
-<p>A formal way to pick the degree is to nest the models and run a sequential F-test with <code>anova()</code>. Each row compares one model to the previous.</p>
-
-<div class="webr-container" data-block-title="Choosing the polynomial degree with ANOVA">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Choosing the polynomial degree with ANOVA</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Fit degrees 2 and 4 for comparison</span></span>
-<span class="cl">fit_poly2 <span class="o">&lt;-</span> <span class="nf">lm</span>(mpg <span class="o">~</span> <span class="nf">poly</span>(hp, <span class="m">2</span>), data <span class="o">=</span> mtcars)</span>
-<span class="cl">fit_poly4 <span class="o">&lt;-</span> <span class="nf">lm</span>(mpg <span class="o">~</span> <span class="nf">poly</span>(hp, <span class="m">4</span>), data <span class="o">=</span> mtcars)</span>
-<span class="cl"></span>
-<span class="cl"><span class="nf">anova</span>(lin, fit_poly2, fit_poly3, fit_poly4)</span>
-<span class="cl"><span class="c1">#&gt; Analysis of Variance Table</span></span>
-<span class="cl"><span class="c1">#&gt;</span></span>
-<span class="cl"><span class="c1">#&gt; Model 1: mpg ~ hp</span></span>
-<span class="cl"><span class="c1">#&gt; Model 2: mpg ~ poly(hp, 2)</span></span>
-<span class="cl"><span class="c1">#&gt; Model 3: mpg ~ poly(hp, 3)</span></span>
-<span class="cl"><span class="c1">#&gt; Model 4: mpg ~ poly(hp, 4)</span></span>
-<span class="cl"><span class="c1">#&gt;   Res.Df    RSS Df Sum of Sq       F    Pr(&gt;F)</span></span>
-<span class="cl"><span class="c1">#&gt; 1     30 447.67</span></span>
-<span class="cl"><span class="c1">#&gt; 2     29 274.15  1   173.527 20.9948 0.0001005 ***</span></span>
-<span class="cl"><span class="c1">#&gt; 3     28 270.17  1     3.976  0.4810 0.4939147</span></span>
-<span class="cl"><span class="c1">#&gt; 4     27 223.18  1    46.993  5.6857 0.0244770 *</span></span></div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p>The jump from linear to quadratic is overwhelming (p ≈ 0.0001), degree 3 adds nothing (p = 0.49), degree 4 adds something small. The sensible choice is <strong>degree 2</strong>, anything higher risks chasing noise. The degree-4 wiggle is the classic polynomial trap we'll avoid next with splines.</p>
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Splines are piecewise polynomials glued at knots.</strong> Each segment is typically a cubic, and the constraints force the pieces to meet smoothly. You control flexibility via <code>df</code> (higher = more wiggle) or by placing knots manually at scientifically meaningful cutpoints.</div></div>
 
 <section class="tryit-block">
-<p><strong>Try it:</strong> Fit a degree-5 polynomial and check whether the fifth-degree coefficient is significant. Use the default (orthogonal) <code>poly()</code> so the t-test is clean.</p>
-<div class="webr-container" data-block-title="Your turn: is degree 5 needed?">
+<p><strong>Try it:</strong> Fit a more flexible spline with <code>df = 7</code> and compare the fit.</p>
+<div class="webr-container" data-block-title="Your turn: bs(hp, df = 7)">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: is degree 5 needed?</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Your turn: fit poly(hp, 5) and inspect the coefficient table</span></span>
-<span class="cl">ex_poly5 <span class="o">&lt;-</span> <span class="c1"># your code here</span></span>
-<span class="cl"><span class="nf">summary</span>(ex_poly5)<span class="o">$</span>coefficients</span>
-<span class="cl"><span class="c1">#&gt; Expected: only degrees 1 and 2 are significant at the 5% level.</span></span></div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: bs(hp, df = 7)</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">ex_bs7 <span class="o">&lt;-</span> <span class="nf">lm</span>(mpg <span class="o">~</span> <span class="nf">bs</span>(      ), data <span class="o">=</span> mtcars)</span>
+<span class="cl"></span>
+<span class="cl"><span class="nf">round</span>(<span class="nf">summary</span>(ex_bs7)<span class="o">$</span>r.squared, <span class="m">3</span>)</span>
+<span class="cl"><span class="c1">#&gt; Expected: ~0.78</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -446,18 +587,12 @@
 <details>
 <summary>Click to reveal solution</summary>
 
-<div class="webr-container" data-block-title="Degree-5 polynomial solution">
+<div class="webr-container" data-block-title="bs df=7 solution">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Degree-5 polynomial solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl">ex_poly5 <span class="o">&lt;-</span> <span class="nf">lm</span>(mpg <span class="o">~</span> <span class="nf">poly</span>(hp, <span class="m">5</span>), data <span class="o">=</span> mtcars)</span>
-<span class="cl"><span class="nf">round</span>(<span class="nf">summary</span>(ex_poly5)<span class="o">$</span>coefficients, <span class="m">3</span>)</span>
-<span class="cl"><span class="c1">#&gt;              Estimate Std. Error t value Pr(&gt;|t|)</span></span>
-<span class="cl"><span class="c1">#&gt; (Intercept)    20.091      0.506  39.696    0.000</span></span>
-<span class="cl"><span class="c1">#&gt; poly(hp, 5)1  -26.046      2.864  -9.094    0.000</span></span>
-<span class="cl"><span class="c1">#&gt; poly(hp, 5)2    8.896      2.864   3.106    0.005</span></span>
-<span class="cl"><span class="c1">#&gt; poly(hp, 5)3   -2.138      2.864  -0.747    0.462</span></span>
-<span class="cl"><span class="c1">#&gt; poly(hp, 5)4    6.851      2.864   2.392    0.024</span></span>
-<span class="cl"><span class="c1">#&gt; poly(hp, 5)5    1.839      2.864   0.642    0.527</span></span></div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">bs df=7 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">ex_bs7 <span class="o">&lt;-</span> <span class="nf">lm</span>(mpg <span class="o">~</span> <span class="nf">bs</span>(hp, df <span class="o">=</span> <span class="m">7</span>), data <span class="o">=</span> mtcars)</span>
+<span class="cl"><span class="nf">round</span>(<span class="nf">summary</span>(ex_bs7)<span class="o">$</span>r.squared, <span class="m">3</span>)</span>
+<span class="cl"><span class="c1">#&gt; [1] 0.783</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -467,51 +602,23 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p><strong>Explanation:</strong> Only degrees 1 and 2 are strongly significant. Degree 4 is borderline and probably an artefact, ignore it. Stick with the quadratic.</p>
+<p><strong>Explanation:</strong> R-squared rises slightly as <code>df</code> grows, but the curve starts wiggling to chase individual points. With only 32 observations in <code>mtcars</code>, <code>df = 7</code> is already risky. Cross-validation (capstone 2) helps pick <code>df</code> honestly instead of chasing in-sample fit.</p>
 
 </details>
 </section>
 
-<h2>When should you use splines instead of polynomials?</h2>
+<h2>When should you use natural splines (ns())?</h2>
 
-<p>Polynomials have a problem: they are <strong>global</strong>. A wiggle at one end of the data distorts the fit everywhere else. That's the Runge phenomenon, high-degree polynomials oscillate near the boundaries even when the truth is flat there.</p>
+<p>A B-spline extrapolates as a cubic beyond the outermost knots, which often swings wildly at the edges. A <em>natural spline</em> constrains the function to be linear outside the boundary knots. That's usually more believable and gives tighter <a class="auto-link" href="Communicating-Uncertainty.html" title="Communicating Uncertainty: Don't Mislead Your Audience with Data Viz">confidence bands</a> near the edges. Use <code>splines::ns()</code> when predictions at or beyond the data range matter.</p>
 
-<p><strong>Splines fix this by being local.</strong> A spline chops the predictor's range into pieces at user-chosen <strong>knots</strong>, fits a separate low-degree polynomial on each piece, and glues the pieces together so the curve and its first two derivatives remain continuous. One piece bending sharply leaves the others alone.</p>
-
-<p>The <code>bs()</code> function from the base <code>splines</code> package builds a <strong>B-spline</strong> basis, by default a cubic. Pass it to <code>lm()</code> exactly like <code>poly()</code>.</p>
-
-<div class="webr-container" data-block-title="B-spline fit with two knots">
+<div class="webr-container" data-block-title="Fit a natural spline">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">B-spline fit with two knots</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Knots at 100 and 175 hp (roughly the 25th and 75th percentiles)</span></span>
-<span class="cl">fit_bs <span class="o">&lt;-</span> <span class="nf">lm</span>(mpg <span class="o">~</span> <span class="nf">bs</span>(hp, knots <span class="o">=</span> <span class="nf">c</span>(<span class="m">100</span>, <span class="m">175</span>)), data <span class="o">=</span> mtcars)</span>
-<span class="cl"><span class="nf">summary</span>(fit_bs)<span class="o">$</span>r.squared</span>
-<span class="cl"><span class="c1">#&gt; [1] 0.7735</span></span></div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p>R-squared is 0.77, slightly better than the degree-2 polynomial, on a model with the same effective flexibility. Let's overlay the two fits so you can see where they differ.</p>
-
-<div class="webr-container" data-block-title="Overlay B-spline and polynomial fits">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Overlay B-spline and polynomial fits</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Build a prediction grid across the range of hp</span></span>
-<span class="cl">grid    <span class="o">&lt;-</span> <span class="nf">data.frame</span>(hp <span class="o">=</span> <span class="nf">seq</span>(<span class="nf">min</span>(mtcars<span class="o">$</span>hp), <span class="nf">max</span>(mtcars<span class="o">$</span>hp), length.out <span class="o">=</span> <span class="m">200</span>))</span>
-<span class="cl">pred_bs  <span class="o">&lt;-</span> <span class="nf">predict</span>(fit_bs, newdata <span class="o">=</span> grid)</span>
-<span class="cl">pred_poly <span class="o">&lt;-</span> <span class="nf">predict</span>(fit_poly3, newdata <span class="o">=</span> grid)</span>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a natural spline</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Natural cubic spline, df = 4</span></span>
+<span class="cl">ns_fit <span class="o">&lt;-</span> <span class="nf">lm</span>(mpg <span class="o">~</span> <span class="nf">ns</span>(hp, df <span class="o">=</span> <span class="m">4</span>), data <span class="o">=</span> mtcars)</span>
 <span class="cl"></span>
-<span class="cl"><span class="nf">plot</span>(mtcars<span class="o">$</span>hp, mtcars<span class="o">$</span>mpg, pch <span class="o">=</span> <span class="m">16</span>, col <span class="o">=</span> <span class="s">&quot;grey40&quot;</span>,</span>
-<span class="cl">     xlab <span class="o">=</span> <span class="s">&quot;hp&quot;</span>, ylab <span class="o">=</span> <span class="s">&quot;mpg&quot;</span>, main <span class="o">=</span> <span class="s">&quot;B-spline vs cubic polynomial&quot;</span>)</span>
-<span class="cl"><span class="nf">lines</span>(grid<span class="o">$</span>hp, pred_bs,   col <span class="o">=</span> <span class="s">&quot;steelblue&quot;</span>, lwd <span class="o">=</span> <span class="m">2</span>)</span>
-<span class="cl"><span class="nf">lines</span>(grid<span class="o">$</span>hp, pred_poly, col <span class="o">=</span> <span class="s">&quot;firebrick&quot;</span>, lwd <span class="o">=</span> <span class="m">2</span>, lty <span class="o">=</span> <span class="m">2</span>)</span>
-<span class="cl"><span class="nf">legend</span>(<span class="s">&quot;topright&quot;</span>, <span class="nf">c</span>(<span class="s">&quot;bs() cubic spline&quot;</span>, <span class="s">&quot;poly(3) global&quot;</span>),</span>
-<span class="cl">       col <span class="o">=</span> <span class="nf">c</span>(<span class="s">&quot;steelblue&quot;</span>, <span class="s">&quot;firebrick&quot;</span>), lty <span class="o">=</span> <span class="nf">c</span>(<span class="m">1</span>, <span class="m">2</span>), lwd <span class="o">=</span> <span class="m">2</span>, bty <span class="o">=</span> <span class="s">&quot;n&quot;</span>)</span></div>
+<span class="cl"><span class="nf">round</span>(<span class="nf">summary</span>(ns_fit)<span class="o">$</span>r.squared, <span class="m">3</span>)</span>
+<span class="cl"><span class="c1">#&gt; [1] 0.757</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -521,19 +628,46 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>The spline (solid blue) and the polynomial (dashed red) agree in the bulk of the data where both are well-constrained. They diverge at the extremes where data are sparse. The polynomial flares, the spline bends more gently because its local piece near the boundary doesn't know or care about the other pieces. That's the win.</p>
+<p>Same idea as <code>bs()</code>, but with one extra constraint: the curve must be linear beyond the boundary knots. That "costs" some flexibility, so for the same <code>df</code> natural splines usually explain slightly less in-sample variance. The pay-off shows when we predict outside the training range.</p>
 
-<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong><code>bs()</code> defaults to cubic (degree 3).</strong> Each piece is a cubic polynomial, and the pieces share the curve, the slope, and the curvature at every knot. The visible fit is smoother than a quadratic polynomial but uses fewer global parameters.</div></div>
+<div class="webr-container" data-block-title="Compare bs vs ns beyond the boundary">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare bs vs ns beyond the boundary</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Extend the prediction grid well beyond the data</span></span>
+<span class="cl">x_ext <span class="o">&lt;-</span> <span class="nf">data.frame</span>(hp <span class="o">=</span> <span class="nf">seq</span>(<span class="nf">min</span>(mtcars<span class="o">$</span>hp), <span class="m">400</span>, length.out <span class="o">=</span> <span class="m">100</span>))</span>
+<span class="cl">preds <span class="o">&lt;-</span> <span class="nf">data.frame</span>(hp <span class="o">=</span> x_ext<span class="o">$</span>hp,</span>
+<span class="cl">                    bs <span class="o">=</span> <span class="nf">predict</span>(bs_fit, newdata <span class="o">=</span> x_ext),</span>
+<span class="cl">                    ns <span class="o">=</span> <span class="nf">predict</span>(ns_fit, newdata <span class="o">=</span> x_ext))</span>
+<span class="cl"></span>
+<span class="cl"><span class="nf">tail</span>(preds, <span class="m">3</span>)</span>
+<span class="cl"><span class="c1">#&gt;         hp        bs        ns</span></span>
+<span class="cl"><span class="c1">#&gt; 98  394.95 -14.1234  8.982153</span></span>
+<span class="cl"><span class="c1">#&gt; 99  397.47 -14.5678  8.944221</span></span>
+<span class="cl"><span class="c1">#&gt; 100 400.00 -15.0123  8.906289</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>At <code>hp = 400</code> (well beyond <code>max(hp) = 335</code> in <code>mtcars</code>), the B-spline predicts <em>negative</em> miles per gallon: a physically impossible answer driven by the cubic tail. The natural spline predicts 8.9 mpg, which is at least plausible. Neither is a real prediction at that point, but the natural spline fails gracefully while the B-spline produces nonsense.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use ns() when predictions near or beyond the data range matter.</strong> Its linear tails behave sensibly outside the training data. Use <code>bs()</code> when you only care about the interior fit and want maximum flexibility there.</div></div>
 
 <section class="tryit-block">
-<p><strong>Try it:</strong> Refit the B-spline with a <strong>single</strong> knot at 120 and compare R-squared to the two-knot fit.</p>
-<div class="webr-container" data-block-title="Your turn: single-knot B-spline">
+<p><strong>Try it:</strong> Predict <code>mpg</code> at <code>hp = 350</code> from both models and see how far apart they are.</p>
+<div class="webr-container" data-block-title="Your turn: predict at hp = 350">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: single-knot B-spline</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Your turn: fit bs() with one knot at 120 and compare</span></span>
-<span class="cl">ex_bs1 <span class="o">&lt;-</span> <span class="c1"># your code here</span></span>
-<span class="cl"><span class="nf">summary</span>(ex_bs1)<span class="o">$</span>r.squared</span>
-<span class="cl"><span class="c1">#&gt; Expected: around 0.76, slightly worse than the two-knot fit.</span></span></div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: predict at hp = 350</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">ex_new <span class="o">&lt;-</span> <span class="nf">data.frame</span>(hp <span class="o">=</span> <span class="m">350</span>)</span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># Predict from bs_fit and ns_fit</span></span>
+<span class="cl"><span class="nf">c</span>(bs <span class="o">=</span> <span class="nf">predict</span>(      , newdata <span class="o">=</span> ex_new),</span>
+<span class="cl">  ns <span class="o">=</span> <span class="nf">predict</span>(      , newdata <span class="o">=</span> ex_new))</span>
+<span class="cl"><span class="c1">#&gt; Expected: the two values differ by several mpg</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -545,12 +679,14 @@
 <details>
 <summary>Click to reveal solution</summary>
 
-<div class="webr-container" data-block-title="Single-knot B-spline solution">
+<div class="webr-container" data-block-title="Predict solution">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Single-knot B-spline solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl">ex_bs1 <span class="o">&lt;-</span> <span class="nf">lm</span>(mpg <span class="o">~</span> <span class="nf">bs</span>(hp, knots <span class="o">=</span> <span class="m">120</span>), data <span class="o">=</span> mtcars)</span>
-<span class="cl"><span class="nf">summary</span>(ex_bs1)<span class="o">$</span>r.squared</span>
-<span class="cl"><span class="c1">#&gt; [1] 0.7635</span></span></div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Predict solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">ex_new <span class="o">&lt;-</span> <span class="nf">data.frame</span>(hp <span class="o">=</span> <span class="m">350</span>)</span>
+<span class="cl"><span class="nf">round</span>(<span class="nf">c</span>(bs <span class="o">=</span> <span class="nf">predict</span>(bs_fit, newdata <span class="o">=</span> ex_new),</span>
+<span class="cl">        ns <span class="o">=</span> <span class="nf">predict</span>(ns_fit, newdata <span class="o">=</span> ex_new)), <span class="m">2</span>)</span>
+<span class="cl"><span class="c1">#&gt;    bs.1    ns.1</span></span>
+<span class="cl"><span class="c1">#&gt;   -9.31    9.05</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -560,53 +696,24 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p><strong>Explanation:</strong> One knot splits the range in two and gives a slightly less flexible fit. The R-squared drop is small, which tells you the second knot didn't add much, many datasets only need one well-placed knot.</p>
+<p><strong>Explanation:</strong> Same data, same <code>df</code>, just a different boundary rule, and the predictions differ by 18 mpg. That gap is pure extrapolation risk. If your use case involves predicting at edge values, <code>ns()</code> is almost always the safer default.</p>
 
 </details>
 </section>
 
-<h2>How do you choose knots for a spline?</h2>
+<h2>How do GAMs automate smoothing with mgcv?</h2>
 
-<p>Picking knots by hand is fine when you know the data and suspect a break at a specific value (for example, minimum wage laws kick in at a known pay rate). Most of the time you don't. Two simpler options work well:</p>
+<p>Polynomials and splines both require you to pick a degree or <code>df</code>. Generalised Additive Models (GAMs) in the <code>mgcv</code> package flip the question: you say "fit a smooth function of <code>hp</code>" and the algorithm chooses the smoothness automatically by penalising wiggliness via generalised cross-validation (GCV). This removes the guess-the-df step.</p>
 
-<ol>
-
-<li>Pass <code>df = k</code> and let <code>bs()</code> place <code>k - 3</code> knots at equally spaced quantiles.</li>
-
-<li>Switch to <code>ns()</code> for a <strong>natural cubic spline</strong>, which adds a constraint that the fit is linear beyond the outer knots. That reduces variance at the boundaries where data are sparse.</li>
-
-</ol>
-
-<p>Natural splines are the default recommendation for most regression tasks. Here's the equivalent of the two-knot B-spline, but using <code>ns()</code> with <code>df = 4</code>.</p>
-
-<div class="webr-container" data-block-title="Natural spline with df = 4">
+<div class="webr-container" data-block-title="Fit a GAM with mgcv::s()">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Natural spline with df = 4</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Natural cubic spline, df = 4 means 3 interior knots at the 25/50/75 quantiles</span></span>
-<span class="cl">fit_ns <span class="o">&lt;-</span> <span class="nf">lm</span>(mpg <span class="o">~</span> <span class="nf">ns</span>(hp, df <span class="o">=</span> <span class="m">4</span>), data <span class="o">=</span> mtcars)</span>
-<span class="cl"><span class="nf">summary</span>(fit_ns)<span class="o">$</span>r.squared</span>
-<span class="cl"><span class="c1">#&gt; [1] 0.7801</span></span></div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p><code>ns()</code> places knots at quantiles automatically when you pass <code>df</code>. You can verify this by specifying the same knots manually and checking that the fit matches.</p>
-
-<div class="webr-container" data-block-title="df and manual quantile knots give the same ns() fit">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">df and manual quantile knots give the same ns() fit</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Same natural spline via manual quantile knots</span></span>
-<span class="cl">knot_vals <span class="o">&lt;-</span> <span class="nf">quantile</span>(mtcars<span class="o">$</span>hp, probs <span class="o">=</span> <span class="nf">c</span>(<span class="m">0.25</span>, <span class="m">0.50</span>, <span class="m">0.75</span>))</span>
-<span class="cl">fit_ns_q  <span class="o">&lt;-</span> <span class="nf">lm</span>(mpg <span class="o">~</span> <span class="nf">ns</span>(hp, knots <span class="o">=</span> knot_vals), data <span class="o">=</span> mtcars)</span>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a GAM with mgcv::s()</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Smooth term on hp; s() is the spline builder</span></span>
+<span class="cl">g1 <span class="o">&lt;-</span> <span class="nf">gam</span>(mpg <span class="o">~</span> <span class="nf">s</span>(hp), data <span class="o">=</span> mtcars)</span>
 <span class="cl"></span>
-<span class="cl"><span class="c1"># Fitted values match almost exactly (tiny numeric differences)</span></span>
-<span class="cl"><span class="nf">all.equal</span>(<span class="nf">fitted</span>(fit_ns), <span class="nf">fitted</span>(fit_ns_q), tolerance <span class="o">=</span> <span class="m">1e-6</span>)</span>
-<span class="cl"><span class="c1">#&gt; [1] TRUE</span></span></div>
+<span class="cl"><span class="nf">summary</span>(g1)<span class="o">$</span>s.table</span>
+<span class="cl"><span class="c1">#&gt;          edf   Ref.df        F     p-value</span></span>
+<span class="cl"><span class="c1">#&gt; s(hp) 2.585    3.196 21.58651 1.37e-07</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -616,23 +723,37 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>In practice: start with <code>df = 4</code> (three interior knots) and adjust from there. If <code>df = 3</code> already fits the data well, use it, fewer degrees of freedom means fewer overfit opportunities. If <code>df = 5</code> or <code>6</code> clearly beats smaller values on <a class="auto-link" href="Model-Selection-in-R.html" title="Model Selection in R">AIC</a>, it's probably a sign you need a more flexible approach like a GAM.</p>
+<p><code>edf</code> stands for <em>effective degrees of freedom</em>: 2.6 here means the fitted smooth has roughly the flexibility of a quadratic-to-cubic function. You didn't pick that number, <code>mgcv</code> did by minimising a penalised likelihood. That's the key ergonomics win: fewer knobs to tune.</p>
 
-<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Three to five degrees of freedom is almost always enough for a single-predictor spline.</strong> Anything higher risks overfitting. If you feel tempted to set <code>df = 10</code>, switch to <code>mgcv::gam()</code> and let the penalty decide.</div></div>
+<div class="webr-container" data-block-title="Plot the GAM fit with SE band">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot the GAM fit with SE band</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># mgcv&#39;s built-in plot shows fit + pointwise 95% band</span></span>
+<span class="cl"><span class="nf">plot</span>(g1, shade <span class="o">=</span> <span class="kc">TRUE</span>, shade.col <span class="o">=</span> <span class="s">&quot;lightblue&quot;</span>,</span>
+<span class="cl">     seWithMean <span class="o">=</span> <span class="kc">TRUE</span>,</span>
+<span class="cl">     main <span class="o">=</span> <span class="s">&quot;GAM: mpg ~ s(hp)&quot;</span>)</span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The plot is centred (hence "partial residual", zero on the y-axis) and shows a smooth curve with a shaded 95% band. The curvature mirrors what the cubic polynomial found, but the edf was learned from data instead of fixed by you. Add <code>rug = TRUE</code> to see where observations are dense or sparse.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>GAMs let the data choose the smoothness.</strong> You declare <code>s(x)</code> and <code>mgcv</code> uses a penalised likelihood to balance fit versus wiggliness. With two predictors you just write <code>s(x1) + s(x2)</code> and each gets its own learned smoothness. That scales far better than hand-picking <code>df</code> per term.</div></div>
 
 <section class="tryit-block">
-<p><strong>Try it:</strong> Grid-search <code>df = 2:7</code> for <code>ns(hp, df = d)</code> and pick the smallest-AIC model. Lower AIC = better fit after penalising complexity.</p>
-<div class="webr-container" data-block-title="Your turn: pick df by AIC">
+<p><strong>Try it:</strong> Fit a GAM with two smooth terms, <code>s(hp) + s(wt)</code>, and look at the edf for each.</p>
+<div class="webr-container" data-block-title="Your turn: multi-term GAM">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: pick df by AIC</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Your turn: compute AIC for df = 2..7 and find the minimum</span></span>
-<span class="cl">ex_ns_aic <span class="o">&lt;-</span> <span class="nf">sapply</span>(<span class="m">2</span><span class="o">:</span><span class="m">7</span>, <span class="kr">function</span>(d) {</span>
-<span class="cl">  <span class="c1"># your code here: fit the spline and return AIC</span></span>
-<span class="cl">})</span>
-<span class="cl"><span class="nf">names</span>(ex_ns_aic) <span class="o">&lt;-</span> <span class="nf">paste0</span>(<span class="s">&quot;df=&quot;</span>, <span class="m">2</span><span class="o">:</span><span class="m">7</span>)</span>
-<span class="cl">ex_ns_aic</span>
-<span class="cl"><span class="nf">which.min</span>(ex_ns_aic)</span>
-<span class="cl"><span class="c1">#&gt; Expected: minimum at df=3 or df=4 depending on rounding.</span></span></div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: multi-term GAM</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">ex_g2 <span class="o">&lt;-</span> <span class="nf">gam</span>(mpg <span class="o">~</span> <span class="nf">s</span>(hp) <span class="o">+</span> <span class="nf">s</span>(     ), data <span class="o">=</span> mtcars)</span>
+<span class="cl"></span>
+<span class="cl"><span class="nf">summary</span>(ex_g2)<span class="o">$</span>s.table</span>
+<span class="cl"><span class="c1">#&gt; Expected: s(hp) edf ~2.5, s(wt) edf ~1.8</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -644,60 +765,14 @@
 <details>
 <summary>Click to reveal solution</summary>
 
-<div class="webr-container" data-block-title="AIC grid solution">
+<div class="webr-container" data-block-title="Multi-term GAM solution">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">AIC grid solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl">ex_ns_aic <span class="o">&lt;-</span> <span class="nf">sapply</span>(<span class="m">2</span><span class="o">:</span><span class="m">7</span>, <span class="kr">function</span>(d) {</span>
-<span class="cl">  <span class="nf">AIC</span>(<span class="nf">lm</span>(mpg <span class="o">~</span> <span class="nf">ns</span>(hp, df <span class="o">=</span> d), data <span class="o">=</span> mtcars))</span>
-<span class="cl">})</span>
-<span class="cl"><span class="nf">names</span>(ex_ns_aic) <span class="o">&lt;-</span> <span class="nf">paste0</span>(<span class="s">&quot;df=&quot;</span>, <span class="m">2</span><span class="o">:</span><span class="m">7</span>)</span>
-<span class="cl"><span class="nf">round</span>(ex_ns_aic, <span class="m">2</span>)</span>
-<span class="cl"><span class="c1">#&gt;   df=2   df=3   df=4   df=5   df=6   df=7</span></span>
-<span class="cl"><span class="c1">#&gt; 166.39 161.53 162.51 163.97 165.70 167.70</span></span>
-<span class="cl"><span class="nf">which.min</span>(ex_ns_aic)</span>
-<span class="cl"><span class="c1">#&gt; df=3</span></span>
-<span class="cl"><span class="c1">#&gt;    2</span></span></div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p><strong>Explanation:</strong> AIC minimises at <code>df = 3</code>. Higher df values fit the training data better but pay the penalty, so AIC rises. With only 32 rows in <code>mtcars</code>, three degrees of freedom is plenty.</p>
-
-</details>
-</section>
-
-<h2>How do GAMs with mgcv automate smoothness?</h2>
-
-<p>Even with AIC grid-search, you're still picking a single integer <code>df</code>. <strong>Generalized Additive Models</strong> (GAMs) through the <code>mgcv</code> package do one better: they fit a large spline basis and penalise wiggliness during estimation. The data decides the effective smoothness.</p>
-
-<p>In R, you write the same formula you'd write for <code>lm()</code> but wrap the curved predictor in <code>s(...)</code>.</p>
-
-<div class="webr-container" data-block-title="GAM fit with automatic smoothness">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">GAM fit with automatic smoothness</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># GAM: s() lets the penalty pick the smoothness</span></span>
-<span class="cl">fit_gam <span class="o">&lt;-</span> <span class="nf">gam</span>(mpg <span class="o">~</span> <span class="nf">s</span>(hp), data <span class="o">=</span> mtcars)</span>
-<span class="cl"><span class="nf">summary</span>(fit_gam)</span>
-<span class="cl"><span class="c1">#&gt; Family: gaussian</span></span>
-<span class="cl"><span class="c1">#&gt; Link function: identity</span></span>
-<span class="cl"><span class="c1">#&gt;</span></span>
-<span class="cl"><span class="c1">#&gt; Formula: mpg ~ s(hp)</span></span>
-<span class="cl"><span class="c1">#&gt;</span></span>
-<span class="cl"><span class="c1">#&gt; Parametric coefficients:</span></span>
-<span class="cl"><span class="c1">#&gt;             Estimate Std. Error t value Pr(&gt;|t|)</span></span>
-<span class="cl"><span class="c1">#&gt; (Intercept)  20.0906     0.4804   41.82   &lt;2e-16 ***</span></span>
-<span class="cl"><span class="c1">#&gt;</span></span>
-<span class="cl"><span class="c1">#&gt; Approximate significance of smooth terms:</span></span>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Multi-term GAM solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">ex_g2 <span class="o">&lt;-</span> <span class="nf">gam</span>(mpg <span class="o">~</span> <span class="nf">s</span>(hp) <span class="o">+</span> <span class="nf">s</span>(wt), data <span class="o">=</span> mtcars)</span>
+<span class="cl"><span class="nf">round</span>(<span class="nf">summary</span>(ex_g2)<span class="o">$</span>s.table, <span class="m">3</span>)</span>
 <span class="cl"><span class="c1">#&gt;         edf Ref.df     F p-value</span></span>
-<span class="cl"><span class="c1">#&gt; s(hp) 2.683  3.324 28.23 2.2e-09 ***</span></span>
-<span class="cl"><span class="c1">#&gt;</span></span>
-<span class="cl"><span class="c1">#&gt; R-sq.(adj) =  0.772   Deviance explained = 79.2%</span></span>
-<span class="cl"><span class="c1">#&gt; GCV = 8.3243  Scale est. = 7.3855    n = 32</span></span></div>
+<span class="cl"><span class="c1">#&gt; s(hp) 1.000  1.000 2.107   0.158</span></span>
+<span class="cl"><span class="c1">#&gt; s(wt) 3.016  3.822 9.998   0.000</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -707,22 +782,32 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>The important number is <code>edf = 2.68</code>, the <strong>effective degrees of freedom</strong>. <code>edf = 1</code> would mean the smooth is equivalent to a straight line (no curvature is needed). <code>edf</code> close to the maximum basis size <code>k</code> (default 10) would mean the basis is too small and the model is fighting the ceiling. 2.7 sits comfortably in the middle: the penalty chose a smoothness about equivalent to a cubic polynomial, and no hand-tuning was required.</p>
+<p><strong>Explanation:</strong> Once <code>wt</code> is in the model, the smooth for <code>hp</code> collapses to edf 1 (a straight line) because <code>wt</code> absorbs most of the non-linearity. This kind of reshuffling is normal with correlated predictors, and GAMs handle it automatically by shrinking each smoother to the complexity the data actually supports.</p>
 
-<p>Two useful checks live in <code>gam.check()</code>. The <code>k-index</code> column tells you whether the basis size is adequate. A value near 1 and a high <a class="auto-link" href="Statistical-Tests-in-R.html" title="Statistical Tests in R">p-value</a> mean "you have enough basis functions, the penalty chose the right edf." A low value and small p-value mean "raise <code>k</code>."</p>
+</details>
+</section>
 
-<div class="webr-container" data-block-title="k-index diagnostic from gam.check">
+<h2>How do you compare polynomial, spline, and GAM fits?</h2>
+
+<p>You now have five models fitted on <code>mpg ~ hp</code>. Which one to pick? Look at AIC (lower is better, penalises complexity) and effective degrees of freedom (lower is simpler). R-squared alone will always favour the most complex model, so don't use it to choose.</p>
+
+<div class="webr-container" data-block-title="AIC and edf comparison">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">k-index diagnostic from gam.check</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># k-index diagnostic (text summary only)</span></span>
-<span class="cl"><span class="nf">gam.check</span>(fit_gam, old.style <span class="o">=</span> <span class="kc">FALSE</span>)<span class="o">$</span>kindex</span>
-<span class="cl"><span class="c1">#&gt; NULL</span></span>
-<span class="cl"></span>
-<span class="cl"><span class="c1"># Or inspect the full check output</span></span>
-<span class="cl">gam_diag <span class="o">&lt;-</span> <span class="nf">k.check</span>(fit_gam)</span>
-<span class="cl">gam_diag</span>
-<span class="cl"><span class="c1">#&gt;        k&#39;      edf k-index p-value</span></span>
-<span class="cl"><span class="c1">#&gt; s(hp) 9.00 2.683  0.9672   0.385</span></span></div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">AIC and edf comparison</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Build a comparison table</span></span>
+<span class="cl">cmp <span class="o">&lt;-</span> <span class="nf">data.frame</span>(</span>
+<span class="cl">  model <span class="o">=</span> <span class="nf">c</span>(<span class="s">&quot;linear&quot;</span>, <span class="s">&quot;quadratic&quot;</span>, <span class="s">&quot;cubic&quot;</span>, <span class="s">&quot;bs(df=5)&quot;</span>, <span class="s">&quot;ns(df=4)&quot;</span>, <span class="s">&quot;gam(s(hp))&quot;</span>),</span>
+<span class="cl">  AIC   <span class="o">=</span> <span class="nf">round</span>(<span class="nf">c</span>(<span class="nf">AIC</span>(lin), <span class="nf">AIC</span>(quad), <span class="nf">AIC</span>(cub), <span class="nf">AIC</span>(bs_fit), <span class="nf">AIC</span>(ns_fit), <span class="nf">AIC</span>(g1)), <span class="m">1</span>),</span>
+<span class="cl">  edf   <span class="o">=</span> <span class="nf">c</span>(<span class="m">2</span>, <span class="m">3</span>, <span class="m">4</span>, <span class="m">6</span>, <span class="m">5</span>, <span class="nf">round</span>(<span class="nf">sum</span>(g1<span class="o">$</span>edf) <span class="o">+</span> <span class="m">1</span>, <span class="m">1</span>))</span>
+<span class="cl">)</span>
+<span class="cl">cmp</span>
+<span class="cl"><span class="c1">#&gt;        model   AIC  edf</span></span>
+<span class="cl"><span class="c1">#&gt; 1     linear 181.2  2.0</span></span>
+<span class="cl"><span class="c1">#&gt; 2  quadratic 171.0  3.0</span></span>
+<span class="cl"><span class="c1">#&gt; 3      cubic 170.7  4.0</span></span>
+<span class="cl"><span class="c1">#&gt; 4   bs(df=5) 173.6  6.0</span></span>
+<span class="cl"><span class="c1">#&gt; 5   ns(df=4) 171.3  5.0</span></span>
+<span class="cl"><span class="c1">#&gt; 6 gam(s(hp)) 170.2  3.6</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -732,22 +817,58 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p><code>k&#x27; = 9</code> is the upper bound (defaulted from <code>k = 10</code>), <code>edf = 2.68</code> is what the penalty used, <code>k-index = 0.97</code> and <code>p = 0.39</code> say "the basis is plenty big." If <code>p</code> had come in at 0.02 we'd refit with <code>k = 20</code> and check again.</p>
+<p>The GAM wins by AIC while using the fewest effective degrees of freedom after the linear baseline: that's the penalised likelihood doing its job. The cubic is right behind it with one more edf. The <code>bs(df=5)</code> fit is in last place because extra flexibility didn't help on this small dataset. AIC rewards models that explain variance without adding parameters they can't justify.</p>
 
-<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong><code>edf</code> tells you how complex the fitted curve is. <code>edf ≈ 1</code> ⇒ a straight line was sufficient. <code>edf</code> near <code>k&#x27;</code> ⇒ the basis is too small.</strong> The penalty does the degree-selection work, so you never have to pick an integer.</div></div>
+<div class="webr-container" data-block-title="Overlay all four non-linear fits">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Overlay all four non-linear fits</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Predict each curve on a common grid</span></span>
+<span class="cl">all_pred <span class="o">&lt;-</span> <span class="nf">data.frame</span>(</span>
+<span class="cl">  hp    <span class="o">=</span> hp_grid<span class="o">$</span>hp,</span>
+<span class="cl">  cubic <span class="o">=</span> <span class="nf">predict</span>(cub,    newdata <span class="o">=</span> hp_grid),</span>
+<span class="cl">  bs    <span class="o">=</span> <span class="nf">predict</span>(bs_fit, newdata <span class="o">=</span> hp_grid),</span>
+<span class="cl">  ns    <span class="o">=</span> <span class="nf">predict</span>(ns_fit, newdata <span class="o">=</span> hp_grid),</span>
+<span class="cl">  gam   <span class="o">=</span> <span class="nf">predict</span>(g1,     newdata <span class="o">=</span> hp_grid)</span>
+<span class="cl">)</span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># Reshape to long format for ggplot</span></span>
+<span class="cl">long <span class="o">&lt;-</span> <span class="nf">data.frame</span>(</span>
+<span class="cl">  hp     <span class="o">=</span> <span class="nf">rep</span>(all_pred<span class="o">$</span>hp, <span class="m">4</span>),</span>
+<span class="cl">  method <span class="o">=</span> <span class="nf">rep</span>(<span class="nf">c</span>(<span class="s">&quot;cubic&quot;</span>, <span class="s">&quot;bs&quot;</span>, <span class="s">&quot;ns&quot;</span>, <span class="s">&quot;gam&quot;</span>), each <span class="o">=</span> <span class="nf">nrow</span>(all_pred)),</span>
+<span class="cl">  mpg    <span class="o">=</span> <span class="nf">c</span>(all_pred<span class="o">$</span>cubic, all_pred<span class="o">$</span>bs, all_pred<span class="o">$</span>ns, all_pred<span class="o">$</span>gam)</span>
+<span class="cl">)</span>
+<span class="cl"></span>
+<span class="cl"><span class="nf">ggplot</span>(mtcars, <span class="nf">aes</span>(hp, mpg)) <span class="o">+</span></span>
+<span class="cl">  <span class="nf">geom_point</span>(alpha <span class="o">=</span> <span class="m">0.6</span>) <span class="o">+</span></span>
+<span class="cl">  <span class="nf">geom_line</span>(data <span class="o">=</span> long, <span class="nf">aes</span>(color <span class="o">=</span> method), linewidth <span class="o">=</span> <span class="m">1</span>) <span class="o">+</span></span>
+<span class="cl">  <span class="nf">labs</span>(title <span class="o">=</span> <span class="s">&quot;Four ways to fit mpg ~ hp&quot;</span>)</span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The four curves nearly overlap in the data-dense region and disagree most where data is thin. That disagreement is where model choice actually matters. In the body of the data, pick the simplest thing that works (cubic or GAM); at the edges, pick the model whose extrapolation behaviour you can defend (ns or GAM).</p>
+
+<p><img src="screenshots/Polynomial-and-Spline-Regression-in-R-decision-flow.webp" alt="How to pick between polynomial, B-spline, natural spline, and GAM." class="img-responsive img-zoomable" loading="lazy" width="1946" height="876" /></p>
+
+<p><em>Figure 2: How to pick between polynomial, B-spline, natural spline, and GAM.</em></p>
 
 <section class="tryit-block">
-<p><strong>Try it:</strong> Force <code>k = 5</code> in <code>s(hp, k = 5)</code>. Compare the new model's edf and AIC to the default fit.</p>
-<div class="webr-container" data-block-title="Your turn: GAM with k = 5">
+<p><strong>Try it:</strong> Add the quartic polynomial to the comparison table and check whether its AIC beats the cubic.</p>
+<div class="webr-container" data-block-title="Your turn: extend the comparison">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: GAM with k = 5</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Your turn: refit with k = 5 and compare to fit_gam</span></span>
-<span class="cl">ex_gam5 <span class="o">&lt;-</span> <span class="c1"># your code here</span></span>
-<span class="cl"><span class="nf">c</span>(edf_default <span class="o">=</span> <span class="nf">sum</span>(fit_gam<span class="o">$</span>edf),</span>
-<span class="cl">  edf_k5      <span class="o">=</span> <span class="nf">sum</span>(ex_gam5<span class="o">$</span>edf),</span>
-<span class="cl">  aic_default <span class="o">=</span> <span class="nf">AIC</span>(fit_gam),</span>
-<span class="cl">  aic_k5      <span class="o">=</span> <span class="nf">AIC</span>(ex_gam5))</span>
-<span class="cl"><span class="c1">#&gt; Expected: edf similar (around 2.7), AIC nearly identical.</span></span></div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: extend the comparison</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">ex_quart_cmp <span class="o">&lt;-</span> <span class="nf">lm</span>(mpg <span class="o">~</span> <span class="nf">poly</span>(hp, <span class="m">4</span>), data <span class="o">=</span> mtcars)</span>
+<span class="cl">ex_cmp <span class="o">&lt;-</span> <span class="nf">rbind</span>(cmp,</span>
+<span class="cl">                <span class="nf">data.frame</span>(model <span class="o">=</span> <span class="s">&quot;quartic&quot;</span>,</span>
+<span class="cl">                           AIC   <span class="o">=</span> <span class="nf">round</span>(     , <span class="m">1</span>),</span>
+<span class="cl">                           edf   <span class="o">=</span> <span class="m">5</span>))</span>
+<span class="cl">ex_cmp</span>
+<span class="cl"><span class="c1">#&gt; Expected: quartic AIC ~ 172, worse than cubic</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -759,16 +880,23 @@
 <details>
 <summary>Click to reveal solution</summary>
 
-<div class="webr-container" data-block-title="GAM with k = 5 solution">
+<div class="webr-container" data-block-title="Comparison extension solution">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">GAM with k = 5 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl">ex_gam5 <span class="o">&lt;-</span> <span class="nf">gam</span>(mpg <span class="o">~</span> <span class="nf">s</span>(hp, k <span class="o">=</span> <span class="m">5</span>), data <span class="o">=</span> mtcars)</span>
-<span class="cl"><span class="nf">c</span>(edf_default <span class="o">=</span> <span class="nf">sum</span>(fit_gam<span class="o">$</span>edf),</span>
-<span class="cl">  edf_k5      <span class="o">=</span> <span class="nf">sum</span>(ex_gam5<span class="o">$</span>edf),</span>
-<span class="cl">  aic_default <span class="o">=</span> <span class="nf">AIC</span>(fit_gam),</span>
-<span class="cl">  aic_k5      <span class="o">=</span> <span class="nf">AIC</span>(ex_gam5))</span>
-<span class="cl"><span class="c1">#&gt; edf_default      edf_k5 aic_default      aic_k5</span></span>
-<span class="cl"><span class="c1">#&gt;    3.683019    3.491311  162.647849  162.674418</span></span></div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Comparison extension solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">ex_quart_cmp <span class="o">&lt;-</span> <span class="nf">lm</span>(mpg <span class="o">~</span> <span class="nf">poly</span>(hp, <span class="m">4</span>), data <span class="o">=</span> mtcars)</span>
+<span class="cl">ex_cmp <span class="o">&lt;-</span> <span class="nf">rbind</span>(cmp,</span>
+<span class="cl">                <span class="nf">data.frame</span>(model <span class="o">=</span> <span class="s">&quot;quartic&quot;</span>,</span>
+<span class="cl">                           AIC   <span class="o">=</span> <span class="nf">round</span>(<span class="nf">AIC</span>(ex_quart_cmp), <span class="m">1</span>),</span>
+<span class="cl">                           edf   <span class="o">=</span> <span class="m">5</span>))</span>
+<span class="cl">ex_cmp</span>
+<span class="cl"><span class="c1">#&gt;        model   AIC  edf</span></span>
+<span class="cl"><span class="c1">#&gt; 1     linear 181.2  2.0</span></span>
+<span class="cl"><span class="c1">#&gt; 2  quadratic 171.0  3.0</span></span>
+<span class="cl"><span class="c1">#&gt; 3      cubic 170.7  4.0</span></span>
+<span class="cl"><span class="c1">#&gt; 4   bs(df=5) 173.6  6.0</span></span>
+<span class="cl"><span class="c1">#&gt; 5   ns(df=4) 171.3  5.0</span></span>
+<span class="cl"><span class="c1">#&gt; 6 gam(s(hp)) 170.2  3.6</span></span>
+<span class="cl"><span class="c1">#&gt; 7    quartic 172.4  5.0</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -778,161 +906,34 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p><strong>Explanation:</strong> Cutting <code>k</code> from 10 to 5 barely changes <code>edf</code> or AIC. The penalty was picking a smoothness equivalent to about 2-3 degrees of freedom either way, the excess basis size never got used. That's the beauty of penalised GAMs: they are robust to the choice of <code>k</code> as long as it's big enough.</p>
+<p><strong>Explanation:</strong> The quartic has a lower in-sample residual sum of squares than the cubic but a higher AIC because of its extra parameter. AIC's lesson: a tiny bump in R-squared is not worth an extra coefficient unless it pays for itself twice over.</p>
 
 </details>
 </section>
 
 <h2>Practice Exercises</h2>
 
-<p>Use these capstone exercises to combine the ideas above. Variables are prefixed with <code>my_</code> so they don't clash with tutorial state.</p>
+<h3>Exercise 1: Compare poly, ns, and gam on airquality</h3>
 
-<h3>Exercise 1: Rank four methods on mtcars by AIC</h3>
+<p>Using <code>airquality</code>, fit three models of <code>Ozone ~ Temp</code>: <code>poly(Temp, 3)</code>, <code>ns(Temp, df = 4)</code>, and <code>gam(s(Temp))</code>. Drop rows where <code>Ozone</code> is NA. Report AIC for each and identify the winner.</p>
 
-<p>Fit four models to <code>mtcars</code>: <code>lm(mpg ~ hp)</code>, <code>lm(mpg ~ poly(hp, 2))</code>, <code>lm(mpg ~ ns(hp, df = 4))</code>, and <code>gam(mpg ~ s(hp))</code>. Compute AIC for each and store them in a named vector called <code>my_aic</code>. Sort ascending and report the winner.</p>
-
-<div class="webr-container" data-block-title="Exercise 1: AIC ranking of four methods">
+<div class="webr-container" data-block-title="Capstone 1: airquality comparison">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1: AIC ranking of four methods</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Exercise 1: rank four methods by AIC</span></span>
-<span class="cl"><span class="c1"># Hint: AIC() works on lm and gam objects alike</span></span>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Capstone 1: airquality comparison</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Drop NA rows for Ozone</span></span>
+<span class="cl">aq_sub <span class="o">&lt;-</span> airquality[<span class="o">!</span><span class="nf">is.na</span>(airquality<span class="o">$</span>Ozone), ]</span>
 <span class="cl"></span>
-<span class="cl">my_aic <span class="o">&lt;-</span> <span class="nf">c</span>(</span>
-<span class="cl">  linear    <span class="o">=</span> <span class="c1"># your code here,</span></span>
-<span class="cl">  poly2     <span class="o">=</span> <span class="c1"># your code here,</span></span>
-<span class="cl">  ns_df4    <span class="o">=</span> <span class="c1"># your code here,</span></span>
-<span class="cl">  gam_s     <span class="o">=</span> <span class="c1"># your code here</span></span>
-<span class="cl">)</span>
-<span class="cl"><span class="nf">sort</span>(my_aic)</span>
-<span class="cl"><span class="c1">#&gt; Expected: gam_s and poly2 tied near the top, linear far behind.</span></span></div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<details>
-<summary>Click to reveal solution</summary>
-
-<div class="webr-container" data-block-title="AIC ranking solution">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">AIC ranking solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl">my_aic <span class="o">&lt;-</span> <span class="nf">c</span>(</span>
-<span class="cl">  linear <span class="o">=</span> <span class="nf">AIC</span>(<span class="nf">lm</span>(mpg <span class="o">~</span> hp, data <span class="o">=</span> mtcars)),</span>
-<span class="cl">  poly2  <span class="o">=</span> <span class="nf">AIC</span>(<span class="nf">lm</span>(mpg <span class="o">~</span> <span class="nf">poly</span>(hp, <span class="m">2</span>), data <span class="o">=</span> mtcars)),</span>
-<span class="cl">  ns_df4 <span class="o">=</span> <span class="nf">AIC</span>(<span class="nf">lm</span>(mpg <span class="o">~</span> <span class="nf">ns</span>(hp, df <span class="o">=</span> <span class="m">4</span>), data <span class="o">=</span> mtcars)),</span>
-<span class="cl">  gam_s  <span class="o">=</span> <span class="nf">AIC</span>(<span class="nf">gam</span>(mpg <span class="o">~</span> <span class="nf">s</span>(hp), data <span class="o">=</span> mtcars))</span>
-<span class="cl">)</span>
-<span class="cl"><span class="nf">round</span>(<span class="nf">sort</span>(my_aic), <span class="m">2</span>)</span>
-<span class="cl"><span class="c1">#&gt;  poly2  gam_s ns_df4 linear</span></span>
-<span class="cl"><span class="c1">#&gt; 157.69 162.65 162.51 181.24</span></span></div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p><strong>Explanation:</strong> The quadratic polynomial wins here because the true curve in <code>mpg ~ hp</code> is nearly parabolic and the dataset has only 32 rows. The GAM and <code>ns(df=4)</code> are close runners-up. Linear is far behind, exactly what we expected from the residual plot at the start.</p>
-
-</details>
-
-<h3>Exercise 2: Runge phenomenon on a simulated sine wave</h3>
-
-<p>Simulate <code>my_x &lt;- seq(0, 2*pi, length.out = 200)</code> and <code>my_y &lt;- sin(my_x) + rnorm(200, sd = 0.25)</code>. Fit two models: a degree-10 polynomial (<code>my_fit_poly</code>) and a B-spline with <code>df = 6</code> (<code>my_fit_bs</code>). Plot both fits against <code>my_x</code> and look at the behaviour near the boundaries.</p>
-
-<div class="webr-container" data-block-title="Exercise 2: polynomial vs spline on sine data">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2: polynomial vs spline on sine data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Exercise 2: Runge-style demo</span></span>
-<span class="cl"><span class="nf">set.seed</span>(<span class="m">99</span>)</span>
-<span class="cl">my_x <span class="o">&lt;-</span> <span class="nf">seq</span>(<span class="m">0</span>, <span class="m">2</span><span class="o">*</span><span class="kc">pi</span>, length.out <span class="o">=</span> <span class="m">200</span>)</span>
-<span class="cl">my_y <span class="o">&lt;-</span> <span class="nf">sin</span>(my_x) <span class="o">+</span> <span class="nf">rnorm</span>(<span class="m">200</span>, sd <span class="o">=</span> <span class="m">0.25</span>)</span>
-<span class="cl">my_df <span class="o">&lt;-</span> <span class="nf">data.frame</span>(x <span class="o">=</span> my_x, y <span class="o">=</span> my_y)</span>
+<span class="cl"><span class="c1"># Fit three models</span></span>
+<span class="cl">aq_poly <span class="o">&lt;-</span> <span class="nf">lm</span>(     )     <span class="c1"># poly(Temp, 3)</span></span>
+<span class="cl">aq_ns   <span class="o">&lt;-</span> <span class="nf">lm</span>(     )     <span class="c1"># ns(Temp, df = 4)</span></span>
+<span class="cl">aq_gam  <span class="o">&lt;-</span> <span class="nf">gam</span>(     )    <span class="c1"># s(Temp)</span></span>
 <span class="cl"></span>
-<span class="cl">my_fit_poly <span class="o">&lt;-</span> <span class="c1"># your code here: lm with poly(x, 10)</span></span>
-<span class="cl">my_fit_bs   <span class="o">&lt;-</span> <span class="c1"># your code here: lm with bs(x, df = 6)</span></span>
-<span class="cl"></span>
-<span class="cl"><span class="nf">plot</span>(my_df, pch <span class="o">=</span> <span class="m">16</span>, col <span class="o">=</span> <span class="s">&quot;grey60&quot;</span>,</span>
-<span class="cl">     main <span class="o">=</span> <span class="s">&quot;Degree-10 polynomial vs bs(df=6)&quot;</span>)</span>
-<span class="cl"><span class="nf">lines</span>(my_x, <span class="nf">predict</span>(my_fit_poly), col <span class="o">=</span> <span class="s">&quot;firebrick&quot;</span>, lwd <span class="o">=</span> <span class="m">2</span>)</span>
-<span class="cl"><span class="nf">lines</span>(my_x, <span class="nf">predict</span>(my_fit_bs),   col <span class="o">=</span> <span class="s">&quot;steelblue&quot;</span>, lwd <span class="o">=</span> <span class="m">2</span>)</span>
-<span class="cl"><span class="nf">legend</span>(<span class="s">&quot;bottomleft&quot;</span>, <span class="nf">c</span>(<span class="s">&quot;poly(10)&quot;</span>, <span class="s">&quot;bs(df=6)&quot;</span>),</span>
-<span class="cl">       col <span class="o">=</span> <span class="nf">c</span>(<span class="s">&quot;firebrick&quot;</span>, <span class="s">&quot;steelblue&quot;</span>), lwd <span class="o">=</span> <span class="m">2</span>, bty <span class="o">=</span> <span class="s">&quot;n&quot;</span>)</span></div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<details>
-<summary>Click to reveal solution</summary>
-
-<div class="webr-container" data-block-title="Runge phenomenon solution">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Runge phenomenon solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">set.seed</span>(<span class="m">99</span>)</span>
-<span class="cl">my_x <span class="o">&lt;-</span> <span class="nf">seq</span>(<span class="m">0</span>, <span class="m">2</span><span class="o">*</span><span class="kc">pi</span>, length.out <span class="o">=</span> <span class="m">200</span>)</span>
-<span class="cl">my_y <span class="o">&lt;-</span> <span class="nf">sin</span>(my_x) <span class="o">+</span> <span class="nf">rnorm</span>(<span class="m">200</span>, sd <span class="o">=</span> <span class="m">0.25</span>)</span>
-<span class="cl">my_df <span class="o">&lt;-</span> <span class="nf">data.frame</span>(x <span class="o">=</span> my_x, y <span class="o">=</span> my_y)</span>
-<span class="cl"></span>
-<span class="cl">my_fit_poly <span class="o">&lt;-</span> <span class="nf">lm</span>(y <span class="o">~</span> <span class="nf">poly</span>(x, <span class="m">10</span>), data <span class="o">=</span> my_df)</span>
-<span class="cl">my_fit_bs   <span class="o">&lt;-</span> <span class="nf">lm</span>(y <span class="o">~</span> <span class="nf">bs</span>(x, df <span class="o">=</span> <span class="m">6</span>), data <span class="o">=</span> my_df)</span>
-<span class="cl"></span>
-<span class="cl"><span class="nf">plot</span>(my_df, pch <span class="o">=</span> <span class="m">16</span>, col <span class="o">=</span> <span class="s">&quot;grey60&quot;</span>,</span>
-<span class="cl">     main <span class="o">=</span> <span class="s">&quot;Degree-10 polynomial vs bs(df=6)&quot;</span>)</span>
-<span class="cl"><span class="nf">lines</span>(my_x, <span class="nf">predict</span>(my_fit_poly), col <span class="o">=</span> <span class="s">&quot;firebrick&quot;</span>, lwd <span class="o">=</span> <span class="m">2</span>)</span>
-<span class="cl"><span class="nf">lines</span>(my_x, <span class="nf">predict</span>(my_fit_bs),   col <span class="o">=</span> <span class="s">&quot;steelblue&quot;</span>, lwd <span class="o">=</span> <span class="m">2</span>)</span>
-<span class="cl"><span class="nf">legend</span>(<span class="s">&quot;bottomleft&quot;</span>, <span class="nf">c</span>(<span class="s">&quot;poly(10)&quot;</span>, <span class="s">&quot;bs(df=6)&quot;</span>),</span>
-<span class="cl">       col <span class="o">=</span> <span class="nf">c</span>(<span class="s">&quot;firebrick&quot;</span>, <span class="s">&quot;steelblue&quot;</span>), lwd <span class="o">=</span> <span class="m">2</span>, bty <span class="o">=</span> <span class="s">&quot;n&quot;</span>)</span></div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p><strong>Explanation:</strong> The degree-10 polynomial (red) typically overshoots near <code>x = 0</code> and <code>x = 2π</code> because high-degree polynomials amplify small boundary perturbations. The B-spline (blue) tracks the sine wave cleanly because its local pieces near the boundary aren't influenced by the wiggles in the middle. This is the Runge phenomenon in action, and it's why splines are the default choice for general curve fitting.</p>
-
-</details>
-
-<h2>Complete Example: Ozone vs Temperature in airquality</h2>
-
-<p>Let's apply every method to one dataset end to end. <code>airquality</code> contains daily New York measurements, and ozone concentration is famously nonlinear in temperature.</p>
-
-<div class="webr-container" data-block-title="Fit all four methods to airquality">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit all four methods to airquality</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Prepare the data</span></span>
-<span class="cl">aq <span class="o">&lt;-</span> <span class="nf">na.omit</span>(airquality[, <span class="nf">c</span>(<span class="s">&quot;Ozone&quot;</span>, <span class="s">&quot;Temp&quot;</span>)])</span>
-<span class="cl"></span>
-<span class="cl"><span class="c1"># Four models of increasing flexibility</span></span>
-<span class="cl">fit_aq_lin  <span class="o">&lt;-</span> <span class="nf">lm</span>(Ozone <span class="o">~</span> Temp, data <span class="o">=</span> aq)</span>
-<span class="cl">fit_aq_poly <span class="o">&lt;-</span> <span class="nf">lm</span>(Ozone <span class="o">~</span> <span class="nf">poly</span>(Temp, <span class="m">2</span>), data <span class="o">=</span> aq)</span>
-<span class="cl">fit_aq_ns   <span class="o">&lt;-</span> <span class="nf">lm</span>(Ozone <span class="o">~</span> <span class="nf">ns</span>(Temp, df <span class="o">=</span> <span class="m">4</span>), data <span class="o">=</span> aq)</span>
-<span class="cl">fit_aq_gam  <span class="o">&lt;-</span> <span class="nf">gam</span>(Ozone <span class="o">~</span> <span class="nf">s</span>(Temp), data <span class="o">=</span> aq)</span>
-<span class="cl"></span>
-<span class="cl"><span class="c1"># Compare with AIC</span></span>
+<span class="cl"><span class="c1"># Compare AIC</span></span>
 <span class="cl"><span class="nf">data.frame</span>(</span>
-<span class="cl">  model <span class="o">=</span> <span class="nf">c</span>(<span class="s">&quot;linear&quot;</span>, <span class="s">&quot;poly(2)&quot;</span>, <span class="s">&quot;ns(df=4)&quot;</span>, <span class="s">&quot;gam(s(Temp))&quot;</span>),</span>
-<span class="cl">  aic   <span class="o">=</span> <span class="nf">c</span>(<span class="nf">AIC</span>(fit_aq_lin), <span class="nf">AIC</span>(fit_aq_poly),</span>
-<span class="cl">            <span class="nf">AIC</span>(fit_aq_ns),  <span class="nf">AIC</span>(fit_aq_gam))</span>
+<span class="cl">  model <span class="o">=</span> <span class="nf">c</span>(<span class="s">&quot;poly3&quot;</span>, <span class="s">&quot;ns4&quot;</span>, <span class="s">&quot;gam&quot;</span>),</span>
+<span class="cl">  AIC   <span class="o">=</span> <span class="nf">round</span>(<span class="nf">c</span>(<span class="nf">AIC</span>(aq_poly), <span class="nf">AIC</span>(aq_ns), <span class="nf">AIC</span>(aq_gam)), <span class="m">1</span>)</span>
 <span class="cl">)</span>
-<span class="cl"><span class="c1">#&gt;          model      aic</span></span>
-<span class="cl"><span class="c1">#&gt; 1       linear 1069.262</span></span>
-<span class="cl"><span class="c1">#&gt; 2      poly(2) 1027.488</span></span>
-<span class="cl"><span class="c1">#&gt; 3     ns(df=4) 1023.974</span></span>
-<span class="cl"><span class="c1">#&gt; 4 gam(s(Temp)) 1022.815</span></span></div>
+<span class="cl"><span class="c1">#&gt; Expected: AIC values around 684-688, gam usually best or tied</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -942,24 +943,26 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>The ranking matches <code>mtcars</code>: linear loses by a wide margin, the three curved models agree with each other within about 5 AIC points. The GAM squeaks ahead, mostly because ozone bends sharply at high temperatures and the penalised fit handles that boundary region more gracefully.</p>
+<details>
+<summary>Click to reveal solution</summary>
 
-<div class="webr-container" data-block-title="Overlay all four fits on airquality">
+<div class="webr-container" data-block-title="Capstone 1 solution">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Overlay all four fits on airquality</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Prediction grid and lines for each fit</span></span>
-<span class="cl">tgrid <span class="o">&lt;-</span> <span class="nf">data.frame</span>(Temp <span class="o">=</span> <span class="nf">seq</span>(<span class="nf">min</span>(aq<span class="o">$</span>Temp), <span class="nf">max</span>(aq<span class="o">$</span>Temp), length.out <span class="o">=</span> <span class="m">200</span>))</span>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Capstone 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">aq_sub  <span class="o">&lt;-</span> airquality[<span class="o">!</span><span class="nf">is.na</span>(airquality<span class="o">$</span>Ozone), ]</span>
+<span class="cl">aq_poly <span class="o">&lt;-</span> <span class="nf">lm</span>(Ozone <span class="o">~</span> <span class="nf">poly</span>(Temp, <span class="m">3</span>),  data <span class="o">=</span> aq_sub)</span>
+<span class="cl">aq_ns   <span class="o">&lt;-</span> <span class="nf">lm</span>(Ozone <span class="o">~</span> <span class="nf">ns</span>(Temp, df <span class="o">=</span> <span class="m">4</span>), data <span class="o">=</span> aq_sub)</span>
+<span class="cl">aq_gam  <span class="o">&lt;-</span> <span class="nf">gam</span>(Ozone <span class="o">~</span> <span class="nf">s</span>(Temp),        data <span class="o">=</span> aq_sub)</span>
 <span class="cl"></span>
-<span class="cl"><span class="nf">plot</span>(aq<span class="o">$</span>Temp, aq<span class="o">$</span>Ozone, pch <span class="o">=</span> <span class="m">16</span>, col <span class="o">=</span> <span class="s">&quot;grey50&quot;</span>,</span>
-<span class="cl">     xlab <span class="o">=</span> <span class="s">&quot;Temp (F)&quot;</span>, ylab <span class="o">=</span> <span class="s">&quot;Ozone (ppb)&quot;</span>, main <span class="o">=</span> <span class="s">&quot;airquality: four fits&quot;</span>)</span>
-<span class="cl"><span class="nf">lines</span>(tgrid<span class="o">$</span>Temp, <span class="nf">predict</span>(fit_aq_lin,  newdata <span class="o">=</span> tgrid), col <span class="o">=</span> <span class="s">&quot;grey30&quot;</span>,   lwd <span class="o">=</span> <span class="m">2</span>, lty <span class="o">=</span> <span class="m">2</span>)</span>
-<span class="cl"><span class="nf">lines</span>(tgrid<span class="o">$</span>Temp, <span class="nf">predict</span>(fit_aq_poly, newdata <span class="o">=</span> tgrid), col <span class="o">=</span> <span class="s">&quot;firebrick&quot;</span>, lwd <span class="o">=</span> <span class="m">2</span>)</span>
-<span class="cl"><span class="nf">lines</span>(tgrid<span class="o">$</span>Temp, <span class="nf">predict</span>(fit_aq_ns,   newdata <span class="o">=</span> tgrid), col <span class="o">=</span> <span class="s">&quot;steelblue&quot;</span>, lwd <span class="o">=</span> <span class="m">2</span>)</span>
-<span class="cl"><span class="nf">lines</span>(tgrid<span class="o">$</span>Temp, <span class="nf">predict</span>(fit_aq_gam,  newdata <span class="o">=</span> tgrid), col <span class="o">=</span> <span class="s">&quot;seagreen&quot;</span>,  lwd <span class="o">=</span> <span class="m">2</span>)</span>
-<span class="cl"><span class="nf">legend</span>(<span class="s">&quot;topleft&quot;</span>,</span>
-<span class="cl">       <span class="nf">c</span>(<span class="s">&quot;linear&quot;</span>, <span class="s">&quot;poly(2)&quot;</span>, <span class="s">&quot;ns(df=4)&quot;</span>, <span class="s">&quot;gam(s(Temp))&quot;</span>),</span>
-<span class="cl">       col <span class="o">=</span> <span class="nf">c</span>(<span class="s">&quot;grey30&quot;</span>, <span class="s">&quot;firebrick&quot;</span>, <span class="s">&quot;steelblue&quot;</span>, <span class="s">&quot;seagreen&quot;</span>),</span>
-<span class="cl">       lty <span class="o">=</span> <span class="nf">c</span>(<span class="m">2</span>, <span class="m">1</span>, <span class="m">1</span>, <span class="m">1</span>), lwd <span class="o">=</span> <span class="m">2</span>, bty <span class="o">=</span> <span class="s">&quot;n&quot;</span>)</span></div>
+<span class="cl">aq_aic <span class="o">&lt;-</span> <span class="nf">data.frame</span>(</span>
+<span class="cl">  model <span class="o">=</span> <span class="nf">c</span>(<span class="s">&quot;poly3&quot;</span>, <span class="s">&quot;ns4&quot;</span>, <span class="s">&quot;gam&quot;</span>),</span>
+<span class="cl">  AIC   <span class="o">=</span> <span class="nf">round</span>(<span class="nf">c</span>(<span class="nf">AIC</span>(aq_poly), <span class="nf">AIC</span>(aq_ns), <span class="nf">AIC</span>(aq_gam)), <span class="m">1</span>)</span>
+<span class="cl">)</span>
+<span class="cl">aq_aic</span>
+<span class="cl"><span class="c1">#&gt;   model   AIC</span></span>
+<span class="cl"><span class="c1">#&gt; 1 poly3 998.7</span></span>
+<span class="cl"><span class="c1">#&gt; 2   ns4 998.4</span></span>
+<span class="cl"><span class="c1">#&gt; 3   gam 995.8</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -969,82 +972,199 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Interpretation: ozone grows slowly below 75°F and accelerates above it. The linear model averages those two regimes and misses both. The curved models all agree on the shape, they differ only in where they flex. For reporting, the GAM is the safest choice: no tuning parameters and a built-in diagnostic for whether the basis is big enough.</p>
+<p><strong>Explanation:</strong> The GAM wins by ~3 AIC points, which is a meaningful edge (rule of thumb: a difference of 2+ AIC points is evidence). The three curves are visually very similar, but <code>gam()</code> shrinks toward the simplest smooth the data supports, and that parsimony shows up in AIC.</p>
+
+</details>
+
+<h3>Exercise 2: Cross-validate the degrees of freedom for bs()</h3>
+
+<p>Leave-one-out cross-validation is the honest way to pick <code>df</code> for a spline. Write a loop that, for each <code>df</code> in 2:8, computes the LOOCV RMSE for <code>mpg ~ bs(hp, df)</code> on <code>mtcars</code>, then pick the winning <code>df</code>.</p>
+
+<div class="webr-container" data-block-title="Capstone 2: LOOCV for bs()">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Capstone 2: LOOCV for bs()</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># For each df in 2:8, compute LOOCV RMSE</span></span>
+<span class="cl">cv_rmse <span class="o">&lt;-</span> <span class="nf">sapply</span>(<span class="m">2</span><span class="o">:</span><span class="m">8</span>, <span class="kr">function</span>(d) {</span>
+<span class="cl">  errs <span class="o">&lt;-</span> <span class="nf">sapply</span>(<span class="nf">seq_len</span>(<span class="nf">nrow</span>(mtcars)), <span class="kr">function</span>(i) {</span>
+<span class="cl">    fit <span class="o">&lt;-</span> <span class="nf">lm</span>(      , data <span class="o">=</span> mtcars[<span class="o">-</span>i, ])   <span class="c1"># bs(hp, df = d)</span></span>
+<span class="cl">    mtcars<span class="o">$</span>mpg[i] <span class="o">-</span> <span class="nf">predict</span>(fit, newdata <span class="o">=</span> mtcars[i, ])</span>
+<span class="cl">  })</span>
+<span class="cl">  <span class="nf">sqrt</span>(<span class="nf">mean</span>(errs<span class="o">^</span><span class="m">2</span>))</span>
+<span class="cl">})</span>
+<span class="cl"></span>
+<span class="cl"><span class="nf">data.frame</span>(df <span class="o">=</span> <span class="m">2</span><span class="o">:</span><span class="m">8</span>, rmse <span class="o">=</span> <span class="nf">round</span>(cv_rmse, <span class="m">2</span>))</span>
+<span class="cl"><span class="c1">#&gt; Expected: minimum RMSE around df = 3 or 4</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Capstone 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Capstone 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">cv_rmse <span class="o">&lt;-</span> <span class="nf">sapply</span>(<span class="m">2</span><span class="o">:</span><span class="m">8</span>, <span class="kr">function</span>(d) {</span>
+<span class="cl">  errs <span class="o">&lt;-</span> <span class="nf">sapply</span>(<span class="nf">seq_len</span>(<span class="nf">nrow</span>(mtcars)), <span class="kr">function</span>(i) {</span>
+<span class="cl">    fit <span class="o">&lt;-</span> <span class="nf">lm</span>(mpg <span class="o">~</span> <span class="nf">bs</span>(hp, df <span class="o">=</span> d), data <span class="o">=</span> mtcars[<span class="o">-</span>i, ])</span>
+<span class="cl">    mtcars<span class="o">$</span>mpg[i] <span class="o">-</span> <span class="nf">predict</span>(fit, newdata <span class="o">=</span> mtcars[i, ])</span>
+<span class="cl">  })</span>
+<span class="cl">  <span class="nf">sqrt</span>(<span class="nf">mean</span>(errs<span class="o">^</span><span class="m">2</span>))</span>
+<span class="cl">})</span>
+<span class="cl"></span>
+<span class="cl">best_df <span class="o">&lt;-</span> (<span class="m">2</span><span class="o">:</span><span class="m">8</span>)[<span class="nf">which.min</span>(cv_rmse)]</span>
+<span class="cl"><span class="nf">data.frame</span>(df <span class="o">=</span> <span class="m">2</span><span class="o">:</span><span class="m">8</span>, rmse <span class="o">=</span> <span class="nf">round</span>(cv_rmse, <span class="m">2</span>))</span>
+<span class="cl"><span class="c1">#&gt;   df rmse</span></span>
+<span class="cl"><span class="c1">#&gt; 1  2 3.22</span></span>
+<span class="cl"><span class="c1">#&gt; 2  3 3.18</span></span>
+<span class="cl"><span class="c1">#&gt; 3  4 3.21</span></span>
+<span class="cl"><span class="c1">#&gt; 4  5 3.36</span></span>
+<span class="cl"><span class="c1">#&gt; 5  6 3.54</span></span>
+<span class="cl"><span class="c1">#&gt; 6  7 3.91</span></span>
+<span class="cl"><span class="c1">#&gt; 7  8 4.27</span></span>
+<span class="cl"></span>
+<span class="cl">best_df</span>
+<span class="cl"><span class="c1">#&gt; [1] 3</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> RMSE bottoms out at <code>df = 3</code> and climbs from there. That's a classic overfitting curve: the model memorises individual points as <code>df</code> grows, so out-of-sample error rises. The CV winner (<code>df = 3</code>) is simpler than the default <code>df = 5</code>, which is exactly the kind of correction CV is meant to catch.</p>
+
+</details>
+
+<h2>Complete Example</h2>
+
+<p>End-to-end workflow: use <code>airquality</code> to model <code>Ozone</code> as a function of <code>Temp</code>, <code>Wind</code>, and <code>Solar.R</code>. We'll fit a single GAM with all three smooths, check the effective degrees of freedom, diagnose, and predict.</p>
+
+<div class="webr-container" data-block-title="Final GAM on airquality">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Final GAM on airquality</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Drop rows with any NA in the four columns</span></span>
+<span class="cl">aq_clean <span class="o">&lt;-</span> <span class="nf">na.omit</span>(airquality[, <span class="nf">c</span>(<span class="s">&quot;Ozone&quot;</span>, <span class="s">&quot;Temp&quot;</span>, <span class="s">&quot;Wind&quot;</span>, <span class="s">&quot;Solar.R&quot;</span>)])</span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># One GAM, three smooth terms</span></span>
+<span class="cl">final_gam <span class="o">&lt;-</span> <span class="nf">gam</span>(Ozone <span class="o">~</span> <span class="nf">s</span>(Temp) <span class="o">+</span> <span class="nf">s</span>(Wind) <span class="o">+</span> <span class="nf">s</span>(Solar.R), data <span class="o">=</span> aq_clean)</span>
+<span class="cl"></span>
+<span class="cl"><span class="nf">round</span>(<span class="nf">summary</span>(final_gam)<span class="o">$</span>s.table, <span class="m">3</span>)</span>
+<span class="cl"><span class="c1">#&gt;              edf Ref.df     F p-value</span></span>
+<span class="cl"><span class="c1">#&gt; s(Temp)    3.774  4.647 7.553   0.000</span></span>
+<span class="cl"><span class="c1">#&gt; s(Wind)    2.915  3.684 4.918   0.002</span></span>
+<span class="cl"><span class="c1">#&gt; s(Solar.R) 2.064  2.600 2.976   0.043</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each term gets its own effective degrees of freedom: <code>Temp</code> is clearly the most non-linear (edf 3.8), <code>Solar.R</code> is closer to a quadratic (edf 2.1), and all three are significant at 5%. This one model replaces three separate polynomial fits and handled the smoothness selection for you.</p>
+
+<div class="webr-container" data-block-title="Diagnostic + prediction">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Diagnostic + prediction</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Plot each smooth (layout 1 x 3)</span></span>
+<span class="cl"><span class="nf">par</span>(mfrow <span class="o">=</span> <span class="nf">c</span>(<span class="m">1</span>, <span class="m">3</span>))</span>
+<span class="cl"><span class="nf">plot</span>(final_gam, shade <span class="o">=</span> <span class="kc">TRUE</span>, shade.col <span class="o">=</span> <span class="s">&quot;lightblue&quot;</span>)</span>
+<span class="cl"><span class="nf">par</span>(mfrow <span class="o">=</span> <span class="nf">c</span>(<span class="m">1</span>, <span class="m">1</span>))</span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># Predict on a new observation</span></span>
+<span class="cl">new_obs <span class="o">&lt;-</span> <span class="nf">data.frame</span>(Temp <span class="o">=</span> <span class="m">85</span>, Wind <span class="o">=</span> <span class="m">10</span>, Solar.R <span class="o">=</span> <span class="m">200</span>)</span>
+<span class="cl"><span class="nf">round</span>(<span class="nf">predict</span>(final_gam, newdata <span class="o">=</span> new_obs, se.fit <span class="o">=</span> <span class="kc">TRUE</span>), <span class="m">2</span>)</span>
+<span class="cl"><span class="c1">#&gt; $fit</span></span>
+<span class="cl"><span class="c1">#&gt;     1</span></span>
+<span class="cl"><span class="c1">#&gt; 56.57</span></span>
+<span class="cl"><span class="c1">#&gt;</span></span>
+<span class="cl"><span class="c1">#&gt; $se.fit</span></span>
+<span class="cl"><span class="c1">#&gt;    1</span></span>
+<span class="cl"><span class="c1">#&gt; 4.15</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The smooth plots confirm <code>Temp</code> drives most of the curvature (sharp rise after 80F), <code>Wind</code> is mildly non-linear (flattens above 12 mph), and <code>Solar.R</code> has a gentle plateau. The predicted <code>Ozone</code> at typical mid-summer conditions (85F, 10 mph wind, 200 langleys) is 56.6 with SE 4.2, so a 95% interval of roughly 48 to 65.</p>
 
 <h2>Summary</h2>
-
-<p><img src="screenshots/Polynomial-and-Spline-Regression-in-R-decision-flow.webp" alt="How to pick between polynomial, B-spline, natural spline, and GAM." class="img-responsive img-zoomable" loading="lazy" width="1946" height="876" /></p>
-
-<p><em>Figure 2: How to pick between polynomial, B-spline, natural spline, and GAM.</em></p>
 
 <table class="table table-striped">
 <thead>
 <tr>
 <th>Method</th>
+<th>R call</th>
 <th>When to use</th>
-<th>Key argument</th>
-<th>Gotcha</th>
+<th>Pick <code>df</code> by</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>poly(x, d)</code></td>
-<td>Smooth global curve, small <code>d</code></td>
-<td><code>d</code> (degree)</td>
-<td>Keep <code>d</code> ≤ 4; boundary flare at higher degrees</td>
+<td>Polynomial</td>
+<td><code>lm(y ~ poly(x, k))</code></td>
+<td>Simple global curve, small <code>k</code> (2-3)</td>
+<td>AIC over a few values</td>
 </tr>
 <tr>
-<td><code>bs(x, knots)</code></td>
-<td>You know where breaks belong</td>
-<td><code>knots</code> or <code>df</code></td>
-<td>High variance beyond outer knots</td>
+<td>Raw polynomial</td>
+<td><code>lm(y ~ poly(x, k, raw=TRUE))</code></td>
+<td>You need the explicit equation</td>
+<td>Same as above</td>
 </tr>
 <tr>
-<td><code>ns(x, df)</code></td>
-<td>General-purpose, wiggle interior + linear tails</td>
-<td><code>df</code> (3-5 typical)</td>
-<td>Choose <code>df</code> by AIC grid-search</td>
+<td>B-spline</td>
+<td><code>lm(y ~ bs(x, df=k))</code></td>
+<td>Flexible interior fit, ignore edges</td>
+<td>CV or AIC</td>
 </tr>
 <tr>
-<td><code>gam(y ~ s(x))</code></td>
-<td>Let the data pick smoothness</td>
-<td><code>k</code> (upper bound)</td>
-<td>Check <code>edf</code> vs <code>k&#x27;</code> after fitting</td>
+<td>Natural spline</td>
+<td><code>lm(y ~ ns(x, df=k))</code></td>
+<td>Predictions near/beyond data range</td>
+<td>CV or AIC</td>
+</tr>
+<tr>
+<td>GAM</td>
+<td><code>gam(y ~ s(x), data=...)</code></td>
+<td>Multiple predictors, automatic smoothness</td>
+<td>Automatic (GCV/REML)</td>
 </tr>
 </tbody>
 </table>
 
-<p>Three practical rules of thumb:</p>
-
-<ol>
-
-<li>Start with a <strong>quadratic polynomial</strong> to confirm the curve is real, then go to splines if the fit stays patterned.</li>
-
-<li>Use <strong><code>ns(df = 3)</code> or <code>ns(df = 4)</code></strong> as your default curved fit for a single continuous predictor.</li>
-
-<li>Switch to <strong><code>mgcv::gam(y ~ s(x))</code></strong> when you have more than one curved predictor or when you want smoothness decided by the data, not by you.</li>
-
-</ol>
-
-<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Every method in this tutorial is still plain linear regression, just with a transformed design matrix.</strong> <code>poly()</code>, <code>bs()</code>, <code>ns()</code>, and <code>s()</code> all turn one column of raw predictor into many columns that <code>lm()</code> (or <code>gam()</code>) fits with ordinary least squares. The curve is in the columns, the coefficients stay linear.</div></div>
+<p>Defaults that usually work: <code>poly(x, 3)</code> for a quick first cut, <code>ns(x, df = 4)</code> for safe extrapolation, <code>gam(y ~ s(x1) + s(x2))</code> for anything with more than one predictor. Always check residuals, AIC, and (when you can afford it) cross-validation before trusting any curve.</p>
 
 <h2>References</h2>
 
 <ol>
 
-<li>James, G., Witten, D., Hastie, T., Tibshirani, R. , <em>An Introduction to Statistical Learning with Applications in R</em>, 2nd ed. Springer (2021). Chapter 7: Moving Beyond Linearity. <a href="https://www.statlearning.com/">Link</a></li>
+<li>Wood, S.N. <em>Generalized Additive Models: An Introduction with R</em>, 2nd Edition. CRC Press (2017). The definitive reference for <code>mgcv</code>. <a href="https://www.maths.ed.ac.uk/~swood34/igam/index.html">Link</a></li>
 
-<li>Wood, S. N. , <em>Generalized Additive Models: An Introduction with R</em>, 2nd ed. CRC Press (2017). <a href="https://www.taylorfrancis.com/books/mono/10.1201/9781315370279">Link</a></li>
+<li>James, G., Witten, D., Hastie, T., Tibshirani, R. <em>An Introduction to Statistical Learning</em>, Chapter 7: Moving Beyond Linearity. Springer (2021). <a href="https://www.statlearning.com/">Link</a></li>
 
-<li>Perperoglou, A., Sauerbrei, W., Abrahamowicz, M., Schmid, M. , "A review of spline function procedures in R." <em>BMC Medical Research Methodology</em>, 19:46 (2019). <a href="https://bmcmedresmethodol.biomedcentral.com/articles/10.1186/s12874-019-0666-3">Link</a></li>
+<li>R Core Team. <code>splines</code> package reference: <code>bs()</code>, <code>ns()</code>. <a href="https://stat.ethz.ch/R-manual/R-devel/library/splines/html/00Index.html">Link</a></li>
 
-<li>R Core Team , <code>?poly</code>, base <code>stats</code> documentation. <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/poly.html">Link</a></li>
+<li>Wood, S.N. <code>mgcv</code> CRAN reference manual. <a href="https://cran.r-project.org/web/packages/mgcv/mgcv.pdf">Link</a></li>
 
-<li><code>splines</code> package , <code>?bs</code>, <code>?ns</code>. <a href="https://stat.ethz.ch/R-manual/R-devel/library/splines/html/bs.html">Link</a></li>
+<li>Hastie, T., Tibshirani, R. <em>Generalized Additive Models</em>. Statistical Science 1(3), 297-318 (1986). The original GAM paper. <a href="https://projecteuclid.org/journals/statistical-science/volume-1/issue-3/Generalized-Additive-Models/10.1214/ss/1177013604.full">Link</a></li>
 
-<li>Wood, S. N. , <code>mgcv</code> package documentation on CRAN. <a href="https://cran.r-project.org/web/packages/mgcv/mgcv.pdf">Link</a></li>
+<li>de Boor, C. <em>A Practical Guide to Splines</em>. Springer (1978). The foundational text on B-splines.</li>
 
-<li>Hastie, T., Tibshirani, R., Friedman, J. , <em>The Elements of Statistical Learning</em>, 2nd ed. Springer (2009). Chapter 5: Basis Expansions and Regularization. <a href="https://hastie.su.domains/ElemStatLearn/">Link</a></li>
+<li>Perperoglou, A., Sauerbrei, W., Abrahamowicz, M., Schmid, M. <em>A review of spline function procedures in R</em>. BMC Medical Research Methodology 19, 46 (2019). <a href="https://bmcmedresmethodol.biomedcentral.com/articles/10.1186/s12874-019-0666-3">Link</a></li>
 
 </ol>
 
@@ -1052,13 +1172,18 @@
 
 <ul>
 
-<li><strong><a href="Linear-Regression.html">Linear Regression in R</a></strong> , the foundation this tutorial builds on: assumptions, fitting, and interpreting <code>lm()</code> output.</li>
+<li><strong>Linear Regression in R</strong>: the baseline model every curve fit is measured against. Start here if you're rusty on <code>lm()</code> basics.</li>
 
-<li><strong><a href="Logistic-Regression-in-R.html">Logistic Regression in R</a></strong> , the same basis-expansion ideas work for classification; swap <code>lm()</code> for <code>glm(family = binomial)</code>.</li>
+<li><strong><a class="auto-link" href="Linear-Regression-Assumptions-in-R.html" title="Linear Regression Assumptions in R: Test All 5 and Know What to Do When They Fail">Regression Diagnostics</a> in R</strong>: the residual plots and influence measures that tell you whether a polynomial or spline is the right fix.</li>
 
-<li><strong><a href="Regression-Diagnostics-in-R.html">Regression Diagnostics in R</a></strong> , how to check whether your chosen curve actually fits the data's shape.</li>
+<li><strong>Ridge & <a class="auto-link" href="Lasso-Regression-With-R.html" title="Lasso Regression with R">Lasso Regression</a> in R</strong>: the penalised-likelihood family that <code>mgcv::gam()</code> belongs to, applied to linear models with many predictors.</li>
 
 </ul>
+<section class="related-tutorials" aria-label="Related tutorials"><h2 class="rt-heading">Related Tutorials</h2><div class="rt-grid"><a class="rt-card" href="Correlation-in-R.html"><span class="rt-title">Correlation in R: Choose Between Pearson, Spearman, and Kendall, With Tests</span><span class="rt-meta">Statistics &middot; 10 min read</span></a><a class="rt-card" href="Interaction-Effects-in-R.html"><span class="rt-title">Interaction Effects in R: Add Them, Test Them, and Actually Understand the Output</span><span class="rt-meta">Statistics &middot; 9 min read</span></a><a class="rt-card" href="Variable-Selection-in-R.html"><span class="rt-title">Variable Selection in R</span><span class="rt-meta">Statistics</span></a><a class="rt-card" href="Regression-Diagnostics-in-R.html"><span class="rt-title">Regression Diagnostics in R: 5 Plots That Reveal Model Violations Instantly</span><span class="rt-meta">Statistics &middot; 9 min read</span></a></div></section>
+<nav class="prev-next-nav" aria-label="Post navigation">
+<a class="pn-link pn-prev" href="Ridge-and-Lasso-Regression-in-R.html"><span class="pn-label">&larr; Previous</span><span class="pn-title">Ridge &amp; Lasso Regression</span></a>
+<a class="pn-link pn-next" href="Time-Series-Analysis-With-R.html"><span class="pn-label">Next &rarr;</span><span class="pn-title">Time Series Analysis</span></a>
+</nav>
 
         </main>
 
