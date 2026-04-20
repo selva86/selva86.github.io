@@ -1,0 +1,935 @@
+---
+title: "Clustering in R: k-Means vs Hierarchical vs DBSCAN, How to Choose for Your Data"
+description: "Compare k-Means, hierarchical, and DBSCAN clustering in R on the same dataset. Choose the right algorithm based on cluster shape, noise, and validation."
+keywords: "clustering in R, k-means R, hierarchical clustering R, DBSCAN R, cluster analysis, unsupervised learning R, kmeans function, hclust, dbscan package, factoextra"
+mathjax: false
+webr: true
+curriculum_id: "2.5.7"
+post_type: "C"
+auto_link_terms: "clustering in R|k-means clustering|hierarchical clustering|DBSCAN clustering|cluster analysis in R|silhouette width|dendrogram cut|kNN distance plot"
+auto_link_case_sensitive: false
+sidebar_section: "Statistics"
+sidebar_title: "Clustering (k-Means / HC / DBSCAN)"
+sidebar_order: "74"
+---
+<!-- md2html:generated -->
+
+<h1>Clustering in R: k-Means vs Hierarchical vs DBSCAN, How to Choose for Your Data</h1>
+
+<p class="lead">Clustering groups similar rows of data when no labels exist, and the three main algorithms in R, <code>kmeans()</code>, <code>hclust()</code>, and <code>dbscan()</code>, each suit different cluster shapes, sizes, and noise levels. This tutorial fits all three to the same dataset so you can see exactly where each one shines and fails.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="35" data-exercises="9" data-xp="135"></div>
+
+<h2>What happens when you run all three clustering algorithms on the same data?</h2>
+
+<p>If you have numeric data and no labels, you start by picking an algorithm. The fastest way to see what each one does is to fit all three to the same data and look at the cluster plots side by side. We use the <code>multishapes</code> demo data from <code>factoextra</code>, because its groups are deliberately non-spherical, which is the scenario where the three algorithms disagree most.</p>
+
+<div class="webr-container" data-block-title="Fit all three algorithms on multishapes">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit all three algorithms on multishapes</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Libraries persist across all code blocks on this page
+library(factoextra)
+library(cluster)
+library(dbscan)
+library(dplyr)
+
+# multishapes has 5 non-spherical groups plus noise points
+data(&quot;multishapes&quot;, package = &quot;factoextra&quot;)
+shapes &lt;- multishapes[, 1:2]   # x, y coordinates only
+head(shapes, 3)
+#&gt;            x          y
+#&gt; 1 -0.803 0.368
+#&gt; 2 -0.753 0.332
+#&gt; 3 -0.718 0.271
+
+# Fit all three with sensible defaults for this demo
+km_fit &lt;- kmeans(shapes, centers = 5, nstart = 25)
+hc_fit &lt;- hclust(dist(shapes), method = &quot;ward.D2&quot;)
+db_fit &lt;- dbscan(shapes, eps = 0.15, MinPts = 5)
+
+c(k_means = length(unique(km_fit$cluster)),
+  hier    = length(unique(cutree(hc_fit, k = 5))),
+  dbscan  = length(unique(db_fit$cluster)))   # 0 = noise for dbscan
+#&gt;  k_means     hier   dbscan
+#&gt;        5        5        6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Three algorithms, three different answers on the same 1100 points. k-Means and hierarchical were told to find 5 clusters. DBSCAN found 5 real clusters plus a noise label (cluster 0), bringing its count to 6 labels. Let's visualize each fit so the difference becomes obvious.</p>
+
+<div class="webr-container" data-block-title="Plot the three fits side by side">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot the three fits side by side</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">p1 &lt;- fviz_cluster(list(data = shapes, cluster = km_fit$cluster),
+                   geom = &quot;point&quot;, ellipse.type = &quot;convex&quot;,
+                   main = &quot;k-Means (k=5)&quot;) + theme_minimal()
+
+p2 &lt;- fviz_cluster(list(data = shapes, cluster = cutree(hc_fit, 5)),
+                   geom = &quot;point&quot;, ellipse.type = &quot;convex&quot;,
+                   main = &quot;Hierarchical (Ward, k=5)&quot;) + theme_minimal()
+
+p3 &lt;- fviz_cluster(list(data = shapes, cluster = db_fit$cluster),
+                   geom = &quot;point&quot;, ellipse.type = &quot;convex&quot;,
+                   main = &quot;DBSCAN (eps=0.15)&quot;) + theme_minimal()
+
+# Arrange vertically so each plot is readable
+gridExtra::grid.arrange(p1, p2, p3, ncol = 1)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>k-Means slices the two intertwined crescent moons right down the middle, which is wrong. Hierarchical with Ward's linkage does the same. DBSCAN, because it follows density rather than distance to a centroid, traces the moons correctly and flags the scattered points as noise. The picture tells you everything: <strong>algorithm choice is driven by cluster shape, not by preference.</strong></p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>k-Means and hierarchical partition everything, DBSCAN can say "this point belongs nowhere".</strong> That single capability, labeling noise as cluster 0, is why DBSCAN wins on messy real-world data but loses on clean, compact groups where you want every point assigned.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Refit k-means on <code>shapes</code> but with <code>centers = 2</code>, then print <code>table(km_fit2$cluster)</code> to see the new cluster sizes.</p>
+<div class="webr-container" data-block-title="Your turn: k-Means with k=2">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: k-Means with k=2</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># your code here
+km_fit2 &lt;- NULL
+# table(km_fit2$cluster)
+#&gt; Expected: two cluster sizes summing to 1100</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="k-Means k=2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">k-Means k=2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">km_fit2 &lt;- kmeans(shapes, centers = 2, nstart = 25)
+table(km_fit2$cluster)
+#&gt;
+#&gt;   1   2
+#&gt; 585 515</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> With k=2, k-means collapses the five true groups into two large partitions based purely on centroid proximity. The numbers always sum to <code>nrow(shapes)</code> because every point gets assigned.</p>
+
+</details>
+</section>
+
+<h2>How does k-Means partition data around centroids?</h2>
+
+<p>k-Means works by repeatedly doing two things: it picks <code>k</code> cluster centers, assigns each point to its nearest center, then moves each center to the average of its assigned points. That loop runs until nothing moves. The output is a partition where every point belongs to exactly one cluster.</p>
+
+<p>Two practical rules before you call <code>kmeans()</code>:</p>
+
+<ol>
+
+<li><strong>Scale your features first.</strong> k-Means uses <a class="auto-link" href="Multivariate-Statistics-in-R.html" title="Multivariate Statistics in R: Distances, Mahalanobis, and Hotelling's T² Demystified">Euclidean distance</a>, so a column measured in thousands dominates a column measured in decimals.</li>
+
+<li><strong>Use <code>nstart &gt;= 25</code>.</strong> The algorithm is sensitive to its random starting centers. Running it 25 times and keeping the best result gives stable clusters.</li>
+
+</ol>
+
+<p><img src="screenshots/Cluster-Analysis-in-R-algorithm-comparison.webp" alt="How each algorithm groups points differently." class="img-responsive img-zoomable" loading="lazy" width="1502" height="758" /></p>
+
+<p><em>Figure 1: How each algorithm groups points differently.</em></p>
+
+<div class="webr-container" data-block-title="Fit k-Means with scaling and nstart">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit k-Means with scaling and nstart</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">shapes_sc &lt;- scale(shapes)                 # z-score each column
+km5 &lt;- kmeans(shapes_sc, centers = 5, nstart = 25)
+
+km5
+#&gt; K-means clustering with 5 clusters of sizes 408, 196, 197, 100, 199
+#&gt;
+#&gt; Within cluster sum of squares by cluster:
+#&gt; [1]  92.1  32.5  35.8  18.4  41.7
+#&gt;  (between_SS / total_SS =  88.7 %)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>between_SS / total_SS</code> ratio, 88.7%, tells you how much of the total spread is explained by the cluster structure. Higher is tighter. This metric is useful when comparing two k-means fits with different <code>k</code> values on the same data.</p>
+
+<div class="webr-container" data-block-title="Inspect centers and cluster sizes">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Inspect centers and cluster sizes</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">km5$size                 # points per cluster
+#&gt; [1] 408 196 197 100 199
+
+round(km5$centers, 2)    # cluster means in z-score space
+#&gt;       x     y
+#&gt; 1  0.52  0.21
+#&gt; 2 -1.14 -0.94
+#&gt; 3 -1.22  0.82
+#&gt; 4  1.68  1.21
+#&gt; 5  1.64 -0.94</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The centers are in scaled units, so a value of <code>1.68</code> means "1.68 standard deviations above the mean on <code>x</code>". If you need centers in the original units, multiply back by the original column's standard deviation and add its mean, or call <code>kmeans()</code> on the raw (unscaled) data if columns share units.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Always set <code>nstart = 25</code> or higher.</strong> The default of 1 gives the first random init, which can land in a poor local minimum. 25 takes milliseconds extra and gives you the best of 25 restarts.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Refit k-means on <code>shapes_sc</code> with <code>centers = 3</code> and save as <code>ex_km</code>. Print <code>ex_km$size</code> to see the three new cluster sizes.</p>
+<div class="webr-container" data-block-title="Your turn: k-Means with k=3">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: k-Means with k=3</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_km &lt;- NULL
+# ex_km$size
+#&gt; Expected: three sizes summing to 1100</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="k-Means k=3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">k-Means k=3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_km &lt;- kmeans(shapes_sc, centers = 3, nstart = 25)
+ex_km$size
+#&gt; [1] 405 496 199</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Going from k=5 to k=3 merges neighboring clusters. The total is still 1100 points because every point is partitioned.</p>
+
+</details>
+</section>
+
+<h2>How do you pick the right k with the elbow and silhouette?</h2>
+
+<p>For k-means and hierarchical, you pick <code>k</code> yourself. Two methods dominate in practice:</p>
+
+<ol>
+
+<li><strong>Elbow method (within-cluster sum of squares, WSS):</strong> plot WSS against k. The "elbow" is where adding another cluster stops buying you much compactness.</li>
+
+<li><strong>Silhouette width:</strong> plot the average silhouette against k. Pick the k that peaks. Silhouette measures how well each point sits inside its cluster versus the next nearest one.</li>
+
+</ol>
+
+<p><code>fviz_nbclust()</code> from <code>factoextra</code> runs the search and draws the plot in one call.</p>
+
+<div class="webr-container" data-block-title="Elbow plot for optimal k">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Elbow plot for optimal k</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fviz_nbclust(shapes_sc, kmeans, method = &quot;wss&quot;, nstart = 25) +
+  labs(title = &quot;Elbow method: WSS vs k&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Look for the point where the curve bends. On <code>multishapes</code> the bend sits around k=5 or k=6, which matches the five real shapes plus their overlaps.</p>
+
+<div class="webr-container" data-block-title="Silhouette plot for optimal k">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Silhouette plot for optimal k</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fviz_nbclust(shapes_sc, kmeans, method = &quot;silhouette&quot;, nstart = 25) +
+  labs(title = &quot;Silhouette method: avg width vs k&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Silhouette peaks where the within-cluster points are tight and the between-cluster separation is wide. A peak score above 0.5 is usually solid; below 0.25 means the clusters are not well separated and you should question whether clustering is the right tool.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Elbow and silhouette can disagree.</strong> When they do, trust silhouette for compact clusters and WSS for elongated ones. If they disagree sharply, your data may not have a natural cluster structure.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Run <code>fviz_nbclust()</code> with <code>method = &quot;gap_stat&quot;</code> and save the plot as <code>ex_gap</code>. The gap statistic is a third optimizer that compares WSS against a null reference distribution.</p>
+<div class="webr-container" data-block-title="Your turn: gap statistic">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: gap statistic</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+ex_gap &lt;- NULL
+# ex_gap
+#&gt; Expected: a ggplot showing the gap statistic against k</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Gap statistic solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Gap statistic solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+ex_gap &lt;- fviz_nbclust(shapes_sc, kmeans,
+                       method = &quot;gap_stat&quot;, nboot = 50, nstart = 25)
+ex_gap</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The gap statistic runs 50 bootstrap resamples (<code>nboot = 50</code>) of uniformly distributed null data and compares the WSS gap. It's slower than the other two methods but often more robust on noisy data.</p>
+
+</details>
+</section>
+
+<h2>How does hierarchical clustering build a dendrogram?</h2>
+
+<p>Hierarchical clustering builds a tree, not a flat partition. It starts with every point as its own cluster, then repeatedly merges the two closest clusters until one cluster holds everything. The "closest" definition is called the <strong>linkage method</strong>, and it matters a lot.</p>
+
+<p>The three linkages you'll meet in the wild:</p>
+
+<ol>
+
+<li><strong>Ward's (<code>&quot;ward.D2&quot;</code>)</strong>, merges clusters that increase within-cluster variance the least. Tends to produce compact, round clusters. The default for most analyses.</li>
+
+<li><strong>Complete</strong>, merges based on the most distant pair of points between clusters. Produces tight, evenly sized clusters.</li>
+
+<li><strong>Single</strong>, merges based on the closest pair. Can produce long "chained" clusters that snake through the data.</li>
+
+</ol>
+
+<p>Once the tree is built, you cut it at a chosen level with <code>cutree()</code> to get a flat cluster assignment.</p>
+
+<div class="webr-container" data-block-title="Hierarchical clustering with Ward&#x27;s linkage">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Hierarchical clustering with Ward&#x27;s linkage</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">d  &lt;- dist(shapes_sc)                                 # pairwise distances
+hc &lt;- hclust(d, method = &quot;ward.D2&quot;)                   # build the tree
+
+hc_clusters &lt;- cutree(hc, k = 5)                      # cut into 5 flat clusters
+table(hc_clusters)
+#&gt; hc_clusters
+#&gt;   1   2   3   4   5
+#&gt; 405 200 196 100 199</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>You get the tree once and can cut it at any <code>k</code> without refitting. That's one advantage over k-means, which must refit per k.</p>
+
+<div class="webr-container" data-block-title="Plot the dendrogram with k=5 highlighted">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot the dendrogram with k=5 highlighted</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">plot(hc, labels = FALSE, hang = -1,
+     main = &quot;Dendrogram (Ward's linkage)&quot;, xlab = &quot;&quot;, sub = &quot;&quot;)
+rect.hclust(hc, k = 5, border = 2:6)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Height on the y-axis is the linkage distance at which two clusters merge. The longer the vertical line between a merge and the next one below, the more distinct the clusters being joined. <code>rect.hclust()</code> draws boxes around the five groups that emerge at k=5.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Linkage choice changes the answer.</strong> Ward's and complete typically give similar results on compact data; single linkage can look nothing like either. Always state the linkage you used and, for important analyses, compare at least two.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Refit hierarchical clustering with <code>method = &quot;single&quot;</code> and cut at k=5. Save the cluster vector as <code>ex_hc_single</code> and compare its sizes with Ward's.</p>
+<div class="webr-container" data-block-title="Your turn: single linkage">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: single linkage</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_hc_single &lt;- NULL
+# table(ex_hc_single)
+#&gt; Expected: sizes very different from Ward's</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Single-linkage solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Single-linkage solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">hc_s &lt;- hclust(d, method = &quot;single&quot;)
+ex_hc_single &lt;- cutree(hc_s, k = 5)
+table(ex_hc_single)
+#&gt; ex_hc_single
+#&gt;    1    2    3    4    5
+#&gt; 1096    1    1    1    1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Single linkage put 1096 points into cluster 1 and made each of the other clusters a single point. This is the <strong>chaining effect</strong>: single linkage is happy to merge clusters via a single bridge point, collapsing everything into one giant group.</p>
+
+</details>
+</section>
+
+<h2>How does DBSCAN find clusters of arbitrary shape?</h2>
+
+<p>DBSCAN stands for Density-Based Spatial Clustering of Applications with Noise. Instead of a fixed <code>k</code>, it takes two parameters:</p>
+
+<ol>
+
+<li><strong><code>eps</code></strong>, the radius defining a point's neighborhood.</li>
+
+<li><strong><code>MinPts</code></strong>, the minimum number of neighbors within <code>eps</code> to call a point "core".</li>
+
+</ol>
+
+<p>The algorithm then grows clusters by chaining together core points whose neighborhoods overlap. Points that don't fit into any cluster get label 0, meaning noise. This is why DBSCAN can handle concentric rings, crescents, and other shapes where every other algorithm fails, and it never forces outliers into a cluster they don't belong to.</p>
+
+<p>The hard part is picking <code>eps</code>. A standard trick: plot the distance to each point's k-th nearest neighbor in ascending order. The "knee" in the curve, where the line bends sharply upward, is a good <code>eps</code>.</p>
+
+<div class="webr-container" data-block-title="Pick eps with the kNN distance plot">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pick eps with the kNN distance plot</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">kNNdistplot(shapes_sc, k = 5)
+abline(h = 0.15, lty = 2, col = &quot;red&quot;)
+#&gt; Look for the knee; the dashed line marks our choice of eps = 0.15</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The dashed red line at <code>eps = 0.15</code> sits right at the elbow of the curve, meaning most points have their 5th neighbor within 0.15 units and only the noise points reach beyond it. That's the sweet spot.</p>
+
+<div class="webr-container" data-block-title="Fit DBSCAN with chosen parameters">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit DBSCAN with chosen parameters</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">db &lt;- dbscan(shapes_sc, eps = 0.15, MinPts = 5)
+table(db$cluster)
+#&gt;
+#&gt;   0   1   2   3   4   5
+#&gt;  31 405 196 199 100 169</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Cluster 0 contains the 31 noise points. The five real clusters (1 through 5) correspond to the five shapes in the dataset. Compare this to k-means, which forced those 31 outliers into cluster memberships they don't really belong to.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>"Noise" is a feature, not a bug.</strong> In fraud detection, anomaly analysis, and quality control, the DBSCAN noise label is often exactly what you're looking for: points that don't fit any natural group. Treating them as cluster 0 keeps them out of downstream averages and models.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Refit DBSCAN on <code>shapes_sc</code> with <code>eps = 0.5</code> (much larger). Save as <code>ex_db</code> and check <code>table(ex_db$cluster)</code>. You'll see clusters merge.</p>
+<div class="webr-container" data-block-title="Your turn: bigger eps">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: bigger eps</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_db &lt;- NULL
+# table(ex_db$cluster)
+#&gt; Expected: fewer clusters, fewer (or zero) noise points</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="DBSCAN with larger eps solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">DBSCAN with larger eps solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_db &lt;- dbscan(shapes_sc, eps = 0.5, MinPts = 5)
+table(ex_db$cluster)
+#&gt;
+#&gt;    0    1
+#&gt;    2 1098</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> A too-large <code>eps</code> makes every point a neighbor of every other, so DBSCAN collapses everything into one giant cluster with almost no noise. This is why the kNN plot matters: it tells you the scale of "neighborhood" your data actually supports.</p>
+
+</details>
+</section>
+
+<h2>Which algorithm should you pick for your data?</h2>
+
+<p>After seeing all three in action, you now have the information you need to choose. The decision hinges on three questions: do you know <code>k</code>, are the clusters round, and do you need to handle outliers?</p>
+
+<p><img src="screenshots/Cluster-Analysis-in-R-decision-flow.webp" alt="A quick decision path for picking a clustering algorithm." class="img-responsive img-zoomable" loading="lazy" width="2040" height="842" /></p>
+
+<p><em>Figure 2: A quick decision path for picking a clustering algorithm.</em></p>
+
+<p>A compact guide:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Situation</th>
+<th>Best pick</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>You know k, clusters look round</td>
+<td>k-Means</td>
+<td>Fastest, simplest, scales to millions of rows</td>
+</tr>
+<tr>
+<td>You want a tree to inspect</td>
+<td>Hierarchical</td>
+<td>Dendrogram reveals structure at every level</td>
+</tr>
+<tr>
+<td>Shapes are irregular or you expect outliers</td>
+<td>DBSCAN</td>
+<td>Density-based, flags noise as cluster 0</td>
+</tr>
+<tr>
+<td>Data has tens of millions of rows</td>
+<td>k-Means</td>
+<td>Others are O(n^2) in memory</td>
+</tr>
+<tr>
+<td>You're exploring and don't know k</td>
+<td>Hierarchical + silhouette</td>
+<td>Tree + quantitative cut</td>
+</tr>
+</tbody>
+</table>
+
+<p>For any clustering decision, the single most useful validation number is the <strong>average silhouette width</strong>. It ranges from -1 to 1: values above 0.5 are strong structure, 0.25 to 0.5 is weak but real, below 0.25 means the clustering may not be meaningful. Computing it on all three fits gives you an objective tiebreaker.</p>
+
+<div class="webr-container" data-block-title="Compare average silhouette width across all three algorithms">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare average silhouette width across all three algorithms</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Silhouette works on any cluster vector; needs distance matrix
+d_sc &lt;- dist(shapes_sc)
+
+# k-means sil
+sil_km &lt;- mean(silhouette(km5$cluster, d_sc)[, 3])
+
+# hierarchical sil (cutree k=5)
+sil_hc &lt;- mean(silhouette(cutree(hc, 5), d_sc)[, 3])
+
+# dbscan sil (drop noise points, which have label 0)
+keep   &lt;- db$cluster != 0
+sil_db &lt;- mean(silhouette(db$cluster[keep], dist(shapes_sc[keep, ]))[, 3])
+
+round(c(kmeans = sil_km, hierarchical = sil_hc, dbscan = sil_db), 3)
+#&gt;       kmeans hierarchical       dbscan
+#&gt;        0.418        0.425        0.613</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>DBSCAN wins with 0.613 because it ignored the noise points and only scored the density-coherent groups, exactly as it should. k-means and hierarchical paid the penalty for forcing outliers into the nearest cluster, which dragged their average silhouette down. <strong>When the shapes are irregular, DBSCAN dominates this benchmark; when they are round, k-means usually leads.</strong></p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Run all three as a default audit.</strong> In 10 lines of R you can fit all three models and print their silhouette widths. That's cheaper than guessing wrong, and it often reveals structure a single algorithm would miss.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute the silhouette width for <code>ex_km</code> (your k=3 k-means fit) using <code>d_sc</code> and compare it to <code>sil_km</code> above.</p>
+<div class="webr-container" data-block-title="Your turn: silhouette for k=3">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: silhouette for k=3</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sil_ex &lt;- NULL
+# sil_ex
+#&gt; Expected: a single number between -1 and 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Silhouette for k=3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Silhouette for k=3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sil_ex &lt;- mean(silhouette(ex_km$cluster, d_sc)[, 3])
+round(sil_ex, 3)
+#&gt; [1] 0.382</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> k=3 on non-spherical shapes gives a lower silhouette (0.382) than k=5 (0.418), confirming that fewer clusters forced heterogeneous points together.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<h3>Exercise 1: k-Means on <code>iris</code>, does it match species?</h3>
+
+<p>Scale <code>iris[, 1:4]</code>, run k-means with <code>k = 3</code> and <code>nstart = 25</code>, then cross-tabulate the cluster against <code>iris$Species</code>. Save the cluster vector as <code>my_km</code> and the table as <code>my_tbl</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: scale(), kmeans(), then table(clusters, iris$Species)
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">iris_sc &lt;- scale(iris[, 1:4])
+set.seed(42)
+my_km   &lt;- kmeans(iris_sc, centers = 3, nstart = 25)$cluster
+my_tbl  &lt;- table(cluster = my_km, species = iris$Species)
+my_tbl
+#&gt;        species
+#&gt; cluster setosa versicolor virginica
+#&gt;       1     50          0         0
+#&gt;       2      0         39        14
+#&gt;       3      0         11        36</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Cluster 1 is a perfect match for <em>setosa</em>. Clusters 2 and 3 mostly align with <em>versicolor</em> and <em>virginica</em>, with 25 misassignments where the two species overlap in petal space. Clustering is not a classifier, so this kind of partial alignment is normal.</p>
+
+</details>
+
+<h3>Exercise 2: Hierarchical clustering of <code>USArrests</code></h3>
+
+<p>Scale <code>USArrests</code>, run Ward's hierarchical clustering, cut at <code>k = 4</code>, and save the state-to-cluster mapping as <code>my_states</code>. Which cluster contains California?</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: scale() -&gt; dist() -&gt; hclust(method='ward.D2') -&gt; cutree(k=4)
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">us_sc     &lt;- scale(USArrests)
+my_hc     &lt;- hclust(dist(us_sc), method = &quot;ward.D2&quot;)
+my_states &lt;- cutree(my_hc, k = 4)
+my_states[&quot;California&quot;]
+#&gt; California
+#&gt;          1
+
+# Peek at the other states in California's cluster
+names(my_states[my_states == 1])
+#&gt; [1] &quot;Arizona&quot;    &quot;California&quot; &quot;Colorado&quot;   &quot;Florida&quot;    &quot;Illinois&quot;
+#&gt; [6] &quot;Maryland&quot;   &quot;Michigan&quot;   &quot;Nevada&quot;     &quot;New Mexico&quot; &quot;New York&quot;
+#&gt; [11] &quot;Texas&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> California sits with 10 other high-crime, high-urbanization states. Ward's linkage groups states that are close in the combined space of murder, assault, rape, and urban population.</p>
+
+</details>
+
+<h3>Exercise 3: k-Means vs DBSCAN on concentric rings</h3>
+
+<p>Generate two concentric rings with base R (inner ring radius 1, outer ring radius 3, both with small Gaussian noise). Save the 2-column matrix as <code>my_rings</code>. Fit <code>kmeans(my_rings, 2)</code> and <code>dbscan(my_rings, eps = 0.3, MinPts = 5)</code>. Plot both colorings.</p>
+
+<div class="webr-container" data-block-title="Exercise 3 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: use runif() for angles, then x = r*cos(theta), y = r*sin(theta)
+
+set.seed(1)
+n &lt;- 300
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+n &lt;- 300
+t1 &lt;- runif(n, 0, 2*pi); r1 &lt;- 1 + rnorm(n, 0, 0.1)
+t2 &lt;- runif(n, 0, 2*pi); r2 &lt;- 3 + rnorm(n, 0, 0.1)
+my_rings &lt;- rbind(cbind(r1*cos(t1), r1*sin(t1)),
+                  cbind(r2*cos(t2), r2*sin(t2)))
+
+my_km_r  &lt;- kmeans(my_rings, centers = 2, nstart = 25)$cluster
+my_db_r  &lt;- dbscan(my_rings, eps = 0.3, MinPts = 5)$cluster
+
+par(mfrow = c(1, 2))
+plot(my_rings, col = my_km_r + 1, pch = 20, main = &quot;k-Means on rings&quot;)
+plot(my_rings, col = my_db_r + 1, pch = 20, main = &quot;DBSCAN on rings&quot;)
+par(mfrow = c(1, 1))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> k-Means cuts the rings in half because it can only draw straight boundaries between centroids. DBSCAN traces each ring cleanly because it follows density. This is the classic illustration of why algorithm choice matters more than tuning.</p>
+
+</details>
+
+<h2>Complete Example: End-to-End on <code>iris</code></h2>
+
+<p>Here is the full workflow from raw data to algorithm choice, applied to <code>iris</code>.</p>
+
+<div class="webr-container" data-block-title="Complete clustering workflow on iris">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Complete clustering workflow on iris</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># 1. Prepare data (numeric columns only, scaled)
+iris_sc &lt;- scale(iris[, 1:4])
+
+# 2. Fit all three with k = 3 (we know there are 3 species)
+set.seed(123)
+iris_km &lt;- kmeans(iris_sc, centers = 3, nstart = 25)
+iris_hc &lt;- hclust(dist(iris_sc), method = &quot;ward.D2&quot;)
+iris_db &lt;- dbscan(iris_sc, eps = 0.9, MinPts = 5)
+
+# 3. Validate with average silhouette width
+d_iris &lt;- dist(iris_sc)
+iris_sils &lt;- c(
+  kmeans       = mean(silhouette(iris_km$cluster, d_iris)[, 3]),
+  hierarchical = mean(silhouette(cutree(iris_hc, 3), d_iris)[, 3]),
+  dbscan       = mean(silhouette(
+                        iris_db$cluster[iris_db$cluster != 0],
+                        dist(iris_sc[iris_db$cluster != 0, ]))[, 3])
+)
+round(iris_sils, 3)
+#&gt;       kmeans hierarchical       dbscan
+#&gt;        0.460        0.446        0.605
+
+# 4. Pick the winner for this dataset
+names(which.max(iris_sils))
+#&gt; [1] &quot;dbscan&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>DBSCAN wins on iris as well, but notice why: it discarded 17 noise points (the overlap zone between <em>versicolor</em> and <em>virginica</em>) and only scored the well-separated core. k-means and hierarchical had to classify those overlap points, which is harder. The lesson: the silhouette winner depends on whether you need every point assigned. If you do, k-means at 0.460 is your answer. If you don't, DBSCAN's 0.605 reflects tighter structure.</p>
+
+<p><img src="screenshots/Cluster-Analysis-in-R-workflow.webp" alt="The end-to-end clustering workflow in R." class="img-responsive img-zoomable" loading="lazy" width="2248" height="320" /></p>
+
+<p><em>Figure 3: The end-to-end clustering workflow in R.</em></p>
+
+<h2>Summary</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Algorithm</th>
+<th>Function</th>
+<th>Strength</th>
+<th>Weakness</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>k-Means</td>
+<td><code>kmeans()</code></td>
+<td>Fast, scalable, simple</td>
+<td>Assumes round clusters; needs k upfront</td>
+<td>Large tabular data with roughly equal, compact groups</td>
+</tr>
+<tr>
+<td>Hierarchical</td>
+<td><code>hclust()</code> + <code>cutree()</code></td>
+<td>Full tree at every k; interpretable</td>
+<td>O(n²) memory; sensitive to linkage</td>
+<td>Small-to-medium data where structure matters</td>
+</tr>
+<tr>
+<td>DBSCAN</td>
+<td><code>dbscan::dbscan()</code></td>
+<td>Any shape; labels noise</td>
+<td>Parameters eps/MinPts are finicky</td>
+<td>Spatial data, anomaly detection, non-spherical clusters</td>
+</tr>
+</tbody>
+</table>
+
+<p>Three recurring mistakes to avoid:</p>
+
+<ol>
+
+<li><strong>Clustering without scaling.</strong> Any algorithm using Euclidean distance is dominated by the column with the largest variance. Always <code>scale()</code> first unless columns share units.</li>
+
+<li><strong>Picking k without validation.</strong> <code>fviz_nbclust()</code> takes one line and will tell you if your k is defensible. Use it.</li>
+
+<li><strong>Ignoring DBSCAN because "it's for spatial data".</strong> DBSCAN works on any numeric matrix with meaningful distances. It's especially valuable when outliers matter.</li>
+
+</ol>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Hastie, T., Tibshirani, R., & Friedman, J., <em>The Elements of Statistical Learning</em>, 2nd ed. (Springer, 2009), Chapter 14 on unsupervised learning. <a href="https://hastie.su.domains/ElemStatLearn/">Link</a></li>
+
+<li><code>factoextra</code> package reference manual. <a href="https://cran.r-project.org/web/packages/factoextra/factoextra.pdf">Link</a></li>
+
+<li><code>dbscan</code> package on CRAN, Hahsler, M., Piekenbrock, M., Doran, D. <em>Journal of Statistical Software</em> 91(1), 2019. <a href="https://cran.r-project.org/package=dbscan">Link</a></li>
+
+<li>Ester, M., Kriegel, H.-P., Sander, J., & Xu, X., <em>A density-based algorithm for discovering clusters in large spatial databases with noise.</em> KDD-96 Proceedings. <a href="https://www.aaai.org/Papers/KDD/1996/KDD96-037.pdf">Link</a></li>
+
+<li>Ward, J. H., <em>Hierarchical grouping to optimize an objective function.</em> Journal of the American Statistical Association 58:236-244, 1963.</li>
+
+<li>Rousseeuw, P. J., <em>Silhouettes: a graphical aid to the interpretation and validation of cluster analysis.</em> Journal of Computational and Applied Mathematics 20:53-65, 1987.</li>
+
+<li>UC Business Analytics R Programming Guide, K-means and hierarchical clustering articles. <a href="https://uc-r.github.io/kmeans_clustering">Link</a></li>
+
+<li>STHDA, DBSCAN for discovering clusters in data with noise. <a href="https://www.sthda.com/english/wiki/wiki.php?id_contents=7940">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><strong><a href="PCA-in-R.html">PCA in R</a></strong>, <a class="auto-link" href="Reduce-Filter-Map-in-R.html" title="Reduce(), Filter(), Map() in Base R: Functional Trifecta Explained">Reduce</a> dimensions before clustering when your features are correlated.</li>
+
+<li><strong><a href="Multivariate-Statistics-in-R.html">Multivariate Distances</a></strong>, Understand the distance metrics that sit under every clustering algorithm.</li>
+
+<li><strong><a href="Outlier-Detection-in-R.html">Outlier Detection in R</a></strong>, DBSCAN's noise label is one approach; see the full toolkit for spotting anomalies.</li>
+
+</ul>
