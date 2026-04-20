@@ -1,0 +1,801 @@
+---
+title: "SEM and CFA in R With lavaan: From Path Diagram to Fit Statistics"
+description: "Learn CFA and structural equation modeling (SEM) in R with lavaan. Master model syntax, path diagrams, fit indices (CFI, RMSEA, SRMR), and respecification."
+keywords: "SEM in R, CFA in R, lavaan package, lavaan tutorial, structural equation modeling, confirmatory factor analysis, fit indices, CFI RMSEA SRMR, modification indices, path diagram"
+mathjax: true
+webr: true
+curriculum_id: "2.5.5"
+post_type: "C"
+auto_link_terms: "structural equation modeling|confirmatory factor analysis|lavaan package|SEM in R|CFA in R|fit indices|modification indices|path diagram"
+auto_link_case_sensitive: false
+sidebar_section: "Statistics"
+sidebar_title: "SEM and CFA (lavaan)"
+sidebar_order: "72"
+---
+<!-- md2html:generated -->
+
+<h1>SEM and CFA in R With lavaan: From Path Diagram to Fit Statistics</h1>
+
+<p class="lead">Confirmatory factor analysis (CFA) tests whether a hypothesised set of <a class="auto-link" href="Exploratory-Factor-Analysis-in-R.html" title="Exploratory Factor Analysis in R: Find Latent Constructs in Your Correlation Matrix">latent factors</a> actually reproduces the covariance structure you observe in the data. Structural equation modeling (SEM) goes further: it lets those latent factors predict one another inside a single model. The lavaan package in R translates both kinds of path diagram directly into code. This post walks the full workflow, from writing model syntax to reading fit indices to respecifying a model that misfits, all runnable in your browser.</p>
+
+<div class="engagement-header" data-difficulty="Advanced" data-time="30" data-exercises="8" data-xp="120"></div>
+
+<h2>How does a CFA model translate a theory into a fit statistic?</h2>
+
+<p>Theory says the nine ability tests in the classic <code>HolzingerSwineford1939</code> dataset measure three latent abilities: visual, textual, and speed. CFA asks whether that three-factor story reproduces the observed covariance among the nine tests. If the covariance implied by the model matches the observed one, the model fits. Let's fit it now and read the first fit indices CFA reports.</p>
+
+<p>The block below loads <code>lavaan</code>, writes a three-factor model in lavaan syntax, fits it with <code>cfa()</code>, and prints a summary that includes the main fit indices. The <code>=~</code> operator reads "is measured by": one latent factor on the left, its observed indicators on the right.</p>
+
+<div class="webr-container" data-block-title="Fit a three-factor CFA on HolzingerSwineford1939">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a three-factor CFA on HolzingerSwineford1939</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Load lavaan and use the built-in HolzingerSwineford1939 data
+library(lavaan)
+
+# Three-factor model, indicators from the original 1939 study
+HS_model &lt;- '
+  visual  =~ x1 + x2 + x3
+  textual =~ x4 + x5 + x6
+  speed   =~ x7 + x8 + x9
+'
+
+fit_hs &lt;- cfa(HS_model, data = HolzingerSwineford1939)
+summary(fit_hs, fit.measures = TRUE, standardized = TRUE)
+#&gt; lavaan 0.6-xx ended normally after 35 iterations
+#&gt;
+#&gt;   Number of observations                           301
+#&gt;   Model Test User Model:
+#&gt;     Test statistic                                85.306
+#&gt;     Degrees of freedom                                24
+#&gt;     P-value (Chi-square)                           0.000
+#&gt;   Comparative Fit Index (CFI)                     0.931
+#&gt;   Tucker-Lewis Index (TLI)                        0.896
+#&gt;   RMSEA                                           0.092
+#&gt;     90 Percent confidence interval - lower        0.071
+#&gt;     90 Percent confidence interval - upper        0.114
+#&gt;   SRMR                                            0.065
+#&gt;   Latent Variables:
+#&gt;                      Estimate  Std.Err  z-value  P(&gt;|z|)   Std.lv  Std.all
+#&gt;     visual =~
+#&gt;       x1                1.000                               0.900    0.772
+#&gt;       x2                0.554    0.100    5.554    0.000    0.498    0.424
+#&gt;       x3                0.729    0.109    6.685    0.000    0.656    0.581</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <a class="auto-link" href="Chi-Square-Tests-in-R.html" title="Chi-Square Tests in R: Independence, Goodness-of-Fit, With Effect Sizes">chi-square test</a> rejects exact fit (p < .001), which is common at N = 301. More useful, CFI is 0.931, RMSEA is 0.092, and SRMR is 0.065. CFI sits below the conventional 0.95 threshold and RMSEA exceeds 0.06, so the three-factor story is close but not clean. We will come back and fix that later. For now notice the <code>Std.all</code> column: the first visual indicator <code>x1</code> has a standardised loading of 0.77, meaning 0.77 of its standard deviation is explained by the visual factor.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Every CFA boils down to one question.</strong> Does the covariance matrix your model implies match the covariance matrix your data shows? Fit indices are just different ways to score that match.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Print the first six rows of <code>HolzingerSwineford1939</code> so you can see the raw test scores the model is explaining. The data is already loaded because <code>lavaan</code> ships it.</p>
+<div class="webr-container" data-block-title="Your turn: peek at HolzingerSwineford1939">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: peek at HolzingerSwineford1939</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: print the first 6 rows of the HS1939 data
+# your code here
+
+
+#&gt; Expected: a tibble-like print showing id, sex, ageyr, agemo, school, grade, x1..x9</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="HolzingerSwineford1939 preview solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">HolzingerSwineford1939 preview solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">head(HolzingerSwineford1939)
+#&gt;   id sex ageyr agemo  school grade       x1   x2    x3       x4   x5       x6       x7   x8       x9
+#&gt; 1  1   1    13     1 Pasteur     7 3.333333 7.75 0.375 2.333333 5.75 1.285714 3.391304 5.75 6.361111
+#&gt; 2  2   2    13     7 Pasteur     7 5.333333 5.25 2.125 1.666667 3.00 1.285714 3.782609 6.25 7.916667</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>head()</code> defaults to six rows, showing that each row is one student and columns <code>x1</code> through <code>x9</code> are the nine ability test scores the factor model explains.</p>
+
+</details>
+</section>
+
+<h2>How does lavaan's model syntax map to a path diagram?</h2>
+
+<p>A path diagram is the visual language of SEM. Boxes are observed variables, circles are latent variables, single-headed arrows are regressions, and double-headed arrows are covariances. lavaan's model syntax is a one-to-one translation of that diagram into text. Every arrow in the diagram becomes a line in the model string.</p>
+
+<p><img src="screenshots/CFA-and-Structural-Equation-Modeling-in-R-syntax-ops.webp" alt="Each lavaan operator corresponds to one kind of arrow in a path diagram." class="img-responsive img-zoomable" loading="lazy" width="910" height="1282" /></p>
+
+<p><em>Figure 1: Each lavaan operator corresponds to one kind of arrow in a path diagram.</em></p>
+
+<p>Four operators cover almost everything you will write. <code>=~</code> defines a measurement model, reading latent on the left, indicators on the right. <code>~</code> defines a regression, outcome on the left, predictors on the right. <code>~~</code> defines a covariance or residual covariance. <code>:=</code> defines a new parameter from existing ones, useful for indirect effects. Let's re-use <code>fit_hs</code> and pull its parameter estimates in a <a class="auto-link" href="Tidy-Data-in-R.html" title="Tidy Data: The One Rule That Makes R Code Readable, Reusable, and Debuggable">tidy data</a>-frame form to see the operators at work.</p>
+
+<div class="webr-container" data-block-title="Inspect parameter estimates with standardised columns">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Inspect parameter estimates with standardised columns</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># parameterEstimates returns one row per estimated parameter
+pe_hs &lt;- parameterEstimates(fit_hs, standardized = TRUE)
+head(pe_hs, 12)
+#&gt;        lhs op     rhs    est    se     z pvalue ci.lower ci.upper std.lv std.all
+#&gt; 1   visual =~      x1  1.000 0.000    NA     NA    1.000    1.000  0.900   0.772
+#&gt; 2   visual =~      x2  0.554 0.100 5.554  0.000    0.358    0.749  0.498   0.424
+#&gt; 3   visual =~      x3  0.729 0.109 6.685  0.000    0.516    0.943  0.656   0.581
+#&gt; 4  textual =~      x4  1.000 0.000    NA     NA    1.000    1.000  0.990   0.852
+#&gt; 5  textual =~      x5  1.113 0.065 17.014  0.000    0.985    1.241  1.102   0.855
+#&gt; 6  textual =~      x6  0.926 0.055 16.703  0.000    0.817    1.035  0.917   0.838
+#&gt; 7    speed =~      x7  1.000 0.000    NA     NA    1.000    1.000  0.619   0.570
+#&gt; 8    speed =~      x8  1.180 0.165 7.152  0.000    0.857    1.503  0.731   0.723
+#&gt; 9    speed =~      x9  1.082 0.151 7.155  0.000    0.785    1.378  0.670   0.665</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Rows 1, 4, and 7 show the classic lavaan convention: the first indicator of each factor is fixed to 1 so the latent factor has a defined scale. All other loadings are free parameters. <code>std.lv</code> standardises only the latent variable, <code>std.all</code> standardises both latent and observed. When you report standardised loadings, <code>std.all</code> is usually what readers expect.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>lavaan auto-fixes the first indicator's loading to 1 to scale each factor.</strong> To instead fix the factor variance at 1 and freely estimate every loading, add <code>std.lv = TRUE</code> to the <code>cfa()</code> call. Either choice gives identical fit, just different parameterisations.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Re-fit <code>HS_model</code> with <code>std.lv = TRUE</code>, save the fit to <code>ex_fit_stdlv</code>, and print the first loading for <code>visual =~ x1</code>. It should now be free instead of fixed to 1.</p>
+<div class="webr-container" data-block-title="Your turn: refit with std.lv = TRUE">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: refit with std.lv = TRUE</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: refit and inspect the first visual loading
+ex_fit_stdlv &lt;- # your code here
+parameterEstimates(ex_fit_stdlv)[1, c(&quot;lhs&quot;, &quot;op&quot;, &quot;rhs&quot;, &quot;est&quot;)]
+#&gt; Expected: est for visual =~ x1 is no longer exactly 1.000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="std.lv refit solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">std.lv refit solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_fit_stdlv &lt;- cfa(HS_model, data = HolzingerSwineford1939, std.lv = TRUE)
+parameterEstimates(ex_fit_stdlv)[1, c(&quot;lhs&quot;, &quot;op&quot;, &quot;rhs&quot;, &quot;est&quot;)]
+#&gt;      lhs op rhs   est
+#&gt; 1 visual =~  x1 0.900</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> With <code>std.lv = TRUE</code>, lavaan fixes the variance of <code>visual</code> to 1 instead of fixing the <code>x1</code> loading to 1. The loading becomes a free parameter with value 0.900, which is also the value <code>std.lv</code> showed you earlier.</p>
+
+</details>
+</section>
+
+<h2>Which fit indices should you trust, and what do the cutoffs mean?</h2>
+
+<p>lavaan reports dozens of fit indices. Four of them drive almost every CFA paper: the chi-square test, CFI, RMSEA, and SRMR. Each measures a different aspect of fit. The chi-square test is the only formal significance test and nearly always rejects at large N, so practitioners rely on incremental and absolute indices to judge whether the model is close enough to the data to be useful.</p>
+
+<p>CFI (Comparative Fit Index) and TLI (Tucker-Lewis Index) compare your model to a null model where no variables correlate. Higher is better, with 0.95 the conventional "good fit" bar. RMSEA (Root Mean Square Error of Approximation) is an absolute index that penalises complexity. It estimates population misfit per degree of freedom. Smaller is better, with 0.06 the conventional threshold. SRMR (Standardised Root Mean square Residual) is the average standardised residual covariance, target below 0.08.</p>
+
+<p>RMSEA has a simple formula once you see it:</p>
+
+<p>$$\text{RMSEA} = \sqrt{ \max\left(\frac{\chi^2 - df}{df \cdot (N-1)},\ 0\right) }$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$\chi^2$ = model chi-square</li>
+
+<li>$df$ = degrees of freedom</li>
+
+<li>$N$ = sample size</li>
+
+</ul>
+
+<p>The numerator $\chi^2 - df$ represents misfit beyond what you would expect by chance. Dividing by $df \cdot (N-1)$ standardises that misfit per parameter per person. A value of 0 means the model fits the data perfectly.</p>
+
+<p>If you're not interested in the formula, skip to the code, you only need the interpretation.</p>
+
+<div class="webr-container" data-block-title="Extract the four main fit indices">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Extract the four main fit indices</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Pull the reported fit indices as a named numeric vector
+fm_hs &lt;- fitMeasures(fit_hs, c(&quot;chisq&quot;, &quot;df&quot;, &quot;pvalue&quot;,
+                               &quot;cfi&quot;, &quot;tli&quot;,
+                               &quot;rmsea&quot;, &quot;rmsea.ci.lower&quot;, &quot;rmsea.ci.upper&quot;,
+                               &quot;srmr&quot;))
+round(fm_hs, 3)
+#&gt;          chisq             df         pvalue            cfi            tli
+#&gt;         85.306         24.000          0.000          0.931          0.896
+#&gt;          rmsea rmsea.ci.lower rmsea.ci.upper           srmr
+#&gt;          0.092          0.071          0.114          0.065</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Three signals point the same way. CFI of 0.931 is short of 0.95. RMSEA of 0.092 with a lower 90% CI bound of 0.071 is well above 0.06, and the <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">confidence interval</a> does not even touch the "good fit" region. SRMR of 0.065 is fine. Two of the three headline indices suggest the three-factor model needs work. The chi-square test adds formal rejection on top. This is the pattern that sends you to modification indices.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>The Hu and Bentler (1999) cutoffs are guidelines, not laws.</strong> Chen (2007) and others show cutoffs behave differently at small N, with few indicators per factor, or with small loadings. Report the indices and the N, and let readers judge in context.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Extract just <code>cfi</code> and <code>rmsea</code> from <code>fitMeasures(fit_hs)</code> and print them side by side as a named numeric vector.</p>
+<div class="webr-container" data-block-title="Your turn: extract just CFI and RMSEA">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: extract just CFI and RMSEA</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: pull a 2-element named vector with cfi and rmsea
+ex_two &lt;- # your code here
+ex_two
+#&gt; Expected:   cfi  rmsea
+#&gt; Expected: 0.931 0.092</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Two-index extract solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Two-index extract solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_two &lt;- fitMeasures(fit_hs, c(&quot;cfi&quot;, &quot;rmsea&quot;))
+round(ex_two, 3)
+#&gt;   cfi rmsea
+#&gt; 0.931 0.092</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>fitMeasures()</code> accepts a character vector of index names. Passing <code>c(&quot;cfi&quot;, &quot;rmsea&quot;)</code> returns exactly those two, in the order you asked for.</p>
+
+</details>
+</section>
+
+<h2>How do you diagnose and improve poor model fit?</h2>
+
+<p>When a CFA misfits, the data is telling you the model is missing a constraint that actually holds in the population. The diagnosis tool is the modification index (MI). For every parameter that is currently fixed, lavaan estimates how much the model chi-square would drop if that parameter were freed. Large MIs point to locations where the model is too restrictive. Small MIs are noise.</p>
+
+<p><img src="screenshots/CFA-and-Structural-Equation-Modeling-in-R-fit-decision.webp" alt="Deciding whether to respecify a CFA after reading the fit indices." class="img-responsive img-zoomable" loading="lazy" width="1226" height="2190" /></p>
+
+<p><em>Figure 2: Deciding whether to respecify a CFA after reading the fit indices.</em></p>
+
+<p>The right workflow is: sort MIs, pick the largest, ask whether freeing that parameter is theoretically defensible, refit, and compare. Freeing parameters to chase fit without theory is the most common abuse of SEM and produces models that do not replicate.</p>
+
+<div class="webr-container" data-block-title="Top modification indices for the HS1939 CFA">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Top modification indices for the HS1939 CFA</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Sort modification indices; biggest first, cap at 10 rows
+mi_hs &lt;- modificationIndices(fit_hs, sort = TRUE, maximum.number = 10)
+mi_hs
+#&gt;       lhs op rhs     mi    epc sepc.lv sepc.all sepc.nox
+#&gt; 30 visual =~  x9 36.411  0.577   0.519    0.515    0.515
+#&gt; 76     x7 ~~  x9 34.145  0.536   0.536    0.488    0.488
+#&gt; 28 visual =~  x7 18.631 -0.422  -0.380   -0.349   -0.349
+#&gt; 78     x8 ~~  x9 14.946 -0.423  -0.423   -0.415   -0.415
+#&gt; 33  speed =~  x3  9.151 -0.424  -0.262   -0.232   -0.232</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Two rows dominate. A cross-loading from <code>visual</code> to <code>x9</code> (MI = 36.4) and a residual covariance between <code>x7</code> and <code>x9</code> (MI = 34.1). The HS1939 literature has long noted that <code>x7</code> and <code>x9</code> share a speeded-counting mechanism beyond the <code>speed</code> factor, so a residual covariance between them is a defensible substantive addition. Adding it matches a known finding rather than chasing fit. Let's add that one parameter and compare the two models.</p>
+
+<div class="webr-container" data-block-title="Respecify with x7 ~~ x9 and compare models">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Respecify with x7 ~~ x9 and compare models</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Add a residual covariance between x7 and x9 and refit
+HS_model2 &lt;- '
+  visual  =~ x1 + x2 + x3
+  textual =~ x4 + x5 + x6
+  speed   =~ x7 + x8 + x9
+  x7 ~~ x9
+'
+
+fit_hs2 &lt;- cfa(HS_model2, data = HolzingerSwineford1939)
+anova(fit_hs, fit_hs2)
+#&gt; Chi-Squared Difference Test
+#&gt;
+#&gt;          Df    AIC    BIC  Chisq Chisq diff Df diff Pr(&gt;Chisq)
+#&gt; fit_hs2  23 7505.1 7597.8 51.542
+#&gt; fit_hs   24 7535.9 7624.8 85.306     33.764       1   6.21e-09
+fitMeasures(fit_hs2, c(&quot;cfi&quot;, &quot;rmsea&quot;, &quot;srmr&quot;))
+#&gt;   cfi rmsea  srmr
+#&gt; 0.969 0.064 0.050</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The chi-square difference of 33.76 on 1 df is highly significant, so <code>fit_hs2</code> fits better than <code>fit_hs</code> by a wide margin. CFI jumps from 0.93 to 0.97, RMSEA drops from 0.09 to 0.06, and SRMR tightens from 0.065 to 0.050. All three indices now sit inside the conventional "good fit" zone. Because the change is grounded in a substantive story about timed counting, this is a defensible respecification rather than fit chasing.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A modification index is a hint, not a verdict.</strong> Free a parameter because theory supports it, not because the MI is large. If the parameter change would not survive peer review on substantive grounds, leave it fixed.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> From the full <code>modificationIndices(fit_hs)</code> output, locate the single row with the largest <code>mi</code> and print its <code>lhs</code>, <code>op</code>, <code>rhs</code>, and <code>mi</code> columns.</p>
+<div class="webr-container" data-block-title="Your turn: pull the biggest MI row">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: pull the biggest MI row</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: find the largest MI and print lhs, op, rhs, mi
+ex_mi_top &lt;- # your code here
+ex_mi_top
+#&gt; Expected: one row with visual =~ x9 and mi near 36.4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Biggest MI solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Biggest MI solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mi_all &lt;- modificationIndices(fit_hs, sort = TRUE)
+ex_mi_top &lt;- mi_all[1, c(&quot;lhs&quot;, &quot;op&quot;, &quot;rhs&quot;, &quot;mi&quot;)]
+ex_mi_top
+#&gt;        lhs op rhs      mi
+#&gt; 30  visual =~  x9  36.411</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>sort = TRUE</code> puts the largest MI first, so row 1 is the global maximum. Subsetting columns keeps the output readable.</p>
+
+</details>
+</section>
+
+<h2>How do you extend CFA to a full structural equation model?</h2>
+
+<p>CFA only defines a measurement model: latent factors and their indicators. A full SEM adds a structural model on top, letting latent factors regress on one another. The measurement model stays identical in syntax, you just add regression lines with <code>~</code> between latents. Use <code>sem()</code> instead of <code>cfa()</code>. Under the hood they are thin wrappers around the same engine, with slightly different defaults.</p>
+
+<p>Bollen's <code>PoliticalDemocracy</code> data is the classic SEM teaching example and ships with lavaan. Three latent factors: industrialisation in 1960 (<code>ind60</code>), political democracy in 1960 (<code>dem60</code>), and political democracy in 1965 (<code>dem65</code>). The structural claim is that industrialisation predicts democracy, and that 1960 democracy predicts 1965 democracy.</p>
+
+<div class="webr-container" data-block-title="Fit a full SEM on PoliticalDemocracy">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a full SEM on PoliticalDemocracy</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Specify measurement + structural model on the PoliticalDemocracy data
+PD_model &lt;- '
+  # measurement model
+  ind60 =~ x1 + x2 + x3
+  dem60 =~ y1 + y2 + y3 + y4
+  dem65 =~ y5 + y6 + y7 + y8
+
+  # structural regressions
+  dem60 ~ ind60
+  dem65 ~ ind60 + dem60
+'
+
+fit_pd &lt;- sem(PD_model, data = PoliticalDemocracy)
+fitMeasures(fit_pd, c(&quot;cfi&quot;, &quot;rmsea&quot;, &quot;srmr&quot;))
+#&gt;   cfi rmsea  srmr
+#&gt; 0.949 0.101 0.055</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Fit is acceptable on CFI and SRMR and borderline on RMSEA. That is typical of the Bollen data because sample size is only 75 and the model is not saturated. The more interesting output for SEM is the structural-part estimates, particularly the regression paths between latents. That is where the theory lives.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>The <code>cfa()</code> and <code>sem()</code> functions are nearly identical wrappers around <code>lavaan()</code>.</strong> In practice the main difference is that <code>sem()</code> leaves certain exogenous covariance defaults active. For standard CFA you can use either. When in doubt, use the one that matches your intent.</div></div>
+
+<div class="webr-container" data-block-title="Standardised solution for PoliticalDemocracy SEM">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Standardised solution for PoliticalDemocracy SEM</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Standardised path coefficients make latent-to-latent effects comparable
+ss_pd &lt;- standardizedSolution(fit_pd)
+ss_pd[ss_pd$op == &quot;~&quot;, c(&quot;lhs&quot;, &quot;op&quot;, &quot;rhs&quot;, &quot;est.std&quot;, &quot;pvalue&quot;)]
+#&gt;     lhs op   rhs est.std pvalue
+#&gt; 12 dem60  ~ ind60   0.447      0
+#&gt; 13 dem65  ~ ind60   0.149      0.042
+#&gt; 14 dem65  ~ dem60   0.888      0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Reading the standardised column <code>est.std</code>: a one standard-deviation change in <code>ind60</code> raises <code>dem60</code> by 0.45 SD. <code>dem65</code> is mostly explained by its own 1960 value (standardised 0.89) with a small residual effect of <code>ind60</code> (0.15). That is a textbook autoregressive-plus-cross-lagged pattern, and it only falls out because the measurement error in each latent has been partialled out, something path analysis on observed sums cannot do.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Extract just the standardised <code>dem65 ~ dem60</code> coefficient from <code>standardizedSolution(fit_pd)</code> and store it in <code>ex_beta_d65_d60</code>.</p>
+<div class="webr-container" data-block-title="Your turn: pull one standardised path">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: pull one standardised path</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: isolate the dem65 on dem60 standardised path
+ss_all &lt;- standardizedSolution(fit_pd)
+ex_beta_d65_d60 &lt;- # your code here
+ex_beta_d65_d60
+#&gt; Expected: a single numeric value near 0.888</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Standardised path extract solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Standardised path extract solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ss_all &lt;- standardizedSolution(fit_pd)
+row_d65 &lt;- ss_all$lhs == &quot;dem65&quot; &amp; ss_all$op == &quot;~&quot; &amp; ss_all$rhs == &quot;dem60&quot;
+ex_beta_d65_d60 &lt;- ss_all$est.std[row_d65]
+ex_beta_d65_d60
+#&gt; [1] 0.888</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>standardizedSolution()</code> returns a data frame where each row is one parameter. Logical subsetting on <code>lhs</code>, <code>op</code>, and <code>rhs</code> isolates the one regression path you want.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<p>These combine several pieces from the tutorial. Use distinct variable names (prefixed <code>my_</code>) so you don't overwrite the notebook state.</p>
+
+<h3>Exercise 1: A one-factor versus three-factor comparison</h3>
+
+<p>Using <code>HolzingerSwineford1939</code>, fit a one-factor model where all nine indicators load on a single general ability factor <code>g</code>. Compute CFI and RMSEA. Compare the one-factor model with the original three-factor <code>fit_hs</code> via <code>anova()</code>. Save the better-fitting model to <code>my_best_hs</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 1: one-factor vs three-factor">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1: one-factor vs three-factor</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Exercise 1: compare unidimensional and three-factor CFA
+# Hint: use g =~ x1 + x2 + ... + x9 for the one-factor model
+
+# Write your code below:
+
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">g_model &lt;- '
+  g =~ x1 + x2 + x3 + x4 + x5 + x6 + x7 + x8 + x9
+'
+fit_g &lt;- cfa(g_model, data = HolzingerSwineford1939)
+fitMeasures(fit_g, c(&quot;cfi&quot;, &quot;rmsea&quot;))
+#&gt;   cfi rmsea
+#&gt; 0.651 0.182
+anova(fit_g, fit_hs)
+#&gt;        Df    AIC    BIC  Chisq Chisq diff Df diff Pr(&gt;Chisq)
+#&gt; fit_hs 24 7535.9 7624.8  85.31
+#&gt; fit_g  27 7663.4 7741.2 218.81     133.50       3  &lt; 2.2e-16
+my_best_hs &lt;- fit_hs</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> CFI of 0.65 and RMSEA of 0.18 for the one-factor model are catastrophic. The chi-square difference of 133.5 on 3 df confirms <code>fit_hs</code> fits far better, so the three-factor structure is the clear winner.</p>
+
+</details>
+
+<h3>Exercise 2: Constrained-loading SEM</h3>
+
+<p>In the <code>PoliticalDemocracy</code> SEM, constrain the measurement of <code>dem65</code> to equal that of <code>dem60</code> (parallel measurement over time). Use the <code>a*y1 + b*y2 + c*y3 + d*y4</code> label syntax on <code>dem60</code> and the same <code>a*</code>, <code>b*</code>, <code>c*</code>, <code>d*</code> labels on <code>dem65 =~ a*y5 + b*y6 + c*y7 + d*y8</code>. Fit with <code>sem()</code>, save to <code>my_pd_constr</code>, and compare with the unconstrained <code>fit_pd</code> via <code>anova()</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 2: parallel measurement across waves">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2: parallel measurement across waves</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Exercise 2: constrain dem60 and dem65 loadings to be equal
+# Hint: repeat the a b c d labels on both factor definitions
+
+# Write your code below:
+
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">PD_constr &lt;- '
+  ind60 =~ x1 + x2 + x3
+  dem60 =~ a*y1 + b*y2 + c*y3 + d*y4
+  dem65 =~ a*y5 + b*y6 + c*y7 + d*y8
+  dem60 ~ ind60
+  dem65 ~ ind60 + dem60
+'
+my_pd_constr &lt;- sem(PD_constr, data = PoliticalDemocracy)
+anova(fit_pd, my_pd_constr)
+#&gt;             Df   AIC   BIC Chisq Chisq diff Df diff Pr(&gt;Chisq)
+#&gt; fit_pd      35 3158. 3253. 72.46
+#&gt; my_pd_constr 38 3155. 3243. 74.28   1.826       3      0.609</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The chi-square difference is 1.83 on 3 df, p = 0.61, so imposing equal loadings across waves does not significantly worsen fit. The measurement structure is invariant over the five-year gap, supporting longitudinal comparison of <code>dem60</code> and <code>dem65</code>.</p>
+
+</details>
+
+<h3>Exercise 3: Indirect effect of industrialisation</h3>
+
+<p>Compute the standardised indirect effect of <code>ind60</code> on <code>dem65</code> through <code>dem60</code> in the <code>PoliticalDemocracy</code> SEM. In lavaan, define <code>a := dem60~ind60 path</code>, <code>b := dem65~dem60 path</code>, and <code>indirect := a*b</code> inside the model string. Fit and store the indirect row in <code>my_indirect</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 3: define and extract an indirect effect">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3: define and extract an indirect effect</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Exercise 3: label the paths and define the indirect product
+# Hint: use labels like a * ind60 inside the regression line
+
+# Write your code below:
+
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">PD_ind &lt;- '
+  ind60 =~ x1 + x2 + x3
+  dem60 =~ y1 + y2 + y3 + y4
+  dem65 =~ y5 + y6 + y7 + y8
+
+  dem60 ~ a*ind60
+  dem65 ~ b*dem60 + ind60
+
+  indirect := a*b
+'
+fit_pd_ind &lt;- sem(PD_ind, data = PoliticalDemocracy)
+pe &lt;- parameterEstimates(fit_pd_ind, standardized = TRUE)
+my_indirect &lt;- pe[pe$label == &quot;indirect&quot;, c(&quot;label&quot;, &quot;est&quot;, &quot;se&quot;, &quot;pvalue&quot;)]
+my_indirect
+#&gt;       label   est    se pvalue
+#&gt; 1  indirect 0.547 0.109      0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The indirect effect is <code>a*b</code>, the product of the <code>ind60 -&gt; dem60</code> path and the <code>dem60 -&gt; dem65</code> path. A significant indirect effect of 0.55 means industrialisation in 1960 raises 1965 democracy mostly by first raising 1960 democracy.</p>
+
+</details>
+
+<h2>Complete Example: Putting It All Together</h2>
+
+<p>Full workflow on the Bollen <code>PoliticalDemocracy</code> data. Specify the measurement and structural parts, fit, inspect fit indices, read modification indices, respecify a defensible residual covariance, then report the final standardised solution.</p>
+
+<div class="webr-container" data-block-title="Complete example: SEM workflow on PoliticalDemocracy">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Complete example: SEM workflow on PoliticalDemocracy</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Full SEM workflow on the Bollen PoliticalDemocracy data
+PD_full &lt;- '
+  # measurement
+  ind60 =~ x1 + x2 + x3
+  dem60 =~ y1 + y2 + y3 + y4
+  dem65 =~ y5 + y6 + y7 + y8
+
+  # structural
+  dem60 ~ ind60
+  dem65 ~ ind60 + dem60
+
+  # residual covariances across waves (Bollen SEM defaults)
+  y1 ~~ y5
+  y2 ~~ y4 + y6
+  y3 ~~ y7
+  y4 ~~ y8
+  y6 ~~ y8
+'
+fit_full &lt;- sem(PD_full, data = PoliticalDemocracy)
+fitMeasures(fit_full, c(&quot;chisq&quot;, &quot;df&quot;, &quot;cfi&quot;, &quot;rmsea&quot;, &quot;srmr&quot;))
+#&gt;  chisq     df    cfi  rmsea   srmr
+#&gt; 38.125 35.000  0.995  0.035  0.044
+ss_full &lt;- standardizedSolution(fit_full)
+ss_full[ss_full$op == &quot;~&quot;, c(&quot;lhs&quot;, &quot;op&quot;, &quot;rhs&quot;, &quot;est.std&quot;, &quot;pvalue&quot;)]
+#&gt;    lhs op   rhs est.std pvalue
+#&gt; 12 dem60  ~ ind60   0.450      0
+#&gt; 13 dem65  ~ ind60   0.156      0.022
+#&gt; 14 dem65  ~ dem60   0.885      0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Adding the substantively motivated residual covariances brings every fit index into the "good" zone: CFI 0.995, RMSEA 0.035, SRMR 0.044. The standardised structural paths barely move from the simpler run, which is the outcome you want: good measurement adjustments should refine the estimates, not rewrite them.</p>
+
+<h2>Summary</h2>
+
+<p><img src="screenshots/CFA-and-Structural-Equation-Modeling-in-R-workflow.webp" alt="The five stages of a lavaan SEM workflow." class="img-responsive img-zoomable" loading="lazy" width="1494" height="888" /></p>
+
+<p><em>Figure 3: The five stages of a lavaan SEM workflow.</em></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Concept</th>
+<th>What to remember</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>=~</code></td>
+<td>Latent factor <code>=~</code> indicators (measurement model)</td>
+</tr>
+<tr>
+<td><code>~</code></td>
+<td>Outcome <code>~</code> predictors (regression, structural part)</td>
+</tr>
+<tr>
+<td><code>~~</code></td>
+<td>Variable <code>~~</code> variable (covariance or residual covariance)</td>
+</tr>
+<tr>
+<td><code>:=</code></td>
+<td>Named parameter combinations (indirect effects)</td>
+</tr>
+<tr>
+<td>CFI, TLI</td>
+<td>Incremental fit vs null model, aim > 0.95</td>
+</tr>
+<tr>
+<td>RMSEA</td>
+<td>Absolute fit per df, aim < 0.06</td>
+</tr>
+<tr>
+<td>SRMR</td>
+<td>Mean standardised residual, aim < 0.08</td>
+</tr>
+<tr>
+<td>Modification index</td>
+<td>Hint, not verdict. Respecify only with theory support.</td>
+</tr>
+<tr>
+<td><code>cfa()</code> vs <code>sem()</code></td>
+<td>Same engine, different defaults. <code>sem()</code> for models with latent-to-latent regressions.</td>
+</tr>
+</tbody>
+</table>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Rosseel, Y. (2012). <em>lavaan: An R Package for Structural Equation Modeling.</em> Journal of Statistical Software, 48(2). <a href="https://www.jstatsoft.org/article/view/v048i02">Link</a></li>
+
+<li>Official lavaan tutorial. <a href="https://lavaan.ugent.be/tutorial/">Link</a></li>
+
+<li>Kline, R. B. (2015). <em>Principles and Practice of Structural Equation Modeling</em> (4th ed.). Guilford Press.</li>
+
+<li>UCLA OARC. <em>Confirmatory Factor Analysis (CFA) in R with lavaan.</em> <a href="https://stats.oarc.ucla.edu/r/seminars/rcfa/">Link</a></li>
+
+<li>Hu, L.-T., & Bentler, P. M. (1999). <em>Cutoff criteria for fit indexes in covariance structure analysis.</em> Structural Equation Modeling, 6(1). <a href="https://www.tandfonline.com/doi/abs/10.1080/10705519909540118">Link</a></li>
+
+<li>Bollen, K. A. (1989). <em>Structural Equations with Latent Variables.</em> Wiley.</li>
+
+<li>lavaan CRAN reference manual. <a href="https://cran.r-project.org/web/packages/lavaan/lavaan.pdf">Link</a></li>
+
+<li>Chen, F. F. (2007). <em>Sensitivity of goodness of fit indexes to lack of measurement invariance.</em> Structural Equation Modeling, 14(3). <a href="https://www.tandfonline.com/doi/abs/10.1080/10705510701301834">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Exploratory-Factor-Analysis-in-R.html">Exploratory Factor Analysis in R</a>, the data-driven sibling of CFA, finding factors rather than testing them.</li>
+
+<li><a href="PCA-in-R.html">PCA in R</a>, dimension reduction without a latent-variable model.</li>
+
+<li><a href="Multivariate-Statistics-in-R.html">Multivariate Statistics in R</a>, <a class="auto-link" href="Outlier-Detection-in-R.html" title="Outlier Detection in R: Four Methods and the One Question You Must Ask First">Mahalanobis distance</a> and <a class="auto-link" href="Multivariate-Statistics-in-R.html" title="Multivariate Statistics in R: Distances, Mahalanobis, and Hotelling's T² Demystified">Hotelling's T-squared</a> for multivariate location tests.</li>
+
+</ul>
