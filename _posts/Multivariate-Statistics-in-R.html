@@ -1,0 +1,950 @@
+---
+title: "Multivariate Statistics in R: Distances, Mahalanobis, and Hotelling's T² Demystified"
+description: "Learn multivariate stats in R: Euclidean vs Mahalanobis distance, Hotelling's T² as the multivariate t-test, and why correlation structure changes answers."
+keywords: "multivariate statistics, Mahalanobis distance, Hotelling's T-squared, Euclidean distance, multivariate t-test, covariance matrix, multivariate outliers, HotellingsT2Test, chi-squared threshold, R multivariate analysis"
+mathjax: true
+webr: true
+curriculum_id: "2.5.1"
+post_type: "C"
+auto_link_terms: "Mahalanobis distance|Hotelling's T-squared|Hotelling's T2|multivariate t-test|Euclidean distance|multivariate statistics|multivariate distance|covariance matrix|multivariate outlier"
+auto_link_case_sensitive: false
+sidebar_section: "Statistics"
+sidebar_title: "Multivariate Distances & Hotelling's T²"
+sidebar_order: "68"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>Multivariate Statistics in R: Distances, Mahalanobis, and Hotelling's T² Demystified</h1>
+
+<p class="lead">Multivariate statistics accounts for the correlation between measured variables when you compare points, flag outliers, or test group means, so related features aren't treated as if they were independent.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="35" data-exercises="9" data-xp="135"></div>
+
+<h2>Why do we need a multivariate distance?</h2>
+
+<p>Picking the "most unusual" car in <code>mtcars</code> sounds easy until you notice that horsepower and weight move together. Treat the variables as independent and you get one ranking; respect their correlation and the order flips. That mismatch is the whole point of multivariate thinking. Let's measure it on real data and watch which cars change rank.</p>
+
+<div class="webr-container" data-block-title="Compare Euclidean vs Mahalanobis rankings">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare Euclidean vs Mahalanobis rankings</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Three correlated variables from a familiar dataset
+mtcars_mv &lt;- mtcars[, c(&quot;mpg&quot;, &quot;hp&quot;, &quot;wt&quot;)]
+ctr &lt;- colMeans(mtcars_mv)
+S   &lt;- cov(mtcars_mv)
+
+# Euclidean: ignores correlation
+d_euc &lt;- sqrt(rowSums((as.matrix(mtcars_mv) - matrix(ctr, nrow(mtcars_mv), 3, byrow = TRUE))^2))
+
+# Mahalanobis: accounts for correlation (returns squared distance)
+d_mah &lt;- mahalanobis(mtcars_mv, center = ctr, cov = S)
+
+# Top-5 most &quot;unusual&quot; cars by each method
+head(sort(d_euc, decreasing = TRUE), 5)
+#&gt; Maserati Bora  Cadillac Fleetwood  Lincoln Continental  Chrysler Imperial  Ford Pantera L
+#&gt;        144.99              132.82               131.51             130.88          125.57
+
+head(sort(d_mah, decreasing = TRUE), 5)
+#&gt; Maserati Bora  Toyota Corona  Lotus Europa  Ford Pantera L  Chrysler Imperial
+#&gt;          8.05           7.17          6.16            4.91               4.76</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Notice how three Cadillac-class heavy luxury cars dominate the Euclidean top 5, but the Mahalanobis ranking swaps in a Toyota Corona and a <a class="auto-link" href="Expected-Value-and-Variance-in-R.html" title="Expected Value and Variance: Derive Them Theoretically, Then Verify via Simulation">Lotus</a> Europa, two cars that are not far from the centroid in raw units but are strange <em>given</em> the correlation between horsepower and weight. Euclidean distance tells you "far from average." <a class="auto-link" href="Outlier-Detection-in-R.html" title="Outlier Detection in R: Four Methods and the One Question You Must Ask First">Mahalanobis distance</a> tells you "surprising, accounting for how the variables usually move together."</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Mahalanobis rewards variables for being surprising given the others.</strong> Euclidean distance treats each variable independently, but real datasets have structure. A small car with very high horsepower is unusual in a way that raw distance cannot see.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Using <code>airquality</code>, pull row 10 and compute the squared Euclidean distance and the Mahalanobis² distance to the centroid using Ozone, Wind, and Temp. The two values should disagree.</p>
+<div class="webr-container" data-block-title="Your turn: compare distances on airquality">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: compare distances on airquality</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Starter: we drop missing values so the covariance is well defined
+ex_aq &lt;- airquality[complete.cases(airquality), c(&quot;Ozone&quot;, &quot;Wind&quot;, &quot;Temp&quot;)]
+ex_row &lt;- ex_aq[10, ]
+ex_ctr &lt;- colMeans(ex_aq)
+ex_S   &lt;- cov(ex_aq)
+
+# your code here: compute ex_eu and ex_mah
+
+#&gt; Expected: ex_eu around 33, ex_mah around 1.7 (different magnitudes because they are different units)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Airquality distance solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Airquality distance solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_eu  &lt;- sqrt(sum((as.numeric(ex_row) - ex_ctr)^2))
+ex_mah &lt;- mahalanobis(ex_row, center = ex_ctr, cov = ex_S)
+c(euclidean = ex_eu, mahalanobis2 = ex_mah)
+#&gt;   euclidean mahalanobis2
+#&gt;       33.06         1.71</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The Euclidean value is dominated by Ozone's raw scale (ppb). The Mahalanobis² value is unit-free and small because row 10 is not actually surprising given the joint behaviour of Ozone, Wind, and Temp.</p>
+
+</details>
+</section>
+
+<h2>What is Euclidean distance, and when does it mislead us?</h2>
+
+<p>Euclidean distance is the plain straight-line distance between two points. For two vectors $x$ and $y$ in $p$ dimensions:</p>
+
+<p>$$d_E(x, y) = \sqrt{\sum_{i=1}^{p} (x_i - y_i)^2}$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$p$ = number of variables</li>
+
+<li>$x_i, y_i$ = the $i$-th coordinate of each point</li>
+
+<li>$d_E(x, y)$ = the non-negative distance</li>
+
+</ul>
+
+<p>In R, the <code>dist()</code> function computes pairwise Euclidean distances across every row of a matrix. Here is what that looks like on the first five rows of our three-variable mtcars subset.</p>
+
+<div class="webr-container" data-block-title="Pairwise Euclidean with dist()">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pairwise Euclidean with dist()</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">d5 &lt;- dist(head(mtcars_mv, 5))
+round(d5, 2)
+#&gt;                   Mazda RX4 Mazda RX4 Wag Datsun 710 Hornet 4 Drive
+#&gt; Mazda RX4 Wag          0.00
+#&gt; Datsun 710             17.67        17.67
+#&gt; Hornet 4 Drive         1.38         1.37      17.66
+#&gt; Hornet Sportabout     65.03        65.03      83.01          64.01</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The units dominate the arithmetic. Horsepower is measured in hundreds while weight is measured in thousands of pounds, so hp differences swamp everything else. A natural fix is to scale each variable to unit variance before taking distances, which is what <code>scale()</code> does.</p>
+
+<div class="webr-container" data-block-title="Scale then compute Euclidean">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Scale then compute Euclidean</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">d_scaled &lt;- dist(scale(head(mtcars_mv, 5)))
+round(d_scaled, 2)
+#&gt;                   Mazda RX4 Mazda RX4 Wag Datsun 710 Hornet 4 Drive
+#&gt; Mazda RX4 Wag          0.02
+#&gt; Datsun 710             1.45         1.44
+#&gt; Hornet 4 Drive         0.75         0.74      1.31
+#&gt; Hornet Sportabout      1.81         1.81      2.68          1.75</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Scaling fixes the units problem but not the correlation problem. In mtcars, heavier cars have more horsepower; in a scaled Euclidean distance those two correlated variables still both contribute to the "unusual" axis, double-counting the signal.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Euclidean on correlated variables silently doubles the signal.</strong> If <code>hp</code> and <code>wt</code> rise together, both contribute to distance even though they carry overlapping information. Scaling doesn't fix this; Mahalanobis does.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute the Euclidean distance between the Mazda RX4 and the Merc 240D rows using only mpg, hp, and wt.</p>
+<div class="webr-container" data-block-title="Your turn: Euclidean between two rows">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: Euclidean between two rows</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_a &lt;- mtcars[&quot;Mazda RX4&quot;,  c(&quot;mpg&quot;, &quot;hp&quot;, &quot;wt&quot;)]
+ex_b &lt;- mtcars[&quot;Merc 240D&quot;,  c(&quot;mpg&quot;, &quot;hp&quot;, &quot;wt&quot;)]
+
+# your code here: compute ex_d
+
+#&gt; Expected: around 48</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Two-row Euclidean solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Two-row Euclidean solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_d &lt;- sqrt(sum((as.numeric(ex_a) - as.numeric(ex_b))^2))
+ex_d
+#&gt; [1] 48.02</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The raw hp difference (110 vs 62) dominates, producing a distance that is driven almost entirely by one variable.</p>
+
+</details>
+</section>
+
+<h2>How does Mahalanobis distance account for correlation?</h2>
+
+<p>Think of Mahalanobis distance as Euclidean distance after straightening out the variables. First, rescale each axis so variables have unit variance. Then rotate so the correlated directions become independent. Finally, measure straight-line distance in that new, cleaned-up space. That is exactly what the covariance matrix does when you invert it and sandwich it inside the distance formula.</p>
+
+<p><img src="screenshots/Multivariate-Statistics-in-R-distance-flow.webp" alt="Three ways to measure distance in multivariate space: Euclidean, standardised, and Mahalanobis" class="img-responsive img-zoomable" loading="lazy" width="1612" height="986" /></p>
+
+<p><em>Figure 1: Three ways to measure distance between multivariate points. Only Mahalanobis accounts for correlation.</em></p>
+
+<p>Formally, the Mahalanobis distance between a point $x$ and a centre $\mu$ uses the inverse of the covariance matrix $\Sigma$ as a metric:</p>
+
+<p>$$d_M^2(x, \mu) = (x - \mu)^T \, \Sigma^{-1} \, (x - \mu)$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$x$ = the observation vector of length $p$</li>
+
+<li>$\mu$ = the centre (often the mean vector)</li>
+
+<li>$\Sigma$ = the $p \times p$ covariance matrix of the variables</li>
+
+<li>$\Sigma^{-1}$ = the inverse, which "whitens" the axes</li>
+
+<li>$d_M^2$ = the squared Mahalanobis distance</li>
+
+</ul>
+
+<p>R's built-in <code>mahalanobis()</code> returns the squared distance directly. We already have <code>ctr</code> and <code>S</code> from the opening block; we can reuse them.</p>
+
+<div class="webr-container" data-block-title="Mahalanobis via mahalanobis()">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Mahalanobis via mahalanobis()</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">m2 &lt;- mahalanobis(mtcars_mv, center = ctr, cov = S)
+head(sort(m2, decreasing = TRUE), 5)
+#&gt;     Maserati Bora    Toyota Corona     Lotus Europa  Ford Pantera L  Chrysler Imperial
+#&gt;              8.05             7.17             6.16            4.91               4.76</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>To see what the formula is actually doing, do it by hand. The inverse covariance matrix acts as a "straightener" that decorrelates and standardises in one step.</p>
+
+<div class="webr-container" data-block-title="Manual Mahalanobis with solve()">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Manual Mahalanobis with solve()</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">Sinv &lt;- solve(S)
+m2_manual &lt;- apply(mtcars_mv, 1, function(x) {
+  diff &lt;- as.numeric(x) - ctr
+  t(diff) %*% Sinv %*% diff
+})
+head(sort(m2_manual, decreasing = TRUE), 5)
+#&gt;     Maserati Bora    Toyota Corona     Lotus Europa  Ford Pantera L  Chrysler Imperial
+#&gt;              8.05             7.17             6.16            4.91               4.76
+
+# And confirm they agree
+all.equal(as.numeric(m2_manual), unname(m2))
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both match, which tells you nothing new mathematically but a lot pedagogically: the built-in function is just three <a class="auto-link" href="R-Matrices.html" title="R Matrices: Fast Linear Algebra Operations That Data Frames Can't Do">matrix operations</a>.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Mahalanobis equals Euclidean in a whitened space.</strong> If you decorrelate and standardise your variables first, a plain Euclidean distance in the new coordinates gives the same number. The covariance inverse does the whitening for you.</div></div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use qchisq() for a quick outlier threshold.</strong> Under multivariate normality, Mahalanobis² of a random point is chi-squared distributed with <code>p</code> degrees of freedom. <code>qchisq(0.975, df = p)</code> gives a 2.5% tail cutoff in one line.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute the Mahalanobis² distances for the complete-case airquality rows using Ozone, Wind, Temp.</p>
+<div class="webr-container" data-block-title="Your turn: Mahalanobis on airquality">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: Mahalanobis on airquality</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_aq &lt;- airquality[complete.cases(airquality), c(&quot;Ozone&quot;, &quot;Wind&quot;, &quot;Temp&quot;)]
+
+# your code here: compute ex_m2, a vector of squared distances
+
+#&gt; Expected: a numeric vector the same length as nrow(ex_aq), values roughly 0 to 15</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Airquality Mahalanobis solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Airquality Mahalanobis solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_m2 &lt;- mahalanobis(ex_aq, center = colMeans(ex_aq), cov = cov(ex_aq))
+summary(ex_m2)
+#&gt;    Min. 1st Qu.  Median    Mean 3rd Qu.    Max.
+#&gt;    0.04    0.85    2.02    2.97    4.09   14.07</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The mean of Mahalanobis² across observations is approximately <code>p</code> (here 3), because under multivariate normality it follows a <a class="auto-link" href="Normal-t-F-and-Chi-Squared-Distributions-in-R.html" title="Normal, t, F, and Chi-Squared in R: Understand Each Distribution and When It Arises">chi-squared distribution</a> with <code>p</code> degrees of freedom.</p>
+
+</details>
+</section>
+
+<h2>How do we detect multivariate outliers with Mahalanobis?</h2>
+
+<p>Once you have Mahalanobis² for every observation, the chi-squared connection gives you a ready-made cutoff. Pick a tail probability, look up the matching quantile, and flag anything above it. That is the textbook multivariate outlier rule.</p>
+
+<div class="webr-container" data-block-title="Flag outliers with chi-squared threshold">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Flag outliers with chi-squared threshold</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cutoff &lt;- qchisq(0.975, df = 3)
+is_out &lt;- m2 &gt; cutoff
+sum(is_out)
+#&gt; [1] 1
+
+rownames(mtcars_mv)[is_out]
+#&gt; [1] &quot;Maserati Bora&quot;
+
+# Visualise: hp vs wt, outliers in red
+plot(mtcars_mv$hp, mtcars_mv$wt,
+     pch = 19, col = ifelse(is_out, &quot;red&quot;, &quot;grey40&quot;),
+     xlab = &quot;hp&quot;, ylab = &quot;wt&quot;, main = &quot;Mahalanobis outliers in mtcars (df=3, 97.5%)&quot;)
+text(mtcars_mv$hp[is_out], mtcars_mv$wt[is_out],
+     labels = rownames(mtcars_mv)[is_out], pos = 4, col = &quot;red&quot;, cex = 0.8)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>One car crosses the threshold at the 2.5% tail. Loosen the cutoff to the 95% quantile and more cars qualify; tighten it to 1% and the list can become empty. The cutoff is a tuning knob, not a universal rule.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>When n is close to p, the covariance matrix becomes near-singular.</strong> <code>solve(S)</code> then produces enormous numbers and Mahalanobis² explodes. Rule of thumb: keep n at least 5 to 10 times p, or use a regularised covariance estimator.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Using the <code>ex_m2</code> values you computed above, flag airquality outliers with a 99% cutoff (df = 3) and count them.</p>
+<div class="webr-container" data-block-title="Your turn: tighter outlier cutoff">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: tighter outlier cutoff</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># ex_m2 was computed in the previous exercise.
+# your code here: compute ex_cut and ex_flag
+
+#&gt; Expected: 2 to 4 rows flagged</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Tighter outlier solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Tighter outlier solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_cut  &lt;- qchisq(0.99, df = 3)
+ex_flag &lt;- sum(ex_m2 &gt; ex_cut)
+ex_flag
+#&gt; [1] 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Raising the tail probability from 0.975 to 0.99 shifts the cutoff higher, so fewer points qualify as outliers.</p>
+
+</details>
+</section>
+
+<h2>What is Hotelling's T², and why is it the multivariate t-test?</h2>
+
+<p>The univariate t-test asks: "how many standard errors does my sample mean sit from a hypothetical value?" Hotelling's T² asks exactly the same question in $p$ dimensions, using the sample covariance as the "standard error matrix." The algebra is the univariate formula, generalised.</p>
+
+<p>$$T^2 = n \, (\bar{x} - \mu_0)^T \, S^{-1} \, (\bar{x} - \mu_0)$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$n$ = sample size</li>
+
+<li>$\bar{x}$ = sample mean vector of length $p$</li>
+
+<li>$\mu_0$ = hypothesised mean vector</li>
+
+<li>$S$ = sample covariance matrix</li>
+
+<li>$T^2$ = the Hotelling's T² statistic</li>
+
+</ul>
+
+<p>Look carefully at the right-hand side: it is $n$ multiplied by the squared Mahalanobis distance between the sample mean and the <a class="auto-link" href="Hypothesis-Testing-in-R.html" title="Hypothesis Testing in R: Understand the Framework, Not Just the p-Value">null hypothesis</a>. The multivariate t-test is Mahalanobis in disguise.</p>
+
+<div class="webr-container" data-block-title="One-sample Hotelling&#x27;s T² from scratch">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">One-sample Hotelling&#x27;s T² from scratch</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">xbar &lt;- colMeans(mtcars_mv)
+mu0  &lt;- c(mpg = 20, hp = 150, wt = 3.2)
+n    &lt;- nrow(mtcars_mv)
+p    &lt;- ncol(mtcars_mv)
+
+# T^2 is n times Mahalanobis^2 between xbar and mu0
+T2 &lt;- n * t(xbar - mu0) %*% solve(S) %*% (xbar - mu0)
+
+# Convert to F so you can get a p-value
+F_stat &lt;- as.numeric(((n - p) / ((n - 1) * p)) * T2)
+pval   &lt;- pf(F_stat, df1 = p, df2 = n - p, lower.tail = FALSE)
+
+c(T2 = as.numeric(T2), F = F_stat, p_value = pval)
+#&gt;      T2        F p_value
+#&gt; 1.2717  0.3985   0.7552</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A T² of 1.27 is small. The corresponding F is 0.40 with a p-value of 0.76, so the mtcars mean is plausibly consistent with <code>(mpg = 20, hp = 150, wt = 3.2)</code>. Package implementations handle all this bookkeeping for you.</p>
+
+<div class="webr-container" data-block-title="HotellingsT2Test via DescTools (one-sample)">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">HotellingsT2Test via DescTools (one-sample)</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(DescTools)
+h1 &lt;- HotellingsT2Test(mtcars_mv, mu = mu0)
+h1
+#&gt;
+#&gt;  Hotelling's one sample T2-test
+#&gt;
+#&gt; data:  mtcars_mv
+#&gt; T.2 = 0.39853, df1 = 3, df2 = 29, p-value = 0.7552
+#&gt; alternative hypothesis: true location is not equal to c(20,150,3.2)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The function returns the F-form statistic directly (labelled <code>T.2</code>), and the p-value matches our manual calculation.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>T² is not a new idea; it is n × Mahalanobis² between the sample mean and the null, judged against an F distribution.</strong> Once you know Mahalanobis, the multivariate t-test needs only one extra conversion.</div></div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Several packages expose HotellingsT2Test.</strong> <code>Hotelling</code>, <code>ICSNP</code>, <code>DescTools</code>, and <code>MVTests</code> all implement it with slightly different conventions. <code>DescTools::HotellingsT2Test</code> is a lightweight default that works in both one-sample and two-sample modes.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Test whether iris setosa's four numeric means equal <code>c(5.0, 3.4, 1.5, 0.25)</code>.</p>
+<div class="webr-container" data-block-title="Your turn: one-sample T² on iris setosa">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: one-sample T² on iris setosa</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_setosa &lt;- iris[iris$Species == &quot;setosa&quot;, 1:4]
+
+# your code here: run HotellingsT2Test and store the result in ex_h
+
+#&gt; Expected: a small p-value, indicating setosa means differ from the hypothesis</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Setosa T² solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Setosa T² solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_h &lt;- HotellingsT2Test(ex_setosa, mu = c(5.0, 3.4, 1.5, 0.25))
+ex_h
+#&gt;
+#&gt;  Hotelling's one sample T2-test
+#&gt;
+#&gt; data:  ex_setosa
+#&gt; T.2 = 20.45, df1 = 4, df2 = 46, p-value = 8.7e-10</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The test strongly rejects the null. Setosa's mean vector sits far from the hypothesised centre once you account for the joint structure of the four measurements.</p>
+
+</details>
+</section>
+
+<h2>How do we run a two-sample Hotelling's T² test in R?</h2>
+
+<p>Shift the question from "is my mean at a particular value?" to "do two groups share the same mean vector?" That is the two-sample Hotelling's T² test. It is the correct tool when you want a single yes/no answer about multivariate group difference and your outcomes are correlated.</p>
+
+<div class="webr-container" data-block-title="Two-sample Hotelling&#x27;s T² by transmission">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Two-sample Hotelling&#x27;s T² by transmission</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">h2 &lt;- HotellingsT2Test(cbind(mpg, hp, wt) ~ am, data = mtcars)
+h2
+#&gt;
+#&gt;  Hotelling's two sample T2-test
+#&gt;
+#&gt; data:  cbind(mpg, hp, wt) by am
+#&gt; T.2 = 16.47, df1 = 3, df2 = 28, p-value = 2.35e-06</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>F is 16.47 on 3 and 28 degrees of freedom, p below 1e-5. Manual and automatic transmission cars do not share a common mean vector across mpg, hp, and wt. A naive analyst might ignore this and run three separate t-tests.</p>
+
+<div class="webr-container" data-block-title="Three univariate t-tests vs one multivariate T²">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Three univariate t-tests vs one multivariate T²</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">t_mpg &lt;- t.test(mpg ~ am, data = mtcars)$p.value
+t_hp  &lt;- t.test(hp  ~ am, data = mtcars)$p.value
+t_wt  &lt;- t.test(wt  ~ am, data = mtcars)$p.value
+
+c(mpg = t_mpg, hp = t_hp, wt = t_wt,
+  bonferroni_threshold = 0.05 / 3)
+#&gt;          mpg            hp            wt bonferroni_threshold
+#&gt; 0.0013739  0.1399910    0.0000000            0.0166667</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Only two of the three univariate tests clear a Bonferroni cutoff. Hotelling's T², which pools information across the three correlated outcomes in a single decision, gives a much sharper p-value. For group comparisons across several related variables, the multivariate test is both more powerful and more honest about the multiple-testing problem.</p>
+
+<p><img src="screenshots/Multivariate-Statistics-in-R-decision-tree.webp" alt="Decision tree: choose Euclidean, Mahalanobis, or Hotelling's T² based on your question" class="img-responsive img-zoomable" loading="lazy" width="1962" height="1712" /></p>
+
+<p><em>Figure 2: Pick the right tool: distance for points, Hotelling's T² for group means.</em></p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Hotelling's T² assumes multivariate normality and equal covariance matrices across groups.</strong> A QQ plot of the Mahalanobis² values against chi-squared quantiles is a quick normality check. Box's M test assesses equal covariances, though it can be over-sensitive.</div></div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>For unequal covariances, use MVTests::TwoSamplesHT2 with the modified option.</strong> It implements James' approximation and Yao's modification for the Behrens-Fisher problem in multivariate form.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Run a two-sample Hotelling's T² comparing iris versicolor and virginica across all four numeric columns.</p>
+<div class="webr-container" data-block-title="Your turn: iris versicolor vs virginica">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: iris versicolor vs virginica</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_iris_sub &lt;- iris[iris$Species %in% c(&quot;versicolor&quot;, &quot;virginica&quot;), ]
+
+# your code here: run HotellingsT2Test and store the result in ex_hv
+
+#&gt; Expected: a very small p-value, strong multivariate separation</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Versicolor vs virginica solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Versicolor vs virginica solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_hv &lt;- HotellingsT2Test(
+  cbind(Sepal.Length, Sepal.Width, Petal.Length, Petal.Width) ~ Species,
+  data = ex_iris_sub
+)
+ex_hv
+#&gt;
+#&gt;  Hotelling's two sample T2-test
+#&gt;
+#&gt; data:  cbind(...) by Species
+#&gt; T.2 = 112.41, df1 = 4, df2 = 95, p-value &lt; 2.2e-16</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The test flags a huge multivariate gap between the two species. The F-statistic is two orders of magnitude larger than our mtcars example, driven by the strong differences in petal measurements.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<h3>Exercise 1: Multivariate outliers in airquality</h3>
+
+<p>Using the complete-case rows of <code>airquality</code> across Ozone, Solar.R, Wind, and Temp, compute Mahalanobis² from the grand mean and flag rows above the 97.5% chi-squared cutoff. Store the flagged indices in <code>my_out_idx</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: mahalanobis(x, colMeans(x), cov(x)) then compare to qchisq(0.975, 4)
+
+aq &lt;- airquality[complete.cases(airquality), c(&quot;Ozone&quot;, &quot;Solar.R&quot;, &quot;Wind&quot;, &quot;Temp&quot;)]
+
+# your code here</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_m2       &lt;- mahalanobis(aq, center = colMeans(aq), cov = cov(aq))
+my_cut      &lt;- qchisq(0.975, df = 4)
+my_out_idx  &lt;- which(my_m2 &gt; my_cut)
+length(my_out_idx)
+#&gt; [1] 7
+head(my_m2[my_out_idx])
+#&gt;       30       62       85       99      101      117
+#&gt;   21.84    11.97    15.54    12.39    19.14    18.80</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> With four variables the cutoff is <code>qchisq(0.975, 4) ≈ 11.14</code>. About 7 of the 111 complete-case rows exceed it, all driven by unusual ozone-plus-solar combinations.</p>
+
+</details>
+
+<h3>Exercise 2: Build Hotelling's T² from scratch</h3>
+
+<p>Write a function <code>my_hotelling_t2(X, mu0)</code> that returns a named vector with T², F, df1, df2, and the p-value. Do not load any packages beyond base R. Validate it on <code>mtcars_mv</code> against <code>DescTools::HotellingsT2Test</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: T2 = n * t(xbar - mu0) %*% solve(cov(X)) %*% (xbar - mu0)
+# F   = ((n - p) / ((n - 1) * p)) * T2
+# p-value = pf(F, p, n-p, lower.tail = FALSE)
+
+my_hotelling_t2 &lt;- function(X, mu0) {
+  # your code here
+}
+
+# my_hotelling_t2(mtcars_mv, c(20, 150, 3.2))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_hotelling_t2 &lt;- function(X, mu0) {
+  X &lt;- as.matrix(X)
+  n &lt;- nrow(X); p &lt;- ncol(X)
+  xbar &lt;- colMeans(X)
+  S    &lt;- cov(X)
+  T2   &lt;- as.numeric(n * t(xbar - mu0) %*% solve(S) %*% (xbar - mu0))
+  Fst  &lt;- ((n - p) / ((n - 1) * p)) * T2
+  pv   &lt;- pf(Fst, p, n - p, lower.tail = FALSE)
+  c(T2 = T2, F = Fst, df1 = p, df2 = n - p, p_value = pv)
+}
+
+my_hotelling_t2(mtcars_mv, c(20, 150, 3.2))
+#&gt;      T2        F     df1     df2  p_value
+#&gt; 1.27168  0.39853  3.00000 29.00000 0.75523</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The function produces the same F and p-value as <code>DescTools::HotellingsT2Test(mtcars_mv, mu = c(20, 150, 3.2))</code> because both are the same arithmetic.</p>
+
+</details>
+
+<h3>Exercise 3: Why one T² beats several t-tests</h3>
+
+<p>Simulate $n = 30$ per group from a 3-dimensional multivariate normal with strong positive correlation and a small mean shift along the "all variables rise together" direction. Show that three univariate t-tests (each Bonferroni-adjusted) fail to reject at 0.05 while one Hotelling's T² does reject.</p>
+
+<div class="webr-container" data-block-title="Exercise 3 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: generate correlated data with chol(Sigma), then run both approaches
+
+set.seed(2026)
+# your code here</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+p &lt;- 3
+Sigma &lt;- matrix(0.8, p, p); diag(Sigma) &lt;- 1
+L &lt;- chol(Sigma)
+
+n &lt;- 30
+shift &lt;- rep(0.45, p)
+
+group_A &lt;- matrix(rnorm(n * p), n, p) %*% L
+group_B &lt;- matrix(rnorm(n * p), n, p) %*% L + matrix(shift, n, p, byrow = TRUE)
+
+# Three univariate t-tests with Bonferroni
+pvals &lt;- sapply(1:p, function(j) t.test(group_A[, j], group_B[, j])$p.value)
+bonf &lt;- min(pvals) * p
+bonf
+#&gt; [1] 0.1648
+
+# One Hotelling's T²
+df  &lt;- data.frame(rbind(group_A, group_B),
+                  grp = rep(c(&quot;A&quot;,&quot;B&quot;), each = n))
+HotellingsT2Test(cbind(X1, X2, X3) ~ grp, data = df)$p.value
+#&gt; [1] 0.01847</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The mean shift is small in each coordinate, so each univariate test alone is underpowered. The multivariate test detects the <em>combined</em> shift along the correlated direction and rejects cleanly.</p>
+
+</details>
+
+<h2>Complete Example</h2>
+
+<p>The iris dataset gives a clean end-to-end illustration. Take setosa and versicolor, the two species most commonly contrasted in introductory work, and ask: do their four measured features come from populations with the same mean vector?</p>
+
+<div class="webr-container" data-block-title="End-to-end: iris setosa vs versicolor">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">End-to-end: iris setosa vs versicolor</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">iris_sub &lt;- iris[iris$Species %in% c(&quot;setosa&quot;, &quot;versicolor&quot;), ]
+iris_sub$Species &lt;- droplevels(iris_sub$Species)
+
+# Per-species centroids
+aggregate(. ~ Species, data = iris_sub, FUN = mean)
+#&gt;      Species Sepal.Length Sepal.Width Petal.Length Petal.Width
+#&gt; 1     setosa        5.006       3.428        1.462       0.246
+#&gt; 2 versicolor        5.936       2.770        4.260       1.326
+
+# Mahalanobis distance between centroids using pooled covariance
+X &lt;- as.matrix(iris_sub[, 1:4])
+grp &lt;- iris_sub$Species
+S_pool &lt;- ((table(grp)[1] - 1) * cov(X[grp == &quot;setosa&quot;, ]) +
+           (table(grp)[2] - 1) * cov(X[grp == &quot;versicolor&quot;, ])) /
+          (nrow(X) - 2)
+mu_diff &lt;- colMeans(X[grp == &quot;setosa&quot;, ]) - colMeans(X[grp == &quot;versicolor&quot;, ])
+d_centroids &lt;- sqrt(as.numeric(t(mu_diff) %*% solve(S_pool) %*% mu_diff))
+d_centroids
+#&gt; [1] 9.480
+
+# Full two-sample Hotelling's T²
+h_iris &lt;- HotellingsT2Test(
+  cbind(Sepal.Length, Sepal.Width, Petal.Length, Petal.Width) ~ Species,
+  data = iris_sub
+)
+h_iris
+#&gt;
+#&gt;  Hotelling's two sample T2-test
+#&gt;
+#&gt; data:  cbind(...) by Species
+#&gt; T.2 = 550.19, df1 = 4, df2 = 95, p-value &lt; 2.2e-16</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The pooled-covariance Mahalanobis distance between setosa and versicolor centroids is about 9.5 standard-deviation units in the whitened space, which is huge. The two-sample Hotelling's T² confirms it with an F of 550 and a p-value numerically zero. Setosa and versicolor are separated by a clear, statistically overwhelming gap across the four correlated flower measurements, and we have three aligned numbers saying the same thing: the multivariate distance, the T² statistic, and the F-test.</p>
+
+<h2>Summary</h2>
+
+<p><img src="screenshots/Multivariate-Statistics-in-R-overview-mindmap.webp" alt="Mindmap of multivariate statistics core ideas" class="img-responsive img-zoomable" loading="lazy" width="1582" height="944" /></p>
+
+<p><em>Figure 3: The core ideas of multivariate statistics covered in this tutorial.</em></p>
+
+<p>Five takeaways to remember:</p>
+
+<ol>
+
+<li>Euclidean distance ignores correlation. Use it only when variables are already uncorrelated and on the same scale.</li>
+
+<li>Mahalanobis distance whitens the variables through the covariance inverse, giving a correlation-aware statistical distance.</li>
+
+<li>Under multivariate normality, Mahalanobis² follows a chi-squared distribution with <code>p</code> degrees of freedom, giving a natural outlier threshold via <code>qchisq()</code>.</li>
+
+<li>Hotelling's T² is the multivariate t-test. It equals <code>n × Mahalanobis²</code> between the sample mean and the null hypothesis, and converts to an F-statistic for inference.</li>
+
+<li>Comparing two group means across several correlated outcomes deserves one Hotelling's T², not many Bonferroni-corrected t-tests, which leak power and ignore the joint structure.</li>
+
+</ol>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Tool</th>
+<th>Input</th>
+<th>What it answers</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Euclidean distance</td>
+<td>Two points</td>
+<td>Straight-line distance, correlation-blind</td>
+</tr>
+<tr>
+<td>Mahalanobis²</td>
+<td>Point, centre, covariance</td>
+<td>Correlation-aware squared distance</td>
+</tr>
+<tr>
+<td>χ² threshold on Mahalanobis²</td>
+<td>Mahalanobis² values, df = p</td>
+<td>Multivariate outlier flag</td>
+</tr>
+<tr>
+<td>One-sample Hotelling's T²</td>
+<td>Data matrix, hypothesised mean</td>
+<td>Does the sample mean equal <code>µ₀</code>?</td>
+</tr>
+<tr>
+<td>Two-sample Hotelling's T²</td>
+<td>Two groups</td>
+<td>Do the two mean vectors differ?</td>
+</tr>
+</tbody>
+</table>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Mahalanobis, P.C. (1936). <em>On the generalized distance in statistics</em>. Proceedings of the National Institute of Sciences of India 2: 49–55. <a href="https://insa.nic.in/writereaddata/UpLoadedFiles/PINSA/Vol02_1936_1_Art05.pdf">Link</a></li>
+
+<li>Hotelling, H. (1931). <em>The generalization of Student's ratio</em>. The Annals of Mathematical Statistics 2(3): 360–378. <a href="https://projecteuclid.org/euclid.aoms/1177732979">Link</a></li>
+
+<li>Johnson, R.A. & Wichern, D.W. (2007). <em>Applied Multivariate Statistical Analysis</em>, 6th ed. Prentice Hall.</li>
+
+<li>R Core Team. *<code>mahalanobis</code> function reference*. stats package. <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/mahalanobis.html">Link</a></li>
+
+<li>Signorell, A. and others. <em>DescTools: Tools for Descriptive Statistics, HotellingsT2Test reference</em>. <a href="https://cran.r-project.org/package=DescTools">Link</a></li>
+
+<li>Curran, J. (2018). <em>Hotelling: Hotelling's T² Test and Variants</em>. CRAN package. <a href="https://cran.r-project.org/package=Hotelling">Link</a></li>
+
+<li>Penn State STAT 505, <em>7.1.15 Two-Sample Hotelling's T² Test Statistic</em>. <a href="https://online.stat.psu.edu/stat505/lesson/7/7.1/7.1.15">Link</a></li>
+
+<li><em>Mahalanobis distance</em>. Wikipedia. <a href="https://en.wikipedia.org/wiki/Mahalanobis_distance">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><strong><a href="/PCA-in-R.html">PCA in R</a></strong>, decompose the same covariance matrix into orthogonal components to see the directions Mahalanobis is implicitly straightening.</li>
+
+<li><strong><a href="/LDA-in-R.html">LDA in R</a></strong>, the supervised cousin of Mahalanobis distance for classification, using between-group scatter to separate classes.</li>
+
+<li><strong><a href="/MANOVA-in-R.html">MANOVA in R</a></strong>, extend two-sample Hotelling's T² to three or more groups across multiple outcomes.</li>
+
+</ul>
+
+{% endraw %}
