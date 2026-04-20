@@ -1,0 +1,944 @@
+---
+title: "One-Way ANOVA in R: F-Test, Levene's Test, and Post-Hoc, Complete Walkthrough"
+description: "Fit a one-way ANOVA in R with aov(), check homogeneity via Levene's test, interpret the F-statistic, and run Tukey HSD to find which groups truly differ."
+keywords: "one-way ANOVA R, aov function, ANOVA F-test, Levene's test, TukeyHSD, post-hoc tests, homogeneity of variance, Welch ANOVA, Games-Howell, Kruskal-Wallis"
+mathjax: true
+webr: true
+curriculum_id: "2.4.1"
+post_type: "C"
+auto_link_terms: "one-way ANOVA|one-way ANOVA in R|ANOVA F-test|Levene's test|post-hoc test|Tukey HSD|Games-Howell test"
+auto_link_case_sensitive: false
+sidebar_section: "Statistics"
+sidebar_title: "One-Way ANOVA"
+sidebar_order: "58"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>One-Way ANOVA in R: F-Test, Levene's Test, and Post-Hoc, Complete Walkthrough</h1>
+
+<p class="lead">One-way ANOVA tests whether three or more group means differ by comparing variation <em>between</em> groups to variation <em>within</em> groups. In R, you fit the model with <code>aov()</code>, confirm the assumptions with Levene's test and a residual QQ plot, read the F-statistic and p-value, then run a post-hoc test like <code>TukeyHSD()</code> to see which specific pairs of groups actually differ.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="35" data-exercises="8" data-xp="120"></div>
+
+<h2>How does one-way ANOVA compare group means?</h2>
+
+<p>Let's start with the simplest useful ANOVA: does plant weight change across three different treatments? The built-in <code>PlantGrowth</code> dataset has 30 observations split across a control and two treatment groups, which is exactly the shape of problem ANOVA was built for. One call to <code>aov()</code> plus <code>summary()</code> gives you the F-statistic and the p-value that answer the question.</p>
+
+<div class="webr-container" data-block-title="Fit a one-way ANOVA on PlantGrowth">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a one-way ANOVA on PlantGrowth</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+
+pg &lt;- PlantGrowth
+head(pg, 3)
+#&gt;   weight group
+#&gt; 1   4.17  ctrl
+#&gt; 2   5.58  ctrl
+#&gt; 3   5.18  ctrl
+
+aov1 &lt;- aov(weight ~ group, data = pg)
+summary(aov1)
+#&gt;             Df Sum Sq Mean Sq F value Pr(&gt;F)  
+#&gt; group        2  3.766  1.8832   4.846 0.0159 *
+#&gt; Residuals   27 10.492  0.3886                 
+#&gt; ---
+#&gt; Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The F-value is 4.85 and the p-value is 0.016, which is below 0.05. We reject the null that all three group means are equal. ANOVA does not tell us which group drives the effect, only that at least one group is out of line with the others. A post-hoc test will pin that down next.</p>
+
+<p><img src="screenshots/One-Way-ANOVA-in-R-f-ratio-concept.webp" alt="Between-group versus within-group variation feeding into the F-statistic." class="img-responsive img-zoomable" loading="lazy" width="1892" height="690" /></p>
+
+<p><em>Figure 1: The F-statistic is the ratio of between-group variation to within-group variation. A large F (with a small p) says the groups differ.</em></p>
+
+<p>Under the hood, <code>aov()</code> is asking a simple question: how much of the variation in <code>weight</code> is explained by <code>group</code>, compared to the variation that's left over inside each group? That ratio is the F-statistic. If groups are tightly clustered around their own means while the group means are far apart, F is large. If the groups overlap heavily, F is near 1 and the p-value is large.</p>
+
+<p>Let's look at the group means and spreads directly to build intuition.</p>
+
+<div class="webr-container" data-block-title="Summarise weight by group">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Summarise weight by group</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">group_stats &lt;- pg |&gt;
+  group_by(group) |&gt;
+  summarise(
+    n = n(),
+    mean_weight = mean(weight),
+    sd_weight = sd(weight)
+  )
+group_stats
+#&gt; # A tibble: 3 × 4
+#&gt;   group     n mean_weight sd_weight
+#&gt;   &lt;fct&gt; &lt;int&gt;       &lt;dbl&gt;     &lt;dbl&gt;
+#&gt; 1 ctrl     10        5.03     0.583
+#&gt; 2 trt1     10        4.66     0.794
+#&gt; 3 trt2     10        5.53     0.443</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>trt2</code> plants are about 0.87 grams heavier on average than <code>trt1</code> plants, and the within-group spreads (SDs of 0.44 to 0.79) are modest compared to that gap. That is the signal-to-noise pattern that produced an F of 4.85.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The F-statistic is a signal-to-noise ratio, not a test of which groups differ.</strong> A large F means "at least one mean is separated from the others" but it cannot tell you <em>which</em> one without a follow-up pairwise test.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit a one-way ANOVA on the built-in <code>iris</code> dataset to test whether <code>Sepal.Length</code> differs across <code>Species</code>. Save the fitted model to <code>ex_aov</code> and print its summary.</p>
+<div class="webr-container" data-block-title="Your turn: ANOVA on iris">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: ANOVA on iris</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: fit ANOVA and print summary
+ex_aov &lt;- NULL  # replace with aov(...)
+
+summary(ex_aov)
+#&gt; Expected: group Df=2, large F (~120), Pr(&gt;F) well below 0.001.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="ANOVA on iris solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">ANOVA on iris solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_aov &lt;- aov(Sepal.Length ~ Species, data = iris)
+summary(ex_aov)
+#&gt;              Df Sum Sq Mean Sq F value Pr(&gt;F)    
+#&gt; Species       2  63.21  31.606   119.3 &lt;2e-16 ***
+#&gt; Residuals   147  38.96   0.265                    </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Three iris species with 50 flowers each produce a huge F (119) and a near-zero p-value. The three species clearly differ in sepal length, and the size of F tells us the between-species signal dwarfs the within-species noise.</p>
+
+</details>
+</section>
+
+<h2>How do you fit a one-way ANOVA with aov()?</h2>
+
+<p>The formula syntax <code>response ~ factor</code> is the R convention shared by regression, ANOVA, and many modelling functions. On the left is the continuous outcome; on the right is the categorical grouping variable. <code>aov()</code> returns a fitted model object, and <code>summary()</code> prints the ANOVA table from it.</p>
+
+<p>Before trusting a test, look at the data. A boxplot shows medians, spreads, and outliers side-by-side and is the single most effective ANOVA diagnostic.</p>
+
+<div class="webr-container" data-block-title="Boxplot of weight by group">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Boxplot of weight by group</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ggplot2)
+
+ggplot(pg, aes(x = group, y = weight, fill = group)) +
+  geom_boxplot(alpha = 0.6, outlier.shape = NA) +
+  geom_jitter(width = 0.1, size = 2) +
+  labs(title = &quot;PlantGrowth: weight by treatment group&quot;,
+       x = NULL, y = &quot;Weight (g)&quot;) +
+  theme_minimal() +
+  theme(legend.position = &quot;none&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>trt2</code> box sits visibly above <code>trt1</code>, and <code>ctrl</code> falls in between. There are no extreme outliers, and the boxes overlap but do not coincide. Graphs like this are what the F-test is formalising: "are these boxes stacked far enough apart, given their widths, that chance alone cannot explain it?"</p>
+
+<p>Now let's peek at how <code>aov()</code> relates to the workhorse <code>lm()</code> function. They are the same fit under the hood; <code>aov()</code> just formats the output as an ANOVA table instead of a regression table.</p>
+
+<div class="webr-container" data-block-title="aov() equals lm() plus anova()">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">aov() equals lm() plus anova()</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mod_lm &lt;- lm(weight ~ group, data = pg)
+anova(mod_lm)
+#&gt; Analysis of Variance Table
+#&gt;
+#&gt; Response: weight
+#&gt;           Df  Sum Sq Mean Sq F value  Pr(&gt;F)  
+#&gt; group      2  3.7663 1.88317  4.8461 0.01591 *
+#&gt; Residuals 27 10.4921 0.38860                  </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The table is identical to what <code>summary(aov1)</code> printed. The practical difference is only in the defaults: <code>aov()</code> is the right entry point when ANOVA is the story; <code>lm()</code> is better when you will also want <a class="auto-link" href="Linear-Regression-Assumptions-in-R.html" title="Linear Regression Assumptions in R: Test All 5 and Know What to Do When They Fail">regression diagnostics</a>, coefficients, or <code>predict()</code>.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use aov() when ANOVA is the output you want, <a class="auto-link" href="Linear-Regression.html" title="Linear Regression">lm()</a> when you will follow up with regression tools.</strong> Both fit the same model. <code>aov()</code> gives you a clean ANOVA table; <code>lm()</code> gives you coefficients, residuals, and <code>predict()</code> for downstream work.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> From the summary of <code>aov1</code>, extract the F-value and the p-value programmatically so you could log them to a report. Store them in <code>ex_f</code> and <code>ex_p</code>.</p>
+<div class="webr-container" data-block-title="Your turn: extract F and p">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: extract F and p</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: summary.aov returns a list; the first element holds the table.
+aov_tbl &lt;- summary(aov1)[[1]]
+
+ex_f &lt;- NA  # replace
+ex_p &lt;- NA  # replace
+
+c(F = ex_f, p = ex_p)
+#&gt; Expected: F around 4.85 and p around 0.016.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Extract F and p solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Extract F and p solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">aov_tbl &lt;- summary(aov1)[[1]]
+ex_f &lt;- aov_tbl[[&quot;F value&quot;]][1]
+ex_p &lt;- aov_tbl[[&quot;Pr(&gt;F)&quot;]][1]
+c(F = ex_f, p = ex_p)
+#&gt;        F        p 
+#&gt; 4.846088 0.015909</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>summary.aov</code> returns a list of one data frame. Columns are named exactly as they print, so <code>[[&quot;F value&quot;]]</code> and <code>[[&quot;Pr(&gt;F)&quot;]]</code> pull the numbers out. Index <code>[1]</code> picks the <code>group</code> row rather than the <code>Residuals</code> row.</p>
+
+</details>
+</section>
+
+<h2>How do you check one-way ANOVA assumptions?</h2>
+
+<p>Classic one-way ANOVA rests on three assumptions. <em>Independence</em> of observations comes from study design, not from a statistical test. <em>Normality</em> means the residuals (observed minus group mean) follow a <a class="auto-link" href="Normal-t-F-and-Chi-Squared-Distributions-in-R.html" title="Normal, t, F, and Chi-Squared in R: Understand Each Distribution and When It Arises">normal distribution</a>, and <em><a class="auto-link" href="Normality-and-Variance-Tests-in-R.html" title="Test Normality and Equal Variance in R: What the Tests Can and Can't Tell You">homogeneity of variance</a></em> means every group has roughly the same spread. ANOVA is fairly robust to small departures when group sizes are balanced, but large violations distort the F-distribution and inflate error rates.</p>
+
+<p>Let's check normality first. Pull the residuals from the fitted model, then run a Shapiro-Wilk test and a QQ plot together.</p>
+
+<div class="webr-container" data-block-title="Check normality of residuals">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Check normality of residuals</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">resids &lt;- residuals(aov1)
+
+shapiro.test(resids)
+#&gt; 
+#&gt;   Shapiro-Wilk normality test
+#&gt; 
+#&gt; data:  resids
+#&gt; W = 0.96607, p-value = 0.4379
+
+qqnorm(resids, main = &quot;Normal QQ plot of ANOVA residuals&quot;)
+qqline(resids, col = &quot;steelblue&quot;, lwd = 2)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Shapiro returns a p-value of 0.44, well above 0.05, so we fail to reject normality. That is what we want: high p here means "the data are consistent with a normal distribution." The QQ plot should show points roughly on the diagonal line, which it does.</p>
+
+<p>Now homogeneity. The industry-standard tool is Levene's test from the <code>car</code> package. Unlike the older Bartlett test, Levene does not itself require normal data, which makes it safer in practice.</p>
+
+<div class="webr-container" data-block-title="Levene&#x27;s test for equal variances">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Levene&#x27;s test for equal variances</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(car)
+
+leveneTest(weight ~ group, data = pg)
+#&gt; Levene's Test for Homogeneity of Variance (center = median)
+#&gt;       Df F value Pr(&gt;F)
+#&gt; group  2  1.1192 0.3412
+#&gt; 27</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The p-value is 0.34, so we again fail to reject the null. "Fail to reject" is the good news here: we have no evidence that the group variances differ, which means classic ANOVA is appropriate.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A high p-value in Levene's test is good news for ANOVA.</strong> You want to <em>fail</em> to reject the null of equal variances. A low Levene p-value (below 0.05) is the danger signal that tells you to switch to Welch ANOVA instead of the classic F-test.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Run Levene's test on <code>iris</code> Sepal.Length by Species. Is the equal-variance assumption met?</p>
+<div class="webr-container" data-block-title="Your turn: Levene on iris">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: Levene on iris</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: leveneTest with response ~ group.
+ex_lev &lt;- NULL  # replace with leveneTest(...)
+
+ex_lev
+#&gt; Expected: an F-value and a p-value. If p &gt; 0.05, variances look equal.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Levene on iris solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Levene on iris solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_lev &lt;- leveneTest(Sepal.Length ~ Species, data = iris)
+ex_lev
+#&gt; Levene's Test for Homogeneity of Variance (center = median)
+#&gt;        Df F value  Pr(&gt;F)  
+#&gt; group   2  6.3527 0.002259 **
+#&gt; 147</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Levene returns a significant p-value (0.002), so iris species do <em>not</em> share the same Sepal.Length variance. That is exactly the situation where Welch ANOVA is safer than classic ANOVA, which we cover in the next section.</p>
+
+</details>
+</section>
+
+<h2>What if the equal-variance assumption fails? (Welch ANOVA)</h2>
+
+<p>When Levene's test says "variances differ," the classic F-test loses its guarantee on the type-I error rate. Welch's one-way ANOVA, available in base R as <code>oneway.test(var.equal = FALSE)</code>, adjusts the degrees of freedom to stay valid under unequal variances. It still expects approximately normal residuals, so it is not a fix for wildly skewed data.</p>
+
+<p><img src="screenshots/One-Way-ANOVA-in-R-test-choice.webp" alt="Decision flow from normality to variance equality to the right ANOVA flavour." class="img-responsive img-zoomable" loading="lazy" width="1206" height="1880" /></p>
+
+<p><em>Figure 2: Decision path for picking the right ANOVA flavour based on normality and variance homogeneity.</em></p>
+
+<p>Here is Welch ANOVA run on the same PlantGrowth data, alongside the classic version for comparison.</p>
+
+<div class="webr-container" data-block-title="Classic vs Welch one-way ANOVA">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Classic vs Welch one-way ANOVA</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">oneway.test(weight ~ group, data = pg, var.equal = TRUE)
+#&gt; 
+#&gt;   One-way analysis of means
+#&gt; 
+#&gt; data:  weight and group
+#&gt; F = 4.8461, num df = 2, denom df = 27, p-value = 0.01591
+
+oneway.test(weight ~ group, data = pg, var.equal = FALSE)
+#&gt; 
+#&gt;   One-way analysis of means (not assuming equal variances)
+#&gt; 
+#&gt; data:  weight and group
+#&gt; F = 5.181, num df = 2.000, denom df = 17.128, p-value = 0.01739</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The two F-values are close (4.85 vs 5.18) and both p-values sit under 0.02. Welch's denominator degrees of freedom dropped from 27 to about 17, which is the cost of relaxing the equal-variance assumption. When variances really do differ, Welch gives you a p-value you can trust; when they don't, classic ANOVA is very slightly more powerful.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Kruskal-Wallis is the non-parametric fallback when normality also fails.</strong> Use <code>kruskal.test(response ~ group, data = df)</code> when residuals are clearly non-normal and your sample size is small. It ranks the data first, so it is robust to skew and outliers.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Given that iris variances differ across species (you showed this in the previous Levene exercise), run Welch's ANOVA on Sepal.Length by Species and compare its F-value to the classic F.</p>
+<div class="webr-container" data-block-title="Your turn: Welch on iris">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: Welch on iris</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: oneway.test with var.equal = FALSE
+ex_welch &lt;- NULL  # replace
+
+ex_welch
+#&gt; Expected: F around 138, df around 34, p &lt; 2.2e-16.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Welch on iris solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Welch on iris solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_welch &lt;- oneway.test(Sepal.Length ~ Species, data = iris, var.equal = FALSE)
+ex_welch
+#&gt; 
+#&gt;   One-way analysis of means (not assuming equal variances)
+#&gt; 
+#&gt; data:  Sepal.Length and Species
+#&gt; F = 138.91, num df = 2.000, denom df = 91.572, p-value &lt; 2.2e-16</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Welch bumps F from 119 (classic) to 139 and trims denominator df from 147 to about 92. The iris species differ so dramatically that both tests agree, but the Welch version is the safer report when you know variances are unequal.</p>
+
+</details>
+</section>
+
+<h2>Which post-hoc test should you run after a significant ANOVA?</h2>
+
+<p>A significant ANOVA tells you "at least one mean is different." Post-hoc tests tell you <em>which pairs</em> differ. Running plain pairwise t-tests without correction would inflate the false-positive rate: with three groups and three comparisons, the chance of at least one spurious "significant" result climbs from 5% to about 14%. Post-hoc methods correct for that.</p>
+
+<p><img src="screenshots/One-Way-ANOVA-in-R-post-hoc-chooser.webp" alt="Decision tree for choosing Tukey, Games-Howell, Dunnett, or Bonferroni based on the comparison goal and variance structure." class="img-responsive img-zoomable" loading="lazy" width="1424" height="1832" /></p>
+
+<p><em>Figure 3: Which post-hoc test to run depends on whether variances are equal and which pairs you want to compare.</em></p>
+
+<p>Tukey's Honest Significant Difference (HSD) is the default choice when variances are equal and you want all pairwise comparisons. R has it built in.</p>
+
+<div class="webr-container" data-block-title="TukeyHSD all-pairs post-hoc">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">TukeyHSD all-pairs post-hoc</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tukey_out &lt;- TukeyHSD(aov1)
+tukey_out
+#&gt;   Tukey multiple comparisons of means
+#&gt;     95% family-wise confidence level
+#&gt; 
+#&gt; Fit: aov(formula = weight ~ group, data = pg)
+#&gt; 
+#&gt; $group
+#&gt;             diff        lwr       upr     p adj
+#&gt; trt1-ctrl -0.371 -1.0622161 0.3202161 0.3908711
+#&gt; trt2-ctrl  0.494 -0.1972161 1.1852161 0.1979960
+#&gt; trt2-trt1  0.865  0.1737839 1.5562161 0.0120064
+
+plot(tukey_out, las = 1)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read each row as "group A minus group B." <code>trt2-trt1</code> has a mean difference of 0.865 grams with a <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">95% confidence interval</a> that does <em>not</em> cross zero, and an adjusted p-value of 0.012. That is the pair driving our significant ANOVA. The other two comparisons have intervals that cross zero and p-values above 0.05, so we cannot call them different.</p>
+
+<p>If Tukey's HSD is not the right fit, <code>pairwise.t.test()</code> offers the same logic with different correction methods. Bonferroni is the most conservative; Holm is a strict-but-less-wasteful improvement.</p>
+
+<div class="webr-container" data-block-title="pairwise.t.test with Bonferroni and Holm">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">pairwise.t.test with Bonferroni and Holm</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">pairwise.t.test(pg$weight, pg$group, p.adjust.method = &quot;bonferroni&quot;)
+#&gt;   Pairwise comparisons using t tests with pooled SD 
+#&gt; 
+#&gt; data:  pg$weight and pg$group 
+#&gt; 
+#&gt;      ctrl  trt1 
+#&gt; trt1 0.583 -    
+#&gt; trt2 0.263 0.013
+#&gt; 
+#&gt; P value adjustment method: bonferroni
+
+pairwise.t.test(pg$weight, pg$group, p.adjust.method = &quot;holm&quot;)
+#&gt;      ctrl  trt1 
+#&gt; trt1 0.194 -    
+#&gt; trt2 0.175 0.013</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both methods flag <code>trt2</code> vs <code>trt1</code> as the significant pair, matching Tukey. Holm's p-values for the non-significant pairs are smaller than Bonferroni's because Holm is uniformly less conservative, yet it preserves the same family-wise error guarantee.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Tukey HSD is the right default for all-pairs comparisons under equal variances.</strong> It balances power and family-wise error control. Switch to Games-Howell when variances are unequal, to Dunnett when every group is compared against one control, and to Bonferroni or Holm when you have a small number of pre-planned pairwise tests.</div></div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Games-Howell and Dunnett need extra packages.</strong> Games-Howell is available as <code>rstatix::games_howell_test()</code> or <code>PMCMRplus::tukeyTest()</code>; Dunnett is in <code>multcomp::glht()</code>. Install those packages locally if your analysis needs them. Tukey HSD and <code>pairwise.t.test()</code> in this tutorial cover the large majority of real-world post-hoc needs.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Run TukeyHSD on the iris ANOVA you fit earlier (<code>ex_aov</code>) and identify which Species pair has the largest mean Sepal.Length difference.</p>
+<div class="webr-container" data-block-title="Your turn: TukeyHSD on iris">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: TukeyHSD on iris</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: TukeyHSD on an aov() object.
+ex_tukey &lt;- NULL  # replace
+
+ex_tukey
+#&gt; Expected: three rows. Largest diff is virginica vs setosa.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="TukeyHSD on iris solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">TukeyHSD on iris solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_tukey &lt;- TukeyHSD(ex_aov)
+ex_tukey
+#&gt;   Tukey multiple comparisons of means
+#&gt;     95% family-wise confidence level
+#&gt; 
+#&gt; Fit: aov(formula = Sepal.Length ~ Species, data = iris)
+#&gt; 
+#&gt; $Species
+#&gt;                        diff       lwr       upr p adj
+#&gt; versicolor-setosa     0.930 0.6862273 1.1737727     0
+#&gt; virginica-setosa      1.582 1.3382273 1.8257727     0
+#&gt; virginica-versicolor  0.652 0.4082273 0.8957727     0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> All three adjusted p-values round to zero, so every species pair differs. The largest gap is <code>virginica - setosa</code> at 1.58 cm. The practical takeaway: with a strong underlying signal, Tukey often flags every pair, and the effect sizes (the <code>diff</code> column) are what distinguish the biggest gaps.</p>
+
+</details>
+</section>
+
+<h2>How big is the group effect? (Eta-squared)</h2>
+
+<p>A p-value tells you whether an effect exists. An effect size tells you how big it is. The standard ANOVA effect size is <a class="auto-link" href="Effect-Size-in-R.html" title="Effect Size in R: The Number p-Values Never Tell You (Cohen's d, η², and r)">eta-squared</a> ($\eta^2$), the proportion of total variation explained by group membership. Small effect is $\eta^2 \approx 0.01$, medium is $\approx 0.06$, and large is $\geq 0.14$ by Cohen's conventions.</p>
+
+<p>The definition is straightforward:</p>
+
+<p>$$\eta^2 = \frac{SS_{\text{between}}}{SS_{\text{total}}}$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$SS_{\text{between}}$ = the sum of squared deviations of each group mean from the overall mean, weighted by group size</li>
+
+<li>$SS_{\text{total}}$ = the sum of squared deviations of every observation from the overall mean</li>
+
+</ul>
+
+<p>You can compute it by hand from the sums of squares that <code>summary(aov1)</code> already prints, or directly from the data.</p>
+
+<div class="webr-container" data-block-title="Compute eta-squared for PlantGrowth">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compute eta-squared for PlantGrowth</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">grand_mean &lt;- mean(pg$weight)
+
+ss_total &lt;- sum((pg$weight - grand_mean)^2)
+
+ss_between &lt;- pg |&gt;
+  group_by(group) |&gt;
+  summarise(n = n(), m = mean(weight)) |&gt;
+  summarise(ss = sum(n * (m - grand_mean)^2)) |&gt;
+  pull(ss)
+
+eta_sq &lt;- ss_between / ss_total
+round(eta_sq, 3)
+#&gt; [1] 0.264</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>$\eta^2$ of 0.264 means group membership accounts for 26% of the variation in weight. That is a large effect by Cohen's rule of thumb, and it matches the visible gap we saw in the boxplot.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Report effect size alongside F and p.</strong> A tiny p-value on a large sample can reach "significance" even when $\eta^2$ is trivially small. Effect size keeps your conclusions grounded in practical meaning. Journals in psychology, medicine, and education increasingly require it.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute $\eta^2$ for the iris Sepal.Length model using the same formula. Save it as <code>ex_eta</code>.</p>
+<div class="webr-container" data-block-title="Your turn: eta-squared for iris">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: eta-squared for iris</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: repeat the calculation with iris.
+ex_gm &lt;- mean(iris$Sepal.Length)
+ex_ss_total &lt;- sum((iris$Sepal.Length - ex_gm)^2)
+ex_ss_between &lt;- NA  # replace
+
+ex_eta &lt;- NA  # replace with ex_ss_between / ex_ss_total
+ex_eta
+#&gt; Expected: around 0.619 (a very large effect).</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Eta-squared for iris solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Eta-squared for iris solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_gm &lt;- mean(iris$Sepal.Length)
+ex_ss_total &lt;- sum((iris$Sepal.Length - ex_gm)^2)
+
+ex_ss_between &lt;- iris |&gt;
+  group_by(Species) |&gt;
+  summarise(n = n(), m = mean(Sepal.Length)) |&gt;
+  summarise(ss = sum(n * (m - ex_gm)^2)) |&gt;
+  pull(ss)
+
+ex_eta &lt;- ex_ss_between / ex_ss_total
+round(ex_eta, 3)
+#&gt; [1] 0.619</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Species explains about 62% of the variation in sepal length. That is an enormous effect and is why the iris dataset is such a popular teaching example: the group structure is unmistakable.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<h3>Exercise 1: Full workflow on chickwts</h3>
+
+<p>The <code>chickwts</code> dataset records the weight of chicks on six different feed types. Run the full one-way ANOVA workflow on it. Specifically: fit the model, run Levene's test, check if classic ANOVA is appropriate, report F and p, run TukeyHSD, and compute $\eta^2$. Save the fitted model to <code>my_aov</code> and the effect size to <code>my_eta</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: feed ~ group in this case is weight ~ feed.
+# Steps:
+#   1. fit aov
+#   2. leveneTest
+#   3. summary(my_aov)
+#   4. TukeyHSD(my_aov)
+#   5. compute eta-squared
+
+my_aov &lt;- NULL
+my_eta &lt;- NULL
+
+# Write your workflow below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">data(chickwts)
+
+# 1. Fit
+my_aov &lt;- aov(weight ~ feed, data = chickwts)
+
+# 2. Levene
+leveneTest(weight ~ feed, data = chickwts)
+#&gt;        Df F value Pr(&gt;F)
+#&gt; group   5  0.7493 0.5896
+#&gt; 65
+
+# 3. F-test
+summary(my_aov)
+#&gt;             Df Sum Sq Mean Sq F value   Pr(&gt;F)    
+#&gt; feed         5 231129   46226   15.37 5.94e-10 ***
+#&gt; Residuals   65 195556    3009                     
+
+# 4. Tukey
+TukeyHSD(my_aov)
+#&gt; (prints a 15-row table; casein-horsebean, sunflower-horsebean, etc. are all significant)
+
+# 5. Eta-squared
+my_gm &lt;- mean(chickwts$weight)
+ss_total &lt;- sum((chickwts$weight - my_gm)^2)
+ss_between &lt;- chickwts |&gt;
+  group_by(feed) |&gt;
+  summarise(n = n(), m = mean(weight)) |&gt;
+  summarise(ss = sum(n * (m - my_gm)^2)) |&gt;
+  pull(ss)
+
+my_eta &lt;- ss_between / ss_total
+round(my_eta, 3)
+#&gt; [1] 0.542</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Levene's p of 0.59 says variances are fine, so classic ANOVA is valid. F of 15.4 with p near zero and $\eta^2$ of 0.54 tells us feed type has a very large effect on chick weight. Tukey then pinpoints the specific feed pairs that differ.</p>
+
+</details>
+
+<h3>Exercise 2: Unequal variances and Welch</h3>
+
+<p>Generate three groups of 30 observations each where group means are close but group standard deviations differ a lot (for example 1, 3, and 5). Apply both classic and Welch ANOVA. Compare the F-values and p-values. Save the Welch result to <code>my_welch</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: rnorm() takes mean and sd. Use set.seed() for reproducibility.
+# Build a data frame with groups A, B, C and different SDs.
+
+set.seed(42)
+
+# Build the data frame:
+my_data &lt;- NULL  # replace
+
+# Classic ANOVA:
+# oneway.test(..., var.equal = TRUE)
+
+# Welch ANOVA:
+my_welch &lt;- NULL  # replace
+
+my_welch
+#&gt; Expected: Welch denominator df noticeably smaller than classic df.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(42)
+my_data &lt;- data.frame(
+  value = c(rnorm(30, mean = 10, sd = 1),
+            rnorm(30, mean = 11, sd = 3),
+            rnorm(30, mean = 12, sd = 5)),
+  group = rep(c(&quot;A&quot;, &quot;B&quot;, &quot;C&quot;), each = 30)
+)
+
+oneway.test(value ~ group, data = my_data, var.equal = TRUE)
+#&gt;   F = 3.70, num df = 2, denom df = 87, p-value = 0.0288
+
+my_welch &lt;- oneway.test(value ~ group, data = my_data, var.equal = FALSE)
+my_welch
+#&gt;   F = 3.12, num df = 2.000, denom df = 47.32, p-value = 0.0533</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The classic test reports p = 0.029, but it assumes all three groups share a variance, which they do not. Welch adjusts the denominator df down from 87 to 47 and returns p = 0.053. The conservative Welch result is the one you should trust here, because ignoring unequal variances in classic ANOVA inflates the false-positive rate.</p>
+
+</details>
+
+<h2>Complete Example</h2>
+
+<p>Let's run the full pipeline end-to-end on the <code>iris</code> dataset. The question: does sepal length differ across species? Each step below is what you would put in a real analysis report.</p>
+
+<div class="webr-container" data-block-title="Complete iris ANOVA workflow">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Complete iris ANOVA workflow</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># 1. Explore
+iris |&gt;
+  group_by(Species) |&gt;
+  summarise(n = n(), mean = mean(Sepal.Length), sd = sd(Sepal.Length))
+#&gt;   Species        n  mean    sd
+#&gt;   setosa        50  5.01 0.352
+#&gt;   versicolor    50  5.94 0.516
+#&gt;   virginica     50  6.59 0.636
+
+# 2. Assumption check: homogeneity of variance
+leveneTest(Sepal.Length ~ Species, data = iris)
+#&gt; Levene p = 0.0023  -&gt; variances differ
+
+# 3. Fit (both classic and Welch, since Levene failed)
+iris_aov &lt;- aov(Sepal.Length ~ Species, data = iris)
+summary(iris_aov)
+#&gt; Species       2  63.21  31.606   119.3 &lt;2e-16 ***
+
+oneway.test(Sepal.Length ~ Species, data = iris, var.equal = FALSE)
+#&gt; Welch F = 138.9, p &lt; 2.2e-16
+
+# 4. Post-hoc (since both tests agree the effect is huge, use Tukey for pairs)
+TukeyHSD(iris_aov)
+#&gt; All three pairs significant; virginica - setosa is the largest gap at 1.58 cm.
+
+# 5. Effect size
+iris_gm &lt;- mean(iris$Sepal.Length)
+iris_ss_total &lt;- sum((iris$Sepal.Length - iris_gm)^2)
+iris_ss_between &lt;- iris |&gt;
+  group_by(Species) |&gt;
+  summarise(n = n(), m = mean(Sepal.Length)) |&gt;
+  summarise(ss = sum(n * (m - iris_gm)^2)) |&gt;
+  pull(ss)
+iris_eta &lt;- iris_ss_between / iris_ss_total
+round(iris_eta, 3)
+#&gt; [1] 0.619</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Reporting sentence you could drop into a paper or dashboard:</strong></p>
+
+<blockquote><p>A one-way ANOVA with Welch correction showed that sepal length differed significantly across the three iris species, F(2, 91.6) = 138.9, p < .001, $\eta^2$ = 0.62. Tukey HSD post-hoc comparisons indicated that every pairwise difference was significant (all adjusted p < .001), with virginica having the longest sepals (mean 6.59 cm) and setosa the shortest (5.01 cm).</p></blockquote>
+
+<h2>Summary</h2>
+
+<p>You now have a complete one-way ANOVA workflow in R: explore, check assumptions, fit, follow up with post-hoc tests, and report effect size.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Step</th>
+<th>Function</th>
+<th>What to check</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Visualise</td>
+<td><code>ggplot() + geom_boxplot()</code></td>
+<td>Group medians, spreads, outliers</td>
+</tr>
+<tr>
+<td>Normality of residuals</td>
+<td><code>shapiro.test(residuals(aov1))</code>, <code>qqnorm()</code></td>
+<td>High p, points on QQ line</td>
+</tr>
+<tr>
+<td>Homogeneity of variance</td>
+<td><code>car::leveneTest()</code></td>
+<td>High p (fail to reject equal variances)</td>
+</tr>
+<tr>
+<td>Fit classic ANOVA</td>
+<td><code>aov(y ~ group, data)</code> + <code>summary()</code></td>
+<td>F-value, Pr(>F)</td>
+</tr>
+<tr>
+<td>Fit Welch ANOVA (if Levene failed)</td>
+<td><code>oneway.test(y ~ group, var.equal = FALSE)</code></td>
+<td>Same F/p interpretation</td>
+</tr>
+<tr>
+<td>All-pairs post-hoc</td>
+<td><code>TukeyHSD(aov1)</code></td>
+<td>95% CI that excludes 0, adjusted p</td>
+</tr>
+<tr>
+<td>Planned comparisons</td>
+<td><code>pairwise.t.test(y, group, p.adjust.method = &quot;holm&quot;)</code></td>
+<td>Adjusted p per pair</td>
+</tr>
+<tr>
+<td>Effect size</td>
+<td>$\eta^2 = SS_{between} / SS_{total}$</td>
+<td>Cohen: 0.01 small, 0.06 medium, 0.14 large</td>
+</tr>
+</tbody>
+</table>
+
+<p><strong>Rule of thumb order of operations:</strong> EDA → Levene → pick classic or Welch → summary for F and p → post-hoc only if ANOVA is significant → always report effect size.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>R Core Team. <code>?aov</code> documentation. <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/aov.html">stat.ethz.ch/R-manual/R-devel/library/stats/html/aov.html</a></li>
+
+<li>R Core Team. <code>?oneway.test</code> documentation. <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/oneway.test.html">stat.ethz.ch/R-manual/R-devel/library/stats/html/oneway.test.html</a></li>
+
+<li>Fox, J. & Weisberg, S. (2019). <em>An R Companion to Applied Regression</em>, 3rd Edition. Sage. (car package, <code>leveneTest</code> reference.) <a href="https://socialsciences.mcmaster.ca/jfox/Books/Companion/">socialsciences.mcmaster.ca/jfox/Books/Companion</a></li>
+
+<li>Kutner, M.H., Nachtsheim, C.J., Neter, J., & Li, W. (2005). <em>Applied Linear Statistical Models</em>, 5th Edition. McGraw-Hill/Irwin. Chapters on single-factor ANOVA.</li>
+
+<li>Tukey, J.W. (1949). "Comparing Individual Means in the Analysis of Variance." <em>Biometrics</em> 5(2), 99-114.</li>
+
+<li>Welch, B.L. (1951). "On the Comparison of Several Mean Values: An Alternative Approach." <em>Biometrika</em> 38(3/4), 330-336.</li>
+
+<li>Games, P.A. & Howell, J.F. (1976). "Pairwise Multiple Comparison Procedures with Unequal N's and/or Variances: A Monte Carlo Study." <em>Journal of Educational Statistics</em> 1(2), 113-125.</li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="t-Tests-in-R.html">t-Tests in R</a>: When you only have two groups to compare, a t-test is the right tool. It is the two-group special case of one-way ANOVA.</li>
+
+<li><a href="Wilcoxon-Mann-Whitney-and-Kruskal-Wallis-in-R.html">Wilcoxon, Mann-Whitney and Kruskal-Wallis in R</a>: The non-parametric toolkit for when normality is clearly violated. Kruskal-Wallis is the rank-based sibling of one-way ANOVA.</li>
+
+<li><a href="Effect-Size-in-R.html">Effect Size in R</a>: A deeper treatment of $\eta^2$, $\omega^2$, Cohen's f, and how to choose and report effect sizes in practice.</li>
+
+</ul>
+
+{% endraw %}
