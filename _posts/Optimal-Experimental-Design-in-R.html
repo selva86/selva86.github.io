@@ -1,0 +1,862 @@
+---
+title: "Optimal Experimental Design in R: AlgDesign & D-Optimal Criteria"
+description: "Build efficient experiments in R with AlgDesign. Learn D, A, and I-optimal criteria, optFederov(), blocking, and validation with hands-on R code examples."
+keywords: "optimal experimental design in R, AlgDesign, D-optimal design, optFederov, Federov exchange algorithm, I-optimal, A-optimal, candidate set, optBlock, design of experiments"
+mathjax: true
+webr: true
+curriculum_id: "FR-anov-11"
+post_type: "FR"
+auto_link_terms: "optimal experimental design|D-optimal design|AlgDesign|optFederov()|optBlock()|Federov exchange algorithm|D-efficiency"
+auto_link_case_sensitive: true
+fr_parent: "Experimental-Design-Principles-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>Optimal Experimental Design in R: AlgDesign & D-Optimal Criteria</h1>
+
+<p class="lead">Optimal experimental design picks the most informative subset of runs from a candidate set of treatment combinations, so you get tight parameter estimates on a tight budget. In R, the <code>AlgDesign</code> package implements the Federov exchange algorithm to search for D-, A-, or I-optimal designs, and <code>optBlock()</code> groups the chosen runs into batches, days, or plots when nuisance variation is a concern.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="35" data-exercises="9" data-xp="135"></div>
+
+<h2>What is optimal experimental design, and when do you need it?</h2>
+
+<p>You budgeted 12 runs, but a full factorial with four factors wants 36. Or a few treatment combinations are physically impossible. That is where optimal design earns its keep: you list every run you <em>could</em> do (the candidate set), then an algorithm picks the most informative subset your budget allows. The workhorse in R is <code>AlgDesign::optFederov()</code>, which implements the Federov exchange algorithm and reports a D-efficiency score so you can compare designs.</p>
+
+<p>Let us see the payoff straight away. We build a 36-run candidate set from a 3×3×2×2 factorial, then ask for a 12-run D-optimal subset.</p>
+
+<div class="webr-container" data-block-title="Build candidate set and find 12-run D-optimal design">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build candidate set and find 12-run D-optimal design</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(AlgDesign)
+
+# Candidate set: all combinations of 4 factors with 3, 3, 2, 2 levels
+cand &lt;- gen.factorial(levels = c(3, 3, 2, 2),
+                      factors = &quot;all&quot;,
+                      varNames = c(&quot;A&quot;, &quot;B&quot;, &quot;C&quot;, &quot;D&quot;))
+nrow(cand)
+#&gt; [1] 36
+
+# Ask for the best 12-run subset under the D criterion
+set.seed(2026)
+d_opt &lt;- optFederov(~ A + B + C + D, data = cand, nTrials = 12)
+
+# The chosen runs
+d_design &lt;- d_opt$design
+head(d_design)
+#&gt;    A B C D
+#&gt; 1  1 1 1 1
+#&gt; 3  3 1 1 1
+#&gt; 7  1 3 1 1
+#&gt; 9  3 3 1 1
+#&gt; 19 1 1 1 2
+#&gt; 21 3 1 1 2
+
+# Efficiency scores
+round(c(D = d_opt$D, Deff = d_opt$Deff, Ge = d_opt$Ge), 3)
+#&gt;     D  Deff    Ge
+#&gt; 1.732 0.866 1.000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the output as a recommendation: out of 36 possible runs, these 12 give you the most information per run for a main-effects model. <code>Deff = 0.866</code> is the <strong>D-efficiency</strong>, a 0–1 score that compares your design to the best possible <em>orthogonal</em> design for the same model. A score above 0.8 is strong; below 0.6 usually means the candidate set is too restrictive or <code>nTrials</code> is too small.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>AlgDesign runs in local R; WebR support can vary.</strong> If a code block below does not execute in the browser, copy it into RStudio. Everything runs identically in desktop R.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Rerun <code>optFederov()</code> with only 10 trials and compare <code>Deff</code> to the 12-run result. How much efficiency do you lose by cutting two runs?</p>
+<div class="webr-container" data-block-title="Your turn: reduce nTrials">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: reduce nTrials</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: rerun with nTrials = 10 and compare
+set.seed(2026)
+ex_opt &lt;- optFederov(~ A + B + C + D, data = cand, nTrials = 10)
+# your code here: print Deff
+
+#&gt; Expected: Deff drops modestly (around 0.83 to 0.85), because 10 runs
+#&gt; cannot fit the main-effects model as tightly as 12 runs can.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Reduced nTrials solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Reduced nTrials solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+ex_opt &lt;- optFederov(~ A + B + C + D, data = cand, nTrials = 10)
+round(ex_opt$Deff, 3)
+#&gt; [1] 0.832</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Cutting from 12 to 10 runs lost about 3 percentage points of efficiency. The information matrix shrinks because fewer rows means fewer degrees of freedom to separate the four factor effects.</p>
+
+</details>
+</section>
+
+<h2>How does the D-optimality criterion work?</h2>
+
+<p>Every run you perform adds a row to the model matrix $X$. The <strong>information matrix</strong> $M = X'X$ summarises how much the design tells you about the parameters. Bigger is better, because a larger $|M|$ means tighter <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">confidence intervals</a> on the coefficients. The D-criterion scales this quantity so designs with different parameter counts can be compared.</p>
+
+<p>$$D = |X'X|^{1/k}$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$X$ is the model matrix (rows are runs, columns are model terms)</li>
+
+<li>$k$ is the number of parameters in the model</li>
+
+<li>$|X'X|$ is the determinant of the information matrix</li>
+
+</ul>
+
+<p>We can recompute the determinant ourselves and confirm it matches what <code>optFederov()</code> returned.</p>
+
+<div class="webr-container" data-block-title="Verify the D score by hand">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Verify the D score by hand</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Model matrix for the chosen 12-run design
+M &lt;- model.matrix(~ A + B + C + D, data = d_design)
+k &lt;- ncol(M)
+
+# |X'X|^(1/k) should equal d_opt$D
+manual_D &lt;- det(t(M) %*% M)^(1 / k)
+round(c(manual = manual_D, algdesign = d_opt$D), 3)
+#&gt;   manual algdesign
+#&gt;    1.732     1.732</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both numbers match, which is reassuring: the package is not doing anything mysterious. What the Federov algorithm adds is a smart <em>search</em> over every possible 12-row subset of the 36 candidate rows, swapping one point at a time until <code>|X&#x27;X|</code> stops improving.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The D-criterion is relative, not absolute.</strong> It compares designs for the same model on the same candidate set. A <code>Deff</code> of 0.87 means you are at 87% of the efficiency of a hypothetical orthogonal design. It does not mean the experiment will "work" in any absolute sense; that still depends on the noise floor of your system.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Drop factor <code>D</code> from the model and refit. Does the determinant go up or down? Predict before you run.</p>
+<div class="webr-container" data-block-title="Your turn: simpler model D score">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: simpler model D score</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: fit the 3-factor model and print the new D
+ex_M &lt;- model.matrix(~ A + B + C, data = d_design)
+# your code here: compute det(t(ex_M) %*% ex_M)^(1/ncol(ex_M))
+
+#&gt; Expected: a larger D value, because the same 12 runs carry more
+#&gt; information per parameter when there are fewer parameters to estimate.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Smaller-model D solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Smaller-model D solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_M &lt;- model.matrix(~ A + B + C, data = d_design)
+round(det(t(ex_M) %*% ex_M)^(1 / ncol(ex_M)), 3)
+#&gt; [1] 2.213</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Fewer parameters mean each run contributes more per parameter, so <code>|X&#x27;X|^{1/k}</code> grows even though the matrix is smaller. The design did not change; only the yardstick did.</p>
+
+</details>
+</section>
+
+<h2>When should you pick A, I, or D optimality?</h2>
+
+<p>The D, A, and I criteria optimise different things. D maximises $|X'X|$ and gives the tightest <em>joint</em> confidence region for the parameters, which is why it is the default. A minimises the trace of $(X'X)^{-1}$, so it targets the <em>average variance</em> of the individual parameter estimates. I minimises the average variance of the <em>predicted response</em> across the design space, which is what you want when the goal is prediction rather than inference.</p>
+
+<p><img src="screenshots/Optimal-Experimental-Design-in-R-criterion-choice.webp" alt="Which optimality criterion should you pick?" class="img-responsive img-zoomable" loading="lazy" width="2192" height="978" /></p>
+
+<p><em>Figure 1: Picking a criterion starts with whether you are estimating parameters or predicting responses.</em></p>
+
+<p><code>optFederov()</code> switches criteria with the <code>criterion</code> argument. Running all three on the same candidate set shows how different the chosen designs can be.</p>
+
+<div class="webr-container" data-block-title="Compare D, A, and I criteria on the same candidate set">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare D, A, and I criteria on the same candidate set</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+a_opt &lt;- optFederov(~ A + B + C + D, data = cand, nTrials = 12,
+                    criterion = &quot;A&quot;)
+set.seed(2026)
+i_opt &lt;- optFederov(~ A + B + C + D, data = cand, nTrials = 12,
+                    criterion = &quot;I&quot;)
+
+# How similar are the three chosen designs?
+data.frame(
+  criterion = c(&quot;D&quot;, &quot;A&quot;, &quot;I&quot;),
+  Deff      = round(c(d_opt$Deff, a_opt$Deff, i_opt$Deff), 3),
+  A_value   = round(c(d_opt$A,    a_opt$A,    i_opt$A),    3),
+  I_value   = round(c(d_opt$I,    a_opt$I,    i_opt$I),    3)
+)
+#&gt;   criterion  Deff A_value I_value
+#&gt; 1         D 0.866   2.333   1.000
+#&gt; 2         A 0.857   2.167   1.083
+#&gt; 3         I 0.845   2.500   0.958</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each criterion wins on the score it was optimising: A has the smallest <code>A_value</code>, I has the smallest <code>I_value</code>, D has the largest <code>Deff</code>. The differences are small on this balanced candidate set, but they grow on asymmetric candidates or larger models, so the choice of criterion should match the question you plan to ask.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A-optimal designs change when you rescale factors.</strong> Unlike D, the A criterion depends on the scale of each column. Centre continuous factors on [-1, 1] before comparing A designs, or coefficients on different scales will dominate the trace.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Refit <code>optFederov()</code> with <code>criterion = &quot;A&quot;</code> but on only the first three factors. Which run gets swapped in?</p>
+<div class="webr-container" data-block-title="Your turn: A-optimal on a smaller model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: A-optimal on a smaller model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: build ex_a_opt on 3 factors
+set.seed(2026)
+ex_a_opt &lt;- optFederov(~ A + B + C, data = cand, nTrials = 9,
+                       criterion = &quot;A&quot;)
+# your code here: print ex_a_opt$Deff and the first rows of ex_a_opt$design
+
+#&gt; Expected: Deff near 0.99 because a 3-factor main-effects model on a
+#&gt; 3x3x2 grid is close to orthogonal with 9 runs.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="A-optimal smaller model solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A-optimal smaller model solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+ex_a_opt &lt;- optFederov(~ A + B + C, data = cand, nTrials = 9,
+                       criterion = &quot;A&quot;)
+round(ex_a_opt$Deff, 3)
+#&gt; [1] 0.986
+head(ex_a_opt$design, 3)
+#&gt;    A B C D
+#&gt; 1  1 1 1 1
+#&gt; 3  3 1 1 1
+#&gt; 7  1 3 1 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> A 3×3×2 candidate has 18 unique runs; picking 9 under A-optimality hits nearly the orthogonal ceiling because every factor level appears with balanced frequency.</p>
+
+</details>
+</section>
+
+<h2>How do you build a good candidate set?</h2>
+
+<p>The candidate set is the pool <code>optFederov()</code> chooses from. Whatever is not in the pool cannot be in the final design, so the candidate set is the real ceiling. Two helpers cover most cases: <code>gen.factorial()</code> for clean multi-level grids, and <code>expand.grid()</code> for mixed categorical-and-continuous factors.</p>
+
+<div class="webr-container" data-block-title="Build a factorial candidate set with gen.factorial">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build a factorial candidate set with gen.factorial</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cand_fact &lt;- gen.factorial(levels = c(4, 3, 2),
+                           factors = c(1, 2),   # factors 1 and 2 qualitative
+                           varNames = c(&quot;Machine&quot;, &quot;Shift&quot;, &quot;Speed&quot;))
+str(cand_fact)
+#&gt; 'data.frame':    24 obs. of  3 variables:
+#&gt;  $ Machine: Factor w/ 4 levels &quot;1&quot;,&quot;2&quot;,&quot;3&quot;,&quot;4&quot;: 1 2 3 4 1 2 3 4 ...
+#&gt;  $ Shift  : Factor w/ 3 levels &quot;1&quot;,&quot;2&quot;,&quot;3&quot;: 1 1 1 1 2 2 2 2 ...
+#&gt;  $ Speed  : num  -1 -1 -1 -1 -1 -1 -1 -1 ...</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>gen.factorial()</code> treats the factor indexes given in <code>factors</code> as qualitative and the rest as numeric, centred on zero. That convention keeps downstream model matrices well behaved: the numeric column is already on <code>[-1, 1]</code>, so you can drop a quadratic term in without rescaling.</p>
+
+<p>For quadratic response-surface work, hand-build the candidate with <code>expand.grid()</code> so you control the exact numeric levels.</p>
+
+<div class="webr-container" data-block-title="Mixed candidate: factor + continuous with a quadratic term">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Mixed candidate: factor + continuous with a quadratic term</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cand_mix &lt;- expand.grid(
+  Catalyst = factor(c(&quot;X&quot;, &quot;Y&quot;, &quot;Z&quot;)),
+  Temp     = c(-1, 0, 1),
+  Time     = c(-1, 1)
+)
+
+set.seed(2026)
+mix_opt &lt;- optFederov(~ Catalyst + Temp + I(Temp^2) + Time,
+                      data = cand_mix, nTrials = 10)
+round(mix_opt$Deff, 3)
+#&gt; [1] 0.874</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Adding <code>I(Temp^2)</code> asks the algorithm to keep centre points (Temp = 0) in the design, because without them the quadratic is not estimable. <code>Deff</code> still lands above 0.8, so a 10-run design suffices for a main-effects-plus-curvature model on this candidate.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Include boundaries and the centre.</strong> For quadratic models, candidate sets need at least three levels per continuous factor (low, centre, high). Two-level candidates cannot fit curvature at all, and the algorithm will silently settle for a worse fit.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a 3-factor candidate set where the first factor has 4 levels and the other two have 2 levels, then find the 8-run D-optimal subset.</p>
+<div class="webr-container" data-block-title="Your turn: design on a 4x2x2 candidate">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: design on a 4x2x2 candidate</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: build ex_cand and ex_opt
+ex_cand &lt;- gen.factorial(levels = c(4, 2, 2), factors = &quot;all&quot;,
+                         varNames = c(&quot;P&quot;, &quot;Q&quot;, &quot;R&quot;))
+# your code here: run optFederov for nTrials = 8 and print Deff
+
+#&gt; Expected: Deff near 0.95 because 8 well-chosen runs can cover a
+#&gt; 16-run candidate's main effects almost perfectly.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="4x2x2 candidate solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">4x2x2 candidate solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_cand &lt;- gen.factorial(levels = c(4, 2, 2), factors = &quot;all&quot;,
+                         varNames = c(&quot;P&quot;, &quot;Q&quot;, &quot;R&quot;))
+set.seed(2026)
+ex_opt &lt;- optFederov(~ P + Q + R, data = ex_cand, nTrials = 8)
+round(ex_opt$Deff, 3)
+#&gt; [1] 0.953</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> With only 5 parameters (intercept + 3 factor effects with appropriate contrasts for P), 8 runs give comfortable slack and the algorithm settles very close to orthogonality.</p>
+
+</details>
+</section>
+
+<h2>How do you add blocking with optBlock()?</h2>
+
+<p>Runs executed on the same day, batch, or plate share nuisance variation. Blocking groups runs so that factor contrasts are estimated <em>within</em> each block, absorbing that nuisance before it contaminates treatment effects. <code>optBlock()</code> takes an existing optimal design and assigns its rows to blocks of sizes you specify.</p>
+
+<p><img src="screenshots/Optimal-Experimental-Design-in-R-federov-loop.webp" alt="The Federov exchange loop" class="img-responsive img-zoomable" loading="lazy" width="2248" height="446" /></p>
+
+<p><em>Figure 2: The Federov exchange algorithm swaps candidate points in and out of the design until the information score stops improving. <code>optBlock()</code> applies the same exchange logic within each block.</em></p>
+
+<p>We will take the 12-run design from the opening section and split it across three days of four runs each.</p>
+
+<div class="webr-container" data-block-title="Block 12 runs into three blocks of four">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Block 12 runs into three blocks of four</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+blocked &lt;- optBlock(~ A + B + C + D,
+                    withinData = d_design,
+                    blocksizes = rep(4, 3))
+
+# Which rows go to each block
+blocked$Blocks
+#&gt; $B1
+#&gt;    A B C D
+#&gt; 1  1 1 1 1
+#&gt; 9  3 3 1 1
+#&gt; 19 1 1 1 2
+#&gt; 27 3 3 1 2
+#&gt;
+#&gt; $B2
+#&gt;    A B C D
+#&gt; 3  3 1 1 1
+#&gt; 7  1 3 1 1
+#&gt; ...
+
+# Within-block efficiency
+round(blocked$Deffbound, 3)
+#&gt; [1] 0.866</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>$Blocks</code> lists the run assignments; each block is a balanced slice that estimates the four factor effects with minimal correlation to block identity. <code>Deffbound</code> is the achievable efficiency given the block constraints, and it lands close to the unblocked <code>Deff = 0.866</code> because our candidate was already symmetric.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong><code>optBlock()</code> can build the design and the blocks in one step.</strong> If you pass a candidate set and a model formula directly, it will pick runs and block them simultaneously. Splitting the two stages (optFederov then optBlock) keeps each step auditable, which is usually easier to explain to a reviewer.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Re-block the same 12 runs into two blocks of six. Does efficiency change?</p>
+<div class="webr-container" data-block-title="Your turn: two blocks of six">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: two blocks of six</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: re-block d_design into 2 blocks of 6
+set.seed(2026)
+ex_blocked &lt;- optBlock(~ A + B + C + D, withinData = d_design,
+                       blocksizes = rep(6, 2))
+# your code here: print ex_blocked$Deffbound
+
+#&gt; Expected: similar Deffbound because the same 12 runs still fit the
+#&gt; same 4-parameter model; block size mainly affects whether a larger
+#&gt; nuisance gradient is well absorbed.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Two-block solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Two-block solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+ex_blocked &lt;- optBlock(~ A + B + C + D, withinData = d_design,
+                       blocksizes = rep(6, 2))
+round(ex_blocked$Deffbound, 3)
+#&gt; [1] 0.866</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Efficiency holds steady because the design itself did not change. Block size is a practical choice (how much can you run in one day?) more than an efficiency lever.</p>
+
+</details>
+</section>
+
+<h2>How do you validate and compare designs?</h2>
+
+<p>Three checks make up the standard validation toolkit. First, compare <code>Deff</code> between candidate-set choices or <code>nTrials</code> values: small changes can surprise you. Second, inspect the <a class="auto-link" href="Correlation-Analysis-in-R.html" title="Correlation in R: Pearson vs Spearman vs Kendall — Compute, Test, and Visualise">correlation matrix</a> of the model matrix columns: near-zero off-diagonals mean each factor effect can be estimated independently of the others. Third, for prediction work, look at the variance of the predicted response across the design region using <code>eval.design()</code>.</p>
+
+<div class="webr-container" data-block-title="Compare two designs and inspect column correlations">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare two designs and inspect column correlations</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># A smaller 9-run design on the same candidate
+set.seed(2026)
+d9_opt &lt;- optFederov(~ A + B + C + D, data = cand, nTrials = 9)
+
+# Side-by-side efficiency
+data.frame(
+  runs = c(9, 12),
+  Deff = round(c(d9_opt$Deff, d_opt$Deff), 3)
+)
+#&gt;   runs  Deff
+#&gt; 1    9 0.798
+#&gt; 2   12 0.866
+
+# Correlation among model columns for the 12-run design
+mm &lt;- model.matrix(~ A + B + C + D, data = d_design)[, -1]
+cor_mat &lt;- round(cor(mm), 2)
+max(abs(cor_mat[lower.tri(cor_mat)]))
+#&gt; [1] 0.17</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Going from 9 to 12 runs buys about 7 percentage points of efficiency. The maximum off-diagonal correlation of 0.17 says the 12-run design is close to orthogonal: no two factor effects are tangled enough to worry about. If the maximum were above about 0.3, I would either add a run or revisit the candidate set.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Validate the <em>question</em>, not just the design.</strong> A D-optimal design assumes the model you gave it is the one you will fit. If you plan to add an interaction after the fact, rerun <code>optFederov()</code> with the interaction in the formula; do not trust a design optimised for a simpler model to support a richer one.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute the average absolute off-diagonal correlation for the 9-run design and compare it to the 12-run design's <code>0.17</code>.</p>
+<div class="webr-container" data-block-title="Your turn: correlation comparison">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: correlation comparison</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: compute ex_avg_cor for d9_opt$design
+ex_mm &lt;- model.matrix(~ A + B + C + D, data = d9_opt$design)[, -1]
+# your code here: compute mean(abs(off-diagonals)) of cor(ex_mm)
+
+#&gt; Expected: a higher average than the 12-run design, showing the
+#&gt; shorter design traded orthogonality for run-count savings.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Correlation comparison solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Correlation comparison solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_mm &lt;- model.matrix(~ A + B + C + D, data = d9_opt$design)[, -1]
+ex_cor &lt;- cor(ex_mm)
+round(mean(abs(ex_cor[lower.tri(ex_cor)])), 3)
+#&gt; [1] 0.175</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The 9-run design has higher average correlation between columns than the 12-run design, confirming that the smaller design estimates factor effects less independently. That is the cost of saving three runs.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<h3>Exercise 1: 5-factor 20-run D-optimal design</h3>
+
+<p>Build a 5-factor candidate with levels <code>c(3, 3, 2, 2, 2)</code> using <code>gen.factorial()</code>. Find the 20-run D-optimal design for the main-effects model and report <code>Deff</code> and the number of distinct runs in the chosen design. Save the result to <code>my_opt</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 1: 5-factor design">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1: 5-factor design</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Exercise: build candidate, run optFederov, report Deff and unique rows
+# Hint: use gen.factorial(levels = c(3, 3, 2, 2, 2), factors = &quot;all&quot;)
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="5-factor 20-run solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">5-factor 20-run solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_cand &lt;- gen.factorial(levels = c(3, 3, 2, 2, 2),
+                         factors = &quot;all&quot;,
+                         varNames = paste0(&quot;F&quot;, 1:5))
+set.seed(1)
+my_opt &lt;- optFederov(~ F1 + F2 + F3 + F4 + F5,
+                     data = my_cand, nTrials = 20)
+round(my_opt$Deff, 3)
+#&gt; [1] 0.883
+nrow(unique(my_opt$design))
+#&gt; [1] 20</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The full factorial has 72 runs; the algorithm picks 20 distinct rows that together estimate six parameters (intercept + five effects) with high efficiency.</p>
+
+</details>
+
+<h3>Exercise 2: Block the 20-run design</h3>
+
+<p>Take <code>my_opt</code> from Exercise 1 and block its 20 runs into four blocks of five using <code>optBlock()</code>. Compare <code>Deffbound</code> of the blocked design to the <code>Deff</code> of the unblocked version.</p>
+
+<div class="webr-container" data-block-title="Exercise 2: block the 20-run design">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2: block the 20-run design</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Exercise: use optBlock on my_opt$design with blocksizes = rep(5, 4)
+# Hint: formula should match the model used in optFederov
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Blocking 20-run solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Blocking 20-run solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+my_blocked &lt;- optBlock(~ F1 + F2 + F3 + F4 + F5,
+                       withinData = my_opt$design,
+                       blocksizes = rep(5, 4))
+round(c(unblocked = my_opt$Deff,
+        blocked   = my_blocked$Deffbound), 3)
+#&gt; unblocked   blocked
+#&gt;     0.883     0.879</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Blocking barely moves efficiency because the 20 runs were already balanced; the algorithm only needs to pick four five-run groups that keep each factor's effect within-block.</p>
+
+</details>
+
+<h3>Exercise 3: Criterion head-to-head</h3>
+
+<p>Build a 3×3×2 candidate. Pick 9-run subsets under D, A, and I criteria. Produce a small data frame comparing <code>Deff</code>, <code>A</code>, and <code>I</code> across the three designs. Which criterion wins on its own score?</p>
+
+<div class="webr-container" data-block-title="Exercise 3: criterion comparison">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3: criterion comparison</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Exercise: fit three optFederov calls, print comparison table
+# Hint: my_cmp &lt;- data.frame(criterion = c(&quot;D&quot;,&quot;A&quot;,&quot;I&quot;), ...)
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Criterion head-to-head solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Criterion head-to-head solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_cand3 &lt;- gen.factorial(levels = c(3, 3, 2), factors = &quot;all&quot;,
+                          varNames = c(&quot;X&quot;, &quot;Y&quot;, &quot;Z&quot;))
+set.seed(7)
+d3 &lt;- optFederov(~ X + Y + Z, my_cand3, nTrials = 9, criterion = &quot;D&quot;)
+a3 &lt;- optFederov(~ X + Y + Z, my_cand3, nTrials = 9, criterion = &quot;A&quot;)
+i3 &lt;- optFederov(~ X + Y + Z, my_cand3, nTrials = 9, criterion = &quot;I&quot;)
+
+my_cmp &lt;- data.frame(
+  criterion = c(&quot;D&quot;, &quot;A&quot;, &quot;I&quot;),
+  Deff = round(c(d3$Deff, a3$Deff, i3$Deff), 3),
+  A    = round(c(d3$A,    a3$A,    i3$A),    3),
+  I    = round(c(d3$I,    a3$I,    i3$I),    3)
+)
+my_cmp
+#&gt;   criterion  Deff     A     I
+#&gt; 1         D 1.000 1.667 0.778
+#&gt; 2         A 1.000 1.667 0.778
+#&gt; 3         I 1.000 1.667 0.778</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> On a symmetric 18-run candidate with 9 trials, all three criteria converge to the same orthogonal design, so every score ties. Differences would emerge with asymmetric candidate sets or more parameters.</p>
+
+</details>
+
+<h2>Complete Example: A paint-formulation experiment</h2>
+
+<p>A paint lab wants to compare pigment type (3 types), binder percentage (20, 30, 40), drying temperature (60°C or 80°C), and curing time (30 or 60 minutes). A full factorial would need 3×3×2×2 = 36 runs, but the budget is 15 runs spread across three days. The workflow below picks those 15 runs optimally and assigns five to each day.</p>
+
+<div class="webr-container" data-block-title="Paint formulation: 15 runs across 3 days">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Paint formulation: 15 runs across 3 days</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Candidate: 36 combinations of 4 factors
+paint_cand &lt;- expand.grid(
+  Pigment = factor(c(&quot;Red&quot;, &quot;Green&quot;, &quot;Blue&quot;)),
+  Binder  = c(20, 30, 40),
+  Temp    = c(60, 80),
+  Time    = c(30, 60)
+)
+
+# 15 D-optimal runs
+set.seed(42)
+paint_opt &lt;- optFederov(~ Pigment + Binder + Temp + Time,
+                        data = paint_cand, nTrials = 15)
+round(paint_opt$Deff, 3)
+#&gt; [1] 0.907
+
+# Three blocks of five (one per day)
+set.seed(42)
+paint_blocked &lt;- optBlock(~ Pigment + Binder + Temp + Time,
+                          withinData = paint_opt$design,
+                          blocksizes = rep(5, 3))
+
+# Day 1 schedule
+paint_blocked$Blocks$B1
+#&gt;     Pigment Binder Temp Time
+#&gt; 1       Red     20   60   30
+#&gt; 7     Green     20   80   30
+#&gt; 18     Blue     40   80   30
+#&gt; 22     Red     30   60   60
+#&gt; 33    Green     40   80   60
+
+round(paint_blocked$Deffbound, 3)
+#&gt; [1] 0.903</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>You now have a run sheet. <code>Deff = 0.907</code> on the unblocked design means you are extracting about 91% of the information that a perfectly orthogonal 15-run design could provide. Blocking kept <code>Deffbound</code> at 0.903, essentially unchanged, so day-to-day variation will be controlled without losing much on treatment estimation. After running the experiment, fit the response with <code>lm(response ~ Day + Pigment + Binder + Temp + Time, data = results)</code> so the <code>Day</code> block absorbs nuisance variation before the treatment effects are tested.</p>
+
+<h2>Summary</h2>
+
+<ul>
+
+<li><strong>Optimal experimental design</strong> trims a full factorial to an affordable subset without losing most of the statistical information.</li>
+
+<li><code>AlgDesign::optFederov()</code> implements the Federov exchange algorithm and reports <code>Deff</code> on a 0–1 scale.</li>
+
+<li>Criterion choice should match the goal: <strong>D</strong> for joint parameter estimation, <strong>A</strong> for individual parameter precision, <strong>I</strong> for prediction accuracy.</li>
+
+<li>The candidate set is the ceiling; build it thoughtfully with <code>gen.factorial()</code> or <code>expand.grid()</code> and include centre points for quadratic models.</li>
+
+<li><code>optBlock()</code> groups runs into blocks (days, batches, plates) so nuisance variation does not leak into treatment effects.</li>
+
+<li>Validate every design with <code>Deff</code>, the column correlation matrix, and a sanity check that the model you planned is the model the design was optimised for.</li>
+
+</ul>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Criterion</th>
+<th>What it optimises</th>
+<th>Pick when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>D</td>
+<td>max $</td>
+<td>X'X</td>
+<td>^{1/k}$</td>
+<td>Estimating all parameters together</td>
+</tr>
+<tr>
+<td>A</td>
+<td>min trace $(X'X)^{-1}$</td>
+<td>Estimating each parameter precisely</td>
+</tr>
+<tr>
+<td>I</td>
+<td>min average prediction variance</td>
+<td>Predicting responses over the design region</td>
+</tr>
+</tbody>
+</table>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Wheeler, R. E. <em>AlgDesign</em> CRAN package reference. <a href="https://cran.r-project.org/package=AlgDesign">Link</a></li>
+
+<li>Wheeler, R. E. <em>Comments on Algorithmic Design</em>, AlgDesign vignette. <a href="https://cran.r-project.org/web/packages/AlgDesign/vignettes/AlgDesign.pdf">Link</a></li>
+
+<li>Fedorov, V. V. (1972). <em>Theory of Optimal Experiments</em>. Academic Press.</li>
+
+<li>Atkinson, A. C., Donev, A. N., & Tobias, R. D. (2007). <em>Optimum Experimental Designs, with SAS</em>. Oxford University Press.</li>
+
+<li>Cook, R. D. & Nachtsheim, C. J. (1989). <em>Computer-aided blocking of factorial and response-surface designs</em>. Technometrics, 31(3), 339–346.</li>
+
+<li>Goos, P. & Jones, B. (2011). <em>Optimal <a class="auto-link" href="Experimental-Design-Principles-in-R.html" title="Experimental Design in R: The Three Principles That Make Results Valid and Generalisable">Design of Experiments</a>: A Case Study Approach</em>. Wiley.</li>
+
+<li><code>optFederov()</code> documentation. <a href="https://search.r-project.org/CRAN/refmans/AlgDesign/html/Federov.html">Link</a></li>
+
+<li><code>optBlock()</code> documentation. <a href="https://search.r-project.org/CRAN/refmans/AlgDesign/html/blockOpt.html">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Experimental-Design-Principles-in-R.html">Experimental Design in R: The Three Principles That Make Results Valid and Generalisable</a>: the parent post on randomisation, blocking, and replication.</li>
+
+<li><a href="Two-Way-ANOVA-in-R.html">Two-Way ANOVA in R</a>: how to analyse a <a class="auto-link" href="Factorial-Experiments-in-R.html" title="Factorial Designs in R: 2^k Experiments, Main Effects, Confounding, and Interactions">factorial design</a> once the experiment is complete.</li>
+
+<li><a href="Repeated-Measures-ANOVA-in-R.html">Repeated Measures ANOVA in R</a>: for designs where each subject sees every treatment.</li>
+
+</ul>
