@@ -1,0 +1,840 @@
+---
+title: "MANOVA in R: Test Multiple Outcomes Simultaneously Without Inflating Type I Error"
+description: "MANOVA in R: use manova() to test multiple dependent variables together, choose Pillai vs Wilks vs Roy test statistics, and interpret univariate follow-ups."
+keywords: "MANOVA in R, manova function, multivariate ANOVA, Pillai trace, Wilks lambda, multiple dependent variables, post-hoc MANOVA, summary.aov, multivariate F, two-way MANOVA"
+mathjax: true
+webr: true
+curriculum_id: "2.4.9"
+post_type: "C"
+auto_link_terms: "MANOVA|multivariate ANOVA|multivariate analysis of variance|manova()|Pillai's trace|Wilks' lambda|multivariate F test|univariate follow-up"
+auto_link_case_sensitive: false
+sidebar_section: "Statistics"
+sidebar_title: "MANOVA"
+sidebar_order: "65"
+---
+<!-- md2html:generated -->
+
+<h1>MANOVA in R: Test Multiple Outcomes Simultaneously Without Inflating Type I Error</h1>
+
+<p class="lead">MANOVA (Multivariate Analysis of Variance) tests whether group means differ across two or more correlated outcomes at the same time, instead of running a separate ANOVA per outcome. R's built-in <code>manova()</code> does it in one line. Combining outcomes into a single test controls Type I error and uncovers group differences that any single ANOVA might miss.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="30" data-exercises="8" data-xp="120"></div>
+
+<h2>Why use MANOVA instead of multiple ANOVAs?</h2>
+
+<p>Picture three iris species and four petal-and-sepal measurements. You could fit four separate ANOVAs, but each one carries its own 5% false-positive risk. Together they balloon the <a class="auto-link" href="Multiple-Comparisons-in-R.html" title="Multiple Testing in R: Control False Discoveries Without Losing All Your Power">family-wise error rate</a> to roughly 19%. Worse, four solo ANOVAs ignore the correlations between the outcomes. One MANOVA solves both problems. Here is the payoff in three lines of base R.</p>
+
+<div class="webr-container" data-block-title="Run MANOVA on iris in three lines">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Run MANOVA on iris in three lines</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Test all 4 measurements vs Species in one shot
+iris_manova &lt;- manova(cbind(Sepal.Length, Sepal.Width, Petal.Length, Petal.Width) ~ Species,
+                      data = iris)
+summary(iris_manova)
+#&gt;            Df Pillai approx F num Df den Df    Pr(&gt;F)
+#&gt; Species     2 1.1919   53.466      8    290 &lt; 2.2e-16 ***
+#&gt; Residuals 147</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Pillai's trace is <strong>1.19</strong>, close to its theoretical maximum of <strong>k = 2</strong> (one less than the number of groups). The approximate F is huge and the p-value is effectively zero. Translation: the three species differ on the joint pattern of all four measurements, with overwhelming evidence.</p>
+
+<p>Why bother with the multivariate version? Run four ANOVAs at the standard 5% level and the chance that <em>at least one</em> of them gives a <a class="auto-link" href="Type-I-and-Type-II-Errors-in-R.html" title="Type I and Type II Errors in R: Visualise the Trade-Off Between α and Power">false positive</a> is $1 - (1 - 0.05)^4 \approx 0.185$. That is nearly four times the nominal rate. MANOVA condenses the four tests into one, so the 5% rate stays at 5%.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>MANOVA can detect group differences that no single ANOVA reveals.</strong> When outcomes are correlated, the cloud of group centroids in multivariate space can be far apart even when each axis alone shows weak separation. A single multivariate F sees the whole cloud at once.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit a smaller MANOVA on <code>iris</code> using just <code>Sepal.Length</code> and <code>Petal.Length</code>. Store it in <code>ex_2dv</code> and print the Pillai summary.</p>
+<div class="webr-container" data-block-title="Your turn: 2-DV MANOVA on iris">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: 2-DV MANOVA on iris</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_2dv &lt;- # your code here
+
+summary(ex_2dv)
+#&gt; Expected: Df Pillai approx F num Df den Df Pr(&gt;F)
+#&gt;          Species 2 ~0.95 ~75 ...</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Two-DV MANOVA solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Two-DV MANOVA solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_2dv &lt;- manova(cbind(Sepal.Length, Petal.Length) ~ Species, data = iris)
+summary(ex_2dv)
+#&gt;            Df  Pillai approx F num Df den Df    Pr(&gt;F)
+#&gt; Species     2 0.94895   75.728      4    294 &lt; 2.2e-16 ***
+#&gt; Residuals 147</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Trim the <code>cbind()</code> to two columns. Pillai drops from 1.19 to 0.95, but with two outcomes its theoretical max is also lower (1.0 here), and the test is still highly significant.</p>
+
+</details>
+</section>
+
+<h2>How do you run MANOVA in R with manova()?</h2>
+
+<p>The <code>manova()</code> call has the same shape as <code>aov()</code>. The difference lives on the left side of the formula: instead of one outcome, you bind several with <code>cbind()</code>. The right side is your grouping factor.</p>
+
+<div class="webr-container" data-block-title="MANOVA syntax breakdown">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">MANOVA syntax breakdown</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Same model, but let's read every column of summary()
+summary(iris_manova)  # default = Pillai
+#&gt;            Df Pillai approx F num Df den Df    Pr(&gt;F)
+#&gt; Species     2 1.1919   53.466      8    290 &lt; 2.2e-16 ***
+#&gt; Residuals 147</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Here is what each column means:</p>
+
+<ul>
+
+<li><strong>Df</strong>, degrees of freedom for the effect (groups − 1).</li>
+
+<li><strong>Pillai</strong>, the multivariate <a class="auto-link" href="Hypothesis-Testing-in-R.html" title="Hypothesis Testing in R: Understand the Framework, Not Just the p-Value">test statistic</a> (R prints this one by default).</li>
+
+<li><strong>approx F</strong>, an F approximation of the statistic. MANOVA statistics do not have exact F distributions in general, so R reports an approximation that is accurate enough for inference.</li>
+
+<li><strong>num Df / den Df</strong>, the numerator and denominator degrees of freedom for that approximation.</li>
+
+<li><strong>Pr(>F)</strong>, the p-value.</li>
+
+</ul>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong><code>manova()</code> is a thin wrapper around <code>aov()</code> with a multivariate response.</strong> Anything you know about <code>aov()</code> (formulas, contrasts, factor coercion) carries over. Missing rows are dropped listwise by default; use <code>na.omit()</code> first if you want to be explicit.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Re-run <code>summary()</code> on <code>iris_manova</code> but ask for <strong>Wilks' lambda</strong> instead of Pillai.</p>
+<div class="webr-container" data-block-title="Your turn: switch to Wilks">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: switch to Wilks</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">summary(iris_manova, # your code here
+)
+#&gt; Expected: a Wilks column with a value around 0.02 and a similar p-value.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Wilks lambda solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Wilks lambda solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">summary(iris_manova, test = &quot;Wilks&quot;)
+#&gt;             Df    Wilks approx F num Df den Df    Pr(&gt;F)
+#&gt; Species      2 0.023439   199.15      8    288 &lt; 2.2e-16 ***
+#&gt; Residuals  147</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Pass <code>test = &quot;Wilks&quot;</code> to <code>summary()</code>. Wilks' lambda is 0.023, which means roughly 2.3% of the variance in the outcome bundle is <em>not</em> explained by Species, so 97.7% is. Different statistic, same conclusion.</p>
+
+</details>
+</section>
+
+<h2>Which test statistic should you choose: Pillai, Wilks, Hotelling-Lawley, or Roy?</h2>
+
+<p>R's <code>summary()</code> prints whichever of four classical statistics you ask for. They all compress the same two matrices into a single number: the <strong>hypothesis</strong> matrix H (variation explained by the grouping factor) and the <strong>error</strong> matrix E (variation within groups). They differ in <em>how</em> they compress.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Statistic</th>
+<th>Formula intuition</th>
+<th>When to prefer</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Pillai's trace</td>
+<td>Sum of variance explained as a fraction of total</td>
+<td><strong>Default.</strong> Most robust to violated assumptions and unbalanced designs.</td>
+</tr>
+<tr>
+<td>Wilks' lambda</td>
+<td>Determinant ratio, like a multivariate $1 - R^2$</td>
+<td>Most familiar in textbooks. Works well in balanced designs with met assumptions.</td>
+</tr>
+<tr>
+<td>Hotelling-Lawley trace</td>
+<td>Sum of eigenvalues of $H E^{-1}$</td>
+<td>Slightly more powerful than Pillai when assumptions hold.</td>
+</tr>
+<tr>
+<td>Roy's largest root</td>
+<td>Largest eigenvalue of $H E^{-1}$</td>
+<td>Most powerful <strong>when group means are collinear</strong>. Inflates Type I error otherwise.</td>
+</tr>
+</tbody>
+</table>
+
+<p>Print all four side by side to see them agree on iris.</p>
+
+<div class="webr-container" data-block-title="Print all four MANOVA statistics">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Print all four MANOVA statistics</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Same model, four summaries
+summary(iris_manova, test = &quot;Pillai&quot;)
+#&gt; Species 2 1.1919 53.466 8 290 &lt; 2.2e-16 ***
+
+summary(iris_manova, test = &quot;Wilks&quot;)
+#&gt; Species 2 0.023439 199.15 8 288 &lt; 2.2e-16 ***
+
+summary(iris_manova, test = &quot;Hotelling-Lawley&quot;)
+#&gt; Species 2 32.4773 580.53 8 286 &lt; 2.2e-16 ***
+
+summary(iris_manova, test = &quot;Roy&quot;)
+#&gt; Species 2 32.1919 1167.0 4 145 &lt; 2.2e-16 ***</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The four statistics line up because the iris-versus-species effect is enormous. In real data the four can disagree at the margin, especially Roy. If three of them say significant and Roy says wildly significant, trust the others.</p>
+
+<p>If you enjoy formulas, two of the cleanest definitions are:</p>
+
+<p>$$\Lambda = \frac{|E|}{|H + E|} \quad\text{(Wilks)} \qquad V = \mathrm{tr}\bigl(H(H + E)^{-1}\bigr) \quad\text{(Pillai)}$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$H$ is the between-groups sum-of-squares-and-cross-products matrix.</li>
+
+<li>$E$ is the within-groups (error) matrix.</li>
+
+<li>$|\cdot|$ denotes the determinant.</li>
+
+<li>$\mathrm{tr}(\cdot)$ denotes the matrix trace.</li>
+
+</ul>
+
+<p><em>If the math is not your priority, skip to the next section. The decision rules above are all you need to pick a statistic.</em></p>
+
+<p><img src="screenshots/MANOVA-in-R-test-statistic-choice.webp" alt="Decision flow for picking among Pillai, Wilks, Hotelling-Lawley, and Roy." class="img-responsive img-zoomable" loading="lazy" width="986" height="1330" /></p>
+
+<p><em>Figure 2: Picking among Pillai, Wilks, Hotelling-Lawley, and Roy.</em></p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>When in doubt, report Pillai's trace.</strong> It is the safe default for unbalanced designs and mild assumption violations, which describes most real-world data. Wilks is the next-best fallback when your design is balanced.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute and compare <strong>Pillai</strong> and <strong>Roy</strong> on <code>iris_manova</code>. Note the F values.</p>
+<div class="webr-container" data-block-title="Your turn: Pillai vs Roy">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: Pillai vs Roy</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Print Pillai
+summary(iris_manova, test = # your code here )
+
+# Print Roy
+summary(iris_manova, test = # your code here )
+#&gt; Expected: Pillai F approx 53, Roy F approx 1167. Both highly significant.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Pillai vs Roy solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pillai vs Roy solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">summary(iris_manova, test = &quot;Pillai&quot;)
+#&gt; Species 2 1.1919 53.466 8 290 &lt; 2.2e-16 ***
+
+summary(iris_manova, test = &quot;Roy&quot;)
+#&gt; Species 2 32.1919 1167.0 4 145 &lt; 2.2e-16 ***</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Roy's F is roughly 22 times larger because Roy uses only the largest eigenvalue of $H E^{-1}$. Same conclusion either way, but if Roy ever stands out alone, prefer Pillai.</p>
+
+</details>
+</section>
+
+<h2>What assumptions does MANOVA require, and how do you check them?</h2>
+
+<p>MANOVA inherits ANOVA's assumptions, then adds a few because it works on a vector of outcomes. The seven things to verify:</p>
+
+<ol>
+
+<li><strong>Independence of observations</strong>, design issue, not a statistical test.</li>
+
+<li><strong>Sample size per group > number of outcomes</strong>, otherwise covariance matrices are singular.</li>
+
+<li><strong>No severe multivariate outliers</strong>, checked with <a class="auto-link" href="Outlier-Detection-in-R.html" title="Outlier Detection in R: Four Methods and the One Question You Must Ask First">Mahalanobis distance</a>.</li>
+
+<li><strong>Multivariate normality of residuals</strong>, usually checked per outcome with Shapiro-Wilk plus QQ plots.</li>
+
+<li><strong>Equal covariance matrices across groups</strong> (<a class="auto-link" href="Normality-and-Variance-Tests-in-R.html" title="Test Normality and Equal Variance in R: What the Tests Can and Can't Tell You">homogeneity of variance</a>-covariance), Box's M test.</li>
+
+<li><strong>No extreme <a class="auto-link" href="Multicollinearity-in-R.html" title="Multicollinearity in R: Detect It With VIF Before It Corrupts Your Coefficients">multicollinearity</a> among outcomes</strong>, drop or merge near-duplicate DVs.</li>
+
+<li><strong>Linear relationships between outcomes</strong>, <a class="auto-link" href="Pair-Plots-in-R.html" title="Pair Plots in R: GGally ggpairs() for Multivariate Exploration">scatterplot matrix</a> per group.</li>
+
+</ol>
+
+<p>Start with multicollinearity, because it is the easiest to break and the most damaging.</p>
+
+<div class="webr-container" data-block-title="Check correlations between outcomes">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Check correlations between outcomes</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Are any DV pairs too correlated?
+dv_cor &lt;- cor(iris[, 1:4])
+round(dv_cor, 2)
+#&gt;              Sepal.Length Sepal.Width Petal.Length Petal.Width
+#&gt; Sepal.Length         1.00       -0.12         0.87        0.82
+#&gt; Sepal.Width         -0.12        1.00        -0.43       -0.37
+#&gt; Petal.Length         0.87       -0.43         1.00        0.96
+#&gt; Petal.Width          0.82       -0.37         0.96        1.00</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>Petal.Length</code> and <code>Petal.Width</code> correlate at <strong>0.96</strong>, which is in the danger zone (above 0.90 is the usual cut-off). In a real analysis you would drop one or replace both with their average. We keep both here because it does not hurt the demonstration, but be aware that two near-duplicate columns waste a degree of freedom.</p>
+
+<p>Now look for multivariate outliers. Mahalanobis distance is the multivariate cousin of a z-score: it measures how far each row sits from the mean of its group, accounting for the covariance structure.</p>
+
+<div class="webr-container" data-block-title="Multivariate outliers via Mahalanobis distance">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Multivariate outliers via Mahalanobis distance</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Mahalanobis distance per row, against group mean and covariance
+mahal_dist &lt;- by(iris[, 1:4], iris$Species, function(x) {
+  mahalanobis(x, colMeans(x), cov(x))
+})
+
+# Top 3 most extreme rows per species
+lapply(mahal_dist, function(d) sort(d, decreasing = TRUE)[1:3])
+#&gt; $setosa
+#&gt;       42       16       23
+#&gt; 17.16562 12.80317 12.40774
+#&gt;
+#&gt; $versicolor
+#&gt;       69       73       99
+#&gt; 11.45720  9.39250  8.92664
+#&gt;
+#&gt; $virginica
+#&gt;      107      132      118
+#&gt; 13.39517  9.59816  9.34366</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Compare these to the chi-square critical value with <strong>k = 4</strong> degrees of freedom: $\chi^2_{0.001, 4} \approx 18.47$. None of the top distances exceed it, so no single iris flower is wildly atypical. If you saw a value of 25 or 40, you would investigate that row before trusting the model.</p>
+
+<p>Last quick check: per-outcome residual normality.</p>
+
+<div class="webr-container" data-block-title="Per-DV Shapiro-Wilk on residuals">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Per-DV Shapiro-Wilk on residuals</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># One Shapiro-Wilk test per outcome
+shapiro_results &lt;- lapply(1:4, function(i) {
+  shapiro.test(residuals(iris_manova)[, i])
+})
+sapply(shapiro_results, function(s) round(s$p.value, 4))
+#&gt; [1] 0.0500 0.1014 0.1098 0.0000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>Petal.Width</code> residuals fail Shapiro at the 5% level. With balanced designs and n = 50 per group, MANOVA tolerates mild non-normality, so this is a yellow flag, not a red one.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Box's M test for equal covariance matrices is hyper-sensitive.</strong> With large samples it almost always rejects, even when the difference between covariance matrices is trivial. Trust visual comparison of group covariance matrices, and report Pillai's trace, which is robust to mild covariance heterogeneity.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute the <a class="auto-link" href="Correlation-Analysis-in-R.html" title="Correlation in R: Pearson vs Spearman vs Kendall — Compute, Test, and Visualise">correlation matrix</a> of <code>mtcars</code> columns <code>mpg</code>, <code>hp</code>, and <code>wt</code>. Save it to <code>ex_cor</code> and round to 2 decimals.</p>
+<div class="webr-container" data-block-title="Your turn: correlation matrix on mtcars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: correlation matrix on mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_cor &lt;- # your code here
+
+round(ex_cor, 2)
+#&gt; Expected: mpg-hp ~ -0.78, mpg-wt ~ -0.87, hp-wt ~ 0.66</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Correlation matrix solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Correlation matrix solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_cor &lt;- cor(mtcars[, c(&quot;mpg&quot;, &quot;hp&quot;, &quot;wt&quot;)])
+round(ex_cor, 2)
+#&gt;       mpg    hp    wt
+#&gt; mpg  1.00 -0.78 -0.87
+#&gt; hp  -0.78  1.00  0.66
+#&gt; wt  -0.87  0.66  1.00</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>cor()</code> returns a symmetric matrix. Subset the columns first, then round for readability. None of the pairs cross the 0.90 multicollinearity threshold.</p>
+
+</details>
+</section>
+
+<h2>How do you follow up a significant MANOVA?</h2>
+
+<p>A significant Pillai answers <strong>"yes, groups differ on the joint outcome bundle."</strong> It does not say which outcomes drive the difference, and it does not say which groups differ. Two follow-up steps close the loop.</p>
+
+<p>The first step is <code>summary.aov()</code>, which prints a univariate ANOVA per outcome from the same model object. No re-fitting needed.</p>
+
+<div class="webr-container" data-block-title="Univariate ANOVA per outcome">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Univariate ANOVA per outcome</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Run one ANOVA per outcome, all from the MANOVA model
+summary.aov(iris_manova)
+#&gt;  Response Sepal.Length :
+#&gt;             Df Sum Sq Mean Sq F value Pr(&gt;F)
+#&gt; Species      2 63.212  31.606  119.26 &lt; 2.2e-16 ***
+#&gt;
+#&gt;  Response Sepal.Width :
+#&gt;             Df Sum Sq Mean Sq F value Pr(&gt;F)
+#&gt; Species      2 11.345  5.6725  49.16 &lt; 2.2e-16 ***
+#&gt;
+#&gt;  Response Petal.Length :
+#&gt;             Df Sum Sq Mean Sq F value Pr(&gt;F)
+#&gt; Species      2 437.10  218.55  1180.2 &lt; 2.2e-16 ***
+#&gt;
+#&gt;  Response Petal.Width :
+#&gt;             Df Sum Sq Mean Sq F value Pr(&gt;F)
+#&gt; Species      2  80.41  40.205  960.01 &lt; 2.2e-16 ***</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>All four outcomes are significant on their own, but the F values rank them: <code>Petal.Length</code> (F = 1180) and <code>Petal.Width</code> (F = 960) drive the species difference far more than the sepal measurements. With four follow-up tests, apply a <a class="auto-link" href="Post-Hoc-Tests-After-ANOVA.html" title="ANOVA Post-Hoc Tests in R: Tukey, Bonferroni, and Scheffé, Clear Decision Rules">Bonferroni correction</a>: divide your alpha by k. At $\alpha = 0.05$ and k = 4, the per-test threshold becomes 0.0125. All four still pass.</p>
+
+<p>Second step: pairwise comparisons within the strongest outcome. <code>TukeyHSD()</code> controls the family-wise error rate across the three species pairs.</p>
+
+<div class="webr-container" data-block-title="Pairwise comparisons on the strongest outcome">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pairwise comparisons on the strongest outcome</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># TukeyHSD needs a univariate aov() model
+tukey_petal &lt;- TukeyHSD(aov(Petal.Length ~ Species, data = iris))
+tukey_petal
+#&gt; $Species
+#&gt;                        diff     lwr     upr p adj
+#&gt; versicolor-setosa     2.798  2.5942  3.0018     0
+#&gt; virginica-setosa      4.090  3.8862  4.2938     0
+#&gt; virginica-versicolor  1.292  1.0882  1.4958     0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>All three pairwise differences in <code>Petal.Length</code> are significant. The largest gap (4.09 cm) sits between <code>setosa</code> and <code>virginica</code>, the smallest (1.29 cm) between <code>versicolor</code> and <code>virginica</code>. That gives you the full story: species differ jointly, the petal measurements drive most of it, and every species pair is distinguishable.</p>
+
+<p><img src="screenshots/MANOVA-in-R-followup-workflow.webp" alt="Workflow after a significant MANOVA: univariate ANOVA per outcome, Bonferroni adjustment, pairwise contrasts." class="img-responsive img-zoomable" loading="lazy" width="2234" height="394" /></p>
+
+<p><em>Figure 3: Follow-up workflow after a significant multivariate F test.</em></p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>The <code>effectsize</code> and <code>emmeans</code> packages offer richer post-hoc tools, but they are not available in this in-browser session.</strong> The base-R recipes above run anywhere. For partial <a class="auto-link" href="Effect-Size-in-R.html" title="Effect Size in R: The Number p-Values Never Tell You (Cohen's d, η², and r)">eta squared</a> by hand: $\eta^2_p = \mathrm{SS}_\mathrm{effect} / (\mathrm{SS}_\mathrm{effect} + \mathrm{SS}_\mathrm{error})$, computed from each row of <code>summary.aov()</code> output.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Look back at the <code>summary.aov(iris_manova)</code> output. Which outcome has the <strong>largest F value</strong> for Species, and roughly what is its F?</p>
+<details>
+<summary>Click to reveal solution</summary>
+
+<p><code>Petal.Length</code> has the largest F at <strong>1180.2</strong>. <code>Petal.Width</code> is second at 960. The two sepal measurements lag well behind. In a write-up you would highlight petal length as the dominant driver of the species difference.</p>
+
+</details>
+</section>
+
+<h2>How do you run a two-way MANOVA with interactions?</h2>
+
+<p>Real designs often have two factors. The same <code>manova()</code> call handles them, you just put both factors on the right side joined with <code>*</code> for an interaction.</p>
+
+<div class="webr-container" data-block-title="Two-way MANOVA on mtcars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Two-way MANOVA on mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Two factors: cylinders and transmission. Two outcomes: mpg and hp.
+mt_manova &lt;- manova(cbind(mpg, hp) ~ factor(cyl) * factor(am), data = mtcars)
+summary(mt_manova)
+#&gt;                         Df  Pillai approx F num Df den Df    Pr(&gt;F)
+#&gt; factor(cyl)              2 1.06425  17.7196      4     52 1.066e-08 ***
+#&gt; factor(am)               1 0.32341   5.9799      2     25 0.007621 **
+#&gt; factor(cyl):factor(am)   2 0.36888   2.8635      4     52 0.032076 *
+#&gt; Residuals               26</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read it row by row. The <a class="auto-link" href="Factorial-Experiments-in-R.html" title="Factorial Designs in R: 2^k Experiments, Main Effects, Confounding, and Interactions">main effect</a> of <code>cyl</code> is hugely significant: cylinder count moves the (mpg, hp) joint outcome. The main effect of <code>am</code> (transmission) is also significant. The <strong>interaction</strong> row is significant at the 5% level too, which means the effect of transmission on the (mpg, hp) bundle depends on cylinder count. In other words, the gap between automatic and manual cars is not the same in 4-cylinder, 6-cylinder, and 8-cylinder cars.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Two-way MANOVA in base R uses Type I (sequential) sums of squares.</strong> When your design is unbalanced, the order of factors in the formula affects the main-effect tests. For Type III tests (each effect adjusted for all others), use <code>car::Manova()</code> in a local R session. The <code>car</code> package is not available in the in-browser sandbox.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Re-fit the same two-way MANOVA but with <strong>only main effects</strong> (no interaction). Save it to <code>ex_main</code>.</p>
+<div class="webr-container" data-block-title="Your turn: main-effects-only two-way MANOVA">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: main-effects-only two-way MANOVA</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_main &lt;- # your code here
+
+summary(ex_main)
+#&gt; Expected: factor(cyl) ~ Pillai 1.07, factor(am) ~ Pillai 0.32, both significant.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Main-effects MANOVA solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Main-effects MANOVA solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_main &lt;- manova(cbind(mpg, hp) ~ factor(cyl) + factor(am), data = mtcars)
+summary(ex_main)
+#&gt;             Df  Pillai approx F num Df den Df    Pr(&gt;F)
+#&gt; factor(cyl)  2 1.06425  17.7196      4     56 4.046e-09 ***
+#&gt; factor(am)   1 0.32341   5.9799      2     27 0.006996 **
+#&gt; Residuals   28</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Replace <code>*</code> with <code>+</code> to drop the interaction. The two main effects keep the same Pillai values but get more denominator degrees of freedom (28 vs 26 residuals), which slightly tightens the p-values.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<h3>Exercise 1: MANOVA on airquality</h3>
+
+<p>Use the built-in <code>airquality</code> data. Treat <code>Month</code> as the grouping factor. Use <code>cbind(Ozone, Solar.R, Wind, Temp)</code> as the joint outcome. The dataset has <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing values</a>, so drop incomplete rows first with <code>na.omit()</code>. Fit MANOVA, request <strong>Wilks' lambda</strong>, then call <code>summary.aov()</code> and identify the outcome with the largest F. Save the model as <code>aq_manova</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise: airquality MANOVA">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise: airquality MANOVA</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: na.omit() first, then manova(cbind(...) ~ Month, data = ...)
+# Hint: Coerce Month to factor or it will be treated as numeric.
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="airquality MANOVA solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">airquality MANOVA solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">aq &lt;- na.omit(airquality)
+aq_manova &lt;- manova(cbind(Ozone, Solar.R, Wind, Temp) ~ factor(Month), data = aq)
+
+summary(aq_manova, test = &quot;Wilks&quot;)
+#&gt;               Df    Wilks approx F num Df den Df    Pr(&gt;F)
+#&gt; factor(Month)  4 0.32988   5.7368     16  324.55 9.392e-12 ***
+#&gt; Residuals    106
+
+summary.aov(aq_manova)
+#&gt;  Response Ozone :  F = 11.22, p = 1.6e-07
+#&gt;  Response Solar.R: F =  1.69, p = 0.157
+#&gt;  Response Wind  :  F =  3.83, p = 0.006
+#&gt;  Response Temp  :  F = 41.06, p &lt; 2.2e-16</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>Temp</code> has the largest F (41), so monthly temperature differences drive most of the joint effect. <code>Solar.R</code> is the only outcome that is not individually significant after Bonferroni at $0.05/4 = 0.0125$.</p>
+
+</details>
+
+<h3>Exercise 2: Compare all four statistics in one tidy table</h3>
+
+<p>Build a single data frame called <code>stat_table</code> with one row per test statistic (Pillai, Wilks, Hotelling-Lawley, Roy), holding the statistic value, the approximate F, and the p-value for the <strong>Species</strong> effect of <code>iris_manova</code>. Use <code>summary()</code> with each <code>test =</code> option and pull the numbers out of the returned object.</p>
+
+<div class="webr-container" data-block-title="Exercise: tidy table of all four statistics">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise: tidy table of all four statistics</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: summary(iris_manova, test = &quot;Pillai&quot;)$stats holds the numbers.
+# Hint: stats is a matrix; the Species row is row 1.
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="All-four-statistics table solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">All-four-statistics table solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tests &lt;- c(&quot;Pillai&quot;, &quot;Wilks&quot;, &quot;Hotelling-Lawley&quot;, &quot;Roy&quot;)
+stat_table &lt;- do.call(rbind, lapply(tests, function(t) {
+  s &lt;- summary(iris_manova, test = t)$stats
+  data.frame(test = t,
+             statistic = round(s[&quot;Species&quot;, 2], 4),
+             approx_F  = round(s[&quot;Species&quot;, &quot;approx F&quot;], 2),
+             p_value   = signif(s[&quot;Species&quot;, &quot;Pr(&gt;F)&quot;], 3))
+}))
+stat_table
+#&gt;               test statistic approx_F p_value
+#&gt; 1           Pillai    1.1919    53.47       0
+#&gt; 2            Wilks    0.0234   199.15       0
+#&gt; 3 Hotelling-Lawley   32.4773   580.53       0
+#&gt; 4              Roy   32.1919  1167.00       0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>summary(...)$stats</code> is a numeric matrix; column 2 is always the statistic value regardless of which one you asked for. All four agree that Species matters, but Roy's F dwarfs the others, a reminder that Roy is the most aggressive of the four.</p>
+
+</details>
+
+<h2>Complete Example</h2>
+
+<p>Putting the full workflow on <code>iris</code> end to end:</p>
+
+<div class="webr-container" data-block-title="Complete MANOVA workflow on iris">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Complete MANOVA workflow on iris</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># 1. Inspect
+table(iris$Species)
+#&gt; setosa versicolor virginica
+#&gt;     50         50        50
+
+# 2. Check correlations among outcomes
+round(cor(iris[, 1:4]), 2)
+#&gt; (matrix from earlier; Petal.Length-Petal.Width = 0.96)
+
+# 3. Fit MANOVA
+iris_full &lt;- manova(cbind(Sepal.Length, Sepal.Width, Petal.Length, Petal.Width) ~ Species,
+                    data = iris)
+
+# 4. Pillai summary (default, robust)
+summary(iris_full)
+#&gt; Species 2 1.1919 53.466 8 290 &lt; 2.2e-16 ***
+
+# 5. Per-outcome ANOVAs
+summary.aov(iris_full)
+#&gt; Sepal.Length F=119,  Sepal.Width F=49
+#&gt; Petal.Length F=1180, Petal.Width F=960
+
+# 6. Pairwise comparisons on the strongest outcome
+TukeyHSD(aov(Petal.Length ~ Species, data = iris))
+#&gt; All three pairs significant; biggest gap virginica vs setosa (4.09 cm).</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Plain-English conclusion: <strong>the three iris species differ jointly on the four floral measurements (Pillai = 1.19, F(8, 290) = 53.5, p < 0.001). Petal length and petal width drive most of the difference, and every species pair is distinguishable on petal length, with the virginica-setosa gap the largest.</strong> That sentence is exactly the kind of write-up a journal expects.</p>
+
+<h2>Summary</h2>
+
+<p><img src="screenshots/MANOVA-in-R-anova-vs-manova-decision.webp" alt="Decision flow for choosing between ANOVA, multiple ANOVAs with Bonferroni, and MANOVA." class="img-responsive img-zoomable" loading="lazy" width="1910" height="858" /></p>
+
+<p><em>Figure 1: Decision flow for choosing between ANOVA, multiple ANOVAs with Bonferroni, and MANOVA.</em></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Idea</th>
+<th>Takeaway</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Why MANOVA</td>
+<td>Tests k correlated outcomes in one shot; controls family-wise Type I error.</td>
+</tr>
+<tr>
+<td>Syntax</td>
+<td><code>manova(cbind(y1, y2, ...) ~ x, data = df)</code></td>
+</tr>
+<tr>
+<td>Default statistic</td>
+<td>Pillai's trace, printed by <code>summary()</code>.</td>
+</tr>
+<tr>
+<td>Robust default</td>
+<td>Pillai is best when assumptions wobble or the design is unbalanced.</td>
+</tr>
+<tr>
+<td>Risky statistic</td>
+<td>Roy's largest root over-rejects unless group means are collinear.</td>
+</tr>
+<tr>
+<td>Assumption to fear most</td>
+<td>Multicollinearity among outcomes (cor > 0.9).</td>
+</tr>
+<tr>
+<td>First follow-up</td>
+<td><code>summary.aov()</code> for univariate ANOVA per outcome, with Bonferroni alpha = 0.05/k.</td>
+</tr>
+<tr>
+<td>Second follow-up</td>
+<td><code>TukeyHSD()</code> on the strongest outcome for pairwise contrasts.</td>
+</tr>
+<tr>
+<td>Two-way design</td>
+<td>Same call, just <code>factor1 * factor2</code> on the right of <code>~</code>.</td>
+</tr>
+</tbody>
+</table>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Wilks, S. S. (1932). <em>Certain generalizations in the analysis of variance.</em> Biometrika, 24(3-4), 471-494.</li>
+
+<li>Bartlett, M. S. (1939). <em>A note on tests of significance in multivariate analysis.</em> Mathematical Proceedings of the Cambridge Philosophical Society, 35(2), 180-185.</li>
+
+<li>R Core Team. <em>?manova and ?summary.manova in base R.</em> <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/manova.html">Link</a></li>
+
+<li>Fox, J., & Weisberg, S. (2019). <em>An R Companion to Applied Regression</em>, 3rd ed. Sage. (Chapter on multivariate linear models and <code>car::Manova()</code>.)</li>
+
+<li>Tabachnick, B. G., & Fidell, L. S. (2019). <em>Using Multivariate Statistics</em>, 7th ed. Pearson. Chapter 7 on MANOVA.</li>
+
+<li>Hand, D. J., & Taylor, C. C. (1987). <em>Multivariate Analysis of Variance and Repeated Measures.</em> Chapman & Hall.</li>
+
+<li>Penn State STAT 505. <em>Lesson 8.3: Test Statistics for MANOVA.</em> <a href="https://online.stat.psu.edu/stat505/lesson/8/8.3">Link</a></li>
+
+<li>STHDA. <em>MANOVA Test in R: Multivariate Analysis of Variance.</em> <a href="https://www.sthda.com/english/wiki/manova-test-in-r-multivariate-analysis-of-variance">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ol>
+
+<li><strong><a href="One-Way-ANOVA-in-R.html">One-Way ANOVA in R</a></strong>, the single-outcome version that MANOVA generalises. Read this first if the F-table feels unfamiliar.</li>
+
+<li><strong><a href="Two-Way-ANOVA-in-R.html">Two-Way ANOVA in R</a></strong>, what the two-factor case looks like with a single outcome. Useful contrast for the two-way MANOVA section above.</li>
+
+<li><strong><a href="Post-Hoc-Tests-After-ANOVA.html">Post-Hoc Tests After ANOVA</a></strong>, deeper coverage of <code>TukeyHSD()</code>, Bonferroni, and pairwise contrasts you will use after <code>summary.aov()</code>.</li>
+
+</ol>
