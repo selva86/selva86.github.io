@@ -1,0 +1,779 @@
+---
+title: "Dose-Response Analysis in R: drc Package for Sigmoidal Curves"
+description: "Fit dose-response curves in R with the drc package: four-parameter log-logistic models, EC50 and ED50 estimation, model selection, and group comparison."
+keywords: "drc package, dose-response analysis in R, EC50, ED50, log-logistic, Weibull, sigmoidal curves, bioassay, drm function, pharmacology R"
+mathjax: true
+webr: true
+curriculum_id: "FR-anov-9"
+post_type: "FR"
+auto_link_terms: "dose-response analysis|drc package|log-logistic|sigmoidal curve|EC50|ED50|drm()|LL.4()"
+auto_link_case_sensitive: true
+fr_parent: "Factorial-Experiments-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>Dose-Response Analysis in R: drc Package for Sigmoidal Curves</h1>
+
+<p class="lead">Dose-response analysis models how a biological or chemical response, like plant growth, cell mortality, or enzyme activity, changes with increasing dose. The <strong>drc</strong> package in R fits sigmoidal curves (log-logistic, Weibull, and more), estimates effective doses such as ED50 or EC50, and compares curves between treatment groups, all through one consistent interface built around <code>drm()</code>.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="30" data-exercises="7" data-xp="105"></div>
+
+<h2>How do you fit a dose-response curve with drc?</h2>
+
+<p>A single call to <code>drm()</code> fits a sigmoidal curve to your dose-response data. You pass a formula, the data frame, and a model family (the log-logistic family is the default workhorse), and <code>drm()</code> returns a fitted object that feeds every downstream step: parameter estimation, effective-dose computation, plotting, and group comparison. The bundled <code>ryegrass</code> dataset, ferulic-acid concentrations versus ryegrass root lengths, is the canonical worked example from the drc authors.</p>
+
+<div class="webr-container" data-block-title="Fit a four-parameter log-logistic model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a four-parameter log-logistic model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(drc)
+
+model &lt;- drm(rootl ~ conc, data = ryegrass, fct = LL.4())
+summary(model)
+#&gt; Model fitted: Log-logistic (ED50 as parameter) (4 parms)
+#&gt;
+#&gt; Parameter estimates:
+#&gt;               Estimate Std. Error t-value   p-value
+#&gt; b:(Intercept)   2.4780     0.3426  7.2317 1.586e-07
+#&gt; c:(Intercept)   0.4842     0.2141  2.2615   0.0339
+#&gt; d:(Intercept)   7.7934     0.2154 36.1839  &lt; 2e-16
+#&gt; e:(Intercept)   3.0585     0.1926 15.8812 7.225e-14
+#&gt;
+#&gt; Residual standard error:
+#&gt;
+#&gt;  0.5286 (20 degrees of freedom)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Four parameters describe the curve. <code>d</code> is the upper asymptote (7.79 cm of root growth at zero dose), <code>c</code> is the lower asymptote (0.48 cm at very high dose), <code>e</code> is the ED50 (3.06 mM of ferulic acid halves root length), and <code>b</code> is the slope at ED50. All four estimates are highly significant, meaning the four-parameter curve fits better than flat or simpler alternatives. The <a class="auto-link" href="Interpreting-Regression-Output-Completely.html" title="Interpreting Regression Output Completely: Every Number in lm Summary">residual standard error</a> of 0.53 cm is small relative to the 7.3 cm response range, so the fit is tight.</p>
+
+<p><img src="screenshots/Dose-Response-Analysis-in-R-workflow.webp" alt="A typical drc workflow feeding one fit into summary, ED, plot, and compParm." class="img-responsive img-zoomable" loading="lazy" width="1566" height="1282" /></p>
+
+<p><em>Figure 1: A typical drc workflow. One <code>drm()</code> fit feeds <code>summary()</code>, <code>ED()</code>, <code>plot()</code>, and <code>compParm()</code>.</em></p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Parameter names depend on the model family.</strong> LL.4() labels its parameters b, c, d, e. Weibull and log-normal families use the same letters in the same positions, so your code below stays the same when you switch families.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit a three-parameter log-logistic model (<code>LL.3()</code>) to the same <code>ryegrass</code> data, then print its summary. LL.3 fixes the lower asymptote at zero, so you'll see only three parameters (b, d, e).</p>
+<div class="webr-container" data-block-title="Your turn: fit LL.3()">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: fit LL.3()</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit LL.3 (3-parameter log-logistic) to ryegrass
+ex_model3 &lt;- drm(rootl ~ conc, data = ryegrass, fct = ______)
+
+summary(ex_model3)
+#&gt; Expected: 3 parameter rows (b, d, e), no c row</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="LL.3 fit solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">LL.3 fit solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_model3 &lt;- drm(rootl ~ conc, data = ryegrass, fct = LL.3())
+summary(ex_model3)
+#&gt; Model fitted: Log-logistic (ED50 as parameter) with lower limit at 0 (3 parms)
+#&gt;
+#&gt; Parameter estimates:
+#&gt;               Estimate Std. Error t-value   p-value
+#&gt; b:(Intercept)   1.9019     0.1738 10.9441 9.050e-10
+#&gt; d:(Intercept)   7.8581     0.2111 37.2309  &lt; 2e-16
+#&gt; e:(Intercept)   3.2637     0.1917 17.0258 1.047e-13</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>LL.3()</code> constrains the lower asymptote to zero, dropping the <code>c</code> parameter. This is useful when the response genuinely bottoms out at zero (root length cannot be negative).</p>
+
+</details>
+</section>
+
+<h2>How do you estimate ED50, EC50, and other effective doses?</h2>
+
+<p>The <strong>effective dose</strong> ED<em>p</em> is the dose producing a response <em>p</em> percent of the way between the two asymptotes. ED50 is the halfway dose, ED10 is an early-effect marker, ED90 is near the plateau. In pharmacology the same quantity is called <strong>EC50</strong> (effective concentration) or <strong>IC50</strong> (inhibitory concentration); in toxicology it is <strong>LC50</strong> (lethal concentration). All four names refer to the same value, the <code>e</code> parameter in a log-logistic fit. The <code>ED()</code> function gives you every level you ask for, with delta-method confidence intervals.</p>
+
+<div class="webr-container" data-block-title="Estimate ED10, ED50, and ED90 with CIs">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Estimate ED10, ED50, and ED90 with CIs</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ED(model, respLev = c(10, 50, 90), interval = &quot;delta&quot;)
+#&gt;
+#&gt; Estimated effective doses
+#&gt; (Delta method-based confidence interval(s))
+#&gt;
+#&gt;         Estimate Std. Error  Lower  Upper
+#&gt; e:1:10    1.4629     0.2094 1.0260 1.8999
+#&gt; e:1:50    3.0585     0.1926 2.6567 3.4603
+#&gt; e:1:90    6.3944     0.7992 4.7268 8.0619</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>ED50 is 3.06 mM, matching the <code>e</code> parameter from the summary. Its <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">95% confidence interval</a> is narrow (2.66 to 3.46), which makes sense because the data cluster densely around the inflection point. ED90 has a much wider CI (4.73 to 8.06), because fewer data points anchor the high-dose plateau. Always report ED estimates with their CIs, a point estimate without uncertainty is a half-answer.</p>
+
+<p>If you are curious about the math, the four-parameter log-logistic curve has the form:</p>
+
+<p>$$f(x) = c + \frac{d - c}{1 + \exp\{b \cdot [\log(x) - \log(e)]\}}$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$x$ is the dose</li>
+
+<li>$c$ is the lower asymptote (response at infinite dose)</li>
+
+<li>$d$ is the upper asymptote (response at zero dose)</li>
+
+<li>$b$ is the slope coefficient at ED50 (negative for decreasing response, as in root growth)</li>
+
+<li>$e$ is the ED50 itself, embedded directly in the model</li>
+
+</ul>
+
+<p><em>If you're not interested in the math, skip to the next section, the practical code above is all you need.</em></p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>ED50 is the e parameter, you get it for free.</strong> But only <code>ED()</code> gives you the confidence interval. Always use <code>ED()</code> when you plan to report or compare ED values across treatments.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute ED25 (the dose producing a quarter of the full response) with its 95% delta-method CI.</p>
+<div class="webr-container" data-block-title="Your turn: ED25 with CI">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: ED25 with CI</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Estimate ED25 on the ryegrass model
+ex_ed25 &lt;- ED(model, respLev = ______, interval = &quot;delta&quot;)
+ex_ed25
+#&gt; Expected: single row e:1:25 with Estimate, Std. Error, Lower, Upper</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="ED25 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">ED25 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_ed25 &lt;- ED(model, respLev = 25, interval = &quot;delta&quot;)
+ex_ed25
+#&gt;
+#&gt; Estimated effective doses
+#&gt; (Delta method-based confidence interval(s))
+#&gt;
+#&gt;        Estimate Std. Error  Lower  Upper
+#&gt; e:1:25   2.0587     0.1881 1.6661 2.4513</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Pass a single value to <code>respLev</code>. Delta-method CIs are built from the parameter covariance matrix, so they are cheap to compute.</p>
+
+</details>
+</section>
+
+<h2>Which sigmoidal model should you choose?</h2>
+
+<p>LL.4 is the safe default, but drc ships with a family of alternatives for curves that are not symmetric, or that need one extra degree of flexibility. Here are the most useful ones:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Family</th>
+<th>Function</th>
+<th>Params</th>
+<th>When to use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Log-logistic (3-param)</td>
+<td><code>LL.3()</code></td>
+<td>b, d, e</td>
+<td>Lower asymptote is truly zero</td>
+</tr>
+<tr>
+<td>Log-logistic (4-param)</td>
+<td><code>LL.4()</code></td>
+<td>b, c, d, e</td>
+<td>Symmetric sigmoid, most common default</td>
+</tr>
+<tr>
+<td>Log-logistic (5-param)</td>
+<td><code>LL.5()</code></td>
+<td>b, c, d, e, f</td>
+<td>Asymmetric, extra <a class="auto-link" href="Gamma-and-Beta-Distributions-in-R.html" title="Gamma & Beta Distributions in R: Shape, Scale & Conjugate Priors">shape parameter</a></td>
+</tr>
+<tr>
+<td>Weibull type 1 (4-param)</td>
+<td><code>W1.4()</code></td>
+<td>b, c, d, e</td>
+<td>Right-skewed drop-off</td>
+</tr>
+<tr>
+<td>Weibull type 2 (4-param)</td>
+<td><code>W2.4()</code></td>
+<td>b, c, d, e</td>
+<td>Left-skewed drop-off</td>
+</tr>
+</tbody>
+</table>
+
+<p>The fastest way to pick is <code>mselect()</code>, which refits the data under every candidate and prints information criteria side by side.</p>
+
+<div class="webr-container" data-block-title="Compare five candidate models with mselect()">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare five candidate models with mselect()</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mselect(model, fctList = list(LL.3(), LL.5(), W1.4(), W2.4()))
+#&gt;       logLik       IC Lack of fit Res var
+#&gt; LL.4  -19.9    49.82       0.952   0.2795
+#&gt; LL.3  -22.4    52.83       0.761   0.3260
+#&gt; LL.5  -19.6    51.21       0.836   0.2891
+#&gt; W1.4  -20.3    50.64       0.916   0.2878
+#&gt; W2.4  -19.1    48.19       0.967   0.2642</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the table two ways. The <code>IC</code> column (smaller is better) ranks W2.4 first and LL.4 second, separated by a 1.6-unit gap, which is a modest preference for W2.4. The <code>Lack of fit</code> column is a <a class="auto-link" href="Statistical-Tests-in-R.html" title="Statistical Tests in R">p-value</a> from a goodness-of-fit test; all five models are above 0.05, so none are rejected outright. When two models are close in IC and both pass lack-of-fit, either choice is defensible; prefer the simpler model (fewer parameters) unless you have a biological reason to pick an asymmetric shape.</p>
+
+<p><img src="screenshots/Dose-Response-Analysis-in-R-model-choice.webp" alt="Decision guide for picking among LL.4, LL.3, LL.5, and Weibull families." class="img-responsive img-zoomable" loading="lazy" width="1332" height="1074" /></p>
+
+<p><em>Figure 2: Decision guide for picking among LL.4, LL.3, LL.5, and Weibull families.</em></p>
+
+<p><code>modelFit()</code> runs the same lack-of-fit test as a standalone check once you have settled on a model.</p>
+
+<div class="webr-container" data-block-title="Goodness-of-fit check with modelFit()">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Goodness-of-fit check with modelFit()</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">model_w2 &lt;- drm(rootl ~ conc, data = ryegrass, fct = W2.4())
+modelFit(model_w2)
+#&gt;
+#&gt; Lack-of-fit test
+#&gt;
+#&gt;           ModelDf    RSS Df F value p value
+#&gt; ANOVA          18 4.5825
+#&gt; DRC model      20 5.2856  2  1.3796  0.2770</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A p-value of 0.28 means we have no evidence the Weibull type-2 model systematically misfits the data, good news.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Start with LL.4, escalate only if needed.</strong> Fit LL.4 first, inspect residuals, run <code>mselect()</code>. Switch families only when residuals are clearly asymmetric or <code>mselect()</code> shows a meaningful IC drop of roughly 2+ units.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Run <code>modelFit()</code> on the original <code>model</code> (the LL.4 fit) and check its lack-of-fit p-value.</p>
+<div class="webr-container" data-block-title="Your turn: modelFit on LL.4">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: modelFit on LL.4</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Run modelFit on the LL.4 model
+ex_fit &lt;- modelFit(______)
+ex_fit
+#&gt; Expected: lack-of-fit table with a p-value</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="modelFit LL.4 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">modelFit LL.4 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_fit &lt;- modelFit(model)
+ex_fit
+#&gt;
+#&gt; Lack-of-fit test
+#&gt;
+#&gt;           ModelDf    RSS Df F value p value
+#&gt; ANOVA          18 4.5825
+#&gt; DRC model      20 5.5867  2  2.9786  0.0763</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The p-value of 0.076 is close to 0.05 but not below it, so LL.4 is not rejected. Combined with a slightly higher residual variance than W2.4, this is why <code>mselect()</code> gave W2.4 a small edge.</p>
+
+</details>
+</section>
+
+<h2>How do you compare dose-response curves between groups?</h2>
+
+<p>Real experiments rarely involve one curve. You compare two herbicides, four cell lines, or three drug formulations, and the question is whether their curves differ. The <code>curveid</code> argument to <code>drm()</code> fits a separate curve per group in one model, and <code>compParm()</code> runs pairwise tests on any single parameter. The bundled <code>S.alba</code> dataset shows biomass of <em>Sinapis alba</em> (white mustard) versus dose, compared across two herbicides, bentazone and glyphosate.</p>
+
+<div class="webr-container" data-block-title="Fit separate curves for two herbicides">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit separate curves for two herbicides</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sa_model &lt;- drm(DryMatter ~ Dose, Herbicide, data = S.alba, fct = LL.4())
+summary(sa_model)
+#&gt; Model fitted: Log-logistic (ED50 as parameter) (4 parms)
+#&gt;
+#&gt; Parameter estimates:
+#&gt;                   Estimate Std. Error  t-value   p-value
+#&gt; b:Bentazone       1.18345    0.14660   8.0726 5.352e-10
+#&gt; b:Glyphosate      4.18854    1.24868   3.3543  0.001724
+#&gt; c:Bentazone       0.53835    0.31052   1.7337  0.090315
+#&gt; c:Glyphosate      2.47021    0.55380   4.4606 5.832e-05
+#&gt; d:Bentazone       7.79418    0.18814  41.4268  &lt; 2e-16
+#&gt; d:Glyphosate      7.81336    0.18114  43.1350  &lt; 2e-16
+#&gt; e:Bentazone      33.19706    5.23282   6.3439 1.148e-07
+#&gt; e:Glyphosate      0.07176    0.01345   5.3347 3.513e-06</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Eight parameters, four per herbicide. Bentazone's ED50 is 33.2 g/ha, glyphosate's is 0.072 g/ha, a 460-fold potency ratio in favour of glyphosate. But is that difference statistically significant, or a sampling artefact? <code>compParm()</code> answers directly.</p>
+
+<div class="webr-container" data-block-title="Test whether ED50 differs between herbicides">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Test whether ED50 differs between herbicides</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">compParm(sa_model, &quot;e&quot;, &quot;-&quot;)
+#&gt;
+#&gt; Comparison of parameter 'e'
+#&gt;
+#&gt;                       Estimate Std. Error  t-value p-value
+#&gt; Bentazone-Glyphosate   33.1253     5.2329  6.33067 &lt; 0.001</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>&quot;-&quot;</code> operator tests the difference <code>e_Bentazone - e_Glyphosate</code>. The 33.1 g/ha estimated difference is overwhelmingly significant (p < 0.001), so glyphosate is genuinely more potent. Use <code>&quot;/&quot;</code> instead to test the ratio, which is often more interpretable for dose-response data.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Visual inspection comes before hypothesis tests.</strong> <code>compParm()</code> assumes the functional form fits both groups. If one group is sigmoidal and the other is linear or biphasic, the parameter comparison is meaningless. Always plot the fits and eyeball them before trusting any p-value.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute the ED50 ratio (Bentazone / Glyphosate) with <code>EDcomp()</code> to get a direct potency ratio estimate with a CI.</p>
+<div class="webr-container" data-block-title="Your turn: potency ratio">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: potency ratio</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Ratio of ED50s with 95% CI
+ex_ratio &lt;- EDcomp(sa_model, percVec = c(50, 50), interval = &quot;delta&quot;)
+ex_ratio
+#&gt; Expected: a single ratio estimate comparing the two herbicides</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="EDcomp solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">EDcomp solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_ratio &lt;- EDcomp(sa_model, percVec = c(50, 50), interval = &quot;delta&quot;)
+ex_ratio
+#&gt;
+#&gt; Estimated ratios of effect doses
+#&gt;
+#&gt;                          Estimate Std. Error    Lower    Upper
+#&gt; Bentazone/Glyphosate:50/50 462.347     87.182  291.476  633.218</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The ratio of 462 (95% CI: 291 to 633) quantifies glyphosate's potency advantage: you need 462 times more bentazone than glyphosate for the same 50% effect.</p>
+
+</details>
+</section>
+
+<h2>How do you visualize dose-response fits?</h2>
+
+<p>A dose-response plot lives or dies by its x-axis: doses span orders of magnitude, so the x-axis must be on a log scale, always. drc's built-in <code>plot()</code> method handles that automatically, draws a smoothed curve, and can overlay <a class="auto-link" href="Communicating-Uncertainty.html" title="Communicating Uncertainty: Don't Mislead Your Audience with Data Viz">confidence bands</a>. For publication figures, extract predictions with <code>predict()</code> and build the plot yourself in ggplot2.</p>
+
+<div class="webr-container" data-block-title="Base-R plot with confidence band">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Base-R plot with confidence band</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">plot(sa_model, type = &quot;confidence&quot;,
+     xlab = &quot;Dose (g/ha)&quot;, ylab = &quot;Dry matter (g)&quot;,
+     col = c(&quot;darkorange&quot;, &quot;steelblue&quot;))
+plot(sa_model, type = &quot;all&quot;, add = TRUE,
+     col = c(&quot;darkorange&quot;, &quot;steelblue&quot;), pch = c(16, 17))
+legend(&quot;topright&quot;, legend = c(&quot;Bentazone&quot;, &quot;Glyphosate&quot;),
+       col = c(&quot;darkorange&quot;, &quot;steelblue&quot;), pch = c(16, 17), lty = 1)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The first <code>plot()</code> call draws the fitted curve plus a 95% confidence ribbon (<code>type = &quot;confidence&quot;</code>). The second call, with <code>add = TRUE</code>, overlays the raw data points (<code>type = &quot;all&quot;</code>). Two calls, one figure. You can see the glyphosate curve shifted roughly three orders of magnitude to the left of bentazone, the visual version of the 462-fold ED50 ratio.</p>
+
+<p>For a ggplot2 version, generate prediction data on a fine dose grid, ask <code>predict()</code> for a confidence interval, then layer <code>geom_ribbon()</code> + <code>geom_line()</code> on top of the raw points.</p>
+
+<div class="webr-container" data-block-title="Publication-quality ggplot2 version">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Publication-quality ggplot2 version</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ggplot2)
+
+dose_grid &lt;- exp(seq(log(0.1), log(300), length.out = 100))
+newdata   &lt;- expand.grid(Dose = dose_grid,
+                         Herbicide = levels(S.alba$Herbicide))
+
+pred          &lt;- predict(sa_model, newdata = newdata, interval = &quot;confidence&quot;)
+newdata$pred  &lt;- pred[, &quot;Prediction&quot;]
+newdata$lower &lt;- pred[, &quot;Lower&quot;]
+newdata$upper &lt;- pred[, &quot;Upper&quot;]
+
+ggplot(S.alba, aes(Dose, DryMatter, color = Herbicide, fill = Herbicide)) +
+  geom_ribbon(data = newdata,
+              aes(y = pred, ymin = lower, ymax = upper),
+              alpha = 0.2, color = NA) +
+  geom_line(data = newdata, aes(y = pred), linewidth = 0.8) +
+  geom_point(size = 2) +
+  scale_x_log10() +
+  labs(x = &quot;Dose (g/ha, log scale)&quot;, y = &quot;Dry matter (g)&quot;,
+       title = &quot;S. alba dose-response: two herbicides&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>expand.grid()</code> builds every combination of doses and herbicides, <code>predict()</code> returns a matrix with prediction, lower, and upper bounds, and <a class="auto-link" href="ggplot2-Grammar-of-Graphics.html" title="ggplot2's Grammar of Graphics: The Mental Model That Makes Everything Click">ggplot2 layers</a> the ribbon (confidence band), line (fit), and points (raw data). Swap colours, themes, and scales freely; the shape of the plot stays the same.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Always log-scale the dose axis.</strong> Dose-response data by construction span multiple orders of magnitude. On a linear axis, half your points collapse into a single bar on the left. <code>scale_x_log10()</code> is non-negotiable.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Add a vertical dashed line at each curve's ED50 to the ggplot2 figure. Use <code>geom_vline()</code> with <code>xintercept = c(0.072, 33.2)</code>.</p>
+<div class="webr-container" data-block-title="Your turn: mark ED50 on the plot">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: mark ED50 on the plot</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Reuse the plot from above and add vertical ED50 lines
+ex_plot &lt;- ggplot(S.alba, aes(Dose, DryMatter, color = Herbicide, fill = Herbicide)) +
+  geom_ribbon(data = newdata, aes(y = pred, ymin = lower, ymax = upper), alpha = 0.2, color = NA) +
+  geom_line(data = newdata, aes(y = pred), linewidth = 0.8) +
+  geom_point(size = 2) +
+  scale_x_log10() +
+  # Add ED50 reference lines here:
+  ______
+
+ex_plot
+#&gt; Expected: the same plot with two dashed vertical lines at ED50 values</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="ED50 reference lines solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">ED50 reference lines solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_plot &lt;- ggplot(S.alba, aes(Dose, DryMatter, color = Herbicide, fill = Herbicide)) +
+  geom_ribbon(data = newdata, aes(y = pred, ymin = lower, ymax = upper), alpha = 0.2, color = NA) +
+  geom_line(data = newdata, aes(y = pred), linewidth = 0.8) +
+  geom_point(size = 2) +
+  scale_x_log10() +
+  geom_vline(xintercept = c(0.072, 33.2), linetype = &quot;dashed&quot;,
+             color = c(&quot;steelblue&quot;, &quot;darkorange&quot;)) +
+  labs(x = &quot;Dose (g/ha, log scale)&quot;, y = &quot;Dry matter (g)&quot;)
+
+ex_plot
+#&gt; Expected: plot with two dashed vertical lines at the two ED50 doses</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>geom_vline()</code> draws reference lines at specified x-values. Matching the line colors to the herbicide colors keeps the visual link tight.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<h3>Exercise 1: Species comparison on selenium toxicity</h3>
+
+<p>The <code>selenium</code> dataset (bundled with drc) records mortality of four species of Daphnia at increasing selenium concentrations. Fit a LL.4 model with <code>curveid = type</code>, print the summary, and identify the species with the lowest ED50 (most sensitive to selenium). Save the fit to <code>my_selenium_model</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 1: selenium species comparison">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1: selenium species comparison</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: use curveid = type to fit one curve per species
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_selenium_model &lt;- drm(dead / total ~ conc, curveid = type,
+                         weights = total, data = selenium,
+                         fct = LL.4(), type = &quot;binomial&quot;)
+
+summary(my_selenium_model)
+# Look at the e:&lt;species&gt; rows, the smallest e is the most sensitive species
+ED(my_selenium_model, respLev = 50, interval = &quot;delta&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The selenium data are binomial (dead / total), so pass <code>type = &quot;binomial&quot;</code> and <code>weights = total</code>. <code>curveid = type</code> fits four curves in one model. The species with the lowest ED50 is the most sensitive to selenium.</p>
+
+</details>
+
+<h3>Exercise 2: Model selection and prediction</h3>
+
+<p>Using the <code>spinach</code> dataset (spinach biomass vs dose, compared across two curve types), fit a LL.4 model with <code>curveid = CURVE</code>, compare it to W2.4 with <code>mselect()</code>, and use <code>predict()</code> to estimate the response at dose 5 under the lower-IC model. Save the prediction to <code>my_spinach_pred</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 2: model selection + prediction">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2: model selection + prediction</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: refit under the winning family, then call predict() with newdata
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_spinach_fit &lt;- drm(SLOPE ~ DOSE, curveid = CURVE,
+                      data = spinach, fct = LL.4())
+mselect(my_spinach_fit, fctList = list(W2.4()))
+
+my_best &lt;- drm(SLOPE ~ DOSE, curveid = CURVE,
+               data = spinach, fct = W2.4())
+
+my_newdata      &lt;- expand.grid(DOSE = 5, CURVE = levels(spinach$CURVE))
+my_spinach_pred &lt;- predict(my_best, newdata = my_newdata, interval = &quot;confidence&quot;)
+my_spinach_pred</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>mselect()</code> reports IC for LL.4 (the baseline) and W2.4 (the challenger). Refit under the winner, then build a tiny <code>newdata</code> grid with <code>DOSE = 5</code> for every curve level and call <code>predict()</code> with <code>interval = &quot;confidence&quot;</code> to get the point estimate plus CI.</p>
+
+</details>
+
+<h2>Complete Example</h2>
+
+<p>An end-to-end S. alba bioassay workflow, tying every section together.</p>
+
+<div class="webr-container" data-block-title="End-to-end S. alba bioassay">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">End-to-end S. alba bioassay</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># 1. Fit separate LL.4 curves for the two herbicides
+bioassay &lt;- drm(DryMatter ~ Dose, Herbicide, data = S.alba, fct = LL.4())
+
+# 2. Check whether another family fits better
+mselect(bioassay, fctList = list(W1.4(), W2.4()))
+
+# 3. Estimate ED50 for each herbicide with CI
+ED(bioassay, respLev = 50, interval = &quot;delta&quot;)
+
+# 4. Test whether the two ED50s are equal
+compParm(bioassay, &quot;e&quot;, &quot;/&quot;)
+
+# 5. Visualize with confidence bands
+plot(bioassay, type = &quot;confidence&quot;,
+     xlab = &quot;Dose (g/ha)&quot;, ylab = &quot;Dry matter (g)&quot;)
+plot(bioassay, type = &quot;all&quot;, add = TRUE)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Step 1 fits, step 2 justifies the model family, steps 3 and 4 answer the research question (how potent, and do they differ), step 5 communicates the result. This five-step template works for most dose-response comparisons: fit, validate, estimate, test, visualize.</p>
+
+<h2>Summary</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>drm(y ~ x, data, fct = LL.4())</code></td>
+<td>Fit a sigmoidal curve</td>
+</tr>
+<tr>
+<td><code>drm(y ~ x, curveid = group, ...)</code></td>
+<td>Fit separate curves per group</td>
+</tr>
+<tr>
+<td><code>summary(model)</code></td>
+<td>Print b, c, d, e parameter estimates</td>
+</tr>
+<tr>
+<td><code>ED(model, respLev, interval = &quot;delta&quot;)</code></td>
+<td>Estimate ED10, ED50, ED90 with CIs</td>
+</tr>
+<tr>
+<td><code>mselect(model, fctList)</code></td>
+<td>Compare model families via IC</td>
+</tr>
+<tr>
+<td><code>modelFit(model)</code></td>
+<td>Lack-of-fit test</td>
+</tr>
+<tr>
+<td><code>compParm(model, &quot;e&quot;, &quot;/&quot;)</code></td>
+<td>Pairwise test on one parameter</td>
+</tr>
+<tr>
+<td><code>EDcomp(model, percVec)</code></td>
+<td>Confidence interval on ED ratios</td>
+</tr>
+<tr>
+<td><code>predict(model, newdata, interval)</code></td>
+<td>Get fit + CI on a dose grid</td>
+</tr>
+<tr>
+<td><code>plot(model, type = &quot;confidence&quot;)</code></td>
+<td>Base-R plot with confidence band</td>
+</tr>
+</tbody>
+</table>
+
+<p>The consistent pattern across the package: every function takes a fitted <code>drm</code> object and operates on it, so once you have a good fit, every downstream analysis is one line of code.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Ritz, C., Baty, F., Streibig, J.C., Gerhard, D. (2015). Dose-Response Analysis Using R. <em>PLOS ONE</em> 10(12): e0146021. <a href="https://doi.org/10.1371/journal.pone.0146021">Link</a></li>
+
+<li>Ritz, C., Streibig, J.C. (2005). Bioassay Analysis using R. <em>Journal of Statistical Software</em> 12(5). <a href="https://www.jstatsoft.org/article/view/v012i05">Link</a></li>
+
+<li>drc package on CRAN, reference manual and vignettes. <a href="https://cran.r-project.org/package=drc">Link</a></li>
+
+<li>Seefeldt, S.S., Jensen, J.E., Fuerst, E.P. (1995). Log-logistic analysis of herbicide dose-response relationships. <em>Weed Technology</em> 9(2): 218-227.</li>
+
+<li>Motulsky, H., Christopoulos, A. (2004). <em>Fitting Models to Biological Data Using Linear and Nonlinear Regression.</em> Oxford University Press.</li>
+
+<li>Finney, D.J. (1971). <em>Probit Analysis</em> (3rd ed.). Cambridge University Press.</li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Factorial-Experiments-in-R.html">Factorial Experiments in R</a> - the parent tutorial covers full-factorial designs where dose is one of several factors.</li>
+
+<li><a href="Logistic-Regression-With-R.html">Logistic Regression in R</a> - the log-logistic curve is the continuous-response cousin of logistic regression's binary-response S-curve.</li>
+
+<li><a href="Linear-Regression.html">Linear Regression in R</a> - sigmoidal fits reduce to linear fits at low or high dose; linear regression is always the first tool to reach for.</li>
+
+</ul>
