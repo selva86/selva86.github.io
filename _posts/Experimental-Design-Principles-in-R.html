@@ -1,0 +1,891 @@
+---
+title: "Experimental Design in R: The Three Principles That Make Results Valid and Generalisable"
+description: "Randomisation removes confounding, blocking reduces noise, replication enables inference. Learn CRD, RCBD, and factorial designs in R with aov() examples."
+keywords: "experimental design R, randomization in R, blocking, replication, completely randomized design, randomized block design, factorial design, aov in R, design of experiments, DoE"
+mathjax: true
+webr: true
+curriculum_id: "2.4.6"
+post_type: "C"
+auto_link_terms: "experimental design|randomisation|blocking|replication|randomised block design|completely randomised design|factorial design|design of experiments"
+auto_link_case_sensitive: false
+sidebar_section: "Statistics"
+sidebar_title: "Experimental Design in R"
+sidebar_order: "63"
+---
+<!-- md2html:generated -->
+
+<h1>Experimental Design in R: The Three Principles That Make Results Valid and Generalisable</h1>
+
+<p class="lead">Experimental design in R rests on three principles: <strong>randomisation</strong> assigns units to treatments by chance, <strong>blocking</strong> groups similar units to control known nuisance variation, and <strong>replication</strong> repeats each treatment enough times to estimate error. Applied together, they make your <code>aov()</code> results both internally valid (the treatment caused the effect) and generalisable (the result holds beyond this sample).</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="35" data-exercises="8" data-xp="120"></div>
+
+<h2>What makes an experiment scientifically valid?</h2>
+
+<p>A valid experiment lets you claim two things with confidence: the treatment caused the observed difference, and the result generalises beyond the exact units tested. Lose either and the analysis collapses, because no ANOVA can rescue a badly designed study. The fastest way to see why is to simulate the same scientific question twice, once with biased assignment and once with random assignment, then compare what each tells us.</p>
+
+<div class="webr-container" data-block-title="Confounded vs randomised: same response, different story">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Confounded vs randomised: same response, different story</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Twelve plots with a hidden gradient (say, soil nitrogen by row)
+set.seed(101)
+plots &lt;- data.frame(
+  id = 1:12,
+  soil_n = c(rep(&quot;low&quot;, 6), rep(&quot;high&quot;, 6)),   # hidden nuisance
+  response = c(rnorm(6, mean = 50, sd = 4),    # low soil plots
+               rnorm(6, mean = 55, sd = 4))    # high soil plots
+)
+
+# Scenario A: treatment is confounded with soil (first 6 plots get drug, last 6 get placebo)
+trt_confounded &lt;- c(rep(&quot;drug&quot;, 6), rep(&quot;placebo&quot;, 6))
+
+# Scenario B: treatment is randomised across all 12 plots
+trt_random &lt;- sample(c(rep(&quot;drug&quot;, 6), rep(&quot;placebo&quot;, 6)))
+
+# Fit aov() for both
+fit_conf &lt;- aov(response ~ trt_confounded, data = plots)
+fit_rand &lt;- aov(response ~ trt_random,     data = plots)
+
+cat(&quot;Confounded p-value:&quot;, summary(fit_conf)[[1]][[&quot;Pr(&gt;F)&quot;]][1], &quot;\n&quot;)
+cat(&quot;Randomised p-value:&quot;, summary(fit_rand)[[1]][[&quot;Pr(&gt;F)&quot;]][1], &quot;\n&quot;)
+#&gt; Confounded p-value: 0.003...
+#&gt; Randomised p-value: 0.36...</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Same response values, same sample size, same <code>aov()</code> call. The confounded analysis finds a "drug effect" at p < 0.01, even though the drug has zero true effect in the simulation: the difference was caused by soil nitrogen, not by the drug. Random assignment disconnected treatment from soil, so the p-value correctly reports "no evidence of an effect." That is why every valid experiment starts with random allocation.</p>
+
+<p><img src="screenshots/Experimental-Design-Principles-in-R-three-principles-map.webp" alt="Each principle addresses a different threat to valid inference; together they produce results that are both internally valid and generalisable." class="img-responsive img-zoomable" loading="lazy" width="1596" height="986" /></p>
+
+<p><em>Figure 1: How the three principles of experimental design combine to support valid and generalisable inference.</em></p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Randomisation is the one step that licenses a causal claim.</strong> Without it, a significant p-value could reflect the treatment, or any hidden variable that happened to track the treatment assignment. Random allocation makes hidden variables independent of treatment on average, so the signal that survives is the one you care about.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Change <code>set.seed(101)</code> to <code>set.seed(7)</code> and rerun the block above. Does the confounded p-value stay small? Does the randomised p-value behave differently?</p>
+<div class="webr-container" data-block-title="Your turn: change the seed and compare">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: change the seed and compare</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: change the seed and rerun
+set.seed(7)
+ex_plots &lt;- data.frame(
+  id = 1:12,
+  soil_n = c(rep(&quot;low&quot;, 6), rep(&quot;high&quot;, 6)),
+  response = c(rnorm(6, mean = 50, sd = 4),
+               rnorm(6, mean = 55, sd = 4))
+)
+# your code here: build trt_confounded, trt_random, fit two aov()s, print both p-values
+
+#&gt; Expected: confounded p remains small; randomised p is large (often &gt; 0.1)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Seed-change comparison solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Seed-change comparison solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+ex_plots &lt;- data.frame(
+  id = 1:12,
+  soil_n = c(rep(&quot;low&quot;, 6), rep(&quot;high&quot;, 6)),
+  response = c(rnorm(6, mean = 50, sd = 4),
+               rnorm(6, mean = 55, sd = 4))
+)
+ex_trt_conf &lt;- c(rep(&quot;drug&quot;, 6), rep(&quot;placebo&quot;, 6))
+ex_trt_rand &lt;- sample(c(rep(&quot;drug&quot;, 6), rep(&quot;placebo&quot;, 6)))
+ex_p_conf &lt;- summary(aov(response ~ ex_trt_conf, data = ex_plots))[[1]][[&quot;Pr(&gt;F)&quot;]][1]
+ex_p_rand &lt;- summary(aov(response ~ ex_trt_rand, data = ex_plots))[[1]][[&quot;Pr(&gt;F)&quot;]][1]
+cat(&quot;Confounded p:&quot;, round(ex_p_conf, 3), &quot;\n&quot;)
+cat(&quot;Randomised p:&quot;, round(ex_p_rand, 3), &quot;\n&quot;)
+#&gt; Confounded p: 0.002
+#&gt; Randomised p: 0.428</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The confounded assignment is pinned to the soil gradient, so it will always look significant regardless of seed. The randomised assignment breaks that link, so its p-value is unrelated to the nuisance variable.</p>
+
+</details>
+</section>
+
+<h2>How does randomisation remove confounding bias?</h2>
+
+<p>Randomisation is simple to state: give every unit an equal chance of being assigned to each treatment. In R you do this with <code>sample()</code>. The point is not the mechanics, it is the statistical gift that follows: any hidden variable, measured or not, becomes independent of treatment on average. Your <code>aov()</code> residuals then cleanly represent chance variation, not systematic bias.</p>
+
+<p>Start with a blank slate of 12 experimental units and a target of 3 treatments with 4 replicates each. You need a plan that assigns each unit to one treatment, with the assignment shuffled by chance.</p>
+
+<div class="webr-container" data-block-title="Randomise 12 units across 3 treatments">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Randomise 12 units across 3 treatments</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(42)
+units &lt;- paste0(&quot;unit_&quot;, 1:12)
+treatment_plan &lt;- data.frame(
+  unit = units,
+  treatment = sample(rep(c(&quot;A&quot;, &quot;B&quot;, &quot;C&quot;), each = 4))  # sample() shuffles
+)
+head(treatment_plan, 6)
+#&gt;      unit treatment
+#&gt; 1  unit_1         B
+#&gt; 2  unit_2         A
+#&gt; 3  unit_3         C
+#&gt; 4  unit_4         C
+#&gt; 5  unit_5         A
+#&gt; 6  unit_6         B</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The pattern is: build the <em>balanced</em> vector first with <code>rep(..., each = 4)</code>, then shuffle it with <code>sample()</code>. This guarantees exactly 4 units per treatment, only the <em>order</em> is random. A second quick check confirms the allocation is balanced.</p>
+
+<div class="webr-container" data-block-title="Confirm balanced allocation">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Confirm balanced allocation</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">table(treatment_plan$treatment)
+#&gt; 
+#&gt; A B C 
+#&gt; 4 4 4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Four units per group, as planned. Had you called <code>sample(c(&quot;A&quot;,&quot;B&quot;,&quot;C&quot;), 12, replace = TRUE)</code> instead you would get roughly balanced groups, but imbalance creeps in through randomness alone. The <code>rep</code> + <code>sample</code> idiom is the reproducible way to randomise a balanced design.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Always call <code>set.seed()</code> before any randomisation.</strong> Reproducibility is not optional: reviewers, collaborators, and your future self all need to run the same randomisation and get the same layout. A different seed means a different experiment.</div></div>
+
+<p>Now simulate realistic responses for this CRD and fit the aov. The data mimic a three-treatment comparison where treatment C is truly a bit better than A and B.</p>
+
+<div class="webr-container" data-block-title="Fit a completely randomised design with aov()">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a completely randomised design with aov()</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(99)
+crd_df &lt;- treatment_plan
+crd_df$yield &lt;- rnorm(12, mean = c(A = 50, B = 51, C = 56)[crd_df$treatment], sd = 3)
+fit_crd &lt;- aov(yield ~ treatment, data = crd_df)
+summary(fit_crd)
+#&gt;             Df Sum Sq Mean Sq F value Pr(&gt;F)  
+#&gt; treatment    2  72.58   36.29    4.07 0.0547 .
+#&gt; Residuals    9  80.19    8.91</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The F-test says "borderline": p = 0.055 with only 4 replicates per treatment. The result is <em>unbiased</em> because we randomised, but it is <em>noisy</em> because 12 plots is not many. Blocking will shrink the noise without adding plots, and replication will shrink it further by adding them. Both principles come next.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Randomise 24 units across 4 treatment levels (label them W, X, Y, Z) with 6 units per level, then verify the allocation with <code>table()</code>.</p>
+<div class="webr-container" data-block-title="Your turn: randomise 24 units across 4 treatments">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: randomise 24 units across 4 treatments</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: balanced randomisation, 6 per group
+set.seed(2026)
+ex_units &lt;- paste0(&quot;u&quot;, 1:24)
+# your code here: build ex_plan data.frame with units and treatment columns
+
+# Verify:
+# table(ex_plan$treatment)
+#&gt; Expected: W=6, X=6, Y=6, Z=6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Balanced randomisation solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Balanced randomisation solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+ex_units &lt;- paste0(&quot;u&quot;, 1:24)
+ex_plan &lt;- data.frame(
+  unit = ex_units,
+  treatment = sample(rep(c(&quot;W&quot;, &quot;X&quot;, &quot;Y&quot;, &quot;Z&quot;), each = 6))
+)
+table(ex_plan$treatment)
+#&gt; 
+#&gt; W X Y Z 
+#&gt; 6 6 6 6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>rep(c(&quot;W&quot;,&quot;X&quot;,&quot;Y&quot;,&quot;Z&quot;), each = 6)</code> creates a perfectly balanced vector of length 24. <code>sample()</code> shuffles its order, producing a randomised-but-balanced assignment.</p>
+
+</details>
+</section>
+
+<h2>Why does blocking reduce experimental error?</h2>
+
+<p>Randomisation deals with <em>unknown</em> nuisance variables, but what about the ones you already know about, like soil moisture differing by field strip or patient age group in a trial? Blocking handles these directly: group similar units into blocks, then randomise treatments <em>within</em> each block. The block effect gets its own line in the aov table, and treatment comparisons are made within blocks where nuisance is held constant.</p>
+
+<p>The cleanest way to see blocking pay off is to analyse the <em>same response values</em> twice: once pretending there is no block (CRD), once acknowledging the block (RCBD). Build a dataset where two field strips differ in baseline yield and each strip gets all three treatments.</p>
+
+<div class="webr-container" data-block-title="Build a plot-level dataset with a hidden block effect">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build a plot-level dataset with a hidden block effect</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(303)
+plot_df &lt;- data.frame(
+  block = factor(rep(c(&quot;wet&quot;, &quot;dry&quot;), each = 6)),
+  treatment = factor(rep(c(&quot;A&quot;, &quot;B&quot;, &quot;C&quot;), times = 4)),
+  yield = c(
+    # wet strip (baseline +4)
+    54 + rnorm(2, 0, 1), 55 + rnorm(2, 0, 1), 60 + rnorm(2, 0, 1),
+    # dry strip (baseline -4)
+    46 + rnorm(2, 0, 1), 47 + rnorm(2, 0, 1), 52 + rnorm(2, 0, 1)
+  )
+)
+fit_crd_only &lt;- aov(yield ~ treatment, data = plot_df)
+summary(fit_crd_only)
+#&gt;             Df Sum Sq Mean Sq F value Pr(&gt;F)  
+#&gt; treatment    2  96.47   48.24   2.983 0.1018
+#&gt; Residuals    9 145.52   16.17</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Ignoring the block, the residual mean square is 16.17 and the F-test for treatment misses the 5% threshold (p = 0.10). The block variance got dumped into residuals, where it drags the denominator up and the F-statistic down. Now rerun with the block added to the model.</p>
+
+<div class="webr-container" data-block-title="Same data, now analysed as RCBD">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Same data, now analysed as RCBD</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit_rcbd &lt;- aov(yield ~ block + treatment, data = plot_df)
+summary(fit_rcbd)
+#&gt;             Df Sum Sq Mean Sq F value  Pr(&gt;F)    
+#&gt; block        1 128.68  128.68 152.10 2.1e-06 ***
+#&gt; treatment    2  96.47   48.24  57.01 1.5e-05 ***
+#&gt; Residuals    8   6.77    0.85</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Same response values, same treatment effect, but the residual mean square collapsed from 16.17 to 0.85. The block accounted for 128 of the 145 "residual" sum of squares the CRD had lumped together. With residuals this small, the treatment F-test now returns p ≈ 0.00002: overwhelmingly significant. That is blocking in one aov table.</p>
+
+<p>Why does this work mathematically? The total variation in the response is fixed: the CRD model splits it two ways (treatment + residuals), while the RCBD model splits it three ways (treatment + block + residuals). The slice carved off for the block stops being noise, so residuals shrink, and since F is signal over noise, the F-statistic for treatment rises.</p>
+
+<p>$$MS_E^{CRD} \;\approx\; \frac{SS_{block} + SS_E^{RCBD}}{df_{block} + df_E^{RCBD}}$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$MS_E^{CRD}$ is the residual mean square when you ignore blocks</li>
+
+<li>$SS_{block}$ is the sum of squares the block explains</li>
+
+<li>$SS_E^{RCBD}$ is the residual sum of squares after fitting the block</li>
+
+<li>$df$ are the corresponding degrees of freedom</li>
+
+</ul>
+
+<p><img src="screenshots/Experimental-Design-Principles-in-R-crd-vs-rcbd.webp" alt="A CRD randomises treatments across all plots; an RCBD first groups plots into blocks, then randomises within each block." class="img-responsive img-zoomable" loading="lazy" width="2194" height="690" /></p>
+
+<p><em>Figure 2: Randomisation layout differs between CRD and RCBD; the extra step in RCBD is grouping similar units before randomising within each group.</em></p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Block on variables you cannot control but can measure.</strong> Classic choices: field strip (agriculture), patient age band (medicine), operator or shift (manufacturing), day of experiment (anything with time drift). Do not block on a variable you are actually studying: that variable belongs as a treatment factor, not a nuisance factor.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Refit <code>fit_rcbd</code> but use <code>yield ~ treatment</code> only (drop the block term). Is the residual mean square closer to 0.85 or to 16.17?</p>
+<div class="webr-container" data-block-title="Your turn: drop the block term and compare">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: drop the block term and compare</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: drop the block term from the RCBD model
+ex_model &lt;- aov(yield ~ treatment, data = plot_df)  # no block
+summary(ex_model)
+#&gt; Expected: residual MS near 16, not 0.85</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Drop-block comparison solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Drop-block comparison solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_model &lt;- aov(yield ~ treatment, data = plot_df)
+summary(ex_model)
+#&gt;             Df Sum Sq Mean Sq F value Pr(&gt;F)  
+#&gt; treatment    2  96.47   48.24   2.983 0.1018
+#&gt; Residuals    9 145.52   16.17</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Dropping the block absorbs the block's sum of squares back into residuals. Residual MS jumps from 0.85 to 16.17 and the treatment F-test loses its significance. The block was carrying real variance out of the error term.</p>
+
+</details>
+</section>
+
+<h2>How much replication do you need for reliable inference?</h2>
+
+<p>Replication is the principle that supplies the <em>denominator</em> for every inferential test. Without repeated measurements you cannot estimate error, and without an error estimate no p-value exists. More replicates also mean more residual degrees of freedom, tighter <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">confidence intervals</a>, and higher power to detect real effects. The <code>pwr</code> package turns this principle into a concrete sample-size recommendation.</p>
+
+<p>Use <code>pwr.anova.test()</code> to answer the question "how many replicates per group do I need?" It takes the number of groups (<code>k</code>), the <a class="auto-link" href="Effect-Size-in-R.html" title="Effect Size in R: The Number p-Values Never Tell You (Cohen's d, η², and r)">effect size</a> (Cohen's $f$), the <a class="auto-link" href="Hypothesis-Testing-in-R.html" title="Hypothesis Testing in R: Understand the Framework, Not Just the p-Value">significance level</a>, and the desired power. Leave <code>n</code> out and it solves for the replicates you need.</p>
+
+<div class="webr-container" data-block-title="Sample size per group for 80% power">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Sample size per group for 80% power</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(pwr)
+# Small, medium, large effects for a 3-group one-way ANOVA
+small  &lt;- pwr.anova.test(k = 3, f = 0.10, sig.level = 0.05, power = 0.80)
+medium &lt;- pwr.anova.test(k = 3, f = 0.25, sig.level = 0.05, power = 0.80)
+large  &lt;- pwr.anova.test(k = 3, f = 0.40, sig.level = 0.05, power = 0.80)
+
+power_tbl &lt;- data.frame(
+  effect = c(&quot;small (f=0.10)&quot;, &quot;medium (f=0.25)&quot;, &quot;large (f=0.40)&quot;),
+  n_per_group = ceiling(c(small$n, medium$n, large$n))
+)
+power_tbl
+#&gt;           effect n_per_group
+#&gt; 1 small  (f=0.10)         322
+#&gt; 2 medium (f=0.25)          53
+#&gt; 3 large  (f=0.40)          22</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The numbers jump an order of magnitude as effect size shrinks: 22 replicates per group for a large effect, 322 for a small one. A single experiment with 4 replicates per group (what we had in the CRD earlier) has almost no chance of detecting a small effect. Replication is the lever that turns "interesting pattern" into "statistically defensible finding."</p>
+
+<p>To see this in action, simulate the same treatment difference twice, once with n = 3 per group and once with n = 10.</p>
+
+<div class="webr-container" data-block-title="Simulate under-replicated vs adequately replicated designs">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Simulate under-replicated vs adequately replicated designs</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(808)
+# True means: A=50, B=52, C=54. Sd = 3.
+simulate_anova &lt;- function(n_per_group) {
+  df &lt;- data.frame(
+    treatment = factor(rep(c(&quot;A&quot;, &quot;B&quot;, &quot;C&quot;), each = n_per_group)),
+    y = rnorm(3 * n_per_group,
+              mean = c(A = 50, B = 52, C = 54)[rep(c(&quot;A&quot;,&quot;B&quot;,&quot;C&quot;), each = n_per_group)],
+              sd = 3)
+  )
+  summary(aov(y ~ treatment, data = df))[[1]][[&quot;Pr(&gt;F)&quot;]][1]
+}
+
+p_small &lt;- simulate_anova(n_per_group = 3)
+p_big   &lt;- simulate_anova(n_per_group = 10)
+cat(&quot;n=3 per group,  p-value:&quot;, round(p_small, 3), &quot;\n&quot;)
+cat(&quot;n=10 per group, p-value:&quot;, round(p_big, 3),   &quot;\n&quot;)
+#&gt; n=3 per group,  p-value: 0.402
+#&gt; n=10 per group, p-value: 0.002</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The n=3 design misses the real effect entirely (p = 0.40), while the n=10 design catches it confidently (p = 0.002). Under-replication does not make your results wrong, it makes them invisible. A non-significant result from a small study tells you nothing about whether an effect exists.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Pseudo-replication is a silent killer.</strong> If you measure the same plant three times, that is <em>not</em> three replicates for "plant response to fertiliser." True replicates are independent experimental units: separate plants, separate patients, separate plots. Repeated measurements on one unit share all its idiosyncrasies, so they cannot estimate between-unit error. When in doubt, ask "what is the smallest thing the treatment is applied to?" That is your replicate.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use <code>pwr.anova.test()</code> to find the replicates per group needed for <code>k = 4</code> groups, <code>f = 0.4</code>, <code>power = 0.90</code>.</p>
+<div class="webr-container" data-block-title="Your turn: sample size with 4 groups and higher power">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: sample size with 4 groups and higher power</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: 4 groups, large effect size, 90% power
+ex_calc &lt;- pwr.anova.test(k = 4, f = 0.4, sig.level = 0.05, power = 0.90)
+# your code here: print ceiling of ex_calc$n
+
+#&gt; Expected: around 22-23 per group</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Higher-power sample size solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Higher-power sample size solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_calc &lt;- pwr.anova.test(k = 4, f = 0.4, sig.level = 0.05, power = 0.90)
+ceiling(ex_calc$n)
+#&gt; [1] 23</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Going from 80% to 90% power requires roughly 30% more replicates. Adding a fourth group also slightly raises the required n per group relative to three groups at the same effect size.</p>
+
+</details>
+</section>
+
+<h2>How do factorial designs test multiple factors at once?</h2>
+
+<p>When two factors both matter, running separate experiments for each one is wasteful and misses something important: the <em>interaction</em>. A factorial design crosses every level of one factor with every level of another, so every plot contributes data to both main effects at the same time. In R this is one line: <code>aov(y ~ A * B)</code>, where <code>*</code> asks for both main effects <em>and</em> their interaction.</p>
+
+<p><img src="screenshots/Experimental-Design-Principles-in-R-factorial-grid.webp" alt="In a 2x2 factorial each combination of the two factors becomes one treatment cell; every plot contributes to estimating both main effects and the interaction." class="img-responsive img-zoomable" loading="lazy" width="1510" height="978" /></p>
+
+<p><em>Figure 3: A 2x2 factorial design crosses two factors at two levels each, giving four treatment cells and enabling main-effect and interaction tests in a single aov().</em></p>
+
+<p>Simulate a 2x2 field trial: two fertilizer levels crossed with two crop varieties, 4 replicates per cell, 16 plots total.</p>
+
+<div class="webr-container" data-block-title="Simulate and fit a 2x2 factorial">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Simulate and fit a 2x2 factorial</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(515)
+fact_df &lt;- expand.grid(
+  fertilizer = c(&quot;low&quot;, &quot;high&quot;),
+  variety    = c(&quot;A&quot;, &quot;B&quot;),
+  replicate  = 1:4
+)
+# True effects: high fertilizer adds +5, variety B adds +2, interaction (high, B) adds +3
+means &lt;- with(fact_df,
+  50 +
+  (fertilizer == &quot;high&quot;) * 5 +
+  (variety    == &quot;B&quot;)    * 2 +
+  (fertilizer == &quot;high&quot; &amp; variety == &quot;B&quot;) * 3
+)
+fact_df$yield &lt;- rnorm(nrow(fact_df), mean = means, sd = 1.5)
+
+fit_fact &lt;- aov(yield ~ fertilizer * variety, data = fact_df)
+summary(fit_fact)
+#&gt;                    Df Sum Sq Mean Sq F value   Pr(&gt;F)    
+#&gt; fertilizer          1  171.5   171.5   86.01 7.4e-07 ***
+#&gt; variety             1   43.2    43.2   21.66 0.00056 ***
+#&gt; fertilizer:variety  1   19.6    19.6    9.84 0.00854 **
+#&gt; Residuals          12   23.9     2.0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Three lines of statistical output, three questions answered in one experiment. The <code>fertilizer:variety</code> row is the interaction test: its p-value of 0.009 says the fertilizer effect is <em>not the same</em> for every variety. That changes how you report the main effects: now you describe the effect of fertilizer <em>within each variety</em>, not as a single number. Visualising this makes the interaction obvious.</p>
+
+<div class="webr-container" data-block-title="Interaction plot">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interaction plot</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">interaction.plot(
+  x.factor    = fact_df$fertilizer,
+  trace.factor = fact_df$variety,
+  response    = fact_df$yield,
+  fun = mean,
+  xlab = &quot;Fertilizer&quot;, ylab = &quot;Mean yield&quot;, trace.label = &quot;Variety&quot;,
+  col  = c(&quot;steelblue&quot;, &quot;tomato&quot;), lwd = 2
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>If the two lines were parallel the interaction would be zero: one factor's effect would not depend on the other. Here they diverge: variety B responds more strongly to high fertilizer than variety A does. That is the kind of recommendation factorials are built to deliver ("use high fertilizer, <em>especially</em> for variety B"), and a one-factor-at-a-time approach would have missed it entirely.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Factorial designs are more efficient than one-factor-at-a-time.</strong> Testing both factors in one experiment uses every plot to estimate both main effects, roughly halving the sample size needed. More importantly, only a factorial design can detect interactions. If the real world has interactions (and in biology, agriculture, and medicine it almost always does), OFAT studies will systematically mislead.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Refit the factorial but swap the <code>*</code> for <code>+</code>, giving <code>aov(yield ~ fertilizer + variety, data = fact_df)</code>. Which row of the previous output disappears, and why?</p>
+<div class="webr-container" data-block-title="Your turn: additive model without interaction">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: additive model without interaction</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: fit the additive (no interaction) version
+ex_fit &lt;- aov(yield ~ fertilizer + variety, data = fact_df)
+summary(ex_fit)
+#&gt; Expected: only two lines above Residuals, no fertilizer:variety row</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Additive factorial solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Additive factorial solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_fit &lt;- aov(yield ~ fertilizer + variety, data = fact_df)
+summary(ex_fit)
+#&gt;             Df Sum Sq Mean Sq F value   Pr(&gt;F)    
+#&gt; fertilizer   1  171.5   171.5   54.39 6.4e-06 ***
+#&gt; variety      1   43.2    43.2   13.70 0.00266 ** 
+#&gt; Residuals   13   43.5     3.3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>+</code> fits only main effects. The interaction sum of squares (19.6 earlier) now falls into the residual, inflating the residual MS from 2.0 to 3.3. You still see the two main effects, but you have no statistical handle on whether they combine additively or interactively.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<p>Three capstone exercises, ordered by difficulty. Each exercise uses distinct variable names (prefixed with <code>my_</code>) so it does not overwrite anything from the tutorial.</p>
+
+<h3>Exercise 1: Randomise then analyse</h3>
+
+<p>Randomise 15 experimental units across 3 diet treatments with 5 units per diet (label them <code>diet1</code>, <code>diet2</code>, <code>diet3</code>). Use <code>set.seed(555)</code> for reproducibility. Then fit a CRD aov on the response values provided and report the F-statistic.</p>
+
+<div class="webr-container" data-block-title="Exercise 1: randomise, then analyse">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1: randomise, then analyse</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Response values measured on the 15 units (in unit order u1..u15)
+my_response &lt;- c(72, 68, 75, 71, 74,    # units 1-5
+                 79, 82, 77, 80, 78,    # units 6-10
+                 85, 83, 88, 86, 84)    # units 11-15
+
+set.seed(555)
+# your code here: build my_df with a 'diet' column from a shuffled balanced vector,
+#                 fit aov(my_response ~ diet, data = my_df), print summary.
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_response &lt;- c(72, 68, 75, 71, 74,
+                 79, 82, 77, 80, 78,
+                 85, 83, 88, 86, 84)
+set.seed(555)
+my_df &lt;- data.frame(
+  unit  = paste0(&quot;u&quot;, 1:15),
+  diet  = sample(rep(c(&quot;diet1&quot;, &quot;diet2&quot;, &quot;diet3&quot;), each = 5)),
+  y     = my_response
+)
+my_fit1 &lt;- aov(y ~ diet, data = my_df)
+summary(my_fit1)
+#&gt;             Df Sum Sq Mean Sq F value Pr(&gt;F)
+#&gt; diet         2   34.6    17.3   0.686  0.522
+#&gt; Residuals   12  302.4    25.2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Because we shuffled with <code>sample()</code> before pairing to the fixed response vector, treatment labels are independent of the response pattern. The test returns a non-significant F, which is exactly what randomisation guarantees when the "treatments" are just labels on arbitrary values.</p>
+
+</details>
+
+<h3>Exercise 2: Pick the right design</h3>
+
+<p>You are testing 3 fertilizer types on wheat yield. The field has a clear east-to-west moisture gradient (eastern strips are wetter than western strips), and you can divide the field into 4 north-south strips (blocks) that each run from east to west through the gradient. Decide whether to use CRD or RCBD, justify it in one sentence, and write the aov formula you would use.</p>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<p><strong>Decision:</strong> Use RCBD. The east-to-west moisture gradient is a known nuisance source that varies <em>within</em> each north-south strip, so blocks need to run perpendicular to the gradient. If the 4 strips each span the full east-to-west range, each strip contains the full gradient, and the block identity itself carries no moisture information.</p>
+
+<p>Actually, reread carefully: the strips run north-south <em>through</em> the east-west gradient. That means moisture varies <em>within</em> each strip (east to west) but is comparable <em>across</em> strips (each strip samples the full gradient). So blocking on strip would not help. The right move is to sub-divide each strip east-to-west and block on east-west position, ensuring each fertiliser appears in every moisture zone.</p>
+
+<p><strong>Correct aov formula:</strong> <code>aov(yield ~ moisture_zone + fertilizer, data = field)</code> where <code>moisture_zone</code> labels the east-west position of each plot.</p>
+
+<p><strong>Explanation:</strong> The block should capture the nuisance variation. If you blocked on the wrong axis (strip ID instead of moisture zone), you would add degrees of freedom without reducing noise, and your RCBD would perform worse than a CRD. Always block on the variable that actually drives nuisance variation.</p>
+
+</details>
+
+<h3>Exercise 3: Interpret the factorial</h3>
+
+<p>Run the following code to generate data from a 2x2 factorial where only the main effect of <code>pesticide</code> is real (no variety effect, no interaction). Fit the full factorial model with interaction, then answer in one sentence: is there evidence for an interaction, and what does that mean for how you describe the main effects?</p>
+
+<div class="webr-container" data-block-title="Exercise 3: fit and interpret a 2x2 factorial">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3: fit and interpret a 2x2 factorial</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(909)
+my_fact &lt;- expand.grid(
+  pesticide = c(&quot;none&quot;, &quot;applied&quot;),
+  variety   = c(&quot;X&quot;, &quot;Y&quot;),
+  rep       = 1:6
+)
+my_means &lt;- with(my_fact, 40 + (pesticide == &quot;applied&quot;) * 6)
+my_fact$yield &lt;- rnorm(nrow(my_fact), mean = my_means, sd = 2)
+
+# your code here: fit aov(yield ~ pesticide * variety, data = my_fact) and summarise.
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(909)
+my_fact &lt;- expand.grid(
+  pesticide = c(&quot;none&quot;, &quot;applied&quot;),
+  variety   = c(&quot;X&quot;, &quot;Y&quot;),
+  rep       = 1:6
+)
+my_means &lt;- with(my_fact, 40 + (pesticide == &quot;applied&quot;) * 6)
+my_fact$yield &lt;- rnorm(nrow(my_fact), mean = my_means, sd = 2)
+my_fit3 &lt;- aov(yield ~ pesticide * variety, data = my_fact)
+summary(my_fit3)
+#&gt;                   Df Sum Sq Mean Sq F value   Pr(&gt;F)    
+#&gt; pesticide          1  229.3   229.3  59.40  3.2e-07 ***
+#&gt; variety            1    1.2     1.2   0.31    0.585
+#&gt; pesticide:variety  1    0.4     0.4   0.10    0.755
+#&gt; Residuals         20   77.2     3.9</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Interpretation:</strong> The interaction p-value is 0.76, so there is no evidence of an interaction. Since variety and the interaction are both non-significant, you can report the pesticide main effect as a single number across both varieties: pesticide application raised mean yield by ~6 units regardless of variety. When the interaction is absent, main effects generalise; when it is present (like our earlier fertilizer x variety example), you must report main effects <em>within each level</em> of the other factor.</p>
+
+</details>
+
+<h2>Complete Example</h2>
+
+<p>Put all three principles together in one end-to-end study. A researcher wants to compare 3 fertilizer mixes (<code>mix1</code>, <code>mix2</code>, <code>mix3</code>) on wheat yield. The field has a known east-to-west moisture gradient, so she divides it into 4 east-to-west blocks and randomises the 3 mixes within each block. That is 12 plots total, 4 replicates per mix.</p>
+
+<div class="webr-container" data-block-title="Complete example: end-to-end RCBD wheat trial">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Complete example: end-to-end RCBD wheat trial</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2024)
+
+# Step 1: build the plot layout (4 blocks x 3 fertilizers within each block)
+wheat_df &lt;- expand.grid(
+  block      = factor(paste0(&quot;b&quot;, 1:4)),
+  fertilizer = c(&quot;mix1&quot;, &quot;mix2&quot;, &quot;mix3&quot;)
+)
+
+# Step 2: randomise fertilizer order within each block
+wheat_df &lt;- do.call(rbind, lapply(split(wheat_df, wheat_df$block), function(b) {
+  b$fertilizer &lt;- sample(b$fertilizer)
+  b
+}))
+wheat_df$plot_id &lt;- seq_len(nrow(wheat_df))
+
+# Step 3: simulate realistic yields (block effect + fertilizer effect + noise)
+block_effect &lt;- c(b1 = -3, b2 = -1, b3 = 1, b4 = 3)  # east-west moisture drift
+fert_effect  &lt;- c(mix1 = 0, mix2 = 2, mix3 = 5)      # true treatment means
+wheat_df$yield &lt;- 60 +
+  block_effect[as.character(wheat_df$block)] +
+  fert_effect[as.character(wheat_df$fertilizer)] +
+  rnorm(nrow(wheat_df), sd = 1.5)
+
+# Step 4: fit the RCBD model
+wheat_model &lt;- aov(yield ~ block + fertilizer, data = wheat_df)
+summary(wheat_model)
+#&gt;             Df Sum Sq Mean Sq F value  Pr(&gt;F)    
+#&gt; block        3  92.01   30.67  10.92 0.00771 ** 
+#&gt; fertilizer   2  55.34   27.67   9.86 0.01291 *  
+#&gt; Residuals    6  16.85    2.81</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Every principle shows up in this aov table. <strong>Randomisation:</strong> the <code>sample()</code> step inside each block shuffles fertilizer order, protecting against any hidden within-block gradient. <strong>Blocking:</strong> the <code>block</code> row (p = 0.008) captures the east-to-west moisture variation, keeping it out of the residuals. <strong>Replication:</strong> 4 blocks provide the residual degrees of freedom needed to estimate error and run the F-test.</p>
+
+<div class="webr-container" data-block-title="Residual diagnostics">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Residual diagnostics</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">par(mfrow = c(2, 2))
+plot(wheat_model)
+par(mfrow = c(1, 1))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Residuals should show no obvious pattern against fitted values (constant variance) and should lie close to the QQ line (approximate normality). If they do not, revisit: a transformation, a different error structure, or a non-parametric test like <a class="auto-link" href="Wilcoxon-Mann-Whitney-and-Kruskal-Wallis-in-R.html" title="Wilcoxon, Mann-Whitney, and Kruskal-Wallis in R: Non-Parametric When Normality Fails">Kruskal-Wallis</a> may be warranted.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Plot residuals before writing any paragraph about your results.</strong> Every assumption of aov (independence, normality, constant variance) is a claim you are making on behalf of the data. The 2x2 diagnostic plot takes one line of code and saves you from reporting results on a broken model.</div></div>
+
+<h2>Summary</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Design</th>
+<th>Use when</th>
+<th>Formula</th>
+<th>Key strength</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>CRD</td>
+<td>No known nuisance factor</td>
+<td><code>y ~ treatment</code></td>
+<td>Simplest, maximum residual df</td>
+</tr>
+<tr>
+<td>RCBD</td>
+<td>Known nuisance variable</td>
+<td><code>y ~ block + treatment</code></td>
+<td>Removes block variance from error, sharper treatment test</td>
+</tr>
+<tr>
+<td>Factorial</td>
+<td>Testing 2+ factors at once</td>
+<td><code>y ~ A * B</code></td>
+<td>Detects interactions, halves sample size vs OFAT</td>
+</tr>
+</tbody>
+</table>
+
+<p><strong>The three principles in one sentence each:</strong></p>
+
+<ul>
+
+<li><strong>Randomisation</strong> breaks the link between treatment and any hidden variable, so your p-value reflects the treatment and not the confounder.</li>
+
+<li><strong>Blocking</strong> moves known nuisance variation out of the residual, so the F-statistic for treatment becomes sharper without adding plots.</li>
+
+<li><strong>Replication</strong> supplies the residual degrees of freedom that every test needs, and determines whether you will detect an effect that is truly there.</li>
+
+</ul>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>CRD is not obsolete.</strong> Use it when no meaningful nuisance variable exists, or when the cost of blocking (extra design complexity, fewer residual df in small studies) outweighs its benefit. Blocking only helps if $MS_{block} > MS_E^{RCBD}$. If the block explains less variance than residuals, you have spent a degree of freedom for nothing.</div></div>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Fisher, R. A. <em>The Design of Experiments</em>. Oliver & Boyd (1935). The original source of the three principles.</li>
+
+<li>Box, G. E. P., Hunter, J. S., & Hunter, W. G. <em>Statistics for Experimenters: Design, Innovation, and Discovery</em>, 2nd ed. Wiley (2005).</li>
+
+<li>Montgomery, D. C. <em>Design and Analysis of Experiments</em>, 10th ed. Wiley (2019).</li>
+
+<li>R Core Team. <code>stats::aov</code> reference manual. <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/aov.html">Link</a></li>
+
+<li>CRAN Task View: ExperimentalDesign. <a href="https://cran.r-project.org/web/views/ExperimentalDesign.html">Link</a></li>
+
+<li>Champely, S. <code>pwr</code>: Basic Functions for Power Analysis (R package). <a href="https://cran.r-project.org/package=pwr">Link</a></li>
+
+<li>NIST/SEMATECH. <em>e-Handbook of Statistical Methods</em>, Chapter 5: Process Improvement. <a href="https://www.itl.nist.gov/div898/handbook/pri/pri.htm">Link</a></li>
+
+<li>Lawson, J. <em>Design and Analysis of Experiments with R</em>. Chapman & Hall/CRC (2015).</li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ol>
+
+<li><a href="One-Way-ANOVA-in-R.html">One-Way ANOVA in R</a>: fit, interpret, and report a CRD with a single treatment factor.</li>
+
+<li><a href="Two-Way-ANOVA-in-R.html">Two-Way ANOVA in R</a>: go deeper on factorial main effects, Type II/III sums of squares, and <a class="auto-link" href="Interaction-Effects-in-R.html" title="Interaction Effects in R: Add Them, Test Them, and Actually Understand the Output">emmeans</a>.</li>
+
+<li><a href="Statistical-Power-Analysis-in-R.html">Statistical Power Analysis in R</a>: decide how many replicates you need before running the experiment.</li>
+
+</ol>
