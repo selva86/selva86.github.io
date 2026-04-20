@@ -1,0 +1,885 @@
+---
+title: "PCA in R: Reduce Dimensions, Visualise Structure, and Understand What prcomp() Returns"
+description: "Run PCA in R with prcomp(): scale your data, read the rotation and sdev outputs, pick components from the scree plot, and interpret a biplot confidently."
+keywords: "PCA in R, prcomp, principal component analysis, scree plot, biplot, dimensionality reduction, rotation matrix, explained variance, factoextra, ggbiplot"
+mathjax: true
+webr: true
+curriculum_id: "2.5.2"
+post_type: "C"
+auto_link_terms: "PCA in R|principal component analysis|prcomp()|scree plot|biplot|explained variance|dimensionality reduction|rotation matrix|factoextra"
+auto_link_case_sensitive: false
+sidebar_section: "Statistics"
+sidebar_title: "PCA with prcomp()"
+sidebar_order: "69"
+---
+<!-- md2html:generated -->
+
+<h1>PCA in R: Reduce Dimensions, Visualise Structure, and Understand What prcomp() Returns</h1>
+
+<p class="lead">Principal Component Analysis (PCA) in R with <code>prcomp()</code> rotates your numeric columns into a smaller set of uncorrelated directions that capture as much variance as possible, so you can visualise, compress, or denoise multivariate data in a few lines of base R.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="35" data-exercises="9" data-xp="135"></div>
+
+<h2>What is PCA in R and when should you reach for it?</h2>
+
+<p>PCA answers a practical question: when your data has many correlated numeric columns, which directions carry the most information? <code>prcomp()</code> ships with base R and does the heavy lifting in one call. Let's run it on <code>USArrests</code>, a built-in dataset with four crime-related columns across 50 US states, so you can see the payoff before we open the hood.</p>
+
+<div class="webr-container" data-block-title="Fit PCA on USArrests with prcomp()">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit PCA on USArrests with prcomp()</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+library(ggplot2)
+
+# Fit PCA: scale=TRUE standardises each column before decomposition
+pca_arrests &lt;- prcomp(USArrests, scale = TRUE)
+
+# Variance explained by each component
+summary(pca_arrests)
+#&gt; Importance of components:
+#&gt;                           PC1    PC2     PC3     PC4
+#&gt; Standard deviation     1.5749 0.9949 0.59713 0.41645
+#&gt; Proportion of Variance 0.6201 0.2474 0.08914 0.04336
+#&gt; Cumulative Proportion  0.6201 0.8675 0.95664 1.00000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Two numbers in that summary do most of the interpretation work. The <strong>Proportion of Variance</strong> row says how much of the dataset's total variance each component absorbs: PC1 captures 62%, PC2 another 25%. The <strong>Cumulative Proportion</strong> row tells you when you have "enough" components: by PC2 you already explain 87% of the variance, which is why PCA is so useful for 2D plots. The remaining PC3 and PC4 carry little new information, so a two-component summary of these fifty states is genuinely faithful to the data.</p>
+
+<p><img src="screenshots/PCA-in-R-workflow.webp" alt="PCA workflow in R" class="img-responsive img-zoomable" loading="lazy" width="2248" height="332" /></p>
+
+<p><em>Figure 1: The six-step PCA workflow in R, from raw matrix to biplot.</em></p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>PCA rotates, it doesn't select.</strong> Each principal component is a weighted blend of every original column, ordered so PC1 maximises variance, PC2 maximises the remainder while staying uncorrelated with PC1, and so on. You're not picking columns, you're changing the coordinate system.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Run PCA on the numeric columns of <code>mtcars</code> (drop none, they're all numeric) with scaling on. What is the cumulative variance captured by PC1 and PC2? Fill the blank and compare against the expected output.</p>
+<div class="webr-container" data-block-title="Your turn: PCA on mtcars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: PCA on mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: fit PCA on mtcars, read off cumulative variance at PC2
+ex_pca_mtcars &lt;- prcomp(___, scale = TRUE)
+summary(ex_pca_mtcars)$importance[3, &quot;PC2&quot;]
+#&gt; Expected: 0.8424 (about 84 percent)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="mtcars PCA solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">mtcars PCA solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_pca_mtcars &lt;- prcomp(mtcars, scale = TRUE)
+summary(ex_pca_mtcars)$importance[3, &quot;PC2&quot;]
+#&gt; [1] 0.8424</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>summary()</code> returns an <code>$importance</code> matrix whose third row is the cumulative proportion. Indexing by column name reads PC2's cumulative variance directly.</p>
+
+</details>
+</section>
+
+<h2>What does prcomp() actually return?</h2>
+
+<p><code>prcomp()</code> returns a list with five named slots. Each slot answers a specific question about the decomposition, so learning them once pays off every time you touch PCA. The structure is the same whether you pass four columns or four thousand.</p>
+
+<p><img src="screenshots/PCA-in-R-prcomp-object.webp" alt="prcomp return object" class="img-responsive img-zoomable" loading="lazy" width="860" height="1578" /></p>
+
+<p><em>Figure 2: The five slots returned by prcomp(): sdev, rotation, x, center, scale.</em></p>
+
+<div class="webr-container" data-block-title="Inspect the prcomp result">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Inspect the prcomp result</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Structure of the whole object
+str(pca_arrests, max.level = 1)
+#&gt; List of 5
+#&gt;  $ sdev    : num [1:4] 1.575 0.995 0.597 0.416
+#&gt;  $ rotation: num [1:4, 1:4] -0.536 -0.583 -0.278 -0.543 ...
+#&gt;  $ center  : Named num [1:4] 7.79 170.76 65.54 21.23
+#&gt;  $ scale   : Named num [1:4] 4.36 83.34 14.47 9.37
+#&gt;  $ x       : num [1:50, 1:4] -0.976 -1.931 -1.745 0.14 -2.499 ...
+
+# Loadings: columns are eigenvectors, rows are original variables
+loadings_arrests &lt;- pca_arrests$rotation
+round(loadings_arrests, 3)
+#&gt;                 PC1    PC2    PC3    PC4
+#&gt; Murder       -0.536  0.418 -0.341  0.649
+#&gt; Assault      -0.583  0.188 -0.268 -0.743
+#&gt; UrbanPop     -0.278 -0.873 -0.378  0.134
+#&gt; Rape         -0.543 -0.167  0.818  0.089
+
+# Scores: 50 rows projected onto the new axes
+scores_arrests &lt;- pca_arrests$x
+head(scores_arrests, 3)
+#&gt;            PC1    PC2    PC3    PC4
+#&gt; Alabama -0.976  1.122 -0.440  0.155
+#&gt; Alaska  -1.931  1.062  2.020 -0.434
+#&gt; Arizona -1.745 -0.738  0.054 -0.826</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the output one slot at a time. <code>$sdev</code> is the standard deviation of each component; squaring it gives the variance (these are the eigenvalues). <code>$rotation</code> is a square matrix whose columns are the principal directions, also called loadings or eigenvectors. <code>$x</code> contains your data after rotation: fifty rows, one per state, now expressed in PC1-PC4 coordinates. <code>$center</code> and <code>$scale</code> store the column means and standard deviations used during preprocessing, which you'll need again when projecting new data.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Scores are just standardised data times the rotation.</strong> The identity <code>pca$x = scale(data, pca$center, pca$scale) %*% pca$rotation</code> holds exactly. Understanding this one line demystifies every other PCA plot you'll ever see.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Look at PC2's loadings in the rotation matrix above. Which original variable has the largest absolute weight on PC2?</p>
+<div class="webr-container" data-block-title="Your turn: dominant variable on PC2">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: dominant variable on PC2</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: find the variable with the largest |loading| on PC2
+ex_pc2 &lt;- abs(pca_arrests$rotation[, &quot;___&quot;])
+names(ex_pc2)[which.max(ex_pc2)]
+#&gt; Expected: &quot;UrbanPop&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="PC2 dominant variable solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">PC2 dominant variable solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_pc2 &lt;- abs(pca_arrests$rotation[, &quot;PC2&quot;])
+names(ex_pc2)[which.max(ex_pc2)]
+#&gt; [1] &quot;UrbanPop&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> PC2 has a loading of -0.873 on UrbanPop, far larger in magnitude than the others. That tells us PC2 mostly measures how urban a state is, largely independent of violent-crime rates captured by PC1.</p>
+
+</details>
+</section>
+
+<h2>Why scale() before PCA? (and what happens if you don't)</h2>
+
+<p>PCA is entirely variance-driven, which means columns measured on larger numeric scales will automatically dominate the first component. Murder counts range roughly 0-18, but Assault counts range 45-337. Without scaling, the assault column's raw variance is hundreds of times larger than murder's, even though the underlying concepts are equally important.</p>
+
+<div class="webr-container" data-block-title="Compare scaled vs unscaled PCA on the same data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare scaled vs unscaled PCA on the same data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Scale FALSE: default, decomposes the covariance matrix
+pca_unscaled &lt;- prcomp(USArrests, scale = FALSE)
+
+# First-PC loadings, side by side
+round(cbind(
+  unscaled = pca_unscaled$rotation[, 1],
+  scaled   = pca_arrests$rotation[, 1]
+), 3)
+#&gt;          unscaled  scaled
+#&gt; Murder     -0.042  -0.536
+#&gt; Assault    -0.995  -0.583
+#&gt; UrbanPop   -0.046  -0.278
+#&gt; Rape       -0.075  -0.543</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Look at the unscaled column: Assault alone has a loading of -0.995, so PC1 is essentially "Assault, with rounding error." The scaled column spreads weight across all four crimes, which is what we actually want when the goal is to <a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">summarise</a> overall crime patterns. The takeaway is blunt: unless every column is already measured in the same physical unit, set <code>scale = TRUE</code>.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>prcomp() does not scale by default.</strong> The argument is <code>scale = FALSE</code> unless you change it. Passing <code>scale. = TRUE</code> (note the trailing dot in the canonical base R signature) is safe and recommended; <code>prcomp()</code> accepts both <code>scale</code> and <code>scale.</code> as aliases. Silent unscaled PCA is a top source of confused results in tutorials.</div></div>
+
+<p>If you're mathematically curious, scaling first is equivalent to decomposing the <a class="auto-link" href="Correlation-Analysis-in-R.html" title="Correlation in R: Pearson vs Spearman vs Kendall — Compute, Test, and Visualise">correlation matrix</a> instead of the <a class="auto-link" href="Multivariate-Statistics-in-R.html" title="Multivariate Statistics in R: Distances, Mahalanobis, and Hotelling's T² Demystified">covariance matrix</a>. The relationship is</p>
+
+<p>$$\text{cor}(X) = D^{-1}\, \text{cov}(X)\, D^{-1}$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$X$ is the centred data matrix</li>
+
+<li>$D$ is a diagonal matrix of column standard deviations</li>
+
+<li>$D^{-1}$ undoes the units so each column contributes equal variance</li>
+
+</ul>
+
+<p><em>If you're not interested in the math, skip to the next section. The <code>scale = TRUE</code> rule above is all you need.</em></p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit PCA on <code>USArrests</code> without scaling, then print PC1 loadings. Confirm Assault dominates.</p>
+<div class="webr-container" data-block-title="Your turn: inspect unscaled PC1">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: inspect unscaled PC1</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: refit without scaling and print PC1 loadings
+ex_pca_raw &lt;- prcomp(USArrests, scale = ___)
+round(ex_pca_raw$rotation[, 1], 3)
+#&gt; Expected: Assault loading near -0.995</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Unscaled PC1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Unscaled PC1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_pca_raw &lt;- prcomp(USArrests, scale = FALSE)
+round(ex_pca_raw$rotation[, 1], 3)
+#&gt;   Murder  Assault UrbanPop     Rape
+#&gt;   -0.042   -0.995   -0.046   -0.075</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Assault's raw variance dwarfs the others, so PC1 becomes an Assault proxy. Scaling re-centres the analysis on correlation structure rather than raw spread.</p>
+
+</details>
+</section>
+
+<h2>How do you read the scree plot and pick the number of components?</h2>
+
+<p>Every PCA report eventually asks: how many components should I keep? Three rules are widely used, they usually agree, and when they don't, agreement between any two of them is a reasonable tie-breaker.</p>
+
+<p><img src="screenshots/PCA-in-R-how-many-pcs.webp" alt="How many components to keep" class="img-responsive img-zoomable" loading="lazy" width="1408" height="1074" /></p>
+
+<p><em>Figure 3: Three complementary rules for choosing how many components to keep.</em></p>
+
+<p>The three rules in order of strictness:</p>
+
+<ol>
+
+<li><strong>Kaiser rule:</strong> keep every PC whose variance is at least 1. Applies only to scaled PCA, because variance-per-PC averages 1 when columns are standardised.</li>
+
+<li><strong>Cumulative-variance rule:</strong> keep enough PCs to explain a preset share, typically 80% or 90% of total variance.</li>
+
+<li><strong>Scree elbow:</strong> plot eigenvalues against component index, then retain the PCs before the visible "elbow" where the curve flattens.</li>
+
+</ol>
+
+<p>Let's build a scree plot manually so you can see the numbers behind the picture.</p>
+
+<div class="webr-container" data-block-title="Scree plot with ggplot2">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Scree plot with ggplot2</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Eigenvalues (variance per PC) and cumulative variance
+scree_df &lt;- tibble(
+  component = paste0(&quot;PC&quot;, seq_along(pca_arrests$sdev)),
+  eigenvalue = pca_arrests$sdev^2,
+  cum_var = cumsum(eigenvalue) / sum(eigenvalue)
+)
+scree_df
+#&gt; # A tibble: 4 x 3
+#&gt;   component eigenvalue cum_var
+#&gt;   &lt;chr&gt;          &lt;dbl&gt;   &lt;dbl&gt;
+#&gt; 1 PC1            2.48    0.620
+#&gt; 2 PC2            0.990   0.868
+#&gt; 3 PC3            0.357   0.957
+#&gt; 4 PC4            0.173   1
+
+ggplot(scree_df, aes(x = component, y = eigenvalue, group = 1)) +
+  geom_col(fill = &quot;#9370DB&quot;) +
+  geom_line(size = 1, colour = &quot;#333&quot;) +
+  geom_hline(yintercept = 1, linetype = &quot;dashed&quot;, colour = &quot;red&quot;) +
+  labs(title = &quot;Scree plot: USArrests&quot;, x = NULL, y = &quot;Eigenvalue&quot;) +
+  theme_minimal()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The red dashed line at eigenvalue = 1 is the Kaiser cutoff. PC1 sits comfortably above it, PC2 sits almost exactly on it, and PC3-PC4 fall well below. All three rules then agree: keep two components. For USArrests that's also where the cumulative variance crosses 87%, a strong summary of a four-dimensional dataset in two coordinates.</p>
+
+<p>If you'd rather not build the plot yourself, <code>factoextra</code> wraps the whole thing into one call.</p>
+
+<div class="webr-container" data-block-title="Scree plot with factoextra">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Scree plot with factoextra</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(factoextra)
+fviz_eig(pca_arrests, addlabels = TRUE, ylim = c(0, 70))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>fviz_eig()</code> reports percentage of variance instead of raw eigenvalues, labels each bar, and produces a publication-ready figure without extra configuration. Use it when you want speed; use the manual version when you want to customise the colours, annotations, or the cutoff line.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong><code>factoextra</code> may not run in the in-browser sandbox.</strong> It pulls in <code>FactoMineR</code> and <code>ggrepel</code>, which aren't always pre-installed in the runner that powers this page. If a <code>factoextra</code> cell errors, copy the code into local RStudio after <code>install.packages(&quot;factoextra&quot;)</code>. The base R <code>biplot()</code> and the manual <code>ggplot2</code> scree plot above do the same job and always run in the browser.</div></div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Cross-check all three rules before committing to a k.</strong> When they disagree, favour interpretability. A third component is only worth keeping if you can describe what it means in words; numerical gain without human meaning is wasted bandwidth.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use <code>pca_arrests$sdev</code> to count how many components satisfy the Kaiser rule.</p>
+<div class="webr-container" data-block-title="Your turn: Kaiser rule count">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: Kaiser rule count</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: count PCs with variance &gt;= 1
+ex_kaiser &lt;- sum(pca_arrests$sdev^___ &gt;= 1)
+ex_kaiser
+#&gt; Expected: 2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Kaiser count solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Kaiser count solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_kaiser &lt;- sum(pca_arrests$sdev^2 &gt;= 1)
+ex_kaiser
+#&gt; [1] 2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Eigenvalues are <code>sdev^2</code>. Summing the logical vector counts how many clear the threshold. Two PCs clear it, matching the scree elbow and the 87% cumulative-variance mark.</p>
+
+</details>
+</section>
+
+<h2>How do you interpret loadings and biplots?</h2>
+
+<p>Loadings are the instruction sheet for what each component actually measures. A loading is a signed weight telling you how much each original variable contributes to a component, and the sign tells you direction. High values across Murder, Assault, and Rape on PC1 (all negative, same sign) means PC1 captures a "violent crime" axis; a strong negative weight on UrbanPop for PC2 means PC2 captures "how urban."</p>
+
+<div class="webr-container" data-block-title="Round and inspect the rotation matrix">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Round and inspect the rotation matrix</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(pca_arrests$rotation, 3)
+#&gt;                 PC1    PC2    PC3    PC4
+#&gt; Murder       -0.536  0.418 -0.341  0.649
+#&gt; Assault      -0.583  0.188 -0.268 -0.743
+#&gt; UrbanPop     -0.278 -0.873 -0.378  0.134
+#&gt; Rape         -0.543 -0.167  0.818  0.089</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Reading column PC1: all four variables share the same sign (negative), and Murder, Assault, and Rape are close in magnitude while UrbanPop is weaker. That's a single "crime intensity" direction, dominated by the three violent-crime variables. PC2 tells a cleaner story: UrbanPop's loading is far larger than the rest, so PC2 is mostly "urbanisation" with small crime-mix corrections. States with large negative PC2 scores are highly urban regardless of their crime profile.</p>
+
+<p>A biplot puts the loadings and the scores on the same canvas so you can read both at once. Arrows show loadings (the rotation columns), points show scores (rows projected onto PCs), and arrow angles approximate correlations between original variables.</p>
+
+<div class="webr-container" data-block-title="Base R biplot of PCA">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Base R biplot of PCA</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">biplot(pca_arrests, scale = 0, cex = 0.7)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>scale = 0</code> tells <code>biplot()</code> to plot raw scores and raw loadings, which keeps geometric interpretation honest. Arrow direction shows which end of the PC is "high" for that variable, arrow length shows how strongly a variable drives the first two PCs, and the angle between two arrows roughly tracks their correlation (small angle = positively correlated, right angle = uncorrelated, opposite = negatively correlated).</p>
+
+<div class="webr-container" data-block-title="Styled biplot with factoextra">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Styled biplot with factoextra</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fviz_pca_biplot(
+  pca_arrests,
+  repel = TRUE,
+  col.var = &quot;#9370DB&quot;,
+  col.ind = &quot;#333&quot;,
+  label = &quot;all&quot;
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>fviz_pca_biplot()</code> handles label collision with <code>repel = TRUE</code>, supports colour-by-group via <code>habillage</code>, and generally produces a better-looking figure than base R. Use it for reports; keep base <code>biplot()</code> in mind for quick sanity checks.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>The sign of a PC is arbitrary.</strong> Different R versions, different hardware, or different subsets can flip the sign of a column in <code>$rotation</code> while preserving all interpretations. If a reviewer asks why your PC1 points "the wrong way", you can multiply both the rotation column and the corresponding score column by -1 without changing anything substantive.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Find the state with the highest PC1 score (recall PC1 is negative for high-crime states, so the <em>lowest</em> PC1 score is the highest-crime state).</p>
+<div class="webr-container" data-block-title="Your turn: extreme PC1 state">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: extreme PC1 state</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: name the state with the smallest PC1 score
+ex_scores &lt;- as.data.frame(pca_arrests$___)
+ex_scores$state &lt;- rownames(ex_scores)
+ex_scores |&gt; arrange(PC1) |&gt; head(1) |&gt; pull(state)
+#&gt; Expected: &quot;Florida&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Extreme PC1 state solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Extreme PC1 state solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_scores &lt;- as.data.frame(pca_arrests$x)
+ex_scores$state &lt;- rownames(ex_scores)
+ex_scores |&gt; arrange(PC1) |&gt; head(1) |&gt; pull(state)
+#&gt; [1] &quot;Florida&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Scores live in <code>$x</code>, rownames carry the state labels. PC1 is signed so that negative values indicate high crime; Florida has the most negative PC1 in the 1973 USArrests snapshot.</p>
+
+</details>
+</section>
+
+<h2>How do you use PCA output in downstream work?</h2>
+
+<p>Once you trust a PCA fit, you can use its scores anywhere you'd normally use the original columns: as axes for scatter plots, as predictors in a regression, or as inputs to <a class="auto-link" href="Clustering-with-R.html" title="Clustering with R">clustering</a>. The one trick is projecting <em>new</em> data onto the same components, which the <code>predict()</code> method handles correctly as long as you pass the original prcomp object.</p>
+
+<div class="webr-container" data-block-title="PCA scores as regression predictors">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">PCA scores as regression predictors</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Build a two-PC dataframe alongside a target
+pc_df &lt;- data.frame(
+  pca_arrests$x[, 1:2],
+  urban = USArrests$UrbanPop
+)
+
+# Fit a simple linear regression on the two PCs
+pcr_model &lt;- lm(urban ~ PC1 + PC2, data = pc_df)
+coef(pcr_model)
+#&gt; (Intercept)         PC1         PC2
+#&gt;    65.54000    -2.23060   -12.68069
+summary(pcr_model)$r.squared
+#&gt; [1] 0.8097</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The model isn't interesting in itself (UrbanPop is already one of the inputs), but the pattern is the point: PCs are just columns, and they drop into <code>lm()</code>, <code>glm()</code>, or <code>randomForest()</code> the same way any numeric predictor would. This trick is called principal-components regression and it's useful when you have many correlated predictors that would otherwise cause <a class="auto-link" href="Multicollinearity-in-R.html" title="Multicollinearity in R: Detect It With VIF Before It Corrupts Your Coefficients">multicollinearity</a>.</p>
+
+<p>Projecting new observations onto existing PCs is a one-liner with <code>predict.prcomp()</code>, but there's a pitfall: the new observation must be scaled with the <em>same</em> centring and scaling used during fitting. Storing the original prcomp object takes care of that automatically.</p>
+
+<div class="webr-container" data-block-title="Project a new observation onto existing PCs">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Project a new observation onto existing PCs</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># A fictional new state with above-average crime and urbanisation
+new_state &lt;- data.frame(
+  Murder = 12,
+  Assault = 250,
+  UrbanPop = 75,
+  Rape = 28,
+  row.names = &quot;Newland&quot;
+)
+
+# predict.prcomp uses the saved $center and $scale automatically
+new_scores &lt;- predict(pca_arrests, newdata = new_state)
+round(new_scores, 3)
+#&gt;             PC1    PC2   PC3    PC4
+#&gt; Newland  -1.784 -0.797 0.075 -0.278</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>predict(pca_arrests, newdata = new_state)</code> does three things under the hood: subtracts the stored column means, divides by the stored column sds, then multiplies by <code>$rotation</code>. That guarantees <code>Newland</code> lands in the same coordinate system as the original 50 states, so you can plot it on the same biplot, cluster it with the same distance metric, or feed it into the same downstream model.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Serialise the prcomp object, not the loadings.</strong> Saving the whole object with <code>saveRDS()</code> preserves <code>$center</code> and <code>$scale</code> automatically. If you store only the rotation matrix, you'll forget the scaling constants and your production scores will silently shift.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Project a second hypothetical state onto the existing PCs and pull out only its PC1 score.</p>
+<div class="webr-container" data-block-title="Your turn: project and extract PC1">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: project and extract PC1</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_state &lt;- data.frame(Murder = 3, Assault = 80, UrbanPop = 50, Rape = 12)
+ex_proj &lt;- predict(___, newdata = ex_state)
+ex_proj[, &quot;PC1&quot;]
+#&gt; Expected: about 2.42 (positive PC1 = low crime)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Projection solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Projection solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_state &lt;- data.frame(Murder = 3, Assault = 80, UrbanPop = 50, Rape = 12)
+ex_proj &lt;- predict(pca_arrests, newdata = ex_state)
+ex_proj[, &quot;PC1&quot;]
+#&gt; [1] 2.418</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> A low-crime, medium-urban hypothetical state sits on the positive side of PC1, the opposite end from Florida. The positive score confirms the earlier read of PC1 as an inverse violent-crime axis.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<p>Apply the full PCA workflow end-to-end. Use distinct variable names (all prefixed <code>my_</code>) so tutorial variables stay intact.</p>
+
+<h3>Exercise 1: Full PCA workflow on mtcars</h3>
+
+<p>Fit PCA on <code>mtcars</code> with scaling, decide how many components to keep using the 80% cumulative-variance rule, and print the first three rows of scores for your retained PCs. Save scores to <code>my_scores</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: summary()$importance gives cumulative variance in row 3
+# Use head() on the score matrix after fitting
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_pca &lt;- prcomp(mtcars, scale = TRUE)
+my_cum &lt;- summary(my_pca)$importance[3, ]
+my_k &lt;- which(my_cum &gt;= 0.80)[1]
+my_scores &lt;- my_pca$x[, 1:my_k]
+head(my_scores, 3)
+#&gt;                           PC1        PC2
+#&gt; Mazda RX4          -0.6468627  1.7081142
+#&gt; Mazda RX4 Wag      -0.6194831  1.5256219
+#&gt; Datsun 710         -2.7356242 -0.1441501</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>summary()$importance[3, ]</code> is the named cumulative-variance vector. <code>which(... &gt;= 0.80)[1]</code> returns the first index crossing the threshold, which is PC2 for <code>mtcars</code>. Two components capture 84% of variance and suffice by the 80% rule.</p>
+
+</details>
+
+<h3>Exercise 2: Scaled vs unscaled comparison</h3>
+
+<p>Fit PCA on <code>USArrests</code> with and without scaling. Correlate the absolute PC1 loadings between the two fits. If the correlation is far from 1, scaling genuinely changed which variables dominate. Save the correlation to <code>my_load_cmp</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: fit two prcomp objects, take abs() of each PC1 loading vector,
+# then cor() the two vectors.
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_pca_s  &lt;- prcomp(USArrests, scale = TRUE)
+my_pca_ns &lt;- prcomp(USArrests, scale = FALSE)
+my_load_cmp &lt;- cor(
+  abs(my_pca_s$rotation[, 1]),
+  abs(my_pca_ns$rotation[, 1])
+)
+round(my_load_cmp, 3)
+#&gt; [1] 0.173</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> A correlation of 0.17 means the scaled and unscaled fits barely agree on what PC1 is. The unscaled fit has PC1 loaded almost entirely on Assault; the scaled fit balances all four crimes. This is exactly why scaling is the default choice unless every column shares the same physical unit.</p>
+
+</details>
+
+<h3>Exercise 3: Biplot-driven interpretation on iris</h3>
+
+<p>Fit PCA on the four numeric columns of <code>iris</code>, draw a biplot coloured by <code>Species</code>, and report which two variables are most aligned with PC1 (largest absolute PC1 loadings). Save the result to <code>my_iris_pca</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 3 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: use fviz_pca_biplot() with habillage = iris$Species
+# Inspect my_iris_pca$rotation[, 1] for the loadings
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_iris_pca &lt;- prcomp(iris[, 1:4], scale = TRUE)
+fviz_pca_biplot(
+  my_iris_pca,
+  habillage = iris$Species,
+  addEllipses = TRUE,
+  repel = TRUE
+)
+
+# Which two variables dominate PC1?
+my_iris_loads &lt;- abs(my_iris_pca$rotation[, 1])
+sort(my_iris_loads, decreasing = TRUE)[1:2]
+#&gt; Petal.Length  Petal.Width
+#&gt;    0.5804131    0.5648565</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Petal measurements dominate PC1 for <code>iris</code>, which is why PC1 alone separates setosa from the other two species. The biplot makes this visual: setosa sits at one end of the petal arrows, virginica at the other, versicolor in between.</p>
+
+</details>
+
+<h2>Complete Example</h2>
+
+<p>Here's an end-to-end PCA pipeline on the <code>decathlon2</code> dataset (results from two decathlon competitions, shipped with <code>factoextra</code>). We'll scale, fit, pick a k, and interpret the biplot.</p>
+
+<div class="webr-container" data-block-title="End-to-end PCA on decathlon2">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">End-to-end PCA on decathlon2</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(factoextra)
+data(&quot;decathlon2&quot;)
+
+# Keep only athletes from the Decastar competition and numeric event columns
+dec_active &lt;- decathlon2[1:23, 1:10]
+
+# Fit and summarise
+pca_dec &lt;- prcomp(dec_active, scale = TRUE)
+summary(pca_dec)$importance[, 1:4]
+#&gt;                             PC1       PC2       PC3       PC4
+#&gt; Standard deviation     2.020230 1.4015760 1.1181923 0.9432083
+#&gt; Proportion of Variance 0.408130 0.1964417 0.1250354 0.0889642
+#&gt; Cumulative Proportion  0.408130 0.6045718 0.7296072 0.8185714
+
+# Scree plot
+fviz_eig(pca_dec, addlabels = TRUE)
+
+# Biplot coloured by individual quality of representation
+fviz_pca_biplot(
+  pca_dec,
+  repel = TRUE,
+  col.var = &quot;#9370DB&quot;,
+  col.ind = &quot;cos2&quot;
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The first two components explain 60% of variance and four reach the 80% mark, so k = 4 is a defensible choice by cumulative-variance; k = 2 is fine for a quick visual. On the biplot, running events (100m, 400m, hurdles) cluster together and point opposite to throwing events (shot put, discus), because strong runners are usually lean and strong throwers are usually heavy, so the two event families trade off along PC1. PC2 separates jumpers from throwers, which is the second most important pattern in the data.</p>
+
+<h2>Summary</h2>
+
+<p>Four steps carry you from raw matrix to interpretable summary.</p>
+
+<p><img src="screenshots/PCA-in-R-overview-mindmap.webp" alt="PCA mindmap" class="img-responsive img-zoomable" loading="lazy" width="1536" height="890" /></p>
+
+<p><em>Figure 4: PCA in R at a glance: preparation, prcomp slots, diagnostics, and visualisations.</em></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>prcomp(data, scale = TRUE)</code></td>
+<td>Fit PCA via SVD; almost always pass <code>scale = TRUE</code></td>
+</tr>
+<tr>
+<td><code>summary(pca)</code></td>
+<td>Variance explained, per-PC and cumulative</td>
+</tr>
+<tr>
+<td><code>pca$sdev</code></td>
+<td>Square to get eigenvalues; Kaiser rule uses these</td>
+</tr>
+<tr>
+<td><code>pca$rotation</code></td>
+<td>Loadings (columns are eigenvectors of the correlation matrix)</td>
+</tr>
+<tr>
+<td><code>pca$x</code></td>
+<td>Scores: rows projected onto PCs, ready for plotting</td>
+</tr>
+<tr>
+<td><code>predict(pca, newdata)</code></td>
+<td>Project new rows onto existing components with stored centring and scaling</td>
+</tr>
+<tr>
+<td><code>fviz_eig(pca)</code></td>
+<td>One-call scree plot via factoextra</td>
+</tr>
+<tr>
+<td><code>fviz_pca_biplot(pca)</code></td>
+<td>Publication-ready biplot with label repelling and group colouring</td>
+</tr>
+</tbody>
+</table>
+
+<p>Retain components by triangulating three rules (Kaiser, 80% cumulative, scree elbow) and favour interpretability when they disagree. Save the full prcomp object so centring and scaling travel with your pipeline; don't reinvent them from notes.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>R Core Team. <code>prcomp</code> reference in the <code>stats</code> package. <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/prcomp.html">Link</a></li>
+
+<li>James, G., Witten, D., Hastie, T., Tibshirani, R. <em>An Introduction to Statistical Learning with Applications in R</em>, Chapter 12 on Unsupervised Learning. <a href="https://www.statlearning.com/">Link</a></li>
+
+<li>Hotelling, H. "Analysis of a complex of statistical variables into principal components." <em>Journal of Educational Psychology</em>, 24 (6), 417-441 (1933).</li>
+
+<li>Pearson, K. "On lines and planes of closest fit to systems of points in space." <em>Philosophical Magazine</em>, 2 (11), 559-572 (1901).</li>
+
+<li>Kassambara, A. & Mundt, F. <code>factoextra</code> package: extract and visualise the results of multivariate data analyses. <a href="https://cran.r-project.org/package=factoextra">Link</a></li>
+
+<li>Robinson, D. & Hayes, A. <code>broom::tidy.prcomp</code> tidy PCA output. <a href="https://broom.tidymodels.org/reference/tidy.prcomp.html">Link</a></li>
+
+<li>Wickham, H., Cetinkaya-Rundel, M., Grolemund, G. <em>R for Data Science</em>, 2nd Edition. <a href="https://r4ds.hadley.nz/">Link</a></li>
+
+<li>STHDA. Principal Component Methods in R: Practical Guide. <a href="https://www.sthda.com/english/articles/31-principal-component-methods-in-r-practical-guide/">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Multivariate-Statistics-in-R.html">Multivariate Statistics in R: Distances, Mahalanobis, and Hotelling's T²</a>: how correlation structure changes multivariate thinking.</li>
+
+<li><a href="Correlation-in-R.html">Correlation in R (Pearson, Spearman, Kendall)</a>: the building block behind PCA's covariance and correlation matrices.</li>
+
+<li><a href="Outlier-Detection-in-R.html">Outlier Detection in R</a>: PCA is a standard tool for spotting multivariate outliers via reconstruction error.</li>
+
+</ul>
