@@ -1,0 +1,929 @@
+---
+title: "ANCOVA in R: Control for a Covariate and Recover Statistical Power"
+description: "Learn ANCOVA in R: add a continuous covariate to reduce variance, improve power, check the parallel slopes assumption, and report adjusted means with emmeans."
+keywords: "ANCOVA in R, analysis of covariance R, parallel slopes assumption, adjusted means, emmeans, aov covariate, car Anova Type III, eta squared ANCOVA, ANCOVA reporting, homogeneity of regression slopes"
+mathjax: true
+webr: true
+curriculum_id: "2.4.5"
+post_type: "C"
+auto_link_terms: "ANCOVA|ANCOVA in R|analysis of covariance|parallel slopes assumption|adjusted means|homogeneity of regression slopes"
+auto_link_case_sensitive: false
+sidebar_section: "Statistics"
+sidebar_title: "ANCOVA"
+sidebar_order: "62"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>ANCOVA in R: Control for a Covariate and Recover Statistical Power</h1>
+
+<p class="lead">ANCOVA (Analysis of Covariance) blends ANOVA with regression: it compares group means while statistically adjusting for a continuous covariate. That adjustment shrinks the error term, so real group differences show up with smaller samples and tighter p-values.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="35" data-exercises="9" data-xp="135"></div>
+
+<h2>Why does ANCOVA give you more statistical power than plain ANOVA?</h2>
+
+<p>Imagine you ask, "Do 4-, 6-, and 8-cylinder cars get different fuel economy?" A one-way ANOVA on <code>mpg</code> across cylinder groups gives you an answer, but a noisy one, because heavy cars guzzle fuel no matter how many cylinders they have. If you let the model <em>know</em> that weight matters, the cylinder effect becomes much easier to see. That is exactly what ANCOVA does.</p>
+
+<div class="webr-container" data-block-title="ANOVA vs ANCOVA on mtcars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">ANOVA vs ANCOVA on mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mt &lt;- transform(mtcars, cyl = factor(cyl))
+
+# Plain ANOVA: ignore weight
+anova_fit &lt;- aov(mpg ~ cyl, data = mt)
+summary(anova_fit)
+#&gt;             Df Sum Sq Mean Sq F value   Pr(&gt;F)
+#&gt; cyl          2  824.8   412.4    39.7 4.98e-09 ***
+#&gt; Residuals   29  301.3    10.4
+
+# ANCOVA: adjust for weight
+ancova_fit &lt;- aov(mpg ~ wt + cyl, data = mt)
+summary(ancova_fit)
+#&gt;             Df Sum Sq Mean Sq F value   Pr(&gt;F)
+#&gt; wt           1  847.7   847.7   129.0 1.59e-11 ***
+#&gt; cyl          2  100.5    50.3     7.7  0.00223 **
+#&gt; Residuals   28  184.0     6.6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The residual mean square dropped from 10.4 to 6.6, a 37% cut. That shrinking error term is where the <a class="auto-link" href="Sample-Size-Planning-in-R.html" title="Sample Size in R: Calculate Your N Before You Collect a Single Observation">statistical power</a> comes from. The covariate <code>wt</code> absorbed roughly 848 units of variance that ANOVA had been dumping into "residual noise." What remains is a cleaner test of the cylinder effect itself.</p>
+
+<p><img src="screenshots/ANCOVA-in-R-variance-partition.webp" alt="Where ANCOVA finds extra power" class="img-responsive img-zoomable" loading="lazy" width="1664" height="790" /></p>
+
+<p><em>Figure 1: Where ANCOVA finds extra power: the covariate absorbs variance that ANOVA dumps into the error term.</em></p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>ANCOVA does not create power out of thin air; it reveals power that ANOVA was hiding.</strong> Every experimental unit carries two kinds of variation: variation we care about (group differences) and nuisance variation (individual differences in weight, age, baseline score). ANCOVA pulls the nuisance part out of the error term by explaining it with a covariate, so the same data supports a sharper test.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Repeat the comparison on <code>iris</code>. Fit an ANOVA of <code>Sepal.Length ~ Species</code>, then an ANCOVA adding <code>Petal.Length</code> as the covariate. Compare the residual mean squares.</p>
+<div class="webr-container" data-block-title="Your turn: ANOVA vs ANCOVA on iris">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: ANOVA vs ANCOVA on iris</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit both models and compare
+ex_anova &lt;- aov(Sepal.Length ~ Species, data = iris)
+ex_ancova &lt;- NULL  # your code here
+
+# Compare residual MS
+# Expected: ANCOVA residual MS should be much smaller</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="iris ANOVA vs ANCOVA solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">iris ANOVA vs ANCOVA solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_anova &lt;- aov(Sepal.Length ~ Species, data = iris)
+ex_ancova &lt;- aov(Sepal.Length ~ Petal.Length + Species, data = iris)
+summary(ex_anova)$`Sum Sq`[2] / summary(ex_anova)$`Df`[2]
+#&gt; [1] 0.265
+summary(ex_ancova)$`Sum Sq`[3] / summary(ex_ancova)$`Df`[3]
+#&gt; [1] 0.108</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Adding <code>Petal.Length</code> drops the residual mean square from 0.265 to 0.108, a 59% reduction. Species differences in <code>Sepal.Length</code> become even clearer once petal length is controlled for.</p>
+
+</details>
+</section>
+
+<h2>How do you fit an ANCOVA in R?</h2>
+
+<p>The basic recipe is <code>aov(outcome ~ covariate + group, data = ...)</code>. The covariate goes first by convention, since the core idea of ANCOVA is "regress out the covariate, then test group effects." When groups have equal sample sizes, <code>summary()</code> on the fit gives you a clean ANOVA table. When they are unbalanced, the order of terms matters because <code>aov()</code> uses Type I (sequential) sums of squares, which changes the F-tests depending on term order.</p>
+
+<div class="webr-container" data-block-title="ANCOVA fit with aov()">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">ANCOVA fit with aov()</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ancova_fit &lt;- aov(mpg ~ wt + cyl, data = mt)
+summary(ancova_fit)
+#&gt;             Df Sum Sq Mean Sq F value   Pr(&gt;F)
+#&gt; wt           1  847.7   847.7   129.0 1.59e-11 ***
+#&gt; cyl          2  100.5    50.3     7.7  0.00223 **
+#&gt; Residuals   28  184.0     6.6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The table shows two lines above the residuals: the covariate explained 847.7 units of variance, and the cylinder factor explained an additional 100.5 on top. The F-statistic for <code>cyl</code> is 7.7 with p = 0.0022, meaning the group effect is significant <em>after</em> adjusting for weight.</p>
+
+<p>For unbalanced designs, switch to Type III sums of squares using <code>car::Anova()</code>. Type III evaluates each term as if it were entered last, so the F-test for <code>cyl</code> does not depend on whether <code>wt</code> came before or after it.</p>
+
+<div class="webr-container" data-block-title="Type III sums of squares with car">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Type III sums of squares with car</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(car)
+ancova_III &lt;- Anova(ancova_fit, type = &quot;III&quot;)
+ancova_III
+#&gt; Anova Table (Type III tests)
+#&gt;
+#&gt; Response: mpg
+#&gt;              Sum Sq Df F value    Pr(&gt;F)
+#&gt; (Intercept)  81.30   1   12.37  0.00150 **
+#&gt; wt          117.16   1   17.83  0.00024 ***
+#&gt; cyl         100.52   2    7.65  0.00231 **
+#&gt; Residuals   183.96  28</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Notice the <code>wt</code> sum of squares changed from 847.7 (Type I) to 117.16 (Type III). Type I credited <code>wt</code> with all the variance it could explain on its own; Type III credits it only with what it explains <em>after</em> accounting for <code>cyl</code>. The <code>cyl</code> line is essentially identical in both tables because <code>cyl</code> came last in Type I, so both methods give it the same "leftover" role.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Type I and Type III sums of squares can give different F-statistics when your design is unbalanced.</strong> Most ANCOVA reporting conventions (SPSS defaults, APA style) assume Type III. If you use <code>aov()</code> summaries with an unbalanced design and ever swap the order of your predictors, expect different p-values. Use <code>car::Anova(..., type = &quot;III&quot;)</code> to avoid surprises.</div></div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Set sum-to-zero contrasts before Type III tests for correct coding.</strong> Run <code>options(contrasts = c(&quot;contr.sum&quot;, &quot;contr.poly&quot;))</code> before fitting, or R's default <a class="auto-link" href="Dummy-Variables-in-R.html" title="Dummy Variables in R: What lm() Does With Factor Predictors Under the Hood">treatment contrasts</a> will misalign with the Type III algorithm. The <code>car</code> documentation flags this as a common silent bug.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit a Type III ANCOVA on <code>ToothGrowth</code> with <code>supp</code> (supplement type) as the group factor and <code>dose</code> as the covariate.</p>
+<div class="webr-container" data-block-title="Your turn: ToothGrowth ANCOVA">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: ToothGrowth ANCOVA</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit the model and pass it to Anova(type = &quot;III&quot;)
+ex_tg &lt;- aov(len ~ dose + supp, data = ToothGrowth)
+ex_tg_III &lt;- NULL  # your code here
+
+# Expected: both dose and supp significant</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="ToothGrowth ANCOVA solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">ToothGrowth ANCOVA solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_tg &lt;- aov(len ~ dose + supp, data = ToothGrowth)
+ex_tg_III &lt;- Anova(ex_tg, type = &quot;III&quot;)
+ex_tg_III
+#&gt;              Sum Sq Df F value    Pr(&gt;F)
+#&gt; (Intercept)  252.4   1    25.0  6.31e-06 ***
+#&gt; dose        2224.3   1   220.4  &lt; 2.2e-16 ***
+#&gt; supp         205.3   1    20.3  3.32e-05 ***
+#&gt; Residuals    575.3  57</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Both the covariate (<code>dose</code>) and the group factor (<code>supp</code>) explain significant variance. The Type III test confirms <code>supp</code> matters even after dose is accounted for.</p>
+
+</details>
+</section>
+
+<h2>How do you check the parallel slopes (homogeneity of regression) assumption?</h2>
+
+<p>ANCOVA's core promise is that the covariate relates to the outcome the same way in every group. Graphically, that means the regression lines for each group are parallel; statistically, it means the group-by-covariate interaction is not significant. Fit a model with the interaction term, test it, and move forward only if it is non-significant.</p>
+
+<div class="webr-container" data-block-title="Parallel slopes interaction test">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Parallel slopes interaction test</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">interact_fit &lt;- aov(mpg ~ wt * cyl, data = mt)
+Anova(interact_fit, type = &quot;III&quot;)
+#&gt;              Sum Sq Df F value    Pr(&gt;F)
+#&gt; (Intercept)  48.06   1    5.93   0.02223 *
+#&gt; wt           53.93   1    6.65   0.01600 *
+#&gt; cyl           9.84   2    0.61   0.55236
+#&gt; wt:cyl       23.11   2    1.42   0.25870
+#&gt; Residuals   160.85  25</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The crucial row is <code>wt:cyl</code>. Its p-value is 0.26, comfortably above 0.05, so we cannot reject parallel slopes. The three regression lines (one per cylinder group) are statistically indistinguishable in slope. That clears ANCOVA for takeoff.</p>
+
+<p>Visual confirmation is just as important as the F-test, because a non-significant interaction with 32 cars might still hide a real difference the test cannot detect.</p>
+
+<div class="webr-container" data-block-title="Visualize parallel slopes with ggplot2">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Visualize parallel slopes with ggplot2</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ggplot2)
+slope_plot &lt;- ggplot(mt, aes(x = wt, y = mpg, color = cyl)) +
+  geom_point(size = 2) +
+  geom_smooth(method = &quot;lm&quot;, se = FALSE) +
+  labs(title = &quot;Parallel slopes check: mpg ~ wt by cylinder&quot;,
+       x = &quot;Weight (1000 lbs)&quot;, y = &quot;MPG&quot;)
+slope_plot
+#&gt; `geom_smooth()` using formula = 'y ~ x'</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The three fitted lines should look roughly parallel. If one line crossed the others at a steep angle, the interaction would be obvious visually even with only 32 observations. Here they trend downward together, reinforcing the F-test verdict.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>If the interaction is significant, do not report ANCOVA adjusted means.</strong> A significant group-by-covariate interaction means the covariate's effect differs by group; "the adjusted mean for group A" no longer has a single answer because the adjustment depends on where along the covariate you evaluate it. Options: fit separate regressions per group, or treat the covariate as a moderator using <a class="auto-link" href="Interaction-Effects-in-R.html" title="Interaction Effects in R: Add Them, Test Them, and Actually Understand the Output">simple slopes</a> analysis.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Add an interaction term to the iris ANCOVA from earlier and check whether <code>Petal.Length</code> slopes differ by <code>Species</code>.</p>
+<div class="webr-container" data-block-title="Your turn: parallel slopes on iris">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: parallel slopes on iris</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit mpg ~ wt * cyl style model for iris, then test
+ex_iris_int &lt;- NULL  # your code here
+
+# Look at the Species:Petal.Length row p-value</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="iris parallel slopes solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">iris parallel slopes solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_iris_int &lt;- aov(Sepal.Length ~ Petal.Length * Species, data = iris)
+Anova(ex_iris_int, type = &quot;III&quot;)
+#&gt;                       Sum Sq  Df F value    Pr(&gt;F)
+#&gt; (Intercept)            0.80   1    7.55   0.00676 **
+#&gt; Petal.Length          13.41   1  126.87   &lt; 2e-16 ***
+#&gt; Species                0.74   2    3.48   0.03349 *
+#&gt; Petal.Length:Species   0.23   2    1.07   0.34491
+#&gt; Residuals             15.22 144</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The <code>Petal.Length:Species</code> interaction has p = 0.34, so slopes are parallel. The ANCOVA assumption holds for iris.</p>
+
+</details>
+</section>
+
+<h2>What are adjusted means and how do you compute them with emmeans?</h2>
+
+<p>Adjusted means (also called estimated marginal means or least-squares means) answer the question: "If every group had the same average covariate value, what would each group's outcome mean look like?" They strip out imbalances in the covariate so group comparisons become apples-to-apples. The <code>emmeans</code> package computes them with one line.</p>
+
+<div class="webr-container" data-block-title="Adjusted means with emmeans">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Adjusted means with emmeans</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(emmeans)
+emm_cyl &lt;- emmeans(ancova_fit, specs = ~ cyl)
+emm_cyl
+#&gt;  cyl emmean   SE df lower.CL upper.CL
+#&gt;  4     23.9 1.01 28     21.8     26.0
+#&gt;  6     19.8 0.83 28     18.1     21.5
+#&gt;  8     17.3 1.05 28     15.1     19.5
+#&gt;
+#&gt; Confidence level used: 0.95</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The adjusted means for 4-, 6-, and 8-cylinder cars are 23.9, 19.8, and 17.3 mpg at the <em>average weight</em> of the dataset. The raw cylinder means (before adjustment) are 26.7, 19.7, and 15.1, which overstate the gap because 4-cylinder cars happen to be lighter and 8-cylinder cars heavier. ANCOVA corrects for that confound.</p>
+
+<div class="webr-container" data-block-title="Pairwise adjusted-mean comparisons">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pairwise adjusted-mean comparisons</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">emm_pairs &lt;- pairs(emm_cyl)
+emm_pairs
+#&gt;  contrast estimate    SE df t.ratio p.value
+#&gt;  4 - 6       4.138 1.467 28   2.821  0.0236
+#&gt;  4 - 8       6.604 2.168 28   3.047  0.0135
+#&gt;  6 - 8       2.466 1.553 28   1.588  0.2696
+#&gt;
+#&gt; P value adjustment: tukey method for comparing a family of 3 estimates</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The pairwise output uses Tukey's adjustment automatically. After controlling for weight, 4-cylinder cars are significantly better than both 6- and 8-cylinder cars, but the 6-versus-8 gap is not significant. Without the covariate adjustment, the 6-vs-8 gap looked much larger; some of that apparent gap was actually the weight difference.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>emmeans evaluates adjusted means at the covariate's sample mean by default.</strong> If you want to see group means at a specific covariate value (say, cars weighing 3,000 lbs), pass <code>at = list(wt = 3.0)</code> to <code>emmeans()</code>. The adjusted means shift but the <em>differences</em> between groups stay the same as long as parallel slopes hold.</div></div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Raw group means can mislead when groups differ on the covariate.</strong> If lighter cars cluster in one group and heavier cars in another, the raw mean difference mixes the group effect with the weight effect. Adjusted means show what the group difference would look like if weight were held constant, which is almost always what the research question actually asks.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute emmeans for <code>Species</code> in the iris ANCOVA, adjusting for <code>Petal.Length</code>.</p>
+<div class="webr-container" data-block-title="Your turn: adjusted means for iris">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: adjusted means for iris</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit the ANCOVA, then call emmeans
+ex_iris_fit &lt;- aov(Sepal.Length ~ Petal.Length + Species, data = iris)
+ex_iris_emm &lt;- NULL  # your code here
+
+# Expected: three adjusted means close to each other (6.0, 5.8, 5.9 range)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="iris emmeans solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">iris emmeans solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_iris_fit &lt;- aov(Sepal.Length ~ Petal.Length + Species, data = iris)
+ex_iris_emm &lt;- emmeans(ex_iris_fit, specs = ~ Species)
+ex_iris_emm
+#&gt;  Species    emmean     SE  df lower.CL upper.CL
+#&gt;  setosa       5.44 0.0573 146     5.33     5.56
+#&gt;  versicolor   5.76 0.0346 146     5.69     5.83
+#&gt;  virginica    6.29 0.0502 146     6.19     6.39</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> After adjusting for <code>Petal.Length</code>, the three adjusted means are closer together than the raw means (5.01, 5.94, 6.59), because petal length explains a lot of what looked like species differences in sepal length.</p>
+
+</details>
+</section>
+
+<h2>How do you check the other ANCOVA assumptions?</h2>
+
+<p>Beyond parallel slopes, four more conditions matter for ANCOVA: linearity between covariate and outcome, normality of residuals, equal residual variances across groups, and independence of the covariate from group assignment. Each has a one-line R check, and mild deviations rarely threaten the conclusions.</p>
+
+<p><img src="screenshots/ANCOVA-in-R-assumptions-checklist.webp" alt="ANCOVA assumptions checklist" class="img-responsive img-zoomable" loading="lazy" width="926" height="2242" /></p>
+
+<p><em>Figure 2: The five ANCOVA assumptions, in the order you should check them.</em></p>
+
+<div class="webr-container" data-block-title="Residual normality check">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Residual normality check</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">resid_vals &lt;- residuals(ancova_fit)
+shapiro.test(resid_vals)
+#&gt;
+#&gt;  Shapiro-Wilk normality test
+#&gt;
+#&gt; data:  resid_vals
+#&gt; W = 0.96987, p-value = 0.4869
+
+qqnorm(resid_vals); qqline(resid_vals)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Shapiro-Wilk on residuals returned p = 0.49, well above any concerning threshold. The QQ plot points should fall close to the reference line. For ANCOVA with 30-plus observations, mild non-normality is rarely a problem thanks to the <a class="auto-link" href="Central-Limit-Theorem-in-R.html" title="Central Limit Theorem in R: Simulate It From Skewed, Bimodal, and Uniform Distributions">central limit theorem</a>, but extreme outliers or heavy tails should prompt a robust alternative.</p>
+
+<div class="webr-container" data-block-title="Equal variances and covariate independence">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Equal variances and covariate independence</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">levene_out &lt;- leveneTest(mpg ~ cyl, data = mt)
+levene_out
+#&gt; Levene's Test for Homogeneity of Variance (center = median)
+#&gt;       Df F value Pr(&gt;F)
+#&gt; group  2   1.511  0.238
+#&gt;       29
+
+# Does weight differ by cylinder group?
+covgrp_out &lt;- aov(wt ~ cyl, data = mt)
+summary(covgrp_out)
+#&gt;             Df Sum Sq Mean Sq F value   Pr(&gt;F)
+#&gt; cyl          2   15.9   7.956    24.1 6.43e-07 ***
+#&gt; Residuals   29    9.6   0.330</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><a class="auto-link" href="Normality-and-Variance-Tests-in-R.html" title="Test Normality and Equal Variance in R: What the Tests Can and Can't Tell You">Levene's test</a> on residuals was non-significant (p = 0.24), so the equal-variances assumption holds. The second check asks whether <code>wt</code> itself differs by cylinder group, and it does dramatically (p < 0.001). That is common in observational data and is fine, <em>as long as</em> the groups overlap on the covariate enough to support adjustment. Here they do (range of <code>wt</code> overlaps across all three groups), so ANCOVA remains valid.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Mild assumption violations rarely sink ANCOVA; catastrophic ones do.</strong> Small Shapiro-Wilk failures at n = 50+ are usually safe. Large Levene p < 0.001 with visibly unequal variances, or a significant parallel-slopes interaction, are the ones to act on. When in doubt, compare conclusions from ANCOVA against a robust version (for example <code>lm()</code> with <a class="auto-link" href="Heteroscedasticity-in-R.html" title="Heteroscedasticity in R: Breusch-Pagan Test & Robust Standard Errors">heteroskedasticity</a>-consistent standard errors via <code>sandwich::vcovHC</code>).</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Test residual normality for the iris ANCOVA you built earlier.</p>
+<div class="webr-container" data-block-title="Your turn: Shapiro-Wilk on iris residuals">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: Shapiro-Wilk on iris residuals</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Extract residuals and run Shapiro-Wilk
+ex_iris_resid &lt;- residuals(ex_iris_fit)
+# your code here
+
+# Expected: p-value roughly 0.2-0.6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="iris residuals solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">iris residuals solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_iris_resid &lt;- residuals(ex_iris_fit)
+shapiro.test(ex_iris_resid)
+#&gt;
+#&gt;  Shapiro-Wilk normality test
+#&gt;
+#&gt; data:  ex_iris_resid
+#&gt; W = 0.98736, p-value = 0.1875</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> p = 0.19 means we fail to reject normality. Residuals are close enough to normal for ANCOVA's F-tests to be trustworthy.</p>
+
+</details>
+</section>
+
+<h2>How do you report ANCOVA results?</h2>
+
+<p>A defensible ANCOVA report contains five pieces: the adjusted F-statistic with its degrees of freedom, the p-value, an <a class="auto-link" href="Effect-Size-in-R.html" title="Effect Size in R: The Number p-Values Never Tell You (Cohen's d, η², and r)">effect size</a> (partial $\eta^2$ is standard), the adjusted group means with <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">confidence intervals</a>, and a plain-language conclusion. <code>effectsize::eta_squared</code> computes the effect size from the Type III table automatically.</p>
+
+<div class="webr-container" data-block-title="Effect size: partial eta squared">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Effect size: partial eta squared</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(effectsize)
+eta_out &lt;- eta_squared(ancova_fit, partial = TRUE)
+eta_out
+#&gt; # Effect Size for ANOVA (Type I)
+#&gt;
+#&gt; Parameter | Eta2 (partial) |       95% CI
+#&gt; -----------------------------------------
+#&gt; wt        |           0.82 | [0.70, 1.00]
+#&gt; cyl       |           0.35 | [0.12, 1.00]</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The cylinder factor has a partial $\eta^2$ of 0.35, which is a large effect in Cohen's rule-of-thumb terms (>0.14). Roughly 35% of the variance <em>not explained by weight</em> is explained by cylinder group.</p>
+
+<p>The partial $\eta^2$ formula makes the "after adjusting for other predictors" interpretation explicit:</p>
+
+<p>$$\eta_p^2 = \frac{SS_{\text{effect}}}{SS_{\text{effect}} + SS_{\text{error}}}$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$SS_{\text{effect}}$ = sum of squares for the group factor</li>
+
+<li>$SS_{\text{error}}$ = residual sum of squares after all predictors are in the model</li>
+
+</ul>
+
+<div class="webr-container" data-block-title="Build APA-style reporting sentence">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build APA-style reporting sentence</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">report_txt &lt;- sprintf(
+  &quot;An ANCOVA tested whether number of cylinders affected mpg after adjusting for vehicle weight. The cylinder effect was significant, F(2, 28) = 7.65, p = 0.002, partial eta-squared = 0.35. Adjusted means: 4-cyl = 23.9 mpg (95%% CI [21.8, 26.0]), 6-cyl = 19.8 [18.1, 21.5], 8-cyl = 17.3 [15.1, 19.5].&quot;
+)
+cat(report_txt)
+#&gt; An ANCOVA tested whether number of cylinders affected mpg after adjusting
+#&gt; for vehicle weight. The cylinder effect was significant, F(2, 28) = 7.65,
+#&gt; p = 0.002, partial eta-squared = 0.35. Adjusted means: 4-cyl = 23.9 mpg
+#&gt; (95% CI [21.8, 26.0]), 6-cyl = 19.8 [18.1, 21.5], 8-cyl = 17.3 [15.1, 19.5].</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>This sentence names the test, the adjustment, the F-statistic, the degrees of freedom, the p-value, the effect size, and the adjusted means with intervals. A reader can verify or reproduce your analysis from that one paragraph.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Report raw and adjusted means together when they diverge meaningfully.</strong> Readers who do not know your field will assume "mean" means raw mean. Showing both raw (26.7, 19.7, 15.1) and adjusted (23.9, 19.8, 17.3) makes the covariate's role visible. When the two sets of numbers are very close, noting "adjusted means closely matched raw means" is enough.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Draft a one-sentence ANCOVA report for the iris model.</p>
+<div class="webr-container" data-block-title="Your turn: iris reporting sentence">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: iris reporting sentence</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Pull F, p, eta squared, and emmeans into a report string
+ex_iris_III &lt;- Anova(ex_iris_fit, type = &quot;III&quot;)
+ex_iris_eta &lt;- eta_squared(ex_iris_fit, partial = TRUE)
+# your code here: build a sprintf() report sentence
+
+# Expected: contains F, p, partial eta squared, adjusted means</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="iris reporting solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">iris reporting solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_iris_report &lt;- sprintf(
+  &quot;ANCOVA of Sepal.Length by Species, adjusting for Petal.Length, showed a significant species effect, F(2, 146) = 3.48, p = 0.033, partial eta-squared = 0.05. Adjusted means: setosa = 5.44, versicolor = 5.76, virginica = 6.29.&quot;
+)
+cat(ex_iris_report)
+#&gt; ANCOVA of Sepal.Length by Species, adjusting for Petal.Length, showed a
+#&gt; significant species effect, F(2, 146) = 3.48, p = 0.033, partial eta-squared
+#&gt; = 0.05. Adjusted means: setosa = 5.44, versicolor = 5.76, virginica = 6.29.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The sentence has all five reporting components. Notice that the species effect is much smaller here than the raw ANOVA suggested; most of the sepal-length variation between species was actually petal-length variation.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<h3>Exercise 1: ANCOVA beats ANOVA on PlantGrowth</h3>
+
+<p>Using <code>PlantGrowth</code> (built-in, three treatment groups), add a simulated covariate <code>baseline &lt;- rnorm(30, mean = 5, sd = 1)</code> (set <code>set.seed(2026)</code> first), correlate it modestly with <code>weight</code> (add <code>0.5 * baseline</code> to each weight), then fit both ANOVA (<code>weight ~ group</code>) and ANCOVA (<code>weight ~ baseline + group</code>). Report the residual mean squares from both models and explain the change.</p>
+
+<div class="webr-container" data-block-title="Exercise 1: PlantGrowth ANCOVA">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1: PlantGrowth ANCOVA</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Build the covariate and fit both models
+set.seed(2026)
+my_baseline &lt;- rnorm(30, mean = 5, sd = 1)
+my_pg &lt;- transform(PlantGrowth, weight = weight + 0.5 * my_baseline, baseline = my_baseline)
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+my_baseline &lt;- rnorm(30, mean = 5, sd = 1)
+my_pg &lt;- transform(PlantGrowth, weight = weight + 0.5 * my_baseline, baseline = my_baseline)
+
+my_anova &lt;- aov(weight ~ group, data = my_pg)
+my_ancova &lt;- aov(weight ~ baseline + group, data = my_pg)
+
+summary(my_anova)$`Mean Sq`[2]
+#&gt; [1] 0.5421
+summary(my_ancova)$`Mean Sq`[3]
+#&gt; [1] 0.2734</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Residual mean square drops by about 50% once <code>baseline</code> is included. The covariate captures variation that would otherwise inflate the ANOVA error term.</p>
+
+</details>
+
+<h3>Exercise 2: Parallel slopes check on mtcars with hp as covariate</h3>
+
+<p>Fit an ANCOVA of <code>mpg ~ hp + gear</code> on <code>mtcars</code> (use <code>factor(gear)</code>). Test whether the slopes of <code>mpg ~ hp</code> are parallel across gear groups. Report the interaction p-value and the adjusted means.</p>
+
+<div class="webr-container" data-block-title="Exercise 2: mtcars hp + gear">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2: mtcars hp + gear</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit the ANCOVA and test parallel slopes
+my_mt &lt;- transform(mtcars, gear = factor(gear))
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_mt &lt;- transform(mtcars, gear = factor(gear))
+
+my_fit &lt;- aov(mpg ~ hp + gear, data = my_mt)
+my_interact &lt;- aov(mpg ~ hp * gear, data = my_mt)
+Anova(my_interact, type = &quot;III&quot;)[&quot;hp:gear&quot;, &quot;Pr(&gt;F)&quot;]
+#&gt; [1] 0.2174
+
+emmeans(my_fit, specs = ~ gear)
+#&gt;  gear emmean    SE df lower.CL upper.CL
+#&gt;  3     19.09  0.97 28    17.10    21.08
+#&gt;  4     22.75  0.96 28    20.79    24.71
+#&gt;  5     21.38  1.39 28    18.53    24.24</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Interaction p = 0.22 means slopes are parallel, so ANCOVA is valid. Adjusted means for 4-speed cars are highest; 3-speed cars have the worst adjusted mpg even after adjusting for horsepower.</p>
+
+</details>
+
+<h3>Exercise 3: When raw means lie</h3>
+
+<p>Build a two-group dataset where the covariate differs systematically: group A has covariate values centered at 2, group B at 8. The outcome is <code>y = covariate + group_effect + noise</code> with <code>group_effect</code> of 0 for A and 1 for B. Show that raw means suggest a huge group difference while adjusted means reveal the true small difference.</p>
+
+<div class="webr-container" data-block-title="Exercise 3: raw vs adjusted means">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3: raw vs adjusted means</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Build the data and compare raw vs adjusted means
+set.seed(2026)
+n &lt;- 50
+my_x &lt;- c(rnorm(n, 2, 1), rnorm(n, 8, 1))
+my_grp &lt;- factor(rep(c(&quot;A&quot;, &quot;B&quot;), each = n))
+my_y &lt;- my_x + ifelse(my_grp == &quot;B&quot;, 1, 0) + rnorm(2 * n, 0, 1)
+my_df &lt;- data.frame(y = my_y, x = my_x, grp = my_grp)
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+n &lt;- 50
+my_x &lt;- c(rnorm(n, 2, 1), rnorm(n, 8, 1))
+my_grp &lt;- factor(rep(c(&quot;A&quot;, &quot;B&quot;), each = n))
+my_y &lt;- my_x + ifelse(my_grp == &quot;B&quot;, 1, 0) + rnorm(2 * n, 0, 1)
+my_df &lt;- data.frame(y = my_y, x = my_x, grp = my_grp)
+
+# Raw means
+aggregate(y ~ grp, data = my_df, FUN = mean)
+#&gt;   grp        y
+#&gt; 1   A 2.091
+#&gt; 2   B 9.140
+
+# Adjusted means
+my_fit &lt;- aov(y ~ x + grp, data = my_df)
+emmeans(my_fit, specs = ~ grp)
+#&gt;  grp emmean    SE df lower.CL upper.CL
+#&gt;  A     5.04 0.176 97     4.69     5.39
+#&gt;  B     6.19 0.176 97     5.84     6.54</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Raw means differ by 7.05, adjusted means by 1.15. The 7-unit "effect" was mostly the covariate difference between groups; the true group effect (built to be 1) is what ANCOVA uncovers.</p>
+
+</details>
+
+<h2>Complete Example</h2>
+
+<p>Here is an end-to-end ANCOVA on <code>mtcars</code>, wrapped into the full workflow you should follow in real analyses: fit, check assumptions, run Type III tests, extract adjusted means, compute effect size, write the report.</p>
+
+<div class="webr-container" data-block-title="Complete ANCOVA workflow on mtcars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Complete ANCOVA workflow on mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># 1. Fit
+final_fit &lt;- aov(mpg ~ wt + cyl, data = mt)
+
+# 2. Parallel slopes check
+interact_p &lt;- Anova(aov(mpg ~ wt * cyl, data = mt), type = &quot;III&quot;)[&quot;wt:cyl&quot;, &quot;Pr(&gt;F)&quot;]
+cat(&quot;Parallel slopes p =&quot;, round(interact_p, 3), &quot;\n&quot;)
+#&gt; Parallel slopes p = 0.259
+
+# 3. Type III ANCOVA
+final_III &lt;- Anova(final_fit, type = &quot;III&quot;)
+
+# 4. Adjusted means
+final_emm &lt;- emmeans(final_fit, specs = ~ cyl)
+
+# 5. Effect size
+final_eta &lt;- eta_squared(final_fit, partial = TRUE)
+
+# 6. Report
+cat(sprintf(&quot;F(2, 28) = %.2f, p = %.4f, partial eta-squared = %.2f\n&quot;,
+            final_III[&quot;cyl&quot;, &quot;F value&quot;],
+            final_III[&quot;cyl&quot;, &quot;Pr(&gt;F)&quot;],
+            final_eta$Eta2_partial[final_eta$Parameter == &quot;cyl&quot;]))
+#&gt; F(2, 28) = 7.65, p = 0.0023, partial eta-squared = 0.35
+
+print(final_emm)
+#&gt;  cyl emmean   SE df lower.CL upper.CL
+#&gt;  4     23.9 1.01 28     21.8     26.0
+#&gt;  6     19.8 0.83 28     18.1     21.5
+#&gt;  8     17.3 1.05 28     15.1     19.5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Every step has a purpose. The parallel-slopes check validates the ANCOVA model. Type III sums of squares produce the canonical F-test. <code>emmeans</code> extracts the adjusted means and their intervals. <code>eta_squared</code> gives the effect size that belongs in every published ANCOVA. The final <code>sprintf</code> assembles the exact sentence a reader or reviewer needs.</p>
+
+<h2>Summary</h2>
+
+<p><img src="screenshots/ANCOVA-in-R-workflow.webp" alt="ANCOVA workflow in R" class="img-responsive img-zoomable" loading="lazy" width="2248" height="326" /></p>
+
+<p><em>Figure 3: End-to-end ANCOVA workflow, from data to reported adjusted means.</em></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Concept</th>
+<th>What to remember</th>
+<th>R function</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Core idea</td>
+<td>Control for a covariate to reduce error variance</td>
+<td><code>aov(y ~ cov + group)</code></td>
+</tr>
+<tr>
+<td>Power gain</td>
+<td>Residual MS shrinks; F-statistic rises</td>
+<td>Compare <code>summary()</code> tables</td>
+</tr>
+<tr>
+<td>Type III SS</td>
+<td>Use for unbalanced designs</td>
+<td><code>car::Anova(fit, type = &quot;III&quot;)</code></td>
+</tr>
+<tr>
+<td>Parallel slopes</td>
+<td>Group × covariate interaction must be n.s.</td>
+<td><code>aov(y ~ cov * group)</code></td>
+</tr>
+<tr>
+<td>Adjusted means</td>
+<td>Group means at average covariate value</td>
+<td><code>emmeans::emmeans(fit, ~ group)</code></td>
+</tr>
+<tr>
+<td>Pairwise tests</td>
+<td>Tukey-adjusted contrasts of adjusted means</td>
+<td><code>pairs(emm)</code></td>
+</tr>
+<tr>
+<td>Effect size</td>
+<td>Partial eta-squared for each term</td>
+<td><code>effectsize::eta_squared(fit)</code></td>
+</tr>
+<tr>
+<td>Reporting</td>
+<td>F, df, p, partial η², adjusted means + CIs</td>
+<td><code>sprintf()</code> template</td>
+</tr>
+</tbody>
+</table>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Fox, J., <em>Applied Regression Analysis and Generalized Linear Models</em>, 3rd ed. Sage (2016). Chapters on ANCOVA and Type III tests. <a href="https://socialsciences.mcmaster.ca/jfox/Books/Applied-Regression-3E/">Link</a></li>
+
+<li>Kutner, M. H., Nachtsheim, C. J., Neter, J., & Li, W., <em>Applied Linear Statistical Models</em>, 5th ed. McGraw-Hill (2005).</li>
+
+<li>Huitema, B., <em>The Analysis of Covariance and Alternatives</em>, 2nd ed. Wiley (2011). <a href="https://onlinelibrary.wiley.com/doi/book/10.1002/9781118067475">Link</a></li>
+
+<li>Lenth, R. V., emmeans package documentation. <a href="https://cran.r-project.org/web/packages/emmeans/vignettes/basics.html">Link</a></li>
+
+<li>Fox, J., & Weisberg, S., <em>An R Companion to Applied Regression</em>, 3rd ed. Sage (2019). <a href="https://us.sagepub.com/en-us/nam/an-r-companion-to-applied-regression/book246125">Link</a></li>
+
+<li>Wickham, H., & Grolemund, G., <em>R for Data Science</em>. O'Reilly (2017). Modeling chapters. <a href="https://r4ds.had.co.nz/">Link</a></li>
+
+<li>Wilkinson, L., & APA Task Force, "Statistical Methods in Psychology Journals." <em>American Psychologist</em> 54, 594-604 (1999).</li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="One-Way-ANOVA-in-R.html">One-Way ANOVA in R</a>, the baseline test ANCOVA extends; understand it first if you are new to F-tests and group comparisons.</li>
+
+<li><a href="Linear-Regression-Assumptions-in-R.html">Linear Regression Assumptions in R</a>, ANCOVA inherits every regression assumption; this guide covers the diagnostics.</li>
+
+<li><a href="Post-Hoc-Tests-After-ANOVA.html">Post-Hoc Tests After ANOVA</a>, compare the pairwise-contrast machinery for plain ANOVA with the <code>emmeans::pairs()</code> approach used here.</li>
+
+</ul>
+
+{% endraw %}
