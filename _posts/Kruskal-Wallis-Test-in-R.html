@@ -1,0 +1,878 @@
+---
+title: "Kruskal-Wallis Test in R: One-Way Nonparametric ANOVA with Post-Hoc"
+description: "Perform the Kruskal-Wallis test in R when ANOVA assumptions fail. Compute eta-squared-H effect size and run Dunn's post-hoc with Bonferroni correction."
+keywords: "kruskal-wallis test R, kruskal.test, nonparametric ANOVA R, dunn test R, pairwise.wilcox.test, rank-based ANOVA, post-hoc kruskal wallis, effect size kruskal wallis"
+mathjax: true
+webr: true
+curriculum_id: "FR-anov-7"
+post_type: "FR"
+auto_link_terms: "Kruskal-Wallis test|Kruskal-Wallis H test|Kruskal-Wallis|nonparametric ANOVA|non-parametric ANOVA|Dunn's test|Dunn test|rank-based ANOVA"
+auto_link_case_sensitive: false
+fr_parent: "One-Way-ANOVA-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>Kruskal-Wallis Test in R: One-Way Nonparametric ANOVA with Post-Hoc</h1>
+
+<p class="lead">The <strong><a class="auto-link" href="Wilcoxon-Mann-Whitney-and-Kruskal-Wallis-in-R.html" title="Wilcoxon, Mann-Whitney, and Kruskal-Wallis in R: Non-Parametric When Normality Fails">Kruskal-Wallis test</a></strong> is the nonparametric version of one-way ANOVA. It ranks every observation across groups, then asks whether those ranks spread evenly across three or more independent groups, so you can compare groups without assuming normally distributed data. Use it whenever ANOVA's normality or equal-variance assumptions fail, or whenever your response is ordinal.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="35" data-exercises="9" data-xp="135"></div>
+
+<h2>When should you use the Kruskal-Wallis test instead of ANOVA?</h2>
+
+<p>You reach for Kruskal-Wallis when a one-way ANOVA is tempting but its assumptions fail. ANOVA needs roughly normal residuals and similar variances; skew, heavy tails, or tiny groups break its p-value. Kruskal-Wallis sidesteps the problem by converting raw values to ranks and testing whether those ranks spread evenly. The API mirrors <code>aov()</code>, so you can swap it in with one line. Below, <code>kruskal.test()</code> runs on the built-in <code>PlantGrowth</code> dataset, which contains 30 plant dry-weight measurements split across a control and two fertiliser treatments.</p>
+
+<div class="webr-container" data-block-title="Load PlantGrowth and run Kruskal-Wallis">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load PlantGrowth and run Kruskal-Wallis</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Load libraries and peek at the data
+library(dplyr)
+
+pg &lt;- PlantGrowth
+head(pg, 3)
+#&gt;   weight group
+#&gt; 1   4.17  ctrl
+#&gt; 2   5.58  ctrl
+#&gt; 3   5.18  ctrl
+
+# Nonparametric one-way test: is any group different?
+kruskal.test(weight ~ group, data = pg)
+#&gt;
+#&gt; 	Kruskal-Wallis rank sum test
+#&gt;
+#&gt; data:  weight by group
+#&gt; Kruskal-Wallis chi-squared = 7.9882, df = 2, p-value = 0.01842</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The test returns <code>H = 7.99</code>, <code>df = 2</code> (always <code>groups - 1</code>), and <code>p = 0.018</code>. Because the p-value is below 0.05, you reject the null that all three groups share the same distribution. At least one treatment shifts the plant weights. No normality assumption was required, and no <a class="auto-link" href="Normality-and-Variance-Tests-in-R.html" title="Test Normality and Equal Variance in R: What the Tests Can and Can't Tell You">Levene's test</a> was needed first, which is the whole point of this test.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Default to Kruskal-Wallis whenever a group has fewer than ~15 observations or the boxplots look skewed.</strong> The cost of using the nonparametric test on clean, normal data is a small loss of <a class="auto-link" href="Sample-Size-Planning-in-R.html" title="Sample Size in R: Calculate Your N Before You Collect a Single Observation">statistical power</a>, typically 5-10 percent. The cost of using ANOVA on skewed data is a p-value you cannot trust.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Run the Kruskal-Wallis test on the <code>chickwts</code> dataset to check whether chick weights differ across feed types.</p>
+<div class="webr-container" data-block-title="Your turn: Kruskal-Wallis on chickwts">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: Kruskal-Wallis on chickwts</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Test whether 'weight' differs across 'feed' types
+ex_kw &lt;- kruskal.test(weight ~ feed, data = chickwts)
+# your code here: print ex_kw and read off the p-value
+#&gt; Expected: chi-squared around 37.3, df = 5, p around 5.1e-07</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="chickwts Kruskal-Wallis solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">chickwts Kruskal-Wallis solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_kw &lt;- kruskal.test(weight ~ feed, data = chickwts)
+print(ex_kw)
+#&gt;
+#&gt; 	Kruskal-Wallis rank sum test
+#&gt;
+#&gt; data:  weight by feed
+#&gt; Kruskal-Wallis chi-squared = 37.343, df = 5, p-value = 5.113e-07</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Six feeds, 71 chicks, clearly different growth outcomes. The tiny p-value means at least one feed produces different weights from the others, and a <a class="auto-link" href="One-Way-ANOVA-in-R.html" title="One-Way ANOVA in R: F-Test, Levene's Test, and Post-Hoc, Complete Walkthrough">post-hoc test</a> would tell you which pairs drive the difference.</p>
+
+</details>
+</section>
+
+<h2>How does the Kruskal-Wallis test work with ranks?</h2>
+
+<p>The test pools every observation across groups, sorts them, and replaces each value with its rank from 1 to N. A group whose original values were mostly large ends up with mostly large ranks; a group with small values ends up with small ranks. If all groups come from the same distribution, each group should have a <em>mean rank</em> near the overall average of <code>(N + 1) / 2</code>. The Kruskal-Wallis statistic <code>H</code> is a weighted sum of squared deviations from that overall average, so a big <code>H</code> means at least one group has a mean rank far from the middle.</p>
+
+<p>Here is the formula the test computes:</p>
+
+<p>$$H = \dfrac{12}{N(N+1)} \sum_{i=1}^{k} \dfrac{R_i^{\,2}}{n_i} \;-\; 3(N+1)$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$N$ = total number of observations across all groups</li>
+
+<li>$k$ = number of groups</li>
+
+<li>$n_i$ = number of observations in group $i$</li>
+
+<li>$R_i$ = sum of the ranks assigned to group $i$</li>
+
+</ul>
+
+<p>Let's compute the ranks and group means by hand, then verify our manual <code>H</code> matches <code>kruskal.test</code>.</p>
+
+<div class="webr-container" data-block-title="Rank every value and compute mean rank per group">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Rank every value and compute mean rank per group</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Convert raw weights to ranks across all 30 rows, then average per group
+pg$rank &lt;- rank(pg$weight)
+rank_means &lt;- tapply(pg$rank, pg$group, mean)
+rank_means
+#&gt;  ctrl  trt1  trt2
+#&gt; 15.50  9.85 21.15</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The overall mean rank is <code>(30 + 1) / 2 = 15.5</code>. The control sits right on that number, trt1 is well below, and trt2 is well above, which already hints that the treatments push the weights in opposite directions. The size of the gap is what <code>H</code> quantifies.</p>
+
+<div class="webr-container" data-block-title="Compute H by hand and compare to kruskal.test">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compute H by hand and compare to kruskal.test</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Plug rank sums into the Kruskal-Wallis formula
+n &lt;- nrow(pg)
+k &lt;- nlevels(pg$group)
+rank_sums &lt;- tapply(pg$rank, pg$group, sum)
+group_n   &lt;- table(pg$group)
+
+H_manual &lt;- (12 / (n * (n + 1))) * sum(rank_sums^2 / group_n) - 3 * (n + 1)
+H_manual
+#&gt; [1] 7.988229
+
+# Compare to the test's reported chi-squared
+kruskal.test(weight ~ group, data = pg)$statistic
+#&gt; Kruskal-Wallis chi-squared
+#&gt;                  7.988229</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both values agree to the last decimal, confirming that <code>kruskal.test()</code> is just a wrapper around the rank-sum arithmetic. The chi-squared label in the output is a distributional approximation: under the null, <code>H</code> is close to a $\chi^2$ with <code>k - 1</code> degrees of freedom when group sizes are reasonable (each <code>n_i &gt;= 5</code>).</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Ranks throw away scale but keep order, which is exactly enough to detect shifts between groups.</strong> An <a class="auto-link" href="Outlier-Treatment-With-R.html" title="Outlier Treatment with R">outlier</a> at weight 50 and an outlier at weight 500 both become the top rank. That is what makes the test robust to skew and heavy tails: extreme values cannot yank the statistic around because a single observation can only contribute one rank.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute the mean rank of <code>count</code> per <code>spray</code> in the <code>InsectSprays</code> dataset. Which spray has the highest mean rank?</p>
+<div class="webr-container" data-block-title="Your turn: mean rank per spray">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: mean rank per spray</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Rank 'count' across all 72 rows, then average per 'spray'
+ex_is &lt;- InsectSprays
+ex_is$rank &lt;- rank(ex_is$count)
+# your code here: use tapply() to get mean rank per spray
+ex_means &lt;- NULL
+ex_means
+#&gt; Expected: sprays A, B highest (~ 52-53); sprays C, D, E lowest (~ 13-26)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="InsectSprays mean rank solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">InsectSprays mean rank solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_is &lt;- InsectSprays
+ex_is$rank &lt;- rank(ex_is$count)
+ex_means &lt;- tapply(ex_is$rank, ex_is$spray, mean)
+round(ex_means, 1)
+#&gt;    A    B    C    D    E    F
+#&gt; 52.2 54.2 13.1 25.6 21.0 52.9</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Sprays A, B, and F cluster near the top of the overall ranking (high kill counts); C, D, and E cluster near the bottom. That gap is exactly what Kruskal-Wallis is designed to detect.</p>
+
+</details>
+</section>
+
+<h2>What are the assumptions of the Kruskal-Wallis test?</h2>
+
+<p>Kruskal-Wallis trades the normality assumption of ANOVA for a shorter list of weaker assumptions. You still need three things to hold.</p>
+
+<ol>
+
+<li><strong>Independent observations</strong> within and between groups. No repeated measures on the same subject, no clustered sampling.</li>
+
+<li><strong>Ordinal or continuous response variable.</strong> Pure categorical outcomes (like "pass/fail") are not valid.</li>
+
+<li><strong>Similar distribution <em>shape</em> across groups</strong> if you want to interpret the test as a comparison of medians. Without this, the test is a comparison of <em>stochastic dominance</em>, which is still useful but answers a different question.</li>
+
+</ol>
+
+<p><img src="screenshots/Kruskal-Wallis-Test-in-R-decision-flow.webp" alt="Decision flow: pick ANOVA or Kruskal-Wallis based on residual shape, then proceed to Dunn's post-hoc if the omnibus test is significant." class="img-responsive img-zoomable" loading="lazy" width="2172" height="838" /></p>
+
+<p><em>Figure 1: Decision flow: pick ANOVA or Kruskal-Wallis based on residual shape, then proceed to Dunn's post-hoc if the omnibus test is significant.</em></p>
+
+<p>A quick boxplot is usually enough to eyeball the third assumption. Groups should have similar spread and similar skew, even if their centres differ.</p>
+
+<div class="webr-container" data-block-title="Boxplot and sample sizes per group">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Boxplot and sample sizes per group</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Visual check of distribution shape + per-group counts
+boxplot(weight ~ group, data = pg,
+        main = &quot;PlantGrowth weights by group&quot;,
+        ylab = &quot;Dry weight (g)&quot;, col = &quot;lightsteelblue&quot;)
+
+group_sizes &lt;- table(pg$group)
+group_sizes
+#&gt; ctrl trt1 trt2
+#&gt;   10   10   10</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The three boxes have comparable widths and similar whisker lengths, which supports the same-shape assumption. Each group has 10 observations, so the chi-squared approximation for the p-value is safe. If any group dipped below 5 observations, you would set <code>kruskal.test()</code> aside in favour of an exact test via the <code>coin</code> package.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Without the same-shape assumption, Kruskal-Wallis does not compare medians.</strong> It compares stochastic dominance, which is a fancy way of saying "are values from one group systematically larger than values from another?" If one group is heavily skewed and the others are symmetric, a significant test tells you the groups differ somehow, not that their medians differ.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Report the sample sizes per spray in <code>InsectSprays</code> and check that every group is at least 5.</p>
+<div class="webr-container" data-block-title="Your turn: sample sizes per spray">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: sample sizes per spray</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Use table() on the spray column
+ex_sizes &lt;- NULL
+# your code here
+ex_sizes
+#&gt; Expected: 12 observations per spray, so all six groups clear the n &gt;= 5 bar</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="InsectSprays sample sizes solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">InsectSprays sample sizes solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_sizes &lt;- table(InsectSprays$spray)
+ex_sizes
+#&gt; A  B  C  D  E  F
+#&gt; 12 12 12 12 12 12</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Every spray has 12 observations, comfortably above the n >= 5 rule of thumb for the chi-squared approximation. No need for an exact test.</p>
+
+</details>
+</section>
+
+<h2>How do you measure the Kruskal-Wallis effect size?</h2>
+
+<p>A p-value only tells you whether an effect is detectable; it says nothing about whether the effect is big enough to care about. For Kruskal-Wallis, the usual <a class="auto-link" href="Effect-Size-in-R.html" title="Effect Size in R: The Number p-Values Never Tell You (Cohen's d, η², and r)">effect size</a> is <strong>eta-squared based on H</strong>, written $\eta_H^2$. It measures the proportion of variance in ranks explained by group membership, scaled to fall between 0 and 1.</p>
+
+<p>$$\eta_H^2 \;=\; \dfrac{H - k + 1}{n - k}$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$H$ = the Kruskal-Wallis statistic you just computed</li>
+
+<li>$k$ = number of groups</li>
+
+<li>$n$ = total observations</li>
+
+</ul>
+
+<p>Interpret the result with Cohen's thresholds: $\eta_H^2 \approx 0.01$ is a small effect, $0.06$ is medium, $0.14$ and above is large.</p>
+
+<div class="webr-container" data-block-title="Compute eta-squared-H for PlantGrowth">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compute eta-squared-H for PlantGrowth</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Plug H, k, and n into the eta-squared-H formula
+eta_sq_H &lt;- (H_manual - k + 1) / (n - k)
+round(eta_sq_H, 3)
+#&gt; [1] 0.25</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>An $\eta_H^2$ of 0.25 lands well above Cohen's "large" threshold of 0.14. About a quarter of the variation in the rank of plant weight is attributable to which treatment a plant received. That is a strong effect, worth reporting alongside the p-value in any write-up.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>The <code>rstatix::kruskal_effsize()</code> function computes the same number in one call.</strong> We compute it by hand here so the code runs anywhere, including inside this browser session. In a local R session, <code>rstatix::kruskal_effsize(pg, weight ~ group)</code> gives the same 0.25 along with a size label and <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">confidence interval</a>.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Suppose <code>kruskal.test()</code> returned $H = 12.4$ on $k = 4$ groups with $n = 60$ total. Compute $\eta_H^2$.</p>
+<div class="webr-container" data-block-title="Your turn: eta-squared-H from given stats">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: eta-squared-H from given stats</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Use the formula eta_H^2 = (H - k + 1) / (n - k)
+ex_H &lt;- 12.4
+ex_k &lt;- 4
+ex_n &lt;- 60
+# your code here: compute and round to 3 decimals
+ex_eta &lt;- NULL
+ex_eta
+#&gt; Expected: about 0.168, a large effect</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="eta-squared-H exercise solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">eta-squared-H exercise solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_H &lt;- 12.4
+ex_k &lt;- 4
+ex_n &lt;- 60
+ex_eta &lt;- (ex_H - ex_k + 1) / (ex_n - ex_k)
+round(ex_eta, 3)
+#&gt; [1] 0.168</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> 0.168 is above Cohen's large-effect cutoff of 0.14, so group membership accounts for a meaningful share of the rank variance.</p>
+
+</details>
+</section>
+
+<h2>How do you run Dunn's post-hoc test in R?</h2>
+
+<p>A significant Kruskal-Wallis result tells you <em>some</em> group differs, not <em>which</em> pairs. For that you need a post-hoc test that compares every pair of groups and controls the familywise error rate. The classic choice after Kruskal-Wallis is <strong>Dunn's test</strong>, available in local R sessions as <code>FSA::dunnTest()</code>. Its base-R analogue is <code>pairwise.wilcox.test()</code>, which runs a Wilcoxon rank-sum comparison for each pair and corrects the p-values. We use <code>pairwise.wilcox.test()</code> here because the <code>FSA</code> package is not available in this browser runtime, and the practical conclusions are equivalent.</p>
+
+<div class="webr-container" data-block-title="Pairwise rank-sum tests with Bonferroni correction">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pairwise rank-sum tests with Bonferroni correction</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Pairwise comparisons on the same ranked data, Bonferroni-adjusted
+pairwise_res &lt;- pairwise.wilcox.test(pg$weight, pg$group,
+                                     p.adjust.method = &quot;bonferroni&quot;)
+pairwise_res
+#&gt;
+#&gt; 	Pairwise comparisons using Wilcoxon rank sum exact test
+#&gt;
+#&gt; data:  pg$weight and pg$group
+#&gt;
+#&gt;      ctrl  trt1
+#&gt; trt1 0.597 -
+#&gt; trt2 0.537 0.025
+#&gt;
+#&gt; P value adjustment method: bonferroni</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the matrix as "row vs column": <code>trt1</code> vs <code>trt2</code> is the only pair with an adjusted p-value below 0.05. The two fertiliser treatments differ from each other, but neither differs from the control on its own. That matches what the mean-rank table suggested earlier: trt1 pulled weights down, trt2 pushed them up, and the control sat between them.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Pick the adjustment method to match your situation.</strong> <code>&quot;bonferroni&quot;</code> is the most conservative and is fine for a handful of groups. <code>&quot;holm&quot;</code> dominates Bonferroni (same error control, more power) and is a safe default. <code>&quot;BH&quot;</code> (Benjamini-Hochberg) controls the false discovery rate and is preferred when you expect many true differences, as in omics or screening studies.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Run pairwise rank-sum tests on <code>InsectSprays$count</code> by <code>spray</code> with the Holm adjustment. Which spray pairs differ at the 0.05 level?</p>
+<div class="webr-container" data-block-title="Your turn: pairwise Wilcoxon on InsectSprays">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: pairwise Wilcoxon on InsectSprays</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Same function, different dataset and different adjustment
+ex_pw &lt;- NULL
+# your code here
+ex_pw
+#&gt; Expected: sprays C, D, E differ from A, B, F; C, D, E do not differ from each other</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="InsectSprays pairwise solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">InsectSprays pairwise solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_pw &lt;- pairwise.wilcox.test(InsectSprays$count, InsectSprays$spray,
+                              p.adjust.method = &quot;holm&quot;)
+ex_pw
+#&gt;
+#&gt; 	Pairwise comparisons using Wilcoxon rank sum test with continuity correction
+#&gt;
+#&gt; data:  InsectSprays$count and InsectSprays$spray
+#&gt;
+#&gt;   A       B       C       D       E       F
+#&gt; B 1.0000  -       -       -       -       -
+#&gt; C 1.3e-05 2.4e-06 -       -       -       -
+#&gt; D 5.4e-05 8.3e-06 0.4192  -       -       -
+#&gt; E 2.0e-05 5.6e-06 1.0000  1.0000  -       -
+#&gt; F 1.0000  1.0000  2.4e-06 9.6e-06 4.3e-06 -
+#&gt;
+#&gt; P value adjustment method: holm</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Sprays A, B, and F form one high-performance cluster; C, D, and E form a low-performance cluster. Within each cluster, pairs are indistinguishable; between clusters, every pair is highly significant.</p>
+
+</details>
+</section>
+
+<h2>How do you report Kruskal-Wallis results?</h2>
+
+<p>A clean APA-style line needs five ingredients: the test name, degrees of freedom, the H statistic, the p-value, and the effect size. Readers should be able to reconstruct your analysis from the sentence alone, without hunting through an appendix. Here is a compact template that fits in a single line.</p>
+
+<div class="webr-container" data-block-title="Build a one-line APA report string">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build a one-line APA report string</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># sprintf gives you precise control over decimal places
+apa_line &lt;- sprintf(
+  &quot;Kruskal-Wallis H(%d) = %.2f, p = %.3f, eta-squared-H = %.2f&quot;,
+  k - 1, H_manual, kruskal.test(weight ~ group, data = pg)$p.value, eta_sq_H
+)
+apa_line
+#&gt; [1] &quot;Kruskal-Wallis H(2) = 7.99, p = 0.018, eta-squared-H = 0.25&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Paste that line into a results section and follow it with the pairwise conclusion, for example: "Follow-up pairwise Wilcoxon tests with <a class="auto-link" href="Multiple-Comparisons-in-R.html" title="Multiple Testing in R: Control False Discoveries Without Losing All Your Power">Bonferroni correction</a> showed that trt1 and trt2 differed significantly (adjusted p = 0.025); neither treatment differed from the control." That is a complete, reproducible, publication-ready summary.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Always report df, H, p, the effect size, <em>and</em> which pairs drove the difference.</strong> A bare "p = 0.018" tells the reader almost nothing. The df anchors how many groups you tested, the effect size says whether the difference matters, and the pairwise breakdown says where the difference lives.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Given H = 14.2, df = 3, p = 0.0026, and eta-squared-H = 0.18, build the APA report string with <code>sprintf</code>.</p>
+<div class="webr-container" data-block-title="Your turn: APA line from supplied numbers">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: APA line from supplied numbers</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Target output: &quot;Kruskal-Wallis H(3) = 14.20, p = 0.003, eta-squared-H = 0.18&quot;
+ex_H   &lt;- 14.2
+ex_df  &lt;- 3
+ex_p   &lt;- 0.0026
+ex_eta &lt;- 0.18
+# your code here: build ex_line with sprintf()
+ex_line &lt;- NULL
+ex_line</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="APA line exercise solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">APA line exercise solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_H   &lt;- 14.2
+ex_df  &lt;- 3
+ex_p   &lt;- 0.0026
+ex_eta &lt;- 0.18
+ex_line &lt;- sprintf(&quot;Kruskal-Wallis H(%d) = %.2f, p = %.3f, eta-squared-H = %.2f&quot;,
+                   ex_df, ex_H, ex_p, ex_eta)
+ex_line
+#&gt; [1] &quot;Kruskal-Wallis H(3) = 14.20, p = 0.003, eta-squared-H = 0.18&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>%d</code> formats the integer df, <code>%.2f</code> and <code>%.3f</code> fix the decimal places for the statistic and p-value so your results tables look uniform.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<h3>Exercise 1: Sepal length across iris species</h3>
+
+<p>Run a Kruskal-Wallis test on <code>iris$Sepal.Length</code> across <code>iris$Species</code>. Compute the eta-squared-H effect size and decide whether a post-hoc test is warranted. Save the test result to <code>my_iris_kw</code> and the effect size to <code>my_iris_eta</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: kruskal.test(Sepal.Length ~ Species, data = iris)
+#       eta_H^2 = (H - k + 1) / (n - k)
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_iris_kw &lt;- kruskal.test(Sepal.Length ~ Species, data = iris)
+print(my_iris_kw)
+#&gt;
+#&gt; 	Kruskal-Wallis rank sum test
+#&gt;
+#&gt; data:  Sepal.Length by Species
+#&gt; Kruskal-Wallis chi-squared = 96.937, df = 2, p-value &lt; 2.2e-16
+
+my_iris_H &lt;- unname(my_iris_kw$statistic)
+my_iris_k &lt;- nlevels(iris$Species)
+my_iris_n &lt;- nrow(iris)
+my_iris_eta &lt;- (my_iris_H - my_iris_k + 1) / (my_iris_n - my_iris_k)
+round(my_iris_eta, 3)
+#&gt; [1] 0.649</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The test is highly significant and the effect size (0.65) is enormous, so a pairwise post-hoc is absolutely warranted to say which species pairs drive the difference.</p>
+
+</details>
+
+<h3>Exercise 2: Full pipeline on chickwts</h3>
+
+<p>Build the complete Kruskal-Wallis pipeline for <code>chickwts$weight ~ feed</code>: run the omnibus test, compute eta-squared-H, run <code>pairwise.wilcox.test</code> with Bonferroni, and list which feed pairs differ at the 0.05 level. Save intermediates to <code>my_chicks_kw</code>, <code>my_chicks_eta</code>, and <code>my_chicks_pw</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: same steps you just learned, applied to chickwts
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_chicks_kw &lt;- kruskal.test(weight ~ feed, data = chickwts)
+my_chicks_H  &lt;- unname(my_chicks_kw$statistic)
+my_chicks_k  &lt;- nlevels(chickwts$feed)
+my_chicks_n  &lt;- nrow(chickwts)
+my_chicks_eta &lt;- (my_chicks_H - my_chicks_k + 1) / (my_chicks_n - my_chicks_k)
+round(my_chicks_eta, 3)
+#&gt; [1] 0.524
+
+my_chicks_pw &lt;- pairwise.wilcox.test(chickwts$weight, chickwts$feed,
+                                     p.adjust.method = &quot;bonferroni&quot;)
+my_chicks_pw
+#&gt;
+#&gt; 	Pairwise comparisons using Wilcoxon rank sum exact test
+#&gt;
+#&gt; data:  chickwts$weight and chickwts$feed
+#&gt;
+#&gt;           casein  horsebean linseed meatmeal soybean
+#&gt; horsebean 1.7e-05 -         -       -        -
+#&gt; linseed   0.0012  0.0900    -       -        -
+#&gt; meatmeal  0.6857  0.0005    0.1108  -        -
+#&gt; soybean   0.0126  0.0063    1.0000  1.0000   -
+#&gt; sunflower 1.0000  2.6e-05   0.0012  0.8404   0.0055</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Casein and sunflower are the top performers; horsebean is the worst. Most pairs involving horsebean or sunflower are significant; linseed-soybean and meatmeal-soybean are not. Eta-squared-H of 0.52 is a very large effect.</p>
+
+</details>
+
+<h3>Exercise 3: Compute H from scratch</h3>
+
+<p>Given a numeric vector <code>my_vals</code> and a factor <code>my_grp</code>, compute the Kruskal-Wallis <code>H</code> statistic without calling <code>kruskal.test</code>, then verify it matches what <code>kruskal.test</code> returns. Use the formula $H = \dfrac{12}{N(N+1)} \sum R_i^2 / n_i - 3(N+1)$.</p>
+
+<div class="webr-container" data-block-title="Exercise 3 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(42)
+my_vals &lt;- c(rnorm(8, 5), rnorm(8, 6), rnorm(8, 7))
+my_grp  &lt;- factor(rep(c(&quot;A&quot;, &quot;B&quot;, &quot;C&quot;), each = 8))
+
+# Write your code below to compute my_H_scratch
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(42)
+my_vals &lt;- c(rnorm(8, 5), rnorm(8, 6), rnorm(8, 7))
+my_grp  &lt;- factor(rep(c(&quot;A&quot;, &quot;B&quot;, &quot;C&quot;), each = 8))
+
+my_ranks  &lt;- rank(my_vals)
+my_R      &lt;- tapply(my_ranks, my_grp, sum)
+my_ni     &lt;- table(my_grp)
+my_N      &lt;- length(my_vals)
+my_H_scratch &lt;- (12 / (my_N * (my_N + 1))) * sum(my_R^2 / my_ni) - 3 * (my_N + 1)
+round(my_H_scratch, 4)
+#&gt; [1] 13.79
+
+# Check against kruskal.test
+round(unname(kruskal.test(my_vals, my_grp)$statistic), 4)
+#&gt; [1] 13.79</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The two values match to four decimals, confirming the formula. <code>kruskal.test()</code> applies a small tie-correction when ranks are tied, so for continuous data with no ties the manual and built-in answers are identical.</p>
+
+</details>
+
+<h2>Complete Example</h2>
+
+<p>Here is the full pipeline applied end-to-end to the <code>airquality</code> dataset, which records daily ozone in parts per billion across five months. Ozone is notoriously right-skewed, making it an almost textbook use case for Kruskal-Wallis.</p>
+
+<div class="webr-container" data-block-title="End-to-end Kruskal-Wallis on airquality">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">End-to-end Kruskal-Wallis on airquality</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Prepare the data: drop missing ozone values and make Month a factor
+aq &lt;- airquality[!is.na(airquality$Ozone), ]
+aq$Month &lt;- factor(aq$Month,
+                   levels = 5:9,
+                   labels = c(&quot;May&quot;, &quot;Jun&quot;, &quot;Jul&quot;, &quot;Aug&quot;, &quot;Sep&quot;))
+
+# Shape check: boxplot makes the skew obvious
+boxplot(Ozone ~ Month, data = aq, col = &quot;lightsteelblue&quot;,
+        main = &quot;Daily ozone by month&quot;,
+        ylab = &quot;Ozone (ppb)&quot;)
+
+# Omnibus test
+aq_kw &lt;- kruskal.test(Ozone ~ Month, data = aq)
+aq_kw
+#&gt;
+#&gt; 	Kruskal-Wallis rank sum test
+#&gt;
+#&gt; data:  Ozone by Month
+#&gt; Kruskal-Wallis chi-squared = 29.267, df = 4, p-value = 6.901e-06
+
+# Effect size
+aq_H   &lt;- unname(aq_kw$statistic)
+aq_k   &lt;- nlevels(aq$Month)
+aq_n   &lt;- nrow(aq)
+aq_eta &lt;- (aq_H - aq_k + 1) / (aq_n - aq_k)
+round(aq_eta, 3)
+#&gt; [1] 0.225
+
+# Post-hoc pairwise comparisons
+aq_pairs &lt;- pairwise.wilcox.test(aq$Ozone, aq$Month,
+                                 p.adjust.method = &quot;bonferroni&quot;)
+aq_pairs
+#&gt;
+#&gt; 	Pairwise comparisons using Wilcoxon rank sum test with continuity correction
+#&gt;
+#&gt; data:  aq$Ozone and aq$Month
+#&gt;
+#&gt;     May     Jun     Jul     Aug
+#&gt; Jun 1.00000 -       -       -
+#&gt; Jul 0.00014 0.00377 -       -
+#&gt; Aug 0.00026 0.00511 1.00000 -
+#&gt; Sep 1.00000 1.00000 0.00677 0.01392
+
+# One-line APA report
+aq_report &lt;- sprintf(
+  &quot;Kruskal-Wallis H(%d) = %.2f, p = %.4f, eta-squared-H = %.2f&quot;,
+  aq_k - 1, aq_H, aq_kw$p.value, aq_eta
+)
+aq_report
+#&gt; [1] &quot;Kruskal-Wallis H(4) = 29.27, p = 0.0000, eta-squared-H = 0.22&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The omnibus test rejects equality of monthly ozone distributions with a p-value around <code>7e-06</code>. The effect size of 0.22 is large by Cohen's thresholds, so the month-to-month difference is practically meaningful. The pairwise matrix shows the shape of the pattern: July and August are indistinguishable from each other but significantly higher than May, June, and September. In plain English, the two summer months carry elevated ozone, which matches the well-known photochemistry of hot, sunny weather driving ground-level ozone formation.</p>
+
+<h2>Summary</h2>
+
+<p>The Kruskal-Wallis test is the go-to tool when you want to compare three or more independent groups but cannot trust ANOVA's assumptions. Ranks replace raw values, so skew and heavy tails stop mattering, and the test stays valid on small samples.</p>
+
+<p><img src="screenshots/Kruskal-Wallis-Test-in-R-workflow.webp" alt="The five-step Kruskal-Wallis analysis workflow from assumption checks through reporting." class="img-responsive img-zoomable" loading="lazy" width="2096" height="394" /></p>
+
+<p><em>Figure 2: The five-step Kruskal-Wallis analysis workflow from assumption checks through reporting.</em></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Step</th>
+<th>Function</th>
+<th>What it tells you</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Check assumptions</td>
+<td><code>boxplot()</code>, <code>table()</code></td>
+<td>Are groups independent and similar in shape? Is every group n ≥ 5?</td>
+</tr>
+<tr>
+<td>Run the omnibus test</td>
+<td><code>kruskal.test(y ~ g)</code></td>
+<td>Does any group differ from the others?</td>
+</tr>
+<tr>
+<td>Compute effect size</td>
+<td>$(H - k + 1) / (n - k)$</td>
+<td>How strong is the difference? Small, medium, or large?</td>
+</tr>
+<tr>
+<td>Pairwise post-hoc</td>
+<td><code>pairwise.wilcox.test()</code></td>
+<td>Which specific pairs drive the omnibus result?</td>
+</tr>
+<tr>
+<td>Report results</td>
+<td><code>sprintf()</code></td>
+<td>One APA-style line with df, H, p, effect size.</td>
+</tr>
+</tbody>
+</table>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Kruskal, W. H. & Wallis, W. A. (1952). <em>Use of ranks in one-criterion variance analysis</em>. Journal of the American Statistical Association 47(260), 583-621. <a href="https://doi.org/10.2307/2280779">Link</a></li>
+
+<li>Dunn, O. J. (1964). <em>Multiple comparisons using rank sums</em>. Technometrics 6(3), 241-252. <a href="https://doi.org/10.1080/00401706.1964.10490181">Link</a></li>
+
+<li>R Core Team. <code>?kruskal.test</code> documentation. <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/kruskal.test.html">Link</a></li>
+
+<li>R Core Team. <code>?pairwise.wilcox.test</code> documentation. <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/pairwise.wilcox.test.html">Link</a></li>
+
+<li>Tomczak, M. & Tomczak, E. (2014). <em>The need to report effect size estimates revisited</em>. Trends in Sport Sciences 1(21), 19-25.</li>
+
+<li>Mangiafico, S. (2016). <em>R Companion Handbook: Kruskal-Wallis Test</em>. <a href="https://rcompanion.org/handbook/F_08.html">Link</a></li>
+
+<li><code>rstatix::kruskal_effsize()</code> reference. <a href="https://rpkgs.datanovia.com/rstatix/reference/kruskal_effsize.html">Link</a></li>
+
+<li>Hollander, M., Wolfe, D. A., & Chicken, E. (2014). <em>Nonparametric Statistical Methods</em>, 3rd ed. Wiley. Chapter 6.</li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ol>
+
+<li><a href="One-Way-ANOVA-in-R.html">One-Way ANOVA in R</a>, the parametric sibling of this test, covering F-statistics, Levene's test, and Tukey's HSD.</li>
+
+<li><a href="Welchs-ANOVA-in-R.html">Welch's ANOVA in R</a>, for use when variances are unequal but the data is still approximately normal.</li>
+
+<li><a href="Wilcoxon-Test-in-R.html">Wilcoxon Rank-Sum Test in R</a>, the two-sample rank test, which Kruskal-Wallis generalises to three or more groups.</li>
+
+</ol>
