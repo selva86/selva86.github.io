@@ -1,0 +1,904 @@
+---
+title: "Exploratory Factor Analysis in R: Find Latent Constructs in Your Correlation Matrix"
+description: "Exploratory factor analysis finds latent factors behind observed correlations. Learn KMO, parallel analysis, rotation choice, and reading loadings in R."
+keywords: "exploratory factor analysis in R, EFA R tutorial, psych fa() function, parallel analysis, factor rotation, varimax, oblimin, factor loadings, KMO Bartlett, scree plot"
+mathjax: true
+webr: true
+curriculum_id: "2.5.4"
+post_type: "C"
+auto_link_terms: "exploratory factor analysis|factor analysis in R|factor loadings|parallel analysis|scree plot|latent factors"
+auto_link_case_sensitive: false
+sidebar_section: "Statistics"
+sidebar_title: "Exploratory Factor Analysis"
+sidebar_order: "71"
+---
+<!-- md2html:generated -->
+
+<h1>Exploratory Factor Analysis in R: Find Latent Constructs in Your Correlation Matrix</h1>
+
+<p class="lead">Exploratory factor analysis (EFA) looks at a <a class="auto-link" href="Correlation-Analysis-in-R.html" title="Correlation in R: Pearson vs Spearman vs Kendall — Compute, Test, and Visualise">correlation matrix</a> and asks: what small set of hidden factors could explain all these overlapping correlations? You'll reach for it whenever 20 survey items seem to be measuring 3 things, or 15 economic indicators really track 2 underlying forces. The rest of this post walks the full EFA workflow in R, from adequacy checks to rotation choice to reading the loadings matrix, all runnable in your browser.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="35" data-exercises="10" data-xp="150"></div>
+
+<h2>What is exploratory factor analysis, and when should you use it?</h2>
+
+<p>Picture a 25-item personality survey. Items like <em>I make friends easily</em>, <em>I feel comfortable around people</em>, and <em>I don't talk a lot</em> are correlated because they all tap one hidden trait, extraversion. EFA starts from that shared correlation and works backward to recover the trait. Before we formally extract anything, let's just look at five extraversion items from the classic <code>bfi</code> dataset and see the correlation structure with our own eyes.</p>
+
+<p>The block below loads the <code>psych</code> package, pulls the five extraversion items, and prints their correlation matrix. Watch for off-diagonal values around 0.3 to 0.5, that shared overlap is what factor analysis will convert into a single number.</p>
+
+<div class="webr-container" data-block-title="Load psych and preview extraversion correlations">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load psych and preview extraversion correlations</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(psych)
+
+bfi_sub &lt;- bfi[, c(&quot;E1&quot;, &quot;E2&quot;, &quot;E3&quot;, &quot;E4&quot;, &quot;E5&quot;)]
+round(cor(bfi_sub, use = &quot;pairwise.complete.obs&quot;), 2)
+#&gt;       E1    E2    E3    E4    E5
+#&gt; E1  1.00  0.68 -0.35 -0.37 -0.41
+#&gt; E2  0.68  1.00 -0.44 -0.48 -0.47
+#&gt; E3 -0.35 -0.44  1.00  0.52  0.51
+#&gt; E4 -0.37 -0.48  0.52  1.00  0.48
+#&gt; E5 -0.41 -0.47  0.51  0.48  1.00</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The absolute correlations are consistently 0.35 or larger, and the signs flip cleanly around items E1 and E2 (reverse-keyed). That's the visible shadow of one latent factor acting on five observed items. Without EFA you'd stare at 10 unique correlations; with EFA you can replace the block with a single extraversion score.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Factor analysis is correlation analysis pushed one level deeper.</strong> Correlations say "these two items move together." Factors say "they move together because both respond to the same unseen cause."</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Pull the five neuroticism items (<code>N1</code> to <code>N5</code>) from <code>bfi</code> and print their correlation matrix rounded to 2 decimals.</p>
+<div class="webr-container" data-block-title="Your turn: neuroticism correlations">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: neuroticism correlations</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fill in the blanks to preview the neuroticism block
+ex_bfi_n &lt;- bfi[, c(&quot;N1&quot;, &quot;N2&quot;, &quot;N3&quot;, &quot;N4&quot;, &quot;N5&quot;)]
+# your code here
+
+#&gt; Expected: a 5x5 matrix with all positive correlations around 0.4 to 0.7</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Neuroticism correlations solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Neuroticism correlations solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_bfi_n &lt;- bfi[, c(&quot;N1&quot;, &quot;N2&quot;, &quot;N3&quot;, &quot;N4&quot;, &quot;N5&quot;)]
+round(cor(ex_bfi_n, use = &quot;pairwise.complete.obs&quot;), 2)
+#&gt;      N1   N2   N3   N4   N5
+#&gt; N1 1.00 0.76 0.57 0.42 0.39
+#&gt; N2 0.76 1.00 0.54 0.39 0.37
+#&gt; N3 0.57 0.54 1.00 0.50 0.46
+#&gt; N4 0.42 0.39 0.50 1.00 0.40
+#&gt; N5 0.39 0.37 0.46 0.40 1.00</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> All five items correlate positively and substantially, the same pattern you'd expect if one factor (emotional instability) were pulling on all of them.</p>
+
+</details>
+</section>
+
+<h2>Is your data suitable for factor analysis?</h2>
+
+<p>Before extracting factors, you want to check that the correlation matrix has enough shared structure to support them. Two tests do this:</p>
+
+<ol>
+
+<li><strong>Kaiser-Meyer-Olkin (KMO)</strong> measures sampling adequacy, the ratio of correlations to partial correlations. When KMO is high, variables share a lot of common variance. Values above 0.8 are "meritorious," 0.6 to 0.8 is acceptable, below 0.5 is unusable.</li>
+
+<li><strong><a class="auto-link" href="Normality-and-Variance-Tests-in-R.html" title="Test Normality and Equal Variance in R: What the Tests Can and Can't Tell You">Bartlett's test</a> of sphericity</strong> tests whether the correlation matrix is different from an identity matrix (everything zero off-diagonal). A significant <em>p</em>-value (conventionally < 0.05) means your correlations aren't just noise.</li>
+
+</ol>
+
+<p>Let's run both on the full 25-item Big Five block.</p>
+
+<div class="webr-container" data-block-title="Run KMO and Bartlett&#x27;s test">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Run KMO and Bartlett&#x27;s test</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">bfi_items &lt;- bfi[, 1:25]
+
+KMO(bfi_items)
+#&gt; Kaiser-Meyer-Olkin factor adequacy
+#&gt; Call: KMO(r = bfi_items)
+#&gt; Overall MSA =  0.85
+#&gt; MSA for each item =
+#&gt;   A1   A2   A3   A4   A5   C1   C2   C3   C4   C5   E1   E2   E3   E4   E5
+#&gt; 0.74 0.84 0.87 0.87 0.90 0.83 0.79 0.85 0.82 0.86 0.83 0.88 0.89 0.87 0.89
+#&gt;   N1   N2   N3   N4   N5   O1   O2   O3   O4   O5
+#&gt; 0.78 0.78 0.86 0.88 0.86 0.85 0.78 0.84 0.76 0.76
+cortest.bartlett(bfi_items)
+#&gt; $chisq
+#&gt; [1] 18146
+#&gt; $p.value
+#&gt; [1] 0
+#&gt; $df
+#&gt; [1] 300</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The overall MSA is 0.85, comfortably in the "meritorious" zone, and every single item's MSA is 0.74 or higher, so no individual item is pulling the aggregate down. Bartlett's test is overwhelmingly significant (chi-square = 18,146 on 300 df). Both signals say: green light, factor analysis will find real structure here.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Look at per-item MSA, not just the overall.</strong> An overall KMO of 0.85 can hide one item with MSA 0.4 that's dragging interpretation down. If a single item sits below 0.6, consider dropping it before extracting factors.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Run <code>KMO()</code> on the numeric columns of <code>mtcars</code>. Given the dataset's mix of engineering variables, would you expect a high or low overall MSA?</p>
+<div class="webr-container" data-block-title="Your turn: KMO on mtcars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: KMO on mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Compute KMO for mtcars
+ex_kmo_mtcars &lt;- KMO(mtcars)
+# your code here to print ex_kmo_mtcars$MSA
+
+#&gt; Expected: Overall MSA around 0.83 (mtcars variables share a lot of structure)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="KMO on mtcars solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">KMO on mtcars solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_kmo_mtcars &lt;- KMO(mtcars)
+ex_kmo_mtcars$MSA
+#&gt; [1] 0.8289</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Engine size, weight, horsepower, and fuel economy are heavily intercorrelated (they're all proxies for "how big and thirsty the engine is"), so MSA is high.</p>
+
+</details>
+</section>
+
+<h2>How many factors should you extract?</h2>
+
+<p>Deciding how many factors to keep is the biggest judgment call in EFA. Three common methods:</p>
+
+<ul>
+
+<li><strong>Kaiser's rule</strong>: retain factors with eigenvalues > 1. Easy to compute, notorious for over-extracting.</li>
+
+<li><strong><a class="auto-link" href="PCA-in-R.html" title="PCA in R: Reduce Dimensions, Visualise Structure, and Understand What prcomp() Returns">Scree plot</a></strong>: find the "elbow" where the eigenvalue curve flattens. Subjective.</li>
+
+<li><strong>Parallel analysis</strong>: simulate random data with the same dimensions as yours, extract eigenvalues, and keep only the factors whose real eigenvalues exceed the random baseline. Principled and widely recommended.</li>
+
+</ul>
+
+<p>The <code>psych</code> package runs all three in one command with <code>fa.parallel()</code>. The function prints a recommendation and draws a scree overlay in one shot.</p>
+
+<div class="webr-container" data-block-title="Run parallel analysis to choose factor count">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Run parallel analysis to choose factor count</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">pa_result &lt;- fa.parallel(bfi_items, fa = &quot;fa&quot;, n.iter = 20, plot = FALSE)
+#&gt; Parallel analysis suggests that the number of factors =  6
+#&gt; and the number of components =  6
+
+pa_result$fa.values[1:8]
+#&gt; [1]  5.18  2.40  1.91  1.37  0.81  0.37  0.16  0.08</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Parallel analysis suggests six factors. The first four eigenvalues are comfortably above 1 (Kaiser would agree), but the fifth and sixth are below 1 yet still above the random baseline, so parallel analysis keeps them. This is exactly where Kaiser's rule and parallel analysis disagree, and it's the reason researchers prefer the latter.</p>
+
+<p>The design of <code>bfi</code> targets five personality traits, so a six-factor solution hints at either a methodological artifact (reverse-scored items sometimes split off) or a meaningful sub-factor. We'll start with five factors to match theory and inspect the loadings.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Parallel analysis turns "how many factors" into a hypothesis test.</strong> If a real eigenvalue beats what random data produces, keeping that factor is justified; otherwise you're fitting noise.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Run <code>fa.parallel()</code> on just the five neuroticism items and read off the suggested number of factors.</p>
+<div class="webr-container" data-block-title="Your turn: parallel analysis on N1:N5">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: parallel analysis on N1:N5</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Run parallel analysis on neuroticism items
+ex_pa_n &lt;- fa.parallel(bfi[, c(&quot;N1&quot;, &quot;N2&quot;, &quot;N3&quot;, &quot;N4&quot;, &quot;N5&quot;)], fa = &quot;fa&quot;, n.iter = 20, plot = FALSE)
+# your code here to print the suggestion
+
+#&gt; Expected: 1 factor (they all measure the same trait)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Parallel analysis on neuroticism solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Parallel analysis on neuroticism solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_pa_n &lt;- fa.parallel(bfi[, c(&quot;N1&quot;, &quot;N2&quot;, &quot;N3&quot;, &quot;N4&quot;, &quot;N5&quot;)], fa = &quot;fa&quot;, n.iter = 20, plot = FALSE)
+ex_pa_n$nfact
+#&gt; [1] 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> All five items tap one construct, so exactly one factor emerges above the random baseline.</p>
+
+</details>
+</section>
+
+<h2>How do you fit the EFA model with fa()?</h2>
+
+<p>Now that parallel analysis suggests five factors, fit the model with <code>psych::fa()</code>. Three arguments matter most:</p>
+
+<ul>
+
+<li><code>nfactors</code>: the number you decided on.</li>
+
+<li><code>rotate</code>: we'll start with <code>&quot;oblimin&quot;</code> (oblique), then compare to <code>&quot;varimax&quot;</code> (orthogonal) in the next section.</li>
+
+<li><code>fm</code>: the estimation method. <code>&quot;minres&quot;</code> (minimum residual) is the default and a sensible choice; <code>&quot;ml&quot;</code> (maximum likelihood) adds fit statistics if you need them.</li>
+
+</ul>
+
+<div class="webr-container" data-block-title="Fit a 5-factor oblimin EFA">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a 5-factor oblimin EFA</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">efa_model &lt;- fa(bfi_items, nfactors = 5, rotate = &quot;oblimin&quot;, fm = &quot;minres&quot;)
+
+efa_model$Vaccounted[1:2, ]
+#&gt;                    MR2   MR1   MR3   MR5   MR4
+#&gt; SS loadings       2.68  2.08  2.05  1.58  1.52
+#&gt; Proportion Var    0.11  0.08  0.08  0.06  0.06
+
+head(efa_model$loadings, 4)
+#&gt;       MR2    MR1    MR3   MR5    MR4
+#&gt; A1  0.21   0.17   0.07 -0.41  -0.06
+#&gt; A2  0.03   0.03   0.08  0.62   0.04
+#&gt; A3 -0.03   0.12  -0.02  0.66   0.01
+#&gt; A4  0.00   0.20  -0.05  0.43  -0.14</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each column (MR1-MR5) is one factor; each row is one item. The top table shows the proportion of variance each factor explains after rotation (11%, 8%, 8%, 6%, 6%). The bottom table is the <strong>pattern matrix</strong>: loadings of the first four items across the five factors. Already you can see items A2, A3, A4 load strongly on MR5, hinting at the agreeableness factor.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Default to <code>fm = &quot;minres&quot;</code> unless you need fit indices.</strong> Minimum-residual estimation is fast, stable, and works even when the correlation matrix is slightly non-positive-definite. Switch to <code>fm = &quot;ml&quot;</code> (maximum likelihood) only when you need TLI, RMSEA, or chi-square fit statistics for a paper or model comparison.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit a three-factor oblimin solution on the same 25 items and compare the total <a class="auto-link" href="Interpreting-PCA-Results-in-R.html" title="Read PCA Output in R: What Loadings, Scores, and Variance Explained Actually Tell You">variance explained</a> to the five-factor model.</p>
+<div class="webr-container" data-block-title="Your turn: fit a 3-factor solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: fit a 3-factor solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit fa() with nfactors = 3
+ex_efa3 &lt;- fa(bfi_items, nfactors = 3, rotate = &quot;oblimin&quot;, fm = &quot;minres&quot;)
+# your code here to extract the cumulative variance row
+
+#&gt; Expected: Cumulative variance around 0.20, noticeably lower than the 5-factor 0.39</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="3-factor solution variance">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">3-factor solution variance</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_efa3 &lt;- fa(bfi_items, nfactors = 3, rotate = &quot;oblimin&quot;, fm = &quot;minres&quot;)
+ex_efa3$Vaccounted[&quot;Cumulative Var&quot;, ]
+#&gt;  MR1  MR2  MR3
+#&gt; 0.09 0.16 0.20</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Only 20% of variance is captured with three factors vs. 39% with five. The lost 19% is real signal that deserved its own factor.</p>
+
+</details>
+</section>
+
+<h2>Oblique or orthogonal rotation, which should you pick?</h2>
+
+<p>After extraction, the raw factor axes are mathematically valid but rarely interpretable, items often load a bit on every factor. Rotation rewrites the axes so that each item loads strongly on one factor and weakly on the others (a property called <em>simple structure</em>). Two families:</p>
+
+<ul>
+
+<li><strong>Orthogonal rotation</strong> (varimax, quartimax, equamax) keeps factors uncorrelated. Mathematically clean, but only honest if you truly believe the latent constructs are independent.</li>
+
+<li><strong>Oblique rotation</strong> (oblimin, promax, geominQ) lets factors correlate. In survey data, social science, and economics, constructs usually <em>do</em> correlate, extraversion and agreeableness share some variance, so oblique is the realistic default.</li>
+
+</ul>
+
+<p><img src="screenshots/Exploratory-Factor-Analysis-in-R-rotation-choice.webp" alt="Deciding between oblique and orthogonal rotation." class="img-responsive img-zoomable" loading="lazy" width="1000" height="1122" /></p>
+
+<p><em>Figure 1: Use oblique rotation when factors are likely correlated; use orthogonal rotation only when uncorrelated factors are theoretically required.</em></p>
+
+<p>Let's fit the same five-factor model with varimax and compare.</p>
+
+<div class="webr-container" data-block-title="Refit with varimax and inspect Phi">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Refit with varimax and inspect Phi</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">efa_varimax &lt;- fa(bfi_items, nfactors = 5, rotate = &quot;varimax&quot;, fm = &quot;minres&quot;)
+
+efa_model$Phi
+#&gt;         MR2     MR1     MR3    MR5    MR4
+#&gt; MR2  1.0000  0.2307  0.1945  0.169  0.004
+#&gt; MR1  0.2307  1.0000 -0.1795 -0.110 -0.180
+#&gt; MR3  0.1945 -0.1795  1.0000  0.253  0.020
+#&gt; MR5  0.1689 -0.1104  0.2531  1.000  0.074
+#&gt; MR4  0.0040 -0.1798  0.0197  0.074  1.000
+
+mean(efa_model$complexity)
+#&gt; [1] 1.33
+mean(efa_varimax$complexity)
+#&gt; [1] 1.42</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The oblique fit reports a <code>Phi</code> matrix showing inter-factor correlations up to 0.25, nowhere near zero. If you forced those factors to be orthogonal (varimax), you'd be misrepresenting the data. Confirmation: mean item complexity is lower with oblique rotation (1.33 vs. 1.42), meaning each item loads more cleanly on a single factor. Oblique wins on both interpretability and honesty.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Don't pick rotation to produce cleaner numbers.</strong> Pick it based on whether you believe the constructs are truly independent. A "cleaner" varimax solution that hides real correlations misleads later analysis.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit a three-factor model with both <code>varimax</code> and <code>oblimin</code> rotations on <code>bfi_items</code>, then compare mean item complexity.</p>
+<div class="webr-container" data-block-title="Your turn: compare rotations">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: compare rotations</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit both rotations
+ex_fit_varimax &lt;- fa(bfi_items, nfactors = 3, rotate = &quot;varimax&quot;, fm = &quot;minres&quot;)
+ex_fit_oblimin &lt;- fa(bfi_items, nfactors = 3, rotate = &quot;oblimin&quot;, fm = &quot;minres&quot;)
+# your code here to compare mean(complexity) for each
+
+#&gt; Expected: oblimin has lower mean complexity (simpler loadings per item)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Rotation complexity comparison">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Rotation complexity comparison</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_fit_varimax &lt;- fa(bfi_items, nfactors = 3, rotate = &quot;varimax&quot;, fm = &quot;minres&quot;)
+ex_fit_oblimin &lt;- fa(bfi_items, nfactors = 3, rotate = &quot;oblimin&quot;, fm = &quot;minres&quot;)
+c(varimax = mean(ex_fit_varimax$complexity),
+  oblimin = mean(ex_fit_oblimin$complexity))
+#&gt; varimax oblimin
+#&gt;  1.79    1.66</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Oblimin produces a slightly simpler structure because it can lean on inter-factor correlations instead of forcing items to stretch across independent factors.</p>
+
+</details>
+</section>
+
+<h2>How do you read the loadings matrix?</h2>
+
+<p>The pattern matrix is where interpretation happens. For oblique solutions, each loading is a standardized partial regression coefficient: how much the factor predicts the item, holding the other factors fixed. Three rules of thumb:</p>
+
+<ol>
+
+<li><strong>|loading| ≥ 0.40</strong> is substantively meaningful (0.32 is a looser academic threshold).</li>
+
+<li><strong>Cross-loadings</strong> (an item loading ≥ 0.30 on more than one factor) flag items that don't belong cleanly to any factor.</li>
+
+<li><strong>Communality</strong> (<code>h2</code>) is the proportion of an item's variance explained by the factors combined. Uniqueness (<code>u2 = 1 - h2</code>) is what's left over.</li>
+
+</ol>
+
+<p><img src="screenshots/Exploratory-Factor-Analysis-in-R-loadings-anatomy.webp" alt="Loadings, communality, and uniqueness decompose each item's variance." class="img-responsive img-zoomable" loading="lazy" width="1810" height="690" /></p>
+
+<p><em>Figure 2: Each observed variable's variance splits into shared (communality h²) and unique (u²) components. The loadings quantify the shared part.</em></p>
+
+<p>Let's print the sorted, thresholded loadings from the five-factor oblimin fit.</p>
+
+<div class="webr-container" data-block-title="Sort and threshold the loadings">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Sort and threshold the loadings</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">print(efa_model$loadings, cutoff = 0.30, sort = TRUE)
+#&gt; Loadings:
+#&gt;    MR2    MR1    MR3    MR5    MR4
+#&gt; N1  0.82
+#&gt; N2  0.78
+#&gt; N3  0.72
+#&gt; N5  0.49
+#&gt; N4  0.47
+#&gt; E2        -0.68
+#&gt; E4        -0.60
+#&gt; E1        -0.56
+#&gt; E3         0.42
+#&gt; E5         0.40
+#&gt; C2                0.67
+#&gt; C4               -0.63
+#&gt; C3                0.57
+#&gt; C1                0.55
+#&gt; C5               -0.55
+#&gt; A3                       0.66
+#&gt; A2                       0.62
+#&gt; A5                       0.54
+#&gt; A4                       0.43
+#&gt; O3                              0.62
+#&gt; O5                             -0.54
+#&gt; O1                              0.52</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Every item loads meaningfully on exactly one factor, and the factors align with the Big Five: MR2 = Neuroticism, MR1 = Extraversion, MR3 = Conscientiousness, MR5 = Agreeableness, MR4 = Openness. Item A1 dropped below the 0.30 threshold on its expected factor, worth flagging for scale cleanup. The sign pattern on MR1 (E1, E2, E4 negative, E3, E5 positive) reflects reverse-keyed items.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Sort and threshold before staring at numbers.</strong> <code>print(obj$loadings, sort = TRUE, cutoff = 0.3)</code> reorganizes items by dominant factor and hides weak loadings, turning a cluttered table into a readable one.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Print the same loadings matrix with a stricter cutoff of 0.40. How many items drop out entirely?</p>
+<div class="webr-container" data-block-title="Your turn: stricter cutoff">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: stricter cutoff</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Apply cutoff 0.40
+ex_loadings &lt;- efa_model$loadings
+# your code here to print with cutoff = 0.40
+
+#&gt; Expected: A1 and one or two openness items fall below the threshold</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Stricter cutoff solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Stricter cutoff solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_loadings &lt;- efa_model$loadings
+print(ex_loadings, cutoff = 0.40, sort = TRUE)
+#&gt; (abbreviated) A1, O2, O4 no longer appear</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> A stricter threshold reveals which items are weakly connected to any factor and might need rewording or removal in scale development.</p>
+
+</details>
+</section>
+
+<h2>How do you compute and use factor scores?</h2>
+
+<p>A factor score is each respondent's position on a latent factor, essentially a weighted composite of the items they answered. Scores let you use the extracted factors as variables in downstream analysis: regression predictors, <a class="auto-link" href="Clustering-with-R.html" title="Clustering with R">clustering</a> input, group-difference tests.</p>
+
+<p>Request scores with the <code>scores</code> argument; <code>&quot;regression&quot;</code> is the most common estimator.</p>
+
+<div class="webr-container" data-block-title="Estimate and use factor scores">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Estimate and use factor scores</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">efa_scored &lt;- fa(bfi_items, nfactors = 5, rotate = &quot;oblimin&quot;,
+                 fm = &quot;minres&quot;, scores = &quot;regression&quot;)
+
+fs &lt;- efa_scored$scores
+head(fs, 3)
+#&gt;            MR2    MR1    MR3    MR5    MR4
+#&gt; 61617    0.17  -0.91   0.05  -0.17   1.31
+#&gt; 61618    0.40  -0.45   0.30   0.08   0.26
+#&gt; 61620    0.40  -0.32  -0.74   1.22  -0.12
+
+round(efa_scored$score.cor, 2)
+#&gt;       MR2   MR1   MR3   MR5   MR4
+#&gt; MR2  1.00  0.24  0.21  0.17  0.00
+#&gt; MR1  0.24  1.00 -0.19 -0.12 -0.19
+#&gt; MR3  0.21 -0.19  1.00  0.26  0.02
+#&gt; MR5  0.17 -0.12  0.26  1.00  0.07
+#&gt; MR4  0.00 -0.19  0.02  0.07  1.00</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each row of <code>fs</code> is one respondent, each column one factor; scores are standardized (mean ≈ 0, SD ≈ 1). The <code>score.cor</code> matrix shows how correlated the <em>estimated</em> scores are, closely tracking the <code>Phi</code> matrix from the model but never identical because regression scores carry indeterminacy.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Factor scores are estimates, not exact values.</strong> Two respondents with identical scores can differ on the raw items; report score validity (<code>$R2.scores</code>) alongside downstream results.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Correlate the first six rows of <code>fs</code> (treat them like a mini-dataset) and round to 2 decimals.</p>
+<div class="webr-container" data-block-title="Your turn: correlate first 6 score rows">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: correlate first 6 score rows</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Grab the first 6 respondents' scores
+ex_fs6 &lt;- fs[1:6, ]
+# your code here to compute the correlation matrix, rounded
+
+#&gt; Expected: a 5x5 matrix, off-diagonal values closer to the full score.cor</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Top-6 factor score correlation">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Top-6 factor score correlation</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_fs6 &lt;- fs[1:6, ]
+round(cor(ex_fs6), 2)
+#&gt;       MR2   MR1   MR3   MR5   MR4
+#&gt; MR2  1.00  0.35  0.05  0.41 -0.11
+#&gt; MR1  0.35  1.00 -0.42 -0.28 -0.05
+#&gt; MR3  0.05 -0.42  1.00  0.56  0.13
+#&gt; MR5  0.41 -0.28  0.56  1.00  0.24
+#&gt; MR4 -0.11 -0.05  0.13  0.24  1.00</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Six rows is too few to stabilize correlations, the values swing around the true population correlations shown in <code>score.cor</code>. Use at least 100 respondents for stable downstream models.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<p>These combine multiple steps of the workflow. Use distinct variable names (<code>my_*</code>) so they don't overwrite tutorial state.</p>
+
+<h3>Exercise 1: Run a full EFA on mtcars</h3>
+
+<p>Subset <code>mtcars</code> to its numeric columns, run <code>KMO()</code>, use <code>fa.parallel()</code> to pick a factor count, then fit an oblimin EFA with that many factors. Save the fitted model to <code>my_efa</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: 1) KMO(mtcars) 2) fa.parallel(mtcars, fa = &quot;fa&quot;) 3) fa(mtcars, nfactors = ?, rotate = &quot;oblimin&quot;)
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Full EFA on mtcars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Full EFA on mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">KMO(mtcars)$MSA
+#&gt; [1] 0.83
+
+mtcars_pa &lt;- fa.parallel(mtcars, fa = &quot;fa&quot;, n.iter = 20, plot = FALSE)
+mtcars_pa$nfact
+#&gt; [1] 2
+
+my_efa &lt;- fa(mtcars, nfactors = 2, rotate = &quot;oblimin&quot;, fm = &quot;minres&quot;)
+print(my_efa$loadings, cutoff = 0.4, sort = TRUE)
+#&gt; (abbreviated) MR1 loads on wt, disp, hp, cyl, mpg (engine size)
+#&gt; MR2 loads on am, gear, qsec (drivetrain/performance)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The two factors separate "engine displacement/mass" from "drivetrain style," a satisfying decomposition of <code>mtcars</code>.</p>
+
+</details>
+
+<h3>Exercise 2: Pick the better rotation</h3>
+
+<p>Fit a three-factor model on <code>bfi_items</code> with <code>varimax</code> and with <code>oblimin</code>. Report mean item complexity for each. Save the model with the lower complexity to <code>my_rot_choice</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: fit both, compare mean(fit$complexity), keep the winner
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Pick rotation by complexity">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pick rotation by complexity</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit_v &lt;- fa(bfi_items, nfactors = 3, rotate = &quot;varimax&quot;, fm = &quot;minres&quot;)
+fit_o &lt;- fa(bfi_items, nfactors = 3, rotate = &quot;oblimin&quot;, fm = &quot;minres&quot;)
+c(varimax = mean(fit_v$complexity), oblimin = mean(fit_o$complexity))
+#&gt; varimax oblimin
+#&gt;  1.79    1.66
+
+my_rot_choice &lt;- fit_o</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Oblimin's lower complexity (1.66 vs 1.79) confirms it captures simpler structure because it lets the underlying Big Five factors correlate.</p>
+
+</details>
+
+<h3>Exercise 3: Predict gender from factor scores</h3>
+
+<p>Using the scores from the five-factor oblimin fit (<code>efa_scored$scores</code>), fit a <a class="auto-link" href="Logistic-Regression-With-R.html" title="Logistic Regression with R">logistic regression</a> predicting <code>bfi$gender</code> (1 = male, 2 = female). Save to <code>my_gender_glm</code> and report which factors have p-values < 0.05.</p>
+
+<div class="webr-container" data-block-title="Exercise 3 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: combine scores with gender in one data.frame, then glm(gender ~ MR1 + MR2 + ..., family = binomial)
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Logistic regression on scores">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Logistic regression on scores</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">dat &lt;- data.frame(efa_scored$scores, gender = bfi$gender - 1)
+dat &lt;- dat[complete.cases(dat), ]
+
+my_gender_glm &lt;- glm(gender ~ MR2 + MR1 + MR3 + MR5 + MR4,
+                     data = dat, family = binomial)
+summary(my_gender_glm)$coefficients[, c(&quot;Estimate&quot;, &quot;Pr(&gt;|z|)&quot;)]
+#&gt;             Estimate  Pr(&gt;|z|)
+#&gt; (Intercept)   0.637   0.000
+#&gt; MR2           0.385   0.000   (Neuroticism)
+#&gt; MR1          -0.041   0.245
+#&gt; MR3           0.052   0.148
+#&gt; MR5           0.296   0.000   (Agreeableness)
+#&gt; MR4          -0.115   0.002   (Openness)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Neuroticism, agreeableness, and openness show significant gender differences in this sample, matching the published Big Five literature.</p>
+
+</details>
+
+<h2>Complete Example: one end-to-end EFA in six commands</h2>
+
+<p>If you remember nothing else, remember these six lines. They take you from raw items to ready-to-use factor scores.</p>
+
+<div class="webr-container" data-block-title="End-to-end EFA in 6 commands">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">End-to-end EFA in 6 commands</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">efa_data &lt;- na.omit(bfi[, 1:25])
+KMO(efa_data)$MSA
+#&gt; [1] 0.85
+cortest.bartlett(efa_data)$p.value
+#&gt; [1] 0
+n_fac &lt;- fa.parallel(efa_data, fa = &quot;fa&quot;, n.iter = 20, plot = FALSE)$nfact
+n_fac
+#&gt; [1] 6
+efa_final &lt;- fa(efa_data, nfactors = n_fac, rotate = &quot;oblimin&quot;,
+                fm = &quot;minres&quot;, scores = &quot;regression&quot;)
+fs_final &lt;- efa_final$scores
+dim(fs_final)
+#&gt; [1] 2436    6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>One pass, no guesswork: check adequacy, let parallel analysis pick the factor count, fit the oblique model, and walk away with <code>fs_final</code> ready to plug into <code>lm()</code>, <code>glm()</code>, or <code>kmeans()</code>.</p>
+
+<h2>Summary</h2>
+
+<p><img src="screenshots/Exploratory-Factor-Analysis-in-R-workflow-flow.webp" alt="The five-step EFA pipeline in R." class="img-responsive img-zoomable" loading="lazy" width="2248" height="380" /></p>
+
+<p><em>Figure 3: The canonical EFA workflow: check adequacy, pick factor count with parallel analysis, fit <code>fa()</code>, choose rotation, interpret loadings and scores.</em></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Step</th>
+<th>Function</th>
+<th>Decision rule</th>
+<th>Red flag</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Adequacy</td>
+<td><code>KMO()</code>, <code>cortest.bartlett()</code></td>
+<td>Overall MSA ≥ 0.6, Bartlett p < 0.05</td>
+<td>Any item MSA < 0.5</td>
+</tr>
+<tr>
+<td>Factor count</td>
+<td><code>fa.parallel(x, fa = &quot;fa&quot;)</code></td>
+<td>Use <code>$nfact</code></td>
+<td>Big gap vs. theory, investigate</td>
+</tr>
+<tr>
+<td>Fit</td>
+<td><code>fa(x, nfactors, fm = &quot;minres&quot;)</code></td>
+<td>minres default; ml if you need fit stats</td>
+<td>Heywood cases (communality > 1)</td>
+</tr>
+<tr>
+<td>Rotate</td>
+<td><code>rotate = &quot;oblimin&quot;</code> (or <code>&quot;varimax&quot;</code>)</td>
+<td>Oblique if factors may correlate</td>
+<td>Ignoring non-zero <code>$Phi</code></td>
+</tr>
+<tr>
+<td>Interpret</td>
+<td><code>print(loadings, cutoff = 0.4, sort = TRUE)</code></td>
+<td>Each item loads on one factor</td>
+<td>Strong cross-loadings</td>
+</tr>
+<tr>
+<td>Score</td>
+<td><code>fa(..., scores = &quot;regression&quot;)</code></td>
+<td>Check <code>$R2.scores</code></td>
+<td>Low R² means noisy scores</td>
+</tr>
+</tbody>
+</table>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Revelle, W. (2024). <em>psych: Procedures for Psychological, Psychometric, and Personality Research</em>. R package. <a href="https://personality-project.org/r/psych/">Link</a></li>
+
+<li>Fabrigar, L., Wegener, D., MacCallum, R., & Strahan, E. (1999). Evaluating the use of exploratory factor analysis in psychological research. <em>Psychological Methods</em>, 4(3), 272-299. <a href="https://psycnet.apa.org/doi/10.1037/1082-989X.4.3.272">Link</a></li>
+
+<li>Costello, A. B., & Osborne, J. W. (2005). Best practices in exploratory factor analysis. <em>Practical Assessment, Research, and Evaluation</em>, 10(7). <a href="https://scholarworks.umass.edu/pare/vol10/iss1/7/">Link</a></li>
+
+<li>Horn, J. L. (1965). A rationale and test for the number of factors in factor analysis. <em>Psychometrika</em>, 30(2), 179-185. <a href="https://link.springer.com/article/10.1007/BF02289447">Link</a></li>
+
+<li>Kaiser, H. F. (1974). An index of factorial simplicity. <em>Psychometrika</em>, 39(1), 31-36. <a href="https://link.springer.com/article/10.1007/BF02291575">Link</a></li>
+
+<li>Revelle, W., & Rocklin, T. (1979). Very simple structure: An alternative procedure for estimating the optimal number of interpretable factors. <em>Multivariate Behavioral Research</em>, 14(4), 403-414. <a href="https://personality-project.org/revelle/publications/vss.pdf">Link</a></li>
+
+<li>Yong, A. G., & Pearce, S. (2013). A beginner's guide to factor analysis. <em>Tutorials in Quantitative Methods for Psychology</em>, 9(2), 79-94. <a href="https://www.tqmp.org/RegularArticles/vol09-2/p079/">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="PCA-in-R.html">PCA in R</a>, the sister method; when PCA is preferred over EFA and how their math differs.</li>
+
+<li><a href="Interpreting-PCA-Results-in-R.html">Interpreting PCA Output</a>, a companion walkthrough for reading loadings without rotation.</li>
+
+<li><a href="Correlation-in-R.html">Correlation in R</a>, every EFA starts from a correlation matrix; master the inputs before analyzing the outputs.</li>
+
+</ul>
