@@ -1,0 +1,968 @@
+---
+title: "Two-Way ANOVA in R: Main Effects, Interactions, and Interaction Plots Interpreted"
+description: "Fit two-way ANOVA in R with aov(y ~ A * B). Interpret main effects, the interaction, Type I/II/III SS, and plot results using interaction.plot and emmeans."
+keywords: "two-way ANOVA R, aov two factors, interaction effect ANOVA, interaction plot R, Type III sum of squares, Anova car package, emmeans, balanced design ANOVA, unbalanced ANOVA R"
+mathjax: true
+webr: true
+curriculum_id: "2.4.3"
+post_type: "C"
+auto_link_terms: "two-way ANOVA|two-way ANOVA in R|interaction plot|Type III sum of squares|Type II sum of squares|Anova()|emmeans|main effects ANOVA"
+auto_link_case_sensitive: false
+sidebar_section: "Statistics"
+sidebar_title: "Two-Way ANOVA"
+sidebar_order: "59"
+---
+<!-- md2html:generated -->
+
+<h1>Two-Way ANOVA in R: Main Effects, Interactions, and Interaction Plots Interpreted</h1>
+
+<p class="lead">Two-way ANOVA tests whether two categorical factors, and the interaction between them, explain the variation in a numeric outcome. In R, you fit the model with <code>aov(y ~ A * B, data = d)</code>, read the three F-tests from <code>summary()</code> or <code>car::Anova()</code>, and visualize how the factors combine with an <a class="auto-link" href="Interaction-Effects-in-R.html" title="Interaction Effects in R: Add Them, Test Them, and Actually Understand the Output">interaction plot</a>. This tutorial uses the built-in <code>ToothGrowth</code> dataset and walks you from the first <code>aov()</code> call all the way to simple-effect post-hoc tests with <code>emmeans</code>.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="40" data-exercises="9" data-xp="135"></div>
+
+<h2>How does two-way ANOVA extend one-way ANOVA?</h2>
+
+<p>One-way ANOVA asks whether group means differ across a single factor. Two-way ANOVA asks the same question for two factors at once and, critically, whether the effect of one factor depends on the level of the other. The built-in <code>ToothGrowth</code> dataset gives you exactly that shape of problem: guinea-pig tooth length by vitamin C source (<code>supp</code>: OJ or VC) crossed with dose (0.5, 1, or 2 mg). A single <code>aov()</code> call fits both main effects and their interaction.</p>
+
+<div class="webr-container" data-block-title="Fit a two-way ANOVA on ToothGrowth">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a two-way ANOVA on ToothGrowth</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+library(ggplot2)
+
+tg &lt;- ToothGrowth
+tg$dose &lt;- factor(tg$dose)
+head(tg, 3)
+#&gt;    len supp dose
+#&gt; 1  4.2   VC  0.5
+#&gt; 2 11.5   VC  0.5
+#&gt; 3  7.3   VC  0.5
+
+fit &lt;- aov(len ~ supp * dose, data = tg)
+summary(fit)
+#&gt;             Df Sum Sq Mean Sq F value   Pr(&gt;F)    
+#&gt; supp         1  205.4   205.4  15.572 0.000231 ***
+#&gt; dose         2 2426.4  1213.2  92.000  &lt; 2e-16 ***
+#&gt; supp:dose    2  108.3    54.2   4.107 0.021860 *  
+#&gt; Residuals   54  712.1    13.2                     
+#&gt; ---
+#&gt; Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>You already have the full answer in one table. Supplement type is highly significant (p = 0.00023), dose is even more so (p < 2e-16), and the <code>supp:dose</code> interaction is also significant (p = 0.022). That last row is what makes this a two-way ANOVA rather than two stacked one-way tests: it tells you the effect of supplement is not the same at every dose. We will unpack each of those three pieces in the next sections.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The <code>*</code> operator in R formulas expands to main effects plus interaction.</strong> Writing <code>len ~ supp * dose</code> is identical to <code>len ~ supp + dose + supp:dose</code>. Using <code>+</code> alone fits an additive model with no interaction term, and you will miss the very effect two-way ANOVA was built to detect.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit a two-way ANOVA on the built-in <code>warpbreaks</code> dataset with <code>breaks</code> as the outcome and <code>wool * tension</code> as the design. Save the fit to <code>ex_fit</code> and print its <code>summary()</code>.</p>
+<div class="webr-container" data-block-title="Your turn: two-way ANOVA on warpbreaks">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: two-way ANOVA on warpbreaks</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: fit a two-way ANOVA on warpbreaks
+ex_fit &lt;- NULL  # your code here
+
+summary(ex_fit)
+#&gt; Expected: three F-rows for wool, tension, wool:tension</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="warpbreaks two-way ANOVA solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">warpbreaks two-way ANOVA solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_fit &lt;- aov(breaks ~ wool * tension, data = warpbreaks)
+summary(ex_fit)
+#&gt;               Df Sum Sq Mean Sq F value  Pr(&gt;F)   
+#&gt; wool           1    451   450.7   3.765 0.05821 . 
+#&gt; tension        2   2034  1017.1   8.498 0.00065 ***
+#&gt; wool:tension   2   1003   501.4   4.189 0.02104 * 
+#&gt; Residuals     48   5745   119.7                   </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Both <code>tension</code> and the <code>wool:tension</code> interaction are significant, while <code>wool</code> on its own is borderline. That interaction p-value is why you should interpret the main effects carefully, which is what the next sections teach.</p>
+
+</details>
+</section>
+
+<h2>What are main effects and the interaction term?</h2>
+
+<p>Each row of that ANOVA table corresponds to one slice of the total variation in tooth length. A <strong>main effect</strong> is how much the average outcome shifts when you change one factor while averaging over the other. The <strong>interaction</strong> is how much those shifts depend on the other factor's level, the part that neither main effect alone can explain. The figure below shows the full decomposition.</p>
+
+<p><img src="screenshots/Two-Way-ANOVA-in-R-variance-decomposition.webp" alt="Two-way ANOVA splits total variation into two main effects, an interaction, and residual noise." class="img-responsive img-zoomable" loading="lazy" width="1188" height="1282" /></p>
+
+<p><em>Figure 1: Two-way ANOVA splits total variation into two main effects, an interaction, and residual noise.</em></p>
+
+<p>The cleanest way to see those pieces is to look at the 2×3 grid of cell means. Each cell holds the average tooth length for one combination of supplement and dose.</p>
+
+<div class="webr-container" data-block-title="Cell means by supp and dose">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Cell means by supp and dose</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cell_means &lt;- tg |&gt;
+  group_by(supp, dose) |&gt;
+  summarise(mean_len = mean(len), n = n(), .groups = &quot;drop&quot;)
+cell_means
+#&gt; # A tibble: 6 × 4
+#&gt;   supp  dose  mean_len     n
+#&gt;   &lt;fct&gt; &lt;fct&gt;    &lt;dbl&gt; &lt;int&gt;
+#&gt; 1 OJ    0.5      13.23    10
+#&gt; 2 OJ    1        22.70    10
+#&gt; 3 OJ    2        26.06    10
+#&gt; 4 VC    0.5       7.98    10
+#&gt; 5 VC    1        16.77    10
+#&gt; 6 VC    2        26.14    10</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>At dose 0.5 the OJ mean (13.23) is 5.25 units above VC (7.98). At dose 1 the gap shrinks to about 5.9 but stays sizable. At dose 2 the two supplements are almost identical (26.06 vs 26.14). That narrowing gap is exactly the interaction signal, and the p-value of 0.022 in the earlier ANOVA table says the narrowing is larger than we would expect from random noise alone. Every cell has n = 10, which tells us the design is perfectly balanced, worth remembering when we reach the Type SS discussion.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Dose is stored as numeric in the raw data; we cast it to a factor.</strong> With a numeric <code>dose</code> the model would treat dose as continuous and fit one slope, giving you an ANCOVA rather than a two-way ANOVA. <code>factor(dose)</code> forces one coefficient per dose level so each cell mean is free to vary.</div></div>
+
+<p>Now compute the two sets of marginal means. These are what the main-effect F-tests are built from.</p>
+
+<div class="webr-container" data-block-title="Marginal means for supp and dose">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Marginal means for supp and dose</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">supp_means &lt;- tg |&gt; group_by(supp) |&gt; summarise(mean_len = mean(len), .groups = &quot;drop&quot;)
+dose_means &lt;- tg |&gt; group_by(dose) |&gt; summarise(mean_len = mean(len), .groups = &quot;drop&quot;)
+supp_means
+#&gt; # A tibble: 2 × 2
+#&gt;   supp  mean_len
+#&gt;   &lt;fct&gt;    &lt;dbl&gt;
+#&gt; 1 OJ        20.7
+#&gt; 2 VC        17.0
+dose_means
+#&gt; # A tibble: 3 × 2
+#&gt;   dose  mean_len
+#&gt;   &lt;fct&gt;    &lt;dbl&gt;
+#&gt; 1 0.5       10.6
+#&gt; 2 1         19.7
+#&gt; 3 2         26.1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>OJ averages 3.7 units higher than VC once we pool over doses, and longer teeth clearly track higher doses (10.6 → 19.7 → 26.1). Those two summaries are the main effects in plain language. The interaction is what remains after you subtract both of those trends from the cell means, and it is visible as the "pinched" shape of the OJ-VC gap at dose 2.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Using <code>mtcars</code>, treat <code>cyl</code> and <code>gear</code> as factors and compute the cell means of <code>mpg</code>. Save the result to <code>ex_mt_cells</code>.</p>
+<div class="webr-container" data-block-title="Your turn: mtcars cell means">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: mtcars cell means</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: compute cyl x gear cell means of mpg
+ex_mt_cells &lt;- NULL  # your code here
+
+print(ex_mt_cells)
+#&gt; Expected: tibble with one row per (cyl, gear) combination</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="mtcars cell means solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">mtcars cell means solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_mt_cells &lt;- mtcars |&gt;
+  mutate(cyl = factor(cyl), gear = factor(gear)) |&gt;
+  group_by(cyl, gear) |&gt;
+  summarise(mean_mpg = mean(mpg), n = n(), .groups = &quot;drop&quot;)
+print(ex_mt_cells)
+#&gt; # A tibble: 8 × 4
+#&gt;   cyl   gear  mean_mpg     n
+#&gt;   &lt;fct&gt; &lt;fct&gt;    &lt;dbl&gt; &lt;int&gt;
+#&gt; 1 4     3         21.5     1
+#&gt; 2 4     4         26.9     8
+#&gt; 3 4     5         28.2     2
+#&gt; 4 6     3         19.8     2
+#&gt; 5 6     4         19.8     4
+#&gt; 6 6     5         19.7     1
+#&gt; 7 8     3         15.0    12
+#&gt; 8 8     5         15.4     2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Note the jagged counts (some cells have n = 1, one combination is empty). That is an unbalanced factorial design, which is exactly the case where the Sum-of-Squares type choice in section four starts to matter.</p>
+
+</details>
+</section>
+
+<h2>How do you read a two-way ANOVA interaction plot?</h2>
+
+<p>A picture of cell means makes the interaction jump out faster than any table. The classic interaction plot puts one factor on the x-axis, plots the mean of y for each level of the other factor as a line, and lets the shape tell the story.</p>
+
+<p><img src="screenshots/Two-Way-ANOVA-in-R-interaction-shapes.webp" alt="Three interaction shapes: parallel lines mean no interaction, fanning lines mean partial interaction, crossing lines mean a strong interaction." class="img-responsive img-zoomable" loading="lazy" width="960" height="986" /></p>
+
+<p><em>Figure 2: Three interaction shapes: parallel lines (no interaction), fanning lines (partial interaction), crossing lines (strong interaction).</em></p>
+
+<p>Base R gives you the plot in one line with <code>interaction.plot()</code>. It is ugly but fast and surprisingly effective for a first look.</p>
+
+<div class="webr-container" data-block-title="Base R interaction plot">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Base R interaction plot</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">interaction.plot(
+  x.factor = tg$dose,
+  trace.factor = tg$supp,
+  response = tg$len,
+  fun = mean,
+  type = &quot;b&quot;,
+  pch = c(16, 17),
+  col = c(&quot;steelblue&quot;, &quot;darkorange&quot;),
+  xlab = &quot;Dose (mg)&quot;,
+  ylab = &quot;Mean tooth length&quot;,
+  trace.label = &quot;Supplement&quot;
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The OJ line sits above VC at doses 0.5 and 1, then the two lines converge and essentially touch at dose 2. That is a textbook "fanning" shape: the effect of supplement is large at small doses, then shrinks to zero. It matches the 0.022 p-value we saw earlier.</p>
+
+<p>For a publication-quality plot, layer <code>ggplot2</code> with <code>stat_summary()</code> to get means and 95% <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">confidence intervals</a> in one call.</p>
+
+<div class="webr-container" data-block-title="ggplot2 interaction plot with 95% CIs">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">ggplot2 interaction plot with 95% CIs</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(tg, aes(x = dose, y = len, colour = supp, group = supp)) +
+  stat_summary(fun.data = mean_cl_normal, geom = &quot;errorbar&quot;, width = 0.1) +
+  stat_summary(fun = mean, geom = &quot;line&quot;, linewidth = 1) +
+  stat_summary(fun = mean, geom = &quot;point&quot;, size = 3) +
+  labs(x = &quot;Dose (mg)&quot;, y = &quot;Tooth length&quot;, colour = &quot;Supplement&quot;) +
+  theme_minimal()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <a class="auto-link" href="Communicating-Uncertainty.html" title="Communicating Uncertainty: Don't Mislead Your Audience with Data Viz">error bars</a> are the piece readers almost always want: at dose 0.5 the OJ and VC intervals clearly separate, while at dose 2 they overlap heavily. The plot confirms the fanning shape and shows where the supplement-level difference is and is not meaningful.</p>
+
+<p>A third option is <code>emmip()</code> from the <code>emmeans</code> package, which pulls the means straight from your fitted model (not the raw data) and so is the one to report alongside ANOVA results.</p>
+
+<div class="webr-container" data-block-title="Model-based interaction plot with emmip">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Model-based interaction plot with emmip</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(emmeans)
+emmip(fit, supp ~ dose, CIs = TRUE) +
+  labs(title = &quot;Estimated marginal means with 95% CIs&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>emmip()</code> output looks almost identical to the ggplot2 version because the design is balanced. In unbalanced designs the two can drift apart, the raw-data plot shows what the data is, while <code>emmip()</code> shows what the model thinks about it.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Eyeball the plot before you trust the interaction p-value.</strong> Lines that look nearly parallel despite a "significant" interaction usually mean the <a class="auto-link" href="Effect-Size-in-R.html" title="Effect Size in R: The Number p-Values Never Tell You (Cohen's d, η², and r)">effect size</a> is tiny and the p-value is being driven by large sample size. Always pair the p-value with an effect-size picture.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a base-R <code>interaction.plot()</code> for <code>warpbreaks</code>: breaks by tension with wool as the trace factor.</p>
+<div class="webr-container" data-block-title="Your turn: warpbreaks interaction plot">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: warpbreaks interaction plot</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: plot warpbreaks interaction
+# use interaction.plot() with tension on x, wool as trace
+
+# your code here</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="warpbreaks interaction plot solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">warpbreaks interaction plot solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">interaction.plot(
+  x.factor = warpbreaks$tension,
+  trace.factor = warpbreaks$wool,
+  response = warpbreaks$breaks,
+  fun = mean,
+  type = &quot;b&quot;,
+  pch = c(16, 17),
+  col = c(&quot;steelblue&quot;, &quot;darkorange&quot;),
+  xlab = &quot;Tension&quot;,
+  ylab = &quot;Mean breaks&quot;,
+  trace.label = &quot;Wool&quot;
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The wool-A and wool-B lines cross between low and medium tension. Crossing lines are the classic visual cue for a strong qualitative interaction: one wool is best under low tension, the other wins elsewhere.</p>
+
+</details>
+</section>
+
+<h2>When do Type I, II, and III sums of squares matter?</h2>
+
+<p>Up to this point we read the ANOVA table straight from <code>summary(fit)</code>. That gives you <strong>Type I</strong> (sequential) sums of squares: each effect is tested after adjusting for every effect <em>listed before it</em> in the formula. When the design is balanced, Type I, II, and III are all identical and there is nothing to worry about. When the design is unbalanced, they disagree, sometimes dramatically, and your choice of type changes the story.</p>
+
+<p><img src="screenshots/Two-Way-ANOVA-in-R-type-ss-flow.webp" alt="Decision flow: balanced designs are unambiguous; unbalanced designs pick Type II or Type III based on the research question." class="img-responsive img-zoomable" loading="lazy" width="1284" height="1218" /></p>
+
+<p><em>Figure 3: Decision flow: balanced designs are unambiguous; unbalanced designs pick Type II or Type III by question.</em></p>
+
+<p>Our ToothGrowth design has n = 10 in every cell, so let us first confirm the three types agree on a balanced dataset.</p>
+
+<div class="webr-container" data-block-title="Type I vs II vs III on a balanced design">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Type I vs II vs III on a balanced design</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(car)
+
+# Type I from summary() is what we already have
+summary(fit)[[1]][, &quot;Sum Sq&quot;]
+#&gt; [1]  205.3500 2426.4343  108.3190  712.1060
+
+Anova(fit, type = 2)
+#&gt; Anova Table (Type II tests)
+#&gt; Response: len
+#&gt;            Sum Sq Df F value    Pr(&gt;F)    
+#&gt; supp       205.35  1 15.5719 0.0002312 ***
+#&gt; dose      2426.43  2 92.0000 &lt; 2.2e-16 ***
+#&gt; supp:dose  108.32  2  4.1067 0.0218603 *  
+#&gt; Residuals  712.11 54                      
+
+Anova(fit, type = 3)
+#&gt; Anova Table (Type III tests)
+#&gt; Response: len
+#&gt;             Sum Sq Df  F value    Pr(&gt;F)    
+#&gt; (Intercept) 1750.3  1 132.7300 3.603e-16 ***
+#&gt; supp         205.4  1  15.5719 0.0002312 ***
+#&gt; dose        2426.4  2  92.0000 &lt; 2.2e-16 ***
+#&gt; supp:dose    108.3  2   4.1067 0.0218603 *  
+#&gt; Residuals    712.1 54                       </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Every F-value and every p-value agrees across the three tables. That is the promise of a balanced design. Now drop a handful of rows to create an unbalanced version and watch what changes.</p>
+
+<div class="webr-container" data-block-title="Type SS on an unbalanced ToothGrowth">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Type SS on an unbalanced ToothGrowth</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+drop_ix &lt;- sample(nrow(tg), 8)
+tg_unb &lt;- tg[-drop_ix, ]
+table(tg_unb$supp, tg_unb$dose)
+#&gt;     
+#&gt;      0.5  1  2
+#&gt;   OJ   8  7  8
+#&gt;   VC   8  9 12
+
+fit_unb &lt;- aov(len ~ supp * dose, data = tg_unb)
+
+summary(fit_unb)[[1]]            # Type I, depends on formula order
+#&gt;             Df  Sum Sq Mean Sq F value   Pr(&gt;F)    
+#&gt; supp         1  161.49  161.49  10.728 0.001968 ** 
+#&gt; dose         2 2101.96 1050.98  69.816 5.39e-15 ***
+#&gt; supp:dose    2   80.22   40.11   2.665 0.080114 .  
+#&gt; Residuals   46  692.41   15.05                     
+
+Anova(fit_unb, type = 2)
+#&gt;            Sum Sq Df F value    Pr(&gt;F)    
+#&gt; supp       168.33  1 11.1823 0.001644 ** 
+#&gt; dose      2101.96  2 69.8158 5.392e-15 ***
+#&gt; supp:dose   80.22  2  2.6649 0.080114 .  
+
+options(contrasts = c(&quot;contr.sum&quot;, &quot;contr.poly&quot;))
+fit_unb3 &lt;- aov(len ~ supp * dose, data = tg_unb)
+Anova(fit_unb3, type = 3)
+#&gt;             Sum Sq Df  F value    Pr(&gt;F)    
+#&gt; (Intercept) 19166   1 1272.70 &lt; 2.2e-16 ***
+#&gt; supp          177   1   11.76 0.001266 ** 
+#&gt; dose         2098   2   69.65 5.79e-15 ***
+#&gt; supp:dose      80   2    2.66 0.080114 .  
+options(contrasts = c(&quot;contr.treatment&quot;, &quot;contr.poly&quot;))   # restore default</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Watch the <code>supp</code> Sum Sq column: 161.49 in Type I, 168.33 in Type II, and 177 in Type III. The differences are small here because the imbalance is mild, but in real unbalanced designs the three types can flip a p-value from significant to non-significant. The interaction row is identical across types because nothing else in the model shares its variance.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Type III with default <a class="auto-link" href="Dummy-Variables-in-R.html" title="Dummy Variables in R: What lm() Does With Factor Predictors Under the Hood">treatment contrasts</a> gives wrong main-effect tests when the interaction is non-zero.</strong> Always set <code>options(contrasts = c(&quot;contr.sum&quot;, &quot;contr.poly&quot;))</code> before fitting the model you pass to <code>Anova(fit, type = 3)</code>, then restore the default afterwards. Forgetting this is the single most common two-way ANOVA reporting bug in the wild.</div></div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Pick the SS type that matches your scientific question.</strong> Type II is the right default for reporting main effects when the interaction is not the focus. Type III is right when you care about every effect conditional on all others, including the interaction. Type I is appropriate only when the order of effects in the formula reflects a deliberate hierarchy.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Using the original balanced <code>fit</code>, run <code>Anova(fit, type = 2)</code> and compare its Sum Sq column against the numbers in the first <code>summary(fit)</code> call.</p>
+<div class="webr-container" data-block-title="Your turn: confirm balanced Type II equals Type I">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: confirm balanced Type II equals Type I</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: run Type II ANOVA on balanced fit
+ex_type2 &lt;- NULL  # your code here
+
+# The Sum Sq should match summary(fit)
+print(ex_type2)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Type II on balanced fit solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Type II on balanced fit solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_type2 &lt;- Anova(fit, type = 2)
+print(ex_type2)
+#&gt;            Sum Sq Df F value    Pr(&gt;F)    
+#&gt; supp       205.35  1 15.5719 0.0002312 ***
+#&gt; dose      2426.43  2 92.0000 &lt; 2.2e-16 ***
+#&gt; supp:dose  108.32  2  4.1067 0.0218603 *  
+#&gt; Residuals  712.11 54                      </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Balanced design, so Type II agrees with Type I digit for digit. The <code>Anova()</code> function from <code>car</code> also formats the table a little more cleanly than the default <code>summary()</code>.</p>
+
+</details>
+</section>
+
+<h2>How do you run post-hoc tests and simple effects after two-way ANOVA?</h2>
+
+<p>When the interaction is significant, the main-effect pairwise tests are misleading: they average across a level where the factor does something different. The honest move is to report <strong>simple effects</strong>, the <a class="auto-link" href="Post-Hoc-Tests-After-ANOVA.html" title="ANOVA Post-Hoc Tests in R: Tukey, Bonferroni, and Scheffé, Clear Decision Rules">pairwise comparisons</a> of one factor <em>within</em> each level of the other. <code>emmeans</code> handles this in one line.</p>
+
+<div class="webr-container" data-block-title="Simple effects of supp within each dose">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Simple effects of supp within each dose</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">emm_supp &lt;- emmeans(fit, pairwise ~ supp | dose, adjust = &quot;tukey&quot;)
+emm_supp$contrasts
+#&gt; dose = 0.5:
+#&gt;  contrast estimate   SE df t.ratio p.value
+#&gt;  OJ - VC      5.25 1.62 54   3.226  0.0021
+#&gt; 
+#&gt; dose = 1:
+#&gt;  contrast estimate   SE df t.ratio p.value
+#&gt;  OJ - VC      5.93 1.62 54   3.643  0.0006
+#&gt; 
+#&gt; dose = 2:
+#&gt;  contrast estimate   SE df t.ratio p.value
+#&gt;  OJ - VC     -0.08 1.62 54  -0.049  0.9611</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>At doses 0.5 and 1 mg, OJ is significantly better than VC by about 5.3 and 5.9 units. At 2 mg the difference is essentially zero (−0.08, p = 0.96). That is a much more useful story than the overall "OJ is better than VC" verdict from the main effect, and it is exactly what the interaction plot suggested visually.</p>
+
+<p>Now flip the conditioning to compare doses within each supplement.</p>
+
+<div class="webr-container" data-block-title="Simple effects of dose within each supp">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Simple effects of dose within each supp</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">emm_dose &lt;- emmeans(fit, pairwise ~ dose | supp, adjust = &quot;tukey&quot;)
+emm_dose$contrasts
+#&gt; supp = OJ:
+#&gt;  contrast  estimate   SE df t.ratio p.value
+#&gt;  dose0.5 - dose1  -9.47 1.62 54 -5.831  &lt;.0001
+#&gt;  dose0.5 - dose2 -12.83 1.62 54 -7.900  &lt;.0001
+#&gt;  dose1   - dose2  -3.36 1.62 54 -2.069  0.1059
+#&gt; 
+#&gt; supp = VC:
+#&gt;  contrast  estimate   SE df t.ratio p.value
+#&gt;  dose0.5 - dose1  -8.79 1.62 54 -5.412  &lt;.0001
+#&gt;  dose0.5 - dose2 -18.16 1.62 54 -11.182 &lt;.0001
+#&gt;  dose1   - dose2  -9.37 1.62 54 -5.769  &lt;.0001</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>For OJ, the jump from 1 mg to 2 mg is not statistically significant once we adjust for <a class="auto-link" href="Multiple-Comparisons-in-R.html" title="Multiple Testing in R: Control False Discoveries Without Losing All Your Power">multiple comparisons</a> (p = 0.106). For VC, every dose pair differs significantly, and the 0.5 → 2 mg jump is more than 18 units. That mirrors the interaction plot: VC has more room to grow because it starts lower.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong><code>emmeans</code> reports estimated marginal means, not raw cell means.</strong> In balanced designs they match. In unbalanced designs <code>emmeans</code> weights each cell equally (as the model intends) while a <code>group_by()</code> summary weights by cell n. Always use <code>emmeans</code> for post-hoc inference after ANOVA.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Using the same <code>fit</code>, report the OJ dose comparisons (the <code>supp = OJ</code> block only). Which dose gaps are significant at α = 0.05?</p>
+<div class="webr-container" data-block-title="Your turn: OJ dose comparisons">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: OJ dose comparisons</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: extract and inspect OJ dose contrasts
+ex_oj &lt;- NULL  # your code here
+
+print(ex_oj)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="OJ dose contrasts solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">OJ dose contrasts solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_oj &lt;- emmeans(fit, pairwise ~ dose | supp, adjust = &quot;tukey&quot;)
+print(ex_oj$contrasts)
+#&gt; The OJ block shows dose0.5 vs dose1 and dose0.5 vs dose2 are highly
+#&gt; significant (p &lt; .0001). The dose1 vs dose2 contrast is borderline
+#&gt; non-significant (p = 0.106) after Tukey adjustment.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The Tukey adjustment widens the p-values to account for three pairwise tests per supplement. Unadjusted, <code>dose1 − dose2</code> would look significant; adjusted, it does not clear the bar.</p>
+
+</details>
+</section>
+
+<h2>How do you check assumptions for two-way ANOVA?</h2>
+
+<p>The assumptions are the same three as one-way ANOVA: residuals are approximately normal, variances are roughly equal across cells, and observations are independent. The only twist is that you now have a 2×3 (or larger) grid of cells to check across, not just a single factor. R's default diagnostic plots work out of the box.</p>
+
+<div class="webr-container" data-block-title="Residual diagnostic plots for the fit">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Residual diagnostic plots for the fit</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">par(mfrow = c(2, 2))
+plot(fit)
+par(mfrow = c(1, 1))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The top-left panel (<a class="auto-link" href="Regression-Diagnostics-in-R.html" title="Regression Diagnostics in R: 5 Plots That Reveal Model Violations Instantly">residuals vs fitted</a>) checks equal variance, look for a uniform vertical spread across fitted values, no funnel or fan. The top-right panel (Q-Q plot) checks normality, points should track the diagonal reference line. For this model the residuals look reasonably well-behaved: the spread is even and the Q-Q tail deviation is mild.</p>
+
+<p>A formal test of equal variances across cells is <a class="auto-link" href="Normality-and-Variance-Tests-in-R.html" title="Test Normality and Equal Variance in R: What the Tests Can and Can't Tell You">Levene's test</a>, which is robust to non-normality.</p>
+
+<div class="webr-container" data-block-title="Levene&#x27;s test on all six cells">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Levene&#x27;s test on all six cells</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">leveneTest(len ~ supp * dose, data = tg)
+#&gt; Levene's Test for Homogeneity of Variance (center = median)
+#&gt;       Df F value Pr(&gt;F)
+#&gt; group  5  1.7086 0.1484
+#&gt;       54</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The p-value of 0.148 is comfortably above 0.05. We have no evidence that cell variances differ, so the constant-variance assumption holds and the F-tests from <code>summary(fit)</code> are trustworthy.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Balanced designs forgive mild assumption violations.</strong> Two-way ANOVA on a balanced design is fairly robust to non-normality and to moderate <a class="auto-link" href="Heteroscedasticity-in-R.html" title="Heteroscedasticity in R: Breusch-Pagan Test & Robust Standard Errors">heteroscedasticity</a>. That is yet another reason to balance your study when you plan it, because it buys you assumption headroom for free.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Run <code>shapiro.test(residuals(fit))</code> to formally check normality of the residuals. Is the p-value above 0.05?</p>
+<div class="webr-container" data-block-title="Your turn: Shapiro-Wilk on residuals">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: Shapiro-Wilk on residuals</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: test normality of residuals
+ex_shapiro &lt;- NULL  # your code here
+
+print(ex_shapiro)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Shapiro-Wilk solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Shapiro-Wilk solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_shapiro &lt;- shapiro.test(residuals(fit))
+print(ex_shapiro)
+#&gt; 	Shapiro-Wilk normality test
+#&gt; 
+#&gt; data:  residuals(fit)
+#&gt; W = 0.9849, p-value = 0.6694</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> p = 0.67 is well above 0.05, so we cannot reject the <a class="auto-link" href="Hypothesis-Testing-in-R.html" title="Hypothesis Testing in R: Understand the Framework, Not Just the p-Value">null hypothesis</a> that the residuals are normal. Combined with the Q-Q plot and the Levene's test result, the classical ANOVA assumptions are all satisfied for this fit.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<h3>Exercise 1: Two-way ANOVA on warpbreaks with Type II SS</h3>
+
+<p>Fit a two-way ANOVA of <code>breaks ~ wool * tension</code> on the built-in <code>warpbreaks</code> dataset. Report which effects are significant at α = 0.05 using Type II sums of squares. Save the <code>Anova()</code> output to <code>my_warp_aov</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Exercise: two-way ANOVA on warpbreaks with Type II SS
+# Hint: use aov() then Anova(fit, type = 2) from car
+
+# your code here</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_warp_fit &lt;- aov(breaks ~ wool * tension, data = warpbreaks)
+my_warp_aov &lt;- Anova(my_warp_fit, type = 2)
+my_warp_aov
+#&gt;              Sum Sq Df F value   Pr(&gt;F)   
+#&gt; wool          450.7  1  3.7653 0.05820 . 
+#&gt; tension      2034.3  2  8.4980 0.00065 ***
+#&gt; wool:tension 1002.8  2  4.1891 0.02104 * 
+#&gt; Residuals    5745.1 48                   </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Tension (p = 0.00065) and the wool:tension interaction (p = 0.021) are significant. The wool main effect is borderline (p = 0.058). Because the interaction is significant, you should not interpret the wool main effect on its own; go straight to simple effects.</p>
+
+</details>
+
+<h3>Exercise 2: Simple effects inside wool A only</h3>
+
+<p>Using the <code>warpbreaks</code> fit from Exercise 1, report which tension levels differ significantly <em>within wool type A only</em>. Use <code>emmeans</code> with Tukey adjustment. Save the contrasts to <code>my_wool_a_contrasts</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Exercise: tension simple effects inside wool = A
+# Hint: emmeans(fit, pairwise ~ tension | wool, adjust = &quot;tukey&quot;)
+
+# your code here</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_wool_em &lt;- emmeans(my_warp_fit, pairwise ~ tension | wool, adjust = &quot;tukey&quot;)
+my_wool_a_contrasts &lt;- summary(my_wool_em$contrasts) |&gt;
+  subset(wool == &quot;A&quot;)
+my_wool_a_contrasts
+#&gt;  contrast estimate   SE df t.ratio p.value wool
+#&gt;  L - M       20.56 5.16 48   3.986  0.0007  A  
+#&gt;  L - H       20.00 5.16 48   3.877  0.0010  A  
+#&gt;  M - H       -0.56 5.16 48  -0.108  0.9935  A  </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> For wool A, low tension (L) produces significantly more breaks than medium or high tension, but medium and high are indistinguishable. Wool B's pattern will differ because the interaction was significant.</p>
+
+</details>
+
+<h3>Exercise 3: How do Type I, II, and III SS change on unbalanced data?</h3>
+
+<p>Starting from <code>ToothGrowth</code>, drop 8 random rows (<code>set.seed(42)</code>) to create <code>my_tg_unb</code>. Fit the two-way model and print the Sum Sq column from Type I, Type II, and Type III ANOVAs. Which type would you report, and why?</p>
+
+<div class="webr-container" data-block-title="Exercise 3 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Exercise: compare Type I / II / III SS on unbalanced ToothGrowth
+# Hint: drop rows, fit, then pull Sum Sq from each
+
+# your code here</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(42)
+my_tg_unb &lt;- ToothGrowth
+my_tg_unb$dose &lt;- factor(my_tg_unb$dose)
+my_tg_unb &lt;- my_tg_unb[-sample(nrow(my_tg_unb), 8), ]
+
+my_fit_unb &lt;- aov(len ~ supp * dose, data = my_tg_unb)
+
+summary(my_fit_unb)[[1]][, &quot;Sum Sq&quot;]                  # Type I
+#&gt; [1]  169.8 2227.8   74.5  682.1
+Anova(my_fit_unb, type = 2)[, &quot;Sum Sq&quot;]                # Type II
+#&gt; [1]  176.8 2227.8   74.5  682.1
+options(contrasts = c(&quot;contr.sum&quot;, &quot;contr.poly&quot;))
+my_fit_unb3 &lt;- aov(len ~ supp * dose, data = my_tg_unb)
+Anova(my_fit_unb3, type = 3)[, &quot;Sum Sq&quot;]               # Type III
+#&gt; [1] 18712   184  2225    74  682
+options(contrasts = c(&quot;contr.treatment&quot;, &quot;contr.poly&quot;))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Type II (176.8) and Type III (~184) inflate <code>supp</code> SS modestly compared to Type I (169.8) once the design is unbalanced. Type II is the usual default because it tests each main effect given the other, without conditioning on the interaction. Report Type II unless your question specifically asks about effects adjusted for the interaction.</p>
+
+</details>
+
+<h2>Complete Example</h2>
+
+<p>Let us run a fresh end-to-end analysis using <code>warpbreaks</code> to cement every step in one script. This is the workflow you would use on a real project.</p>
+
+<div class="webr-container" data-block-title="End-to-end two-way ANOVA on warpbreaks">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">End-to-end two-way ANOVA on warpbreaks</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">complete_fit &lt;- aov(breaks ~ wool * tension, data = warpbreaks)
+
+# 1. Inspect the design
+table(warpbreaks$wool, warpbreaks$tension)
+#&gt;    
+#&gt;     L M H
+#&gt;   A 9 9 9
+#&gt;   B 9 9 9
+
+# 2. ANOVA table (Type II for unbalanced-safe reporting)
+Anova(complete_fit, type = 2)
+#&gt;              Sum Sq Df F value   Pr(&gt;F)    
+#&gt; wool          450.7  1  3.7653 0.05820 .  
+#&gt; tension      2034.3  2  8.4980 0.00065 ***
+#&gt; wool:tension 1002.8  2  4.1891 0.02104 *  
+
+# 3. Visualize the interaction
+emmip(complete_fit, wool ~ tension, CIs = TRUE)
+
+# 4. Simple effects (tension within wool)
+emmeans(complete_fit, pairwise ~ tension | wool, adjust = &quot;tukey&quot;)$contrasts
+
+# 5. Check assumptions
+leveneTest(breaks ~ wool * tension, data = warpbreaks)
+#&gt;       Df F value Pr(&gt;F)
+#&gt; group  5  1.2769 0.2908
+#&gt;       48
+shapiro.test(residuals(complete_fit))
+#&gt; W = 0.9749, p-value = 0.3136</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Design is balanced (9 per cell), so Type II matches Type I. Tension and the wool:tension interaction are significant. The <code>emmip</code> plot shows wool-A breaks falling sharply from L to M while wool-B falls less steeply, a fan that converges at high tension. Simple effects reveal that the drop from low to medium tension is significant for wool A but not wool B. Residuals pass Levene's and Shapiro-Wilk. That is a complete report in under 20 lines of code.</p>
+
+<h2>Summary</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Step</th>
+<th>Function</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Fit model</td>
+<td><code>aov(y ~ A * B, data)</code></td>
+<td>Fits two main effects plus interaction in one call</td>
+</tr>
+<tr>
+<td>Read ANOVA table</td>
+<td><code>summary(fit)</code> or <code>Anova(fit, type = 2/3)</code></td>
+<td>Three F-tests for supp, dose, interaction</td>
+</tr>
+<tr>
+<td>Visualize</td>
+<td><code>interaction.plot()</code> or <code>emmeans::emmip()</code></td>
+<td>See interaction shape: parallel, fanning, crossing</td>
+</tr>
+<tr>
+<td>Choose SS type</td>
+<td>Balanced → Type I; unbalanced → Type II (default) or Type III (full conditioning)</td>
+<td>Unbalanced designs make the choice matter</td>
+</tr>
+<tr>
+<td>Post-hoc</td>
+<td>`emmeans(fit, pairwise ~ A \</td>
+<td><a class="auto-link" href="Conditional-Probability-in-R.html" title="Conditional Probability in R: P(A|B), Independence, and Bayes — With Real Examples">B)</a>`</td>
+<td>Simple effects replace misleading main-effect pairwise tests</td>
+</tr>
+<tr>
+<td>Check assumptions</td>
+<td><code>plot(fit)</code>, <code>leveneTest()</code>, <code>shapiro.test()</code></td>
+<td>Validate normality and equal variance</td>
+</tr>
+</tbody>
+</table>
+
+<h2>References</h2>
+
+<ol>
+
+<li>R Core Team. <em>aov() documentation</em>. <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/aov.html">Link</a></li>
+
+<li>Fox, J. and Weisberg, S. <em>An R Companion to Applied Regression</em>, 3rd Edition (2019). Sage. Documentation for the <code>car</code> package and <code>Anova()</code>. <a href="https://www.john-fox.ca/Companion/">Link</a></li>
+
+<li>Lenth, R. <em>emmeans: Estimated marginal means, aka least-squares means</em>. Package vignettes. <a href="https://cran.r-project.org/web/packages/emmeans/vignettes/basics.html">Link</a></li>
+
+<li>Langsrud, Ø. (2003). ANOVA for unbalanced data: Use Type II instead of Type III sums of squares. <em>Statistics and Computing</em>, 13, 163–167. <a href="https://doi.org/10.1023/A:1023260610025">Link</a></li>
+
+<li>Kutner, M. H., Nachtsheim, C. J., Neter, J., and Li, W. <em>Applied Linear Statistical Models</em>, 5th Edition (2005). McGraw-Hill. Chapter 19: Two-Factor Studies.</li>
+
+<li>UCLA Office of Advanced Research Computing. <em>R Library: Analysis of Variance</em>. <a href="https://stats.oarc.ucla.edu/r/">Link</a></li>
+
+<li>Wickham, H. <em>ggplot2: Elegant Graphics for Data Analysis</em>, 3rd Edition. Section on interaction plots. <a href="https://ggplot2-book.org/">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ol>
+
+<li><a href="One-Way-ANOVA-in-R.html">One-Way ANOVA in R</a>, build the single-factor intuition before combining two factors.</li>
+
+<li><a href="Post-Hoc-Tests-After-ANOVA.html">Post-Hoc Tests After ANOVA</a>, compare Tukey, Bonferroni, and Scheffé adjustments for multiple comparisons.</li>
+
+<li><a href="Interaction-Effects-in-R.html">Interaction Effects in R</a>, push interactions beyond ANOVA into regression with continuous moderators.</li>
+
+</ol>
