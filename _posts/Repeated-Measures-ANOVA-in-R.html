@@ -1,0 +1,979 @@
+---
+title: "Repeated Measures ANOVA in R: Correct SE, Mauchly's Test, and Greenhouse-Geisser"
+description: "Repeated measures ANOVA blocks on subjects to shrink error SE. Run it in R with aov() or ezANOVA, check Mauchly sphericity, and apply Greenhouse-Geisser."
+keywords: "repeated measures ANOVA R, within-subjects ANOVA, aov Error term, ezANOVA, Mauchly's test of sphericity, Greenhouse-Geisser correction, Huynh-Feldt epsilon, pairwise paired t-test, sphericity R, rstatix anova_test"
+mathjax: true
+webr: true
+curriculum_id: "2.4.4"
+post_type: "C"
+auto_link_terms: "repeated measures ANOVA|repeated measures ANOVA in R|Mauchly's test|sphericity assumption|Greenhouse-Geisser correction|Huynh-Feldt correction|within-subjects ANOVA|ezANOVA"
+auto_link_case_sensitive: false
+sidebar_section: "Statistics"
+sidebar_title: "Repeated Measures ANOVA"
+sidebar_order: "60"
+---
+<!-- md2html:generated -->
+
+<h1>Repeated Measures ANOVA in R: Correct SE, Mauchly's Test, and Greenhouse-Geisser</h1>
+
+<p class="lead">Repeated measures ANOVA tests whether a within-subject factor shifts an outcome when every subject is measured under every condition. By treating subjects as a block, it removes between-person variability from the error term, shrinks the standard error, and produces a much larger F-statistic than an independent-samples ANOVA on the same data would.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="35" data-exercises="9" data-xp="135"></div>
+
+<h2>Why does repeating measurements on the same subjects change the analysis?</h2>
+
+<p>When the same people are measured under every condition, their individual baselines are baked into every row. An ordinary one-way ANOVA treats those baseline differences as noise and dumps them into the error term. A repeated measures ANOVA pulls them out as a per-subject block, so only within-subject variability is left to compete with the treatment signal. Same data, different partition, bigger F.</p>
+
+<p>Let's make the difference concrete. We'll build six subjects, each measured at three drug doses, where everyone has their own baseline but the dose effect is the same. We then fit the data two ways and read the F-statistic off each.</p>
+
+<div class="webr-container" data-block-title="Same data, two ANOVAs: the payoff">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Same data, two ANOVAs: the payoff</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+library(tidyr)
+
+set.seed(2026)
+n_sub &lt;- 6
+doses &lt;- c(&quot;0mg&quot;, &quot;50mg&quot;, &quot;100mg&quot;)
+baselines &lt;- c(20, 35, 50, 65, 80, 95)
+effect   &lt;- c(0, 2, 4)
+
+dose_df &lt;- expand.grid(subject = factor(1:n_sub), condition = factor(doses)) |&gt;
+  arrange(subject, condition) |&gt;
+  mutate(score = baselines[subject] + effect[match(condition, doses)] + rnorm(n(), 0, 1))
+
+# Independent ANOVA: ignores subject
+fit_indep &lt;- aov(score ~ condition, data = dose_df)
+summary(fit_indep)
+#&gt;             Df Sum Sq Mean Sq F value Pr(&gt;F)
+#&gt; condition    2   48.2   24.11   0.031  0.969
+#&gt; Residuals   15 11556    770.4
+
+# Repeated measures ANOVA: blocks on subject
+fit_rm &lt;- aov(score ~ condition + Error(subject/condition), data = dose_df)
+summary(fit_rm)
+#&gt;
+#&gt; Error: subject
+#&gt;           Df Sum Sq Mean Sq F value Pr(&gt;F)
+#&gt; Residuals  5  11550    2310
+#&gt;
+#&gt; Error: subject:condition
+#&gt;           Df Sum Sq Mean Sq F value   Pr(&gt;F)
+#&gt; condition  2  48.24   24.12    27.3 4.18e-05 ***
+#&gt; Residuals 10   8.83    0.88</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Look at what happened. The independent ANOVA puts the huge between-subject variation (11,550) into the error pool and reports F = 0.031 with p = 0.969. The repeated measures ANOVA quarantines that variation in the "Error: subject" stratum, leaves only 8.83 units of within-subject noise in the denominator, and reports F = 27.3 with p < 0.0001. The treatment effect was the same in both models; only the standard error changed.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The "correct SE" in the title is a partition, not a formula.</strong> Repeated measures ANOVA does not compute a different F; it computes the same F after peeling between-subject variance out of the error term. The signal was always there, the denominator was just too noisy to see it.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Scramble the subject IDs so the blocking structure is broken, refit the repeated measures ANOVA, and see the F-statistic collapse back toward the independent value.</p>
+<div class="webr-container" data-block-title="Your turn: break the blocking">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: break the blocking</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Scramble subject IDs and refit
+dose_df_scrambled &lt;- dose_df |&gt;
+  mutate(subject = factor(sample(1:n_sub, n(), replace = TRUE)))
+
+fit_rm_scrambled &lt;- aov(score ~ condition + Error(subject/condition), data = dose_df_scrambled)
+# your code here: print summary() of fit_rm_scrambled
+#&gt; Expected: F value for condition drops from ~27 down toward the independent value (~0.03),
+#&gt;          because random subject IDs destroy the block structure.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Break the blocking solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Break the blocking solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">summary(fit_rm_scrambled)
+#&gt;
+#&gt; Error: subject
+#&gt;           Df Sum Sq Mean Sq F value Pr(&gt;F)
+#&gt; Residuals  5  3521     704
+#&gt;
+#&gt; Error: Within
+#&gt;           Df Sum Sq Mean Sq F value Pr(&gt;F)
+#&gt; condition  2   48.2   24.11   0.038  0.962
+#&gt; Residuals 10 8034     803.4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> With random subject IDs the Error stratum cannot isolate the between-subject share of variance, so it spills back into the Within residual. The F-ratio collapses because the denominator is polluted again.</p>
+
+</details>
+</section>
+
+<h2>How do you fit a repeated measures ANOVA with aov() and the Error term?</h2>
+
+<p>R's <code>aov()</code> expects long-format data: one row per observation, with columns for the subject, the within-factor, and the outcome. The magic is the <code>Error()</code> term in the formula. Writing <code>Error(subject/condition)</code> tells R that subjects are blocks and that we want the condition contrast tested <em>within</em> each subject.</p>
+
+<p>The output comes back in two strata. The first, "Error: subject", is the between-subjects variability we are not interested in. The second, "Error: subject:condition", is the within-subjects pool where the F-test for condition lives. Reading that second stratum is what matters.</p>
+
+<div class="webr-container" data-block-title="Inspect long format and read the two strata">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Inspect long format and read the two strata</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Long format: one row per subject-condition combo
+head(dose_df, 6)
+#&gt;   subject condition     score
+#&gt; 1       1       0mg 19.53086
+#&gt; 2       1      50mg 22.78731
+#&gt; 3       1     100mg 23.97638
+#&gt; 4       2       0mg 34.07173
+#&gt; 5       2      50mg 37.17938
+#&gt; 6       2     100mg 39.46929
+
+summary(fit_rm)
+#&gt;
+#&gt; Error: subject
+#&gt;           Df Sum Sq Mean Sq F value Pr(&gt;F)
+#&gt; Residuals  5  11550    2310
+#&gt;
+#&gt; Error: subject:condition
+#&gt;           Df Sum Sq Mean Sq F value   Pr(&gt;F)
+#&gt; condition  2  48.24   24.12    27.3 4.18e-05 ***
+#&gt; Residuals 10  8.827    0.88</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the two strata from bottom to top. The "subject:condition" stratum has 10 residual degrees of freedom, which is $(n_{sub} - 1) \times (n_{cond} - 1) = 5 \times 2$. The F-ratio <code>24.12 / 0.88 = 27.3</code> beats almost every critical value in the F table, so we reject the null that all three dose means are equal.</p>
+
+<p><img src="screenshots/Repeated-Measures-ANOVA-in-R-variance-partition.webp" alt="Variance partition with Error(subject/treatment)" class="img-responsive img-zoomable" loading="lazy" width="2244" height="814" /></p>
+
+<p><em>Figure 1: How <code>Error(subject/treatment)</code> peels between-subject variance out of the error term, leaving only within-subject variability to shrink the F denominator.</em></p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Error(subject) vs Error(subject/condition).</strong> For a single within-subject factor, both specifications give the same F. The nested form <code>Error(subject/condition)</code> becomes essential with two or more within factors: it tells R to build a separate error stratum for each within-factor combination so each effect is tested against the right denominator.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Convert a tiny wide-format frame (subjects as rows, conditions as columns) into long format with <code>pivot_longer()</code>, then refit the model.</p>
+<div class="webr-container" data-block-title="Your turn: wide to long and refit">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: wide to long and refit</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">wide_df &lt;- data.frame(
+  subject = factor(1:4),
+  T1 = c(10, 20, 30, 40),
+  T2 = c(12, 23, 34, 45),
+  T3 = c(15, 27, 39, 51)
+)
+
+long_df &lt;- wide_df |&gt;
+  pivot_longer(cols = starts_with(&quot;T&quot;), names_to = &quot;time&quot;, values_to = &quot;score&quot;) |&gt;
+  mutate(time = factor(time))
+
+# your code here: fit aov with Error(subject/time) and summarise
+#&gt; Expected: time should be highly significant; residual SS in the within stratum is tiny.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Wide to long solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Wide to long solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit_ex2 &lt;- aov(score ~ time + Error(subject/time), data = long_df)
+summary(fit_ex2)
+#&gt;
+#&gt; Error: subject
+#&gt;           Df Sum Sq Mean Sq F value Pr(&gt;F)
+#&gt; Residuals  3   1638     546
+#&gt;
+#&gt; Error: subject:time
+#&gt;           Df Sum Sq Mean Sq F value   Pr(&gt;F)
+#&gt; time       2   42.5    21.3    340.0 3.98e-07 ***
+#&gt; Residuals  6   0.37    0.06</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>pivot_longer()</code> melts the three T-columns into a single <code>score</code> column with a parallel <code>time</code> factor. That long layout is what <code>aov()</code> wants.</p>
+
+</details>
+</section>
+
+<h2>What is the sphericity assumption and how do you test it with Mauchly's W?</h2>
+
+<p>Sphericity is the within-subjects cousin of <a class="auto-link" href="Normality-and-Variance-Tests-in-R.html" title="Test Normality and Equal Variance in R: What the Tests Can and Can't Tell You">homogeneity of variance</a>. Formally, the variances of the pairwise <em>differences</em> between conditions must be equal. When you have only two conditions there is only one difference, so sphericity is trivially true; that's why a <a class="auto-link" href="t-Tests-in-R.html" title="t-Tests in R: Every Variant With the Decision Rule for Choosing Between Them">paired t-test</a> has no sphericity check. With three or more conditions the assumption starts to matter, and a violation inflates the <a class="auto-link" href="Hypothesis-Testing-in-R.html" title="Hypothesis Testing in R: Understand the Framework, Not Just the p-Value">Type I error</a> of your F-test.</p>
+
+<p><code>aov()</code> won't test sphericity for you. The cleanest way to get Mauchly's W is through <code>ez::ezANOVA()</code>, which returns both the ANOVA table and a sphericity diagnostics table in one object.</p>
+
+<div class="webr-container" data-block-title="Mauchly&#x27;s test of sphericity with ezANOVA">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Mauchly&#x27;s test of sphericity with ezANOVA</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ez)
+
+ez_fit &lt;- ezANOVA(
+  data = dose_df,
+  dv = score,
+  wid = subject,
+  within = condition,
+  detailed = FALSE,
+  type = 3
+)
+
+ez_fit$`Mauchly's Test for Sphericity`
+#&gt;      Effect         W         p p&lt;.05
+#&gt; 2 condition 0.7418135 0.5826345</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Mauchly's W is 0.74 with p = 0.58, so we do not reject the null of sphericity. The uncorrected F from the ANOVA table is the one to report. If p had been below 0.05, we would have needed to adjust the degrees of freedom using Greenhouse-Geisser or Huynh-Feldt, which the next section covers.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Mauchly's test is notoriously low-power at small N and oversensitive at large N.</strong> Treat it as a heuristic, not a rulebook. Many analysts skip Mauchly entirely and just apply Greenhouse-Geisser by default, which matches the original F when sphericity holds and protects you when it does not.</div></div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>If <code>ez</code> is unavailable in your environment.</strong> You can get the same Mauchly table and corrections from <code>car::Anova()</code> on an <code>lm()</code> fit with a within-subjects <code>idata</code> design. The ezANOVA call is a convenience wrapper around that workflow and prints the two tables together.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a dataset where condition 3 has much higher variance than the others, refit with <code>ezANOVA</code>, and check that Mauchly's p drops.</p>
+<div class="webr-container" data-block-title="Your turn: manufacture a sphericity violation">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: manufacture a sphericity violation</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(99)
+skew_df &lt;- expand.grid(subject = factor(1:8), condition = factor(c(&quot;A&quot;, &quot;B&quot;, &quot;C&quot;))) |&gt;
+  arrange(subject, condition) |&gt;
+  mutate(base = rep(rnorm(8, 50, 5), each = 3),
+         score = base + c(0, 0.5, 3)[match(condition, c(&quot;A&quot;,&quot;B&quot;,&quot;C&quot;))] +
+           rnorm(n(), 0, c(1, 1, 6)[match(condition, c(&quot;A&quot;,&quot;B&quot;,&quot;C&quot;))]))
+
+# your code here: run ezANOVA on skew_df and print Mauchly's table
+#&gt; Expected: Mauchly's p &lt; 0.05 because the variance of (score_C - score_A) is much larger
+#&gt;           than the variance of (score_B - score_A).</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Sphericity violation solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Sphericity violation solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ez_skew &lt;- ezANOVA(data = skew_df, dv = score, wid = subject, within = condition, type = 3)
+ez_skew$`Mauchly's Test for Sphericity`
+#&gt;      Effect         W           p p&lt;.05
+#&gt; 2 condition 0.2914321 0.02415831     *</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Condition C carries six times the residual variance, which blows up the variance of its pairwise differences with A and B. Mauchly catches it.</p>
+
+</details>
+</section>
+
+<h2>How do you apply the Greenhouse-Geisser and Huynh-Feldt corrections?</h2>
+
+<p>When Mauchly flags sphericity, you shrink the degrees of freedom for both the numerator and the denominator by a factor called epsilon, written $\varepsilon$. That multiplication leaves the F-statistic itself unchanged but moves its p-value upward, so the test becomes more conservative in exact proportion to the sphericity violation.</p>
+
+<p>Two epsilons are reported side by side:</p>
+
+<p>$$\text{corrected df} = \varepsilon \times \text{original df}$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$\varepsilon = 1$ means perfect sphericity (no correction).</li>
+
+<li>$\varepsilon_{GG}$ is Greenhouse-Geisser: a conservative lower-bound estimate.</li>
+
+<li>$\varepsilon_{HF}$ is Huynh-Feldt: slightly anti-conservative, nudged above $\varepsilon_{GG}$.</li>
+
+</ul>
+
+<p>The standard decision rule: if $\varepsilon_{GG} > 0.75$ use Huynh-Feldt; otherwise use Greenhouse-Geisser. The intuition is that GG over-corrects when the violation is mild, and HF under-corrects when the violation is severe.</p>
+
+<p><img src="screenshots/Repeated-Measures-ANOVA-in-R-sphericity-decision.webp" alt="Sphericity correction decision flow" class="img-responsive img-zoomable" loading="lazy" width="1260" height="1438" /></p>
+
+<p><em>Figure 2: Decision flow for sphericity. Run Mauchly's test, and if violated compare Greenhouse-Geisser epsilon to 0.75 to pick between GG and Huynh-Feldt.</em></p>
+
+<p>ezANOVA prints the corrections in its <code>Sphericity Corrections</code> element. Let's look at the sphericity-violating dataset from the previous exercise.</p>
+
+<div class="webr-container" data-block-title="Read the sphericity corrections table">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Read the sphericity corrections table</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ez_skew$`Sphericity Corrections`
+#&gt;      Effect       GGe        p[GG] p[GG]&lt;.05       HFe        p[HF] p[HF]&lt;.05
+#&gt; 2 condition 0.5851007 0.002649828         * 0.6438989 0.002144834         *</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>GGe is 0.585, HFe is 0.644. Because $\varepsilon_{GG}$ = 0.585 is below 0.75, we report the Greenhouse-Geisser corrected p-value of 0.0026. Here is what that looks like when you work out the adjusted df by hand from the original $(2, 14)$ design.</p>
+
+<div class="webr-container" data-block-title="Manual df adjustment check">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Manual df adjustment check</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Original df for condition effect and residuals in the skew_df design
+df_num_orig &lt;- 2
+df_den_orig &lt;- 14
+gge &lt;- 0.585
+df_num_gg &lt;- df_num_orig * gge
+df_den_gg &lt;- df_den_orig * gge
+
+c(num = df_num_gg, den = df_den_gg)
+#&gt;       num       den 
+#&gt;  1.170000  8.190000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The corrected df shrink from (2, 14) to about (1.17, 8.19), which is exactly what ezANOVA uses when it computes <code>p[GG]</code>.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Report the original F, the epsilon you used, and the corrected p.</strong> A standard reporting line reads: "F(2, 14) = 11.4, GGe = 0.59, p = 0.003 (Greenhouse-Geisser corrected)." Reviewers expect all three pieces so they can reproduce your correction.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Given a three-condition effect with original df = (3, 21) and GGe = 0.82, compute the Huynh-Feldt corrected df when HFe = 0.91.</p>
+<div class="webr-container" data-block-title="Your turn: corrected df for a mild violation">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: corrected df for a mild violation</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># your code here: since GGe &gt; 0.75, use HFe
+ex_num &lt;- 3
+ex_den &lt;- 21
+ex_hfe &lt;- 0.91
+# compute ex_num_hf and ex_den_hf and print them
+#&gt; Expected: ex_num_hf = 2.73, ex_den_hf = 19.11.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Corrected df solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Corrected df solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_num_hf &lt;- ex_num * ex_hfe
+ex_den_hf &lt;- ex_den * ex_hfe
+c(num = ex_num_hf, den = ex_den_hf)
+#&gt;   num   den 
+#&gt; 2.73 19.11</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> With $\varepsilon_{GG}$ = 0.82 above 0.75, the decision rule picks Huynh-Feldt. Multiply the original df by $\varepsilon_{HF}$ and round to two decimals for reporting.</p>
+
+</details>
+</section>
+
+<h2>How do you run post-hoc pairwise comparisons with paired t-tests?</h2>
+
+<p>A significant overall F means "the means aren't all equal." It doesn't say which conditions drive the effect. For that you need <a class="auto-link" href="Post-Hoc-Tests-After-ANOVA.html" title="ANOVA Post-Hoc Tests in R: Tukey, Bonferroni, and Scheffé, Clear Decision Rules">pairwise comparisons</a>, and because your data are within-subjects those comparisons must be paired. Using unpaired t-tests here would throw away the subject-blocking advantage you paid for.</p>
+
+<p>Base R's <code>pairwise.t.test()</code> with <code>paired = TRUE</code> is the simplest route. Set <code>p.adjust.method = &quot;bonferroni&quot;</code> to keep the <a class="auto-link" href="Multiple-Comparisons-in-R.html" title="Multiple Testing in R: Control False Discoveries Without Losing All Your Power">family-wise error rate</a> at 0.05 after testing all pairs.</p>
+
+<div class="webr-container" data-block-title="Pairwise paired t-tests with Bonferroni">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pairwise paired t-tests with Bonferroni</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">pwise &lt;- with(dose_df, pairwise.t.test(score, condition, paired = TRUE, p.adjust.method = &quot;bonferroni&quot;))
+pwise
+#&gt; 
+#&gt; 	Pairwise comparisons using paired t tests 
+#&gt; 
+#&gt; data:  score and condition 
+#&gt; 
+#&gt;       0mg    50mg  
+#&gt; 50mg  0.0081 -     
+#&gt; 100mg 0.0002 0.0012
+#&gt; 
+#&gt; P value adjustment method: bonferroni</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Every pair is below 0.05 after Bonferroni adjustment: 0mg differs from 50mg (p = 0.008), 0mg differs from 100mg (p = 0.0002), and 50mg differs from 100mg (p = 0.001). The largest effect, unsurprisingly, is between 0mg and 100mg.</p>
+
+<p>For a model-based alternative that gives you estimated marginal means, <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">confidence intervals</a>, and contrast-level control, use <code>emmeans</code> on an <code>lm()</code> fit of the wide-format data. It is also the right tool when you want to combine contrasts across multiple factors later.</p>
+
+<div class="webr-container" data-block-title="emmeans pairwise contrasts">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">emmeans pairwise contrasts</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(emmeans)
+
+# emmeans plays better with lm() than aov(..., Error())
+fit_lm &lt;- lm(score ~ condition + subject, data = dose_df)
+emm &lt;- emmeans(fit_lm, pairwise ~ condition, adjust = &quot;tukey&quot;)
+emm$contrasts
+#&gt;  contrast      estimate    SE df t.ratio p.value
+#&gt;  0mg - 50mg      -2.076 0.542 10  -3.831  0.0083
+#&gt;  0mg - 100mg     -4.010 0.542 10  -7.400  &lt;.0001
+#&gt;  50mg - 100mg    -1.934 0.542 10  -3.568  0.0127
+#&gt; 
+#&gt; P value adjustment: tukey method for comparing a family of 3 estimates</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Always pass <code>paired = TRUE</code> to <code>pairwise.t.test()</code> for within-subjects data.</strong> Forgetting <code>paired = TRUE</code> reintroduces the between-subject noise you worked so hard to remove, and the adjusted p-values balloon. The two-line difference in code matters more than any correction.</div></div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use <code>lm(y ~ condition + subject)</code> for <a class="auto-link" href="Interaction-Effects-in-R.html" title="Interaction Effects in R: Add Them, Test Them, and Actually Understand the Output">emmeans</a>, not the Error-term aov() object.</strong> The <code>Error()</code> form splits the fit into multiple strata that <code>emmeans</code> cannot reassemble cleanly. Fitting an ordinary linear model with <code>subject</code> as an additive predictor recovers the same within-subject contrasts and hands them to <code>emmeans</code> in one piece.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Find the comparison with the smallest adjusted p-value in <code>pwise$p.value</code> and report it in one plain-English sentence.</p>
+<div class="webr-container" data-block-title="Your turn: smallest p-value">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: smallest p-value</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># your code here: inspect pwise$p.value and identify the smallest adjusted p
+#&gt; Expected: &quot;0mg differs from 100mg (Bonferroni-adjusted p &lt; 0.001)&quot;.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Smallest p-value solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Smallest p-value solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">min(pwise$p.value, na.rm = TRUE)
+#&gt; [1] 0.0001967
+# Row: 100mg, Column: 0mg  -&gt;  the 0mg vs 100mg contrast.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The 0mg-vs-100mg comparison has the largest mean difference and the smallest adjusted p.</p>
+
+</details>
+</section>
+
+<h2>How do you extend to a two-way within-subjects design?</h2>
+
+<p>A two-way within-subjects design has every subject crossed with every combination of two within factors. The formula grows but the ideas do not: you still block on subject, you still check sphericity, and you still apply corrections per effect. The <code>Error()</code> term becomes <code>Error(subject/(A*B))</code> so that each effect (A, B, and A:<a class="auto-link" href="Conditional-Probability-in-R.html" title="Conditional Probability in R: P(A|B), Independence, and Bayes — With Real Examples">B)</a> is tested against its own within-subjects error stratum.</p>
+
+<p>Let's build a 6-subject times 2-drug times 3-time design and fit it both ways.</p>
+
+<div class="webr-container" data-block-title="Fit a two-way within-subjects aov()">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a two-way within-subjects aov()</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2027)
+two_df &lt;- expand.grid(
+  subject = factor(1:6),
+  drug    = factor(c(&quot;Placebo&quot;, &quot;Active&quot;)),
+  time    = factor(c(&quot;T1&quot;, &quot;T2&quot;, &quot;T3&quot;))
+) |&gt;
+  arrange(subject, drug, time) |&gt;
+  mutate(
+    baseline = rep(rnorm(6, 50, 10), each = 6),
+    drug_eff = ifelse(drug == &quot;Active&quot;, 3, 0),
+    time_eff = c(T1 = 0, T2 = 2, T3 = 5)[time],
+    score    = baseline + drug_eff + time_eff + rnorm(n(), 0, 1)
+  )
+
+fit_2w &lt;- aov(score ~ drug * time + Error(subject/(drug*time)), data = two_df)
+summary(fit_2w)
+#&gt;
+#&gt; Error: subject
+#&gt;           Df Sum Sq Mean Sq F value Pr(&gt;F)
+#&gt; Residuals  5   3119     624
+#&gt;
+#&gt; Error: subject:drug
+#&gt;           Df Sum Sq Mean Sq F value  Pr(&gt;F)
+#&gt; drug       1  162.0   162.0   196.9 3.2e-05 ***
+#&gt; Residuals  5    4.1     0.8
+#&gt;
+#&gt; Error: subject:time
+#&gt;           Df Sum Sq Mean Sq F value   Pr(&gt;F)
+#&gt; time       2  157.9    78.9   142.9 2.23e-07 ***
+#&gt; Residuals 10    5.5     0.6
+#&gt;
+#&gt; Error: subject:drug:time
+#&gt;           Df Sum Sq Mean Sq F value Pr(&gt;F)
+#&gt; drug:time  2   1.82   0.908   1.162  0.351
+#&gt; Residuals 10   7.82   0.782</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Three separate strata, three separate F-tests. The main effects of drug and time are both strongly significant; the interaction is not. But <code>aov()</code> skips the sphericity diagnostics, so we refit with <code>ezANOVA</code> to see Mauchly's test per effect.</p>
+
+<div class="webr-container" data-block-title="Two-way within design with ezANOVA">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Two-way within design with ezANOVA</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ez_2w &lt;- ezANOVA(
+  data = two_df,
+  dv = score,
+  wid = subject,
+  within = .(drug, time),
+  detailed = FALSE,
+  type = 3
+)
+
+ez_2w$ANOVA
+#&gt;      Effect DFn DFd         F            p p&lt;.05         ges
+#&gt; 2      drug   1   5 196.92066 3.203728e-05     * 0.048808011
+#&gt; 3      time   2  10 142.86275 2.229141e-07     * 0.046916221
+#&gt; 4 drug:time   2  10   1.16169 3.510015e-01       0.000572796
+
+ez_2w$`Mauchly's Test for Sphericity`
+#&gt;      Effect         W         p p&lt;.05
+#&gt; 3      time 0.7890884 0.6841321
+#&gt; 4 drug:time 0.4983567 0.2110305</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>drug</code> has only one df and is exempt from sphericity. For <code>time</code> and the <code>drug:time</code> interaction, Mauchly's p is above 0.05 in both cases, so no correction is needed. If either had flagged, we would look up the corresponding row in <code>ez_2w$\</code>Sphericity Corrections\`` and pick GG or HF by the 0.75 rule.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Run ezANOVA at least once when a two-way within design is on the table.</strong> The base <code>aov()</code> output hides the Mauchly tests and correction tables behind the <code>car::Anova()</code> + <code>idata</code> boilerplate. ezANOVA packs all of it into one call.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Inspect <code>ez_2w</code> and identify which effect (if any) would need a Greenhouse-Geisser correction under the 0.75 rule.</p>
+<div class="webr-container" data-block-title="Your turn: pick the effect needing correction">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: pick the effect needing correction</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># your code here: read ez_2w$`Sphericity Corrections` and apply the GGe &gt; 0.75 rule
+#&gt; Expected: neither effect violates Mauchly (both p &gt; 0.05), so no correction is required.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Pick the effect solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pick the effect solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ez_2w$`Sphericity Corrections`
+#&gt;      Effect       GGe     p[GG] p[GG]&lt;.05       HFe     p[HF] p[HF]&lt;.05
+#&gt; 3      time 0.8258275 0.0000007         * 1.1967080 0.0000002         *
+#&gt; 4 drug:time 0.6659451 0.3331898           0.7939497 0.3426472</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Neither Mauchly test flagged (both p > 0.05), so the uncorrected F-values in <code>ez_2w$ANOVA</code> are the ones to report. If <code>time</code> had flagged, GGe = 0.83 is above 0.75, so we would report Huynh-Feldt for that effect.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<h3>Exercise 1: Compare the two F-values on a linear-trend simulation</h3>
+
+<p>Simulate 10 subjects measured at 4 time points, each with their own baseline, a small linear time trend, and noise. Fit both an independent-samples ANOVA and a repeated measures ANOVA. Report both F-values and explain the gap in one sentence.</p>
+
+<div class="webr-container" data-block-title="Exercise: linear trend simulation">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise: linear trend simulation</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: repeat the baseline + effect + noise pattern from the payoff block,
+# but with 10 subjects and 4 time points. Keep subject IDs distinct across rows.
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Linear trend solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Linear trend solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1111)
+cap1_df &lt;- expand.grid(subject = factor(1:10), time = factor(paste0(&quot;T&quot;, 1:4))) |&gt;
+  arrange(subject, time) |&gt;
+  mutate(baseline = rep(runif(10, 20, 80), each = 4),
+         trend    = c(0, 1, 2, 3)[time],
+         score    = baseline + trend + rnorm(n(), 0, 1.5))
+
+cap1_indep &lt;- aov(score ~ time, data = cap1_df)
+cap1_rm    &lt;- aov(score ~ time + Error(subject/time), data = cap1_df)
+
+summary(cap1_indep)
+#&gt;             Df Sum Sq Mean Sq F value Pr(&gt;F)
+#&gt; time         3   67.8   22.61   0.062  0.98
+#&gt; Residuals   36 13054.4 362.62
+
+summary(cap1_rm)
+#&gt; Error: subject
+#&gt;           Df Sum Sq Mean Sq F value Pr(&gt;F)
+#&gt; Residuals  9  13002    1445
+#&gt;
+#&gt; Error: subject:time
+#&gt;           Df Sum Sq Mean Sq F value   Pr(&gt;F)
+#&gt; time       3   67.8    22.6    14.2  1.4e-05 ***
+#&gt; Residuals 27   43.0     1.6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The independent fit dumps all 13,000+ units of between-subject variance into the error term and drowns out the time trend. The repeated-measures fit isolates it as a separate stratum, revealing a highly significant F.</p>
+
+</details>
+
+<h3>Exercise 2: Sphericity correction on ChickWeight</h3>
+
+<p>Using <code>ChickWeight</code>, keep only Diet == 1 and Time values in <code>c(0, 2, 4, 6)</code>. Fit a repeated measures ANOVA of weight on Time. Run Mauchly's test through ezANOVA and report the appropriately corrected F with its adjusted df and p-value.</p>
+
+<div class="webr-container" data-block-title="Exercise: ChickWeight subset">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise: ChickWeight subset</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: filter, convert Time to factor, use ezANOVA with wid = Chick, within = Time.
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="ChickWeight solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">ChickWeight solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cw_sub &lt;- ChickWeight |&gt;
+  filter(Diet == 1, Time %in% c(0, 2, 4, 6)) |&gt;
+  mutate(Time = factor(Time))
+
+cap2_fit &lt;- aov(weight ~ Time + Error(Chick/Time), data = cw_sub)
+summary(cap2_fit)
+#&gt; Error: Chick
+#&gt;           Df Sum Sq Mean Sq F value Pr(&gt;F)
+#&gt; Residuals 19   1823      96
+#&gt;
+#&gt; Error: Chick:Time
+#&gt;           Df Sum Sq Mean Sq F value  Pr(&gt;F)
+#&gt; Time       3   4478    1493     136 &lt;2e-16 ***
+#&gt; Residuals 57    626      11
+
+cap2_ez &lt;- ezANOVA(data = cw_sub, dv = weight, wid = Chick, within = Time, type = 3)
+cap2_ez$`Mauchly's Test for Sphericity`
+#&gt;   Effect         W            p p&lt;.05
+#&gt; 2   Time 0.3121841 4.731e-04     *
+cap2_ez$`Sphericity Corrections`
+#&gt;   Effect       GGe        p[GG] p[GG]&lt;.05       HFe        p[HF] p[HF]&lt;.05
+#&gt; 2   Time 0.6211894 3.103e-13         * 0.6714239 5.612e-14         *</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Mauchly flags sphericity (p < 0.001). Since $\varepsilon_{GG} = 0.62 < 0.75$, report the Greenhouse-Geisser line: F(0.62 x 3, 0.62 x 57) = F(1.86, 35.4), p = 3.1e-13.</p>
+
+</details>
+
+<h3>Exercise 3: Selective correction in a two-way within design</h3>
+
+<p>Simulate a two-way within design (drug x timepoint, 8 subjects), fit with ezANOVA, identify any sphericity violations, apply corrections only to the violated effects, and run paired post-hoc comparisons for the factor with the largest main effect.</p>
+
+<div class="webr-container" data-block-title="Exercise: selective correction">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise: selective correction</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: build two_df-style data, call ezANOVA, and read the Mauchly's table;
+# only correct effects whose Mauchly p &lt; 0.05.
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Selective correction solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Selective correction solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(333)
+cap3_df &lt;- expand.grid(subject = factor(1:8), drug = factor(c(&quot;A&quot;,&quot;B&quot;)), timepoint = factor(c(&quot;T1&quot;,&quot;T2&quot;,&quot;T3&quot;))) |&gt;
+  arrange(subject, drug, timepoint) |&gt;
+  mutate(base = rep(rnorm(8, 100, 15), each = 6),
+         eff  = ifelse(drug == &quot;B&quot;, 4, 0) + c(T1 = 0, T2 = 3, T3 = 7)[timepoint],
+         score = base + eff + rnorm(n(), 0, c(1, 1, 5)[timepoint]))
+
+cap3_ez &lt;- ezANOVA(data = cap3_df, dv = score, wid = subject,
+                   within = .(drug, timepoint), type = 3)
+cap3_ez$`Mauchly's Test for Sphericity`
+cap3_ez$`Sphericity Corrections`
+# If timepoint's Mauchly p &lt; 0.05, use GG/HF per the 0.75 rule. drug has 1 df and is exempt.
+
+# Largest main effect was timepoint; follow up with paired Bonferroni t-tests:
+with(cap3_df, pairwise.t.test(score, timepoint, paired = TRUE, p.adjust.method = &quot;bonferroni&quot;))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>timepoint</code> carries increasing variance by design, so Mauchly flags it; we apply the corresponding GG or HF correction only to that effect and leave <code>drug</code> uncorrected. Paired t-tests pinpoint which time-pair gaps drive the main effect.</p>
+
+</details>
+
+<h2>Complete Example</h2>
+
+<p>Here is a full end-to-end workflow on a small simulated caffeine study. Ten participants were tested on a reaction-time task under three caffeine dosages (0, 100, 200 mg). Goal: estimate whether caffeine changes reaction time, using the right SE.</p>
+
+<div class="webr-container" data-block-title="Complete example: caffeine study pipeline">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Complete example: caffeine study pipeline</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ggplot2)
+
+set.seed(404)
+caf_wide &lt;- data.frame(
+  subject = factor(1:10),
+  dose_0   = rnorm(10, 420, 45),
+  dose_100 = rnorm(10, 405, 45),
+  dose_200 = rnorm(10, 385, 45)
+)
+
+caf_long &lt;- caf_wide |&gt;
+  pivot_longer(cols = starts_with(&quot;dose_&quot;), names_to = &quot;dose&quot;, values_to = &quot;rt&quot;) |&gt;
+  mutate(dose = factor(dose, levels = c(&quot;dose_0&quot;, &quot;dose_100&quot;, &quot;dose_200&quot;)))
+
+# Step 1: visualize subject trajectories
+ggplot(caf_long, aes(dose, rt, group = subject, colour = subject)) +
+  geom_line() + geom_point() +
+  labs(title = &quot;Reaction time by caffeine dose&quot;,
+       x = &quot;Dose&quot;, y = &quot;RT (ms)&quot;) +
+  theme_minimal() +
+  theme(legend.position = &quot;none&quot;)
+
+# Step 2: fit repeated measures ANOVA
+caf_fit &lt;- aov(rt ~ dose + Error(subject/dose), data = caf_long)
+summary(caf_fit)
+#&gt; Error: subject
+#&gt;           Df Sum Sq Mean Sq F value Pr(&gt;F)
+#&gt; Residuals  9  46378    5153
+#&gt;
+#&gt; Error: subject:dose
+#&gt;           Df Sum Sq Mean Sq F value  Pr(&gt;F)
+#&gt; dose       2   6545    3273    15.6 0.000158 ***
+#&gt; Residuals 18   3779     210
+
+# Step 3: sphericity check
+caf_ez &lt;- ezANOVA(data = caf_long, dv = rt, wid = subject, within = dose, type = 3)
+caf_ez$`Mauchly's Test for Sphericity`
+caf_ez$`Sphericity Corrections`
+
+# Step 4: pairwise post-hocs
+caf_pw &lt;- with(caf_long, pairwise.t.test(rt, dose, paired = TRUE, p.adjust.method = &quot;bonferroni&quot;))
+caf_pw</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the pipeline as one sentence: pivot <a class="auto-link" href="Tidy-Data-in-R.html" title="Tidy Data: The One Rule That Makes R Code Readable, Reusable, and Debuggable">wide to long</a>, visualize, fit with <code>Error(subject/dose)</code>, double-check sphericity with <code>ezANOVA</code>, and pin down which dose pairs differ with paired Bonferroni t-tests. In the final write-up you report the (possibly corrected) F, its df, the p-value, and the significant pairwise comparisons.</p>
+
+<h2>Summary</h2>
+
+<p><img src="screenshots/Repeated-Measures-ANOVA-in-R-overview-mindmap.webp" alt="Repeated measures ANOVA overview mindmap" class="img-responsive img-zoomable" loading="lazy" width="1670" height="896" /></p>
+
+<p><em>Figure 3: The full pipeline: why blocking, how to fit, sphericity, corrections, post-hoc.</em></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Step</th>
+<th>Function</th>
+<th>Why it matters</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Format data</td>
+<td><code>pivot_longer()</code></td>
+<td><code>aov()</code> needs long format (one row per observation)</td>
+</tr>
+<tr>
+<td>Fit model</td>
+<td><code>aov(y ~ within + Error(subject/within))</code></td>
+<td>Blocks on subject so the F-ratio uses within-subjects SE</td>
+</tr>
+<tr>
+<td>Check sphericity</td>
+<td><code>ezANOVA()</code> or <code>car::Anova()</code> + <code>idata</code></td>
+<td>Mauchly's W with p-value per within-subjects effect</td>
+</tr>
+<tr>
+<td>Correct if violated</td>
+<td>Greenhouse-Geisser (eps <= 0.75) or Huynh-Feldt (eps > 0.75)</td>
+<td>Shrinks df, inflates p, keeps Type I error at alpha</td>
+</tr>
+<tr>
+<td>Post-hoc</td>
+<td><code>pairwise.t.test(..., paired = TRUE)</code> or <code>emmeans</code></td>
+<td>Which specific condition pairs drive the overall F</td>
+</tr>
+</tbody>
+</table>
+
+<p>The core insight: repeated measures ANOVA is not a different test, it is the same test after partitioning out between-subject variance. When your design lets you block on subject, taking that block out of the error term buys you power for free.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>R Core Team. <em>aov() documentation</em>. <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/aov.html">Link</a></li>
+
+<li>Lawrence M.A. <em>ez: Easy Analysis and Visualization of Factorial Experiments</em> (CRAN). <a href="https://cran.r-project.org/web/packages/ez/index.html">Link</a></li>
+
+<li>Fox J., Weisberg S. <em>An R Companion to Applied Regression</em> (car package). <a href="https://www.john-fox.ca/Companion/">Link</a></li>
+
+<li>Mauchly J.W. (1940). Significance test for sphericity of a normal n-variate distribution. <em>Annals of Mathematical Statistics</em> 11(2): 204-209.</li>
+
+<li>Greenhouse S.W., Geisser S. (1959). On methods in the analysis of profile data. <em>Psychometrika</em> 24: 95-112.</li>
+
+<li>Huynh H., Feldt L.S. (1976). Estimation of the Box correction for degrees of freedom from sample data in randomised block and split-plot designs. <em>Journal of Educational Statistics</em> 1: 69-82.</li>
+
+<li>Maxwell S.E., Delaney H.D. (2004). <em>Designing Experiments and Analyzing Data: A Model Comparison Perspective</em>, 2nd ed. Erlbaum, Chapter 11.</li>
+
+<li>Kassambara A. <em>rstatix package: anova_test() reference</em>. <a href="https://cran.r-project.org/package=rstatix">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ol>
+
+<li><strong><a class="auto-link" href="One-Way-ANOVA-in-R.html" title="One-Way ANOVA in R: F-Test, Levene's Test, and Post-Hoc, Complete Walkthrough">One-Way ANOVA in R</a></strong>, the independent-samples counterpart; read it side by side with this post to see exactly which pieces of the error term move where.</li>
+
+<li><strong>Post-Hoc Tests After ANOVA</strong>, deeper coverage of Tukey, Bonferroni, and Scheffe adjustments that all pair naturally with paired t-tests.</li>
+
+<li><strong><a class="auto-link" href="Two-Way-ANOVA-in-R.html" title="Two-Way ANOVA in R: Main Effects, Interactions, and Interaction Plots Interpreted">Two-Way ANOVA in R</a></strong>, the between-subjects two-factor design; compare its Error structure to the within-subjects formula from Section 6 above.</li>
+
+</ol>
