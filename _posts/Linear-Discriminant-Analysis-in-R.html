@@ -1,0 +1,1010 @@
+---
+title: "LDA in R: Classify Observations by Maximising Between-Group Separation"
+description: "Learn LDA in R with MASS::lda(). Project data to maximise between-group separation, interpret discriminant functions, and evaluate with confusion matrices."
+keywords: "LDA in R, linear discriminant analysis, MASS lda, canonical discriminants, LD1 LD2 interpretation, classification in R, leave-one-out cross validation, between-group separation, discriminant function, multivariate classification"
+mathjax: true
+webr: true
+curriculum_id: "2.5.6"
+post_type: "C"
+auto_link_terms: "Linear Discriminant Analysis|linear discriminants|canonical discriminant functions|MASS::lda()|Fisher's linear discriminant|between-group separation|LD1 and LD2"
+auto_link_case_sensitive: false
+sidebar_section: "Statistics"
+sidebar_title: "LDA (Linear Discriminant Analysis)"
+sidebar_order: "73"
+---
+<!-- md2html:generated -->
+
+<h1>LDA in R: Classify Observations by Maximising Between-Group Separation</h1>
+
+<p class="lead">Linear Discriminant Analysis (LDA) finds linear combinations of your predictors that push class means as far apart as possible while keeping points within each class tightly clustered. In R, one call to <code>MASS::lda()</code> gives you a classifier and a dimensionality-reduction tool in the same object.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="40" data-exercises="10" data-xp="150"></div>
+
+<h2>What problem does LDA solve?</h2>
+
+<p>Imagine three species of iris flowers and four measurements per flower. You want a classifier that takes those four numbers and returns a species, and you would like a 2D picture that shows how cleanly the species separate. LDA does both jobs in one call. It finds directions through your four-dimensional predictor space where the groups sit as far apart as possible, then uses those directions as the decision rule.</p>
+
+<p>Before any theory, let's see the payoff. The block below loads <code>MASS</code>, fits an LDA model on all 150 iris flowers, and compares predictions against truth.</p>
+
+<div class="webr-container" data-block-title="Fit LDA on iris and confirm it separates species">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit LDA on iris and confirm it separates species</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(MASS)
+
+fit_iris &lt;- lda(Species ~ ., data = iris)
+pred_in  &lt;- predict(fit_iris)$class
+
+table(Predicted = pred_in, Actual = iris$Species)
+#&gt;             Actual
+#&gt; Predicted    setosa versicolor virginica
+#&gt;   setosa         50          0         0
+#&gt;   versicolor      0         48         1
+#&gt;   virginica       0          2        49
+
+mean(pred_in == iris$Species)
+#&gt; [1] 0.98</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>LDA classifies 147 of 150 flowers correctly using four measurements and a formula that has not changed in ninety years. Two versicolors look enough like virginicas to cross the boundary, and one virginica swings the other way. Everything else lands in the right species. This is the number every LDA tutorial eventually reports, and we reached it in three lines of R.</p>
+
+<p><img src="screenshots/Linear-Discriminant-Analysis-in-R-fisher-criterion.webp" alt="LDA objective: maximise between-class variance while minimising within-class variance" class="img-responsive img-zoomable" loading="lazy" width="1428" height="690" /></p>
+
+<p><em>Figure 1: LDA picks directions that maximise between-class variance while minimising within-class variance, the ratio is Fisher's criterion.</em></p>
+
+<p>The picture above captures the single idea that makes LDA work. Fisher's criterion asks: of all the ways I could project my features onto a line, which direction maximises the gap between class means relative to the spread within each class? That direction is LD1. If you have $k$ classes, LDA returns up to $k-1$ such directions, ordered by how much separation they contribute.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>LDA is both a classifier AND a dimension reducer.</strong> The same fitted object gives you class predictions through <code>predict()$class</code> and a low-dimensional projection through <code>predict()$x</code>. PCA reduces dimensions using only feature covariance; LDA uses class labels, so its projection is aligned to the classification task.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit LDA on only the <em>setosa</em> and <em>versicolor</em> rows (the easiest two species to separate) and report the in-sample accuracy.</p>
+<div class="webr-container" data-block-title="Your turn: fit LDA on two iris species">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: fit LDA on two iris species</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Subset to setosa and versicolor only, then fit LDA
+ex_two &lt;- iris[iris$Species %in% c(&quot;setosa&quot;, &quot;versicolor&quot;), ]
+ex_two$Species &lt;- droplevels(ex_two$Species)
+
+# your code here
+
+#&gt; Expected: accuracy of 1 (perfect separation)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Two-species iris solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Two-species iris solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_two &lt;- iris[iris$Species %in% c(&quot;setosa&quot;, &quot;versicolor&quot;), ]
+ex_two$Species &lt;- droplevels(ex_two$Species)
+
+ex_fit_2class &lt;- lda(Species ~ ., data = ex_two)
+ex_pred_2class &lt;- predict(ex_fit_2class)$class
+mean(ex_pred_2class == ex_two$Species)
+#&gt; [1] 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Setosa is linearly separable from versicolor by petal length alone, so LDA finds a direction that perfectly splits them and achieves 100% accuracy.</p>
+
+</details>
+</section>
+
+<h2>How do you fit an LDA model with MASS::lda()?</h2>
+
+<p><code>lda()</code> uses the same formula interface as <code>lm()</code> and <code>glm()</code>. You hand it a class variable on the left and your predictors on the right. In practice, you'll want to fit on a training subset and hold out a test set so you can evaluate honestly. The block below splits iris into 120 training rows and 30 held-out rows.</p>
+
+<div class="webr-container" data-block-title="Split iris into train and test">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Split iris into train and test</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(42)
+train_idx   &lt;- sample(seq_len(nrow(iris)), 120)
+iris_train  &lt;- iris[ train_idx, ]
+iris_test   &lt;- iris[-train_idx, ]
+
+table(iris_train$Species)
+#&gt; 
+#&gt;     setosa versicolor  virginica 
+#&gt;         41         40         39
+
+fit_train &lt;- lda(Species ~ ., data = iris_train)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A random 120-row sample gives us roughly forty flowers per species, close enough to balanced. <code>fit_train</code> now holds everything LDA learned about this training sample: the class priors it will use for posterior probabilities, the mean vector for each species, and the coefficients that define the two discriminant axes.</p>
+
+<p><img src="screenshots/Linear-Discriminant-Analysis-in-R-workflow.webp" alt="LDA workflow in R" class="img-responsive img-zoomable" loading="lazy" width="2248" height="378" /></p>
+
+<p><em>Figure 2: The LDA workflow in R: fit on training data, project new observations, compare predictions against truth.</em></p>
+
+<p>Printing the fitted object reveals its three most important pieces.</p>
+
+<div class="webr-container" data-block-title="Inspect the fitted LDA object">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Inspect the fitted LDA object</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit_train
+#&gt; Call:
+#&gt; lda(Species ~ ., data = iris_train)
+#&gt; 
+#&gt; Prior probabilities of groups:
+#&gt;     setosa versicolor  virginica 
+#&gt;  0.3416667  0.3333333  0.3250000 
+#&gt; 
+#&gt; Group means:
+#&gt;            Sepal.Length Sepal.Width Petal.Length Petal.Width
+#&gt; setosa         5.024390    3.426829     1.473171   0.2463415
+#&gt; versicolor     5.940000    2.770000     4.262500   1.3275000
+#&gt; virginica      6.618974    2.997436     5.574359   2.0307692
+#&gt; 
+#&gt; Coefficients of linear discriminants:
+#&gt;                      LD1         LD2
+#&gt; Sepal.Length  0.8487215  0.01712934
+#&gt; Sepal.Width   1.4995842  2.26671132
+#&gt; Petal.Length -2.1836076 -0.95054678
+#&gt; Petal.Width  -2.8294018  2.83519180
+#&gt; 
+#&gt; Proportion of trace:
+#&gt;    LD1    LD2 
+#&gt; 0.9919 0.0081</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The priors reflect training-set proportions: roughly a third per species. Group means show that virginica has the longest petals and sepals, setosa the shortest. The coefficients of linear discriminants are the raw ingredients of the projection: for each flower, LD1 is the linear combination $0.849 \cdot \text{Sepal.Length} + 1.499 \cdot \text{Sepal.Width} - 2.184 \cdot \text{Petal.Length} - 2.829 \cdot \text{Petal.Width}$. Negative coefficients on petal measurements mean flowers with larger petals get smaller LD1 values, which is how LDA separates virginica (big petals, small LD1) from setosa (small petals, large LD1).</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>LDA is invariant to scaling and centring.</strong> You do not need to standardise predictors before calling <code>lda()</code>. The coefficients already absorb the raw units, and the projected scores <code>predict()$x</code> come out with mean zero and identity within-group covariance by construction.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit LDA on a different random 120-row training sample (use <code>set.seed(7)</code>) and print the prior probabilities.</p>
+<div class="webr-container" data-block-title="Your turn: refit with a different seed">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: refit with a different seed</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+ex_train_idx &lt;- sample(seq_len(nrow(iris)), 120)
+ex_train &lt;- iris[ex_train_idx, ]
+
+# your code here
+
+#&gt; Expected: priors close to 1/3, 1/3, 1/3 but not exactly equal</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Refit solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Refit solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+ex_train_idx &lt;- sample(seq_len(nrow(iris)), 120)
+ex_train &lt;- iris[ex_train_idx, ]
+
+ex_fit &lt;- lda(Species ~ ., data = ex_train)
+ex_fit$prior
+#&gt;     setosa versicolor  virginica 
+#&gt;  0.3500000  0.3250000  0.3250000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>lda()</code> estimates priors from training-set class frequencies by default. Different random splits shift the exact values slightly around 1/3.</p>
+
+</details>
+</section>
+
+<h2>What do the LD1 and LD2 coefficients actually mean?</h2>
+
+<p>The coefficients look intimidating until you realise they are just weights for a weighted sum. <code>predict(fit)$x</code> applies those weights to every training row and returns an $n \times (k-1)$ matrix of scores: one row per flower, one column per discriminant axis. That matrix is the reduced-dimension view of your data.</p>
+
+<div class="webr-container" data-block-title="Project training data onto LD1 and LD2">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Project training data onto LD1 and LD2</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">lda_scores &lt;- predict(fit_train)$x
+head(lda_scores, 4)
+#&gt;        LD1         LD2
+#&gt; 1 8.029487  0.34105214
+#&gt; 2 7.102316 -0.77298502
+#&gt; 3 7.457829 -0.26001537
+#&gt; 4 6.787620 -0.66527492
+
+plot(lda_scores, col = as.integer(iris_train$Species),
+     pch = 19, xlab = &quot;LD1&quot;, ylab = &quot;LD2&quot;,
+     main = &quot;Training flowers in LDA space&quot;)
+legend(&quot;topright&quot;, legend = levels(iris_train$Species),
+       col = 1:3, pch = 19, bty = &quot;n&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The scatterplot makes the separation obvious. Along LD1, setosa sits near +8, versicolor near 0, and virginica near -6, with almost no overlap. LD2 pulls away from LD1 a tiny bit but mostly spreads points within each class rather than between classes. That imbalance is exactly what the proportion-of-trace numbers in the printed output quantified.</p>
+
+<div class="webr-container" data-block-title="Compute proportion of trace from singular values">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compute proportion of trace from singular values</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">prop_trace &lt;- fit_train$svd^2 / sum(fit_train$svd^2)
+round(prop_trace, 4)
+#&gt; [1] 0.9919 0.0081</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Ninety-nine percent of the between-class variance captured by LDA lives on LD1 alone. That means a single number per flower is enough to classify iris almost as well as four. You could throw LD2 away and still draw clean species boundaries. This is why LDA is frequently used as a supervised alternative to PCA when the goal is classification rather than unsupervised compression.</p>
+
+<p>Formally, LDA finds projection vectors $w$ that maximise</p>
+
+<p>$$J(w) = \frac{w^\top S_B \, w}{w^\top S_W \, w}$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$S_B$ = between-class scatter matrix (how far class means are from the grand mean)</li>
+
+<li>$S_W$ = within-class scatter matrix (pooled covariance inside each class)</li>
+
+<li>$w$ = the direction in feature space we're optimising over</li>
+
+</ul>
+
+<p><em>If you are not interested in the math, skip to the next section, the practical code above is all you need.</em></p>
+
+<p>Solving this problem reduces to a generalised eigenvalue decomposition of $S_W^{-1} S_B$. The eigenvectors become the columns of <code>fit$scaling</code>, and the eigenvalues become <code>fit$svd^2</code>. The proportion of trace is simply each eigenvalue divided by the sum of eigenvalues.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>LD axes are uncorrelated on the projection, not orthogonal in feature space.</strong> Unlike PCA, where principal components are orthogonal in the original coordinates, LDA's <code>scaling</code> columns are conjugate with respect to the within-class covariance. In plain terms: LD1 and LD2 look perpendicular when you plot the scores because LDA forces that, but the coefficient vectors themselves are not at right angles.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute the proportion of trace on the full-iris model (<code>fit_iris</code>) and confirm LD1 dominates.</p>
+<div class="webr-container" data-block-title="Your turn: proportion of trace on full iris">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: proportion of trace on full iris</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Use fit_iris from the first block
+# your code here
+
+#&gt; Expected: LD1 around 0.99, LD2 around 0.01</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Full-iris proportion of trace solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Full-iris proportion of trace solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_prop &lt;- fit_iris$svd^2 / sum(fit_iris$svd^2)
+round(ex_prop, 4)
+#&gt; [1] 0.9912 0.0088</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Almost all of iris's class separation lives on a single axis. LD2 contributes less than 1% and is mostly a visualisation nicety.</p>
+
+</details>
+</section>
+
+<h2>How do you classify new observations and evaluate accuracy?</h2>
+
+<p>Once you have a fitted model, <code>predict(fit, newdata)</code> returns three things: <code>$class</code> (the predicted species), <code>$posterior</code> (a matrix of posterior probabilities per class), and <code>$x</code> (the projected scores). To evaluate honestly, you pass in the held-out test set you built earlier.</p>
+
+<div class="webr-container" data-block-title="Classify held-out test flowers and build a confusion matrix">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Classify held-out test flowers and build a confusion matrix</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">pred_test &lt;- predict(fit_train, iris_test)$class
+
+conf_test &lt;- table(Predicted = pred_test, Actual = iris_test$Species)
+conf_test
+#&gt;             Actual
+#&gt; Predicted    setosa versicolor virginica
+#&gt;   setosa          9          0         0
+#&gt;   versicolor      0         10         0
+#&gt;   virginica       0          0        11
+
+mean(pred_test == iris_test$Species)
+#&gt; [1] 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Thirty held-out flowers, thirty correct predictions. The training split happened to land on the easier side of the distribution, so accuracy is 100% on this particular test set. A different seed or a different random split would usually drop one or two points and land around 96% to 98%.</p>
+
+<p>A single accuracy number hides important class-specific behaviour. Two metrics give a fuller picture: <strong>precision</strong> is the fraction of flowers <em>predicted</em> as a class that really belong to it, and <strong>recall</strong> is the fraction of flowers <em>actually</em> in a class that you caught. Per-class metrics come straight out of the confusion matrix.</p>
+
+<div class="webr-container" data-block-title="Per-class precision and recall">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Per-class precision and recall</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">precision &lt;- diag(conf_test) / rowSums(conf_test)
+recall    &lt;- diag(conf_test) / colSums(conf_test)
+
+round(cbind(precision, recall), 3)
+#&gt;            precision recall
+#&gt; setosa             1      1
+#&gt; versicolor         1      1
+#&gt; virginica          1      1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>On a perfect test set every metric is 1. The formulas are the useful thing to remember: <code>diag(conf) / rowSums(conf)</code> gives precision (predicted class is the denominator), <code>diag(conf) / colSums(conf)</code> gives recall (actual class is the denominator). They come apart the moment any class is misclassified.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>In-sample accuracy is optimistic.</strong> Fitting and evaluating on the same rows measures how well LDA can describe training noise, not how it will behave on new data. Always evaluate on a held-out test set, or use cross-validation (next section), before reporting an accuracy number.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The test confusion matrix <code>conf_test</code> has 3 rows and 3 columns. Compute the per-class <em>error rate</em> (wrong predictions divided by total predictions per class, row-wise).</p>
+<div class="webr-container" data-block-title="Your turn: per-class error rate">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: per-class error rate</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: rowSums() gives total predictions per class
+# your code here
+
+#&gt; Expected: all zeros because the test set was perfect</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Per-class error rate solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Per-class error rate solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_per_class &lt;- 1 - diag(conf_test) / rowSums(conf_test)
+round(ex_per_class, 3)
+#&gt;     setosa versicolor  virginica 
+#&gt;          0          0          0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Error rate is the complement of precision. On a perfect confusion matrix, every class has zero error. On an imperfect one, the diagonal element is the successes and everything else in that row is a mistake.</p>
+
+</details>
+</section>
+
+<h2>How do you evaluate with leave-one-out cross-validation?</h2>
+
+<p>Train/test splits are wasteful on small datasets. For 150 rows, holding out 30 means you're training on 120, and a different seed could shuffle the answer. Leave-one-out cross-validation fits the model 150 times, holding out one row each time, and records the prediction. <code>lda()</code> offers this for free with a single argument.</p>
+
+<div class="webr-container" data-block-title="Run leave-one-out cross-validation with CV = TRUE">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Run leave-one-out cross-validation with CV = TRUE</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit_loo &lt;- lda(Species ~ ., data = iris, CV = TRUE)
+
+conf_loo &lt;- table(Predicted = fit_loo$class, Actual = iris$Species)
+conf_loo
+#&gt;             Actual
+#&gt; Predicted    setosa versicolor virginica
+#&gt;   setosa         50          0         0
+#&gt;   versicolor      0         48         1
+#&gt;   virginica       0          2        49
+
+mean(fit_loo$class == iris$Species)
+#&gt; [1] 0.98</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>With <code>CV = TRUE</code>, <code>lda()</code> no longer returns a fitted model; instead it returns <code>$class</code> and <code>$posterior</code> where every prediction came from a model that had not seen that row. The confusion matrix is almost identical to the in-sample result, and accuracy lands at the same 147 out of 150. That closeness tells you iris is an easy problem where LDA is nowhere near overfitting.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong><code>CV = TRUE</code> is free cross-validation.</strong> You write zero loops and zero helper functions. For datasets larger than a few thousand rows this becomes expensive (one fit per row), but for typical statistics or teaching datasets it is the fastest way to get an honest accuracy estimate.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use <code>fit_loo$class</code> and <code>iris$Species</code> to compute the fraction of flowers misclassified under leave-one-out (the LOO error rate).</p>
+<div class="webr-container" data-block-title="Your turn: LOO error rate">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: LOO error rate</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># your code here
+
+#&gt; Expected: 0.02 (3 out of 150)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="LOO error rate solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">LOO error rate solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_acc_loo &lt;- mean(fit_loo$class == iris$Species)
+ex_err_loo &lt;- 1 - ex_acc_loo
+round(ex_err_loo, 3)
+#&gt; [1] 0.02</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Leave-one-out misclassifies 3 of the 150 iris flowers, giving a 2% error rate. This is very close to the 2% in-sample error, which signals LDA is not overfitting on iris.</p>
+
+</details>
+</section>
+
+<h2>What assumptions does LDA make, and how do you check them?</h2>
+
+<p>LDA makes two assumptions about your data. First, predictors are multivariate-normal inside each class. Second, every class shares the same <a class="auto-link" href="Multivariate-Statistics-in-R.html" title="Multivariate Statistics in R: Distances, Mahalanobis, and Hotelling's T² Demystified">covariance matrix</a> (a pooled covariance, estimated across all classes). The decision boundaries that come out are linear exactly because of that second assumption; if covariances differ, boundaries should bend, which is the job of Quadratic Discriminant Analysis (QDA).</p>
+
+<p>A quick visual check is per-group covariance. Flowers of different species should have similar spread along each feature axis.</p>
+
+<div class="webr-container" data-block-title="Compare covariance matrices across species">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare covariance matrices across species</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cov_by_group &lt;- by(iris[, 1:4], iris$Species, cov)
+
+round(cov_by_group$setosa, 3)
+#&gt;              Sepal.Length Sepal.Width Petal.Length Petal.Width
+#&gt; Sepal.Length        0.124       0.099        0.016       0.010
+#&gt; Sepal.Width         0.099       0.144        0.012       0.009
+#&gt; Petal.Length        0.016       0.012        0.030       0.006
+#&gt; Petal.Width         0.010       0.009        0.006       0.011
+
+round(cov_by_group$virginica, 3)
+#&gt;              Sepal.Length Sepal.Width Petal.Length Petal.Width
+#&gt; Sepal.Length        0.404       0.094        0.303       0.049
+#&gt; Sepal.Width         0.094       0.104        0.071       0.048
+#&gt; Petal.Length        0.303       0.071        0.305       0.049
+#&gt; Petal.Width         0.049       0.048        0.049       0.075</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The virginica covariance matrix is about three to ten times larger than setosa's on every diagonal entry. Setosa flowers cluster tightly; virginica flowers spread wide. By the strict reading of LDA's assumption, this is a violation. Yet LDA still scores 98% on iris, because the class means are so far apart that even a biased boundary lands in the right place.</p>
+
+<p>A univariate QQ plot on one feature per group spot-checks the normality assumption.</p>
+
+<div class="webr-container" data-block-title="QQ plot of sepal length by species">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">QQ plot of sepal length by species</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">par(mfrow = c(1, 3))
+for (sp in levels(iris$Species)) {
+  vals &lt;- iris$Sepal.Length[iris$Species == sp]
+  qqnorm(vals, main = sp)
+  qqline(vals)
+}
+par(mfrow = c(1, 1))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>If the points hug the reference line, the feature is roughly normal within that species. Iris sepal lengths pass the eye test cleanly. For features that fail (long tails, skew, hard boundaries at zero), consider a log or Box-Cox transform before fitting, or switch to a method that does not require normality, such as logistic regression or a tree-based classifier.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Unequal covariances bias LDA boundaries, they do not break it.</strong> When one class is much more spread out than another, LDA's linear boundary sits closer to the tight class than it should. Accuracy usually survives if class means are well separated; it degrades when they are not. If you suspect unequal covariances and your classes overlap, reach for QDA (<code>MASS::qda()</code>).</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Print the covariance matrix of just <code>Petal.Length</code> and <code>Petal.Width</code> for the <em>versicolor</em> group.</p>
+<div class="webr-container" data-block-title="Your turn: per-group covariance for two features">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: per-group covariance for two features</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: subset iris to versicolor rows and the two petal columns, then cov()
+# your code here
+
+#&gt; Expected: a 2x2 matrix with diagonal entries around 0.22 and 0.04</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Versicolor petal covariance solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Versicolor petal covariance solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_cov &lt;- cov(iris[iris$Species == &quot;versicolor&quot;, c(&quot;Petal.Length&quot;, &quot;Petal.Width&quot;)])
+round(ex_cov, 3)
+#&gt;              Petal.Length Petal.Width
+#&gt; Petal.Length        0.221       0.073
+#&gt; Petal.Width         0.073       0.039</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Versicolor's petal dimensions show moderate variance and positive covariance: longer petals also tend to be wider within that species.</p>
+
+</details>
+</section>
+
+<h2>How do you tune priors to handle imbalanced classes?</h2>
+
+<p>By default, <code>lda()</code> sets each class prior to its training-set proportion. That is the right choice when your training frequencies match the frequencies you expect in the population you will predict on. It is the wrong choice when training is deliberately balanced but deployment is not, or the other way around.</p>
+
+<p>Priors enter the decision rule through <a class="auto-link" href="Conditional-Probability-in-R.html" title="Conditional Probability in R: P(A|B), Independence, and Bayes — With Real Examples">Bayes' theorem</a>: the posterior for class $k$ given features $x$ is proportional to $p(x \mid k) \cdot \pi_k$, where $\pi_k$ is the prior. Change the prior and you shift the boundary, but you do not change the discriminant axes themselves, those are fixed by <code>scaling</code>.</p>
+
+<div class="webr-container" data-block-title="Refit with equal priors and compare posteriors">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Refit with equal priors and compare posteriors</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit_equal &lt;- lda(Species ~ ., data = iris_train,
+                 prior = c(1/3, 1/3, 1/3))
+
+# A borderline virginica row from the test set
+borderline &lt;- iris_test[iris_test$Species == &quot;virginica&quot;, ][1, ]
+
+post_default &lt;- predict(fit_train, borderline)$posterior
+post_equal   &lt;- predict(fit_equal, borderline)$posterior
+
+round(rbind(default = post_default, equal = post_equal), 4)
+#&gt;         setosa versicolor virginica
+#&gt; default      0     0.0001    0.9999
+#&gt; equal        0     0.0001    0.9999</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>For a flower this deep inside virginica territory, the two prior choices produce indistinguishable posteriors. The likelihood is so lopsided that no reasonable prior could flip the verdict. Priors matter most for borderline cases: a flower where likelihoods for two classes are similar in magnitude, the prior becomes the tiebreaker.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Priors change the threshold, not the axes.</strong> <code>fit_train$scaling</code> and <code>fit_equal$scaling</code> are identical. What changes is which region of LD1-LD2 space gets assigned to each class. If you ever want to build a cost-sensitive classifier (e.g., false negatives cost more than false positives), setting priors is the idiomatic way to do it in <code>lda()</code>.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Refit <code>fit_train</code> with priors that favour virginica heavily (<code>c(0.1, 0.1, 0.8)</code>) and check whether any borderline versicolor predictions flip to virginica.</p>
+<div class="webr-container" data-block-title="Your turn: extreme priors">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: extreme priors</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># your code here: fit with prior = c(0.1, 0.1, 0.8)
+
+#&gt; Expected: a few versicolor rows near the virginica boundary switch class</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Extreme priors solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Extreme priors solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_fit_flipped &lt;- lda(Species ~ ., data = iris_train,
+                      prior = c(0.1, 0.1, 0.8))
+
+ex_pred_flipped &lt;- predict(ex_fit_flipped, iris_test)$class
+table(Predicted = ex_pred_flipped, Actual = iris_test$Species)
+#&gt;             Actual
+#&gt; Predicted    setosa versicolor virginica
+#&gt;   setosa          9          0         0
+#&gt;   versicolor      0          9         0
+#&gt;   virginica       0          1        11</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> One versicolor row now gets predicted as virginica because the aggressive prior tilts the posterior toward virginica for any ambiguous flower. Extreme priors trade precision for recall on the favoured class.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<p>These capstone problems combine multiple concepts from the tutorial. Work through them before reading the solutions.</p>
+
+<h3>Exercise 1: Per-class precision and recall on held-out iris</h3>
+
+<p>Split iris into 100 training rows and 50 test rows with <code>set.seed(2026)</code>. Fit LDA on the training rows, predict on the test rows, and compute per-class precision and recall. Store the precision vector as <code>cap1_prec</code> and the recall vector as <code>cap1_rec</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 1: precision and recall">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1: precision and recall</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: use sample(), lda(), predict(), table()
+# Hint: precision = diag / rowSums, recall = diag / colSums
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+cap1_idx   &lt;- sample(seq_len(nrow(iris)), 100)
+cap1_train &lt;- iris[ cap1_idx, ]
+cap1_test  &lt;- iris[-cap1_idx, ]
+
+cap1_fit  &lt;- lda(Species ~ ., data = cap1_train)
+cap1_pred &lt;- predict(cap1_fit, cap1_test)$class
+cap1_conf &lt;- table(Predicted = cap1_pred, Actual = cap1_test$Species)
+
+cap1_prec &lt;- diag(cap1_conf) / rowSums(cap1_conf)
+cap1_rec  &lt;- diag(cap1_conf) / colSums(cap1_conf)
+
+round(rbind(cap1_prec, cap1_rec), 3)
+#&gt;           setosa versicolor virginica
+#&gt; cap1_prec      1      0.947     0.944
+#&gt; cap1_rec       1      0.947     0.944</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> With a random 100/50 split, LDA typically gets one or two versicolor/virginica flowers wrong, so precision and recall drop slightly below 1 for those two classes. Setosa stays at 1 because it is linearly separable.</p>
+
+</details>
+
+<h3>Exercise 2: LOO cross-validation on noisy iris</h3>
+
+<p>Add five columns of pure noise to iris (<code>rnorm(150)</code> each, <code>set.seed(99)</code> before the first one), call the result <code>cap2_iris</code>. Run LDA with <code>CV = TRUE</code> and compare accuracy against the clean-iris LOO accuracy. Does noise hurt?</p>
+
+<div class="webr-container" data-block-title="Exercise 2: noisy iris LOO">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2: noisy iris LOO</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: cbind() new noise columns onto iris, then lda(..., CV = TRUE)
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(99)
+noise &lt;- replicate(5, rnorm(nrow(iris)))
+colnames(noise) &lt;- paste0(&quot;noise&quot;, 1:5)
+cap2_iris &lt;- cbind(iris, noise)
+
+cap2_loo &lt;- lda(Species ~ ., data = cap2_iris, CV = TRUE)
+mean(cap2_loo$class == cap2_iris$Species)
+#&gt; [1] 0.9666667</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Accuracy drops from 0.98 to roughly 0.97. Five noise columns steal a little information from the pooled covariance estimate, but iris is so separable that LDA still lands within two percentage points of the clean-data baseline.</p>
+
+</details>
+
+<h3>Exercise 3: Priors on an imbalanced subset</h3>
+
+<p>Build an imbalanced training set with 40 setosa, 40 versicolor, and only 5 virginica rows. Fit LDA first with empirical (default) priors and again with equal priors. Predict on the held-out virginica flowers and compare how many each model catches.</p>
+
+<div class="webr-container" data-block-title="Exercise 3: imbalanced priors">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3: imbalanced priors</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: empirical priors will lean away from virginica; equal priors should improve recall
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+cap3_data &lt;- rbind(
+  iris[iris$Species == &quot;setosa&quot;,    ][1:40, ],
+  iris[iris$Species == &quot;versicolor&quot;,][1:40, ],
+  iris[iris$Species == &quot;virginica&quot;, ][1:5,  ]
+)
+cap3_data$Species &lt;- droplevels(cap3_data$Species)
+
+cap3_test_v &lt;- iris[iris$Species == &quot;virginica&quot;, ][6:50, ]
+
+cap3_default &lt;- lda(Species ~ ., data = cap3_data)
+cap3_equal   &lt;- lda(Species ~ ., data = cap3_data,
+                    prior = c(1/3, 1/3, 1/3))
+
+pred_default &lt;- predict(cap3_default, cap3_test_v)$class
+pred_equal   &lt;- predict(cap3_equal,   cap3_test_v)$class
+
+c(default_virginica_caught = mean(pred_default == &quot;virginica&quot;),
+  equal_virginica_caught   = mean(pred_equal   == &quot;virginica&quot;))
+#&gt; default_virginica_caught   equal_virginica_caught 
+#&gt;                0.6444444                0.9777778</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Empirical priors see only 5 virginica training rows and set <code>P(virginica)</code> near 6%, which biases predictions away from the rare class. Equal priors restore virginica's share to one third and recover most of the held-out flowers.</p>
+
+</details>
+
+<h2>Complete Example</h2>
+
+<p>This end-to-end pipeline pulls every section together: stratified split, fit, project, predict, evaluate, visualise.</p>
+
+<div class="webr-container" data-block-title="Complete LDA pipeline on iris">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Complete LDA pipeline on iris</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(123)
+
+# 1. Stratified 80/20 split (40 of each species into train, 10 into test)
+split_rows &lt;- function(sp) {
+  rows &lt;- which(iris$Species == sp)
+  sample(rows, 40)
+}
+final_idx   &lt;- unlist(lapply(levels(iris$Species), split_rows))
+final_train &lt;- iris[ final_idx, ]
+final_test  &lt;- iris[-final_idx, ]
+
+# 2. Fit
+final_fit &lt;- lda(Species ~ ., data = final_train)
+
+# 3. Inspect proportion of trace
+round(final_fit$svd^2 / sum(final_fit$svd^2), 4)
+#&gt; [1] 0.9923 0.0077
+
+# 4. Predict on test
+final_pred &lt;- predict(final_fit, final_test)$class
+final_conf &lt;- table(Predicted = final_pred, Actual = final_test$Species)
+final_conf
+#&gt;             Actual
+#&gt; Predicted    setosa versicolor virginica
+#&gt;   setosa         10          0         0
+#&gt;   versicolor      0         10         1
+#&gt;   virginica       0          0         9
+
+# 5. Overall accuracy and per-class
+mean(final_pred == final_test$Species)
+#&gt; [1] 0.9666667
+
+round(diag(final_conf) / colSums(final_conf), 3)
+#&gt;     setosa versicolor  virginica 
+#&gt;      1.000      1.000      0.900
+
+# 6. Project and plot
+final_scores &lt;- predict(final_fit, iris)$x
+plot(final_scores, col = as.integer(iris$Species),
+     pch = 19, xlab = &quot;LD1&quot;, ylab = &quot;LD2&quot;,
+     main = &quot;All iris flowers in LDA space&quot;)
+legend(&quot;topright&quot;, legend = levels(iris$Species),
+       col = 1:3, pch = 19, bty = &quot;n&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A stratified split guarantees ten flowers of each species in the test set. LDA correctly classifies 29 of 30 held-out flowers (96.7% accuracy). Virginica is the only class with imperfect recall (one flower mistaken for versicolor), which matches what every prior section has been showing: versicolor and virginica overlap along LD1 in the region where their distributions meet.</p>
+
+<h2>Summary</h2>
+
+<p>LDA is a remarkably practical tool because it solves two problems at once: it classifies, and it compresses. The same <code>lda()</code> call gives you both a decision rule and a low-dimensional view of your data. Here are the core ideas to keep in working memory.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Concept</th>
+<th>Key point</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Objective</td>
+<td>Maximise between-class variance divided by within-class variance</td>
+</tr>
+<tr>
+<td>Output</td>
+<td><code>$prior</code>, <code>$means</code>, <code>$scaling</code> (coefficients), <code>$svd</code></td>
+</tr>
+<tr>
+<td>Classification</td>
+<td><code>predict(fit, newdata)$class</code></td>
+</tr>
+<tr>
+<td>Projection</td>
+<td><code>predict(fit, newdata)$x</code></td>
+</tr>
+<tr>
+<td>Dimension</td>
+<td>Returns up to $k - 1$ discriminants for $k$ classes</td>
+</tr>
+<tr>
+<td>Cross-validation</td>
+<td><code>lda(..., CV = TRUE)</code> is leave-one-out for free</td>
+</tr>
+<tr>
+<td>Key assumption</td>
+<td>Equal covariance across classes, multivariate-normal features</td>
+</tr>
+<tr>
+<td>When it breaks</td>
+<td>Unequal covariances, severe non-normality, non-linear boundaries</td>
+</tr>
+<tr>
+<td>Fallbacks</td>
+<td>QDA for unequal covariances, logistic regression for binary classes, trees for non-linear</td>
+</tr>
+</tbody>
+</table>
+
+<p><img src="screenshots/Linear-Discriminant-Analysis-in-R-overview-mindmap.webp" alt="LDA in R concept map" class="img-responsive img-zoomable" loading="lazy" width="1852" height="894" /></p>
+
+<p><em>Figure 3: A concept map of LDA in R, what goes in, what comes out, and how to evaluate.</em></p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Venables, W.N. and Ripley, B.D. (2002). <em>Modern Applied Statistics with S</em> (4th ed.), Chapter 12. Springer. <a href="https://www.stats.ox.ac.uk/pub/MASS4/">Link</a></li>
+
+<li>MASS package reference manual, <code>lda()</code> documentation. <a href="https://stat.ethz.ch/R-manual/R-devel/library/MASS/html/lda.html">Link</a></li>
+
+<li>Fisher, R.A. (1936). The use of multiple measurements in taxonomic problems. <em>Annals of Eugenics</em> 7, 179-188. <a href="https://onlinelibrary.wiley.com/doi/10.1111/j.1469-1809.1936.tb02137.x">Link</a></li>
+
+<li>James, G., Witten, D., Hastie, T. and Tibshirani, R. (2021). <em>An Introduction to Statistical Learning</em> (2nd ed.), Chapter 4. Springer. <a href="https://www.statlearning.com/">Link</a></li>
+
+<li>Hastie, T., Tibshirani, R. and Friedman, J. (2009). <em>The Elements of Statistical Learning</em> (2nd ed.), Chapter 4. Springer. <a href="https://hastie.su.domains/ElemStatLearn/">Link</a></li>
+
+<li>CRAN Task View on Multivariate Statistics. <a href="https://cran.r-project.org/web/views/Multivariate.html">Link</a></li>
+
+<li>Wikipedia, Linear discriminant analysis. <a href="https://en.wikipedia.org/wiki/Linear_discriminant_analysis">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="PCA-in-R.html">PCA in R</a>, LDA's unsupervised cousin. PCA finds axes of maximum variance without using labels; LDA uses labels to find axes of maximum class separation.</li>
+
+<li><a href="Logistic-Regression-in-R.html">Logistic Regression in R</a>, an alternative classifier that makes weaker assumptions (no normality required) and is often the first thing to try for binary problems.</li>
+
+<li><a href="Multivariate-Statistics-in-R.html">Multivariate Statistics in R</a> covers <a class="auto-link" href="Outlier-Detection-in-R.html" title="Outlier Detection in R: Four Methods and the One Question You Must Ask First">Mahalanobis distance</a> and Hotelling's T², the foundations LDA quietly builds on for its posterior probabilities.</li>
+
+</ul>
