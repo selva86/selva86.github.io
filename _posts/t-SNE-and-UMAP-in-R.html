@@ -1,0 +1,961 @@
+---
+title: "t-SNE and UMAP in R: Compress High-Dimensional Data to 2D, Without Losing Clusters"
+description: "t-SNE and UMAP project high-dimensional data to 2D in R. Learn Rtsne and the umap package, tune perplexity and n_neighbors, avoid over-interpretation."
+keywords: "t-SNE in R, UMAP in R, Rtsne package, umap package, dimensionality reduction, nonlinear embedding, perplexity, n_neighbors, cluster visualization, manifold learning"
+mathjax: false
+webr: true
+curriculum_id: "2.5.9"
+post_type: "C"
+auto_link_terms: "t-SNE|UMAP|Rtsne|nonlinear dimensionality reduction|perplexity parameter|manifold learning|umap package"
+auto_link_case_sensitive: false
+sidebar_section: "Statistics"
+sidebar_title: "t-SNE and UMAP"
+sidebar_order: "76"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>t-SNE and UMAP in R: Compress High-Dimensional Data to 2D, Without Losing Clusters</h1>
+
+<p class="lead">t-SNE and UMAP are nonlinear dimensionality-reduction methods that turn a table with dozens of columns into a 2D map where points close together in the original space stay close together on the page. Use them when PCA leaves your clusters overlapping and you need a map good enough to eyeball.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="35" data-exercises="8" data-xp="120"></div>
+
+<h2>What do t-SNE and UMAP actually do?</h2>
+
+<p>Picture the iris dataset: four measurements per flower, three species. PCA draws a straight 2D shadow of that 4D cloud, which works when groups separate along straight lines. t-SNE and UMAP do something subtler: they ask, for every pair of points, <em>how similar are you in the full space?</em> and then place those points on a 2D canvas so similar ones land near each other. Non-linearities stop being a problem. One line of code shows the payoff.</p>
+
+<div class="webr-container" data-block-title="Payoff: t-SNE on iris">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Payoff: t-SNE on iris</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(Rtsne)
+library(ggplot2)
+
+# Scale the four numeric columns so each contributes equally
+iris_num &lt;- iris[, 1:4]
+iris_scaled &lt;- scale(iris_num)
+
+set.seed(1)
+tsne_iris &lt;- Rtsne(iris_scaled, dims = 2, perplexity = 30, verbose = FALSE)
+
+tsne_df &lt;- data.frame(
+  x = tsne_iris$Y[, 1],
+  y = tsne_iris$Y[, 2],
+  species = iris$Species
+)
+
+ggplot(tsne_df, aes(x, y, color = species)) +
+  geom_point(size = 2) +
+  labs(title = &quot;t-SNE of iris&quot;, x = &quot;t-SNE 1&quot;, y = &quot;t-SNE 2&quot;)
+#&gt; Three clouds appear: setosa sits off on one side,
+#&gt; versicolor and virginica sit together but separate clearly.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Four columns of numbers turned into three visually distinct flower groups. Nothing about the species labels entered the calculation. t-SNE only saw the measurements, yet the picture shows what a botanist already knows: setosa is different, versicolor and virginica are closer but still distinguishable. That is what "preserving neighbor structure" buys you.</p>
+
+<p>The mental model is simple. For every point, t-SNE and UMAP list its nearest neighbors in the high-dimensional space. Then they place points on a 2D canvas and nudge them until every point's list of 2D neighbors roughly matches its original list. Unrelated points are allowed to drift to whatever position the optimizer finds convenient. That is why these plots are useful for spotting clusters and useless for measuring the distance <em>between</em> clusters.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>t-SNE and UMAP preserve neighbors, not distances.</strong> If A and B were in each other's top-20 nearest neighbors in the original space, they will sit close in 2D. But the distance between two clusters on the page rarely matches the distance between them in reality.</div></div>
+
+<p>Before any of this works, there's a small but critical data-prep step: you need to put every column on the same scale. Both algorithms measure point-to-point similarity with <a class="auto-link" href="Multivariate-Statistics-in-R.html" title="Multivariate Statistics in R: Distances, Mahalanobis, and Hotelling's T² Demystified">Euclidean distance</a>, so a feature in thousands will drown a feature in tenths. <code>scale()</code> centers and standardizes each column, which lets every feature contribute fairly to the neighbor calculation.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Scale numeric columns before running either method.</strong> Skipping <code>scale()</code> is the top cause of confusing plots, especially when your columns mix units (price in dollars next to weight in grams next to a 0-1 ratio).</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Run t-SNE on the numeric columns of <code>mtcars</code>, colored by cylinder count.</p>
+<div class="webr-container" data-block-title="Your turn: t-SNE on mtcars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: t-SNE on mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Scale mtcars and run Rtsne, then plot with color = cylinder
+ex_mtcars &lt;- scale(mtcars)
+# your code here
+
+# Test: you should see small, medium, large cars form three loose groups</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="t-SNE on mtcars solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">t-SNE on mtcars solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2)
+ex_mtcars_tsne &lt;- Rtsne(ex_mtcars, perplexity = 10, verbose = FALSE)
+ex_mtcars_df &lt;- data.frame(
+  x = ex_mtcars_tsne$Y[, 1],
+  y = ex_mtcars_tsne$Y[, 2],
+  cyl = factor(mtcars$cyl)
+)
+ggplot(ex_mtcars_df, aes(x, y, color = cyl)) +
+  geom_point(size = 3) +
+  labs(title = &quot;t-SNE of mtcars&quot;, x = &quot;t-SNE 1&quot;, y = &quot;t-SNE 2&quot;)
+#&gt; Three regions appear: 4-cyl econoboxes, 6-cyl sedans, 8-cyl muscle.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>perplexity=10</code> is lower because <code>mtcars</code> has only 32 rows, and the default 30 is larger than the sample size (Rtsne would refuse to run). Smaller datasets want smaller perplexity.</p>
+
+</details>
+</section>
+
+<h2>How do you run t-SNE in R with Rtsne?</h2>
+
+<p><img src="screenshots/t-SNE-and-UMAP-in-R-pipeline-flow.webp" alt="The shared pipeline of t-SNE and UMAP." class="img-responsive img-zoomable" loading="lazy" width="2068" height="394" /></p>
+
+<p><em>Figure 1: The shared pipeline: scale, compute neighbor similarities, optimize a 2D layout, plot.</em></p>
+
+<p>The <code>Rtsne</code> package wraps Laurens van der Maaten's Barnes-Hut t-SNE implementation. Its key arguments:</p>
+
+<ul>
+
+<li><code>X</code>: the scaled numeric matrix or data frame</li>
+
+<li><code>dims = 2</code>: output dimensions (almost always 2)</li>
+
+<li><code>perplexity = 30</code>: effective neighborhood size (typical range 5 to 50)</li>
+
+<li><code>max_iter = 1000</code>: optimizer iterations</li>
+
+<li><code>verbose = TRUE</code>: print progress</li>
+
+</ul>
+
+<p>Perplexity is the one knob that changes your plot. It controls how many neighbors each point "feels" during the <a class="auto-link" href="Optimization-With-R.html" title="Optimization with R">optimization</a>. Low perplexity makes t-SNE focus on tight local groups. High perplexity pulls in broader context. Let's rerun with perplexity 15 and see the difference.</p>
+
+<div class="webr-container" data-block-title="t-SNE with perplexity = 15">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">t-SNE with perplexity = 15</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+tsne_p15 &lt;- Rtsne(iris_scaled, dims = 2, perplexity = 15, verbose = FALSE)
+
+tsne_p15_df &lt;- data.frame(
+  x = tsne_p15$Y[, 1],
+  y = tsne_p15$Y[, 2],
+  species = iris$Species
+)
+
+ggplot(tsne_p15_df, aes(x, y, color = species)) +
+  geom_point(size = 2) +
+  labs(title = &quot;t-SNE of iris (perplexity = 15)&quot;)
+#&gt; Species still separate, but versicolor and virginica pull further apart.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The three clouds are still there, but the gap between versicolor and virginica widened. Smaller perplexity = more local focus = more aggressive cluster separation. That can be good (real sub-groups pop out) or bad (noise looks like sub-groups). You must eyeball several values to know which.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Call set.seed() before Rtsne for reproducibility.</strong> t-SNE initializes randomly and runs a stochastic optimizer. Two runs with different seeds give visually different layouts even on identical data. Fix the seed in your analysis scripts; swap it deliberately only when checking stability.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Re-run t-SNE with <code>perplexity = 5</code> and describe the visual change versus <code>perplexity = 30</code>.</p>
+<div class="webr-container" data-block-title="Your turn: perplexity = 5">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: perplexity = 5</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Run Rtsne with perplexity=5 on iris_scaled
+# your code here
+
+# Test: expect tighter clusters, maybe a split of one species into sub-blobs</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Perplexity = 5 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Perplexity = 5 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+ex_tsne_p5 &lt;- Rtsne(iris_scaled, perplexity = 5, verbose = FALSE)
+plot(ex_tsne_p5$Y, col = iris$Species, pch = 19,
+     xlab = &quot;t-SNE 1&quot;, ylab = &quot;t-SNE 2&quot;,
+     main = &quot;t-SNE of iris (perplexity = 5)&quot;)
+#&gt; Clusters become very small and sometimes split into fragments.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> With perplexity 5, t-SNE only considers each point's 5 closest neighbors. Real clusters shatter into sub-blobs because any local variation gets amplified. This is the classic "perplexity too low" look.</p>
+
+</details>
+</section>
+
+<h2>How do you run UMAP in R with the umap package?</h2>
+
+<p>UMAP, by McInnes, Healy and Melville (2018), joined the toolbox a decade after t-SNE. It optimizes a different objective, runs faster, and tends to preserve more of the global structure. Two R packages implement it: <code>umap</code> (pure R, easy install) and <code>uwot</code> (Rcpp, faster). The code below uses <code>umap</code> because it runs in-browser. The API of the two is deliberately similar.</p>
+
+<div class="webr-container" data-block-title="UMAP with the umap package">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">UMAP with the umap package</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(umap)
+
+set.seed(1)
+umap_iris &lt;- umap::umap(iris_scaled, n_neighbors = 15, min_dist = 0.1)
+
+umap_df &lt;- data.frame(
+  x = umap_iris$layout[, 1],
+  y = umap_iris$layout[, 2],
+  species = iris$Species
+)
+
+ggplot(umap_df, aes(x, y, color = species)) +
+  geom_point(size = 2) +
+  labs(title = &quot;UMAP of iris&quot;, x = &quot;UMAP 1&quot;, y = &quot;UMAP 2&quot;)
+#&gt; Three species separate into compact clouds with clear gaps.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>UMAP's output looks tighter than t-SNE's. Points inside a cluster collapse toward a single "blob" while the three blobs drift apart. That is a consequence of the <code>min_dist</code> parameter (how close neighbors are allowed to sit) and UMAP's cost function, which penalizes far-apart neighbors and far-apart non-neighbors symmetrically.</p>
+
+<p>Seeing both methods side-by-side is the fastest way to build intuition. We'll use <code>patchwork</code> to stitch them together.</p>
+
+<div class="webr-container" data-block-title="t-SNE and UMAP side-by-side">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">t-SNE and UMAP side-by-side</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(patchwork)
+
+p_tsne &lt;- ggplot(tsne_df, aes(x, y, color = species)) +
+  geom_point(size = 2) + labs(title = &quot;t-SNE&quot;)
+
+p_umap &lt;- ggplot(umap_df, aes(x, y, color = species)) +
+  geom_point(size = 2) + labs(title = &quot;UMAP&quot;)
+
+p_tsne + p_umap
+#&gt; Two plots. UMAP clusters are denser; t-SNE clusters are more spread out.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Same data, same seed family, same colors. The two plots tell the same <em>story</em> (three clear species) with different <em>visual emphasis</em>. UMAP paints compact, island-like clusters; t-SNE paints soft, diffuse ones. Neither is wrong. Which one you prefer depends on whether you want to eyeball small-scale sub-structure (t-SNE) or big-picture layout (UMAP).</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>uwot is the production alternative.</strong> <code>library(uwot); umap(iris_scaled)</code> gives a near-identical API and runs much faster on large data. The in-browser sample on this page uses the pure-R <code>umap</code> package because <code>uwot</code> ships only as a compiled binary. Swap in <code>uwot::umap()</code> in your local R session.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Re-run <code>umap::umap</code> with <code>n_neighbors = 30</code> and plot the result.</p>
+<div class="webr-container" data-block-title="Your turn: UMAP with n_neighbors = 30">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: UMAP with n_neighbors = 30</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Call umap::umap() with n_neighbors = 30 on iris_scaled
+# your code here
+
+# Test: expect clusters to merge slightly compared to n_neighbors = 15</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="UMAP n_neighbors = 30 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">UMAP n_neighbors = 30 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+ex_umap_nn30 &lt;- umap::umap(iris_scaled, n_neighbors = 30, min_dist = 0.1)
+plot(ex_umap_nn30$layout, col = iris$Species, pch = 19,
+     xlab = &quot;UMAP 1&quot;, ylab = &quot;UMAP 2&quot;,
+     main = &quot;UMAP of iris (n_neighbors = 30)&quot;)
+#&gt; Clusters remain three, but setosa sits closer to the versicolor mass.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Larger <code>n_neighbors</code> means each point considers a wider context. Global structure (setosa being off on its own) gets slightly muted; cluster boundaries blur a little. This is the UMAP equivalent of raising t-SNE's perplexity.</p>
+
+</details>
+</section>
+
+<h2>How do perplexity and n_neighbors change the picture?</h2>
+
+<p>Both parameters are versions of the same question: <em>how big is a local neighborhood?</em> Small values make the algorithm focus on very local structure, so real clusters shatter into fragments. Large values pull in broader context, so real clusters merge. The "right" value is whatever makes the plot show what the data actually contains, and you learn that by trying several.</p>
+
+<p>A grid is the fastest way. Below, we run Rtsne four times at perplexity 5, 15, 30, 50 and plot all four.</p>
+
+<div class="webr-container" data-block-title="Perplexity grid for t-SNE">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Perplexity grid for t-SNE</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">perp_values &lt;- c(5, 15, 30, 50)
+
+perp_grid &lt;- do.call(rbind, lapply(perp_values, function(p) {
+  set.seed(1)
+  out &lt;- Rtsne(iris_scaled, perplexity = p, verbose = FALSE)
+  data.frame(
+    x = out$Y[, 1],
+    y = out$Y[, 2],
+    species = iris$Species,
+    perplexity = paste0(&quot;perp = &quot;, p)
+  )
+}))
+
+ggplot(perp_grid, aes(x, y, color = species)) +
+  geom_point(size = 1.2) +
+  facet_wrap(~ perplexity, scales = &quot;free&quot;) +
+  labs(title = &quot;t-SNE on iris across perplexity values&quot;)
+#&gt; Four panels. Perp=5 shows fragmented sub-clusters; perp=50 shows a smooth layout.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Perplexity 5 fragments virginica into mini-blobs that aren't real sub-species. Perplexity 50 smooths everything into three clean globs. Perplexity 15 and 30 sit between them and show the same story. That's the zone to settle on for this dataset. Reporting just one perplexity without trying others is a common beginner mistake.</p>
+
+<p>The same game with UMAP's <code>n_neighbors</code>:</p>
+
+<div class="webr-container" data-block-title="n_neighbors grid for UMAP">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">n_neighbors grid for UMAP</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">nn_values &lt;- c(5, 15, 30, 50)
+
+nn_grid &lt;- do.call(rbind, lapply(nn_values, function(k) {
+  set.seed(1)
+  out &lt;- umap::umap(iris_scaled, n_neighbors = k, min_dist = 0.1)
+  data.frame(
+    x = out$layout[, 1],
+    y = out$layout[, 2],
+    species = iris$Species,
+    neighbors = paste0(&quot;n_neighbors = &quot;, k)
+  )
+}))
+
+ggplot(nn_grid, aes(x, y, color = species)) +
+  geom_point(size = 1.2) +
+  facet_wrap(~ neighbors, scales = &quot;free&quot;) +
+  labs(title = &quot;UMAP on iris across n_neighbors&quot;)
+#&gt; Four panels. Low n_neighbors splits clusters; high n_neighbors merges them.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Same pattern as t-SNE, different tuning name. UMAP with <code>n_neighbors = 5</code> fragments the clusters; with <code>n_neighbors = 50</code> it softens them. The middle values hit the right balance. <code>min_dist</code> is a secondary knob that controls how tightly points are packed inside a cluster; try <code>0.01</code> for crisp blobs and <code>0.5</code> for loose clouds.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>There is no universally correct perplexity or n_neighbors.</strong> These parameters don't have an objective answer; they have a defensible one, and you find it by trying 3 to 5 values and keeping the layout that is stable across the range.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Run UMAP on iris twice with <code>min_dist = 0.01</code> and <code>min_dist = 0.5</code> and describe the change.</p>
+<div class="webr-container" data-block-title="Your turn: two min_dist values">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: two min_dist values</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Run umap twice on iris_scaled, first with min_dist=0.01, then min_dist=0.5
+# your code here
+
+# Test: expect tighter blobs at 0.01, looser clouds at 0.5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="min_dist comparison solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">min_dist comparison solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+ex_umap_tight &lt;- umap::umap(iris_scaled, n_neighbors = 15, min_dist = 0.01)
+set.seed(1)
+ex_umap_loose &lt;- umap::umap(iris_scaled, n_neighbors = 15, min_dist = 0.5)
+
+par(mfrow = c(1, 2))
+plot(ex_umap_tight$layout, col = iris$Species, pch = 19, main = &quot;min_dist = 0.01&quot;)
+plot(ex_umap_loose$layout, col = iris$Species, pch = 19, main = &quot;min_dist = 0.5&quot;)
+par(mfrow = c(1, 1))
+#&gt; Tight blobs on the left, loose clouds on the right.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>min_dist</code> is the minimum distance UMAP allows between neighboring points in the 2D layout. Smaller = tighter clusters. Use small values for clear visual separation; larger values when you want to see point density inside clusters.</p>
+
+</details>
+</section>
+
+<h2>When should you trust the 2D layout, and when should you not?</h2>
+
+<p>Three traps catch readers who take these plots too literally. The first is seed sensitivity. t-SNE initializes the 2D layout randomly and descends a non-convex objective. Different random seeds reach different minima. Same data, same parameters, different pictures.</p>
+
+<div class="webr-container" data-block-title="Two seeds, two layouts">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Two seeds, two layouts</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(10)
+tsne_s1 &lt;- Rtsne(iris_scaled, perplexity = 30, verbose = FALSE)
+
+set.seed(99)
+tsne_s2 &lt;- Rtsne(iris_scaled, perplexity = 30, verbose = FALSE)
+
+seed_df &lt;- rbind(
+  data.frame(x = tsne_s1$Y[, 1], y = tsne_s1$Y[, 2],
+             species = iris$Species, seed = &quot;seed = 10&quot;),
+  data.frame(x = tsne_s2$Y[, 1], y = tsne_s2$Y[, 2],
+             species = iris$Species, seed = &quot;seed = 99&quot;)
+)
+
+ggplot(seed_df, aes(x, y, color = species)) +
+  geom_point(size = 1.2) +
+  facet_wrap(~ seed, scales = &quot;free&quot;) +
+  labs(title = &quot;Same data, two seeds&quot;)
+#&gt; Same three clusters, but rotated and reshaped between the two seeds.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The clusters survive (good: that tells you they're real). But their shapes, rotations and relative positions change. That is the signal you need: <em>only the cluster membership is robust</em>; <em>everything else is artifact</em>.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Different random seeds produce different layouts.</strong> Always fix the seed with set.seed() in analysis scripts. Rerun with 2 or 3 different seeds to check that your cluster story is stable before making claims about it.</div></div>
+
+<p>The second trap is harder to catch: cluster sizes and inter-cluster gaps on the page don't mean what you think. t-SNE's cost function equalizes cluster density, so a tight cluster of 200 points and a loose cluster of 10 points can appear the same size in the 2D plot. Here's a minimal demo.</p>
+
+<div class="webr-container" data-block-title="Cluster sizes do not reflect reality">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Cluster sizes do not reflect reality</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(42)
+blobs_x &lt;- rbind(
+  matrix(rnorm(200 * 5, mean = 0, sd = 0.1), ncol = 5),   # tight blob, 200 pts
+  matrix(rnorm(200 * 5, mean = 10, sd = 5), ncol = 5)     # loose blob, 200 pts
+)
+blobs_tsne &lt;- Rtsne(blobs_x, perplexity = 30, verbose = FALSE)
+blobs_df &lt;- data.frame(
+  x = blobs_tsne$Y[, 1],
+  y = blobs_tsne$Y[, 2],
+  group = factor(rep(c(&quot;tight (sd=0.1)&quot;, &quot;loose (sd=5)&quot;), each = 200))
+)
+
+ggplot(blobs_df, aes(x, y, color = group)) +
+  geom_point(size = 1.2) +
+  labs(title = &quot;Two blobs, very different spread, similar on page&quot;)
+#&gt; The two clouds look roughly the same size in the plot,
+#&gt; even though the loose blob is 50x wider in the raw data.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>In the raw data, the loose blob has 50x the spread of the tight one. On the t-SNE page, they look similar. If you'd made decisions based on visual cluster diameter, you'd be wrong by a factor of 50. UMAP is slightly better here but has the same general failure mode.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Cluster sizes and inter-cluster gaps on the page are not meaningful.</strong> The 2D coordinates let you spot who-neighbors-whom; they do not measure <em>how different</em> the clusters are. For that, go back to the original high-dimensional data and use a real metric.</div></div>
+
+<p>Both pitfalls above share a cause. These methods are built to reveal <em>who is near whom</em>, not to quantify anything else. So the moment you start reading "the red cluster is twice as wide as the blue one" off a t-SNE plot, you have exited the range where the method's output means what you think it means.</p>
+
+<p>The useful posture is to treat every t-SNE or UMAP plot as a hypothesis generator, never an answer. It suggests "there might be three groups here, and point X looks like it belongs with the red group." You then go back to the original numeric data and test that suggestion with a real clustering algorithm or a statistical test.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>t-SNE and UMAP are exploratory tools, never inferential ones.</strong> Use them to form hypotheses; never to test them. Always confirm findings with the original data, <a class="auto-link" href="Statistical-Tests-in-R.html" title="Statistical Tests in R">statistical tests</a> or a clustering algorithm applied to the raw matrix, not the 2D embedding.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Run Rtsne twice with seeds 10 and 99 on iris, then verify that the first point has different coordinates across the two runs.</p>
+<div class="webr-container" data-block-title="Your turn: verify seed sensitivity">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: verify seed sensitivity</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Run Rtsne on iris_scaled twice with different seeds
+# Print the first row of each output matrix
+# your code here
+
+# Test: the two printed rows should differ numerically</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Seed sensitivity solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Seed sensitivity solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(10); ex_tsne_s10 &lt;- Rtsne(iris_scaled, perplexity = 30, verbose = FALSE)
+set.seed(99); ex_tsne_s99 &lt;- Rtsne(iris_scaled, perplexity = 30, verbose = FALSE)
+
+cat(&quot;Seed 10, point 1:&quot;, ex_tsne_s10$Y[1, ], &quot;\n&quot;)
+cat(&quot;Seed 99, point 1:&quot;, ex_tsne_s99$Y[1, ], &quot;\n&quot;)
+#&gt; Two different pairs of numbers; the layout has moved.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The coordinates differ because the algorithm converges to different local minima of a non-convex objective. The cluster memberships are typically stable; the positions are not.</p>
+
+</details>
+</section>
+
+<h2>When should you pick t-SNE vs UMAP?</h2>
+
+<p>The two methods solve the same problem with different trade-offs. Most projects can use either; the differences matter at the margins.</p>
+
+<p><img src="screenshots/t-SNE-and-UMAP-in-R-tsne-vs-umap-decision.webp" alt="A quick decision guide for picking between t-SNE and UMAP." class="img-responsive img-zoomable" loading="lazy" width="1006" height="2364" /></p>
+
+<p><em>Figure 2: A quick decision guide for choosing between t-SNE and UMAP.</em></p>
+
+<p>Speed is the first lever. UMAP scales roughly linearly in sample size; Barnes-Hut t-SNE scales O(n log n) but with a much larger constant. On a few thousand rows they feel identical. On tens of thousands, UMAP is faster. On hundreds of thousands, t-SNE becomes painful.</p>
+
+<div class="webr-container" data-block-title="Timing both on a 1000-row matrix">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Timing both on a 1000-row matrix</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+bench_mat &lt;- matrix(rnorm(1000 * 30), ncol = 30)
+
+t_tsne &lt;- system.time(Rtsne(bench_mat, perplexity = 30, verbose = FALSE))
+t_umap &lt;- system.time(umap::umap(bench_mat, n_neighbors = 15))
+
+cat(&quot;Rtsne seconds:&quot;, round(t_tsne[&quot;elapsed&quot;], 2), &quot;\n&quot;)
+cat(&quot;umap  seconds:&quot;, round(t_umap[&quot;elapsed&quot;], 2), &quot;\n&quot;)
+#&gt; umap is typically faster on this size; the gap widens with more rows.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>At 1,000 rows and 30 columns, the two methods finish in comparable time. Scale this to 50,000 rows and UMAP wins by 10x or more. That's the first reason UMAP took over in biology and single-cell genomics: practitioners there routinely embed 100k+ points.</p>
+
+<p>The second lever is global structure. UMAP's cost function pushes unrelated points apart more aggressively, so the large-scale layout (which cluster is near which) is more trustworthy than t-SNE's. t-SNE's strength is the opposite: it over-separates clusters, which looks clean but can exaggerate real gaps.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Question</th>
+<th>t-SNE (Rtsne)</th>
+<th>UMAP (umap / uwot)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Speed on 50k rows</td>
+<td>Slow (minutes)</td>
+<td>Fast (seconds)</td>
+</tr>
+<tr>
+<td>Global structure</td>
+<td>Often distorted</td>
+<td>Better preserved</td>
+</tr>
+<tr>
+<td>Key knob</td>
+<td><code>perplexity</code> (5 to 50)</td>
+<td><code>n_neighbors</code> (5 to 50)</td>
+</tr>
+<tr>
+<td>Seed reproducibility</td>
+<td><code>set.seed()</code> works</td>
+<td><code>set.seed()</code> works</td>
+</tr>
+<tr>
+<td>Project new points</td>
+<td>Not supported</td>
+<td><code>uwot::umap_transform()</code></td>
+</tr>
+<tr>
+<td>Output "look"</td>
+<td>Soft, diffuse clouds</td>
+<td>Compact island blobs</td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>For over 50,000 rows, prefer UMAP.</strong> Also prefer UMAP when you need to project new data onto the same embedding later, or when the relative positions of clusters matter to your story.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use <code>system.time()</code> to time Rtsne and umap on a 300-row synthetic matrix. Which finished first?</p>
+<div class="webr-container" data-block-title="Your turn: time both on 300 rows">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: time both on 300 rows</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Make a 300x20 matrix of rnorm, then time both methods
+# your code here
+
+# Test: print both elapsed times</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Timing 300 rows solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Timing 300 rows solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(5)
+ex_bench_mat &lt;- matrix(rnorm(300 * 20), ncol = 20)
+
+ex_t1 &lt;- system.time(Rtsne(ex_bench_mat, perplexity = 20, verbose = FALSE))
+ex_t2 &lt;- system.time(umap::umap(ex_bench_mat, n_neighbors = 15))
+
+cat(&quot;Rtsne:&quot;, round(ex_t1[&quot;elapsed&quot;], 2), &quot;s\n&quot;)
+cat(&quot;umap :&quot;, round(ex_t2[&quot;elapsed&quot;], 2), &quot;s\n&quot;)
+#&gt; Both complete in well under a second at this size.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> On small data, both methods are fast enough that the choice is cosmetic. The speed gap opens as <code>n</code> grows.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<h3>Exercise 1: Embed the attitude dataset</h3>
+
+<p>Scale the built-in <code>attitude</code> data set (30 rows, 7 columns of survey ratings), run Rtsne with <code>perplexity = 7</code>, run <code>umap::umap</code> with <code>n_neighbors = 7</code>, and plot both side by side. Save the side-by-side plot to <code>my_att_plot</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: scale() first, then run both methods, combine with patchwork
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">att_scaled &lt;- scale(attitude)
+
+set.seed(1)
+my_att_tsne &lt;- Rtsne(att_scaled, perplexity = 7, verbose = FALSE)
+set.seed(1)
+my_att_umap &lt;- umap::umap(att_scaled, n_neighbors = 7, min_dist = 0.1)
+
+p_a &lt;- ggplot(data.frame(x = my_att_tsne$Y[, 1], y = my_att_tsne$Y[, 2]),
+              aes(x, y)) + geom_point() + labs(title = &quot;t-SNE (attitude)&quot;)
+p_b &lt;- ggplot(data.frame(x = my_att_umap$layout[, 1], y = my_att_umap$layout[, 2]),
+              aes(x, y)) + geom_point() + labs(title = &quot;UMAP (attitude)&quot;)
+
+my_att_plot &lt;- p_a + p_b
+my_att_plot
+#&gt; Two scatterplots of 30 points each; both methods reveal 2 to 3 loose groupings.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>perplexity = 7</code> and <code>n_neighbors = 7</code> are both below the default because <code>attitude</code> has only 30 rows. Rtsne requires <code>3 * perplexity &lt; n - 1</code>, so anything above 9 would error.</p>
+
+</details>
+
+<h3>Exercise 2: Unified embedding function</h3>
+
+<p>Write a function <code>embed_2d(mat, method = c(&quot;tsne&quot;,&quot;umap&quot;))</code> that scales the matrix internally, runs the chosen method, and returns a data frame with columns <code>x</code>, <code>y</code>, <code>method</code>. Then call it twice on <code>iris[, 1:4]</code> (once for each method), bind the results, and facet-plot the two embeddings.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: match.arg() for the method argument; rbind the two outputs
+
+embed_2d &lt;- function(mat, method = c(&quot;tsne&quot;, &quot;umap&quot;)) {
+  # your code here
+}
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">embed_2d &lt;- function(mat, method = c(&quot;tsne&quot;, &quot;umap&quot;)) {
+  method &lt;- match.arg(method)
+  x_scaled &lt;- scale(mat)
+  set.seed(1)
+  if (method == &quot;tsne&quot;) {
+    out &lt;- Rtsne(x_scaled, perplexity = 30, verbose = FALSE)$Y
+  } else {
+    out &lt;- umap::umap(x_scaled, n_neighbors = 15, min_dist = 0.1)$layout
+  }
+  data.frame(x = out[, 1], y = out[, 2], method = method)
+}
+
+df_tsne &lt;- embed_2d(iris[, 1:4], &quot;tsne&quot;)
+df_umap &lt;- embed_2d(iris[, 1:4], &quot;umap&quot;)
+df_both &lt;- rbind(df_tsne, df_umap)
+df_both$species &lt;- rep(iris$Species, 2)
+
+ggplot(df_both, aes(x, y, color = species)) +
+  geom_point(size = 1.2) +
+  facet_wrap(~ method, scales = &quot;free&quot;) +
+  labs(title = &quot;Same data, both methods&quot;)
+#&gt; Two panels, three clusters each, different visual spacing per method.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>match.arg()</code> validates the <code>method</code> argument against the allowed values, so a typo fails fast. Wrapping both methods behind a single function keeps downstream plotting code identical.</p>
+
+</details>
+
+<h2>Complete Example</h2>
+
+<p>A 500-row sample of the <code>diamonds</code> dataset has seven numeric columns (carat, depth, table, price, x, y, z) plus a <code>cut</code> label with five levels. We want to see whether the numeric features alone carry enough signal to separate diamonds by cut quality.</p>
+
+<div class="webr-container" data-block-title="End-to-end on diamonds">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">End-to-end on diamonds</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(3)
+d_sample &lt;- diamonds[sample(nrow(diamonds), 500), ]
+
+# Keep numeric columns only, drop the rare-value-inflated 'table'
+d_num &lt;- d_sample[, c(&quot;carat&quot;, &quot;depth&quot;, &quot;price&quot;, &quot;x&quot;, &quot;y&quot;, &quot;z&quot;)]
+d_scaled &lt;- scale(d_num)
+
+set.seed(3)
+d_tsne &lt;- Rtsne(d_scaled, perplexity = 30, verbose = FALSE)
+set.seed(3)
+d_umap &lt;- umap::umap(d_scaled, n_neighbors = 15, min_dist = 0.1)
+
+d_df &lt;- rbind(
+  data.frame(x = d_tsne$Y[, 1],        y = d_tsne$Y[, 2],        cut = d_sample$cut, method = &quot;t-SNE&quot;),
+  data.frame(x = d_umap$layout[, 1],   y = d_umap$layout[, 2],   cut = d_sample$cut, method = &quot;UMAP&quot;)
+)
+
+ggplot(d_df, aes(x, y, color = cut)) +
+  geom_point(size = 1, alpha = 0.7) +
+  facet_wrap(~ method, scales = &quot;free&quot;) +
+  labs(title = &quot;t-SNE and UMAP of diamonds (numeric features, 500-row sample)&quot;)
+#&gt; Both panels show a main mass of points; cut labels do NOT form clean clusters.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>This is a useful negative result. The numeric features of a diamond (size, price, shape) do not carry enough information to separate diamonds by <code>cut</code> quality. The cut label is mostly orthogonal to those numeric columns. If your plot looks like this, with points thoroughly mixed by color, the conclusion is that the features you used don't explain the label you colored by, not that t-SNE or UMAP failed. That interpretation check is the most valuable part of running these embeddings.</p>
+
+<h2>Summary</h2>
+
+<p><img src="screenshots/t-SNE-and-UMAP-in-R-overview-mindmap.webp" alt="Overview of what t-SNE and UMAP do, their key knobs, and common traps." class="img-responsive img-zoomable" loading="lazy" width="1666" height="1050" /></p>
+
+<p><em>Figure 3: Overview of what both methods do, their key knobs, and common traps.</em></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Question</th>
+<th>t-SNE (Rtsne)</th>
+<th>UMAP (umap / uwot)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>What's the R call?</td>
+<td><code>Rtsne(x, perplexity = 30)</code></td>
+<td><code>umap::umap(x, n_neighbors = 15)</code></td>
+</tr>
+<tr>
+<td>Main knob</td>
+<td><code>perplexity</code> (5 to 50)</td>
+<td><code>n_neighbors</code> (5 to 50)</td>
+</tr>
+<tr>
+<td>Secondary knob</td>
+<td><code>max_iter</code>, <code>theta</code></td>
+<td><code>min_dist</code>, <code>metric</code></td>
+</tr>
+<tr>
+<td>Global structure</td>
+<td>Often distorted</td>
+<td>Better preserved</td>
+</tr>
+<tr>
+<td>Speed on large n</td>
+<td>Slower</td>
+<td>Faster</td>
+</tr>
+<tr>
+<td>Seed behavior</td>
+<td>Stochastic, fix with <code>set.seed()</code></td>
+<td>Stochastic, fix with <code>set.seed()</code></td>
+</tr>
+<tr>
+<td>New-point projection</td>
+<td>Not supported</td>
+<td><code>uwot::umap_transform()</code></td>
+</tr>
+<tr>
+<td>Good default for n < 5k</td>
+<td>Either works</td>
+<td>Either works</td>
+</tr>
+<tr>
+<td>Good default for n > 50k</td>
+<td>Avoid</td>
+<td>Prefer</td>
+</tr>
+</tbody>
+</table>
+
+<p>Rules of thumb to keep:</p>
+
+<ol>
+
+<li>Always <code>scale()</code> the columns first.</li>
+
+<li>Always <code>set.seed()</code> before the call, and try 2 to 3 seeds.</li>
+
+<li>Always try 3 to 5 values of the main knob (perplexity or n_neighbors).</li>
+
+<li>Never interpret cluster sizes or inter-cluster distances as meaningful.</li>
+
+<li>Confirm any cluster story with a separate method on the raw data.</li>
+
+</ol>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Van der Maaten, L. & Hinton, G. (2008). Visualizing Data using t-SNE. <em>Journal of Machine Learning Research</em>, 9: 2579-2605. <a href="https://www.jmlr.org/papers/volume9/vandermaaten08a/vandermaaten08a.pdf">PDF</a></li>
+
+<li>McInnes, L., Healy, J., & Melville, J. (2018). UMAP: Uniform Manifold Approximation and Projection for Dimension Reduction. <em>arXiv:1802.03426</em>. <a href="https://arxiv.org/abs/1802.03426">Link</a></li>
+
+<li>Krijthe, J. H. Rtsne: R wrapper for Barnes-Hut t-SNE. <a href="https://github.com/jkrijthe/Rtsne">GitHub</a></li>
+
+<li>Konopka, T. umap package on CRAN. <a href="https://cran.r-project.org/package=umap">Link</a></li>
+
+<li>Melville, J. uwot package: R implementation of UMAP. <a href="https://github.com/jlmelville/uwot">GitHub</a></li>
+
+<li>Wattenberg, M., Viégas, F., & Johnson, I. (2016). How to Use t-SNE Effectively. <em>Distill</em>. <a href="https://distill.pub/2016/misread-tsne/">Link</a></li>
+
+<li>Coenen, A. & Pearce, A. Understanding UMAP. <em>Google PAIR</em>. <a href="https://pair-code.github.io/understanding-umap/">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="PCA-in-R.html">PCA with prcomp()</a>: the linear sibling of these methods; always start there before reaching for a nonlinear embedding.</li>
+
+<li><a href="Cluster-Analysis-in-R.html">Clustering in R: k-Means, Hierarchical, DBSCAN</a>: once the embedding suggests groups, confirm them with a clustering algorithm on the raw data.</li>
+
+<li><a href="Linear-Discriminant-Analysis-in-R.html">Linear Discriminant Analysis in R</a>: the supervised alternative when you already know the labels and want to maximize class separation.</li>
+
+</ul>
+
+{% endraw %}
