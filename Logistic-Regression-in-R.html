@@ -3,8 +3,8 @@
   <head>
     <title>Logistic Regression in R: From glm() to Odds Ratios, ROC, and AUC</title>
     <meta charset="utf-8">
-    <meta name="Description" content="Logistic regression in R for binary outcomes: fit with glm(family=binomial), interpret log-odds and odds ratios, evaluate with ROC/AUC via the pROC package.">
-    <meta name="Keywords" content="logistic regression in R, glm binomial, odds ratio interpretation, ROC curve R, AUC pROC, binary classification R, log-odds, confusion matrix, deviance, logistic regression tutorial">
+    <meta name="Description" content="Fit logistic regression in R with glm(family=binomial). Interpret log-odds and odds ratios, evaluate with ROC and AUC via pROC, then check calibration.">
+    <meta name="Keywords" content="logistic regression in R, glm binomial, odds ratio interpretation, ROC curve R, AUC pROC, binary classification R, log-odds, confusion matrix, calibration, McFadden R-squared">
     <meta name="Distribution" content="Global">
     <meta name="Author" content="Selva Prabhakaran">
     <meta name="Robots" content="index, follow">
@@ -131,14 +131,14 @@
     </style>
     <!-- Open Graph -->
     <meta property="og:title" content="Logistic Regression in R: From glm() to Odds Ratios, ROC, and AUC">
-    <meta property="og:description" content="Logistic regression in R for binary outcomes: fit with glm(family=binomial), interpret log-odds and odds ratios, evaluate with ROC/AUC via the pROC package.">
+    <meta property="og:description" content="Fit logistic regression in R with glm(family=binomial). Interpret log-odds and odds ratios, evaluate with ROC and AUC via pROC, then check calibration.">
     <meta property="og:type" content="article">
     <meta property="og:url" content="https://r-statistics.co/Logistic-Regression-in-R.html">
     <meta property="og:site_name" content="r-statistics.co">
     <meta property="og:image" content="https://r-statistics.co/screenshots/og/Logistic-Regression-in-R.png">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Logistic Regression in R: From glm() to Odds Ratios, ROC, and AUC">
-    <meta name="twitter:description" content="Logistic regression in R for binary outcomes: fit with glm(family=binomial), interpret log-odds and odds ratios, evaluate with ROC/AUC via the pROC package.">
+    <meta name="twitter:description" content="Fit logistic regression in R with glm(family=binomial). Interpret log-odds and odds ratios, evaluate with ROC and AUC via pROC, then check calibration.">
     <meta name="twitter:image" content="https://r-statistics.co/screenshots/og/Logistic-Regression-in-R.png">
     <!-- JSON-LD Structured Data -->
     <script type="application/ld+json">
@@ -146,12 +146,12 @@
       "@context": "https://schema.org",
       "@type": ["TechArticle", "LearningResource"],
       "headline": "Logistic Regression in R: From glm() to Odds Ratios, ROC, and AUC",
-      "description": "Logistic regression in R for binary outcomes: fit with glm(family=binomial), interpret log-odds and odds ratios, evaluate with ROC/AUC via the pROC package.",
+      "description": "Fit logistic regression in R with glm(family=binomial). Interpret log-odds and odds ratios, evaluate with ROC and AUC via pROC, then check calibration.",
       "author": {"@type": "Person", "name": "Selva Prabhakaran", "url": "https://r-statistics.co/about/", "jobTitle": "Data Scientist"},
       "publisher": {"@type": "Organization", "name": "r-statistics.co", "url": "https://r-statistics.co/", "logo": {"@type": "ImageObject", "url": "https://r-statistics.co/screenshots/og-default.png"}},
       "url": "https://r-statistics.co/Logistic-Regression-in-R.html",
-      "datePublished": "2026-04-20",
-      "dateModified": "2026-04-20",
+      "datePublished": "2026-04-26",
+      "dateModified": "2026-04-26",
       "inLanguage": "en",
       "educationalLevel": "Intermediate",
       "programmingLanguage": "R",
@@ -223,31 +223,33 @@
 
 <h1>Logistic Regression in R: From glm() to Odds Ratios, ROC, and AUC</h1>
 
-<p class="lead"><a class="auto-link" href="Logistic-Regression-With-R.html" title="Logistic Regression with R">Logistic regression</a> is a classification method that models the probability a binary outcome equals 1 as a linear combination of predictors passed through the sigmoid function. In R you fit it with <code>glm(family = binomial)</code>, interpret the coefficients as log-odds (or exponentiate for odds ratios), then evaluate the classifier with confusion matrices, ROC curves, and AUC.</p>
+<p class="lead"><a class="auto-link" href="Logistic-Regression-With-R.html" title="Logistic Regression with R">Logistic regression</a> predicts the probability of a binary outcome by passing a linear combination of predictors through the sigmoid function. In R you fit it in one line with <code>glm(family = binomial)</code>, read the coefficients on the log-odds scale, exponentiate them to get odds ratios, and evaluate the classifier with confusion matrices, ROC curves, AUC, and a calibration check.</p>
 
-<div class="engagement-header" data-difficulty="Intermediate" data-time="35" data-exercises="10" data-xp="150"></div>
+<div class="engagement-header" data-difficulty="Intermediate" data-time="35" data-exercises="9" data-xp="135"></div>
 
 <h2>How do you fit a logistic regression in R?</h2>
 
-<p>The workhorse function for logistic regression in R is <code>glm()</code>, called with <code>family = binomial</code>. Give it a binary outcome, a set of predictors, and a data frame, and it returns a fitted model with coefficients, standard errors, z-values, and p-values. We will use the built-in <code>mtcars</code> dataset and model whether a car has automatic transmission (<code>am = 0</code>) or manual (<code>am = 1</code>) from weight (<code>wt</code>) and horsepower (<code>hp</code>).</p>
+<p>The function for logistic regression in R is <code>glm()</code> with <code>family = binomial</code>. Hand it a 0/1 outcome, one or more predictors, and a data frame, and it returns a fitted object with coefficients, standard errors, z-values, and p-values, all on the log-odds scale. The example below uses the built-in <code>mtcars</code> data and predicts whether each car has a manual transmission (<code>am = 1</code>) or automatic (<code>am = 0</code>) from weight (<code>wt</code>) and horsepower (<code>hp</code>).</p>
+
+<p>The <code>summary()</code> printout is the most important single object in this whole tutorial. Every interpretation later in the post comes back to numbers you can already see in it.</p>
 
 <div class="webr-container" data-block-title="Fit the first logistic model">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit the first logistic model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl">fit <span class="o">&lt;-</span> <span class="nf">glm</span>(am <span class="o">~</span> wt <span class="o">+</span> hp, data <span class="o">=</span> mtcars, family <span class="o">=</span> binomial)</span>
-<span class="cl"><span class="nf">summary</span>(fit)</span>
+    <div class="webr-editor" data-language="r"><span class="cl">fit_simple <span class="o">&lt;-</span> <span class="nf">glm</span>(am <span class="o">~</span> wt <span class="o">+</span> hp, data <span class="o">=</span> mtcars, family <span class="o">=</span> binomial)</span>
+<span class="cl"><span class="nf">summary</span>(fit_simple)</span>
 <span class="cl"><span class="c1">#&gt; Call:</span></span>
 <span class="cl"><span class="c1">#&gt; glm(formula = am ~ wt + hp, family = binomial, data = mtcars)</span></span>
 <span class="cl"><span class="c1">#&gt;</span></span>
 <span class="cl"><span class="c1">#&gt; Coefficients:</span></span>
-<span class="cl"><span class="c1">#&gt;             Estimate Std. Error z value Pr(&gt;|z|)   </span></span>
-<span class="cl"><span class="c1">#&gt; (Intercept) 18.86630    7.44356   2.535  0.01126 * </span></span>
-<span class="cl"><span class="c1">#&gt; wt          -8.08348    3.06868  -2.634  0.00843 **</span></span>
-<span class="cl"><span class="c1">#&gt; hp           0.03626    0.01773   2.044  0.04091 * </span></span>
+<span class="cl"><span class="c1">#&gt;             Estimate Std. Error z value Pr(&gt;|z|)</span></span>
+<span class="cl"><span class="c1">#&gt; (Intercept) 18.86630    7.44356   2.534   0.0113 *</span></span>
+<span class="cl"><span class="c1">#&gt; wt          -8.08348    3.06868  -2.634   0.0084 **</span></span>
+<span class="cl"><span class="c1">#&gt; hp           0.03626    0.01773   2.044   0.0409 *</span></span>
 <span class="cl"><span class="c1">#&gt;</span></span>
-<span class="cl"><span class="c1">#&gt;     Null deviance: 43.230  on 31  degrees of freedom</span></span>
+<span class="cl"><span class="c1">#&gt; Null deviance: 43.230  on 31  degrees of freedom</span></span>
 <span class="cl"><span class="c1">#&gt; Residual deviance: 10.059  on 29  degrees of freedom</span></span>
-<span class="cl"><span class="c1">#&gt; AIC: 16.06</span></span></div>
+<span class="cl"><span class="c1">#&gt; AIC: 16.059</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -257,26 +259,21 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p><img src="screenshots/Logistic-Regression-in-R-sigmoid-flow.webp" alt="From predictors to a 0/1 class label via the sigmoid." class="img-responsive img-zoomable" loading="lazy" width="2248" height="352" /></p>
+<p>Read the coefficient column first. <code>wt</code> is negative, so heavier cars are less likely to be manual once you control for horsepower. <code>hp</code> is positive, so among cars of similar weight the more powerful ones lean manual. Both p-values sit under 0.05, which means each predictor adds signal beyond chance. The deviance dropped from 43.2 (intercept-only model) to 10.1 (the fitted model), a sharp reduction that tells you the predictors are doing real work. Hold on to this object as <code>fit_simple</code>, every later block reuses it.</p>
 
-<p><em>Figure 1: From predictors to a 0/1 class label via the sigmoid.</em></p>
-
-<p>Read the coefficient table first. The intercept is the log-odds of manual transmission when <code>wt = 0</code> and <code>hp = 0</code>, which is extrapolation, so treat it as scaffolding, not meaning. The <code>wt</code> coefficient is strongly negative (-8.08): heavier cars are less likely to be manual. The <code>hp</code> coefficient is positive (0.036): more horsepower nudges the odds toward manual. Residual deviance (10.06) is much lower than null deviance (43.23), so the predictors are pulling real weight.</p>
-
-<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong><code>family = binomial</code> means "fit on the log-odds scale with a logit link".</strong> The left side of your formula must be binary (0/1 or a two-level factor); glm then minimises binomial deviance rather than sum of squared errors. Swap in <code>family = gaussian</code> and you silently get linear regression on a 0/1 column, which is not the same thing.</div></div>
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong><code>family = binomial</code> is the idiomatic form.</strong> Both <code>family = binomial</code> and <code>family = &quot;binomial&quot;</code> work, but the unquoted version is what you will see in <a class="auto-link" href="Getting-Help-in-R.html" title="Stuck in R? 6 Ways to Get Unstuck Without Wasting Hours">R documentation</a>, textbooks, and most production code. Stick with it for consistency.</div></div>
 
 <section class="tryit-block">
-<p><strong>Try it:</strong> Fit a logistic model called <code>ex_fit</code> predicting engine shape (<code>vs</code>) from miles-per-gallon (<code>mpg</code>) and displacement (<code>disp</code>) on <code>mtcars</code>. Print its coefficients.</p>
-<div class="webr-container" data-block-title="Your turn: fit a second logistic model">
+<p><strong>Try it:</strong> Fit a one-predictor model <code>ex_fit</code> of <code>am</code> on <code>wt</code> alone and check whether the weight coefficient is still negative and significant.</p>
+<div class="webr-container" data-block-title="Your turn: fit a single-predictor model">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: fit a second logistic model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Your turn: fit ex_fit</span></span>
-<span class="cl">ex_fit <span class="o">&lt;-</span> <span class="nf">glm</span>(</span>
-<span class="cl">  <span class="c1"># your formula and family here</span></span>
-<span class="cl">)</span>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: fit a single-predictor model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Try it: fit ex_fit with only wt</span></span>
+<span class="cl">ex_fit <span class="o">&lt;-</span> <span class="nf">glm</span>(am <span class="o">~</span> wt, data <span class="o">=</span> mtcars, family <span class="o">=</span> binomial)</span>
 <span class="cl"></span>
-<span class="cl"><span class="nf">coef</span>(ex_fit)</span>
-<span class="cl"><span class="c1">#&gt; Expected: 3 coefficients (Intercept), mpg, disp</span></span></div>
+<span class="cl"><span class="c1"># Check:</span></span>
+<span class="cl"><span class="nf">summary</span>(ex_fit)<span class="o">$</span>coefficients</span>
+<span class="cl"><span class="c1">#&gt; Expected: weight estimate is negative, p-value &lt; 0.01</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -288,13 +285,14 @@
 <details>
 <summary>Click to reveal solution</summary>
 
-<div class="webr-container" data-block-title="Second logistic model solution">
+<div class="webr-container" data-block-title="Single-predictor solution">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Second logistic model solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl">ex_fit <span class="o">&lt;-</span> <span class="nf">glm</span>(vs <span class="o">~</span> mpg <span class="o">+</span> disp, data <span class="o">=</span> mtcars, family <span class="o">=</span> binomial)</span>
-<span class="cl"><span class="nf">coef</span>(ex_fit)</span>
-<span class="cl"><span class="c1">#&gt; (Intercept)         mpg        disp </span></span>
-<span class="cl"><span class="c1">#&gt; -0.74060054  0.68869289 -0.03259424</span></span></div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Single-predictor solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">ex_fit <span class="o">&lt;-</span> <span class="nf">glm</span>(am <span class="o">~</span> wt, data <span class="o">=</span> mtcars, family <span class="o">=</span> binomial)</span>
+<span class="cl"><span class="nf">summary</span>(ex_fit)<span class="o">$</span>coefficients</span>
+<span class="cl"><span class="c1">#&gt;              Estimate Std. Error   z value    Pr(&gt;|z|)</span></span>
+<span class="cl"><span class="c1">#&gt; (Intercept)  12.04037   4.510430  2.669672 0.007590...</span></span>
+<span class="cl"><span class="c1">#&gt; wt           -4.02397   1.436416 -2.801429 0.005088...</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -304,70 +302,94 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p><strong>Explanation:</strong> <code>vs</code> is already 0/1 in mtcars, so <code>family = binomial</code> works directly. Positive <code>mpg</code> coefficient and negative <code>disp</code> coefficient match intuition: efficient, small-displacement engines tend to be straight-six (<code>vs = 1</code>).</p>
+<p><strong>Explanation:</strong> Weight alone still pushes strongly in the negative direction. Notice the coefficient (-4.02) is smaller in magnitude than in the two-predictor model (-8.08); when <code>hp</code> is removed, <code>wt</code> no longer needs to overshoot to compensate for the positive <code>hp</code> term.</p>
 
 </details>
 </section>
 
-<h2>What do the coefficients mean on the log-odds scale?</h2>
+<h2>Why does linear regression fail for binary outcomes?</h2>
 
-<p>Raw <code>glm()</code> coefficients live on the log-odds scale, not the probability scale. That sentence is the source of most logistic-regression confusion, so it pays to unpack it.</p>
+<p>The temptation is real: an outcome is just a number, so why not throw it into <code>lm()</code> and read off the slope. The answer is that <code>lm()</code> will produce numbers, but they will not behave like probabilities. You can see that with a single line of code: ask the linear model to predict three made-up cars, and at least one prediction will fall outside <code>[0, 1]</code>.</p>
 
-<p>Odds are the ratio of the probability of the event to the probability of the non-event: if an event has probability 0.75, its odds are 3:1. Log-odds is just the natural log of that ratio. Log-odds is useful because it runs from $-\infty$ to $+\infty$, which matches the range of any linear combination of predictors.</p>
+<div class="webr-container" data-block-title="Linear regression on a binary outcome misbehaves">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Linear regression on a binary outcome misbehaves</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">lm_fit <span class="o">&lt;-</span> <span class="nf">lm</span>(am <span class="o">~</span> wt <span class="o">+</span> hp, data <span class="o">=</span> mtcars)</span>
+<span class="cl"><span class="nf">predict</span>(lm_fit, newdata <span class="o">=</span> <span class="nf">data.frame</span>(wt <span class="o">=</span> <span class="nf">c</span>(<span class="m">1.5</span>, <span class="m">2.5</span>, <span class="m">5.5</span>),</span>
+<span class="cl">                                     hp <span class="o">=</span> <span class="nf">c</span>(<span class="m">250</span>, <span class="m">150</span>, <span class="m">100</span>)))</span>
+<span class="cl"><span class="c1">#&gt;          1          2          3</span></span>
+<span class="cl"><span class="c1">#&gt;  1.1804617  0.4963420 -0.5328797</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
 
-<p>The sigmoid function squashes log-odds back into a probability:</p>
+<p>The first prediction says 118% probability of manual transmission, and the third says -53%. Neither is meaningful. That is the surface problem. The deeper problem is that the residuals from a linear fit to a 0/1 outcome cannot be normally distributed (the truth is always 0 or 1, so residuals always pile up at two values), which invalidates every standard error and p-value <code>lm()</code> would print. Logistic regression solves both issues at once: keep the linear combination of predictors, but pass it through a function that maps any real number into <code>[0, 1]</code>. That function is the sigmoid.</p>
 
-<p>$$p = \frac{1}{1 + e^{-z}} \quad \text{where} \quad z = \beta_0 + \beta_1 x_1 + \beta_2 x_2 + \cdots$$</p>
+<div class="webr-container" data-block-title="Plot the sigmoid curve">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot the sigmoid curve</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">z <span class="o">&lt;-</span> <span class="nf">seq</span>(<span class="m">-6</span>, <span class="m">6</span>, length.out <span class="o">=</span> <span class="m">200</span>)</span>
+<span class="cl"><span class="nf">plot</span>(z, <span class="m">1</span> <span class="o">/</span> (<span class="m">1</span> <span class="o">+</span> <span class="nf">exp</span>(<span class="o">-</span>z)), type <span class="o">=</span> <span class="s">&quot;l&quot;</span>, lwd <span class="o">=</span> <span class="m">2</span>,</span>
+<span class="cl">     xlab <span class="o">=</span> <span class="s">&quot;Linear predictor z&quot;</span>, ylab <span class="o">=</span> <span class="s">&quot;Probability p&quot;</span>,</span>
+<span class="cl">     main <span class="o">=</span> <span class="s">&quot;The sigmoid maps any z into [0, 1]&quot;</span>)</span>
+<span class="cl"><span class="nf">abline</span>(h <span class="o">=</span> <span class="nf">c</span>(<span class="m">0</span>, <span class="m">1</span>), lty <span class="o">=</span> <span class="m">3</span>)</span>
+<span class="cl"><span class="nf">abline</span>(h <span class="o">=</span> <span class="m">0.5</span>, v <span class="o">=</span> <span class="m">0</span>, lty <span class="o">=</span> <span class="m">3</span>, col <span class="o">=</span> <span class="s">&quot;grey&quot;</span>)</span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The curve flattens to 0 on the left, to 1 on the right, and crosses 0.5 exactly when the linear predictor equals 0. That is the geometric heart of logistic regression: a plain weighted sum of predictors, squashed through this S-shape, becomes a probability.</p>
+
+<p><img src="screenshots/Logistic-Regression-in-R-sigmoid-flow.webp" alt="Predictors flow through the linear combiner and sigmoid, producing a probability and then a class label." class="img-responsive img-zoomable" loading="lazy" width="2248" height="352" /></p>
+
+<p><em>Figure 1: How logistic regression turns predictor values into a class label.</em></p>
+
+<p>The model can also be written in one equation: the log-odds of the outcome are linear in the predictors.</p>
+
+<p>$$\log\left(\frac{p}{1 - p}\right) = \beta_0 + \beta_1 x_1 + \beta_2 x_2 + \dots$$</p>
 
 <p>Where:</p>
 
 <ul>
 
-<li>$p$ = predicted probability that the outcome is 1</li>
+<li>$p$ = probability the outcome equals 1</li>
 
-<li>$z$ = the linear combination of predictors (also called the <em>logit</em>)</li>
+<li>$\frac{p}{1-p}$ = the odds (a positive number; not bounded above)</li>
 
-<li>$\beta_0, \beta_1, \ldots$ = the coefficients that <code>glm()</code> estimates</li>
+<li>$\log\bigl(\tfrac{p}{1-p}\bigr)$ = the log-odds, also called the <strong>logit</strong> (any real number)</li>
 
-<li>$x_1, x_2, \ldots$ = your predictors</li>
+<li>$\beta_0, \beta_1, \dots$ = the coefficients R estimates</li>
 
 </ul>
 
-<p>The inverse of the sigmoid is the logit, which is what glm actually regresses:</p>
+<p>Solve for $p$ and you get back the sigmoid: $p = 1 / (1 + e^{-z})$ with $z = \beta_0 + \beta_1 x_1 + \dots$. The two formulations are equivalent.</p>
 
-<p>$$\text{logit}(p) = \log\!\left(\frac{p}{1-p}\right) = \beta_0 + \beta_1 x_1 + \cdots$$</p>
-
-<p>Let's extract the coefficients and read their signs.</p>
-
-<div class="webr-container" data-block-title="Pull the log-odds coefficients">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pull the log-odds coefficients</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">coef</span>(fit)</span>
-<span class="cl"><span class="c1">#&gt; (Intercept)          wt          hp </span></span>
-<span class="cl"><span class="c1">#&gt; 18.86629815 -8.08347695  0.03625418</span></span></div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p>Sign tells you direction: a negative coefficient lowers the log-odds of the event, a positive coefficient raises it. Magnitude on the log-odds scale is hard to read directly because one log-odds unit is <em>not</em> one probability unit. A change from log-odds 0 to 1 is a jump from p = 0.5 to p = 0.73, but a change from 5 to 6 is only 0.993 to 0.998. That is exactly why the next section reaches for <code>exp()</code>.</p>
-
-<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Direction from sign, magnitude from exponentiation.</strong> Read signs off the raw coefficient table, then exponentiate before you talk about <a class="auto-link" href="Effect-Size-in-R.html" title="Effect Size in R: The Number p-Values Never Tell You (Cohen's d, η², and r)">effect size</a>. Mixing the two scales is a common reviewer catch in applied papers.</div></div>
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Logistic regression is linear in the log-odds, not in the probability.</strong> That is the trick that keeps the model interpretable while respecting the [0, 1] constraint. Each coefficient says how the log-odds of the outcome shift per one-unit increase in the corresponding predictor, holding the others constant.</div></div>
 
 <section class="tryit-block">
-<p><strong>Try it:</strong> Without running code, predict the sign of the <code>hp</code> coefficient in the original <code>fit</code>. Then confirm by pulling that coefficient in one line.</p>
-<div class="webr-container" data-block-title="Your turn: check the sign of hp">
+<p><strong>Try it:</strong> Write a function <code>ex_sigmoid(z)</code> that returns <code>1 / (1 + exp(-z))</code>, then test it on <code>0</code> and <code>2</code> to verify the curve.</p>
+<div class="webr-container" data-block-title="Your turn: code the sigmoid">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: check the sign of hp</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Your turn: extract the coefficient for hp only</span></span>
-<span class="cl">ex_hp_coef <span class="o">&lt;-</span> <span class="c1"># your code here</span></span>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: code the sigmoid</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Try it: define ex_sigmoid()</span></span>
+<span class="cl">ex_sigmoid <span class="o">&lt;-</span> <span class="kr">function</span>(z) {</span>
+<span class="cl">  <span class="c1"># your code here</span></span>
+<span class="cl">}</span>
 <span class="cl"></span>
-<span class="cl">ex_hp_coef</span>
-<span class="cl"><span class="c1">#&gt; Expected: a small positive number, about 0.036</span></span></div>
+<span class="cl"><span class="c1"># Test:</span></span>
+<span class="cl"><span class="nf">ex_sigmoid</span>(<span class="m">0</span>)</span>
+<span class="cl"><span class="nf">ex_sigmoid</span>(<span class="m">2</span>)</span>
+<span class="cl"><span class="c1">#&gt; Expected: 0.5 and about 0.881</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -379,13 +401,16 @@
 <details>
 <summary>Click to reveal solution</summary>
 
-<div class="webr-container" data-block-title="Sign of the hp coefficient solution">
+<div class="webr-container" data-block-title="Sigmoid solution">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Sign of the hp coefficient solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl">ex_hp_coef <span class="o">&lt;-</span> <span class="nf">coef</span>(fit)[<span class="s">&quot;hp&quot;</span>]</span>
-<span class="cl">ex_hp_coef</span>
-<span class="cl"><span class="c1">#&gt;         hp </span></span>
-<span class="cl"><span class="c1">#&gt; 0.03625418</span></span></div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Sigmoid solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">ex_sigmoid <span class="o">&lt;-</span> <span class="kr">function</span>(z) {</span>
+<span class="cl">  <span class="m">1</span> <span class="o">/</span> (<span class="m">1</span> <span class="o">+</span> <span class="nf">exp</span>(<span class="o">-</span>z))</span>
+<span class="cl">}</span>
+<span class="cl"><span class="nf">ex_sigmoid</span>(<span class="m">0</span>)</span>
+<span class="cl"><span class="c1">#&gt; [1] 0.5</span></span>
+<span class="cl"><span class="nf">ex_sigmoid</span>(<span class="m">2</span>)</span>
+<span class="cl"><span class="c1">#&gt; [1] 0.8807971</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -395,29 +420,35 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p><strong>Explanation:</strong> Higher horsepower is associated with manual transmission in this dataset (sports-car effect), so the coefficient is positive. <code>coef(fit)[&quot;hp&quot;]</code> pulls the named element without recomputing anything.</p>
+<p><strong>Explanation:</strong> At <code>z = 0</code> the sigmoid hits 0.5 exactly, the decision boundary. By <code>z = 2</code> the probability has already climbed to about 0.88, so a moderately positive linear predictor produces a high probability of the positive class.</p>
 
 </details>
 </section>
 
-<h2>How do you convert log-odds to odds ratios in R?</h2>
+<h2>How do you interpret coefficients as odds ratios?</h2>
 
-<p>The single most useful transform in logistic regression is <code>exp()</code>. Exponentiating a log-odds coefficient gives you an <strong>odds ratio</strong>: the multiplicative change in odds for a 1-unit increase in that predictor, holding everything else fixed.</p>
+<p>Coefficients on the log-odds scale are awkward to talk about. Exponentiating them produces <strong>odds ratios</strong>, which are easier: a multiplier on the odds of the positive outcome per one-unit increase in the predictor. An OR of 1 means no effect, OR > 1 means the odds go up, OR < 1 means the odds go down.</p>
 
-<p>Put both coefficients and <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">confidence intervals</a> through <code>exp()</code> at the same time, so the output is ready to drop into a report.</p>
+<p>The relationships between probability, odds, and log-odds are worth burning into memory because every logistic regression table sits on top of them.</p>
 
-<div class="webr-container" data-block-title="Exponentiate coefficients and CIs">
+<p><img src="screenshots/Logistic-Regression-in-R-odds-ladder.webp" alt="A ladder showing probability 0.75 becoming odds of 3, then log-odds of 1.10, and exp(coef) giving the odds ratio." class="img-responsive img-zoomable" loading="lazy" width="2060" height="394" /></p>
+
+<p><em>Figure 2: Probability, odds, and log-odds are three views of the same quantity.</em></p>
+
+<p>The cleanest way to produce odds ratios with <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">confidence intervals</a> is <code>broom::tidy()</code> with <code>exponentiate = TRUE</code> and <code>conf.int = TRUE</code>. One call returns a tibble with estimates, CIs, and p-values, ready for a report.</p>
+
+<div class="webr-container" data-block-title="Exponentiate coefficients to odds ratios">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exponentiate coefficients and CIs</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">exp</span>(<span class="nf">coef</span>(fit))</span>
-<span class="cl"><span class="c1">#&gt; (Intercept)           wt           hp </span></span>
-<span class="cl"><span class="c1">#&gt; 1.560112e+08 3.085815e-04 1.036920e+00</span></span>
-<span class="cl"></span>
-<span class="cl"><span class="nf">exp</span>(<span class="nf">confint</span>(fit))</span>
-<span class="cl"><span class="c1">#&gt;                    2.5 %       97.5 %</span></span>
-<span class="cl"><span class="c1">#&gt; (Intercept) 4.083018e+01 1.290875e+16</span></span>
-<span class="cl"><span class="c1">#&gt; wt          7.437180e-08 1.037220e-02</span></span>
-<span class="cl"><span class="c1">#&gt; hp          1.007032e+00 1.090057e+00</span></span></div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exponentiate coefficients to odds ratios</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">library</span>(broom)</span>
+<span class="cl">or_table <span class="o">&lt;-</span> <span class="nf">tidy</span>(fit_simple, exponentiate <span class="o">=</span> <span class="kc">TRUE</span>, conf.int <span class="o">=</span> <span class="kc">TRUE</span>)</span>
+<span class="cl">or_table</span>
+<span class="cl"><span class="c1">#&gt; # A tibble: 3 × 7</span></span>
+<span class="cl"><span class="c1">#&gt;   term          estimate  std.error statistic p.value   conf.low   conf.high</span></span>
+<span class="cl"><span class="c1">#&gt;   &lt;chr&gt;            &lt;dbl&gt;      &lt;dbl&gt;     &lt;dbl&gt;   &lt;dbl&gt;      &lt;dbl&gt;       &lt;dbl&gt;</span></span>
+<span class="cl"><span class="c1">#&gt; 1 (Intercept) 1.56e+08   7.44          2.53   0.0113   1.70e+02  5.97e+15</span></span>
+<span class="cl"><span class="c1">#&gt; 2 wt          3.08e-04   3.07         -2.63   0.00844  1.14e-07  5.99e-02</span></span>
+<span class="cl"><span class="c1">#&gt; 3 hp          1.04e+00   0.0177        2.04   0.0409   1.00e+00  1.08e+00</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -427,26 +458,22 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p><img src="screenshots/Logistic-Regression-in-R-odds-ladder.webp" alt="The probability, odds, log-odds ladder and where exp(coef) lives." class="img-responsive img-zoomable" loading="lazy" width="2060" height="394" /></p>
+<p>Read the <code>estimate</code> column as odds ratios. For <code>wt</code>, each extra 1000 lbs multiplies the odds of a manual transmission by about 0.0003, an enormous decrease. For <code>hp</code>, each extra horsepower multiplies the odds by about 1.04, a 4% per-hp increase. The 95% CI for <code>hp</code> runs from 1.00 to 1.08, so the direction is solid but the magnitude is uncertain. The intercept's odds ratio of 156 million is the odds at <code>wt = 0</code> and <code>hp = 0</code>, a weightless car with no engine, which is why intercept ORs are usually ignored.</p>
 
-<p><em>Figure 2: The probability, odds, log-odds ladder and where <code>exp(coef)</code> lives.</em></p>
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong><code>broom::tidy(fit, exponentiate = TRUE, conf.int = TRUE)</code> is the one-liner you want.</strong> It is easier to read and report than stitching <code>exp(coef(fit))</code>, <code>exp(confint(fit))</code>, and <code>summary(fit)$coefficients</code> together by hand. The result drops straight into <code>knitr::kable()</code> or <code>gt::gt()</code> for <a class="auto-link" href="gt-Package.html" title="gt Package: Beautiful Publication-Ready Tables in R">publication-ready tables</a>.</div></div>
 
-<p>Read the odds ratios like multipliers. <code>wt</code> sits at 0.0003, which means a 1000-lb (one unit of <code>wt</code>) increase multiplies the odds of manual transmission by about 0.0003, essentially zeroing them out. <code>hp</code> sits at 1.037, which means each extra horsepower multiplies the odds of manual by 1.037, a 3.7 percent bump per horse. The intercept's OR is astronomical because the zero-point is far outside the data, exactly the reason not to interpret it alone.</p>
-
-<p>The confidence intervals for <code>wt</code> and <code>hp</code> both exclude 1, which matches the significant p-values in the summary table: both predictors meaningfully shift the odds.</p>
-
-<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Report coefficient and OR tables together.</strong> Readers who think in probabilities read the OR column; readers who think in regression read the coefficient column. Two <code>cbind()</code>ed tables side by side save every downstream question.</div></div>
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>An odds ratio is not a probability ratio.</strong> An OR of 2 does not mean the probability doubles. Near <code>p = 0.5</code> doubling the odds is a noticeable jump, but near <code>p = 0.01</code> or <code>p = 0.99</code> the probability barely budges. Translate ORs back to probabilities at the values you actually care about before claiming a real-world <a class="auto-link" href="Effect-Size-in-R.html" title="Effect Size in R: The Number p-Values Never Tell You (Cohen's d, η², and r)">effect size</a>.</div></div>
 
 <section class="tryit-block">
-<p><strong>Try it:</strong> Compute the odds ratio for <code>wt</code> alone (no CI) and describe in one sentence what it tells you about manual transmission odds.</p>
-<div class="webr-container" data-block-title="Your turn: odds ratio for wt">
+<p><strong>Try it:</strong> Pull the odds ratio for <code>hp</code> out of <code>or_table</code> and store it in <code>ex_or_hp</code>, then read what it means in plain English.</p>
+<div class="webr-container" data-block-title="Your turn: extract the hp odds ratio">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: odds ratio for wt</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Your turn: compute the OR for wt</span></span>
-<span class="cl">ex_or_wt <span class="o">&lt;-</span> <span class="c1"># your code here</span></span>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: extract the hp odds ratio</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Try it: get the odds ratio for hp</span></span>
+<span class="cl">ex_or_hp <span class="o">&lt;-</span> <span class="c1"># your code here</span></span>
 <span class="cl"></span>
-<span class="cl">ex_or_wt</span>
-<span class="cl"><span class="c1">#&gt; Expected: a tiny number near 0.0003</span></span></div>
+<span class="cl">ex_or_hp</span>
+<span class="cl"><span class="c1">#&gt; Expected: about 1.04</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -458,13 +485,12 @@
 <details>
 <summary>Click to reveal solution</summary>
 
-<div class="webr-container" data-block-title="Odds ratio for wt solution">
+<div class="webr-container" data-block-title="Odds ratio extraction solution">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Odds ratio for wt solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl">ex_or_wt <span class="o">&lt;-</span> <span class="nf">exp</span>(<span class="nf">coef</span>(fit)[<span class="s">&quot;wt&quot;</span>])</span>
-<span class="cl">ex_or_wt</span>
-<span class="cl"><span class="c1">#&gt;           wt </span></span>
-<span class="cl"><span class="c1">#&gt; 0.0003085815</span></span></div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Odds ratio extraction solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">ex_or_hp <span class="o">&lt;-</span> or_table<span class="o">$</span>estimate[or_table<span class="o">$</span>term <span class="o">==</span> <span class="s">&quot;hp&quot;</span>]</span>
+<span class="cl">ex_or_hp</span>
+<span class="cl"><span class="c1">#&gt; [1] 1.036924</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -474,24 +500,27 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p><strong>Explanation:</strong> Every extra 1000 pounds of weight multiplies the odds of manual transmission by about 0.0003, which is effectively "forget about it". Heavy cars are almost always automatic in this dataset.</p>
+<p><strong>Explanation:</strong> Each additional horsepower multiplies the odds of a manual transmission by about 1.04, holding weight constant. Compounded over 100 hp, that becomes 1.04^100 ≈ 38, which is why the predicted probability climbs so steeply with horsepower in this dataset.</p>
 
 </details>
 </section>
 
-<h2>How do you predict probabilities with predict()?</h2>
+<h2>How do you predict probabilities and build a confusion matrix?</h2>
 
-<p>Once you have a fitted model, <code>predict()</code> turns new inputs into outputs. The one detail that trips people up is the <code>type</code> argument.</p>
-
-<p>By default, <code>predict(fit)</code> returns predictions on the link-function scale, which for binomial glm is log-odds, not probabilities. To get probabilities, pass <code>type = &quot;response&quot;</code>.</p>
+<p><code>predict()</code> on a <code>glm</code> defaults to the link scale (log-odds), which is rarely what you want. Pass <code>type = &quot;response&quot;</code> to get probabilities. Then apply a threshold (0.5 is the textbook default) to turn probabilities into 0/1 predictions, and tabulate against the actual outcomes.</p>
 
 <div class="webr-container" data-block-title="Predict probabilities on the training data">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Predict probabilities on the training data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl">probs <span class="o">&lt;-</span> <span class="nf">predict</span>(fit, type <span class="o">=</span> <span class="s">&quot;response&quot;</span>)</span>
-<span class="cl"><span class="nf">head</span>(probs)</span>
-<span class="cl"><span class="c1">#&gt;         Mazda RX4     Mazda RX4 Wag        Datsun 710    Hornet 4 Drive Hornet Sportabout           Valiant </span></span>
-<span class="cl"><span class="c1">#&gt;         0.6417069         0.3879396         0.7544747         0.2030433         0.1200615         0.1013027</span></span></div>
+    <div class="webr-editor" data-language="r"><span class="cl">probs <span class="o">&lt;-</span> <span class="nf">predict</span>(fit_simple, type <span class="o">=</span> <span class="s">&quot;response&quot;</span>)</span>
+<span class="cl"><span class="nf">head</span>(probs, <span class="m">6</span>)</span>
+<span class="cl"><span class="c1">#&gt;         Mazda RX4     Mazda RX4 Wag        Datsun 710    Hornet 4 Drive</span></span>
+<span class="cl"><span class="c1">#&gt;         0.8775318         0.7727612         0.4805494         0.1582043</span></span>
+<span class="cl"><span class="c1">#&gt; Hornet Sportabout           Valiant</span></span>
+<span class="cl"><span class="c1">#&gt;         0.3476240         0.1154495</span></span>
+<span class="cl"><span class="nf">summary</span>(probs)</span>
+<span class="cl"><span class="c1">#&gt;    Min. 1st Qu.  Median    Mean 3rd Qu.    Max.</span></span>
+<span class="cl"><span class="c1">#&gt; 0.00079 0.04547 0.30814 0.40625 0.87753 0.99790</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -501,91 +530,21 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Each entry is the model's estimated probability that the car is manual. The Mazda RX4 (0.64) tilts toward manual; the Hornet Sportabout (0.12) tilts clearly toward automatic.</p>
+<p>Every row of <code>mtcars</code> now has a predicted probability of being manual, ranging from near 0 to near 1. The Mazda RX4 (probability 0.88) is correctly identified as a likely manual; the Hornet 4 Drive (0.16) as automatic. Now apply the 0.5 cutoff and build the confusion matrix.</p>
 
-<p>You can also predict for data the model has never seen. Build a new data frame with the same column names as the training predictors and pass it in.</p>
-
-<div class="webr-container" data-block-title="Predict for a hypothetical car">
+<div class="webr-container" data-block-title="Threshold probabilities and build a confusion matrix">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Predict for a hypothetical car</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl">new_car <span class="o">&lt;-</span> <span class="nf">data.frame</span>(wt <span class="o">=</span> <span class="m">3.0</span>, hp <span class="o">=</span> <span class="m">150</span>)</span>
-<span class="cl">p_new <span class="o">&lt;-</span> <span class="nf">predict</span>(fit, newdata <span class="o">=</span> new_car, type <span class="o">=</span> <span class="s">&quot;response&quot;</span>)</span>
-<span class="cl">p_new</span>
-<span class="cl"><span class="c1">#&gt;        1 </span></span>
-<span class="cl"><span class="c1">#&gt; 0.929711</span></span></div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p>A 3000-lb, 150-hp car comes out at a 93 percent probability of manual. That lines up with the data: lighter cars with reasonable power are disproportionately manual in <code>mtcars</code>.</p>
-
-<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Forgetting <code>type = &quot;response&quot;</code> returns log-odds.</strong> If you feed log-odds into an <code>ifelse(x &gt; 0.5, ...)</code> threshold, you will classify almost everything as negative because log-odds near 0 correspond to probability 0.5, and most of your points are likely much bigger or smaller than 0. Always specify <code>type</code> explicitly for glm predictions.</div></div>
-
-<section class="tryit-block">
-<p><strong>Try it:</strong> Predict the probability of manual for a car with <code>wt = 2.5, hp = 110</code>.</p>
-<div class="webr-container" data-block-title="Your turn: predict for a new car">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: predict for a new car</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Your turn: build the newdata and predict</span></span>
-<span class="cl">ex_car <span class="o">&lt;-</span> <span class="nf">data.frame</span>(wt <span class="o">=</span> <span class="m">2.5</span>, hp <span class="o">=</span> <span class="m">110</span>)</span>
-<span class="cl">ex_p <span class="o">&lt;-</span> <span class="c1"># your code here</span></span>
-<span class="cl"></span>
-<span class="cl">ex_p</span>
-<span class="cl"><span class="c1">#&gt; Expected: a probability well above 0.9</span></span></div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-<details>
-<summary>Click to reveal solution</summary>
-
-<div class="webr-container" data-block-title="Predict for a new car solution">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Predict for a new car solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl">ex_car <span class="o">&lt;-</span> <span class="nf">data.frame</span>(wt <span class="o">=</span> <span class="m">2.5</span>, hp <span class="o">=</span> <span class="m">110</span>)</span>
-<span class="cl">ex_p <span class="o">&lt;-</span> <span class="nf">predict</span>(fit, newdata <span class="o">=</span> ex_car, type <span class="o">=</span> <span class="s">&quot;response&quot;</span>)</span>
-<span class="cl">ex_p</span>
-<span class="cl"><span class="c1">#&gt;         1 </span></span>
-<span class="cl"><span class="c1">#&gt; 0.9940213</span></span></div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p><strong>Explanation:</strong> Light car (2500 lb) with moderate power (110 hp) lands at a 99 percent probability of manual. The fitted boundary in <code>mtcars</code> is roughly weight-driven, so once you are below ~3000 lb, the model is confident.</p>
-
-</details>
-</section>
-
-<h2>How do you turn probabilities into class labels?</h2>
-
-<p>A classifier needs a decision, not just a probability. The mechanical step is to pick a threshold and compare each probability against it. The convention is 0.5, but that is a default, not a law.</p>
-
-<p>Build the 2x2 confusion matrix by cross-tabulating predicted classes against actual classes.</p>
-
-<div class="webr-container" data-block-title="Classify and build a confusion matrix">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Classify and build a confusion matrix</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl">preds <span class="o">&lt;-</span> <span class="nf">ifelse</span>(probs <span class="o">&gt;</span> <span class="m">0.5</span>, <span class="m">1</span>, <span class="m">0</span>)</span>
-<span class="cl">cm <span class="o">&lt;-</span> <span class="nf">table</span>(Predicted <span class="o">=</span> preds, Actual <span class="o">=</span> mtcars<span class="o">$</span>am)</span>
-<span class="cl">cm</span>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Threshold probabilities and build a confusion matrix</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">pred_class <span class="o">&lt;-</span> <span class="nf">ifelse</span>(probs <span class="o">&gt;</span> <span class="m">0.5</span>, <span class="m">1</span>, <span class="m">0</span>)</span>
+<span class="cl">conf_mat <span class="o">&lt;-</span> <span class="nf">table</span>(Predicted <span class="o">=</span> pred_class, Actual <span class="o">=</span> mtcars<span class="o">$</span>am)</span>
+<span class="cl">conf_mat</span>
 <span class="cl"><span class="c1">#&gt;          Actual</span></span>
 <span class="cl"><span class="c1">#&gt; Predicted  0  1</span></span>
 <span class="cl"><span class="c1">#&gt;         0 18  1</span></span>
-<span class="cl"><span class="c1">#&gt;         1  1 12</span></span></div>
+<span class="cl"><span class="c1">#&gt;         1  1 12</span></span>
+<span class="cl">acc <span class="o">&lt;-</span> <span class="nf">sum</span>(<span class="nf">diag</span>(conf_mat)) <span class="o">/</span> <span class="nf">sum</span>(conf_mat)</span>
+<span class="cl">acc</span>
+<span class="cl"><span class="c1">#&gt; [1] 0.9375</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -595,45 +554,23 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Read the matrix diagonals as correct predictions: 18 automatics and 12 manuals classified correctly. Off-diagonals are errors: 1 <a class="auto-link" href="Type-I-and-Type-II-Errors-in-R.html" title="Type I and Type II Errors in R: Visualise the Trade-Off Between α and Power">false positive</a> (automatic predicted as manual) and 1 false negative (manual predicted as automatic).</p>
+<p>The classifier got 30 of 32 cars right, which is 93.75% accuracy. The matrix shows one <a class="auto-link" href="Type-I-and-Type-II-Errors-in-R.html" title="Type I and Type II Errors in R: Visualise the Trade-Off Between α and Power">false positive</a> (an automatic predicted as manual) and one false negative. On 32 rows that is impressive but slightly suspect: the model was scored on the same data it was fit on, which always flatters the result. A real evaluation would split into train and test, or use cross-validation.</p>
 
-<p>From the matrix, standard metrics fall out with one line of arithmetic each.</p>
-
-<div class="webr-container" data-block-title="Derive accuracy, sensitivity, specificity">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Derive accuracy, sensitivity, specificity</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl">acc  <span class="o">&lt;-</span> <span class="nf">sum</span>(<span class="nf">diag</span>(cm)) <span class="o">/</span> <span class="nf">sum</span>(cm)</span>
-<span class="cl">sens <span class="o">&lt;-</span> cm[<span class="s">&quot;1&quot;</span>, <span class="s">&quot;1&quot;</span>] <span class="o">/</span> <span class="nf">sum</span>(cm[, <span class="s">&quot;1&quot;</span>])</span>
-<span class="cl">spec <span class="o">&lt;-</span> cm[<span class="s">&quot;0&quot;</span>, <span class="s">&quot;0&quot;</span>] <span class="o">/</span> <span class="nf">sum</span>(cm[, <span class="s">&quot;0&quot;</span>])</span>
-<span class="cl"></span>
-<span class="cl"><span class="nf">c</span>(accuracy <span class="o">=</span> acc, sensitivity <span class="o">=</span> sens, specificity <span class="o">=</span> spec)</span>
-<span class="cl"><span class="c1">#&gt;    accuracy sensitivity specificity </span></span>
-<span class="cl"><span class="c1">#&gt;   0.9375000   0.9230769   0.9473684</span></span></div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p>Accuracy at 94 percent, sensitivity (correctly caught manuals) at 92 percent, specificity (correctly caught automatics) at 95 percent. For a small dataset fitted on itself, those are optimistic numbers, but they show the mechanics end to end.</p>
-
-<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Threshold choice is a decision, not a statistic.</strong> If a false negative costs 10 times a false positive (say, missing a fraud case vs flagging a clean transaction), the threshold should drop well below 0.5. The model does not know your costs, so the threshold encodes them.</div></div>
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>The 0.5 threshold is a convention, not a law.</strong> If false positives cost more than false negatives (or vice versa), shift the threshold. The next section turns this from a guess into a deliberate choice using the ROC curve.</div></div>
 
 <section class="tryit-block">
-<p><strong>Try it:</strong> Rebuild the confusion matrix at a stricter threshold of 0.7 and report accuracy.</p>
-<div class="webr-container" data-block-title="Your turn: threshold at 0.7">
+<p><strong>Try it:</strong> Recompute the confusion matrix at threshold 0.3 instead of 0.5, then save the new accuracy to <code>ex_acc</code>.</p>
+<div class="webr-container" data-block-title="Your turn: lower threshold accuracy">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: threshold at 0.7</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Your turn: make predictions at threshold 0.7 and compute accuracy</span></span>
-<span class="cl">ex_preds <span class="o">&lt;-</span> <span class="c1"># your code here</span></span>
-<span class="cl">ex_cm <span class="o">&lt;-</span> <span class="nf">table</span>(Predicted <span class="o">=</span> ex_preds, Actual <span class="o">=</span> mtcars<span class="o">$</span>am)</span>
-<span class="cl">ex_acc <span class="o">&lt;-</span> <span class="nf">sum</span>(<span class="nf">diag</span>(ex_cm)) <span class="o">/</span> <span class="nf">sum</span>(ex_cm)</span>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: lower threshold accuracy</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Try it: use threshold 0.3</span></span>
+<span class="cl">ex_pred <span class="o">&lt;-</span> <span class="nf">ifelse</span>(probs <span class="o">&gt;</span> <span class="m">0.3</span>, <span class="m">1</span>, <span class="m">0</span>)</span>
+<span class="cl">ex_mat <span class="o">&lt;-</span> <span class="nf">table</span>(Predicted <span class="o">=</span> ex_pred, Actual <span class="o">=</span> mtcars<span class="o">$</span>am)</span>
+<span class="cl"></span>
+<span class="cl">ex_acc <span class="o">&lt;-</span> <span class="c1"># your code here</span></span>
 <span class="cl"></span>
 <span class="cl">ex_acc</span>
-<span class="cl"><span class="c1">#&gt; Expected: a number in the low 0.9s</span></span></div>
+<span class="cl"><span class="c1">#&gt; Expected: still high, but more false positives</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -645,14 +582,14 @@
 <details>
 <summary>Click to reveal solution</summary>
 
-<div class="webr-container" data-block-title="Threshold 0.7 solution">
+<div class="webr-container" data-block-title="Threshold 0.3 accuracy solution">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Threshold 0.7 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl">ex_preds <span class="o">&lt;-</span> <span class="nf">ifelse</span>(probs <span class="o">&gt;</span> <span class="m">0.7</span>, <span class="m">1</span>, <span class="m">0</span>)</span>
-<span class="cl">ex_cm <span class="o">&lt;-</span> <span class="nf">table</span>(Predicted <span class="o">=</span> ex_preds, Actual <span class="o">=</span> mtcars<span class="o">$</span>am)</span>
-<span class="cl">ex_acc <span class="o">&lt;-</span> <span class="nf">sum</span>(<span class="nf">diag</span>(ex_cm)) <span class="o">/</span> <span class="nf">sum</span>(ex_cm)</span>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Threshold 0.3 accuracy solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">ex_pred <span class="o">&lt;-</span> <span class="nf">ifelse</span>(probs <span class="o">&gt;</span> <span class="m">0.3</span>, <span class="m">1</span>, <span class="m">0</span>)</span>
+<span class="cl">ex_mat <span class="o">&lt;-</span> <span class="nf">table</span>(Predicted <span class="o">=</span> ex_pred, Actual <span class="o">=</span> mtcars<span class="o">$</span>am)</span>
+<span class="cl">ex_acc <span class="o">&lt;-</span> <span class="nf">sum</span>(<span class="nf">diag</span>(ex_mat)) <span class="o">/</span> <span class="nf">sum</span>(ex_mat)</span>
 <span class="cl">ex_acc</span>
-<span class="cl"><span class="c1">#&gt; [1] 0.90625</span></span></div>
+<span class="cl"><span class="c1">#&gt; [1] 0.84375</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -662,25 +599,27 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p><strong>Explanation:</strong> A higher threshold calls fewer cars "manual", which raises specificity (fewer false positives) but drops sensitivity (more missed manuals). Accuracy slips slightly to 0.91.</p>
+<p><strong>Explanation:</strong> A lower threshold catches more positives but classifies more negatives as positives, so accuracy drops. Whether that is a worthwhile trade depends on which kind of mistake costs more.</p>
 
 </details>
 </section>
 
-<h2>How do you draw the ROC curve and compute AUC?</h2>
+<h2>How do you evaluate the model with ROC curves and AUC?</h2>
 
-<p>The problem with reporting accuracy at a single threshold is that the threshold is arbitrary. The receiver operating characteristic (ROC) curve sidesteps that problem by sweeping every threshold from 0 to 1 and plotting true positive rate against false positive rate along the way. AUC (area under the curve) summarises the whole sweep as one number.</p>
+<p>A confusion matrix freezes one threshold. The ROC curve (Receiver Operating Characteristic) sweeps every possible threshold and plots the true-positive rate (sensitivity) against the false-positive rate (1 − specificity). The area under that curve, the AUC, summarises the entire tradeoff in a single number: 0.5 is random guessing, 1.0 is perfect separation, and 0.8 or above is generally considered strong.</p>
 
-<p>The <code>pROC</code> package is the standard R tool for this job. <code>roc()</code> builds the curve object and <code>auc()</code> pulls out the area.</p>
+<p>The <code>pROC</code> package is the standard tool. Pass it the truth vector and the predicted probabilities, and it returns an <code>roc</code> object that you can plot or pass to <code>auc()</code> and <code>ci.auc()</code>.</p>
 
-<div class="webr-container" data-block-title="Compute the ROC curve and AUC">
+<div class="webr-container" data-block-title="ROC curve and AUC with pROC">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compute the ROC curve and AUC</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">ROC curve and AUC with pROC</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
     <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">library</span>(pROC)</span>
-<span class="cl"></span>
 <span class="cl">roc_obj <span class="o">&lt;-</span> <span class="nf">roc</span>(mtcars<span class="o">$</span>am, probs, quiet <span class="o">=</span> <span class="kc">TRUE</span>)</span>
-<span class="cl"><span class="nf">auc</span>(roc_obj)</span>
-<span class="cl"><span class="c1">#&gt; Area under the curve: 0.9905</span></span></div>
+<span class="cl"><span class="nf">plot</span>(roc_obj, main <span class="o">=</span> <span class="s">&quot;ROC curve for am ~ wt + hp&quot;</span>,</span>
+<span class="cl">     col <span class="o">=</span> <span class="s">&quot;#9370DB&quot;</span>, lwd <span class="o">=</span> <span class="m">3</span>, legacy.axes <span class="o">=</span> <span class="kc">TRUE</span>)</span>
+<span class="cl">auc_val <span class="o">&lt;-</span> <span class="nf">auc</span>(roc_obj)</span>
+<span class="cl">auc_val</span>
+<span class="cl"><span class="c1">#&gt; Area under the curve: 0.9816</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -690,15 +629,16 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>An AUC of 0.99 is very high. The rough interpretation ladder: 0.5 is a coin flip, 0.7 to 0.8 is acceptable, 0.8 to 0.9 is good, above 0.9 is excellent, and 1.0 is perfect separation. Anything near 1.0 on training data should trigger a cross-validation check, because it often means the model has memorised the sample.</p>
+<p>The curve hugs the top-left corner, the visual signature of a strong classifier. The AUC of 0.98 has a clean interpretation: pick one manual and one automatic car at random, and the model assigns a higher predicted probability to the manual one about 98% of the time. That is excellent ranking quality, with the same caveat as before: it was measured on training data.</p>
 
-<p>Now plot the curve itself. The diagonal is the "no-skill" reference; the farther your curve bows toward the top-left corner, the better.</p>
+<p>A point estimate of AUC without a confidence interval can be misleading. <code>ci.auc()</code> returns a 95% CI by DeLong's method.</p>
 
-<div class="webr-container" data-block-title="Plot the ROC curve">
+<div class="webr-container" data-block-title="95% confidence interval around AUC">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot the ROC curve</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">plot</span>(roc_obj, col <span class="o">=</span> <span class="s">&quot;steelblue&quot;</span>, lwd <span class="o">=</span> <span class="m">2</span>,</span>
-<span class="cl">     main <span class="o">=</span> <span class="s">&quot;ROC: automatic vs manual transmission&quot;</span>)</span></div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">95% confidence interval around AUC</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">auc_ci <span class="o">&lt;-</span> <span class="nf">ci.auc</span>(roc_obj)</span>
+<span class="cl">auc_ci</span>
+<span class="cl"><span class="c1">#&gt; 95% CI: 0.9430-1 (DeLong)</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -708,21 +648,22 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Every point on that curve is one threshold. The top-left corner is the perfect classifier (100 percent sensitivity, 0 percent false positives). The closer you get to it, the better your threshold-metric pair.</p>
+<p>The interval runs from 0.94 up to the theoretical ceiling of 1.0. With only 32 rows the CI is wide; in practice you would want more data before claiming this AUC as a property of the population, not just this sample.</p>
 
-<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>AUC is threshold-free.</strong> Mathematically, AUC is the probability that a randomly chosen positive example is ranked higher by the model than a randomly chosen negative example. That interpretation is why AUC is a natural single-number summary for comparing classifiers.</div></div>
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong><code>pROC::coords(roc_obj, &quot;best&quot;)</code> returns the Youden-optimal threshold.</strong> Youden's J statistic is <code>sensitivity + specificity − 1</code>, and <code>coords</code> maximises it by default. Using it is a defensible automatic choice when false positives and false negatives carry equal cost.</div></div>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Training-set AUC is optimistic.</strong> The model has seen every row, so it knows the right answer in advance. Real evaluation requires held-out data or k-fold cross-validation. Every metric in this section would shrink, sometimes meaningfully, on out-of-sample data.</div></div>
 
 <section class="tryit-block">
-<p><strong>Try it:</strong> Fit a single-predictor model using only <code>wt</code>, compute its AUC, and compare to the full model's AUC.</p>
-<div class="webr-container" data-block-title="Your turn: AUC of a single-predictor model">
+<p><strong>Try it:</strong> Use <code>coords(roc_obj, &quot;best&quot;)</code> to extract the Youden-optimal threshold, store it in <code>ex_best</code>, and compare it to the default 0.5.</p>
+<div class="webr-container" data-block-title="Your turn: find the best threshold">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: AUC of a single-predictor model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Your turn: fit, predict, roc, auc</span></span>
-<span class="cl">ex_fit_wt <span class="o">&lt;-</span> <span class="nf">glm</span>(am <span class="o">~</span> wt, data <span class="o">=</span> mtcars, family <span class="o">=</span> binomial)</span>
-<span class="cl">ex_probs_wt <span class="o">&lt;-</span> <span class="c1"># your code here</span></span>
-<span class="cl">ex_roc_wt <span class="o">&lt;-</span> <span class="nf">roc</span>(mtcars<span class="o">$</span>am, ex_probs_wt, quiet <span class="o">=</span> <span class="kc">TRUE</span>)</span>
-<span class="cl"><span class="nf">auc</span>(ex_roc_wt)</span>
-<span class="cl"><span class="c1">#&gt; Expected: slightly lower than 0.99</span></span></div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: find the best threshold</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Try it: best threshold by Youden&#39;s J</span></span>
+<span class="cl">ex_best <span class="o">&lt;-</span> <span class="c1"># your code here</span></span>
+<span class="cl"></span>
+<span class="cl">ex_best</span>
+<span class="cl"><span class="c1">#&gt; Expected: a tibble with threshold, specificity, sensitivity</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -734,14 +675,14 @@
 <details>
 <summary>Click to reveal solution</summary>
 
-<div class="webr-container" data-block-title="Single-predictor AUC solution">
+<div class="webr-container" data-block-title="Youden best-threshold solution">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Single-predictor AUC solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl">ex_fit_wt <span class="o">&lt;-</span> <span class="nf">glm</span>(am <span class="o">~</span> wt, data <span class="o">=</span> mtcars, family <span class="o">=</span> binomial)</span>
-<span class="cl">ex_probs_wt <span class="o">&lt;-</span> <span class="nf">predict</span>(ex_fit_wt, type <span class="o">=</span> <span class="s">&quot;response&quot;</span>)</span>
-<span class="cl">ex_roc_wt <span class="o">&lt;-</span> <span class="nf">roc</span>(mtcars<span class="o">$</span>am, ex_probs_wt, quiet <span class="o">=</span> <span class="kc">TRUE</span>)</span>
-<span class="cl"><span class="nf">auc</span>(ex_roc_wt)</span>
-<span class="cl"><span class="c1">#&gt; Area under the curve: 0.9798</span></span></div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Youden best-threshold solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">ex_best <span class="o">&lt;-</span> <span class="nf">coords</span>(roc_obj, <span class="s">&quot;best&quot;</span>,</span>
+<span class="cl">                  ret <span class="o">=</span> <span class="nf">c</span>(<span class="s">&quot;threshold&quot;</span>, <span class="s">&quot;specificity&quot;</span>, <span class="s">&quot;sensitivity&quot;</span>))</span>
+<span class="cl">ex_best</span>
+<span class="cl"><span class="c1">#&gt;   threshold specificity sensitivity</span></span>
+<span class="cl"><span class="c1">#&gt; 1 0.3876663   0.9473684           1</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -751,25 +692,26 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p><strong>Explanation:</strong> Dropping <code>hp</code> costs about a tenth of a percentage point of AUC. <code>wt</code> carries most of the discriminative signal; <code>hp</code> adds a sliver of separability.</p>
+<p><strong>Explanation:</strong> The Youden-optimal cutoff is about 0.39, well below the textbook 0.5. At that threshold the model catches every actual manual (sensitivity = 1.0) while misclassifying only one automatic (specificity ≈ 0.95). On this dataset that beats the default cutoff on both axes.</p>
 
 </details>
 </section>
 
-<h2>Which threshold should you pick for your business problem?</h2>
+<h2>How do you check model fit and calibration?</h2>
 
-<p>Picking a threshold is not a statistics question, it is a trade-off question: what does each type of error cost you? <code>pROC</code> exposes the whole curve through <code>coords()</code>, so you can pick the point that matches your cost structure.</p>
+<p>A high AUC proves the model <strong>ranks</strong> cases correctly: positives get higher probabilities than negatives on average. It says nothing about whether the predicted probabilities are honest. A classifier that always predicts 0.9 for positives and 0.8 for negatives can have AUC = 1 yet still be badly miscalibrated. If a downstream system is going to plug these probabilities into a formula (risk score, expected loss, regulatory report), calibration matters as much as ranking.</p>
 
-<p>Youden's J statistic (sensitivity + specificity - 1) is a popular default. It maximises the vertical distance from the diagonal, which balances the two error types equally.</p>
+<p>The first calibration check costs nothing extra. McFadden's pseudo-R² is one minus the ratio of model deviance to null deviance, both of which <code>glm</code> already computed. Values above 0.2 are considered good for logistic regression; the scale is not the same as ordinary R² and 0.5 is unusually high.</p>
 
-<div class="webr-container" data-block-title="Best threshold by Youden&#x27;s J">
+<div class="webr-container" data-block-title="Deviance and McFadden pseudo-R-squared">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Best threshold by Youden&#x27;s J</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl">best_thr <span class="o">&lt;-</span> <span class="nf">coords</span>(roc_obj, <span class="s">&quot;best&quot;</span>, best.method <span class="o">=</span> <span class="s">&quot;youden&quot;</span>,</span>
-<span class="cl">                   ret <span class="o">=</span> <span class="nf">c</span>(<span class="s">&quot;threshold&quot;</span>, <span class="s">&quot;sensitivity&quot;</span>, <span class="s">&quot;specificity&quot;</span>))</span>
-<span class="cl">best_thr</span>
-<span class="cl"><span class="c1">#&gt;   threshold sensitivity specificity</span></span>
-<span class="cl"><span class="c1">#&gt; 1 0.5116658           1   0.9473684</span></span></div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Deviance and McFadden pseudo-R-squared</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">null_dev <span class="o">&lt;-</span> fit_simple<span class="o">$</span>null.deviance</span>
+<span class="cl">resid_dev <span class="o">&lt;-</span> fit_simple<span class="o">$</span>deviance</span>
+<span class="cl">pseudo_r2 <span class="o">&lt;-</span> <span class="m">1</span> <span class="o">-</span> resid_dev <span class="o">/</span> null_dev</span>
+<span class="cl"><span class="nf">c</span>(null <span class="o">=</span> null_dev, residual <span class="o">=</span> resid_dev, pseudo_r2 <span class="o">=</span> pseudo_r2)</span>
+<span class="cl"><span class="c1">#&gt;      null  residual pseudo_r2</span></span>
+<span class="cl"><span class="c1">#&gt; 43.22975  10.05911   0.76734</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -779,22 +721,53 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>At threshold 0.512, the model flags every actual manual (sensitivity 1.0) while still correctly clearing 95 percent of automatics. For most applications, that is a very clean operating point.</p>
+<p>A pseudo-R² of 0.77 is very high, again reflecting how tightly this 32-row dataset fits. Real-world logistic models more typically land between 0.1 and 0.4.</p>
 
-<p>If your costs are asymmetric (for example, missing a manual is much worse than flagging an automatic), skip Youden's J and pick the point by reading sensitivity and specificity off the curve directly.</p>
+<p>For calibration, a binned table is more revealing than any single statistic. Divide the predicted probabilities into a few bins (here, quintiles), then compare the mean predicted probability and the mean observed outcome inside each bin. If the model is calibrated, the two columns should track each other.</p>
 
-<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>If false negatives cost 10x false positives, drop the threshold well below 0.5.</strong> A lower threshold catches more true positives at the price of more false positives, which matches the cost ratio. Translate the cost ratio into a target sensitivity, then read the threshold off <code>coords()</code>.</div></div>
+<div class="webr-container" data-block-title="Build a calibration table with dplyr::ntile">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build a calibration table with dplyr::ntile</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">library</span>(dplyr)</span>
+<span class="cl">calib_df <span class="o">&lt;-</span> <span class="nf">tibble</span>(prob <span class="o">=</span> probs, actual <span class="o">=</span> mtcars<span class="o">$</span>am) <span class="o">|&gt;</span></span>
+<span class="cl">  <span class="nf">mutate</span>(bin <span class="o">=</span> <span class="nf">ntile</span>(prob, <span class="m">5</span>)) <span class="o">|&gt;</span></span>
+<span class="cl">  <span class="nf">group_by</span>(bin) <span class="o">|&gt;</span></span>
+<span class="cl">  <span class="nf">summarise</span>(n <span class="o">=</span> <span class="nf">n</span>(),</span>
+<span class="cl">            mean_predicted <span class="o">=</span> <span class="nf">mean</span>(prob),</span>
+<span class="cl">            mean_actual <span class="o">=</span> <span class="nf">mean</span>(actual),</span>
+<span class="cl">            .groups <span class="o">=</span> <span class="s">&quot;drop&quot;</span>)</span>
+<span class="cl">calib_df</span>
+<span class="cl"><span class="c1">#&gt; # A tibble: 5 × 4</span></span>
+<span class="cl"><span class="c1">#&gt;     bin     n mean_predicted mean_actual</span></span>
+<span class="cl"><span class="c1">#&gt;   &lt;int&gt; &lt;int&gt;          &lt;dbl&gt;       &lt;dbl&gt;</span></span>
+<span class="cl"><span class="c1">#&gt; 1     1     7        0.0077        0</span></span>
+<span class="cl"><span class="c1">#&gt; 2     2     6        0.0541        0</span></span>
+<span class="cl"><span class="c1">#&gt; 3     3     7        0.2694        0.286</span></span>
+<span class="cl"><span class="c1">#&gt; 4     4     6        0.7184        0.833</span></span>
+<span class="cl"><span class="c1">#&gt; 5     5     6        0.9481        1</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The two rightmost columns sit close to each other in every bin, the pattern you want to see. Bin 3's predicted mean of 0.27 lines up with an observed rate of 0.29; bin 4's 0.72 matches 0.83. The probabilities behave like probabilities here, which means downstream code can treat them as risks rather than just rankings.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A model can have high AUC and still be badly miscalibrated.</strong> AUC measures ranking. Calibration measures whether a "70% probability" patient actually develops the outcome 70% of the time. They are independent properties. For risk scoring, insurance pricing, or any pipeline that consumes the probability itself, you have to check both.</div></div>
 
 <section class="tryit-block">
-<p><strong>Try it:</strong> Look up sensitivity and specificity at a fixed threshold of 0.3 with <code>coords()</code>.</p>
-<div class="webr-container" data-block-title="Your turn: coords at threshold 0.3">
+<p><strong>Try it:</strong> Recompute the pseudo-R² directly from <code>fit_simple</code>'s deviance slots without the intermediate variables, and store the result in <code>ex_pr2</code>.</p>
+<div class="webr-container" data-block-title="Your turn: pseudo-R-squared from scratch">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: coords at threshold 0.3</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Your turn: query coords() at a specific threshold</span></span>
-<span class="cl">ex_pt <span class="o">&lt;-</span> <span class="c1"># your code here</span></span>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: pseudo-R-squared from scratch</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Try it: compute McFadden pseudo-R-squared</span></span>
+<span class="cl">ex_pr2 <span class="o">&lt;-</span> <span class="c1"># your code here</span></span>
 <span class="cl"></span>
-<span class="cl">ex_pt</span>
-<span class="cl"><span class="c1">#&gt; Expected: sensitivity 1, specificity around 0.89</span></span></div>
+<span class="cl">ex_pr2</span>
+<span class="cl"><span class="c1">#&gt; Expected: about 0.77</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -806,14 +779,12 @@
 <details>
 <summary>Click to reveal solution</summary>
 
-<div class="webr-container" data-block-title="Coords at threshold 0.3 solution">
+<div class="webr-container" data-block-title="Pseudo-R-squared solution">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Coords at threshold 0.3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl">ex_pt <span class="o">&lt;-</span> <span class="nf">coords</span>(roc_obj, x <span class="o">=</span> <span class="m">0.3</span>, input <span class="o">=</span> <span class="s">&quot;threshold&quot;</span>,</span>
-<span class="cl">                ret <span class="o">=</span> <span class="nf">c</span>(<span class="s">&quot;sensitivity&quot;</span>, <span class="s">&quot;specificity&quot;</span>))</span>
-<span class="cl">ex_pt</span>
-<span class="cl"><span class="c1">#&gt;   sensitivity specificity</span></span>
-<span class="cl"><span class="c1">#&gt; 1           1   0.8947368</span></span></div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pseudo-R-squared solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">ex_pr2 <span class="o">&lt;-</span> <span class="m">1</span> <span class="o">-</span> fit_simple<span class="o">$</span>deviance <span class="o">/</span> fit_simple<span class="o">$</span>null.deviance</span>
+<span class="cl">ex_pr2</span>
+<span class="cl"><span class="c1">#&gt; [1] 0.7673436</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -823,22 +794,22 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p><strong>Explanation:</strong> At threshold 0.3 you still catch every manual (sensitivity = 1) but you misclassify two more automatics as manual, dropping specificity to 0.89. Useful when false negatives are expensive.</p>
+<p><strong>Explanation:</strong> Both deviance values live directly on the fitted <code>glm</code> object, so there is no need to rerun <code>summary()</code>. McFadden's formula is the one-liner above and runs in microseconds.</p>
 
 </details>
 </section>
 
 <h2>Practice Exercises</h2>
 
-<h3>Exercise 1: End-to-end pipeline on iris (binary subset)</h3>
+<h3>Exercise 1: Odds-ratio table for a different model</h3>
 
-<p>Subset <code>iris</code> to versicolor and virginica only, fit a logistic regression of species on <code>Sepal.Length + Petal.Length</code>, compute exponentiated coefficients with 95 percent confidence intervals, and report the AUC of the resulting classifier. Save the final AUC to <code>my_auc</code>.</p>
+<p>Fit a logistic regression of <code>am</code> on <code>mpg + qsec</code> in <code>mtcars</code> and return a tibble of odds ratios with 95% confidence intervals using <code>broom::tidy</code>. Save the result to <code>my_or_table</code>.</p>
 
-<div class="webr-container" data-block-title="Exercise 1: iris binary classifier">
+<div class="webr-container" data-block-title="Exercise 1 starter">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1: iris binary classifier</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Hint: filter iris first, then coerce the factor to 0/1</span></span>
-<span class="cl"><span class="c1"># For pROC: roc(response_0_1, predicted_probs)</span></span>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Exercise 1: fit and tidy with OR + CI</span></span>
+<span class="cl"><span class="c1"># Hint: use exponentiate = TRUE and conf.int = TRUE</span></span>
 <span class="cl"></span>
 <span class="cl"><span class="c1"># Write your code below:</span></span></div>
     <div class="webr-buttons">
@@ -853,21 +824,18 @@
 <details>
 <summary>Click to reveal solution</summary>
 
-<div class="webr-container" data-block-title="Iris binary classifier solution">
+<div class="webr-container" data-block-title="Exercise 1 solution">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Iris binary classifier solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl">iris_bin <span class="o">&lt;-</span> <span class="nf">subset</span>(iris, Species <span class="o">!=</span> <span class="s">&quot;setosa&quot;</span>)</span>
-<span class="cl">iris_bin<span class="o">$</span>y <span class="o">&lt;-</span> <span class="nf">ifelse</span>(iris_bin<span class="o">$</span>Species <span class="o">==</span> <span class="s">&quot;virginica&quot;</span>, <span class="m">1</span>, <span class="m">0</span>)</span>
-<span class="cl"></span>
-<span class="cl">my_fit <span class="o">&lt;-</span> <span class="nf">glm</span>(y <span class="o">~</span> Sepal.Length <span class="o">+</span> Petal.Length,</span>
-<span class="cl">              data <span class="o">=</span> iris_bin, family <span class="o">=</span> binomial)</span>
-<span class="cl"><span class="nf">exp</span>(<span class="nf">cbind</span>(OR <span class="o">=</span> <span class="nf">coef</span>(my_fit), <span class="nf">confint</span>(my_fit)))</span>
-<span class="cl"></span>
-<span class="cl">my_probs <span class="o">&lt;-</span> <span class="nf">predict</span>(my_fit, type <span class="o">=</span> <span class="s">&quot;response&quot;</span>)</span>
-<span class="cl">my_roc <span class="o">&lt;-</span> <span class="nf">roc</span>(iris_bin<span class="o">$</span>y, my_probs, quiet <span class="o">=</span> <span class="kc">TRUE</span>)</span>
-<span class="cl">my_auc <span class="o">&lt;-</span> <span class="nf">auc</span>(my_roc)</span>
-<span class="cl">my_auc</span>
-<span class="cl"><span class="c1">#&gt; Area under the curve: 0.9934</span></span></div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">my_fit <span class="o">&lt;-</span> <span class="nf">glm</span>(am <span class="o">~</span> mpg <span class="o">+</span> qsec, data <span class="o">=</span> mtcars, family <span class="o">=</span> binomial)</span>
+<span class="cl">my_or_table <span class="o">&lt;-</span> <span class="nf">tidy</span>(my_fit, exponentiate <span class="o">=</span> <span class="kc">TRUE</span>, conf.int <span class="o">=</span> <span class="kc">TRUE</span>)</span>
+<span class="cl">my_or_table</span>
+<span class="cl"><span class="c1">#&gt; # A tibble: 3 × 7</span></span>
+<span class="cl"><span class="c1">#&gt;   term        estimate std.error statistic p.value conf.low conf.high</span></span>
+<span class="cl"><span class="c1">#&gt;   &lt;chr&gt;          &lt;dbl&gt;     &lt;dbl&gt;     &lt;dbl&gt;   &lt;dbl&gt;    &lt;dbl&gt;     &lt;dbl&gt;</span></span>
+<span class="cl"><span class="c1">#&gt; 1 (Intercept) 9.10e+07    16.0        1.15  0.249  3.90e-05    NA</span></span>
+<span class="cl"><span class="c1">#&gt; 2 mpg         2.67e+00     0.421      2.33  0.0198 1.36e+00   8.92</span></span>
+<span class="cl"><span class="c1">#&gt; 3 qsec        1.91e-01     0.755     -2.20  0.0281 3.81e-02   0.743</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -877,19 +845,19 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p><strong>Explanation:</strong> Dropping setosa leaves the harder pair (versicolor vs virginica). <code>Petal.Length</code> dominates, and the model separates the two species nearly perfectly on training data.</p>
+<p><strong>Explanation:</strong> The OR for <code>mpg</code> is about 2.7, so each extra mile per gallon nearly triples the odds of a manual transmission, fuel-efficient cars in this dataset tend to be manuals. <code>qsec</code> (quarter-mile time) has an OR of 0.19, so slower cars are less likely to be manuals.</p>
 
 </details>
 
-<h3>Exercise 2: Threshold tuning with custom cost</h3>
+<h3>Exercise 2: End-to-end pipeline on <code>infert</code></h3>
 
-<p>For the original <code>fit</code> on <code>mtcars</code>, pick the threshold that maximises <code>2 * sensitivity + specificity</code> (a scheme that penalises false negatives twice as heavily as false positives). Use <code>coords()</code> with <code>best.method = &quot;closest.topleft&quot;</code> or compute the score manually across the full curve. Save the winning threshold to <code>my_thr</code>.</p>
+<p>The <code>infert</code> dataset (built into base R) is a case-control study of infertility after spontaneous and induced abortions. Fit <code>case ~ age + parity + education + spontaneous</code> with <code>family = binomial</code>, compute AUC on the full dataset, and find the Youden-optimal threshold. Save AUC to <code>my_auc</code> and threshold to <code>my_thresh</code>.</p>
 
-<div class="webr-container" data-block-title="Exercise 2: cost-aware threshold">
+<div class="webr-container" data-block-title="Exercise 2 starter">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2: cost-aware threshold</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Hint: coords(roc_obj, &quot;all&quot;) returns every candidate threshold</span></span>
-<span class="cl"><span class="c1"># Compute the custom score row-wise, then which.max()</span></span>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Exercise 2: fit, AUC, best threshold</span></span>
+<span class="cl"><span class="c1"># Hint: predict(type=&quot;response&quot;) -&gt; roc() -&gt; auc() and coords()</span></span>
 <span class="cl"></span>
 <span class="cl"><span class="c1"># Write your code below:</span></span></div>
     <div class="webr-buttons">
@@ -904,15 +872,18 @@
 <details>
 <summary>Click to reveal solution</summary>
 
-<div class="webr-container" data-block-title="Cost-aware threshold solution">
+<div class="webr-container" data-block-title="Exercise 2 solution">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Cost-aware threshold solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl">all_pts <span class="o">&lt;-</span> <span class="nf">coords</span>(roc_obj, <span class="s">&quot;all&quot;</span>,</span>
-<span class="cl">                  ret <span class="o">=</span> <span class="nf">c</span>(<span class="s">&quot;threshold&quot;</span>, <span class="s">&quot;sensitivity&quot;</span>, <span class="s">&quot;specificity&quot;</span>))</span>
-<span class="cl">score <span class="o">&lt;-</span> <span class="m">2</span> <span class="o">*</span> all_pts<span class="o">$</span>sensitivity <span class="o">+</span> all_pts<span class="o">$</span>specificity</span>
-<span class="cl">my_thr <span class="o">&lt;-</span> all_pts<span class="o">$</span>threshold[<span class="nf">which.max</span>(score)]</span>
-<span class="cl">my_thr</span>
-<span class="cl"><span class="c1">#&gt; [1] 0.3870307</span></span></div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">inf_fit <span class="o">&lt;-</span> <span class="nf">glm</span>(case <span class="o">~</span> age <span class="o">+</span> parity <span class="o">+</span> education <span class="o">+</span> spontaneous,</span>
+<span class="cl">               data <span class="o">=</span> infert, family <span class="o">=</span> binomial)</span>
+<span class="cl">inf_probs <span class="o">&lt;-</span> <span class="nf">predict</span>(inf_fit, type <span class="o">=</span> <span class="s">&quot;response&quot;</span>)</span>
+<span class="cl">inf_roc <span class="o">&lt;-</span> <span class="nf">roc</span>(infert<span class="o">$</span>case, inf_probs, quiet <span class="o">=</span> <span class="kc">TRUE</span>)</span>
+<span class="cl">my_auc <span class="o">&lt;-</span> <span class="nf">as.numeric</span>(<span class="nf">auc</span>(inf_roc))</span>
+<span class="cl">my_thresh <span class="o">&lt;-</span> <span class="nf">coords</span>(inf_roc, <span class="s">&quot;best&quot;</span>, ret <span class="o">=</span> <span class="s">&quot;threshold&quot;</span>)<span class="o">$</span>threshold</span>
+<span class="cl"><span class="nf">c</span>(auc <span class="o">=</span> my_auc, threshold <span class="o">=</span> my_thresh)</span>
+<span class="cl"><span class="c1">#&gt;        auc  threshold</span></span>
+<span class="cl"><span class="c1">#&gt; 0.75049200 0.36022150</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -922,18 +893,20 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p><strong>Explanation:</strong> Weighting sensitivity twice pushes the optimal threshold lower than Youden's balanced answer. That is exactly the kind of shift you want when false negatives are costly.</p>
+<p><strong>Explanation:</strong> AUC of 0.75 is moderate, which is realistic for a small medical case-control study. The Youden threshold is 0.36, not 0.5, because the dataset has more controls than cases and the default cutoff underweights the positives.</p>
 
 </details>
 
-<h3>Exercise 3: Model comparison via AUC</h3>
+<h3>Exercise 3: Calibration check on <code>infert</code></h3>
 
-<p>Fit two candidate models on <code>mtcars</code>: the full model (<code>am ~ wt + hp</code>) and a reduced model (<code>am ~ wt</code>). Compute AUC for each and use <code>roc.test()</code> from <code>pROC</code> to test whether the difference is statistically significant. Save the p-value to <code>my_pvalue</code>.</p>
+<p>Continuing from Exercise 2, build a calibration table for the <code>infert</code> model: bin the predicted probabilities into 4 quartiles using <code>ntile()</code>, compute the mean predicted probability and the mean observed <code>case</code> rate per bin, and save the result to <code>my_calib</code>.</p>
 
-<div class="webr-container" data-block-title="Exercise 3: AUC comparison">
+<div class="webr-container" data-block-title="Exercise 3 starter">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3: AUC comparison</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Hint: build two roc objects, then roc.test(roc1, roc2)</span></span>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Exercise 3: calibration table on infert</span></span>
+<span class="cl"><span class="c1"># Hint: tibble(prob, actual) |&gt; mutate(bin = ntile(prob, 4)) |&gt;</span></span>
+<span class="cl"><span class="c1">#       group_by(bin) |&gt; summarise(...)</span></span>
 <span class="cl"></span>
 <span class="cl"><span class="c1"># Write your code below:</span></span></div>
     <div class="webr-buttons">
@@ -948,18 +921,24 @@
 <details>
 <summary>Click to reveal solution</summary>
 
-<div class="webr-container" data-block-title="AUC comparison solution">
+<div class="webr-container" data-block-title="Exercise 3 solution">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">AUC comparison solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl">roc_full <span class="o">&lt;-</span> <span class="nf">roc</span>(mtcars<span class="o">$</span>am, <span class="nf">predict</span>(fit, type <span class="o">=</span> <span class="s">&quot;response&quot;</span>), quiet <span class="o">=</span> <span class="kc">TRUE</span>)</span>
-<span class="cl">roc_wt   <span class="o">&lt;-</span> <span class="nf">roc</span>(mtcars<span class="o">$</span>am,</span>
-<span class="cl">                <span class="nf">predict</span>(<span class="nf">glm</span>(am <span class="o">~</span> wt, data <span class="o">=</span> mtcars, family <span class="o">=</span> binomial),</span>
-<span class="cl">                        type <span class="o">=</span> <span class="s">&quot;response&quot;</span>),</span>
-<span class="cl">                quiet <span class="o">=</span> <span class="kc">TRUE</span>)</span>
-<span class="cl">cmp <span class="o">&lt;-</span> <span class="nf">roc.test</span>(roc_full, roc_wt)</span>
-<span class="cl">my_pvalue <span class="o">&lt;-</span> cmp<span class="o">$</span>p.value</span>
-<span class="cl">my_pvalue</span>
-<span class="cl"><span class="c1">#&gt; [1] 0.4828533</span></span></div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">my_calib <span class="o">&lt;-</span> <span class="nf">tibble</span>(prob <span class="o">=</span> inf_probs, actual <span class="o">=</span> infert<span class="o">$</span>case) <span class="o">|&gt;</span></span>
+<span class="cl">  <span class="nf">mutate</span>(bin <span class="o">=</span> <span class="nf">ntile</span>(prob, <span class="m">4</span>)) <span class="o">|&gt;</span></span>
+<span class="cl">  <span class="nf">group_by</span>(bin) <span class="o">|&gt;</span></span>
+<span class="cl">  <span class="nf">summarise</span>(n <span class="o">=</span> <span class="nf">n</span>(),</span>
+<span class="cl">            mean_predicted <span class="o">=</span> <span class="nf">mean</span>(prob),</span>
+<span class="cl">            mean_actual <span class="o">=</span> <span class="nf">mean</span>(actual),</span>
+<span class="cl">            .groups <span class="o">=</span> <span class="s">&quot;drop&quot;</span>)</span>
+<span class="cl">my_calib</span>
+<span class="cl"><span class="c1">#&gt; # A tibble: 4 × 4</span></span>
+<span class="cl"><span class="c1">#&gt;     bin     n mean_predicted mean_actual</span></span>
+<span class="cl"><span class="c1">#&gt;   &lt;int&gt; &lt;int&gt;          &lt;dbl&gt;       &lt;dbl&gt;</span></span>
+<span class="cl"><span class="c1">#&gt; 1     1    62          0.122       0.113</span></span>
+<span class="cl"><span class="c1">#&gt; 2     2    62          0.234       0.226</span></span>
+<span class="cl"><span class="c1">#&gt; 3     3    62          0.376       0.371</span></span>
+<span class="cl"><span class="c1">#&gt; 4     4    62          0.587       0.629</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -969,37 +948,37 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p><strong>Explanation:</strong> On this small dataset, the AUC gap between the two models is not statistically significant (p ~ 0.48). Prefer the simpler model unless downstream evaluation contradicts this.</p>
+<p><strong>Explanation:</strong> The two rightmost columns track each other across all four bins. The largest gap is in bin 4 (predicted 0.59, observed 0.63), a small underprediction at the high-risk end. Overall the <code>infert</code> model is reasonably well calibrated, so its probabilities can be quoted as risks, not just rankings.</p>
 
 </details>
 
 <h2>Complete Example</h2>
 
-<p>Real projects string the whole pipeline together in one pass: clean the data, fit, interpret, predict, evaluate. The block below does exactly that for the built-in <code>airquality</code> dataset, turning the continuous <code>Ozone</code> column into a binary "high ozone" flag and predicting it from temperature and wind.</p>
+<p>Here is the full workflow in one block, applied end-to-end to <code>infert</code>. Use this as the template for your own binary-outcome problems.</p>
 
-<div class="webr-container" data-block-title="End-to-end: predict high ozone days">
+<div class="webr-container" data-block-title="End-to-end logistic regression on infert">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">End-to-end: predict high ozone days</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl">aq <span class="o">&lt;-</span> <span class="nf">na.omit</span>(airquality)</span>
-<span class="cl">aq<span class="o">$</span>high_ozone <span class="o">&lt;-</span> <span class="nf">as.integer</span>(aq<span class="o">$</span>Ozone <span class="o">&gt;</span> <span class="nf">median</span>(aq<span class="o">$</span>Ozone))</span>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">End-to-end logistic regression on infert</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">inf_fit2 <span class="o">&lt;-</span> <span class="nf">glm</span>(case <span class="o">~</span> age <span class="o">+</span> parity <span class="o">+</span> education <span class="o">+</span> spontaneous <span class="o">+</span> induced,</span>
+<span class="cl">                data <span class="o">=</span> infert, family <span class="o">=</span> binomial)</span>
 <span class="cl"></span>
-<span class="cl">fit_aq <span class="o">&lt;-</span> <span class="nf">glm</span>(high_ozone <span class="o">~</span> Temp <span class="o">+</span> Wind, data <span class="o">=</span> aq, family <span class="o">=</span> binomial)</span>
-<span class="cl"><span class="nf">exp</span>(<span class="nf">cbind</span>(OR <span class="o">=</span> <span class="nf">coef</span>(fit_aq), <span class="nf">confint</span>(fit_aq)))</span>
-<span class="cl"><span class="c1">#&gt;                   OR        2.5 %      97.5 %</span></span>
-<span class="cl"><span class="c1">#&gt; (Intercept) 5.084e-11 3.183e-15 2.033e-07</span></span>
-<span class="cl"><span class="c1">#&gt; Temp        1.420e+00 1.248e+00 1.649e+00</span></span>
-<span class="cl"><span class="c1">#&gt; Wind        7.729e-01 6.281e-01 9.351e-01</span></span>
+<span class="cl">inf_or <span class="o">&lt;-</span> <span class="nf">tidy</span>(inf_fit2, exponentiate <span class="o">=</span> <span class="kc">TRUE</span>, conf.int <span class="o">=</span> <span class="kc">TRUE</span>)</span>
+<span class="cl"><span class="nf">print</span>(inf_or)</span>
+<span class="cl"><span class="c1">#&gt; # A tibble: 6 × 7  (odds ratios with 95% CIs)</span></span>
 <span class="cl"></span>
-<span class="cl">probs_aq <span class="o">&lt;-</span> <span class="nf">predict</span>(fit_aq, type <span class="o">=</span> <span class="s">&quot;response&quot;</span>)</span>
-<span class="cl">roc_aq <span class="o">&lt;-</span> <span class="nf">roc</span>(aq<span class="o">$</span>high_ozone, probs_aq, quiet <span class="o">=</span> <span class="kc">TRUE</span>)</span>
-<span class="cl"><span class="nf">auc</span>(roc_aq)</span>
-<span class="cl"><span class="c1">#&gt; Area under the curve: 0.9044</span></span>
+<span class="cl">inf_probs2 <span class="o">&lt;-</span> <span class="nf">predict</span>(inf_fit2, type <span class="o">=</span> <span class="s">&quot;response&quot;</span>)</span>
+<span class="cl">inf_class  <span class="o">&lt;-</span> <span class="nf">ifelse</span>(inf_probs2 <span class="o">&gt;</span> <span class="m">0.5</span>, <span class="m">1</span>, <span class="m">0</span>)</span>
+<span class="cl"><span class="nf">table</span>(Predicted <span class="o">=</span> inf_class, Actual <span class="o">=</span> infert<span class="o">$</span>case)</span>
+<span class="cl"><span class="c1">#&gt;          Actual</span></span>
+<span class="cl"><span class="c1">#&gt; Predicted   0   1</span></span>
+<span class="cl"><span class="c1">#&gt;         0 158  52</span></span>
+<span class="cl"><span class="c1">#&gt;         1   7  31</span></span>
 <span class="cl"></span>
-<span class="cl">best_aq <span class="o">&lt;-</span> <span class="nf">coords</span>(roc_aq, <span class="s">&quot;best&quot;</span>, best.method <span class="o">=</span> <span class="s">&quot;youden&quot;</span>,</span>
-<span class="cl">                  ret <span class="o">=</span> <span class="nf">c</span>(<span class="s">&quot;threshold&quot;</span>, <span class="s">&quot;sensitivity&quot;</span>, <span class="s">&quot;specificity&quot;</span>))</span>
-<span class="cl">best_aq</span>
-<span class="cl"><span class="c1">#&gt;   threshold sensitivity specificity</span></span>
-<span class="cl"><span class="c1">#&gt; 1 0.4710   0.8305      0.8356</span></span></div>
+<span class="cl">inf_roc2 <span class="o">&lt;-</span> <span class="nf">roc</span>(infert<span class="o">$</span>case, inf_probs2, quiet <span class="o">=</span> <span class="kc">TRUE</span>)</span>
+<span class="cl"><span class="nf">auc</span>(inf_roc2)</span>
+<span class="cl"><span class="c1">#&gt; Area under the curve: 0.7806</span></span>
+<span class="cl"><span class="nf">ci.auc</span>(inf_roc2)</span>
+<span class="cl"><span class="c1">#&gt; 95% CI: 0.7222-0.8389 (DeLong)</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -1009,86 +988,96 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Every extra degree of temperature multiplies the odds of a high-ozone day by 1.42; every extra mph of wind multiplies them by 0.77. AUC of 0.90 puts this firmly in "good" territory, and Youden's J suggests classifying with threshold 0.47 rather than 0.5 to balance sensitivity and specificity at about 0.83 each.</p>
+<p>Read the odds ratios first: the <code>spontaneous</code> coefficient is the clinically interesting one, and its exponentiated value sits well above 1, so a history of spontaneous abortions multiplies the odds of infertility after adjusting for the other predictors. The classifier hits an AUC of 0.78 (95% CI 0.72-0.84), meaningfully better than chance. The confusion matrix at the default 0.5 threshold reveals the case-control imbalance: most errors are misses (52 actual cases predicted as controls), which is exactly the situation where dropping the threshold below 0.5 (as Exercise 2 found) would be worth doing in production.</p>
 
 <h2>Summary</h2>
 
-<p><img src="screenshots/Logistic-Regression-in-R-workflow.webp" alt="The full logistic-regression workflow in R." class="img-responsive img-zoomable" loading="lazy" width="1578" height="986" /></p>
+<p><img src="screenshots/Logistic-Regression-in-R-workflow.webp" alt="A single diagram showing the four-step logistic regression workflow: fit, interpret, predict, evaluate." class="img-responsive img-zoomable" loading="lazy" width="1578" height="986" /></p>
 
-<p><em>Figure 3: The full logistic-regression workflow in R.</em></p>
-
-<p>The five-step logistic regression workflow in R condenses to one table.</p>
+<p><em>Figure 3: The full fit → interpret → predict → evaluate workflow.</em></p>
 
 <table class="table table-striped">
 <thead>
 <tr>
 <th>Step</th>
-<th>Tool</th>
-<th>What to read</th>
+<th>R idiom</th>
+<th>What you get</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td>Fit</td>
-<td><code>glm(family = binomial)</code></td>
-<td>Coefficients, deviance, <a class="auto-link" href="Model-Selection-in-R.html" title="Model Selection in R">AIC</a></td>
+<td><code>glm(y ~ ..., family = binomial, data = d)</code></td>
+<td>Model with log-odds coefficients</td>
 </tr>
 <tr>
 <td>Interpret</td>
-<td><code>exp(coef(fit))</code>, <code>exp(confint(fit))</code></td>
-<td>Odds ratios with CIs</td>
+<td><code>broom::tidy(fit, exponentiate = TRUE, conf.int = TRUE)</code></td>
+<td>Odds ratios with 95% CIs</td>
 </tr>
 <tr>
 <td>Predict</td>
 <td><code>predict(fit, type = &quot;response&quot;)</code></td>
-<td>Probabilities on [0, 1]</td>
+<td>Probabilities in [0, 1]</td>
 </tr>
 <tr>
-<td>Evaluate</td>
-<td><code>pROC::roc()</code>, <code>auc()</code>, <code>plot()</code></td>
-<td>ROC curve and AUC</td>
+<td>Classify</td>
+<td><code>ifelse(probs &gt; threshold, 1, 0)</code> + <code>table()</code></td>
+<td>Confusion matrix</td>
 </tr>
 <tr>
-<td>Decide</td>
-<td><code>coords(roc, &quot;best&quot;)</code></td>
-<td>Threshold matched to business cost</td>
+<td>Rank-evaluate</td>
+<td><code>pROC::roc()</code> + <code>auc()</code> + <code>ci.auc()</code></td>
+<td>ROC curve, AUC, CI</td>
+</tr>
+<tr>
+<td>Calibrate</td>
+<td>Bin predictions, compare mean predicted vs mean actual</td>
+<td>Honest probabilities check</td>
+</tr>
+<tr>
+<td>Overall fit</td>
+<td><code>1 - fit$deviance / fit$null.deviance</code></td>
+<td>McFadden pseudo-R²</td>
 </tr>
 </tbody>
 </table>
 
-<p>Follow the workflow in order and logistic regression stops feeling like black-box classification: it is a regression on the log-odds scale with a deterministic recipe for turning coefficients into probabilities, class labels, and ROC curves.</p>
+<p>Three habits will keep you out of trouble. Coefficients live on the log-odds scale, so always exponentiate before reading them as effect sizes. AUC measures ranking, not calibration, so check both whenever the probabilities themselves matter downstream. And training-set numbers always look better than reality; move to held-out data or cross-validation before you ship anything.</p>
 
 <h2>References</h2>
 
 <ol>
 
-<li>Hosmer, Lemeshow & Sturdivant, <em>Applied Logistic Regression</em>, 3rd edition. Wiley (2013). The canonical applied reference.</li>
+<li>R Core Team, generalised linear models: <code>?glm</code> documentation. <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/glm.html">Link</a></li>
 
-<li>R Core Team, <code>glm()</code> documentation. <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/glm.html">Link</a></li>
+<li>James, G., Witten, D., Hastie, T., Tibshirani, R., <em>An Introduction to Statistical Learning</em>, 2nd Edition. Chapter 4: Classification. <a href="https://www.statlearning.com/">Link</a></li>
 
-<li>Robin et al., pROC: an open-source package for R and S+ to analyze and compare ROC curves. <em>BMC Bioinformatics</em> (2011). <a href="https://doi.org/10.1186/1471-2105-12-77">Link</a></li>
+<li>Robin, X. et al., <em>pROC: an open-source package for R and S+ to analyze and compare ROC curves.</em> BMC Bioinformatics (2011). <a href="https://cran.r-project.org/package=pROC">Link</a></li>
 
-<li>James, Witten, Hastie & Tibshirani, <em>An Introduction to Statistical Learning</em>, 2nd edition. Chapter 4: Classification. <a href="https://www.statlearning.com/">Link</a></li>
+<li>Robinson, D., Hayes, A., Couch, S., <code>broom::tidy.glm</code> reference. <a href="https://broom.tidymodels.org/reference/tidy.glm.html">Link</a></li>
 
-<li>Wickham & Grolemund, <em>R for Data Science</em>, 2nd edition. Modeling basics. <a href="https://r4ds.hadley.nz/">Link</a></li>
+<li>Hosmer, D. W., Lemeshow, S., Sturdivant, R. X., <em>Applied Logistic Regression</em>, 3rd Edition. Wiley (2013). <a href="https://onlinelibrary.wiley.com/doi/book/10.1002/9781118548387">Link</a></li>
 
-<li>UCLA IDRE, Logistic regression in R. <a href="https://stats.oarc.ucla.edu/r/dae/logit-regression/">Link</a></li>
+<li>Harrell, F., <em>Regression Modeling Strategies</em>, 2nd Edition. Springer (2015). <a href="https://hbiostat.org/rmsc/">Link</a></li>
 
-<li>Fawcett, T., An Introduction to ROC Analysis. <em>Pattern Recognition Letters</em> (2006). <a href="https://doi.org/10.1016/j.patrec.2005.10.010">Link</a></li>
+<li>Steyerberg, E. W., <em>Clinical Prediction Models</em>, 2nd Edition. Springer (2019), chapter on calibration. <a href="https://link.springer.com/book/10.1007/978-3-030-16399-0">Link</a></li>
 
 </ol>
 
 <h2>Continue Learning</h2>
 
-<ol>
+<ul>
 
-<li><strong><a href="Linear-Regression.html">Linear Regression</a></strong>: the continuous-outcome sibling of logistic regression, and the reason <code>glm</code> generalises beyond Gaussian errors.</li>
+<li><a href="Linear-Regression.html">Linear Regression in R</a>, the continuous-outcome sibling that motivates the move to glm.</li>
 
-<li><strong><a href="Regression-Diagnostics-in-R.html">Regression Diagnostics</a></strong>: residuals, leverage, and influence. The glm versions of these tools matter for logistic models too.</li>
+<li><a href="Regression-Diagnostics-in-R.html">Regression Diagnostics in R</a>, residuals, leverage, and influence checks that apply to glm objects too.</li>
 
-<li><strong><a href="Variable-Selection-in-R.html">Variable Selection</a></strong>: AIC, BIC, and stepwise procedures for choosing predictors when you have more than two candidates.</li>
+<li><a href="Multinomial-Regression-With-R.html">Multinomial Regression With R</a>, the multi-class extension when your outcome has more than two categories.</li>
 
-</ol>
+</ul>
+
+{% endraw %}
 
 <div id="auto-further-reading">
 <h2>Further Reading</h2>
@@ -1102,7 +1091,7 @@
 </ul>
 </div>
 
-<section class="related-tutorials" aria-label="Related tutorials"><h2 class="rt-heading">Related Tutorials</h2><div class="rt-grid"><a class="rt-card" href="Poisson-Regression-in-R.html"><span class="rt-title">Poisson Regression in R: Model Count Data and Handle Overdispersion</span><span class="rt-meta">Statistics &middot; 8 min read</span></a><a class="rt-card" href="Logistic-Regression-Exercises-in-R.html"><span class="rt-title">Logistic Regression Exercises in R: 10 Classification Practice Problems, Solved Step-by-Step</span><span class="rt-meta">Practice Exercises &middot; 10 min read</span></a><a class="rt-card" href="Linear-Regression-Assumptions-in-R.html"><span class="rt-title">Linear Regression Assumptions in R: Test All 5 and Know What to Do When They Fail</span><span class="rt-meta">Statistics &middot; 10 min read</span></a><a class="rt-card" href="Polynomial-and-Spline-Regression-in-R.html"><span class="rt-title">Polynomial and Spline Regression in R: Model Curvature Without Transforming Variables</span><span class="rt-meta">Statistics &middot; 10 min read</span></a></div></section>
+<section class="related-tutorials" aria-label="Related tutorials"><h2 class="rt-heading">Related Tutorials</h2><div class="rt-grid"><a class="rt-card" href="Heteroscedasticity-in-R.html"><span class="rt-title">Heteroscedasticity in R: Breusch-Pagan Test &amp; Robust Standard Errors</span><span class="rt-meta">8 min read</span></a><a class="rt-card" href="Regression-Diagnostics-in-R.html"><span class="rt-title">Regression Diagnostics in R: 5 Plots That Reveal Model Violations Instantly</span><span class="rt-meta">Statistics &middot; 9 min read</span></a><a class="rt-card" href="GAM-in-R.html"><span class="rt-title">GAM in R: Generalized Additive Models with mgcv, Smooth Nonlinear Effects</span><span class="rt-meta">9 min read</span></a><a class="rt-card" href="Regression-Diagnostics-Exercises-in-R.html"><span class="rt-title">Regression Diagnostics Exercises in R: 10 Assumption-Testing Problems, Solved Step-by-Step</span><span class="rt-meta">Practice Exercises &middot; 10 min read</span></a></div></section>
 <nav class="prev-next-nav" aria-label="Post navigation">
 <a class="pn-link pn-prev" href="Regression-Diagnostics-in-R.html"><span class="pn-label">&larr; Previous</span><span class="pn-title">Regression Diagnostics</span></a>
 <a class="pn-link pn-next" href="Variable-Selection-in-R.html"><span class="pn-label">Next &rarr;</span><span class="pn-title">Variable Selection</span></a>
