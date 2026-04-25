@@ -1,13 +1,13 @@
 ---
 title: "Ridge and Lasso in R: How Penalised Regression Shrinks Coefficients and Selects Variables"
 slug: "Ridge-and-Lasso-Regression-in-R"
-description: "Ridge shrinks coefficients smoothly; Lasso zeroes some out. Learn glmnet, tune lambda with cross-validation, read solution paths, pick the right penalty."
+description: "Ridge shrinks coefficients smoothly; Lasso forces some to exactly zero. Fit glmnet, tune lambda with cross-validation, pick the right penalty for your data."
 keywords: "ridge regression R, lasso regression R, glmnet, regularized regression, penalized regression, cv.glmnet, elastic net R, lambda selection, coefficient shrinkage, L1 L2 penalty"
-auto_link_terms: "Ridge regression|Lasso regression|penalized regression|regularised regression|regularized regression|elastic net regression|shrinkage penalty|glmnet package|lambda selection"
+auto_link_terms: "Ridge regression|Lasso regression|penalized regression|regularised regression|regularized regression|elastic net regression|shrinkage penalty|glmnet package|lambda selection|cv.glmnet"
 auto_link_case_sensitive: false
 mathjax: true
 webr: true
-date: "2026-04-19"
+date: "2026-04-26"
 curriculum_id: "2.3.12"
 post_type: "C"
 sidebar_section: "Statistics"
@@ -18,13 +18,11 @@ difficulty: "Intermediate"
 
 # Ridge and Lasso in R: How Penalised Regression Shrinks Coefficients and Selects Variables
 
-<p class="lead">Ridge and Lasso are penalised linear regressions that add a cost for large coefficients, trading a little bias for a big drop in variance. Ridge shrinks every coefficient smoothly; Lasso forces some to exactly zero, which doubles as automatic variable selection.</p>
+<p class="lead">Ridge and Lasso are penalised linear regressions that add a cost for large coefficients, trading a small bit of bias for a big drop in variance. Ridge shrinks every coefficient smoothly toward zero; Lasso forces some all the way to zero, which doubles as automatic variable selection.</p>
 
-## What are Ridge and Lasso regression?
+## What problem does penalised regression solve?
 
-Plain linear regression has one failure mode that shows up everywhere: when predictors outnumber observations, or when several predictors carry similar information, the least-squares fit overreacts. Coefficients become huge, signs flip between nearly identical datasets, and test predictions are worse than the training numbers promised. Ridge and Lasso fix this by adding a penalty on the size of the coefficients. Fit the same model with `glmnet` and the wild swings disappear.
-
-Here is a first Lasso fit on the classic Boston housing data. Watch how some coefficients land exactly on zero.
+Plain `lm()` has a failure mode that turns up everywhere in real datasets. When predictors outnumber rows, or when several predictors carry the same information, ordinary least-squares overreacts. Coefficients balloon, signs flip on nearly identical samples, and test predictions are far worse than the training fit promised. Penalised regression adds a cost for the size of the coefficients, and that single change tames the wild swings. The fit below shows the payoff: Lasso automatically drops four predictors and keeps only the variables that actually carry signal.
 
 ```r title="First Lasso fit on Boston housing"
 library(glmnet)
@@ -44,15 +42,15 @@ round(coef(fit, s = 0.5)[, 1], 3)
 #>      -0.002      -0.852       0.007      -0.521
 ```
 
-Lasso has dropped four predictors, `zn`, `indus`, `age`, and `rad`, setting their coefficients to exactly zero. The nine survivors are the variables the penalty thinks actually carry signal. An ordinary `lm()` fit on the same data would keep all thirteen with large, noisy estimates.
+Four predictors, `zn`, `indus`, `age`, and `rad`, came back at exactly zero. The nine survivors are the variables the penalty thinks carry real signal. An ordinary `lm()` fit on the same data keeps all thirteen, with large and unstable estimates that move every time the training sample shifts.
 
 [NOTE]
-**The `glmnet` package needs a local R/RStudio session to run.** Run buttons on `glmnet` and `cv.glmnet` blocks are read-only on this page, but every code block is copy-paste ready for your R session. Install with `install.packages("glmnet")`. The `#>` lines show the output you will see locally.
+**The `glmnet` package needs a local R/RStudio session.** Run buttons on `glmnet` and `cv.glmnet` blocks are read-only on this page, but every code block is copy-paste ready for your own R session. Install once with `install.packages("glmnet")`. The `#>` comments show the output you will see locally.
 
 [KEY INSIGHT]
-**Regularisation is a bias-variance trade.** You accept coefficients that are slightly biased toward zero in exchange for estimates that barely move when the training sample changes. On noisy data that trade is almost always a win.
+**Regularisation is a bias-variance trade.** You accept coefficients slightly biased toward zero in exchange for estimates that barely move when the training sample changes. On noisy or correlated data, that trade is almost always a win.
 
-**Try it:** Drop the first predictor (`crim`) and refit Lasso on the smaller matrix. How many non-zero predictors remain at the same lambda?
+**Try it:** Drop the first predictor (`crim`) from the matrix and refit Lasso. How many non-zero coefficients remain at the same lambda of 0.5?
 
 ```r title="Your turn: Lasso without crim"
 ex_x <- x[, -1]                    # remove crim
@@ -61,7 +59,7 @@ ex_fit <- glmnet(ex_x, y, alpha = 1)
 # your code here: count non-zero coefs at s = 0.5
 # Hint: sum(coef(ex_fit, s = 0.5) != 0)
 
-#> Expected: 9 (12 predictors, 3 zeroed, plus intercept)
+#> Expected: 9 (12 predictors, 3 zeroed, plus the intercept)
 ```
 
 <details>
@@ -79,7 +77,7 @@ ex_nonzero
 
 ## How do Ridge and Lasso differ in their penalty?
 
-Both methods start from the same ordinary least-squares loss and bolt a penalty on top. The difference is the shape of that penalty, and the shape is what controls everything downstream.
+Both methods start from the same ordinary least-squares loss and bolt a penalty term on top. The shape of that penalty controls everything that follows: whether coefficients can hit zero, how shrinkage spreads across correlated predictors, and how the path of solutions evolves as the penalty grows.
 
 $$\text{OLS:}\quad \min_{\beta} \sum_{i=1}^{n}\bigl(y_i - x_i^\top \beta\bigr)^2$$
 
@@ -89,16 +87,16 @@ $$\text{Lasso:}\quad \min_{\beta} \sum_{i=1}^{n}\bigl(y_i - x_i^\top \beta\bigr)
 
 Where:
 - $\beta_j$ is the coefficient on predictor $j$
-- $\lambda \ge 0$ is the penalty strength (the tuning parameter)
+- $\lambda \ge 0$ is the penalty strength (the tuning parameter you choose)
 - $p$ is the number of predictors
 - $n$ is the number of observations
 
-Ridge squares each coefficient, so its penalty curves smoothly around zero. Lasso uses absolute values, which draw a diamond with sharp corners at the axes, and those corners are why Lasso can set coefficients to exactly zero. Ridge can only push them close.
+Ridge squares each coefficient, so its penalty is a smooth bowl around zero. Lasso uses absolute values, which trace a diamond with sharp corners at the axes. Those corners are the geometric reason Lasso can set coefficients to exactly zero. Ridge can only push them close.
 
 ![How the L2 and L1 penalties change the same OLS loss.](screenshots/Ridge-and-Lasso-Regression-in-R-penalty-comparison.webp)
 *Figure 1: How the L2 and L1 penalties change the same OLS loss.*
 
-You can see the difference in one line of R. Fit each method at the same lambda, then count how many coefficients come out zero.
+You can see the difference in one line of R. Fit each method at the same lambda, then count how many coefficients land at zero.
 
 ```r title="Count zero coefficients, Ridge vs Lasso"
 r_fit <- glmnet(x, y, alpha = 0)           # Ridge: L2 penalty
@@ -110,12 +108,12 @@ c(ridge_zeros = sum(coef(r_fit, s = 0.5) == 0),
 #>           0           4
 ```
 
-At the same lambda of 0.5, Ridge has zero predictors eliminated and Lasso has four. That single contrast is the whole story of why people reach for Lasso when they want a shorter model and Ridge when they want every predictor kept but tamer.
+At a lambda of 0.5, Ridge has dropped exactly zero predictors and Lasso has dropped four. That single contrast is the whole story: reach for Lasso when you want a shorter, interpretable model, and Ridge when you want every predictor kept but tamed.
 
 [TIP]
-**Elastic Net is the middle ground.** Set `alpha` between 0 and 1 to mix L1 and L2. This is useful when several predictors are strongly correlated, because Lasso alone tends to pick one and drop the rest; Elastic Net keeps the group together.
+**Elastic Net is the middle ground.** Set `alpha` between 0 and 1 to mix L1 and L2 penalties. This helps when several predictors are strongly correlated, because pure Lasso tends to pick one variable from a correlated group and drop the rest, while Elastic Net keeps the group together with shared shrinkage.
 
-**Try it:** Fit Elastic Net with `alpha = 0.5` and count zero coefficients. Expect a count between the ridge 0 and lasso 4.
+**Try it:** Fit Elastic Net with `alpha = 0.5` and count zero coefficients at the same lambda. The count should land between Ridge's 0 and Lasso's 4.
 
 ```r title="Your turn: Elastic Net zero count"
 ex_en <- glmnet(x, y, alpha = 0.5)
@@ -134,18 +132,18 @@ ex_en_zeros
 #> [1] 2
 ```
 
-**Explanation:** At alpha = 0.5 the L1 term still creates zeros but the L2 component softens the corners of the diamond, so fewer coefficients get pushed all the way to zero than under pure Lasso.
+**Explanation:** At `alpha = 0.5` the L1 term still creates zeros, but the L2 component softens the corners of the diamond. Fewer coefficients are pushed all the way to zero than under pure Lasso.
 
 </details>
 
 ## How do you fit Ridge regression with glmnet?
 
-The `glmnet()` API has two rules worth burning into memory. First, it does not take a formula: pass a numeric matrix `x` and a numeric vector `y`. Second, it fits the full path of lambda values in one call, so one `glmnet()` object contains 100 models, not just one.
+The `glmnet()` API has two rules worth committing to memory. First, it does not accept a formula: you pass a numeric matrix `x` and a numeric vector `y`. Second, it fits the full path of lambda values in a single call, so one fitted object contains roughly 100 different models, not just one.
 
 ![The standard penalised-regression pipeline in R.](screenshots/Ridge-and-Lasso-Regression-in-R-workflow.webp)
 *Figure 2: The standard penalised-regression pipeline in R.*
 
-Use `model.matrix()` to turn factor predictors into numeric dummies, drop the intercept column it auto-adds, and then hand the result straight to `glmnet` with `alpha = 0` for Ridge.
+Use `model.matrix()` to convert factor predictors into numeric dummies, drop the intercept column it adds automatically, and hand the result to `glmnet()` with `alpha = 0` for Ridge.
 
 ```r title="Fit the full Ridge path"
 ridge_fit <- glmnet(x, y, alpha = 0)
@@ -163,12 +161,12 @@ print(ridge_fit)
 #> 100 13  0.74   0.71
 ```
 
-Every row is a different lambda. `Df` counts non-zero coefficients (always 13 for Ridge because it never zeroes any predictor). `%Dev` is the share of deviance explained, like R-squared. Lambda walks from huge on the left, where every coefficient is crushed to near zero, down to tiny on the right, where the fit approaches plain OLS.
+Each row is a different lambda. `Df` counts non-zero coefficients (always 13 for Ridge, since it never zeroes any predictor). `%Dev` is the fraction of deviance explained, similar to R-squared. Lambda walks from huge on the left, where every coefficient is crushed near zero, down to tiny on the right, where the fit approaches plain OLS.
 
 [WARNING]
-**`x` must be a fully numeric matrix.** If you pass a data.frame with character or factor columns, `glmnet` throws a type error. `model.matrix(formula, data)[, -1]` is the safest prep: it one-hot-encodes factors and strips the intercept column.
+**`x` must be a fully numeric matrix.** Pass a data frame with character or factor columns and `glmnet` throws a type error. The safest prep is `model.matrix(formula, data)[, -1]`: it one-hot-encodes factors and strips the intercept column in one step.
 
-Peek at coefficients at two lambdas to see shrinkage in action.
+Peek at the coefficients at two different lambdas to see shrinkage in action.
 
 ```r title="Ridge coefficients at small vs large lambda"
 cbind(
@@ -192,7 +190,7 @@ cbind(
 #> lstat              -0.524       -0.099
 ```
 
-At `s = 0.01` the Ridge coefficients look similar to what `lm()` would give, just slightly tamed. At `s = 100` every coefficient is squeezed close to zero, and the intercept carries most of the prediction. Ridge shrinks proportionally, so the order of importance of predictors stays roughly the same.
+At `s = 0.01` the Ridge coefficients look close to what `lm()` would give, just slightly tamed. At `s = 100` every coefficient is squeezed near zero, and the intercept absorbs most of the prediction. Ridge shrinks proportionally, so the relative ordering of predictor importance stays roughly the same as lambda grows.
 
 **Try it:** Extract Ridge coefficients at `s = 10` and report which predictor has the largest absolute coefficient.
 
@@ -217,9 +215,9 @@ ex_biggest
 
 </details>
 
-## How do you fit Lasso regression and select variables?
+## How do you fit Lasso and let it select variables?
 
-Flip `alpha = 0` to `alpha = 1` and `glmnet` becomes Lasso. The fit returns the same kind of object, but now `Df` changes as lambda moves, because Lasso can zero predictors out one by one.
+Flip `alpha = 0` to `alpha = 1` and `glmnet()` becomes Lasso. The fit returns the same kind of object, but now `Df` changes as lambda moves: variables drop out as the penalty grows. Reading the same path at three lambda values shows variables entering one by one in rough order of importance.
 
 ```r title="Fit the full Lasso path"
 lasso_fit <- glmnet(x, y, alpha = 1)
@@ -247,9 +245,9 @@ cbind(
 #> lstat         -0.438  -0.521    -0.529
 ```
 
-Walk the columns left to right. At a large lambda only `rm` (rooms per dwelling) and `lstat` (low-income population share) survive, which the housing literature has long called the two dominant predictors of median home value. As lambda shrinks, more variables re-enter in rough order of importance. That ordered entry is why the Lasso path is sometimes called a variable selection path.
+Walk the columns left to right. At a large lambda only `rm` (rooms per dwelling) and `lstat` (low-income population share) survive, the two predictors the housing literature has long flagged as dominant. As lambda shrinks, more variables re-enter in rough order of importance. That ordered entry is why the Lasso path is sometimes called a variable selection path.
 
-Pull the names of non-zero predictors at a single lambda with one `which()` call.
+Pull the names of the non-zero predictors at any single lambda with one `which()` call.
 
 ```r title="Variables kept by Lasso at one lambda"
 kept <- which(coef(lasso_fit, s = 0.5)[, 1] != 0)
@@ -258,16 +256,17 @@ names(kept)
 #> [6] "dis"         "tax"         "ptratio"     "black"       "lstat"
 ```
 
-Nine predictors plus the intercept: `glmnet` has done model selection and coefficient estimation in a single pass. No p-value forward-selection, no AIC search, no multi-step pipeline.
+Nine predictors plus the intercept: `glmnet` has done model selection and coefficient estimation in a single pass. No p-value forward selection, no AIC search, no multi-step pipeline.
 
 [KEY INSIGHT]
-**Lasso fuses variable selection with estimation.** Every other classical approach selects variables in one stage and refits in another. Lasso does both together, which is why the retained coefficients are slightly shrunk rather than pure OLS estimates on the selected subset.
+**Lasso fuses variable selection with estimation.** Every other classical approach picks variables in one stage and refits in another. Lasso does both at once, which is why the retained coefficients come out slightly shrunk rather than as pure OLS estimates on the selected subset.
 
 **Try it:** Find the smallest lambda in `lasso_fit$lambda` at which exactly four predictors have non-zero coefficients (ignoring the intercept).
 
 ```r title="Your turn: Lasso at 4 predictors"
 # your code here
-# Hint: loop over lasso_fit$lambda, count non-zero coefs, stop when it reaches 4 + 1 intercept
+# Hint: sapply over lasso_fit$lambda, count non-zero coefs, then find the lambda
+# where the count is 5 (4 predictors + 1 intercept)
 
 #> Expected: a numeric lambda value, roughly 1.2
 ```
@@ -282,13 +281,13 @@ round(ex_lambda_4, 3)
 #> [1] 1.187
 ```
 
-**Explanation:** `sapply()` scans every lambda in the path and counts non-zeros. We want the smallest lambda (least regularisation) that still holds the count at exactly five (four predictors plus intercept).
+**Explanation:** `sapply()` scans every lambda in the path and counts the non-zeros. We want the smallest lambda (least regularisation) that still holds the count at exactly five (four predictors plus the intercept).
 
 </details>
 
 ## How do you choose lambda with cross-validation?
 
-Picking lambda by eye is guesswork. `cv.glmnet()` runs K-fold cross-validation across the lambda path and returns the value that minimises out-of-sample error.
+Picking lambda by eye is guesswork. `cv.glmnet()` runs K-fold cross-validation across the full lambda path and returns the value that minimises out-of-sample error. It is the default workflow whenever you actually want predictions out of the model.
 
 ```r title="Cross-validated Lasso lambda"
 set.seed(7)
@@ -300,9 +299,9 @@ c(min  = round(cv_lasso$lambda.min, 4),
 #> 0.0244 0.3177
 ```
 
-`cv.glmnet` gives you two lambdas. `lambda.min` is the value with the lowest cross-validated error. `lambda.1se` is the largest lambda whose CV error is still within one standard error of the minimum, a more conservative choice that tends to produce simpler models and generalises better on noisy data.
+`cv.glmnet()` returns two lambdas. `lambda.min` is the value with the lowest cross-validated error: the best fit on held-out folds. `lambda.1se` is the largest lambda whose CV error is still within one standard error of the minimum, a more conservative choice that produces a simpler model and tends to generalise better on noisy data.
 
-Compare coefficients at both picks to see the trade-off.
+Compare coefficients at both picks to see the trade-off in concrete numbers.
 
 ```r title="Coefficients at lambda.min vs lambda.1se"
 cbind(
@@ -318,29 +317,29 @@ cbind(
 #> nox           -16.415   -7.843
 #> rm              3.899    4.074
 #> age             0.000    0.000
-#> dis            -1.296    -0.621
+#> dis            -1.296   -0.621
 #> rad             0.142    0.000
 #> tax            -0.009    0.000
-#> ptratio        -0.929    -0.786
+#> ptratio        -0.929   -0.786
 #> black           0.009    0.004
 #> lstat          -0.528   -0.532
 ```
 
-`lambda.min` keeps ten predictors with full-strength coefficients. `lambda.1se` keeps only six and shrinks them more aggressively. On unseen data the simpler `1se` model often predicts better despite fitting worse in training, because it is less tuned to the noise in the training sample.
+`lambda.min` keeps ten predictors with full-strength coefficients. `lambda.1se` keeps only six and shrinks them more aggressively. On unseen data the simpler `1se` model often predicts better despite fitting worse on the training set, because it is less tuned to the noise in any single sample.
 
 [TIP]
-**Always `set.seed()` before `cv.glmnet`.** The K folds are random, so two runs without a seed can return different lambdas. Reproducibility matters especially when comparing models across notebooks.
+**Always `set.seed()` before `cv.glmnet()`.** The K folds are random, so two runs without a seed can return different lambdas. Reproducibility matters most when you compare models across notebooks, papers, or pull requests.
 
 [NOTE]
-**Use `lambda.1se` as your default, `lambda.min` when you trust the training set.** For clean experimental data where variance is low, `lambda.min` wins. For observational data with outliers or drift, `lambda.1se` is the safer call.
+**Default to `lambda.1se`, switch to `lambda.min` when you trust the training set.** For clean experimental data where variance is low, `lambda.min` wins. For observational data with outliers or drift, the conservative `lambda.1se` is the safer call.
 
-**Try it:** Run `cv.glmnet` with `alpha = 0` (Ridge) and compare its minimum CV error to the Lasso minimum.
+**Try it:** Run `cv.glmnet()` with `alpha = 0` (Ridge) and compare its minimum CV error to the Lasso minimum.
 
 ```r title="Your turn: Ridge vs Lasso CV error"
 # your code here
-# Hint: cv.glmnet(x, y, alpha = 0), then check $cvm[...lambda.min]
+# Hint: cv.glmnet(x, y, alpha = 0), then index $cvm at the lambda.min position
 
-#> Expected: one number for each, usually within 1-3 units of each other
+#> Expected: one number per method, usually within 1-3 units of each other
 ```
 
 <details>
@@ -358,24 +357,24 @@ round(c(ridge_cv = ex_ridge_err, lasso_cv = ex_lasso_err), 2)
 #>    24.71    23.52
 ```
 
-**Explanation:** `$cvm` is the vector of cross-validated errors for each lambda. Indexing it at `lambda.min` returns the minimum, which is the score each method would earn on held-out data.
+**Explanation:** `$cvm` is the vector of cross-validated errors, one per lambda. Indexing it at the position of `lambda.min` returns the minimum error, which is the score each method would earn on held-out data.
 
 </details>
 
-## When should you use Ridge, Lasso, or Elastic Net?
+## When should you choose Ridge, Lasso, or Elastic Net?
 
-Three penalties, one decision. The right choice depends on what you want the final model to do: keep every predictor and tame them, pick a short list, or handle correlated groups gracefully.
+Three penalties, one decision. The right choice depends on what you want the final model to do: keep every predictor and tame them, pick a short interpretable list, or handle correlated groups gracefully.
 
 ![Quick decision tree for picking a penalty.](screenshots/Ridge-and-Lasso-Regression-in-R-decision-tree.webp)
 *Figure 3: Quick decision tree for picking a penalty.*
 
 | Method | Penalty | Sets coefs to zero? | Best when |
 |---|---|---|---|
-| Ridge | L2 (squared) | No | You want all predictors kept, many are modestly useful, multicollinearity is the main enemy |
-| Lasso | L1 (absolute) | Yes | You need a short, interpretable model, some predictors are truly noise |
-| Elastic Net | Mix | Yes, groupwise | You have correlated predictor groups and want sparsity without losing the group |
+| Ridge | L2 (squared) | No | You want every predictor kept, many are modestly useful, multicollinearity is the main worry |
+| Lasso | L1 (absolute) | Yes | You need a short, interpretable model and some predictors are truly noise |
+| Elastic Net | Mix | Yes, group-wise | You have correlated predictor groups and want sparsity without losing the group |
 
-Fit Elastic Net with `alpha = 0.5` and line its error up against the other two.
+Fit Elastic Net with `alpha = 0.5` and line its CV error up against Ridge and Lasso.
 
 ```r title="Elastic Net CV fit for comparison"
 set.seed(7)
@@ -392,12 +391,12 @@ round(c(
 #>  24.71  23.31  23.52
 ```
 
-Elastic Net edges out both Ridge and Lasso on this Boston split, which is typical when a few predictors (here `rm` and `lstat`) dominate but a handful of weaker correlated predictors still carry signal.
+Elastic Net edges out both Ridge and Lasso on this Boston split. That is typical when a few predictors (here `rm` and `lstat`) dominate but a handful of weaker correlated ones still carry signal. Lasso would keep one and drop the rest of a correlated group; Ridge would keep them all but at small magnitudes; Elastic Net keeps the group with shared shrinkage.
 
 [WARNING]
-**Let `glmnet` standardise for you.** The package scales each predictor to unit variance before fitting so the penalty applies uniformly, then back-transforms coefficients to the original units. Setting `standardize = FALSE` is almost always a mistake unless you have already centred and scaled by hand.
+**Let `glmnet` standardise for you.** The package scales each predictor to unit variance before fitting, applies the penalty uniformly, and back-transforms coefficients to the original units. Setting `standardize = FALSE` is almost always a mistake unless you have already centred and scaled by hand.
 
-Finally, predictions. Use `predict()` with `s` set to either the lambda name or a numeric value.
+Predictions follow the same `predict()` API as `lm()`. Pass a new matrix and a lambda, either as a name or a numeric value.
 
 ```r title="Predict medv for a new observation with all three models"
 new_x <- x[1, , drop = FALSE]   # use row 1 of Boston as a fresh observation
@@ -412,7 +411,7 @@ round(c(
 #>      30.02      30.26      30.14      24.00
 ```
 
-All three land close to each other and slightly over the actual value of 24, which is what you would expect for a model that has not seen this exact row but has learned its broader neighbourhood.
+All three predictions land within 0.3 units of each other and slightly above the actual `medv` of 24, which is what you would expect for a model that has not seen this exact row but has learned its broader neighbourhood from similar observations.
 
 **Try it:** Predict `medv` for row 100 of Boston using `cv_lasso` at `lambda.1se`.
 
@@ -434,7 +433,7 @@ round(c(predicted = ex_pred_100, actual = y[100]), 2)
 #>     32.04     33.40
 ```
 
-**Explanation:** `s = "lambda.1se"` picks the more conservative CV lambda. `newx` must be a matrix, so we slice with `drop = FALSE` to keep the matrix shape.
+**Explanation:** `s = "lambda.1se"` picks the more conservative CV lambda. `newx` must be a matrix, so we slice with `drop = FALSE` to keep the matrix shape and not collapse to a vector.
 
 </details>
 
@@ -471,9 +470,9 @@ my_six
 
 </details>
 
-### Exercise 2: Ridge vs OLS on correlated predictors
+### Exercise 2: Ridge vs OLS on heavily correlated predictors
 
-Simulate 100 rows where `x1` and `x2` are 0.95 correlated and `y = 3*x1 + 3*x2 + rnorm(100)`. Fit `lm()` and `cv.glmnet(alpha = 0)`. Save both `x1` coefficients side by side to `my_results`.
+Simulate 100 rows where `x1` and `x2` are 0.95 correlated and `y = 3*x1 + 3*x2 + rnorm(100)`. Fit `lm()` and `cv.glmnet(alpha = 0)`. Save the `x1` coefficient from each model side by side to `my_results`.
 
 ```r title="Exercise 2 starter"
 # Hint: generate x2 <- 0.95 * x1 + 0.1 * rnorm(100) for strong correlation.
@@ -505,7 +504,7 @@ round(my_results, 3)
 #>   4.718    3.186
 ```
 
-**Explanation:** The OLS estimate for `x1` bounces far from the true 3 because of the 0.95 correlation. Ridge stays close to 3 because the L2 penalty pushes collinear coefficients toward each other rather than letting one absorb the other's signal.
+**Explanation:** The OLS estimate for `x1` bounces far from the true 3 because of the 0.95 correlation between `x1` and `x2`. Ridge stays close to 3 because the L2 penalty pushes collinear coefficients toward each other rather than letting one absorb the other's signal.
 
 </details>
 
@@ -551,7 +550,7 @@ round(my_rmse, 3)
 
 ## Complete Example
 
-Put every step into one end-to-end workflow on a new simulated dataset with a known sparse signal. Only the first five predictors carry true effect; the next fifteen are pure noise. A good Lasso should find that out.
+Tie every step into one end-to-end workflow on a simulated dataset with a known sparse signal. Only the first five predictors carry true effect; the next fifteen are pure noise. A working Lasso pipeline should recover that structure.
 
 ```r title="End-to-end penalised regression pipeline"
 set.seed(99)
@@ -586,23 +585,23 @@ round(sim_rmse, 3)
 #> [1] 1.042
 ```
 
-Lasso recovered the five true predictors and dropped all fifteen noise predictors. The RMSE is close to the irreducible noise standard deviation of 1, meaning the model is almost as good as the oracle. That clean recovery is the reason Lasso is the default first move when you suspect most of your predictors carry nothing.
+Lasso recovered the five true predictors and dropped all fifteen noise predictors. The test RMSE of 1.04 is close to the irreducible noise standard deviation of 1, so the model is nearly as good as the oracle that knows the true sparsity pattern. Clean recovery like this is the reason Lasso is the default first move when you suspect most of your predictors carry no signal.
 
 ## Summary
 
 | Method | alpha | Penalty | Zeroes coefs? | Pick when |
 |---|---|---|---|---|
-| Ridge | 0 | L2 squared | No | Multicollinearity; keep every predictor |
-| Lasso | 1 | L1 absolute | Yes | Need interpretable, short model |
-| Elastic Net | 0 to 1 | Mixed | Yes, groupwise | Correlated predictor groups with sparsity |
+| Ridge | 0 | L2 squared | No | Multicollinearity, keep every predictor |
+| Lasso | 1 | L1 absolute | Yes | Need an interpretable, short model |
+| Elastic Net | 0 to 1 | Mixed | Yes, group-wise | Correlated predictor groups with sparsity |
 
 Key moves to remember:
 
 1. Build a numeric matrix with `model.matrix(formula, data)[, -1]`.
-2. Fit the path with `glmnet(x, y, alpha = α)` and the CV with `cv.glmnet()`.
+2. Fit the path with `glmnet(x, y, alpha = α)` and the cross-validated version with `cv.glmnet()`.
 3. Pick lambda from `cv_fit$lambda.min` (best fit) or `$lambda.1se` (robust fit).
 4. Pull coefficients with `coef(fit, s = "lambda.min")` and predictions with `predict(fit, newx = ..., s = ...)`.
-5. `set.seed()` before any `cv.glmnet()` call so folds are reproducible.
+5. Call `set.seed()` before any `cv.glmnet()` so folds are reproducible.
 
 ## References
 
@@ -617,5 +616,5 @@ Key moves to remember:
 ## Continue Learning
 
 - [Linear Regression](Linear-Regression.html) is the OLS baseline that Ridge and Lasso improve on. Understanding the unpenalised fit makes the shrinkage story concrete.
-- [Multicollinearity in R](Multicollinearity-in-R.html) covers the problem Ridge was invented to solve. Read it if your regression coefficients flip signs or have large standard errors.
+- [Multicollinearity in R](Multicollinearity-in-R.html) covers the problem Ridge was invented to solve. Read it if your regression coefficients flip signs or have inflated standard errors.
 - [Variable Selection and Importance With R](Variable-Selection-and-Importance-With-R.html) surveys alternatives to Lasso for picking predictors, including stepwise methods and random-forest importance.
