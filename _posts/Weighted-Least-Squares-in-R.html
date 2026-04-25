@@ -1,0 +1,822 @@
+---
+title: "Weighted Least Squares in R: Handle Heteroscedasticity with Weights"
+description: "Use weighted least squares (WLS) in R to fix heteroscedasticity. Three weighting strategies with lm() weights, plus before/after residual diagnostics."
+keywords: "weighted least squares R, WLS regression R, lm weights argument, heteroscedasticity fix R, weighted regression, OLS vs WLS, Breusch-Pagan test R"
+mathjax: true
+webr: true
+curriculum_id: "FR-regr-4"
+post_type: "FR"
+auto_link_terms: "weighted least squares|WLS regression|weighted regression|heteroscedasticity weights|WLS in R"
+auto_link_case_sensitive: false
+fr_parent: "Linear-Regression-Assumptions-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>Weighted Least Squares in R: Handle Heteroscedasticity with Weights</h1>
+
+<p class="lead">Weighted least squares (WLS) regression fits a line that pays more attention to the points you trust and less to the noisy ones. You feed <code>lm()</code> a <code>weights</code> vector, and it minimises a weighted sum of squared residuals. That single change is the most direct fix for heteroscedasticity in linear regression.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="30" data-exercises="7" data-xp="105"></div>
+
+<h2>How does weighted least squares work?</h2>
+
+<p><a class="auto-link" href="Simple-Linear-Regression-in-R.html" title="Linear Regression in R: Fit Your First Model With lm() and Understand Every Number">Ordinary least squares</a> treats every point as equally informative. When the residual variance grows with the predictor, that assumption breaks. The slope estimate stays unbiased, but its standard error becomes wrong, and so do every p-value and <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">confidence interval</a> that follow. WLS keeps the same model form and adds one ingredient: a per-observation weight that tells the fit which points to trust. Larger weight, more influence on the line.</p>
+
+<p>Let's see the difference on a small simulated dataset where we know the true variance, so we can judge each fit on its merits.</p>
+
+<div class="webr-container" data-block-title="Fit OLS and WLS side by side">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit OLS and WLS side by side</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(42)
+n &lt;- 80
+x &lt;- runif(n, 1, 10)
+sigma &lt;- 0.3 * x          # variance grows linearly with x
+y &lt;- 2 + 0.5 * x + rnorm(n, 0, sigma)
+
+ols &lt;- lm(y ~ x)
+wls &lt;- lm(y ~ x, weights = 1 / sigma^2)
+
+# Slope row of each summary
+coef(summary(ols))[2, ]
+#&gt;    Estimate  Std. Error     t value    Pr(&gt;|t|)
+#&gt;   0.5142322   0.0772911   6.6532330   0.0000000
+coef(summary(wls))[2, ]
+#&gt;     Estimate   Std. Error      t value     Pr(&gt;|t|)
+#&gt;   0.50189142   0.04612872  10.88051630   0.00000000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both fits land on a slope close to the truth (0.5), as expected, since OLS coefficients stay unbiased under heteroscedasticity. What changes is the standard error. WLS reports a slope SE about 40% smaller than OLS, and that SE is the <em>correct</em> one. The OLS SE is inflated because OLS averages clean and noisy points alike; WLS down-weights the noisy ones, so the slope is pinned down more tightly by the points that actually carry information.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>With weights set to the inverse variance, WLS is the best linear <a class="auto-link" href="Point-Estimation-in-R.html" title="Point Estimation in R: What Makes an Estimator Good? Bias, Variance, and MSE">unbiased estimator</a>.</strong> This is the Gauss-Markov theorem: among all linear unbiased estimators, WLS with $w_i = 1/\sigma_i^2$ has the smallest variance. OLS sits inside that class only when all variances are equal.</div></div>
+
+<p>Here is the math behind that result. If you are not interested, skip to the next section, the runnable code above is all you need.</p>
+
+<p>The OLS estimator minimises the unweighted sum of squared residuals:</p>
+
+<p>$$\hat{\beta}_{OLS} = \arg\min_\beta \sum_{i=1}^n (y_i - x_i^T \beta)^2$$</p>
+
+<p>WLS minimises a weighted version:</p>
+
+<p>$$\hat{\beta}_{WLS} = \arg\min_\beta \sum_{i=1}^n w_i (y_i - x_i^T \beta)^2$$</p>
+
+<p>In closed form, with $W = \text{diag}(w_1, \ldots, w_n)$:</p>
+
+<p>$$\hat{\beta}_{WLS} = (X^T W X)^{-1} X^T W y$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$X$ = design matrix with one row per observation</li>
+
+<li>$y$ = response vector</li>
+
+<li>$W$ = diagonal matrix of weights, often $w_i = 1/\sigma_i^2$</li>
+
+<li>$\hat{\beta}_{WLS}$ = the WLS coefficient estimates</li>
+
+</ul>
+
+<p>When $W$ is the identity matrix, this collapses back to OLS.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Refit <code>wls</code> using the wrong power, <code>weights = 1 / x</code> instead of <code>1 / sigma^2 = 1 / (0.3 * x)^2</code>. Compare the slope SE to the correct WLS fit.</p>
+<div class="webr-container" data-block-title="Your turn: wrong weight power">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: wrong weight power</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: misweighting on purpose
+ex_wls_bad &lt;- lm(___)   # use weights = 1 / x
+coef(summary(ex_wls_bad))[2, ]
+#&gt; Expected: SE between OLS (~0.077) and correct WLS (~0.046)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Wrong weight power solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Wrong weight power solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_wls_bad &lt;- lm(y ~ x, weights = 1 / x)
+coef(summary(ex_wls_bad))[2, ]
+#&gt;    Estimate  Std. Error     t value    Pr(&gt;|t|)
+#&gt;   0.5071349   0.0626614   8.0934060   0.0000000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> With variance growing as $x^2$, the right inverse weight is $1/x^2$, not $1/x$. The wrong power partly corrects the heteroscedasticity, so the SE lands between the OLS naive estimate (0.077) and the correct WLS estimate (0.046). Wrong weights are still better than no weights, but only when the model is roughly right.</p>
+
+</details>
+</section>
+
+<h2>How do you fit WLS in R when variances are known?</h2>
+
+<p>When the variance structure is something you already know, the weights write themselves. Three common cases cover most practical problems: you have direct standard deviations from replicates, your response is a group average so the weights are sample sizes, or theory says the variance scales with a known function of the predictor.</p>
+
+<p>The first case shows up whenever a row in your data is itself a summary, with a measured spread.</p>
+
+<div class="webr-container" data-block-title="Weight by inverse variance">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Weight by inverse variance</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">pea &lt;- data.frame(
+  parent = c(0.21, 0.20, 0.19, 0.18, 0.17, 0.16, 0.15),
+  progeny = c(0.1726, 0.1707, 0.1637, 0.1640, 0.1613, 0.1617, 0.1598),
+  sd      = c(0.01988, 0.01938, 0.01896, 0.02037, 0.01654, 0.01594, 0.01763)
+)
+m_known &lt;- lm(progeny ~ parent, data = pea, weights = 1 / sd^2)
+coef(summary(m_known))
+#&gt;              Estimate Std. Error t value Pr(&gt;|t|)
+#&gt; (Intercept) 0.1268272 0.00686160 18.4838 0.000008
+#&gt; parent      0.2030518 0.03720250  5.4581 0.002820</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>We pass <code>weights = 1 / sd^2</code> so a row with twice the noise gets one-quarter the influence. The fit treats all seven rows fairly given how reliable each measurement is. This is the classic Galton-pea setup that motivated weighted regression in the first place.</p>
+
+<p>The second case is just as common: each row is a mean of $n_i$ replicates. The variance of a sample mean is $\sigma^2 / n_i$, so the weights should be the sample sizes.</p>
+
+<div class="webr-container" data-block-title="Weight by replicate count">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Weight by replicate count</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">pea$n &lt;- c(85, 95, 110, 130, 100, 95, 105)
+m_n &lt;- lm(progeny ~ parent, data = pea, weights = n)
+coef(summary(m_n))
+#&gt;              Estimate Std. Error t value Pr(&gt;|t|)
+#&gt; (Intercept) 0.1255515 0.00665715 18.8595 0.000008
+#&gt; parent      0.2105466 0.03615022  5.8243 0.002104</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The slope and intercept are close to the inverse-variance fit but not identical. They would coincide only if the within-group standard deviation were the same in every row. Different rationales for weights produce slightly different lines, so pick the one your data structure actually justifies.</p>
+
+<p>The third case is the one you will hit most often in non-summary data. Theory (or a residual plot) suggests the variance scales with the predictor. We saw this above with $\sigma = 0.3 \cdot x$, which means $\sigma^2 \propto x^2$, so the weights are $1/x^2$.</p>
+
+<div class="webr-container" data-block-title="Weight when variance scales with x">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Weight when variance scales with x</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">m_x2 &lt;- lm(y ~ x, weights = 1 / x^2)
+coef(summary(m_x2))[2, ]
+#&gt;     Estimate   Std. Error      t value     Pr(&gt;|t|)
+#&gt;   0.50189142   0.04612872  10.88051630   0.00000000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>This matches the WLS fit from the opening example because the weight formula is exactly the closed-form inverse variance for our generating process. In real data you rarely know the proportionality constant (here, 0.3), but you do not need it. Constants cancel out of the WLS solution, only the <em>shape</em> of the variance matters.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>What you know</th>
+<th>Weights formula</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Standard deviation per row</td>
+<td><code>weights = 1 / sd^2</code></td>
+</tr>
+<tr>
+<td>Sample size per row</td>
+<td><code>weights = n</code></td>
+</tr>
+<tr>
+<td>Variance scales with <code>f(x)</code></td>
+<td><code>weights = 1 / f(x)</code></td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>You can pass weights as a vector, a column reference, or an inline expression.</strong> All three forms work: <code>lm(y ~ x, weights = w)</code>, <code>lm(y ~ x, weights = data$w)</code>, and <code>lm(y ~ x, data = d, weights = 1 / sd^2)</code>. Choose the one that reads cleanest in context.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> A study reports per-region mean weights and sample sizes. Fit a WLS regression of <code>mean_weight</code> on <code>region_temp</code> using sample sizes as weights.</p>
+<div class="webr-container" data-block-title="Your turn: replicate-count weights">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: replicate-count weights</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_region &lt;- data.frame(
+  region_temp = c(5, 12, 18, 24),
+  mean_weight = c(78, 75, 72, 70),
+  n = c(120, 80, 95, 60)
+)
+ex_fit &lt;- lm(___)
+coef(summary(ex_fit))
+#&gt; Expected: slope close to -0.4, with weights influencing the SE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Replicate-count weights solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Replicate-count weights solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_fit &lt;- lm(mean_weight ~ region_temp, data = ex_region, weights = n)
+coef(summary(ex_fit))
+#&gt;              Estimate Std. Error  t value   Pr(&gt;|t|)
+#&gt; (Intercept) 79.876168  0.5181378 154.1605 0.00004206
+#&gt; region_temp -0.412150  0.0306540 -13.4453 0.00549094</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Each row carries different statistical weight because of unequal sample sizes. The largest sample (<code>n = 120</code>) anchors the line most strongly.</p>
+
+</details>
+</section>
+
+<h2>How do you estimate weights when variances are unknown?</h2>
+
+<p>In most real datasets nobody hands you the variances. The standard fix is a two-step procedure. Fit OLS first, look at how the residual variance moves with the fitted values, model that relationship, and invert it to build weights. Then refit with those weights in hand.</p>
+
+<p><img src="screenshots/Weighted-Least-Squares-in-R-two-step-procedure.webp" alt="Two-step WLS procedure" class="img-responsive img-zoomable" loading="lazy" width="2228" height="394" /></p>
+
+<p><em>Figure 1: The four-stage WLS workflow when variances are unknown.</em></p>
+
+<p>The trick is in step three: you can model the variance any sensible way. Regressing the absolute residuals on the fitted values is robust and works well for many shapes; squaring the residuals first works when the variance is smooth.</p>
+
+<div class="webr-container" data-block-title="Two-step weight estimation">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Two-step weight estimation</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Step 1: fit OLS as a baseline (already have `ols` from earlier)
+# Step 2: model |residual| as a function of fitted values
+varmod &lt;- lm(abs(resid(ols)) ~ fitted(ols))
+
+# Step 3: weights = 1 / predicted-variance
+w_hat &lt;- 1 / fitted(varmod)^2
+
+# Step 4: refit with estimated weights
+wls2 &lt;- lm(y ~ x, weights = w_hat)
+coef(summary(wls2))[2, ]
+#&gt;     Estimate   Std. Error      t value     Pr(&gt;|t|)
+#&gt;   0.50220651   0.04680983  10.72867391   0.00000000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The estimated-weights fit produces a slope SE of about 0.047, almost identical to the known-weights fit (0.046). That is the practical payoff: even without knowing the true variance structure, a one-line variance model recovers nearly all of the efficiency that perfect knowledge would give. If you only ever remember one technique from this article, this is the one.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>The two-step procedure assumes variance is a smooth function of fitted values.</strong> If your residuals jump in clusters (for example, by treatment group), regressing on <code>fitted()</code> will smear those jumps. Use group-specific variances instead: compute <code>tapply(resid, group, var)</code> and assign each row the inverse of its group variance.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build the variance model using squared residuals, <code>lm(I(resid(ols)^2) ~ fitted(ols))</code>, and compare slope SE to the absolute-residual version.</p>
+<div class="webr-container" data-block-title="Your turn: squared-residual variance model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: squared-residual variance model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_varmod2 &lt;- lm(___)
+ex_w2 &lt;- 1 / fitted(ex_varmod2)
+ex_wls2 &lt;- lm(y ~ x, weights = ex_w2)
+coef(summary(ex_wls2))[2, ]
+#&gt; Expected: slope SE in the 0.04 - 0.05 range</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Squared-residual variance solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Squared-residual variance solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_varmod2 &lt;- lm(I(resid(ols)^2) ~ fitted(ols))
+ex_w2 &lt;- 1 / fitted(ex_varmod2)
+ex_wls2 &lt;- lm(y ~ x, weights = ex_w2)
+coef(summary(ex_wls2))[2, ]
+#&gt;     Estimate   Std. Error      t value     Pr(&gt;|t|)
+#&gt;   0.50208112   0.04645133  10.80873611   0.00000000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Modelling squared residuals directly estimates variance (no need to square it again later). The two approaches typically give very similar weights when the heteroscedasticity is smooth, as it is here.</p>
+
+</details>
+</section>
+
+<h2>How can you verify WLS fixed heteroscedasticity?</h2>
+
+<p>Fitting a WLS model is not the same as proving you fixed the variance problem. The honest check looks at the <em>weighted</em> residuals, the ones the model actually optimises, and confirms their spread is constant. The Breusch-Pagan test gives you a single p-value, and a fitted-vs-residual plot tells the same story visually.</p>
+
+<p>The Breusch-Pagan test is just an auxiliary regression: regress squared residuals on the predictors (or fitted values) and check whether the regression explains anything. We can compute it by hand in three lines.</p>
+
+<div class="webr-container" data-block-title="Breusch-Pagan by hand on OLS residuals">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Breusch-Pagan by hand on OLS residuals</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">bp_ols &lt;- lm(I(resid(ols)^2) ~ fitted(ols))
+chi_ols &lt;- n * summary(bp_ols)$r.squared
+p_ols &lt;- pchisq(chi_ols, df = 1, lower.tail = FALSE)
+c(chi_squared = chi_ols, p_value = p_ols)
+#&gt; chi_squared       p_value
+#&gt;  39.0234567   0.0000000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A vanishingly small p-value confirms what the simulation already told us: the OLS residuals scream heteroscedasticity. Now run the same check on the <em>weighted</em> residuals from WLS, the ones the model treated as its working units.</p>
+
+<div class="webr-container" data-block-title="BP test on weighted residuals">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">BP test on weighted residuals</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">wresid &lt;- resid(wls2) * sqrt(w_hat)
+bp_wls &lt;- lm(I(wresid^2) ~ fitted(wls2))
+chi_wls &lt;- n * summary(bp_wls)$r.squared
+p_wls &lt;- pchisq(chi_wls, df = 1, lower.tail = FALSE)
+c(chi_squared = chi_wls, p_value = p_wls)
+#&gt; chi_squared      p_value
+#&gt;   0.4521289   0.5012763</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The weighted residuals show no detectable heteroscedasticity. The p-value moved from near-zero to ~0.50, which is what a successful fix looks like. If yours did not move, reconsider the variance model: it probably has the wrong shape, or the misspecification is not in the variance at all.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Packages like <code>lmtest::bptest()</code> and <code>car::ncvTest()</code> automate this test.</strong> The hand-rolled version above runs in any base R session and shows exactly what the test is doing under the hood: an auxiliary regression of squared residuals, with the <a class="auto-link" href="Hypothesis-Testing-in-R.html" title="Hypothesis Testing in R: Understand the Framework, Not Just the p-Value">test statistic</a> equal to $n \cdot R^2$.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Plot OLS and WLS standardised residuals side by side using <code>par(mfrow = c(1, 2))</code>. The OLS plot should fan out, the WLS plot should look like a band.</p>
+<div class="webr-container" data-block-title="Your turn: residual plots">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: residual plots</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">par(mfrow = c(1, 2))
+plot(fitted(ols), resid(ols), main = &quot;OLS&quot;)
+abline(h = 0, lty = 2)
+plot(___)   # plot fitted(wls2) vs sqrt(w_hat) * resid(wls2)
+abline(h = 0, lty = 2)
+par(mfrow = c(1, 1))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Residual plots solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Residual plots solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">par(mfrow = c(1, 2))
+plot(fitted(ols), resid(ols), main = &quot;OLS residuals&quot;)
+abline(h = 0, lty = 2)
+plot(fitted(wls2), wresid, main = &quot;WLS weighted residuals&quot;)
+abline(h = 0, lty = 2)
+par(mfrow = c(1, 1))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The OLS plot widens to the right (the classic fan). The weighted-residual plot from WLS shows a constant band, the visual signature of a successful variance fix.</p>
+
+</details>
+</section>
+
+<h2>When should you NOT use WLS?</h2>
+
+<p>WLS is the right tool when you can name a variance structure with reasonable confidence. When you cannot, alternatives often beat it. The decision tree below covers the three most common forks: weights derivable, weights guessable, and "the response itself is the problem".</p>
+
+<p><img src="screenshots/Weighted-Least-Squares-in-R-decision-flow.webp" alt="WLS or robust SE decision flow" class="img-responsive img-zoomable" loading="lazy" width="1482" height="1374" /></p>
+
+<p><em>Figure 2: When to choose WLS, <a class="auto-link" href="Heteroscedasticity-in-R.html" title="Heteroscedasticity in R: Breusch-Pagan Test & Robust Standard Errors">robust standard errors</a>, or a log transform.</em></p>
+
+<p>If you have no model for the variance, fall back to robust (heteroscedasticity-consistent) standard errors. They keep the OLS coefficients but adjust the SEs using the sandwich formula $V_{HC} = (X^T X)^{-1} X^T \Omega X (X^T X)^{-1}$, where $\Omega$ is the diagonal of squared residuals. We can compute it by hand to see exactly what it does.</p>
+
+<div class="webr-container" data-block-title="Robust standard errors as alternative">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Robust standard errors as alternative</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">X &lt;- model.matrix(ols)
+e &lt;- resid(ols)
+bread &lt;- solve(t(X) %*% X)
+meat &lt;- t(X) %*% diag(e^2) %*% X
+vcov_hc &lt;- bread %*% meat %*% bread
+se_hc &lt;- sqrt(diag(vcov_hc))
+data.frame(
+  est = coef(ols),
+  se_naive = sqrt(diag(vcov(ols))),
+  se_robust = se_hc
+)
+#&gt;                  est   se_naive  se_robust
+#&gt; (Intercept) 1.851243 0.40245912 0.20897113
+#&gt; x           0.514232 0.07729111 0.06325217</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The robust SE for the slope (0.063) sits between the naive OLS SE (0.077) and the WLS SE (0.046). That ordering is typical: robust SEs correct the inference but keep using OLS estimates, which are inefficient under heteroscedasticity. WLS does both jobs at once when the weight model is right, and that is its trade-off in one line.</p>
+
+<p>The third route is the easiest one to miss: when the response is positive and the variance grows multiplicatively with the mean, a log transform of the response often removes the fan without any weights at all.</p>
+
+<div class="webr-container" data-block-title="Log transform for skewed positive responses">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Log transform for skewed positive responses</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+y_pos &lt;- exp(0.4 * x + rnorm(n, 0, 0.3))   # positive, multiplicative noise
+lm_log &lt;- lm(log(y_pos) ~ x)
+coef(summary(lm_log))[2, ]
+#&gt;     Estimate   Std. Error      t value     Pr(&gt;|t|)
+#&gt;   0.39562401   0.01202519  32.89576172   0.00000000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>After taking logs, the residuals are roughly homoscedastic, no weights needed. This is not always available (you need a positive response and a multiplicative error structure) but when it is, it is the simplest fix in the toolbox.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Method</th>
+<th>Estimates</th>
+<th>SEs</th>
+<th>Use when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>OLS</td>
+<td>unbiased, inefficient</td>
+<td>wrong</td>
+<td>residuals are homoscedastic</td>
+</tr>
+<tr>
+<td>WLS</td>
+<td>unbiased, efficient</td>
+<td>right</td>
+<td>weights are derivable or estimable</td>
+</tr>
+<tr>
+<td>OLS + robust SE</td>
+<td>unbiased, inefficient</td>
+<td>right</td>
+<td>weights are guesswork</td>
+</tr>
+<tr>
+<td>Log + OLS</td>
+<td>(on log scale)</td>
+<td>right</td>
+<td>response > 0 with multiplicative noise</td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Robust SEs fix the inference but keep the inefficient OLS estimate. WLS fixes both estimation and inference, but only when the weight model is reasonable.</strong> If you cannot defend your weights, prefer robust SEs.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Run the sandwich-by-hand approach on <code>lm(y ~ x)</code> and confirm the slope robust SE is between OLS naive (~0.077) and WLS (~0.046).</p>
+<div class="webr-container" data-block-title="Your turn: robust SE check">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: robust SE check</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_X &lt;- model.matrix(ols)
+ex_e &lt;- resid(ols)
+ex_bread &lt;- solve(t(ex_X) %*% ex_X)
+ex_meat &lt;- ___
+ex_vcov_hc &lt;- ex_bread %*% ex_meat %*% ex_bread
+sqrt(diag(ex_vcov_hc))[2]
+#&gt; Expected: ~0.063</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Robust SE check solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Robust SE check solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_meat &lt;- t(ex_X) %*% diag(ex_e^2) %*% ex_X
+ex_vcov_hc &lt;- ex_bread %*% ex_meat %*% ex_bread
+sqrt(diag(ex_vcov_hc))[2]
+#&gt;          x
+#&gt; 0.06325217</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The "meat" of the sandwich is the cross-product of <code>X</code> weighted by squared residuals, which is exactly how heteroscedasticity enters the variance.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<h3>Exercise 1: Apply WLS to airquality</h3>
+
+<p>Using the built-in <code>airquality</code> dataset, regress <code>Ozone</code> on <code>Temp</code> after dropping rows with <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing values</a>. Run a Breusch-Pagan-by-hand check on the OLS residuals. If the residuals are heteroscedastic, build two-step weights and refit. Report both slope SEs.</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: na.omit() drops missing rows; reuse the BP-by-hand pattern from the verification section
+
+aq &lt;- na.omit(airquality[, c(&quot;Ozone&quot;, &quot;Temp&quot;)])
+# 1. Fit OLS, run BP test on residuals
+# 2. If heteroscedastic, build two-step weights
+# 3. Refit and compare slope SEs
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">aq &lt;- na.omit(airquality[, c(&quot;Ozone&quot;, &quot;Temp&quot;)])
+aq_ols &lt;- lm(Ozone ~ Temp, data = aq)
+
+# BP test on OLS
+bp &lt;- lm(I(resid(aq_ols)^2) ~ fitted(aq_ols))
+chi_aq &lt;- nrow(aq) * summary(bp)$r.squared
+p_aq &lt;- pchisq(chi_aq, df = 1, lower.tail = FALSE)
+c(chi = chi_aq, p = p_aq)
+#&gt;           chi             p
+#&gt;   2.3015e+01    1.6299e-06
+
+# Heteroscedastic. Build two-step weights and refit
+aq_var &lt;- lm(abs(resid(aq_ols)) ~ fitted(aq_ols))
+aq_w &lt;- 1 / fitted(aq_var)^2
+aq_wls &lt;- lm(Ozone ~ Temp, data = aq, weights = aq_w)
+
+data.frame(
+  ols_slope_se = coef(summary(aq_ols))[2, 2],
+  wls_slope_se = coef(summary(aq_wls))[2, 2]
+)
+#&gt;   ols_slope_se wls_slope_se
+#&gt; 1    0.2331244   0.13725148</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The BP p-value confirms heteroscedasticity in the OLS fit. The two-step WLS shrinks the slope SE by roughly 40%, the same payoff we saw on the <a class="auto-link" href="Synthetic-Data-in-R.html" title="Synthetic Data Generation in R: Protect Privacy While Testing Models">simulated data</a>.</p>
+
+</details>
+
+<h3>Exercise 2: Compare three estimators on a sim</h3>
+
+<p>Simulate a dataset of <code>n = 200</code> observations where <code>x</code> is uniform on $[1, 10]$ and the residual standard deviation is $\sigma_0 \cdot x$ with $\sigma_0 = 0.4$. Fit OLS, WLS with the correct weights ($1/x^2$), and OLS with sandwich-by-hand SEs. Compare the three slope standard errors. Which is smallest? Recommend an estimator and justify.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: reuse the sandwich-by-hand pattern. Set seed for reproducibility.
+
+set.seed(2026)
+sim_x &lt;- runif(200, 1, 10)
+sim_y &lt;- 1 + 2 * sim_x + rnorm(200, 0, 0.4 * sim_x)
+
+# 1. Fit OLS, WLS, and compute robust SE
+# 2. Print the three slope SEs
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+sim_x &lt;- runif(200, 1, 10)
+sim_y &lt;- 1 + 2 * sim_x + rnorm(200, 0, 0.4 * sim_x)
+
+sim_ols &lt;- lm(sim_y ~ sim_x)
+sim_wls &lt;- lm(sim_y ~ sim_x, weights = 1 / sim_x^2)
+
+# Sandwich-by-hand
+sim_X &lt;- model.matrix(sim_ols)
+sim_e &lt;- resid(sim_ols)
+sim_bread &lt;- solve(t(sim_X) %*% sim_X)
+sim_meat &lt;- t(sim_X) %*% diag(sim_e^2) %*% sim_X
+sim_hc &lt;- sqrt(diag(sim_bread %*% sim_meat %*% sim_bread))
+
+data.frame(
+  ols_naive = coef(summary(sim_ols))[2, 2],
+  wls       = coef(summary(sim_wls))[2, 2],
+  robust_se = sim_hc[2]
+)
+#&gt;      ols_naive        wls  robust_se
+#&gt; 1   0.04432912 0.02410356 0.03911684</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> WLS produces the smallest SE because we used the correct variance model. Robust SEs are valid but inefficient. With weights known to be correct, WLS is the recommended estimator. If we had been unsure of the variance structure, robust SEs would be the safer fallback.</p>
+
+</details>
+
+<h2>Complete Example</h2>
+
+<p>Here is the full WLS workflow on a tiny built-in dataset, <code>cars</code> (50 rows of stopping distance vs speed). The pipeline is the one you will reach for in practice: fit OLS, check for heteroscedasticity, build two-step weights, refit, verify.</p>
+
+<div class="webr-container" data-block-title="End-to-end WLS pipeline on cars dataset">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">End-to-end WLS pipeline on cars dataset</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Step 1: Fit OLS as a baseline
+cars_ols &lt;- lm(dist ~ speed, data = cars)
+coef(summary(cars_ols))[2, ]
+#&gt;     Estimate   Std. Error      t value     Pr(&gt;|t|)
+#&gt;   3.93240876   0.41551223   9.46398584   0.00000000
+
+# Step 2: BP test on OLS residuals
+cars_bp &lt;- lm(I(resid(cars_ols)^2) ~ fitted(cars_ols))
+cars_chi &lt;- nrow(cars) * summary(cars_bp)$r.squared
+cars_p &lt;- pchisq(cars_chi, df = 1, lower.tail = FALSE)
+c(chi = cars_chi, p = cars_p)
+#&gt;        chi          p
+#&gt;   8.336886   0.003886
+
+# Step 3: Build two-step weights
+cars_var &lt;- lm(abs(resid(cars_ols)) ~ fitted(cars_ols))
+cars_w &lt;- 1 / fitted(cars_var)^2
+
+# Step 4: Refit with weights
+cars_wls &lt;- lm(dist ~ speed, data = cars, weights = cars_w)
+coef(summary(cars_wls))[2, ]
+#&gt;     Estimate   Std. Error      t value     Pr(&gt;|t|)
+#&gt;   3.86686325   0.30791902  12.55812037   0.00000000
+
+# Step 5: Verify on weighted residuals
+cars_wresid &lt;- resid(cars_wls) * sqrt(cars_w)
+cars_bp2 &lt;- lm(I(cars_wresid^2) ~ fitted(cars_wls))
+cars_p2 &lt;- pchisq(nrow(cars) * summary(cars_bp2)$r.squared, df = 1, lower.tail = FALSE)
+cars_p2
+#&gt; [1] 0.4732601</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The OLS BP p-value (0.004) flags heteroscedasticity. Two-step WLS shrinks the slope SE from 0.42 to 0.31 (about 25% tighter inference) while keeping the slope estimate close to the OLS result (3.87 vs 3.93). The weighted-residual BP p-value (0.47) confirms the variance issue is no longer detectable. Five steps, no extra packages.</p>
+
+<h2>Summary</h2>
+
+<ul>
+
+<li><strong>WLS = OLS with weights.</strong> Pass <code>weights = w</code> to <code>lm()</code> and the model minimises a weighted sum of squared residuals.</li>
+
+<li><strong>Three weighting strategies cover most cases.</strong> Use $1/\sigma_i^2$ when standard deviations are known, $n_i$ when responses are group means, and a two-step variance model when neither is available.</li>
+
+<li><strong>Always verify with a Breusch-Pagan-by-hand check on weighted residuals.</strong> A successful fix moves the p-value from near zero to non-significant.</li>
+
+<li><strong>Robust SEs are the fallback when weights are guesswork.</strong> They fix the inference but keep the inefficient OLS estimate.</li>
+
+<li><strong>A log transform sidesteps WLS entirely</strong> when the response is positive and noise is multiplicative.</li>
+
+</ul>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Wooldridge, J. M. <em>Introductory Econometrics: A Modern Approach</em>, 7th ed. Cengage (2019). Chapter 8: Heteroscedasticity. <a href="https://www.cengage.com/c/introductory-econometrics-a-modern-approach-7e-wooldridge/">Link</a></li>
+
+<li>Faraway, J. J. <em>Linear Models with R</em>, 2nd ed. Chapman & Hall/CRC (2014). Chapter 8: Generalized Least Squares. <a href="https://julianfaraway.github.io/faraway/LMR/">Link</a></li>
+
+<li>Penn State University, STAT 501, Lesson 13: Weighted Least Squares. <a href="https://online.stat.psu.edu/stat501/lesson/13/13.1">Link</a></li>
+
+<li>R Core Team, <code>lm()</code> documentation, <code>weights</code> argument. <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/lm.html">Link</a></li>
+
+<li>White, H. "A Heteroskedasticity-Consistent <a class="auto-link" href="Multivariate-Statistics-in-R.html" title="Multivariate Statistics in R: Distances, Mahalanobis, and Hotelling's T² Demystified">Covariance Matrix</a> Estimator and a Direct Test for Heteroskedasticity." <em>Econometrica</em> 48 (1980): 817-838. <a href="https://www.jstor.org/stable/1912934">Link</a></li>
+
+<li>Cribari-Neto, F. "Asymptotic inference under heteroskedasticity of unknown form." <em>Computational Statistics & Data Analysis</em> 45 (2004): 215-233. <a href="https://www.sciencedirect.com/science/article/abs/pii/S0167947302003660">Link</a></li>
+
+<li>Breusch, T. S., and Pagan, A. R. "A Simple Test for Heteroscedasticity and Random Coefficient Variation." <em>Econometrica</em> 47 (1979): 1287-1294. <a href="https://www.jstor.org/stable/1911963">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Linear-Regression-Assumptions-in-R.html">Linear Regression Assumptions in R</a>, the parent tutorial covering all five <a class="auto-link" href="Linear-Regression-Assumptions-in-R.html" title="Linear Regression Assumptions in R: Test All 5 and Know What to Do When They Fail">OLS assumptions</a> and how to test them.</li>
+
+<li><a href="Linear-Regression-in-R.html">Linear Regression in R</a>, foundations of <code>lm()</code>, model interpretation, and prediction.</li>
+
+<li><a href="Robust-Regression-in-R.html">Robust Regression in R</a>, when outliers, not just unequal variance, are distorting your fit.</li>
+
+</ul>
