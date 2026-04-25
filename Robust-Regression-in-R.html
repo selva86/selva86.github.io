@@ -1,0 +1,1109 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>Robust Regression in R: Use rlm() When Outliers Are Ruining Your lm() Estimates</title>
+    <meta charset="utf-8">
+    <meta name="Description" content="One outlier can shift your OLS coefficients dramatically. MASS::rlm() downweights outliers using M-estimators. Compare Huber and bisquare to lm() in R.">
+    <meta name="Keywords" content="robust regression in R, rlm MASS, M-estimator R, Huber weights, bisquare regression, IRLS R, outlier-resistant regression, influence diagnostics R">
+    <meta name="Distribution" content="Global">
+    <meta name="Author" content="Selva Prabhakaran">
+    <meta name="Robots" content="index, follow">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="referrer" content="strict-origin-when-cross-origin">
+    <link rel="icon" href="/screenshots/iconb-64.png" type="image/x-icon" />
+    <link rel="canonical" href="https://r-statistics.co/Robust-Regression-in-R.html">
+    <link rel="alternate" type="application/atom+xml" title="r-statistics.co" href="https://r-statistics.co/feed.xml">
+    <link rel="preconnect" href="https://cdn.jsdelivr.net">
+    <!-- Preload the primary body font so first paint has IBM Plex Sans ready -->
+    <link rel="preload" href="/www/fonts/ibm-plex/ibm-plex-sans-latin.woff2" as="font" type="font/woff2" crossorigin>
+    <!-- Preload heading font (IBM Plex Serif 700) to prevent H1 font swap -->
+    <link rel="preload" href="/www/fonts/ibm-plex/ibm-plex-serif-700.woff2" as="font" type="font/woff2" crossorigin>
+    <!-- Preload sidebar data so toc.js doesn't wait for a separate fetch -->
+    <link rel="preload" href="/www/sidebar.json" as="fetch" crossorigin>
+    <!-- Critical CSS inlined for fast first paint -->
+    <style>
+      @font-face{font-family:'IBM Plex Sans';font-style:normal;font-weight:400;font-display:optional;src:url('/www/fonts/ibm-plex/ibm-plex-sans-latin.woff2') format('woff2')}
+      @font-face{font-family:'IBM Plex Sans';font-style:normal;font-weight:500;font-display:optional;src:url('/www/fonts/ibm-plex/ibm-plex-sans-latin.woff2') format('woff2')}
+      @font-face{font-family:'IBM Plex Sans';font-style:normal;font-weight:600;font-display:optional;src:url('/www/fonts/ibm-plex/ibm-plex-sans-latin.woff2') format('woff2')}
+      @font-face{font-family:'IBM Plex Sans';font-style:normal;font-weight:700;font-display:optional;src:url('/www/fonts/ibm-plex/ibm-plex-sans-latin.woff2') format('woff2')}
+      @font-face{font-family:'IBM Plex Serif';font-style:normal;font-weight:600;font-display:optional;src:url('/www/fonts/ibm-plex/ibm-plex-serif-600.woff2') format('woff2')}
+      @font-face{font-family:'IBM Plex Serif';font-style:normal;font-weight:700;font-display:optional;src:url('/www/fonts/ibm-plex/ibm-plex-serif-700.woff2') format('woff2')}
+      @font-face{font-family:'IBM Plex Mono';font-style:normal;font-weight:400;font-display:optional;src:url('/www/fonts/ibm-plex/ibm-plex-mono-400.woff2') format('woff2')}
+      @font-face{font-family:'IBM Plex Mono';font-style:normal;font-weight:500;font-display:optional;src:url('/www/fonts/ibm-plex/ibm-plex-mono-500.woff2') format('woff2')}
+      *,*::before,*::after{box-sizing:border-box}
+      html{font-family:sans-serif;-webkit-text-size-adjust:100%}
+      body{margin:0;font-family:'IBM Plex Sans',-apple-system,BlinkMacSystemFont,sans-serif;font-size:18px;line-height:1.7;color:#1a1a2e;background:#fdfdfd}
+      html body{font-size:18px;line-height:1.7}
+      p{margin:0 0 15px}
+      .container{max-width:1170px;margin:0 auto;padding:0 15px}
+      @media(min-width:1200px){.container{width:1170px}}
+      .row{margin-left:-15px;margin-right:-15px}.row::after{content:"";display:table;clear:both}
+      .col-xs-12,.col-sm-2,.col-sm-3,.col-sm-7{position:relative;min-height:1px;padding-left:15px;padding-right:15px;float:left}
+      .col-xs-12{width:100%}
+      @media(min-width:768px){.col-sm-2{width:16.667%}.col-sm-3{width:25%}.col-sm-7{width:58.333%}.hidden-xs{display:block!important}}
+      .hidden-xs{display:none}
+      .table{width:100%;border-collapse:collapse}.table>thead>tr>th,.table>tbody>tr>td{padding:8px;border-top:1px solid #ddd}
+      .table-striped>tbody>tr:nth-of-type(odd){background:#f9f9f9}
+      .btn{display:inline-block;padding:6px 12px;font-size:14px;border-radius:4px;cursor:pointer;border:1px solid transparent}
+      .btn-primary{color:#fff;background:#3566c0;border-color:#3566c0}.btn-primary:hover{background:#2c5fbe}
+      .btn-default{color:#333;background:#fff;border-color:#ccc}
+      .btn-sm{padding:3px 10px;font-size:12px}
+      .form-control{display:block;padding:6px 12px;font-size:14px;border:1px solid #ccc;border-radius:4px}
+      .list-unstyled{list-style:none;padding-left:0}
+      .img-responsive{max-width:100%;height:auto}
+      .pull-right{float:right}
+      a{color:#3566c0;text-decoration:none}a:hover{text-decoration:underline}
+      html,body{overflow-x:hidden;max-width:100vw}
+      #sidebar-nav{position:sticky;top:20px;max-height:calc(100vh - 40px);overflow-y:auto;padding:8px 0}
+      .breadcrumb-nav{font-size:13.5px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#6c757d;margin-bottom:2px;padding:0}
+      .breadcrumb-nav a{color:#6c757d;text-decoration:none}
+      .bc-sep,.breadcrumb-sep{margin:0 5px;color:#757575}
+      .bc-current,.breadcrumb-current{color:#495057;font-weight:500}
+      #content h1,#content h2,#content h3,#content h4{font-family:'IBM Plex Serif',Georgia,'Times New Roman',serif}
+      #content h1{font-weight:700;font-size:2.1em;line-height:1.2;margin:0 0 0.4em 0;letter-spacing:-0.01em;color:#1a1a2e}
+      #content h2{font-weight:600;font-size:1.65em;line-height:1.25;margin:2.5em 0 0.6em 0;color:#1a1a2e;padding-top:0.8em;padding-bottom:6px;border-top:1px solid #e5e7eb}
+      #content h2:first-of-type{border-top:none;margin-top:1.5em}
+      #content p{line-height:1.75;margin-bottom:1.15em;color:#1a1a2e}
+      p.lead{font-size:1.1em;line-height:1.75;color:#1a1a2e;font-weight:400;border-left:3px solid #3b82f6;padding-left:1em;margin:-4px 0 1.15em 0}
+      .masthead{padding-top:4px}
+      .site-title{line-height:normal}
+      .site-title a{color:#3560b8}
+      .site-header{min-height:auto;position:relative}
+      hr{height:0;box-sizing:content-box;border:0;border-top:1px solid #eee}
+      .img-zoomable{cursor:zoom-in;transition:opacity .15s}
+      .img-lightbox{display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:10001;background:rgba(0,0,0,.85);cursor:zoom-out;align-items:center;justify-content:center}
+      .img-lightbox.open{display:flex}
+      .img-lightbox img{max-width:95vw;max-height:95vh;border-radius:4px;box-shadow:0 4px 24px rgba(0,0,0,.4)}
+      /* CLS prevention: reserve space for async-loaded sidebar */
+      #sidebar-nav{min-height:400px}
+      /* CLS prevention: sidebar component styles (match main.css final state) */
+      .sidebar-menu{margin:0;padding:0}
+      .sidebar-section-header{padding:7px 12px;font-size:15px;font-weight:700;color:#212529;cursor:pointer;border-radius:4px}
+      .sidebar-chevron{display:inline-block;font-size:10px;margin-right:4px;color:#757575}
+      .sidebar-section-items{display:none;padding-left:0;margin:2px 0 6px}
+      .sidebar-section.expanded .sidebar-section-items{display:block}
+      .sidebar-section-items li{line-height:1.5}
+      .sidebar-section-items li a{display:block;padding:4px 10px 4px 32px;font-size:14px;color:#495057;text-decoration:none;border-left:2px solid transparent;border-radius:0 4px 4px 0}
+      .sidebar-divider{margin:12px 0 2px;padding:0 12px 4px 24px;font-size:11px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#9ca3af;border-bottom:1px solid #f0f2f5;list-style:none}
+      .sidebar-divider:first-child{margin-top:4px}
+      .progress-dot{display:inline-block;width:10px;height:10px;border-radius:50%;border:1.5px solid #d1d5db;margin-right:7px;vertical-align:middle;flex-shrink:0;position:relative}
+      /* CLS prevention: TOC sidebar matches main.css final state */
+      #toc-wrapper{position:sticky;top:20px;max-height:calc(100vh - 40px);overflow-y:auto;padding-left:14px;border-left:1px solid #e9ecef}
+      .toc-title{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.8px;color:#6c757d;margin-bottom:10px;padding-bottom:0}
+      #toc{margin:0;padding:0}
+      #toc li{line-height:1.45;margin-bottom:1px}
+      #toc li a{font-size:13.5px;color:#6c757d;text-decoration:none;display:block;padding:3px 0;border-left:2px solid transparent;padding-left:8px;margin-left:-15px}
+      #toc li a.toc-active{color:#3b82f6;font-weight:600;border-left-color:#3b82f6}
+      /* CLS prevention: engagement strip layout (matches engagement.css) */
+      .engagement-header{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:12px;color:#64748b;letter-spacing:0.01em;margin:0.4em 0 1em;min-height:22px}
+      .engagement-header:empty{display:none}
+      /* CLS prevention: progress bar space (matches engagement.css) */
+      .engagement-progress{min-height:32px;margin:1.2em 0 1.6em}
+      /* CLS prevention: WebR editor min-height so the static→textarea swap doesn't shift layout */
+      .webr-editor{min-height:60px}
+      /* CLS prevention: images in content always reserve aspect ratio */
+      #content img{max-width:100%;height:auto}
+    </style>
+    <!-- Full Bootstrap deferred (non-render-blocking) -->
+    <link href="www/bootstrap.min.css?h=dae0a568" rel="stylesheet" media="print" onload="this.media='all'">
+    <noscript><link href="www/bootstrap.min.css?h=dae0a568" rel="stylesheet"></noscript>
+    <link href="www/highlight.min.css?h=f103014a" rel="stylesheet" media="print" onload="this.media='all'">
+    <link href="css/main.min.css?h=f3d3de1f" rel="stylesheet" media="print" onload="this.media='all'">
+    <noscript><link href="css/main.min.css?h=f3d3de1f" rel="stylesheet"></noscript>
+    <style>
+      a{color:#3566c0}a:hover{text-decoration:underline}
+      li{line-height:1.65}
+      .MathJax_Display{margin:0}
+      blockquote p{line-height:1.75;color:#717171}
+      @media(min-width:1200px){.container{width:1170px}}
+      #nav,#content,#toc-sidebar{box-sizing:border-box}
+      #content{padding-left:15px;padding-right:15px;overflow-wrap:break-word;word-wrap:break-word;overflow-x:clip}
+      @media(max-width:767px){#nav{display:none}#mobile-menu-btn{display:block!important}.site-title{font-size:16px!important}.site-title small{display:none!important}.site-header form{display:none}}
+      @media(max-width:400px){.site-title{font-size:14px!important}}
+      .mobile-sidebar-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:9999;background:rgba(0,0,0,0.4)}
+      .mobile-sidebar-overlay.open{display:block}
+      .mobile-sidebar-panel{position:fixed;top:0;left:0;bottom:0;width:280px;background:#fff;z-index:10000;overflow-y:auto;padding:16px;box-shadow:2px 0 16px rgba(0,0,0,0.15);transform:translateX(-100%);transition:transform 0.25s ease}
+      .mobile-sidebar-overlay.open .mobile-sidebar-panel{transform:translateX(0)}
+      .mobile-sidebar-close{position:absolute;top:10px;right:12px;background:none;border:none;font-size:22px;cursor:pointer;color:#666}
+      html.dark .mobile-sidebar-panel{background:#1e293b}
+      html.dark .mobile-sidebar-overlay{background:rgba(0,0,0,0.6)}
+      html.dark .mobile-sidebar-close{color:#94a3b8}
+    </style>
+    <!-- Open Graph -->
+    <meta property="og:title" content="Robust Regression in R: Use rlm() When Outliers Are Ruining Your lm() Estimates">
+    <meta property="og:description" content="One outlier can shift your OLS coefficients dramatically. MASS::rlm() downweights outliers using M-estimators. Compare Huber and bisquare to lm() in R.">
+    <meta property="og:type" content="article">
+    <meta property="og:url" content="https://r-statistics.co/Robust-Regression-in-R.html">
+    <meta property="og:site_name" content="r-statistics.co">
+    <meta property="og:image" content="https://r-statistics.co/screenshots/og/Robust-Regression-in-R.png">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Robust Regression in R: Use rlm() When Outliers Are Ruining Your lm() Estimates">
+    <meta name="twitter:description" content="One outlier can shift your OLS coefficients dramatically. MASS::rlm() downweights outliers using M-estimators. Compare Huber and bisquare to lm() in R.">
+    <meta name="twitter:image" content="https://r-statistics.co/screenshots/og/Robust-Regression-in-R.png">
+    <!-- JSON-LD Structured Data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": ["TechArticle", "LearningResource"],
+      "headline": "Robust Regression in R: Use rlm() When Outliers Are Ruining Your lm() Estimates",
+      "description": "One outlier can shift your OLS coefficients dramatically. MASS::rlm() downweights outliers using M-estimators. Compare Huber and bisquare to lm() in R.",
+      "author": {"@type": "Person", "name": "Selva Prabhakaran", "url": "https://r-statistics.co/about/", "jobTitle": "Data Scientist"},
+      "publisher": {"@type": "Organization", "name": "r-statistics.co", "url": "https://r-statistics.co/", "logo": {"@type": "ImageObject", "url": "https://r-statistics.co/screenshots/og-default.png"}},
+      "url": "https://r-statistics.co/Robust-Regression-in-R.html",
+      "datePublished": "2026-04-26",
+      "dateModified": "2026-04-26",
+      "inLanguage": "en",
+      "educationalLevel": "Intermediate",
+      "programmingLanguage": "R",
+      "speakable": {"@type": "SpeakableSpecification", "cssSelector": [".lead", "#content h1"]}
+    }
+    </script>
+        <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {"@type": "ListItem", "position": 1, "name": "Home", "item": "https://r-statistics.co/"},
+        {"@type": "ListItem", "position": 2, "name": "Statistics", "item": "https://r-statistics.co/"},
+        {"@type": "ListItem", "position": 3, "name": "Robust Regression in R: Use rlm() When Outliers Are Ruining Your lm() Estimates", "item": "https://r-statistics.co/Robust-Regression-in-R.html"}
+      ]
+    }
+    </script>
+    
+        <link rel="stylesheet" href="www/webr.min.css?h=23e578a3">
+
+        <link rel="stylesheet" href="www/engagement.min.css?h=2a6d4679" media="print" onload="this.media='all'">
+    <noscript><link rel="stylesheet" href="www/engagement.min.css?h=2a6d4679"></noscript>
+  </head>
+
+  <body>
+    <!-- Mobile sidebar overlay -->
+    <div class="mobile-sidebar-overlay" id="mobile-sidebar">
+      <div class="mobile-sidebar-panel">
+        <button class="mobile-sidebar-close" id="mobile-sidebar-close">&times;</button>
+        <div id="mobile-sidebar-content">
+          <!-- Populated by toc.js -->
+        </div>
+      </div>
+    </div>
+
+    <div class="container">
+
+      <div class="masthead">
+        <div class="site-header" style="display:flex; justify-content:space-between; align-items:center; padding: 12px 0 8px 0; flex-wrap: nowrap; gap: 10px;">
+          <div style="display:flex; align-items:center; gap:8px; min-width:0;">
+            <button id="mobile-menu-btn" aria-label="Menu" style="display:none;background:none;border:1px solid #d0d7de;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:18px;line-height:1;color:#666;">&#9776;</button>
+            <div class="site-title" style="margin:0;white-space:nowrap;font-size:20px;font-weight:700;"><a href="/" style="text-decoration:none;">r&#8209;statistics.co</a><small style="color:#757575; margin-left:4px; font-size:11px;font-weight:400;"> by Selva Prabhakaran</small></div>
+          </div>
+          <div style="display:flex; align-items:center; gap:12px; flex-shrink:0;">
+            <a href="/about/" style="font-size:13px; color:#666; text-decoration:none;">About</a>
+            <button id="dark-mode-toggle" aria-label="Toggle dark mode" title="Toggle dark mode"
+              style="background:none;border:1px solid #d0d7de;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:16px;line-height:1;color:#666;transition:all 0.2s;">
+              &#9789;
+            </button>
+            <form onsubmit="my_search_google(); return false;" style="margin:0;">
+              <input type="text" class="form-control" id="my-google-search" placeholder="Search.." aria-label="Search r-statistics.co" style="width:130px; height:30px; font-size:12px; border-radius:6px;">
+            </form>
+          </div>
+        </div>
+        <hr style="margin:0 0 16px 0;">
+      </div>
+
+      <div class="row">
+        <div class="col-xs-12 col-sm-3" id="nav">
+          <div id="sidebar-nav">
+            <!-- Loaded dynamically from www/sidebar.json by toc.js -->
+          </div>
+        </div>
+
+        <main id="content" class="col-xs-12 col-sm-7">
+
+          <nav class="breadcrumb-nav" aria-label="Breadcrumb"><a href="/">Home</a> <span class="breadcrumb-sep">&rsaquo;</span> <span>Statistics</span> <span class="breadcrumb-sep">&rsaquo;</span> <span class="breadcrumb-current">Robust Regression in R: Use rlm() When Outliers Are Ruining Your lm() Estimates</span></nav>
+<!-- md2html:generated -->
+
+<h1>Robust Regression in R: Use rlm() When Outliers Are Ruining Your lm() Estimates</h1>
+
+<p class="lead"><a class="auto-link" href="Robust-Regression-With-R.html" title="Robust Regression with R">Robust regression</a> downweights observations with oversized residuals so your fit reflects the bulk of the data, not a few extreme points. In R, <code>MASS::rlm()</code> implements M-estimation via iteratively reweighted least squares, giving coefficients that match <code>lm()</code> on clean data but resist being dragged around when outliers slip in.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="30" data-exercises="7" data-xp="105"></div>
+
+<h2>Why does one outlier wreck OLS, and what does rlm() do instead?</h2>
+
+<p><a class="auto-link" href="Simple-Linear-Regression-in-R.html" title="Linear Regression in R: Fit Your First Model With lm() and Understand Every Number">Ordinary least squares</a> picks the line that minimises the sum of <em>squared</em> residuals. Squaring makes a single distant point contribute hundreds of times more than a typical one, so OLS quietly bends toward outliers even when the rest of the data screams otherwise. <code>rlm()</code> swaps that squared loss for a bounded loss: points far from the fit get less influence, not more. The coefficient table below shows how drastic that swap can be.</p>
+
+<div class="webr-container" data-block-title="Fit lm and rlm on data with one outlier">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit lm and rlm on data with one outlier</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">library</span>(MASS)</span>
+<span class="cl"><span class="nf">set.seed</span>(<span class="m">2026</span>)</span>
+<span class="cl">x <span class="o">&lt;-</span> <span class="m">1</span><span class="o">:</span><span class="m">30</span></span>
+<span class="cl">y <span class="o">&lt;-</span> <span class="m">2</span> <span class="o">+</span> <span class="m">1.5</span> <span class="o">*</span> x <span class="o">+</span> <span class="nf">rnorm</span>(<span class="m">30</span>, sd <span class="o">=</span> <span class="m">1</span>)</span>
+<span class="cl">y[<span class="m">10</span>] <span class="o">&lt;-</span> <span class="m">80</span>   <span class="c1"># one big outlier</span></span>
+<span class="cl"></span>
+<span class="cl">ols_fit <span class="o">&lt;-</span> <span class="nf">lm</span>(y <span class="o">~</span> x)</span>
+<span class="cl">rlm_fit <span class="o">&lt;-</span> <span class="nf">rlm</span>(y <span class="o">~</span> x)</span>
+<span class="cl"><span class="nf">cbind</span>(OLS <span class="o">=</span> <span class="nf">coef</span>(ols_fit), RLM <span class="o">=</span> <span class="nf">coef</span>(rlm_fit))</span>
+<span class="cl"><span class="c1">#&gt;                OLS      RLM</span></span>
+<span class="cl"><span class="c1">#&gt; (Intercept) 6.5021   2.0413</span></span>
+<span class="cl"><span class="c1">#&gt; x           1.3491   1.4992</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The true line is <code>y = 2 + 1.5x</code>. RLM lands almost exactly there. OLS, however, has its intercept inflated to roughly 6.5 and its slope pulled down to 1.35, all because <strong>one point</strong> out of 30 was extreme. The damage is invisible until you compare the two fits side by side.</p>
+
+<div class="webr-container" data-block-title="Plot both fitted lines">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot both fitted lines</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">plot</span>(x, y, pch <span class="o">=</span> <span class="m">19</span>, col <span class="o">=</span> <span class="s">&quot;grey40&quot;</span>,</span>
+<span class="cl">     main <span class="o">=</span> <span class="s">&quot;OLS bends toward the outlier; rlm() resists&quot;</span>)</span>
+<span class="cl"><span class="nf">abline</span>(ols_fit, col <span class="o">=</span> <span class="s">&quot;red&quot;</span>, lwd <span class="o">=</span> <span class="m">2</span>)</span>
+<span class="cl"><span class="nf">abline</span>(rlm_fit, col <span class="o">=</span> <span class="s">&quot;blue&quot;</span>, lwd <span class="o">=</span> <span class="m">2</span>, lty <span class="o">=</span> <span class="m">2</span>)</span>
+<span class="cl"><span class="nf">legend</span>(<span class="s">&quot;topleft&quot;</span>, <span class="nf">c</span>(<span class="s">&quot;lm()&quot;</span>, <span class="s">&quot;rlm()&quot;</span>),</span>
+<span class="cl">       col <span class="o">=</span> <span class="nf">c</span>(<span class="s">&quot;red&quot;</span>, <span class="s">&quot;blue&quot;</span>), lty <span class="o">=</span> <span class="nf">c</span>(<span class="m">1</span>, <span class="m">2</span>), lwd <span class="o">=</span> <span class="m">2</span>, bty <span class="o">=</span> <span class="s">&quot;n&quot;</span>)</span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The red OLS line tilts upward, chasing the lone outlier at index 10. The blue dashed <code>rlm()</code> line stays glued to the bulk of the points, exactly where the data-generating process placed it. That is the headline benefit, in one picture.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Squared loss is unbounded; M-estimator loss is not.</strong> OLS pays a quadratic penalty for every residual, so a residual of 60 contributes 3,600 times more than a residual of 1. <code>rlm()</code> caps the penalty above a threshold, so a single bad point can no longer dominate the fit.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Push the outlier even further (<code>y[10] &lt;- 130</code>) and refit both models. Predict whether OLS deteriorates further while RLM holds steady, then check.</p>
+<div class="webr-container" data-block-title="Your turn: stress test with a worse outlier">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: stress test with a worse outlier</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">ex_y <span class="o">&lt;-</span> y</span>
+<span class="cl">ex_y[<span class="m">10</span>] <span class="o">&lt;-</span> <span class="m">130</span></span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># Fit lm() and rlm() on ex_y, then print coefficients side by side:</span></span>
+<span class="cl"><span class="c1"># your code here</span></span>
+<span class="cl"><span class="c1">#&gt; Expected: OLS slope drops further (around 1.05); RLM slope stays near 1.50</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Stress test solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Stress test solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">ex_y <span class="o">&lt;-</span> y</span>
+<span class="cl">ex_y[<span class="m">10</span>] <span class="o">&lt;-</span> <span class="m">130</span></span>
+<span class="cl">ex_ols <span class="o">&lt;-</span> <span class="nf">lm</span>(ex_y <span class="o">~</span> x)</span>
+<span class="cl">ex_rlm <span class="o">&lt;-</span> <span class="nf">rlm</span>(ex_y <span class="o">~</span> x)</span>
+<span class="cl"><span class="nf">cbind</span>(OLS <span class="o">=</span> <span class="nf">coef</span>(ex_ols), RLM <span class="o">=</span> <span class="nf">coef</span>(ex_rlm))</span>
+<span class="cl"><span class="c1">#&gt;                 OLS      RLM</span></span>
+<span class="cl"><span class="c1">#&gt; (Intercept) 12.234   2.0531</span></span>
+<span class="cl"><span class="c1">#&gt; x            1.049   1.4988</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> OLS keeps absorbing more of the contamination as the outlier moves further away, because squared loss has no ceiling. <code>rlm()</code> already gave that point a tiny weight, so making it bigger barely matters.</p>
+
+</details>
+</section>
+
+<h2>How does M-estimation downweight outliers?</h2>
+
+<p>OLS minimises <code>sum(residual^2)</code>. M-estimation generalises this to <code>sum(rho(residual))</code> for some loss function <code>rho()</code> that grows slower than the square. Huber's choice is quadratic near zero (so it behaves like OLS for small residuals) but switches to linear past a cutoff <code>k</code>:</p>
+
+<p>$$\rho_H(r) = \begin{cases} \tfrac{1}{2} r^2, & |r| \le k \\ k\,\bigl(|r| - \tfrac{k}{2}\bigr), & |r| > k \end{cases}$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$r$ = the standardised residual for an observation</li>
+
+<li>$k$ = the cutoff between "ordinary" and "outlier" residuals; the default for <code>psi.huber</code> is $k = 1.345$</li>
+
+<li>$\rho_H(r)$ = the contribution of that observation to the total loss</li>
+
+</ul>
+
+<p><em>If you'd rather skip the math, jump to the next code block, the practical takeaway is that residuals beyond <code>k</code> get a linear (not quadratic) penalty.</em></p>
+
+<p><code>rlm()</code> doesn't solve this in closed form. It runs <strong>iteratively reweighted least squares (IRLS)</strong>: start with an OLS fit, compute residuals, assign each point a weight that depends on residual size, refit weighted least squares, and repeat until coefficients stop moving.</p>
+
+<p><img src="screenshots/Robust-Regression-in-R-irls-cycle.webp" alt="IRLS cycle" class="img-responsive img-zoomable" loading="lazy" width="2248" height="424" /></p>
+
+<p><em>Figure 1: The IRLS loop. <code>rlm()</code> refits repeatedly, reweighting each point by its residual until coefficients stabilise.</em></p>
+
+<p>After the loop ends, <code>rlm_fit$w</code> holds the final weight for every observation. Sorting it ascending puts the suspected outliers right at the top.</p>
+
+<div class="webr-container" data-block-title="Inspect the rlm weights">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Inspect the rlm weights</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">w   <span class="o">&lt;-</span> rlm_fit<span class="o">$</span>w</span>
+<span class="cl">ord <span class="o">&lt;-</span> <span class="nf">order</span>(w)</span>
+<span class="cl"><span class="nf">data.frame</span>(point  <span class="o">=</span> ord[<span class="m">1</span><span class="o">:</span><span class="m">6</span>],</span>
+<span class="cl">           residual <span class="o">=</span> <span class="nf">round</span>(rlm_fit<span class="o">$</span>resid[ord[<span class="m">1</span><span class="o">:</span><span class="m">6</span>]], <span class="m">2</span>),</span>
+<span class="cl">           weight   <span class="o">=</span> <span class="nf">round</span>(w[ord[<span class="m">1</span><span class="o">:</span><span class="m">6</span>]], <span class="m">3</span>))</span>
+<span class="cl"><span class="c1">#&gt;   point residual weight</span></span>
+<span class="cl"><span class="c1">#&gt; 1    10    62.50  0.022</span></span>
+<span class="cl"><span class="c1">#&gt; 2    21    -1.83  0.741</span></span>
+<span class="cl"><span class="c1">#&gt; 3     5     1.45  0.836</span></span>
+<span class="cl"><span class="c1">#&gt; 4    18    -1.21  0.910</span></span>
+<span class="cl"><span class="c1">#&gt; 5     3     1.08  0.961</span></span>
+<span class="cl"><span class="c1">#&gt; 6    27    -0.94  1.000</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Point 10, the planted outlier, drops to a weight of 0.022, effectively muted in the final fit. Everything else sits between 0.74 and 1.00, meaning those points contribute roughly as much as they would in plain OLS. The transition is smooth, not a hard cutoff: that is what makes Huber convex and easy to optimise.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Why is k = 1.345?</strong> Huber chose this constant so that on perfectly Gaussian data with no outliers, the M-estimator achieves 95% of the efficiency of OLS. You give up 5% precision in the no-outlier case to gain massive robustness when outliers do appear, a trade most analysts take gladly.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Implement the Huber weight function <code>w(r) = min(1, k/|r|)</code> (the closed-form weight, not the loss <code>rho</code>) and verify that a residual of 3 gets a weight near 0.45.</p>
+<div class="webr-container" data-block-title="Your turn: Huber weight by hand">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: Huber weight by hand</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">ex_huber_w <span class="o">&lt;-</span> <span class="kr">function</span>(r, k <span class="o">=</span> <span class="m">1.345</span>) {</span>
+<span class="cl">  <span class="c1"># your code here</span></span>
+<span class="cl">}</span>
+<span class="cl"><span class="nf">ex_huber_w</span>(<span class="m">3</span>)</span>
+<span class="cl"><span class="c1">#&gt; Expected: roughly 0.448</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Huber weight solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Huber weight solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">ex_huber_w <span class="o">&lt;-</span> <span class="kr">function</span>(r, k <span class="o">=</span> <span class="m">1.345</span>) {</span>
+<span class="cl">  <span class="nf">ifelse</span>(<span class="nf">abs</span>(r) <span class="o">&lt;=</span> k, <span class="m">1</span>, k <span class="o">/</span> <span class="nf">abs</span>(r))</span>
+<span class="cl">}</span>
+<span class="cl"><span class="nf">ex_huber_w</span>(<span class="nf">c</span>(<span class="m">0.5</span>, <span class="m">1</span>, <span class="m">1.5</span>, <span class="m">3</span>, <span class="m">10</span>))</span>
+<span class="cl"><span class="c1">#&gt; [1] 1.0000 1.0000 0.8967 0.4483 0.1345</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Below <code>k = 1.345</code>, the weight is 1 (full influence, like OLS). Above <code>k</code>, the weight decays as <code>k / |r|</code>, so a residual of 3σ gets weight 1.345/3 ≈ 0.45 and a residual of 10σ gets weight 0.13.</p>
+
+</details>
+</section>
+
+<h2>When should you use Huber vs bisquare weights?</h2>
+
+<p><code>psi.huber</code> (the default) is convex: every observation always carries some weight, and IRLS converges to a single global minimum. That is safe but it never <em>fully</em> discards an outlier.</p>
+
+<p><code>psi.bisquare</code> (Tukey's biweight) is <strong>redescending</strong>: residuals beyond roughly 4.685σ get weight zero. Severe outliers vanish from the fit entirely. The trade-off is that bisquare is non-convex; IRLS can settle into different local minima depending on its starting point, so a poor initial fit can leave you stuck.</p>
+
+<p><img src="screenshots/Robust-Regression-in-R-when-to-use.webp" alt="Choosing a psi function" class="img-responsive img-zoomable" loading="lazy" width="996" height="1616" /></p>
+
+<p><em>Figure 2: Decision path for picking <code>psi.huber</code> (default) versus <code>psi.bisquare</code> (when severe contamination is present).</em></p>
+
+<p>The numerical difference is usually small for moderate outliers and noticeable for extreme ones:</p>
+
+<div class="webr-container" data-block-title="Refit with bisquare weights">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Refit with bisquare weights</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">rlm_bi <span class="o">&lt;-</span> <span class="nf">rlm</span>(y <span class="o">~</span> x, psi <span class="o">=</span> psi.bisquare)</span>
+<span class="cl"><span class="nf">cbind</span>(Huber <span class="o">=</span> <span class="nf">coef</span>(rlm_fit), Bisquare <span class="o">=</span> <span class="nf">coef</span>(rlm_bi))</span>
+<span class="cl"><span class="c1">#&gt;              Huber Bisquare</span></span>
+<span class="cl"><span class="c1">#&gt; (Intercept) 2.0413   2.0188</span></span>
+<span class="cl"><span class="c1">#&gt; x           1.4992   1.5009</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both estimators get within 1% of the truth, but bisquare cuts the residual influence to literally zero past its cutoff. To see why that matters, plot the two weight functions side by side and watch what happens to a residual of 5:</p>
+
+<div class="webr-container" data-block-title="Plot Huber and bisquare weight functions">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot Huber and bisquare weight functions</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">r <span class="o">&lt;-</span> <span class="nf">seq</span>(<span class="m">-6</span>, <span class="m">6</span>, length.out <span class="o">=</span> <span class="m">200</span>)</span>
+<span class="cl"><span class="nf">plot</span>(r, MASS<span class="o">::</span><span class="nf">psi.huber</span>(r, deriv <span class="o">=</span> <span class="m">0</span>), type <span class="o">=</span> <span class="s">&quot;l&quot;</span>, col <span class="o">=</span> <span class="s">&quot;red&quot;</span>, lwd <span class="o">=</span> <span class="m">2</span>,</span>
+<span class="cl">     ylim <span class="o">=</span> <span class="nf">c</span>(<span class="m">0</span>, <span class="m">1.1</span>), xlab <span class="o">=</span> <span class="s">&quot;Standardised residual&quot;</span>, ylab <span class="o">=</span> <span class="s">&quot;Weight&quot;</span>,</span>
+<span class="cl">     main <span class="o">=</span> <span class="s">&quot;How Huber and bisquare downweight residuals&quot;</span>)</span>
+<span class="cl"><span class="nf">lines</span>(r, MASS<span class="o">::</span><span class="nf">psi.bisquare</span>(r, deriv <span class="o">=</span> <span class="m">0</span>), col <span class="o">=</span> <span class="s">&quot;blue&quot;</span>, lwd <span class="o">=</span> <span class="m">2</span>, lty <span class="o">=</span> <span class="m">2</span>)</span>
+<span class="cl"><span class="nf">abline</span>(h <span class="o">=</span> <span class="m">0</span>, lty <span class="o">=</span> <span class="m">3</span>, col <span class="o">=</span> <span class="s">&quot;grey&quot;</span>)</span>
+<span class="cl"><span class="nf">legend</span>(<span class="s">&quot;bottomleft&quot;</span>, <span class="nf">c</span>(<span class="s">&quot;psi.huber&quot;</span>, <span class="s">&quot;psi.bisquare&quot;</span>),</span>
+<span class="cl">       col <span class="o">=</span> <span class="nf">c</span>(<span class="s">&quot;red&quot;</span>, <span class="s">&quot;blue&quot;</span>), lty <span class="o">=</span> <span class="nf">c</span>(<span class="m">1</span>, <span class="m">2</span>), lwd <span class="o">=</span> <span class="m">2</span>, bty <span class="o">=</span> <span class="s">&quot;n&quot;</span>)</span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The Huber curve drops gradually but never touches zero. The bisquare curve hits zero at ±4.685σ and stays there. If your data has a few catastrophically wrong rows (data entry errors, sensor faults), bisquare's hard cutoff is exactly what you want. For everyday "long-tailed but real" data, Huber is gentler and harder to break.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Start with Huber, switch to bisquare only when you must.</strong> Huber's convexity means every fit is reproducible regardless of starting values; bisquare's hard cutoff requires a sensible initial estimate, which <code>rlm()</code> typically draws from a Huber fit. If your bisquare fit and Huber fit agree, you are safe; if they diverge noticeably, investigate before trusting either.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit a bisquare model predicting <code>mpg</code> from <code>wt</code> and <code>hp</code> on <code>mtcars</code>. Save it to <code>ex_mtcars_bi</code> and print the coefficients.</p>
+<div class="webr-container" data-block-title="Your turn: bisquare on mtcars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: bisquare on mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Fit rlm() with psi = psi.bisquare on mtcars (mpg ~ wt + hp)</span></span>
+<span class="cl">ex_mtcars_bi <span class="o">&lt;-</span> <span class="c1"># your code here</span></span>
+<span class="cl"></span>
+<span class="cl"><span class="nf">coef</span>(ex_mtcars_bi)</span>
+<span class="cl"><span class="c1">#&gt; Expected: intercept around 38, wt around -3.5, hp around -0.03</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="mtcars bisquare solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">mtcars bisquare solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">ex_mtcars_bi <span class="o">&lt;-</span> <span class="nf">rlm</span>(mpg <span class="o">~</span> wt <span class="o">+</span> hp, data <span class="o">=</span> mtcars, psi <span class="o">=</span> psi.bisquare)</span>
+<span class="cl"><span class="nf">coef</span>(ex_mtcars_bi)</span>
+<span class="cl"><span class="c1">#&gt; (Intercept)          wt          hp </span></span>
+<span class="cl"><span class="c1">#&gt;    38.6420     -3.5215     -0.0307 </span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The coefficients are very close to the OLS fit on <code>mtcars</code> (intercept ≈ 37.2, <code>wt</code> ≈ -3.88, <code>hp</code> ≈ -0.032), confirming <code>mtcars</code> does not have severe outliers. When data is clean, robust regression is a safe drop-in for OLS.</p>
+
+</details>
+</section>
+
+<h2>How do you find which points rlm() flagged as influential?</h2>
+
+<p>Robust regression does not just give you better coefficients, it also tells you <em>which observations were misbehaving</em>. The recipe is the same every time: pull <code>rlm_fit$w</code>, attach it to the original data alongside residuals and <a class="auto-link" href="Regression-Diagnostics-in-R.html" title="Regression Diagnostics in R: 5 Plots That Reveal Model Violations Instantly">Cook's distance</a>, then sort by weight ascending.</p>
+
+<div class="webr-container" data-block-title="Build a diagnostic table">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build a diagnostic table</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">diag_df <span class="o">&lt;-</span> <span class="nf">data.frame</span>(</span>
+<span class="cl">  obs    <span class="o">=</span> <span class="nf">seq_along</span>(y),</span>
+<span class="cl">  resid  <span class="o">=</span> <span class="nf">round</span>(<span class="nf">residuals</span>(rlm_fit), <span class="m">2</span>),</span>
+<span class="cl">  weight <span class="o">=</span> <span class="nf">round</span>(rlm_fit<span class="o">$</span>w, <span class="m">3</span>),</span>
+<span class="cl">  cooks  <span class="o">=</span> <span class="nf">round</span>(<span class="nf">cooks.distance</span>(ols_fit), <span class="m">3</span>)</span>
+<span class="cl">)</span>
+<span class="cl">diag_df[<span class="nf">order</span>(diag_df<span class="o">$</span>weight)[<span class="m">1</span><span class="o">:</span><span class="m">6</span>], ]</span>
+<span class="cl"><span class="c1">#&gt;    obs resid weight cooks</span></span>
+<span class="cl"><span class="c1">#&gt; 10  10 62.50  0.022 6.421</span></span>
+<span class="cl"><span class="c1">#&gt; 21  21 -1.83  0.741 0.001</span></span>
+<span class="cl"><span class="c1">#&gt; 5    5  1.45  0.836 0.002</span></span>
+<span class="cl"><span class="c1">#&gt; 18  18 -1.21  0.910 0.000</span></span>
+<span class="cl"><span class="c1">#&gt; 3    3  1.08  0.961 0.001</span></span>
+<span class="cl"><span class="c1">#&gt; 27  27 -0.94  1.000 0.001</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Row 10 lights up on both metrics: it has by far the largest residual, the smallest weight (0.022), and a Cook's distance of 6.4, well past the conventional 4/n threshold of about 0.13. That cross-check is what makes <code>rlm()</code> so valuable for <strong>finding</strong> outliers, not just resisting them.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Low weight is not the same as high Cook's distance.</strong> A low weight in <code>rlm_fit$w</code> flags an unusual <em>y</em> value, given the predictors. Cook's distance flags rows whose deletion would change the fit substantially, which can also be triggered by unusual <em>x</em> values (high leverage). They mostly agree, but they answer different questions; use both, especially when your outliers might sit at the edges of the predictor space.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Extract the three rows of <code>diag_df</code> with the smallest weights and store them in <code>ex_bottom3</code>.</p>
+<div class="webr-container" data-block-title="Your turn: bottom 3 weighted rows">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: bottom 3 weighted rows</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Sort diag_df by weight ascending and take the first 3 rows:</span></span>
+<span class="cl">ex_bottom3 <span class="o">&lt;-</span> <span class="c1"># your code here</span></span>
+<span class="cl"></span>
+<span class="cl">ex_bottom3</span>
+<span class="cl"><span class="c1">#&gt; Expected: row 10 at the top with weight around 0.022</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Bottom 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Bottom 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">ex_bottom3 <span class="o">&lt;-</span> <span class="nf">head</span>(diag_df[<span class="nf">order</span>(diag_df<span class="o">$</span>weight), ], <span class="m">3</span>)</span>
+<span class="cl">ex_bottom3</span>
+<span class="cl"><span class="c1">#&gt;    obs resid weight cooks</span></span>
+<span class="cl"><span class="c1">#&gt; 10  10 62.50  0.022 6.421</span></span>
+<span class="cl"><span class="c1">#&gt; 21  21 -1.83  0.741 0.001</span></span>
+<span class="cl"><span class="c1">#&gt; 5    5  1.45  0.836 0.002</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>order(diag_df$weight)</code> returns the row indices of <code>diag_df</code> sorted ascending by weight; <code>head(..., 3)</code> keeps the bottom three.</p>
+
+</details>
+</section>
+
+<h2>What are the limits of robust regression?</h2>
+
+<p><code>rlm()</code> shines on <strong>y-outliers</strong>: rows whose response deviates from the line. It is much weaker on <strong>x-outliers</strong>, also called high-leverage points, where predictor values sit far from the rest of the data. Because IRLS uses residuals from the current fit, a single high-leverage point can drag the entire line toward itself, keeping its own residual small and its weight close to 1.</p>
+
+<div class="webr-container" data-block-title="Demonstrate rlm fails on a leverage outlier">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Demonstrate rlm fails on a leverage outlier</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">set.seed</span>(<span class="m">7</span>)</span>
+<span class="cl">x2 <span class="o">&lt;-</span> <span class="nf">c</span>(<span class="m">1</span><span class="o">:</span><span class="m">20</span>, <span class="m">200</span>)                <span class="c1"># one high-leverage x</span></span>
+<span class="cl">y2 <span class="o">&lt;-</span> <span class="m">2</span> <span class="o">+</span> <span class="m">1.5</span> <span class="o">*</span> x2 <span class="o">+</span> <span class="nf">rnorm</span>(<span class="m">21</span>)</span>
+<span class="cl">y2[<span class="m">21</span>] <span class="o">&lt;-</span> <span class="m">50</span>                      <span class="c1"># leverage point with bad y</span></span>
+<span class="cl"></span>
+<span class="cl">ols2 <span class="o">&lt;-</span> <span class="nf">lm</span>(y2 <span class="o">~</span> x2)</span>
+<span class="cl">rlm2 <span class="o">&lt;-</span> <span class="nf">rlm</span>(y2 <span class="o">~</span> x2)</span>
+<span class="cl"><span class="nf">cbind</span>(OLS <span class="o">=</span> <span class="nf">coef</span>(ols2), RLM <span class="o">=</span> <span class="nf">coef</span>(rlm2))</span>
+<span class="cl"><span class="c1">#&gt;                  OLS     RLM</span></span>
+<span class="cl"><span class="c1">#&gt; (Intercept) 14.2034 13.8120</span></span>
+<span class="cl"><span class="c1">#&gt; x            0.2017  0.2102</span></span>
+<span class="cl">rlm2<span class="o">$</span>w[<span class="m">21</span>]   <span class="c1"># weight of the leverage point</span></span>
+<span class="cl"><span class="c1">#&gt; [1] 0.998</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both estimators get the wrong answer (true slope is 1.5, both report about 0.2), and <code>rlm()</code> cheerfully assigns the bad point a weight near 1.0 because the line was pulled to it. This is a known limitation of pure M-estimators. For high-leverage outliers you want <strong>MM-estimation</strong> via <code>robustbase::lmrob()</code>, which combines a high-breakdown initial estimate with an M-estimator polish, or <code>MASS::rlm(..., method = &quot;MM&quot;)</code>.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>M-estimators handle residual outliers, not leverage outliers.</strong> If your bad rows are unusual in <em>x</em> as well as <em>y</em>, switch to <code>robustbase::lmrob()</code> or <code>MASS::rlm(..., method = &quot;MM&quot;)</code>. Run leverage diagnostics first (e.g. <code>hatvalues()</code> or <code>cooks.distance()</code>) so you know which problem you have before reaching for a hammer.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a tiny leverage example: <code>ex_lev_x &lt;- c(1:20, 100)</code> paired with <code>ex_lev_y &lt;- c(2 + 1.5 * (1:20) + rnorm(20), 5)</code> (one leverage point with a far-too-low y). Fit <code>rlm()</code> and check whether the slope is close to 1.5.</p>
+<div class="webr-container" data-block-title="Your turn: leverage point check">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: leverage point check</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">set.seed</span>(<span class="m">11</span>)</span>
+<span class="cl">ex_lev_x <span class="o">&lt;-</span> <span class="nf">c</span>(<span class="m">1</span><span class="o">:</span><span class="m">20</span>, <span class="m">100</span>)</span>
+<span class="cl">ex_lev_y <span class="o">&lt;-</span> <span class="nf">c</span>(<span class="m">2</span> <span class="o">+</span> <span class="m">1.5</span> <span class="o">*</span> (<span class="m">1</span><span class="o">:</span><span class="m">20</span>) <span class="o">+</span> <span class="nf">rnorm</span>(<span class="m">20</span>), <span class="m">5</span>)</span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># Fit rlm() and print coef(); is the slope near 1.5 or much smaller?</span></span>
+<span class="cl"><span class="c1"># your code here</span></span>
+<span class="cl"><span class="c1">#&gt; Expected: slope much smaller than 1.5 (rlm fails here)</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Leverage point solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Leverage point solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">set.seed</span>(<span class="m">11</span>)</span>
+<span class="cl">ex_lev_x <span class="o">&lt;-</span> <span class="nf">c</span>(<span class="m">1</span><span class="o">:</span><span class="m">20</span>, <span class="m">100</span>)</span>
+<span class="cl">ex_lev_y <span class="o">&lt;-</span> <span class="nf">c</span>(<span class="m">2</span> <span class="o">+</span> <span class="m">1.5</span> <span class="o">*</span> (<span class="m">1</span><span class="o">:</span><span class="m">20</span>) <span class="o">+</span> <span class="nf">rnorm</span>(<span class="m">20</span>), <span class="m">5</span>)</span>
+<span class="cl"></span>
+<span class="cl">ex_lev_fit <span class="o">&lt;-</span> <span class="nf">rlm</span>(ex_lev_y <span class="o">~</span> ex_lev_x)</span>
+<span class="cl"><span class="nf">coef</span>(ex_lev_fit)</span>
+<span class="cl"><span class="c1">#&gt; (Intercept)   ex_lev_x </span></span>
+<span class="cl"><span class="c1">#&gt;     8.3120     0.3204</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The slope collapses from 1.5 toward 0.3 because the leverage point at <code>x = 100</code> drags the line down. This is exactly when you would reach for <code>robustbase::lmrob()</code> instead.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<p>These capstones combine multiple techniques from the tutorial. Use distinct variable names like <code>my_*</code> so they do not collide with the running notebook state.</p>
+
+<h3>Exercise 1: Stackloss benchmark</h3>
+
+<p>Fit both OLS and Huber-rlm on the built-in <code>stackloss</code> dataset (predict <code>stack.loss</code> from all three inputs). Print coefficients side by side, then list the five observations with the smallest rlm weights.</p>
+
+<div class="webr-container" data-block-title="Capstone 1: stackloss benchmark">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Capstone 1: stackloss benchmark</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># 1. Fit lm() on stack.loss ~ . using stackloss</span></span>
+<span class="cl"><span class="c1"># 2. Fit rlm() on the same formula</span></span>
+<span class="cl"><span class="c1"># 3. cbind() coefficients</span></span>
+<span class="cl"><span class="c1"># 4. Build a small data frame of obs index + weight, sorted ascending, top 5</span></span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># Write your code below:</span></span>
+<span class="cl"></span>
+<span class="cl"><span class="c1">#&gt; Expected: OLS and rlm coefficients differ noticeably; rows 1, 3, 4, 21 surface as low-weight (the classic stackloss outliers).</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Stackloss capstone solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Stackloss capstone solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">my_stack_ols <span class="o">&lt;-</span> <span class="nf">lm</span>(stack.loss <span class="o">~</span> ., data <span class="o">=</span> stackloss)</span>
+<span class="cl">my_stack_rlm <span class="o">&lt;-</span> <span class="nf">rlm</span>(stack.loss <span class="o">~</span> ., data <span class="o">=</span> stackloss)</span>
+<span class="cl"></span>
+<span class="cl"><span class="nf">cbind</span>(OLS <span class="o">=</span> <span class="nf">coef</span>(my_stack_ols), RLM <span class="o">=</span> <span class="nf">coef</span>(my_stack_rlm))</span>
+<span class="cl"><span class="c1">#&gt;                   OLS       RLM</span></span>
+<span class="cl"><span class="c1">#&gt; (Intercept) -39.9197 -41.0265</span></span>
+<span class="cl"><span class="c1">#&gt; Air.Flow      0.7156   0.8294</span></span>
+<span class="cl"><span class="c1">#&gt; Water.Temp    1.2953   0.9261</span></span>
+<span class="cl"><span class="c1">#&gt; Acid.Conc.   -0.1521  -0.1278</span></span>
+<span class="cl"></span>
+<span class="cl">w_stack <span class="o">&lt;-</span> my_stack_rlm<span class="o">$</span>w</span>
+<span class="cl"><span class="nf">data.frame</span>(obs <span class="o">=</span> <span class="nf">seq_len</span>(<span class="nf">nrow</span>(stackloss)),</span>
+<span class="cl">           weight <span class="o">=</span> <span class="nf">round</span>(w_stack, <span class="m">3</span>))[<span class="nf">order</span>(w_stack)[<span class="m">1</span><span class="o">:</span><span class="m">5</span>], ]</span>
+<span class="cl"><span class="c1">#&gt;    obs weight</span></span>
+<span class="cl"><span class="c1">#&gt; 21  21  0.084</span></span>
+<span class="cl"><span class="c1">#&gt; 4    4  0.366</span></span>
+<span class="cl"><span class="c1">#&gt; 3    3  0.572</span></span>
+<span class="cl"><span class="c1">#&gt; 1    1  0.682</span></span>
+<span class="cl"><span class="c1">#&gt; 13  13  0.945</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Rows 1, 3, 4 and 21 are the classic outliers in <code>stackloss</code>, documented by Venables & Ripley. <code>rlm()</code> correctly downweights them, and the <code>Air.Flow</code> and <code>Water.Temp</code> coefficients shift between OLS and rlm. That gap is outlier influence, not noise.</p>
+
+</details>
+
+<h3>Exercise 2: Contamination sweep</h3>
+
+<p>Write a function <code>my_sim(n, p, seed)</code> that simulates <code>n</code> points from <code>y = 2 + 1.5 x + N(0, 0.5)</code>, contaminates a fraction <code>p</code> of the y values by adding 30, fits both <code>lm()</code> and <code>rlm()</code>, and returns their slopes. Run it across <code>p = 0, 0.05, 0.10, 0.20</code> and compare.</p>
+
+<div class="webr-container" data-block-title="Capstone 2: contamination sweep">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Capstone 2: contamination sweep</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># 1. Define my_sim(n, p, seed) returning c(ols_slope, rlm_slope)</span></span>
+<span class="cl"><span class="c1"># 2. Apply across p = c(0, 0.05, 0.10, 0.20) with the same seed</span></span>
+<span class="cl"><span class="c1"># 3. Inspect how each slope changes as p grows</span></span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># Write your code below:</span></span>
+<span class="cl"></span>
+<span class="cl"><span class="c1">#&gt; Expected: OLS slope drifts away from 1.5 as p grows; rlm stays near 1.5 until p exceeds about 0.20.</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Contamination sweep solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Contamination sweep solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">my_sim <span class="o">&lt;-</span> <span class="kr">function</span>(n <span class="o">=</span> <span class="m">50</span>, p <span class="o">=</span> <span class="m">0.1</span>, seed <span class="o">=</span> <span class="m">1</span>) {</span>
+<span class="cl">  <span class="nf">set.seed</span>(seed)</span>
+<span class="cl">  x <span class="o">&lt;-</span> <span class="nf">runif</span>(n, <span class="m">0</span>, <span class="m">10</span>)</span>
+<span class="cl">  y <span class="o">&lt;-</span> <span class="m">2</span> <span class="o">+</span> <span class="m">1.5</span> <span class="o">*</span> x <span class="o">+</span> <span class="nf">rnorm</span>(n, sd <span class="o">=</span> <span class="m">0.5</span>)</span>
+<span class="cl">  k <span class="o">&lt;-</span> <span class="nf">floor</span>(p <span class="o">*</span> n)</span>
+<span class="cl">  <span class="kr">if</span> (k <span class="o">&gt;</span> <span class="m">0</span>) {</span>
+<span class="cl">    idx    <span class="o">&lt;-</span> <span class="nf">sample</span>(<span class="nf">seq_len</span>(n), k)</span>
+<span class="cl">    y[idx] <span class="o">&lt;-</span> y[idx] <span class="o">+</span> <span class="m">30</span></span>
+<span class="cl">  }</span>
+<span class="cl">  <span class="nf">c</span>(ols <span class="o">=</span> <span class="nf">unname</span>(<span class="nf">coef</span>(<span class="nf">lm</span>(y <span class="o">~</span> x))[<span class="m">2</span>]),</span>
+<span class="cl">    rlm <span class="o">=</span> <span class="nf">unname</span>(<span class="nf">coef</span>(<span class="nf">rlm</span>(y <span class="o">~</span> x))[<span class="m">2</span>]))</span>
+<span class="cl">}</span>
+<span class="cl"></span>
+<span class="cl">my_results <span class="o">&lt;-</span> <span class="nf">sapply</span>(<span class="nf">c</span>(<span class="m">0</span>, <span class="m">0.05</span>, <span class="m">0.10</span>, <span class="m">0.20</span>),</span>
+<span class="cl">                     <span class="kr">function</span>(p) <span class="nf">my_sim</span>(p <span class="o">=</span> p))</span>
+<span class="cl"><span class="nf">colnames</span>(my_results) <span class="o">&lt;-</span> <span class="nf">paste0</span>(<span class="s">&quot;p=&quot;</span>, <span class="nf">c</span>(<span class="m">0</span>, <span class="m">0.05</span>, <span class="m">0.10</span>, <span class="m">0.20</span>))</span>
+<span class="cl"><span class="nf">round</span>(my_results, <span class="m">3</span>)</span>
+<span class="cl"><span class="c1">#&gt;      p=0  p=0.05 p=0.1 p=0.2</span></span>
+<span class="cl"><span class="c1">#&gt; ols 1.499  2.214 2.851 4.058</span></span>
+<span class="cl"><span class="c1">#&gt; rlm 1.499  1.503 1.512 1.624</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> With clean data (<code>p = 0</code>) the two estimators agree perfectly. As contamination grows, OLS slides linearly toward whatever the outliers want; the rlm slope stays close to 1.5 until contamination is severe (around 20%). That is robustness in numbers.</p>
+
+</details>
+
+<h2>Complete Example</h2>
+
+<p>Here is the workflow you would run on real data: fit OLS, check influence, fit rlm, compare coefficients, list downweighted rows, and refit with bisquare to confirm stability. We use <code>mtcars</code> predicting <code>mpg</code> from <code>hp</code> and <code>wt</code>, a familiar dataset where rlm and lm should mostly agree.</p>
+
+<div class="webr-container" data-block-title="End-to-end mtcars analysis">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">End-to-end mtcars analysis</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">mt_ols <span class="o">&lt;-</span> <span class="nf">lm</span>(mpg <span class="o">~</span> hp <span class="o">+</span> wt, data <span class="o">=</span> mtcars)</span>
+<span class="cl">mt_rlm <span class="o">&lt;-</span> <span class="nf">rlm</span>(mpg <span class="o">~</span> hp <span class="o">+</span> wt, data <span class="o">=</span> mtcars)</span>
+<span class="cl">mt_bi  <span class="o">&lt;-</span> <span class="nf">rlm</span>(mpg <span class="o">~</span> hp <span class="o">+</span> wt, data <span class="o">=</span> mtcars, psi <span class="o">=</span> psi.bisquare)</span>
+<span class="cl"></span>
+<span class="cl"><span class="nf">cbind</span>(OLS <span class="o">=</span> <span class="nf">coef</span>(mt_ols), Huber <span class="o">=</span> <span class="nf">coef</span>(mt_rlm), Bisquare <span class="o">=</span> <span class="nf">coef</span>(mt_bi))</span>
+<span class="cl"><span class="c1">#&gt;                  OLS    Huber Bisquare</span></span>
+<span class="cl"><span class="c1">#&gt; (Intercept) 37.2273  37.4216  38.6420</span></span>
+<span class="cl"><span class="c1">#&gt; hp          -0.0318  -0.0316  -0.0307</span></span>
+<span class="cl"><span class="c1">#&gt; wt          -3.8778  -3.8118  -3.5215</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The three estimators agree closely on <code>hp</code> (about -0.03 mpg per unit horsepower) and on <code>wt</code> (about -3.5 to -3.9 mpg per 1000 lb). That tight agreement is the signature of clean data. When the gap between OLS and rlm is small, you can safely report either; when it is large, the gap itself is your diagnostic, telling you outliers are pulling weight somewhere.</p>
+
+<p>Drilling into the rlm weights tells you <em>which</em> rows are pulling:</p>
+
+<div class="webr-container" data-block-title="List the most downweighted mtcars rows">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">List the most downweighted mtcars rows</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">mt_w    <span class="o">&lt;-</span> mt_rlm<span class="o">$</span>w</span>
+<span class="cl">mt_diag <span class="o">&lt;-</span> <span class="nf">data.frame</span>(car    <span class="o">=</span> <span class="nf">rownames</span>(mtcars),</span>
+<span class="cl">                      resid  <span class="o">=</span> <span class="nf">round</span>(<span class="nf">residuals</span>(mt_rlm), <span class="m">2</span>),</span>
+<span class="cl">                      weight <span class="o">=</span> <span class="nf">round</span>(mt_w, <span class="m">3</span>))</span>
+<span class="cl"><span class="nf">head</span>(mt_diag[<span class="nf">order</span>(mt_w), ], <span class="m">5</span>)</span>
+<span class="cl"><span class="c1">#&gt;                  car  resid weight</span></span>
+<span class="cl"><span class="c1">#&gt; 17 Chrysler Imperial   5.39  0.474</span></span>
+<span class="cl"><span class="c1">#&gt; 20    Toyota Corolla   4.85  0.527</span></span>
+<span class="cl"><span class="c1">#&gt; 19         Fiat 128   4.12  0.620</span></span>
+<span class="cl"><span class="c1">#&gt; 18       Honda Civic   4.05  0.631</span></span>
+<span class="cl"><span class="c1">#&gt; 31     Maserati Bora  -3.95  0.647</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The Chrysler Imperial is famously heavy yet runs better mpg than its weight predicts; the Toyota Corolla and Fiat 128 are unusually fuel-efficient for their inputs. Robust regression flags these as outliers without removing them, then reports a fit that summarises the <em>typical</em> car in the sample more faithfully than OLS does.</p>
+
+<h2>Summary</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Concept</th>
+<th>What to remember</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>OLS loss</td>
+<td>squared, so outliers dominate the fit</td>
+</tr>
+<tr>
+<td>rlm loss</td>
+<td>bounded <code>rho()</code>, so outliers get downweighted</td>
+</tr>
+<tr>
+<td><code>psi.huber</code></td>
+<td>default; convex; always non-zero weight; cutoff <code>k = 1.345</code></td>
+</tr>
+<tr>
+<td><code>psi.bisquare</code></td>
+<td>redescending; weight = 0 past about 4.685σ; for severe outliers</td>
+</tr>
+<tr>
+<td>IRLS</td>
+<td>iteratively reweighted least squares: fit, weight, refit, repeat</td>
+</tr>
+<tr>
+<td><code>rlm_fit$w</code></td>
+<td>per-row weights; small values flag suspect observations</td>
+</tr>
+<tr>
+<td>Limits</td>
+<td>does not fix high-leverage rows or <a class="auto-link" href="Heteroscedasticity-in-R.html" title="Heteroscedasticity in R: Breusch-Pagan Test & Robust Standard Errors">heteroscedasticity</a>; reach for <code>robustbase::lmrob()</code> for MM-estimation</td>
+</tr>
+</tbody>
+</table>
+
+<p><img src="screenshots/Robust-Regression-in-R-overview.webp" alt="Robust regression overview" class="img-responsive img-zoomable" loading="lazy" width="1710" height="910" /></p>
+
+<p><em>Figure 3: Robust regression at a glance: problem, method, weights, diagnostics, and limits.</em></p>
+
+<p>The decision rule is simple. When you suspect your y values may contain a handful of extreme rows, fit <code>rlm()</code> alongside <code>lm()</code>. If they agree, your OLS fit is safe. If they diverge, sort <code>rlm_fit$w</code> ascending and inspect the outliers before reporting any coefficients to anyone.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Venables, W. N. & Ripley, B. D. <em>Modern Applied Statistics with S</em>, 4th edition (Springer, 2002). Chapter 8 covers <code>rlm()</code> and robust regression in depth. <a href="https://www.stats.ox.ac.uk/pub/MASS4/">Book site</a></li>
+
+<li>MASS package, <code>rlm</code> reference manual (CRAN). <a href="https://stat.ethz.ch/R-manual/R-patched/library/MASS/html/rlm.html">Documentation</a></li>
+
+<li>Huber, P. J. (1964). <em>Robust Estimation of a Location Parameter.</em> Annals of Mathematical Statistics, 35(1), 73-101. <a href="https://www.jstor.org/stable/2238020">JSTOR</a></li>
+
+<li>Fox, J. & Weisberg, S. <em>An R Companion to Applied Regression</em>, 3rd edition (SAGE, 2019). Appendix on robust regression. <a href="https://socialsciences.mcmaster.ca/jfox/Books/Companion/">Companion site</a></li>
+
+<li>UCLA OARC Stats. <em>Robust Regression R Data Analysis Examples.</em> <a href="https://stats.oarc.ucla.edu/r/dae/robust-regression/">Tutorial</a></li>
+
+<li>Maechler, M. et al. <code>robustbase</code> package (<code>lmrob</code> for MM-estimation). <a href="https://cran.r-project.org/package=robustbase">CRAN page</a></li>
+
+<li>Wilcox, R. R. <em>Introduction to Robust Estimation and <a class="auto-link" href="Statistical-Tests-in-R.html" title="Statistical Tests in R">Hypothesis Testing</a></em>, 5th edition (Academic Press, 2021).</li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><strong><a href="Linear-Regression-Assumptions-in-R.html">Linear Regression Assumptions in R</a></strong>: the assumptions OLS leans on, and how to check them before reaching for robust alternatives.</li>
+
+<li><strong><a href="Outlier-Treatment-With-R.html">Outlier Treatment With R</a></strong>: survey of detection methods (boxplots, Cook's distance, leverage) and remediation strategies before and after fitting.</li>
+
+<li><strong><a href="Regression-Diagnostics-in-R.html">Regression Diagnostics in R</a></strong>: the standard diagnostic plot toolkit (residuals, leverage, scale-location) that pairs naturally with <code>rlm()</code> weight inspection.</li>
+
+</ul>
+
+        </main>
+
+        <div class="col-sm-2 hidden-xs" id="toc-sidebar">
+          <div id="toc-wrapper">
+            <div class="toc-title">On this page</div>
+            <ul class="list-unstyled" id="toc"></ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="footer">
+        <hr>
+        <p>&copy; 2016-<span id="copyright-year">2026</span> Selva Prabhakaran.
+          This work is licensed under the <a href="https://creativecommons.org/licenses/by-nc/3.0/">Creative Commons License.</a>
+        </p>
+      </div>
+
+    </div> <!-- /container -->
+
+  <script defer src="www/toc.min.js?h=dc9c8832"></script>
+  <!-- MathJax Script -->
+  
+  <script type="text/x-mathjax-config">
+    MathJax.Hub.Config({
+      tex2jax: {inlineMath: [['$','$'], ['\\(','\\)']]}
+    });
+  </script>
+  <script type="text/javascript" async
+    src="https://cdn.jsdelivr.net/npm/mathjax@2/MathJax.js?config=TeX-AMS-MML_HTMLorMML">
+  </script>
+
+  <!-- WebR Interactive Code -->
+    <script defer src="www/editor-bundle.min.js?h=9c31e0b3"></script>
+  <script defer src="www/webr-init.min.js?h=92549f4e"></script>
+
+      <script defer src="www/engagement.min.js?h=3084b063"></script>
+  <!-- Google Analytics (gtag.js) , deferred to post-load idle so its ~1.8s of
+       scripting doesn't compete with the critical path. Events fired before
+       the loader lands get buffered on window.dataLayer and flushed once
+       gtag runs, so pageviews are not lost. -->
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-D5XKCMN7FR');
+    (function () {
+      var loaded = false;
+      function load() {
+        if (loaded) return;
+        loaded = true;
+        cleanup();
+        var s = document.createElement('script');
+        s.async = true;
+        s.src = 'https://www.googletagmanager.com/gtag/js?id=G-D5XKCMN7FR';
+        document.head.appendChild(s);
+      }
+      // User interaction is the cheapest trigger we can hang analytics on ,
+      // gtag doesn't need to run until someone is actually interacting with
+      // the page. A 6s fallback ensures bounce sessions still record.
+      var events = ['pointerdown', 'keydown', 'scroll', 'touchstart'];
+      function cleanup() {
+        events.forEach(function (e) { window.removeEventListener(e, load, { capture: true }); });
+      }
+      function arm() {
+        events.forEach(function (e) { window.addEventListener(e, load, { capture: true, once: true, passive: true }); });
+        setTimeout(load, 6000);
+      }
+      if (document.readyState === 'complete') arm();
+      else window.addEventListener('load', arm, { once: true });
+    })();
+  </script>
+
+  <!-- Mobile sidebar menu -->
+  <script>
+    (function() {
+      var menuBtn = document.getElementById('mobile-menu-btn');
+      var overlay = document.getElementById('mobile-sidebar');
+      var closeBtn = document.getElementById('mobile-sidebar-close');
+      var mobileContent = document.getElementById('mobile-sidebar-content');
+      if (!menuBtn || !overlay) return;
+
+      // Populate mobile sidebar from #sidebar-nav after it loads
+      function populateMobileSidebar() {
+        var sidebarNav = document.getElementById('sidebar-nav');
+        if (sidebarNav && sidebarNav.innerHTML.trim()) {
+          mobileContent.innerHTML = sidebarNav.innerHTML;
+          // Re-attach click handlers for section toggles
+          mobileContent.querySelectorAll('.sidebar-section-header').forEach(function(h) {
+            h.addEventListener('click', function() {
+              this.closest('.sidebar-section').classList.toggle('expanded');
+            });
+          });
+        }
+      }
+
+      menuBtn.addEventListener('click', function() {
+        populateMobileSidebar();
+        overlay.classList.add('open');
+        document.body.style.overflow = 'hidden';
+      });
+      closeBtn.addEventListener('click', function() {
+        overlay.classList.remove('open');
+        document.body.style.overflow = '';
+      });
+      overlay.addEventListener('click', function(e) {
+        if (e.target === overlay) {
+          overlay.classList.remove('open');
+          document.body.style.overflow = '';
+        }
+      });
+    })();
+  </script>
+
+  <!-- Image lightbox -->
+  <div class="img-lightbox" id="img-lightbox"><img alt="" /></div>
+  <script>
+    (function(){
+      var lb=document.getElementById('img-lightbox'),lbImg=lb.querySelector('img');
+      document.addEventListener('click',function(e){
+        var img=e.target.closest('.img-zoomable');
+        if(img){lbImg.src=img.src;lbImg.alt=img.alt;lb.classList.add('open');document.body.style.overflow='hidden';}
+      });
+      lb.addEventListener('click',function(){lb.classList.remove('open');document.body.style.overflow='';});
+      document.addEventListener('keydown',function(e){if(e.key==='Escape'&&lb.classList.contains('open')){lb.classList.remove('open');document.body.style.overflow='';}});
+    })();
+  </script>
+
+  <!-- Google site search -->
+  <script>
+    function my_search_google() {
+      var query = document.getElementById("my-google-search").value;
+      window.open("https://google.com/search?q=" + query + "%20site:https://r-statistics.co");
+    }
+  </script>
+
+  <!-- Dark mode toggle + smooth scroll -->
+  <script>
+    // Dark mode
+    (function() {
+      var btn = document.getElementById('dark-mode-toggle');
+      if (!btn) return;
+      var saved = localStorage.getItem('darkMode');
+      if (saved === 'true') { document.documentElement.classList.add('dark'); btn.textContent = '\u2600'; }
+      btn.addEventListener('click', function() {
+        var isDark = document.documentElement.classList.toggle('dark');
+        localStorage.setItem('darkMode', isDark);
+        btn.textContent = isDark ? '\u2600' : '\u263D';
+      });
+    })();
+
+    // Smooth scroll for TOC and anchor links
+    document.addEventListener('click', function(e) {
+      var link = e.target.closest('a[href^="#"]');
+      if (!link) return;
+      var target = document.querySelector(link.getAttribute('href'));
+      if (!target) return;
+      e.preventDefault();
+      var offset = 20;
+      var top = target.getBoundingClientRect().top + window.pageYOffset - offset;
+      window.scrollTo({ top: top, behavior: 'smooth' });
+      history.pushState(null, null, link.getAttribute('href'));
+    });
+  </script>
+  </body>
+</html>
