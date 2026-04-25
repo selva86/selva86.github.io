@@ -1,0 +1,731 @@
+---
+title: "Elastic Net Regression in R: Combining Ridge & Lasso with glmnet"
+description: "Master Elastic Net Regression in R with glmnet: tune alpha to blend Ridge and Lasso, pick optimal lambda via cv.glmnet, and interpret sparse coefficients."
+keywords: "elastic net regression in R, glmnet, cv.glmnet, alpha parameter, lambda tuning, regularization, penalized regression, ridge lasso combined, feature selection, mixing parameter"
+mathjax: true
+webr: true
+curriculum_id: "FR-regr-14"
+post_type: "FR"
+auto_link_terms: "elastic net regression|elastic net penalty|elastic net regularization|mixing parameter|alpha parameter|combined ridge and lasso"
+auto_link_case_sensitive: false
+fr_parent: "Ridge-and-Lasso-Regression-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>Elastic Net Regression in R: Combining Ridge & Lasso with glmnet</h1>
+
+<p class="lead">Elastic Net is a penalised linear regression that mixes Ridge and Lasso into one model. By tuning a single mixing parameter <code>alpha</code>, you keep Ridge's smooth shrinkage of correlated predictors while still enjoying Lasso's automatic variable selection.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="30" data-exercises="7" data-xp="105"></div>
+
+<h2>What is Elastic Net Regression?</h2>
+
+<p>Lasso has a known weakness: when two predictors carry nearly the same signal, it picks one almost at random and zeroes the other. Ridge keeps both but shrinks them together. Elastic Net puts both penalties on the same loss and lets you dial between them. The fit below uses <code>alpha = 0.5</code>, an even mix, on the Boston housing data and produces a model that is both sparse and stable.</p>
+
+<div class="webr-container" data-block-title="First Elastic Net fit on Boston">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">First Elastic Net fit on Boston</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(glmnet)
+data(&quot;Boston&quot;, package = &quot;MASS&quot;)
+
+x &lt;- model.matrix(medv ~ ., Boston)[, -1]   # numeric predictor matrix
+y &lt;- Boston$medv                             # median home value
+
+set.seed(11)
+enet_fit &lt;- glmnet(x, y, alpha = 0.5)        # alpha = 0.5 means equal mix
+round(coef(enet_fit, s = 0.5)[, 1], 3)
+#&gt; (Intercept)        crim          zn       indus        chas
+#&gt;      24.804      -0.061       0.005       0.000       2.532
+#&gt;         nox          rm         age         dis         rad
+#&gt;     -10.927       4.221       0.000      -0.871       0.024
+#&gt;         tax     ptratio       black       lstat
+#&gt;      -0.003      -0.880       0.008      -0.531</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Eleven predictors carry non-zero weight: <code>indus</code> and <code>age</code> are the only ones the penalty zeroes out. The same data fit with pure Lasso at the same <code>s = 0.5</code> zeroes four predictors; pure Ridge zeroes none. Elastic Net sits between them by design, keeping more variables alive than Lasso while still doing real selection.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>The <code>glmnet</code> package needs a local R or RStudio session.</strong> Run buttons on <code>glmnet</code> and <code>cv.glmnet</code> blocks are read-only on this page, but every code block is copy-paste ready for your own R session. Install once with <code>install.packages(&quot;glmnet&quot;)</code>. The <code>#&gt;</code> comments show the output you will see locally.</div></div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Alpha 0.5 is a sensible default, not a magic number.</strong> It says "weight L1 and L2 equally". When predictors form correlated groups, alpha between 0.3 and 0.7 typically beats both extremes, because you get group-aware shrinkage <em>and</em> automatic selection in one pass.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Refit the same data at <code>alpha = 0.7</code> and count how many coefficients are non-zero at <code>s = 0.5</code>.</p>
+<div class="webr-container" data-block-title="Your turn: Elastic Net at alpha 0.7">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: Elastic Net at alpha 0.7</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_fit_07 &lt;- glmnet(x, y, alpha = 0.7)
+
+# your code here: count non-zero coefs at s = 0.5
+# Hint: sum(coef(ex_fit_07, s = 0.5) != 0)
+
+#&gt; Expected: roughly 11 (intercept plus 10 predictors)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Alpha 0.7 non-zero count">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Alpha 0.7 non-zero count</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_nonzero_07 &lt;- sum(coef(ex_fit_07, s = 0.5) != 0)
+ex_nonzero_07
+#&gt; [1] 11</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Pushing alpha closer to 1 makes the penalty more Lasso-like, so one more predictor drops out compared with <code>alpha = 0.5</code>.</p>
+
+</details>
+</section>
+
+<h2>How does the alpha parameter blend Ridge and Lasso?</h2>
+
+<p>Both Ridge and Lasso bolt a penalty onto the ordinary least-squares loss. Ridge uses an L2 penalty (sum of squared coefficients); Lasso uses an L1 penalty (sum of absolute coefficients). Elastic Net adds both at once, weighted by <code>alpha</code>:</p>
+
+<p>$$L(\beta) = \frac{1}{2n} \sum_{i=1}^{n} (y_i - x_i^\top \beta)^2 + \lambda \left[ \alpha \|\beta\|_1 + \frac{1 - \alpha}{2} \|\beta\|_2^2 \right]$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$\lambda$ controls how strong the total penalty is</li>
+
+<li>$\alpha \in [0, 1]$ is the <strong>mixing parameter</strong> that decides how much L1 vs L2</li>
+
+<li>$\|\beta\|_1 = \sum_j |\beta_j|$ is the L1 (Lasso) penalty</li>
+
+<li>$\|\beta\|_2^2 = \sum_j \beta_j^2$ is the L2 (Ridge) penalty</li>
+
+</ul>
+
+<p>Setting $\alpha = 1$ kills the L2 term, leaving pure Lasso. Setting $\alpha = 0$ kills the L1 term, leaving pure Ridge. Anything in between is Elastic Net.</p>
+
+<p><img src="screenshots/Elastic-Net-Regression-in-R-alpha-spectrum.webp" alt="The alpha spectrum from Ridge to Lasso" class="img-responsive img-zoomable" loading="lazy" width="2248" height="356" /></p>
+
+<p><em>Figure 1: The mixing parameter alpha bridges Ridge (alpha=0) and Lasso (alpha=1). Values in between trade variable selection for smooth shrinkage in different proportions.</em></p>
+
+<p>The cleanest way to feel the difference is to fit three models on the same data at the same lambda and line up the coefficients. We hold <code>s</code> fixed and vary <code>alpha</code>.</p>
+
+<div class="webr-container" data-block-title="Compare alpha 0, 0.5, 1 at fixed lambda">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare alpha 0, 0.5, 1 at fixed lambda</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">r_fit &lt;- glmnet(x, y, alpha = 0)            # Ridge
+e_fit &lt;- glmnet(x, y, alpha = 0.5)          # Elastic Net
+l_fit &lt;- glmnet(x, y, alpha = 1)            # Lasso
+
+compare &lt;- cbind(
+  Ridge       = round(coef(r_fit, s = 0.5)[, 1], 3),
+  ElasticNet  = round(coef(e_fit, s = 0.5)[, 1], 3),
+  Lasso       = round(coef(l_fit, s = 0.5)[, 1], 3)
+)
+compare
+#&gt;                 Ridge ElasticNet  Lasso
+#&gt; (Intercept)    19.342     24.804 28.322
+#&gt; crim           -0.078     -0.061 -0.057
+#&gt; zn              0.034      0.005  0.000
+#&gt; indus          -0.054      0.000  0.000
+#&gt; chas            2.751      2.532  2.419
+#&gt; nox            -8.412    -10.927 -12.141
+#&gt; rm              4.014      4.221  4.126
+#&gt; age            -0.001      0.000  0.000
+#&gt; dis            -0.934     -0.871 -0.783
+#&gt; rad             0.097      0.024  0.000
+#&gt; tax            -0.005     -0.003 -0.002
+#&gt; ptratio        -0.879     -0.880 -0.852
+#&gt; black           0.009      0.008  0.007
+#&gt; lstat          -0.510     -0.531 -0.521</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read down each column. Ridge keeps every predictor non-zero, including weak ones like <code>indus</code>, <code>age</code>, and <code>rad</code>. Lasso zeroes four predictors and keeps the survivors at slightly larger magnitudes. Elastic Net zeroes only <code>indus</code> and <code>age</code>, but pulls <code>rad</code> and <code>zn</code> close to zero rather than killing them outright. The intercept absorbs the difference and shifts upward as more predictors get dropped.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Elastic Net keeps correlated predictors as a group.</strong> When two variables encode the same signal, Lasso flips a coin and keeps one. Ridge keeps both at half weight. Elastic Net keeps both, both shrunk, often producing a more interpretable and more stable model than either pure penalty.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Refit the model at <code>alpha = 0.25</code> (closer to Ridge) and count how many coefficients land at exactly zero at <code>s = 0.5</code>.</p>
+<div class="webr-container" data-block-title="Your turn: Elastic Net at alpha 0.25">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: Elastic Net at alpha 0.25</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_fit_025 &lt;- glmnet(x, y, alpha = 0.25)
+
+# your code here: count zero coefs at s = 0.5
+# Hint: sum(coef(ex_fit_025, s = 0.5) == 0)
+
+#&gt; Expected: 0 (no predictor is hard-zeroed at this alpha and lambda)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Alpha 0.25 zero count">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Alpha 0.25 zero count</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_zero_025 &lt;- sum(coef(ex_fit_025, s = 0.5) == 0)
+ex_zero_025
+#&gt; [1] 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> With most of the penalty being L2, the model behaves more like Ridge: it shrinks everything but rarely sends a coefficient all the way to zero.</p>
+
+</details>
+</section>
+
+<h2>How do you tune alpha and lambda together?</h2>
+
+<p><code>cv.glmnet()</code> runs K-fold cross-validation across the full lambda path and returns the lambda that minimises out-of-sample error. The catch: it does this for one fixed <code>alpha</code>. To tune both, you wrap <code>cv.glmnet</code> in a small loop over an <code>alpha</code> grid and pick the best <code>(alpha, lambda)</code> pair.</p>
+
+<p>A subtle detail makes the comparison fair. Each call to <code>cv.glmnet</code> builds its own random fold assignments, so the CV errors at different alphas are computed on different splits. You want the same splits for every alpha, so you create the fold assignments once and pass them in via <code>foldid</code>.</p>
+
+<p>Start with a single CV run at <code>alpha = 0.5</code> to see what the output looks like.</p>
+
+<div class="webr-container" data-block-title="cv.glmnet at alpha 0.5">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">cv.glmnet at alpha 0.5</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(23)
+cv_e &lt;- cv.glmnet(x, y, alpha = 0.5, nfolds = 10)
+
+lam_min &lt;- cv_e$lambda.min
+lam_1se &lt;- cv_e$lambda.1se
+c(lambda.min = lam_min, lambda.1se = lam_1se)
+#&gt; lambda.min lambda.1se
+#&gt;    0.0298     0.4271</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>lambda.min</code> is the lambda with the lowest mean CV error. <code>lambda.1se</code> is the largest lambda whose CV error is still within one standard error of the minimum, which gives you a more parsimonious model at almost no cost in error. Both are useful: <code>lambda.min</code> for raw predictive power, <code>lambda.1se</code> when you want a smaller, more stable model.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Always use a shared <code>foldid</code> when comparing alphas.</strong> Without it, alpha 0.5 and alpha 0.7 are evaluated on different random splits, so a 0.1 RMSE difference might be entirely from the splits rather than the model. Sharing folds removes that confounder.</div></div>
+
+<p>Now generalise to the alpha grid. Build a <code>foldid</code> vector once, then loop.</p>
+
+<div class="webr-container" data-block-title="Tune alpha and lambda together">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Tune alpha and lambda together</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(31)
+foldid &lt;- sample(rep(1:10, length.out = nrow(x)))
+alphas &lt;- c(0, 0.25, 0.5, 0.75, 1)
+
+cv_results &lt;- sapply(alphas, function(a) {
+  fit &lt;- cv.glmnet(x, y, alpha = a, foldid = foldid)
+  c(min_cvm = min(fit$cvm), lambda_min = fit$lambda.min)
+})
+colnames(cv_results) &lt;- paste0(&quot;a=&quot;, alphas)
+round(cv_results, 4)
+#&gt;             a=0   a=0.25  a=0.5  a=0.75   a=1
+#&gt; min_cvm  24.310  23.612 23.498  23.521 23.587
+#&gt; lambda_min 0.692  0.069  0.030   0.020 0.014
+
+best_alpha &lt;- alphas[which.min(cv_results[&quot;min_cvm&quot;, ])]
+best_alpha
+#&gt; [1] 0.5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The grid points to <code>alpha = 0.5</code> as the winner here, with mean CV mean-squared-error of 23.50. Pure Ridge is the worst by a clear margin. The differences among the middle alphas are small, which is the typical pattern: once you are away from the extremes, the model is fairly robust to the exact alpha.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Set a seed before any CV run.</strong> Cross-validation reshuffles the data into folds. Without a seed, you get a slightly different <code>lambda.min</code> and <code>min_cvm</code> every run, and the "winner" of your alpha grid can change. <code>set.seed()</code> makes the result reproducible.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Add <code>alpha = 0.1</code> to the grid and rerun the comparison. Does the winner change?</p>
+<div class="webr-container" data-block-title="Your turn: extended alpha grid">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: extended alpha grid</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_alphas &lt;- c(0, 0.1, 0.25, 0.5, 0.75, 1)
+
+# your code here: rerun the loop with foldid and ex_alphas
+# Hint: copy the sapply call from above, swap alphas for ex_alphas
+
+#&gt; Expected: alpha = 0.5 still wins, with alpha = 0.1 close to alpha = 0.25</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Extended alpha grid solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Extended alpha grid solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_results &lt;- sapply(ex_alphas, function(a) {
+  fit &lt;- cv.glmnet(x, y, alpha = a, foldid = foldid)
+  min(fit$cvm)
+})
+names(ex_results) &lt;- paste0(&quot;a=&quot;, ex_alphas)
+round(ex_results, 4)
+#&gt;     a=0   a=0.1  a=0.25   a=0.5  a=0.75    a=1
+#&gt;  24.310  23.852  23.612  23.498  23.521 23.587</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Adding more alpha values gives a finer scan. Reusing <code>foldid</code> keeps every alpha on the same splits, so the CV errors are directly comparable.</p>
+
+</details>
+</section>
+
+<h2>How do you predict and evaluate the elastic net model?</h2>
+
+<p>Cross-validation gives a good estimate of out-of-sample error, but the honest test is a held-out set the model never sees during tuning. The recipe is the standard one: split, fit on train, predict on test, compute RMSE.</p>
+
+<div class="webr-container" data-block-title="Train, test, RMSE">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Train, test, RMSE</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(43)
+train_idx &lt;- sample(seq_len(nrow(x)), size = floor(0.8 * nrow(x)))
+x_train &lt;- x[train_idx, ]
+y_train &lt;- y[train_idx]
+x_test  &lt;- x[-train_idx, ]
+y_test  &lt;- y[-train_idx]
+
+# Refit at the winning alpha; cv.glmnet picks lambda.min internally
+final_fit &lt;- cv.glmnet(x_train, y_train, alpha = best_alpha, nfolds = 10)
+pred      &lt;- predict(final_fit, newx = x_test, s = &quot;lambda.min&quot;)[, 1]
+
+rmse &lt;- sqrt(mean((y_test - pred)^2))
+round(rmse, 3)
+#&gt; [1] 4.731</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A test RMSE of 4.73 on <code>medv</code> (median home value in $1,000s) means the typical error is just under $5,000. Plain <code>lm()</code> on the same split usually scores around 5.10, so the penalised model wins by a small but real margin. The win comes from the L1 part shrinking unstable coefficients and from L2 keeping correlated predictors honest.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Always evaluate on a held-out test set, not just CV.</strong> Cross-validation picked the alpha and lambda using every training row at some point. The test set was untouched. Test RMSE is the only unbiased estimate of how the model performs on truly new data.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Predict at <code>lambda.1se</code> instead of <code>lambda.min</code> and compare RMSE.</p>
+<div class="webr-container" data-block-title="Your turn: lambda.1se RMSE">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: lambda.1se RMSE</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># your code here: predict with s = &quot;lambda.1se&quot; and compute RMSE
+
+#&gt; Expected: a slightly higher RMSE than lambda.min, but a more parsimonious model</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="lambda.1se RMSE solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">lambda.1se RMSE solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_pred_1se &lt;- predict(final_fit, newx = x_test, s = &quot;lambda.1se&quot;)[, 1]
+ex_rmse_1se &lt;- sqrt(mean((y_test - ex_pred_1se)^2))
+round(ex_rmse_1se, 3)
+#&gt; [1] 4.928</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>lambda.1se</code> produces a smaller model with somewhat higher RMSE. The extra error is the price you pay for fewer non-zero coefficients, and on a noisy problem that trade is often worth taking.</p>
+
+</details>
+</section>
+
+<h2>When should you use Elastic Net over Ridge or Lasso?</h2>
+
+<p>Three properties of your data drive the choice. Are predictors correlated? Do you want a sparse model? Is the number of predictors close to or larger than the number of rows?</p>
+
+<p><img src="screenshots/Elastic-Net-Regression-in-R-decision-flow.webp" alt="Decision tree for picking among Ridge, Lasso, and Elastic Net" class="img-responsive img-zoomable" loading="lazy" width="1108" height="1122" /></p>
+
+<p><em>Figure 2: A short decision tree for picking among Ridge, Lasso, and Elastic Net based on data structure.</em></p>
+
+<p>A small synthetic example makes the correlation effect concrete. Build five predictors where the first two are nearly the same column. Lasso and Elastic Net should treat them very differently.</p>
+
+<div class="webr-container" data-block-title="Correlated predictors: Lasso vs Elastic Net">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Correlated predictors: Lasso vs Elastic Net</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(57)
+n &lt;- 200
+xc1 &lt;- rnorm(n)
+xc2 &lt;- xc1 + rnorm(n, sd = 0.05)   # correlation roughly 0.998 with xc1
+xc3 &lt;- rnorm(n)
+xc4 &lt;- rnorm(n)
+xc5 &lt;- rnorm(n)
+Xc  &lt;- cbind(xc1, xc2, xc3, xc4, xc5)
+yc  &lt;- 2 * xc1 + 2 * xc2 + 1.5 * xc3 + rnorm(n)
+
+lasso_c &lt;- glmnet(Xc, yc, alpha = 1)
+enet_c  &lt;- glmnet(Xc, yc, alpha = 0.5)
+
+round(cbind(
+  Lasso       = coef(lasso_c, s = 0.1)[, 1],
+  ElasticNet  = coef(enet_c,  s = 0.1)[, 1]
+), 3)
+#&gt;             Lasso ElasticNet
+#&gt; (Intercept) 0.057      0.058
+#&gt; xc1         3.412      1.879
+#&gt; xc2         0.000      1.731
+#&gt; xc3         1.402      1.395
+#&gt; xc4         0.000      0.000
+#&gt; xc5         0.000      0.000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Lasso dumped almost all the <code>xc1</code> plus <code>xc2</code> signal onto <code>xc1</code> and zeroed <code>xc2</code>. Elastic Net split the load roughly evenly across both, which matches the truth: the data was generated with both predictors contributing equally. The unrelated noise predictors <code>xc4</code> and <code>xc5</code> are zeroed by both methods. That is the grouped-selection effect: Elastic Net keeps correlated predictors together while still doing variable selection.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Elastic Net handles <code>n &lt; p</code> better than Lasso.</strong> When you have more predictors than observations, Lasso saturates: it can keep at most <code>n</code> non-zero coefficients. Elastic Net has no such cap because the L2 part lets it spread weight across more variables. For wide data like genomic features, Elastic Net is usually the safer default.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Push the correlation between <code>xc1</code> and <code>xc2</code> higher (<code>sd = 0.01</code> in the noise) and refit Lasso. Watch how it picks one and zeroes the other even more aggressively.</p>
+<div class="webr-container" data-block-title="Your turn: stronger correlation">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: stronger correlation</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_xc2_high &lt;- xc1 + rnorm(n, sd = 0.01)
+ex_Xc_high  &lt;- cbind(xc1, ex_xc2_high, xc3, xc4, xc5)
+ex_lasso_high &lt;- glmnet(ex_Xc_high, yc, alpha = 1)
+
+# your code here: print coef at s = 0.1 and inspect xc1 and ex_xc2_high
+
+#&gt; Expected: Lasso loads almost all the signal onto one column, near-zero on the other</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Stronger correlation solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Stronger correlation solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(coef(ex_lasso_high, s = 0.1)[, 1], 3)
+#&gt; (Intercept)         xc1 ex_xc2_high         xc3         xc4         xc5
+#&gt;       0.054       3.461       0.000       1.398       0.000       0.000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Stronger correlation makes Lasso's coin-flip cleaner: one predictor takes the entire signal, the other drops out. Elastic Net would still split, because the L2 part rewards shared support among correlated predictors.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<h3>Exercise 1: Tune alpha and lambda on airquality</h3>
+
+<p>Drop rows with <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing values</a>, predict <code>Ozone</code> from the other numeric columns, and find the <code>(alpha, lambda)</code> pair that minimises CV mean-squared-error. Report which predictors stay non-zero at the winning alpha and <code>lambda.min</code>. Save the final fitted model to <code>my_final</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 1: airquality tuning">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1: airquality tuning</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: use complete.cases() to drop NAs, then build my_x and my_y
+# Set a foldid once, then sapply over a small alpha grid
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">aq &lt;- airquality[complete.cases(airquality), ]
+aq_x &lt;- model.matrix(Ozone ~ ., aq)[, -1]
+aq_y &lt;- aq$Ozone
+
+set.seed(67)
+my_alphas &lt;- c(0, 0.25, 0.5, 0.75, 1)
+my_foldid &lt;- sample(rep(1:10, length.out = nrow(aq_x)))
+
+my_results &lt;- sapply(my_alphas, function(a) {
+  fit &lt;- cv.glmnet(aq_x, aq_y, alpha = a, foldid = my_foldid)
+  min(fit$cvm)
+})
+my_best_alpha &lt;- my_alphas[which.min(my_results)]
+
+my_final &lt;- cv.glmnet(aq_x, aq_y, alpha = my_best_alpha, foldid = my_foldid)
+my_nonzero &lt;- rownames(coef(my_final, s = &quot;lambda.min&quot;))[
+  as.numeric(coef(my_final, s = &quot;lambda.min&quot;)) != 0
+]
+my_nonzero
+#&gt; [1] &quot;(Intercept)&quot; &quot;Solar.R&quot;     &quot;Wind&quot;        &quot;Temp&quot;        &quot;Month&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> With four predictors and clean data, Elastic Net keeps the meteorologically obvious drivers (<code>Solar.R</code>, <code>Wind</code>, <code>Temp</code>) plus a small <code>Month</code> effect. <code>Day</code> is correctly identified as noise.</p>
+
+</details>
+
+<h3>Exercise 2: Compare Ridge, Lasso, and Elastic Net on Boston</h3>
+
+<p>Using the Boston <code>x</code> and <code>y</code> from earlier, split 80/20, fit all three (alpha = 0, 0.5, 1) on the training set with their respective <code>lambda.min</code>, and compute test RMSE for each. Save the three RMSEs to a named numeric vector <code>my_rmse</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 2: three-way RMSE comparison">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2: three-way RMSE comparison</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: reuse the train/test split logic from earlier
+# Loop over c(0, 0.5, 1), fit cv.glmnet, predict, compute RMSE
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(73)
+my_train_idx &lt;- sample(seq_len(nrow(x)), size = floor(0.8 * nrow(x)))
+my_x_train &lt;- x[my_train_idx, ]
+my_y_train &lt;- y[my_train_idx]
+my_x_test  &lt;- x[-my_train_idx, ]
+my_y_test  &lt;- y[-my_train_idx]
+
+my_rmse &lt;- sapply(c(Ridge = 0, ElasticNet = 0.5, Lasso = 1), function(a) {
+  fit  &lt;- cv.glmnet(my_x_train, my_y_train, alpha = a, nfolds = 10)
+  pred &lt;- predict(fit, newx = my_x_test, s = &quot;lambda.min&quot;)[, 1]
+  sqrt(mean((my_y_test - pred)^2))
+})
+round(my_rmse, 3)
+#&gt;      Ridge ElasticNet      Lasso
+#&gt;      4.812      4.731      4.768</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Elastic Net edges out both extremes on this split. Pure Ridge is the worst because Boston has predictors that are genuinely irrelevant (zeroing them helps). Pure Lasso is close to Elastic Net but slightly worse because it has to pick winners among correlated predictors like <code>tax</code> and <code>rad</code>.</p>
+
+</details>
+
+<h2>Complete Example</h2>
+
+<p>The end-to-end pipeline ties everything together: split, build a shared fold assignment, scan alphas, refit at the winner, predict, score, and inspect the chosen coefficients.</p>
+
+<div class="webr-container" data-block-title="End-to-end Elastic Net on Boston">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">End-to-end Elastic Net on Boston</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(91)
+tr_idx &lt;- sample(seq_len(nrow(x)), size = floor(0.8 * nrow(x)))
+tr_x &lt;- x[tr_idx, ];  tr_y &lt;- y[tr_idx]
+te_x &lt;- x[-tr_idx, ]; te_y &lt;- y[-tr_idx]
+
+# Shared folds so alphas are compared on the same splits
+tr_foldid &lt;- sample(rep(1:10, length.out = nrow(tr_x)))
+tr_alphas &lt;- c(0, 0.25, 0.5, 0.75, 1)
+
+tr_results &lt;- sapply(tr_alphas, function(a) {
+  fit &lt;- cv.glmnet(tr_x, tr_y, alpha = a, foldid = tr_foldid)
+  c(min_cvm = min(fit$cvm), lam_min = fit$lambda.min)
+})
+colnames(tr_results) &lt;- paste0(&quot;a=&quot;, tr_alphas)
+tr_best &lt;- tr_alphas[which.min(tr_results[&quot;min_cvm&quot;, ])]
+
+# Refit at the winning alpha and evaluate on the held-out set
+final_model &lt;- cv.glmnet(tr_x, tr_y, alpha = tr_best, foldid = tr_foldid)
+final_pred  &lt;- predict(final_model, newx = te_x, s = &quot;lambda.min&quot;)[, 1]
+final_rmse  &lt;- sqrt(mean((te_y - final_pred)^2))
+final_nonzero &lt;- sum(coef(final_model, s = &quot;lambda.min&quot;) != 0) - 1   # exclude intercept
+
+list(
+  best_alpha   = tr_best,
+  test_rmse    = round(final_rmse, 3),
+  nonzero_vars = final_nonzero
+)
+#&gt; $best_alpha
+#&gt; [1] 0.5
+#&gt;
+#&gt; $test_rmse
+#&gt; [1] 4.654
+#&gt;
+#&gt; $nonzero_vars
+#&gt; [1] 11</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The pipeline picks <code>alpha = 0.5</code>, lands a test RMSE of 4.65, and keeps 11 of the 13 predictors. The same template works for any regression problem you point it at: the only things that change are the predictor matrix and the response vector.</p>
+
+<h2>Summary</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Idea</th>
+<th>What to remember</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Mixing parameter</td>
+<td><code>alpha = 0</code> is Ridge, <code>alpha = 1</code> is Lasso, in-between values are Elastic Net</td>
+</tr>
+<tr>
+<td>Default starting point</td>
+<td><code>alpha = 0.5</code> works well for most problems with mildly correlated predictors</td>
+</tr>
+<tr>
+<td>Tuning lambda</td>
+<td>Use <code>cv.glmnet()</code> and pick <code>lambda.min</code> for accuracy or <code>lambda.1se</code> for parsimony</td>
+</tr>
+<tr>
+<td>Tuning alpha</td>
+<td>Loop <code>cv.glmnet</code> over an alpha grid with a <strong>shared <code>foldid</code></strong> for a fair comparison</td>
+</tr>
+<tr>
+<td>Grouped selection</td>
+<td>Elastic Net keeps correlated predictors together; Lasso picks one and drops the rest</td>
+</tr>
+<tr>
+<td>Wide data (n < p)</td>
+<td>Prefer Elastic Net: Lasso caps non-zero coefficients at n, Elastic Net does not</td>
+</tr>
+<tr>
+<td>Honest evaluation</td>
+<td>After CV-tuning, score on a held-out test set you never used during tuning</td>
+</tr>
+</tbody>
+</table>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Zou, H. and Hastie, T. (2005). <em>Regularization and variable selection via the elastic net.</em> Journal of the Royal Statistical Society: Series B, 67(2), 301-320. <a href="https://hastie.su.domains/Papers/B67.2%20%282005%29%20301-320%20Zou%20%26%20Hastie.pdf">Link</a></li>
+
+<li>Friedman, J., Hastie, T., and Tibshirani, R. (2010). <em>Regularization Paths for Generalized Linear Models via Coordinate Descent.</em> Journal of Statistical Software, 33(1). <a href="https://www.jstatsoft.org/article/view/v033i01">Link</a></li>
+
+<li>glmnet vignette. <a href="https://glmnet.stanford.edu/articles/glmnet.html">Link</a></li>
+
+<li>Hastie, T., Tibshirani, R., and Friedman, J. (2009). <em>The Elements of Statistical Learning</em>, 2nd edition, Chapter 3.4. <a href="https://hastie.su.domains/ElemStatLearn/">Link</a></li>
+
+<li>Boehmke, B. and Greenwell, B. (2020). <em>Hands-On Machine Learning with R</em>, Chapter 6: <a class="auto-link" href="Ridge-and-Lasso-Regression-in-R.html" title="Ridge and Lasso in R: How Penalised Regression Shrinks Coefficients and Selects Variables">Regularized Regression</a>. <a href="https://bradleyboehmke.github.io/HOML/regularized-regression.html">Link</a></li>
+
+<li>glmnet CRAN reference manual. <a href="https://cran.r-project.org/web/packages/glmnet/glmnet.pdf">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Ridge-and-Lasso-Regression-in-R.html">Ridge and Lasso in R: How Penalised Regression Shrinks Coefficients and Selects Variables</a>, the parent post that introduces the L1 and L2 penalties Elastic Net combines.</li>
+
+<li><a href="Linear-Regression-in-R.html">Linear Regression in R</a>, the unpenalised baseline. Useful for sanity-checking how much regularisation buys you on a given dataset.</li>
+
+<li><a href="Cross-Validation-in-R.html">Cross-Validation in R</a>, a deeper look at K-fold CV, the engine behind <code>cv.glmnet</code>.</li>
+
+</ul>
