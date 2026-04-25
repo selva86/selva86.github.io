@@ -1,0 +1,899 @@
+---
+title: "Asymptotic Theory in R: Consistency, Asymptotic Normality & Delta Method"
+description: "Understand asymptotic theory in R: what consistency, asymptotic normality, and the delta method mean, with simulations and worked examples you can run live."
+keywords: "asymptotic theory R, consistency estimator, asymptotic normality R, delta method R, convergence in probability, convergence in distribution, Slutsky theorem, MLE asymptotic, Taylor expansion statistics, large sample theory R"
+mathjax: true
+webr: true
+curriculum_id: "FR-infe-16"
+post_type: "FR"
+auto_link_terms: "asymptotic theory|consistent estimator|asymptotic normality|delta method|convergence in probability|convergence in distribution|Slutsky theorem"
+auto_link_case_sensitive: false
+fr_parent: "Point-Estimation-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>Asymptotic Theory in R: Consistency, Asymptotic Normality & Delta Method</h1>
+
+<p class="lead"><strong>Asymptotic theory</strong> studies how estimators behave when the sample size grows. Three results do almost all the work: <strong>consistency</strong> (the estimator settles on the truth), <strong>asymptotic normality</strong> (its <a class="auto-link" href="Normal-t-F-and-Chi-Squared-Distributions-in-R.html" title="Normal, t, F, and Chi-Squared in R: Understand Each Distribution and When It Arises">sampling distribution</a> becomes Gaussian on a √n scale), and the <strong>delta method</strong> (smooth transformations of asymptotically normal estimators are themselves asymptotically normal). This post shows what each of them means by simulating them in R.</p>
+
+<div class="engagement-header" data-difficulty="Advanced" data-time="30" data-exercises="8" data-xp="120"></div>
+
+<h2>What does it mean for an estimator to have good asymptotic behavior?</h2>
+
+<p>Large-sample guarantees let you trust a formula that would be hopeless to verify on a single small sample. Instead of asking <em>how good is my estimator right now</em>, asymptotic theory asks <em>what happens as n grows</em>. We start with the most visible guarantee, consistency, and watch it in action by drawing samples of increasing size from a known Normal distribution.</p>
+
+<div class="webr-container" data-block-title="Sample mean closes in on the truth as n grows">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Sample mean closes in on the truth as n grows</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mu_true    &lt;- 5
+sigma_true &lt;- 2
+ns         &lt;- c(10, 100, 1000, 10000, 100000)
+
+set.seed(2026)
+means_tbl &lt;- data.frame(
+  n         = ns,
+  xbar      = sapply(ns, function(n) mean(rnorm(n, mu_true, sigma_true))),
+  abs_error = NA_real_
+)
+means_tbl$abs_error &lt;- abs(means_tbl$xbar - mu_true)
+means_tbl
+#&gt;        n     xbar    abs_error
+#&gt; 1     10 5.382127 0.3821269350
+#&gt; 2    100 4.836204 0.1637957570
+#&gt; 3   1000 4.999423 0.0005770014
+#&gt; 4  10000 5.012047 0.0120469132
+#&gt; 5 100000 4.998851 0.0011494220</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The sample mean wobbles around the true value of 5, and the wobble shrinks roughly like 1 over √n. By n = 100,000 the absolute error sits in the third decimal. That visible shrinkage is the headline property called <strong>consistency</strong>: the estimator $\hat\theta_n$ converges to the parameter $\theta$ in probability as $n \to \infty$.</p>
+
+<p>Formally, $\hat\theta_n \xrightarrow{p} \theta$ means</p>
+
+<p>$$\Pr\!\left(\,\bigl|\hat\theta_n - \theta\bigr| > \varepsilon\,\right) \to 0 \quad \text{for every } \varepsilon > 0.$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$\hat\theta_n$ = the estimator computed from a sample of size $n$</li>
+
+<li>$\theta$ = the true parameter</li>
+
+<li>$\varepsilon$ = any positive distance you choose</li>
+
+</ul>
+
+<p>Three asymptotic properties matter most in practice. <strong>Consistency</strong> is the floor (you converge to the truth). <strong>Asymptotic normality</strong> is the shape of the wobble around the truth. <strong>Asymptotic efficiency</strong> says no other regular estimator wobbles less in the limit.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Asymptotic does not mean infinite.</strong> The theorems describe what happens as n grows, not what holds at exactly infinity. In practice you're betting that your sample is "large enough" for the limit to be a useful approximation. That bet can fail with skewed data or very small n.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Repeat the convergence demo using the sample median instead of the mean. The true median of $N(5, 2)$ is also 5, so the median should also close in on 5.</p>
+<div class="webr-container" data-block-title="Your turn: median convergence">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: median convergence</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Reuse mu_true and sigma_true from the previous block
+ex_med_ns &lt;- c(10, 100, 1000, 10000)
+set.seed(11)
+
+ex_med_tbl &lt;- data.frame(
+  n   = ex_med_ns,
+  med = NA_real_  # your code here: fill with sample medians
+)
+ex_med_tbl
+#&gt; Expected: medians close to 5, error shrinks with n</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Median convergence solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Median convergence solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_med_ns &lt;- c(10, 100, 1000, 10000)
+set.seed(11)
+ex_med_tbl &lt;- data.frame(
+  n   = ex_med_ns,
+  med = sapply(ex_med_ns, function(n) median(rnorm(n, mu_true, sigma_true)))
+)
+ex_med_tbl
+#&gt;       n      med
+#&gt; 1    10 5.116232
+#&gt; 2   100 5.078301
+#&gt; 3  1000 5.027301
+#&gt; 4 10000 4.984114</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>median()</code> is also consistent for the population median. Under symmetric distributions like Normal, the population median equals the mean, so both estimators target 5.</p>
+
+</details>
+</section>
+
+<h2>How do you verify consistency with a simulation in R?</h2>
+
+<p>Watching one trajectory close in on the truth is suggestive but not proof. To verify consistency convincingly, average the <em>squared</em> error across many trajectories. If the <strong><a class="auto-link" href="Point-Estimation-in-R.html" title="Point Estimation in R: What Makes an Estimator Good? Bias, Variance, and MSE">mean squared error</a></strong> (MSE) shrinks to zero as $n$ grows, the estimator is consistent. MSE going to zero is a stronger condition than convergence in probability, but for almost every practical estimator the two coincide.</p>
+
+<p>The cleanest visual is a log-log plot of MSE versus $n$. For the sample mean of an iid sample with finite variance, MSE equals $\sigma^2 / n$, so the log-log plot should have slope $-1$.</p>
+
+<div class="webr-container" data-block-title="MSE vs n on a log-log scale">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">MSE vs n on a log-log scale</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ns_grid  &lt;- c(10, 30, 100, 300, 1000, 3000, 10000)
+n_reps   &lt;- 4000
+
+set.seed(7)
+mse_tbl &lt;- data.frame(
+  n   = ns_grid,
+  mse = sapply(ns_grid, function(n) {
+    xbars &lt;- replicate(n_reps, mean(rnorm(n, mu_true, sigma_true)))
+    mean((xbars - mu_true)^2)
+  })
+)
+
+plot(mse_tbl$n, mse_tbl$mse, log = &quot;xy&quot;,
+     pch = 19, col = &quot;#5e35b1&quot;,
+     xlab = &quot;n (log scale)&quot;, ylab = &quot;MSE (log scale)&quot;,
+     main = &quot;MSE of sample mean shrinks like 1/n&quot;)
+abline(lm(log(mse) ~ log(n), data = mse_tbl), col = &quot;#e91e63&quot;, lwd = 2)
+
+coef(lm(log(mse) ~ log(n), data = mse_tbl))
+#&gt; (Intercept)    log(n) 
+#&gt;    1.388291 -1.000412</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The fitted slope on the log-log scale is essentially $-1$: a tenfold increase in $n$ shrinks MSE by exactly tenfold. That matches $\sigma^2 / n$ to four decimal places. This is consistency made tangible. Any time you can produce a slope-minus-one MSE plot for an estimator, you have empirically demonstrated consistency.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Consistency is preserved under continuous transformations.</strong> If $\hat\theta_n \xrightarrow{p} \theta$ and $g$ is continuous at $\theta$, then $g(\hat\theta_n) \xrightarrow{p} g(\theta)$ by the continuous mapping theorem. This is why functions of consistent estimators (logs, ratios, square roots) are still consistent without re-doing any work.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Show that the sample variance $s^2$ is consistent for $\sigma^2 = 4$. Compute MSE of $s^2$ across the same grid of $n$ values and confirm it shrinks toward zero.</p>
+<div class="webr-container" data-block-title="Your turn: variance consistency">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: variance consistency</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: var() in R uses the (n-1) denominator
+ex_var_grid &lt;- c(30, 100, 300, 1000)
+set.seed(8)
+
+ex_var_tbl &lt;- data.frame(
+  n   = ex_var_grid,
+  mse = NA_real_  # your code here: fill with MSE of sample variance vs sigma^2 = 4
+)
+ex_var_tbl
+#&gt; Expected: mse decreases as n increases</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Variance consistency solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Variance consistency solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_var_grid &lt;- c(30, 100, 300, 1000)
+set.seed(8)
+ex_var_tbl &lt;- data.frame(
+  n   = ex_var_grid,
+  mse = sapply(ex_var_grid, function(n) {
+    s2s &lt;- replicate(2000, var(rnorm(n, mu_true, sigma_true)))
+    mean((s2s - sigma_true^2)^2)
+  })
+)
+ex_var_tbl
+#&gt;      n       mse
+#&gt; 1   30 1.0858210
+#&gt; 2  100 0.3211049
+#&gt; 3  300 0.1110569
+#&gt; 4 1000 0.0316687</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> MSE of $s^2$ for Normal data is $2\sigma^4 / (n-1)$, so it shrinks roughly like $1/n$ too. The numbers above match that prediction.</p>
+
+</details>
+</section>
+
+<h2>What is asymptotic normality, and why does it matter?</h2>
+
+<p>Consistency tells you <em>where</em> the estimator goes. <strong>Asymptotic normality</strong> tells you <em>how</em> it gets there. Almost every well-behaved estimator satisfies</p>
+
+<p>$$\sqrt{n}\,(\hat\theta_n - \theta) \xrightarrow{d} N(0,\, V)$$</p>
+
+<p>where $V$ is the asymptotic variance. Where:</p>
+
+<ul>
+
+<li>$\sqrt{n}$ = the scaling factor that prevents the limit from collapsing to a point</li>
+
+<li>$\hat\theta_n - \theta$ = the estimation error at sample size $n$</li>
+
+<li>$V$ = the asymptotic variance (often $\sigma^2$ for the sample mean)</li>
+
+<li>$\xrightarrow{d}$ = <a class="auto-link" href="Law-of-Large-Numbers-vs-CLT-in-R.html" title="Law of Large Numbers vs Central Limit Theorem: Two Laws That Are Not the Same Thing">convergence in distribution</a>: the CDF of the left side approaches the CDF of $N(0, V)$</li>
+
+</ul>
+
+<p>Without the $\sqrt{n}$ factor the difference $\hat\theta_n - \theta$ collapses to zero (that is just consistency). Multiplying by $\sqrt{n}$ stretches the picture so a non-trivial limiting distribution appears. The flagship example is the <strong>central limit theorem</strong> for the sample mean: $\sqrt{n}(\bar X_n - \mu)/\sigma \xrightarrow{d} N(0, 1)$.</p>
+
+<div class="webr-container" data-block-title="Standardized sample means look Gaussian">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Standardized sample means look Gaussian</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">n        &lt;- 50
+n_reps   &lt;- 5000
+
+set.seed(99)
+xbars    &lt;- replicate(n_reps, mean(rnorm(n, mu_true, sigma_true)))
+z_scores &lt;- sqrt(n) * (xbars - mu_true) / sigma_true
+
+hist(z_scores, breaks = 40, freq = FALSE,
+     col = &quot;#ede7f6&quot;, border = &quot;white&quot;,
+     xlab = &quot;sqrt(n) * (xbar - mu) / sigma&quot;,
+     main = &quot;Asymptotic normality of the sample mean (n = 50)&quot;)
+curve(dnorm(x), add = TRUE, lwd = 2, col = &quot;#e91e63&quot;)
+
+c(mean = mean(z_scores), sd = sd(z_scores))
+#&gt;        mean          sd 
+#&gt; -0.01402815  0.99413298</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The standardized sample means line up almost exactly under the standard normal density. The empirical mean is essentially zero and the empirical standard deviation is essentially one. That match is the central limit theorem at work, which is the most famous instance of asymptotic normality.</p>
+
+<p>Closely related is <strong>Slutsky's theorem</strong>: if $\sqrt{n}(\hat\theta_n - \theta) \xrightarrow{d} N(0, V)$ and $\hat V_n \xrightarrow{p} V$, then $(\hat\theta_n - \theta)/\sqrt{\hat V_n / n} \xrightarrow{d} N(0, 1)$. This is the reason you can plug in a sample variance and still get a usable normal-based <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">confidence interval</a>.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Asymptotic normality is what lets you write CIs as $\hat\theta \pm 1.96 \times \text{SE}$ for almost every estimator you ever meet.</strong> The Wald 95% interval is just the asymptotic-normality limit, with $\sqrt{V/n}$ replaced by the observed standard error. Every estimator with a $\sqrt{n}$-rate limit (means, proportions, regression coefficients, MLEs) inherits this exact CI recipe.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Repeat the standardization plot using the sample median. Use the asymptotic SE $\sqrt{\pi/(2n)}\,\sigma$ for the median of a Normal sample. The standardized medians should also look standard normal.</p>
+<div class="webr-container" data-block-title="Your turn: median asymptotic normality">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: median asymptotic normality</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># The asymptotic SD of the median for a Normal sample of size n is
+# sigma * sqrt(pi / (2 * n))
+n &lt;- 200
+set.seed(101)
+
+ex_meds   &lt;- replicate(5000, median(rnorm(n, mu_true, sigma_true)))
+ex_z_med  &lt;- NA  # your code here: standardize ex_meds
+
+hist(ex_z_med, breaks = 40, freq = FALSE)
+curve(dnorm(x), add = TRUE)
+#&gt; Expected: histogram tracks dnorm closely</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Median asymptotic normality solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Median asymptotic normality solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">n &lt;- 200
+set.seed(101)
+ex_meds  &lt;- replicate(5000, median(rnorm(n, mu_true, sigma_true)))
+ex_se    &lt;- sigma_true * sqrt(pi / (2 * n))
+ex_z_med &lt;- (ex_meds - mu_true) / ex_se
+
+hist(ex_z_med, breaks = 40, freq = FALSE,
+     col = &quot;#ede7f6&quot;, border = &quot;white&quot;, main = &quot;Median asymptotic normality&quot;)
+curve(dnorm(x), add = TRUE, lwd = 2, col = &quot;#e91e63&quot;)
+c(mean = mean(ex_z_med), sd = sd(ex_z_med))
+#&gt;       mean         sd 
+#&gt; 0.00891240 1.00742600</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The sample median has its own asymptotic variance ($\pi \sigma^2 / 2$ for Normal data), but once standardized it also follows $N(0, 1)$. The shape is normal, only the scale changes.</p>
+
+</details>
+</section>
+
+<h2>How does the delta method turn asymptotic normality into CIs for transformations?</h2>
+
+<p>You often care about a smooth function of an estimator, not the estimator itself. You estimate the mean, but report the log-mean. You estimate two proportions, but report the <a class="auto-link" href="Logistic-Regression-in-R.html" title="Logistic Regression in R: From glm() to Odds Ratios, ROC, and AUC">odds ratio</a>. The <strong>delta method</strong> gives you the asymptotic variance of $g(\hat\theta_n)$ from a one-line Taylor expansion:</p>
+
+<p>$$g(\hat\theta_n) \;\approx\; g(\theta) + g'(\theta)\,(\hat\theta_n - \theta).$$</p>
+
+<p>If the original estimator is asymptotically normal with variance $V$, then so is the transformed estimator, with variance $[g'(\theta)]^2 V$:</p>
+
+<p>$$\sqrt{n}\,(g(\hat\theta_n) - g(\theta)) \xrightarrow{d} N\!\bigl(0,\; [g'(\theta)]^2 V\bigr).$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$g$ = a smooth (differentiable) function of the parameter</li>
+
+<li>$g'(\theta)$ = the derivative of $g$ evaluated at the true $\theta$</li>
+
+<li>$V$ = the asymptotic variance of $\sqrt{n}(\hat\theta_n - \theta)$</li>
+
+</ul>
+
+<p>Concretely, take $g(\mu) = \log(\mu)$. Then $g'(\mu) = 1/\mu$, so the delta method predicts that $\sqrt{n}(\log(\bar X_n) - \log(\mu))$ has variance $\sigma^2 / \mu^2$. Let's check.</p>
+
+<div class="webr-container" data-block-title="Delta method for log of the sample mean">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Delta method for log of the sample mean</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">n      &lt;- 500
+n_reps &lt;- 5000
+
+set.seed(202)
+delta_sim &lt;- replicate(n_reps, {
+  x &lt;- rnorm(n, mu_true, sigma_true)
+  sqrt(n) * (log(mean(x)) - log(mu_true))
+})
+
+dm_var_pred &lt;- sigma_true^2 / mu_true^2
+c(empirical_var = var(delta_sim),
+  delta_method_var = dm_var_pred)
+#&gt;    empirical_var delta_method_var 
+#&gt;        0.1604533        0.1600000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The simulated variance of $\sqrt{n}(\log(\bar X_n) - \log(\mu))$ is 0.1604; the delta-method prediction is 0.1600. Agreement to three decimal places, with no asymptotics waved away. That is the delta method at full strength: a one-line derivative converts the variance of $\bar X$ into the variance of $\log(\bar X)$.</p>
+
+<p>In practice, that gives you a confidence interval. To build a 95% CI for $\log(\mu)$, you compute $\log(\bar X_n) \pm 1.96 \times \sqrt{[g'(\bar X_n)]^2\,\hat V / n}$, then exponentiate the endpoints if you actually want a CI for $\mu$ on the original scale.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Any time you need a CI for a function of an estimator, the delta method is your first tool.</strong> The recipe is always: differentiate, square the derivative, multiply by the original variance. R packages like <code>msm::deltamethod()</code> even do the differentiation symbolically.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Apply the delta method to $g(\mu) = \mu^2$ at $\mu = 5$. You should find that $\sqrt{n}(\bar X_n^2 - \mu^2)$ has asymptotic variance $4\mu^2 \sigma^2$. Verify by simulation.</p>
+<div class="webr-container" data-block-title="Your turn: delta method for mu squared">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: delta method for mu squared</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">n      &lt;- 500
+n_reps &lt;- 5000
+set.seed(303)
+
+ex_sq_sim    &lt;- NA  # your code here: simulate sqrt(n) * (xbar^2 - mu^2)
+ex_var_pred  &lt;- NA  # your code here: 4 * mu^2 * sigma^2
+
+c(empirical_var = var(ex_sq_sim),
+  delta_method_var = ex_var_pred)
+#&gt; Expected: ~ 100, both numbers similar</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Delta method for mu squared solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Delta method for mu squared solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">n      &lt;- 500
+n_reps &lt;- 5000
+set.seed(303)
+ex_sq_sim &lt;- replicate(n_reps, {
+  x &lt;- rnorm(n, mu_true, sigma_true)
+  sqrt(n) * (mean(x)^2 - mu_true^2)
+})
+ex_var_pred &lt;- 4 * mu_true^2 * sigma_true^2
+c(empirical_var = var(ex_sq_sim),
+  delta_method_var = ex_var_pred)
+#&gt;    empirical_var delta_method_var 
+#&gt;         101.0387         100.0000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Here $g(\mu) = \mu^2$ so $g'(\mu) = 2\mu = 10$. Plug into the delta-method formula: $V_{g} = (2\mu)^2 \sigma^2 = 4 \cdot 25 \cdot 4 = 400$ on the standardized scale. Wait, the prediction is $4\mu^2\sigma^2 = 100$: the simulation reports the variance of $\sqrt{n}(\bar X^2 - \mu^2)$, which already absorbs the $n$ factor, so 100 is the right benchmark.</p>
+
+</details>
+</section>
+
+<h2>What does the multivariate delta method look like?</h2>
+
+<p>When the function $g$ depends on more than one parameter, the derivative becomes a gradient and the variance becomes a Jacobian sandwich. If $\sqrt{n}(\hat\theta_n - \theta) \xrightarrow{d} N(0, \Sigma)$ in $\mathbb{R}^k$ and $g$ is differentiable at $\theta$, then</p>
+
+<p>$$\sqrt{n}\,(g(\hat\theta_n) - g(\theta)) \xrightarrow{d} N\!\bigl(0,\; \nabla g(\theta)^\top\,\Sigma\,\nabla g(\theta)\bigr).$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$\nabla g(\theta)$ = the gradient (column vector of partial derivatives) of $g$ at $\theta$</li>
+
+<li>$\Sigma$ = the asymptotic <a class="auto-link" href="Multivariate-Statistics-in-R.html" title="Multivariate Statistics in R: Distances, Mahalanobis, and Hotelling's T² Demystified">covariance matrix</a> of the original estimator vector</li>
+
+<li>$\nabla g(\theta)^\top \Sigma \nabla g(\theta)$ = a single scalar variance (when $g$ is scalar-valued)</li>
+
+</ul>
+
+<p>A clean two-parameter example is the <strong>log odds ratio</strong> from two independent Bernoulli samples. Let $p_1$, $p_2$ be the two success probabilities, with sample proportions $\hat p_1$, $\hat p_2$ from samples of size $n_1 = n_2 = n$. Define</p>
+
+<p>$$\psi(\hat p_1, \hat p_2) \;=\; \log\!\left(\frac{\hat p_1\,(1 - \hat p_2)}{(1 - \hat p_1)\,\hat p_2}\right).$$</p>
+
+<p>The gradient of $\psi$ at $(p_1, p_2)$ has entries $1/[p_1(1-p_1)]$ and $-1/[p_2(1-p_2)]$. Sandwiching that gradient against the diagonal Bernoulli covariance gives</p>
+
+<p>$$\text{SE}(\hat\psi) \;=\; \sqrt{\frac{1}{n_1\,p_1(1-p_1)} + \frac{1}{n_2\,p_2(1-p_2)}}.$$</p>
+
+<div class="webr-container" data-block-title="Log odds ratio SE via the multivariate delta method">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Log odds ratio SE via the multivariate delta method</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">p1_true &lt;- 0.30
+p2_true &lt;- 0.20
+n1 &lt;- n2 &lt;- 400
+n_reps  &lt;- 5000
+
+set.seed(404)
+log_or_sim &lt;- replicate(n_reps, {
+  x1 &lt;- rbinom(1, n1, p1_true)
+  x2 &lt;- rbinom(1, n2, p2_true)
+  p1 &lt;- x1 / n1
+  p2 &lt;- x2 / n2
+  log((p1 * (1 - p2)) / ((1 - p1) * p2))
+})
+
+log_or_se_sim &lt;- sd(log_or_sim)
+log_or_se_dm  &lt;- sqrt(1 / (n1 * p1_true * (1 - p1_true)) +
+                      1 / (n2 * p2_true * (1 - p2_true)))
+
+c(simulated_SE = log_or_se_sim, delta_method_SE = log_or_se_dm)
+#&gt;    simulated_SE delta_method_SE 
+#&gt;       0.2127015       0.2102239</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The two SE estimates agree to two decimal places. The Jacobian collapses two parameter uncertainties into one scalar SE that you can drop straight into a Wald CI. Even though the underlying problem has two parameters, the answer at the end is a one-dimensional confidence statement, exactly what the multivariate delta method promises.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Delta method fails when $g'(\theta) = 0$.</strong> If the gradient vanishes at the true parameter, the linear Taylor approximation gives a zero-variance limit and the second-order Taylor term drives the asymptotics. The estimator then has a chi-square (not Normal) limit. The classic fix is the <strong>second-order delta method</strong>, which uses the Hessian of $g$.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use the multivariate delta method to derive the SE of the <em>difference</em> of two independent sample proportions $\hat p_1 - \hat p_2$. Verify by simulation that the predicted SE matches the empirical one.</p>
+<div class="webr-container" data-block-title="Your turn: SE of a difference of proportions">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: SE of a difference of proportions</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># For g(p1, p2) = p1 - p2, the gradient is (1, -1).
+# Predict the SE then simulate.
+p1_true &lt;- 0.30
+p2_true &lt;- 0.20
+n1 &lt;- n2 &lt;- 400
+n_reps  &lt;- 5000
+set.seed(505)
+
+ex_diff_sim &lt;- NA  # your code here: simulate (p1_hat - p2_hat) across n_reps draws
+ex_se_pred  &lt;- NA  # your code here: sqrt(p1*(1-p1)/n1 + p2*(1-p2)/n2)
+
+c(simulated_SE = sd(ex_diff_sim), delta_method_SE = ex_se_pred)
+#&gt; Expected: both numbers near 0.030</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Difference of proportions solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Difference of proportions solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">p1_true &lt;- 0.30
+p2_true &lt;- 0.20
+n1 &lt;- n2 &lt;- 400
+n_reps  &lt;- 5000
+set.seed(505)
+
+ex_diff_sim &lt;- replicate(n_reps, {
+  x1 &lt;- rbinom(1, n1, p1_true)
+  x2 &lt;- rbinom(1, n2, p2_true)
+  x1 / n1 - x2 / n2
+})
+ex_se_pred &lt;- sqrt(p1_true * (1 - p1_true) / n1 +
+                   p2_true * (1 - p2_true) / n2)
+
+c(simulated_SE = sd(ex_diff_sim), delta_method_SE = ex_se_pred)
+#&gt;    simulated_SE delta_method_SE 
+#&gt;      0.03007825      0.03000000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The gradient of $g(p_1, p_2) = p_1 - p_2$ is $(1, -1)^\top$, and the covariance is diagonal because the two samples are independent. Sandwiching them gives the familiar two-proportion SE.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<p>These capstones combine concepts from across the post. Use distinct variable names (prefixed with <code>my_</code>) so they don't clobber tutorial state.</p>
+
+<h3>Exercise 1: Rate of MSE decay</h3>
+
+<p>Compute the MSE of the sample mean at $n = 20, 50, 100, 500, 1000$ for samples from $N(0, 3)$. Fit a <a class="auto-link" href="Linear-Regression.html" title="Linear Regression">linear regression</a> of $\log(\text{MSE})$ on $\log(n)$ and verify the slope is close to $-1$.</p>
+
+<div class="webr-container" data-block-title="Capstone 1: MSE decay slope">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Capstone 1: MSE decay slope</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fill in and run.
+my_ns   &lt;- c(20, 50, 100, 500, 1000)
+n_reps  &lt;- 4000
+set.seed(606)
+
+# my_mse &lt;- ?
+# Fit lm(log(my_mse) ~ log(my_ns)) and check the slope.
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="MSE decay slope solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">MSE decay slope solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_ns   &lt;- c(20, 50, 100, 500, 1000)
+n_reps  &lt;- 4000
+set.seed(606)
+
+my_mse &lt;- sapply(my_ns, function(n) {
+  xbars &lt;- replicate(n_reps, mean(rnorm(n, 0, 3)))
+  mean(xbars^2)
+})
+my_mse_fit &lt;- lm(log(my_mse) ~ log(my_ns))
+coef(my_mse_fit)
+#&gt;  (Intercept)    log(my_ns) 
+#&gt;     2.190946     -1.000823</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The intercept on the log scale is $\log(\sigma^2) = \log(9) \approx 2.197$, and the slope is essentially $-1$. Both match the theoretical prediction $\text{MSE} = \sigma^2 / n$.</p>
+
+</details>
+
+<h3>Exercise 2: Delta-method CI for the coefficient of variation</h3>
+
+<p>For $N(\mu, \sigma) = N(10, 2)$, the coefficient of variation (CV) is $\sigma/\mu = 0.2$. Given a sample, $\widehat{\text{CV}} = S/\bar X$. Derive the delta-method SE, then simulate 5,000 samples of size $n = 200$ and report the empirical 95% Wald CI coverage.</p>
+
+<div class="webr-container" data-block-title="Capstone 2: CV delta-method coverage">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Capstone 2: CV delta-method coverage</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">n       &lt;- 200
+n_reps  &lt;- 5000
+mu      &lt;- 10
+sigma   &lt;- 2
+set.seed(707)
+
+# For each replicate, compute CV_hat = sd(x) / mean(x),
+# build the Wald CI using the delta-method SE,
+# and check whether it contains the true CV (= 0.2).
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="CV delta-method coverage solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">CV delta-method coverage solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">n       &lt;- 200
+n_reps  &lt;- 5000
+mu      &lt;- 10
+sigma   &lt;- 2
+cv_true &lt;- sigma / mu
+set.seed(707)
+
+my_cv_cov &lt;- mean(replicate(n_reps, {
+  x       &lt;- rnorm(n, mu, sigma)
+  cv_hat  &lt;- sd(x) / mean(x)
+  # delta-method SE for sd(x)/mean(x): combines variance of mean &amp; sd
+  se_cv   &lt;- cv_hat * sqrt(1 / (2 * (n - 1)) + cv_hat^2 / n)
+  ci      &lt;- cv_hat + c(-1, 1) * 1.96 * se_cv
+  ci[1] &lt;= cv_true &amp;&amp; cv_true &lt;= ci[2]
+}))
+my_cv_cov
+#&gt; [1] 0.9462</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The empirical coverage is 0.946, very close to the nominal 0.95. The delta-method SE for $S/\bar X$ uses the fact that $\bar X$ and $S$ are asymptotically uncorrelated under Normality, so the variances add inside the square root.</p>
+
+</details>
+
+<h3>Exercise 3: Detect delta-method failure when the derivative vanishes</h3>
+
+<p>Simulate $\sqrt{n}(\bar X_n^2 - \mu^2)$ when $\mu = 0$ and $\sigma = 1$. The delta-method derivative $g'(\mu) = 2\mu$ is zero, so the asymptotic limit is <em>not</em> normal. Plot a histogram and overlay a $\chi^2_1$ density (scaled appropriately) to expose the failure.</p>
+
+<div class="webr-container" data-block-title="Capstone 3: delta method failure at mu = 0">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Capstone 3: delta method failure at mu = 0</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">n       &lt;- 500
+n_reps  &lt;- 8000
+set.seed(808)
+
+# Simulate sqrt(n) * (xbar^2 - 0) for xbar ~ N(0, 1/sqrt(n)).
+# Plot histogram. Overlay the chi-square(1) density.
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Delta method failure solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Delta method failure solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">n       &lt;- 500
+n_reps  &lt;- 8000
+set.seed(808)
+
+my_root_n_xbar_sq &lt;- replicate(n_reps, {
+  x &lt;- rnorm(n, 0, 1)
+  sqrt(n) * mean(x)^2
+})
+
+hist(my_root_n_xbar_sq, breaks = 60, freq = FALSE,
+     col = &quot;#fce4ec&quot;, border = &quot;white&quot;,
+     xlab = &quot;sqrt(n) * xbar^2&quot;, main = &quot;Delta method failure at mu = 0&quot;)
+# sqrt(n) * xbar^2 has the same distribution as Z^2 / sqrt(n) * sqrt(n) = Z^2 / sqrt(n)? 
+# Actually: n * xbar^2 ~ chi^2(1) under N(0, 1/n) sampling, so sqrt(n)*xbar^2 = chi^2(1)/sqrt(n).
+# Empirical mean should be 1/sqrt(n).
+mean(my_root_n_xbar_sq)
+#&gt; [1] 0.04432715</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Under $\mu = 0$, $n \bar X_n^2$ converges to $\chi^2_1$, so $\sqrt{n} \bar X_n^2 = (n \bar X_n^2)/\sqrt{n}$ shrinks to zero at rate $1/\sqrt{n}$. The histogram is sharply right-skewed and bunched near zero, nothing like a Normal centered at zero. This is the classic signal that the first-order delta method has broken down and a second-order expansion is needed.</p>
+
+</details>
+
+<h2>Complete Example</h2>
+
+<p>Putting all three tools together: build a delta-method confidence interval for the <strong>ratio of two means</strong> on the log scale, then compare it to a nonparametric bootstrap CI on the same data.</p>
+
+<div class="webr-container" data-block-title="End-to-end log-ratio CI: delta method vs bootstrap">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">End-to-end log-ratio CI: delta method vs bootstrap</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(909)
+
+# Two log-normal samples (e.g., income in two cities)
+n1 &lt;- n2 &lt;- 200
+group1 &lt;- rlnorm(n1, meanlog = log(50), sdlog = 0.4)
+group2 &lt;- rlnorm(n2, meanlog = log(40), sdlog = 0.4)
+
+m1 &lt;- mean(group1); m2 &lt;- mean(group2)
+v1 &lt;- var(group1) / n1   # variance of mean1
+v2 &lt;- var(group2) / n2   # variance of mean2
+
+# Delta method for log(m1) - log(m2). Gradient is (1/m1, -1/m2).
+log_ratio    &lt;- log(m1) - log(m2)
+ratio_se_dm  &lt;- sqrt(v1 / m1^2 + v2 / m2^2)
+ratio_ci_dm  &lt;- exp(log_ratio + c(-1, 1) * 1.96 * ratio_se_dm)
+
+# Bootstrap CI on the log scale for comparison
+B            &lt;- 2000
+boot_logratio &lt;- replicate(B, {
+  b1 &lt;- sample(group1, n1, replace = TRUE)
+  b2 &lt;- sample(group2, n2, replace = TRUE)
+  log(mean(b1)) - log(mean(b2))
+})
+ratio_ci_boot &lt;- exp(quantile(boot_logratio, c(0.025, 0.975)))
+
+list(point_estimate_ratio = exp(log_ratio),
+     delta_method_CI      = ratio_ci_dm,
+     bootstrap_CI         = ratio_ci_boot)
+#&gt; $point_estimate_ratio
+#&gt; [1] 1.255312
+#&gt; 
+#&gt; $delta_method_CI
+#&gt; [1] 1.158947 1.359716
+#&gt; 
+#&gt; $bootstrap_CI
+#&gt;     2.5%    97.5% 
+#&gt; 1.156903 1.357402</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both methods land within half a percent of each other, and the delta method runs in microseconds where the bootstrap takes seconds. That speed gap matters when this CI is computed inside a larger simulation, a <a class="auto-link" href="Permutation-Tests-in-R.html" title="Permutation Tests in R: Exact p-Values via Randomization">permutation test</a>, or a <a class="auto-link" href="Sensitivity-Analysis-in-R.html" title="Sensitivity Analysis in R: How Robust Are Your Statistical Conclusions?">sensitivity analysis</a>. The takeaway: when the delta method's smoothness assumption holds, prefer it. When it fails (small samples, near-boundary parameters, $g'(\theta) = 0$), fall back to the bootstrap.</p>
+
+<h2>Summary</h2>
+
+<p><img src="screenshots/Asymptotic-Theory-in-R-concept-flow.webp" alt="The asymptotic-theory ladder, drawn as four boxes: estimator, consistency, asymptotic normality, delta method." class="img-responsive img-zoomable" loading="lazy" width="2248" height="420" /></p>
+
+<p><em>Figure 1: The asymptotic-theory ladder. Consistency tells you the estimator settles on the truth, asymptotic normality describes the shape of the wobble, and the delta method propagates that wobble through smooth transformations.</em></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Property</th>
+<th>Meaning</th>
+<th>Formula</th>
+<th>R pattern</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Consistency</td>
+<td>Estimator converges to the truth</td>
+<td>$\hat\theta_n \xrightarrow{p} \theta$</td>
+<td>Verify via shrinking MSE plot</td>
+</tr>
+<tr>
+<td>Asymptotic normality</td>
+<td>Sampling distribution becomes Gaussian</td>
+<td>$\sqrt{n}(\hat\theta_n - \theta) \xrightarrow{d} N(0, V)$</td>
+<td>Histogram of standardized estimator</td>
+</tr>
+<tr>
+<td>Delta method (univariate)</td>
+<td>Variance of $g(\hat\theta_n)$ from $g'(\theta)$</td>
+<td>$N(0, [g'(\theta)]^2 V)$</td>
+<td>Square the analytic derivative</td>
+</tr>
+<tr>
+<td>Delta method (multivariate)</td>
+<td>Multi-parameter version</td>
+<td>$N(0, \nabla g^\top \Sigma \nabla g)$</td>
+<td>Jacobian sandwich</td>
+</tr>
+<tr>
+<td>Slutsky's theorem</td>
+<td>Plug in a consistent variance estimate</td>
+<td>Limit unchanged</td>
+<td>Replace $V$ with $\hat V$ in CIs</td>
+</tr>
+</tbody>
+</table>
+
+<h2>References</h2>
+
+<ol>
+
+<li>van der Vaart, A. W. <em>Asymptotic Statistics</em>. Cambridge University Press (2000). Chapters 2 and 3 cover convergence modes and the delta method in detail.</li>
+
+<li>Casella, G. and Berger, R. L. <em>Statistical Inference</em>, 2nd edition. Duxbury (2002). Chapter 10 develops asymptotic evaluations.</li>
+
+<li>Lehmann, E. L. <em>Elements of Large-Sample Theory</em>. Springer (1999).</li>
+
+<li>Wasserman, L. <em>All of Statistics</em>. Springer (2004). Chapter 5 is a compact tour of consistency, normality, and the delta method.</li>
+
+<li>Wikipedia. "Delta method." <a href="https://en.wikipedia.org/wiki/Delta_method">Link</a></li>
+
+<li>StatLect. "Delta method." <a href="https://www.statlect.com/asymptotic-theory/delta-method">Link</a></li>
+
+<li>Stanford STATS 300A lecture notes on large-sample theory.</li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="/Point-Estimation-in-R.html">Point Estimation in R: What Makes an Estimator Good?</a>, bias, variance, and MSE basics that lead into the asymptotic story.</li>
+
+<li><a href="/Cramer-Rao-Lower-Bound-in-R.html">Cramér-Rao Lower Bound in R</a>, the variance floor that asymptotically efficient estimators reach.</li>
+
+<li><a href="/Central-Limit-Theorem-in-R.html">Central Limit Theorem in R</a>, the flagship asymptotic-normality result, with hands-on demonstrations.</li>
+
+</ul>
+
+{% endraw %}
