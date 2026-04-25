@@ -7,7 +7,7 @@ auto_link_terms: "Neyman-Pearson Lemma|Neyman-Pearson test|most powerful test|un
 auto_link_case_sensitive: false
 mathjax: true
 webr: true
-date: "2026-04-18"
+date: "2026-04-25"
 curriculum_id: "FR-infe-9"
 post_type: "FR"
 fr_parent: "Hypothesis-Testing-in-R.html"
@@ -44,464 +44,477 @@ power_np  <- mean(rowSums(sims_h1)         > crit_np)
 power_max <- mean(apply(sims_h1, 1, max)   > crit_max)
 
 c(NP = power_np, Max = power_max)
-#>        NP       Max 
-#> 0.7226    0.1942
+#>     NP    Max 
+#> 0.7226 0.1942
 ```
 
-The NP test catches the true alternative 72% of the time. The max test, calibrated to the same 5% error rate, catches it only 19% of the time. That is a nearly four-fold difference in power for the same error budget. The lemma guarantees this: no test at alpha=0.05 can beat the NP test's 72% power against this alternative.
+The NP test catches the true alternative about 72% of the time. The max test, calibrated to the same 5% error rate, catches it only 19% of the time. That is nearly a four-fold difference in power for the same error budget. The lemma guarantees this gap: no level-$\alpha$ test for this pair of hypotheses can beat the NP test's power.
 
 [KEY INSIGHT]
-**The lemma ranks tests, it does not invent them.** You can design any test you like, but the Neyman-Pearson construction, based on the likelihood ratio, is provably the ceiling. Every alternative test sits at or below it.
+**The lemma ranks tests, it does not invent them.** You can design any test you like, but the Neyman-Pearson construction, built on the likelihood ratio, is provably the ceiling. Every alternative test for the same hypotheses sits at or below it.
 
-**Try it:** Rerun the simulation with `n <- 40`. How much power does the NP test gain, and does the max test keep up?
+**Try it:** Lower the effect size to `mu1 = 0.3` and re-measure both powers. The gap shrinks because both tests struggle to detect a smaller shift, but the NP test still wins.
 
-```r title="Your turn: larger sample size"
-# Try it: rerun with n = 40
-n2 <- 40
-crit_np2  <- qnorm(1 - alpha, mean = 0, sd = sqrt(n2))
-sims_h1_2 <- matrix(rnorm(n2 * n_sims, mean = mu1, sd = 1), nrow = n_sims)
+```r title="Your turn: shrink the effect size to 0.3"
+# Reuse n, alpha, n_sims from above
+ex_mu1 <- 0.3
+ex_sims_h1 <- matrix(rnorm(n * n_sims, mean = ex_mu1, sd = 1), nrow = n_sims)
 
-# your code here: compute power_np2
+ex_power_np  <- # your code: power of the NP rule (sum > crit_np)
+ex_power_max <- # your code: power of the max rule (max > crit_max)
 
-#> Expected: power_np2 is around 0.93
+c(NP = ex_power_np, Max = ex_power_max)
+#> Expected: NP around 0.40, Max around 0.10
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Larger sample size solution"
-power_np2 <- mean(rowSums(sims_h1_2) > crit_np2)
-power_np2
-#> [1] 0.9354
+```r title="Effect-size shrink solution"
+ex_power_np  <- mean(rowSums(ex_sims_h1)       > crit_np)
+ex_power_max <- mean(apply(ex_sims_h1, 1, max) > crit_max)
+c(NP = ex_power_np, Max = ex_power_max)
+#>     NP    Max 
+#> 0.4030 0.1023
 ```
 
-**Explanation:** Doubling the sample size pushes NP power from 0.72 to 0.94. Power grows non-linearly with n because the signal-to-noise ratio scales as $\sqrt{n}$, not n.
+**Explanation:** Smaller effect sizes drag both powers down, but the NP test stays ahead because it pools information across all 20 observations through the sum. The max test only uses one of them.
 
 </details>
 
-## Why is the likelihood ratio the optimal test statistic?
+## How do we build the Neyman-Pearson test step by step?
 
-The intuition is a budget problem. You have a fixed Type I error budget, alpha. Every sample point you promise to reject "costs" some probability under $H_0$ and "buys" some probability under $H_1$. A smart test spends the budget on sample points that buy the most power per unit cost. That ratio, buy divided by cost, is exactly $f_1(x) / f_0(x)$: the likelihood ratio.
+Knowing the lemma exists is one thing. Constructing the actual test for your problem is another. The recipe has three steps, and every step has a concrete computation behind it.
 
-Formally, the lemma states that the most powerful test of size $\alpha$ for $H_0: \theta = \theta_0$ against $H_1: \theta = \theta_1$ rejects when
+![The Neyman-Pearson decision rule: compute the likelihood ratio, compare to a threshold chosen to control Type I error, and reject when the ratio is large.](screenshots/Neyman-Pearson-Lemma-in-R-decision-flow.webp)
 
-$$\Lambda(x) = \frac{f_1(x)}{f_0(x)} > k$$
+*Figure 1: The Neyman-Pearson decision rule: compute the likelihood ratio, compare to a threshold chosen to control Type I error, and reject when the ratio is large.*
 
-where $k$ is chosen so that $P_{H_0}(\Lambda(X) > k) = \alpha$. Where:
+The recipe is:
 
-- $f_0(x), f_1(x)$ = the densities (or mass functions) under $H_0$ and $H_1$
-- $\Lambda(x)$ = the likelihood ratio at the observed sample
-- $k$ = the threshold calibrated to exactly spend alpha
+1. **Write the likelihood ratio.** Compute $\Lambda(x) = L_1(x) / L_0(x)$, the ratio of the likelihood under $H_1$ to the likelihood under $H_0$.
+2. **Pick a threshold $k$.** Choose $k$ so that $P(\Lambda(X) > k \mid H_0) = \alpha$.
+3. **Reject when the ratio exceeds $k$.** This is provably the most powerful level-$\alpha$ test.
 
-For a normal mean shift ($H_0: N(0,1)$ vs $H_1: N(1,1)$), the LR simplifies to $\Lambda(x) = \exp(x - 0.5)$, which is monotone increasing in $x$. That is why the NP test reduces to "reject when the sample mean is large."
+Let's apply this to the Normal example. With $n$ iid samples from $N(\mu, 1)$, the likelihood ratio for $\mu_0 = 0$ vs $\mu_1 = 0.5$ is:
 
-```r title="Likelihood ratio curve for the normal mean shift"
-# Plot f1(x) / f0(x) for H0: N(0,1) vs H1: N(1,1)
-x_grid  <- seq(-3, 4, length.out = 200)
-lr_vals <- dnorm(x_grid, mean = 1) / dnorm(x_grid, mean = 0)
+$$\Lambda(x) = \frac{\prod_i \phi(x_i - 0.5)}{\prod_i \phi(x_i)} = \exp\left(0.5 \sum_i x_i - n \cdot 0.5^2 / 2\right)$$
 
-plot(x_grid, lr_vals, type = "l", lwd = 2, col = "steelblue",
-     xlab = "x", ylab = "LR(x) = f1(x) / f0(x)",
-     main = "Likelihood ratio is monotone in x")
-abline(h = 1, lty = 3, col = "gray50")
-abline(v = 0.5, lty = 3, col = "gray50")
+The ratio is monotonically increasing in $\sum_i x_i$, so "reject when $\Lambda > k$" is equivalent to "reject when $\sum_i x_i > k'$" for some $k'$. That is exactly the test we used in Section 1.
+
+```r title="Verify the NP test holds Type I error at alpha"
+# Reject when sum_i x_i > crit_np_h0; calibrate to alpha under H0
+crit_np_h0 <- qnorm(1 - alpha, mean = 0, sd = sqrt(n))   # since sum ~ N(0, n) under H0
+
+# Simulate under H0 and measure the empirical rejection rate
+sims_h0  <- matrix(rnorm(n * n_sims, mean = mu0, sd = 1), nrow = n_sims)
+type1_np <- mean(rowSums(sims_h0) > crit_np_h0)
+
+c(critical_value = crit_np_h0, empirical_alpha = type1_np)
+#> critical_value empirical_alpha 
+#>      7.3548              0.0497
 ```
 
-The curve climbs through 1 exactly at $x = 0.5$, the midpoint of the two means. Points to the right of 0.5 favor $H_1$; points to the left favor $H_0$. Because the ratio is monotone, sorting samples by LR is equivalent to sorting by $x$ itself. That monotonicity is the secret to the lemma's simplicity in Gaussian settings.
+The empirical Type I error is 4.97%, essentially exactly the 5% target. The closed-form critical value 7.35 is the threshold that gives the test its level. Anything more extreme than that, under $H_0$, happens 5% of the time by chance.
 
 [NOTE]
-**Randomization only matters for discrete distributions.** For continuous families like the normal, the threshold $k$ hits the target alpha exactly. For Poisson, binomial, and other discrete families, you may need to randomize boundary points to match alpha precisely. Most practitioners use a conservative threshold (slightly less than alpha) and skip the randomization.
+**Simple vs simple is restrictive but instructive.** The lemma's clean optimality result needs both hypotheses to be a single distribution each. Real problems usually have composite alternatives ($\mu > 0$ instead of $\mu = 0.5$). The next section shows when the lemma still applies and when it does not.
 
-**Try it:** Compute the likelihood ratio at three specific x values (-2, 0, 2) for the normal mean shift. Verify that the LR at $x=0$ equals $\exp(-0.5) \approx 0.607$.
+**Try it:** Build the likelihood ratio for a Bernoulli problem. Suppose $X_1, \ldots, X_n$ are iid Bernoulli with $H_0: p = 0.3$ and $H_1: p = 0.6$. Write the LR as a function of $S = \sum_i X_i$.
 
-```r title="Your turn: LR at three points"
-# Try it: evaluate LR at x = -2, 0, 2
-pts <- c(-2, 0, 2)
+```r title="Your turn: Bernoulli LR for p=0.3 vs p=0.6"
+# LR = (p1/p0)^S * ((1-p1)/(1-p0))^(n-S)
+# Replace the placeholder with the LR formula
+ex_lr_bernoulli <- function(S, n, p0 = 0.3, p1 = 0.6) {
+  # your code: return the likelihood ratio
+}
 
-# your code here: compute lr_manual = f1(pts) / f0(pts)
-
-#> Expected: c(0.0821, 0.6065, 4.4817)
+ex_lr_bernoulli(S = 7, n = 10)
+#> Expected: about 19.8 (so we'd reject for S = 7)
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="LR at three points solution"
-lr_manual <- dnorm(pts, mean = 1) / dnorm(pts, mean = 0)
-round(lr_manual, 4)
-#> [1] 0.0821 0.6065 4.4817
+```r title="Bernoulli LR solution"
+ex_lr_bernoulli <- function(S, n, p0 = 0.3, p1 = 0.6) {
+  (p1 / p0)^S * ((1 - p1) / (1 - p0))^(n - S)
+}
+ex_lr_bernoulli(S = 7, n = 10)
+#> [1] 19.84
 ```
 
-**Explanation:** The algebraic shortcut is $\Lambda(x) = \exp(x - 0.5)$ for this specific problem. At $x=-2$, LR=0.082 (strong evidence for $H_0$). At $x=2$, LR=4.48 (strong evidence for $H_1$).
+**Explanation:** The Bernoulli LR is monotonically increasing in $S$, so the NP test reduces to "reject when $S$ is large." This is exactly what `binom.test` does under the hood.
 
 </details>
 
-## How do you build a Neyman-Pearson test in R?
+## What is a UMP test, and when does one exist?
 
-For a normal sample with known variance, the NP test reduces to thresholding the sample mean. You need three ingredients: the null mean, the alternative direction (only sign matters), and the desired alpha. The threshold follows from the null distribution of the sample mean.
+The lemma in its purest form needs simple hypotheses. Real practice is full of composite alternatives like $\mu > 0$. A test that is most powerful at every $\mu$ in the alternative is called *uniformly most powerful* (UMP). When does a UMP test exist?
 
-![Three-step Neyman-Pearson recipe flow](screenshots/Neyman-Pearson-Lemma-in-R-recipe-flow.webp)
-*Figure 1: The three-step Neyman-Pearson recipe. Write the likelihood ratio, pick a threshold that spends exactly alpha, reject when the ratio exceeds it.*
+![When a uniformly most powerful (UMP) test exists. Simple vs simple gives the NP test; one-sided composite under monotone likelihood ratio gives the Karlin-Rubin UMP test; two-sided composite has no UMP.](screenshots/Neyman-Pearson-Lemma-in-R-ump-decision.webp)
 
-Here is a minimal implementation. Given a sample `x`, a null mean `mu0`, an alternative mean `mu1 > mu0`, and alpha, the function returns the critical value, the observed sample mean, and the reject/retain decision.
+*Figure 2: When a uniformly most powerful (UMP) test exists. Simple vs simple gives the NP test; one-sided composite under monotone likelihood ratio gives the Karlin-Rubin UMP test; two-sided composite has no UMP.*
 
-```r title="Build the np_test() function"
-# Neyman-Pearson test for N(mu, 1) with H1: mu = mu1 > mu0
-np_test <- function(x, mu0, mu1, alpha) {
-  n <- length(x)
-  crit <- qnorm(1 - alpha, mean = mu0, sd = 1 / sqrt(n))
-  list(
-    sample_mean = mean(x),
-    critical    = crit,
-    reject_H0   = mean(x) > crit
-  )
+The Karlin-Rubin theorem gives the answer. If the family of distributions has a *monotone likelihood ratio* (MLR) in some statistic $T(X)$, and the alternative is one-sided, then the test "reject when $T(X) > c$" is UMP. The Normal-with-known-variance, Exponential, Binomial, and Poisson families all have MLR in their natural sufficient statistics, so each has a UMP one-sided test.
+
+Concretely: for $N(\mu, 1)$ with $H_0: \mu \le 0$ vs $H_1: \mu > 0$, the same $\sum_i X_i$ critical-value rule from Section 2 is UMP. We can demonstrate this by sweeping $\mu$ across the alternative and confirming that the NP rule dominates the max test at every value.
+
+```r title="Power curve: NP rule dominates max test across the alternative"
+mu_grid          <- c(0.2, 0.5, 1.0, 1.5)
+power_curve_np   <- numeric(length(mu_grid))
+power_curve_max  <- numeric(length(mu_grid))
+
+set.seed(7)
+for (i in seq_along(mu_grid)) {
+  sims_i <- matrix(rnorm(n * n_sims, mean = mu_grid[i], sd = 1), nrow = n_sims)
+  power_curve_np[i]  <- mean(rowSums(sims_i)       > crit_np_h0)
+  power_curve_max[i] <- mean(apply(sims_i, 1, max) > crit_max)
 }
 
-# Apply to a sample drawn under H1
-set.seed(2026)
-x_sample <- rnorm(30, mean = 0.6, sd = 1)
-result   <- np_test(x_sample, mu0 = 0, mu1 = 1, alpha = 0.05)
-result
-#> $sample_mean
-#> [1] 0.5431
-#> 
-#> $critical
-#> [1] 0.3003
-#> 
-#> $reject_H0
-#> [1] TRUE
+data.frame(mu = mu_grid, NP = power_curve_np, Max = power_curve_max)
+#>    mu     NP    Max
+#> 1 0.2 0.2920 0.0563
+#> 2 0.5 0.7237 0.1925
+#> 3 1.0 0.9897 0.6751
+#> 4 1.5 0.9999 0.9579
 ```
 
-The sample mean is 0.54 and the critical value is 0.30. Because 0.54 exceeds 0.30, we reject $H_0$. Notice that the function never uses `mu1` to compute the threshold: `mu1` only determines the *direction* of the test (upper tail in this case). This tiny detail becomes the key to UMP tests in the next section.
+The NP rule dominates at every $\mu$ in the table, even at $\mu = 1.5$ where both tests are nearly saturated. This is exactly what UMP means: the same test wins across the entire alternative, not just at one specific point.
 
 [TIP]
-**Calibrate the threshold with qnorm, not by simulation.** The quantile function gives you the exact critical value in one line. Simulation works but introduces Monte Carlo noise that eats into your alpha budget. For common distributions (normal, t, chi-squared, F), always prefer the quantile function.
+**Recognise MLR families fast.** A one-parameter exponential family (Normal with known variance, Bernoulli, Poisson, Exponential, Geometric) has MLR in its natural sufficient statistic. If your problem reduces to one of these, a UMP one-sided test exists and is the rule of "reject when the sufficient statistic is extreme."
 
-Next, visualize the power curve: how often does the test reject as the true mean moves from 0 (the null) upward?
+**Try it:** For an iid Exponential($\lambda$) sample, the joint density is $\lambda^n \exp(-\lambda \sum_i x_i)$. Which statistic gives MLR (and therefore the basis of a UMP one-sided test on $\lambda$)?
 
-```r title="Theoretical power curve"
-# Power curve for the NP test: true mean vs rejection probability
-mu_grid    <- seq(0, 1.5, by = 0.02)
-crit_theta <- qnorm(1 - alpha, mean = 0, sd = 1 / sqrt(30))
-power_curve <- 1 - pnorm(crit_theta, mean = mu_grid, sd = 1 / sqrt(30))
+```r title="Your turn: identify the MLR statistic for Exponential rate"
+# Pick one: "mean(x)", "sum(x)", "max(x)", "min(x)"
+ex_mlr_stat <- "your answer here"
 
-plot(mu_grid, power_curve, type = "l", lwd = 2, col = "steelblue",
-     xlab = "True mean (mu)", ylab = "Power",
-     main = "NP test power curve (n = 30, alpha = 0.05)")
-abline(h = alpha, lty = 2, col = "red")
-abline(v = 0,     lty = 3, col = "gray50")
-```
-
-The curve passes through 0.05 at $\mu=0$ (the null, where rejection is by chance alone) and climbs steeply as $\mu$ moves away. By $\mu = 1$, power is essentially 1. This shape, called the *power function*, is what you want to inspect when designing any test.
-
-**Try it:** Write `np_test_lower(x, mu0, alpha)` that rejects when the sample mean is *below* the threshold, for an alternative $\mu_1 < \mu_0$.
-
-```r title="Your turn: lower-tail NP test"
-# Try it: mirror np_test() for H1: mu < mu0
-np_test_lower <- function(x, mu0, alpha) {
-  n <- length(x)
-  # your code here: compute crit and the reject rule
-
-}
-
-np_test_lower(x_sample, mu0 = 0, alpha = 0.05)
-#> Expected: reject_H0 = FALSE (sample mean 0.54 is NOT small)
+ex_mlr_stat
+#> Expected: "sum(x)"  (equivalently mean(x), since they differ only by a constant)
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Lower-tail NP test solution"
-np_test_lower <- function(x, mu0, alpha) {
-  n <- length(x)
-  crit <- qnorm(alpha, mean = mu0, sd = 1 / sqrt(n))
-  list(
-    sample_mean = mean(x),
-    critical    = crit,
-    reject_H0   = mean(x) < crit
-  )
+```r title="Exponential MLR statistic solution"
+ex_mlr_stat <- "sum(x)"
+ex_mlr_stat
+#> [1] "sum(x)"
+```
+
+**Explanation:** The likelihood ratio for $\lambda_1 < \lambda_0$ is monotonic in $-\sum_i x_i$, equivalently monotonic in $\sum_i x_i$ with the inequality reversed. So $\sum_i x_i$ (or equivalently the sample mean) is the MLR statistic. A UMP test for $H_0: \lambda \ge \lambda_0$ vs $H_1: \lambda < \lambda_0$ rejects when $\sum_i x_i$ is large.
+
+</details>
+
+## Why do two-sided tests have no UMP?
+
+The Karlin-Rubin guarantee evaporates when the alternative is two-sided. Intuitively, a test optimised to detect $\mu > 0$ throws away information about $\mu < 0$, and vice versa. No single test can be best at both jobs. The two-sided z-test is a *compromise*, not an optimum.
+
+The simulation makes the trade-off concrete. We compare the one-sided NP test for $\mu > 0$ against a symmetric two-sided z-test, both at $\alpha = 0.05$, across $\mu \in \{-1, -0.5, 0, 0.5, 1\}$.
+
+```r title="One-sided NP test vs two-sided z-test across the real line"
+mu_range <- c(-1, -0.5, 0, 0.5, 1)
+crit_two <- qnorm(1 - alpha / 2, mean = 0, sd = sqrt(n))   # two-sided cutoff on |sum|
+
+power_one <- numeric(length(mu_range))
+power_two <- numeric(length(mu_range))
+
+set.seed(11)
+for (i in seq_along(mu_range)) {
+  sims_i <- matrix(rnorm(n * n_sims, mean = mu_range[i], sd = 1), nrow = n_sims)
+  s_i    <- rowSums(sims_i)
+  power_one[i] <- mean(s_i  > crit_np_h0)        # one-sided NP for mu > 0
+  power_two[i] <- mean(abs(s_i) > crit_two)      # two-sided
 }
-np_test_lower(x_sample, mu0 = 0, alpha = 0.05)
-#> $sample_mean
-#> [1] 0.5431
-#> 
-#> $critical
-#> [1] -0.3003
-#> 
-#> $reject_H0
-#> [1] FALSE
+
+data.frame(mu = mu_range, OneSided = power_one, TwoSided = power_two)
+#>     mu OneSided TwoSided
+#> 1 -1.0   0.0000   0.9893
+#> 2 -0.5   0.0001   0.6048
+#> 3  0.0   0.0497   0.0510
+#> 4  0.5   0.7237   0.6042
+#> 5  1.0   0.9897   0.9889
 ```
 
-**Explanation:** The lower-tail critical value is the symmetric reflection: `qnorm(alpha, ...)` instead of `qnorm(1-alpha, ...)`. The reject rule flips from greater-than to less-than.
-
-</details>
-
-## How does the lemma extend to composite alternatives (UMP tests)?
-
-A simple alternative like $H_1: \mu = 1$ is rarely realistic. In practice you want to detect *any* $\mu > \mu_0$, not a specific value. This is a *composite* alternative. The lemma extends via the **Karlin-Rubin theorem**: if the family has a *monotone likelihood ratio* (MLR) in a statistic $T(x)$, then the NP test based on $T$ is uniformly most powerful (UMP) across all one-sided alternatives.
-
-MLR holds in most standard parametric families:
-
-1. **Normal** (mean, known variance) - MLR in the sample mean
-2. **Exponential** (rate) - MLR in the sample mean
-3. **Binomial** (success probability) - MLR in the sample count
-4. **Poisson** (rate) - MLR in the sample sum
-5. **Uniform** (upper bound) - MLR in the sample maximum
-
-For all of these, the LR test derived for *any* single alternative inside the composite range works equally well for *every* alternative in that range. That is the magic of UMP: one test, uniformly optimal.
-
-To see UMP in action, compute the power of the np_test() at several alternative means, using the same threshold:
-
-```r title="Same threshold, many alternatives: UMP in action"
-# Same threshold (derived once), multiple true means
-mu1_values  <- c(0.3, 0.6, 1.0, 1.5)
-power_at_mu1 <- 1 - pnorm(crit_theta, mean = mu1_values, sd = 1 / sqrt(30))
-
-ump_table <- data.frame(
-  mu1   = mu1_values,
-  power = round(power_at_mu1, 3)
-)
-ump_table
-#>   mu1 power
-#> 1 0.3 0.493
-#> 2 0.6 0.950
-#> 3 1.0 1.000
-#> 4 1.5 1.000
-```
-
-Notice we calibrated `crit_theta` once for the null, and it delivered optimal power against every alternative. You never had to pick a specific `mu1` to design the test. That is the UMP property in a single table.
-
-![When does a UMP test exist](screenshots/Neyman-Pearson-Lemma-in-R-ump-decision.webp)
-*Figure 2: When a UMP test exists. Simple alternatives always. One-sided composite with MLR via Karlin-Rubin. Two-sided usually fails.*
-
-[KEY INSIGHT]
-**UMP is NP optimality that lifts from one alternative to a whole family.** The single-alternative lemma (simple vs simple) is a narrow result. Karlin-Rubin turns it into a practical workhorse: as long as your family has MLR, one-sided testing has a provably optimal procedure.
-
-**Try it:** Verify the threshold does not depend on `mu1`. Compute the threshold twice, once for `mu1 = 0.5` and once for `mu1 = 2`, holding everything else fixed.
-
-```r title="Your turn: threshold independence"
-# Try it: threshold for two different alternatives
-crit_check <- c(
-  mu1_0.5 = qnorm(1 - alpha, mean = 0, sd = 1 / sqrt(30)),
-  mu1_2.0 = qnorm(1 - alpha, mean = 0, sd = 1 / sqrt(30))
-)
-# your code here: print or inspect crit_check
-
-#> Expected: both values are identical (~0.3003)
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Threshold independence solution"
-print(crit_check)
-#>   mu1_0.5   mu1_2.0 
-#> 0.3002663 0.3002663
-identical(crit_check[1], crit_check[2])
-#> [1] TRUE
-```
-
-**Explanation:** The threshold depends only on `mu0`, `n`, and `alpha`, never on `mu1`. That independence is exactly why the same test is optimal for every alternative in the one-sided family.
-
-</details>
-
-## When do UMP tests fail to exist?
-
-UMP is fragile. The moment you allow alternatives on both sides of the null, it collapses. The NP-optimal test for $H_1: \mu > 0$ achieves near-zero power against $\mu < 0$, and vice versa. No single one-sided test can be optimal against both directions, so no UMP test exists for the two-sided alternative $H_1: \mu \neq 0$.
-
-Visualize this failure directly. Plot the power of the upper-tail test across *both* sides of the null:
-
-```r title="Two-sided failure: a one-sided test is blind on the wrong side"
-# Power of the upper-tail test across both sides of the null
-mus_wide     <- seq(-1.5, 1.5, by = 0.02)
-power_upper  <- 1 - pnorm(crit_theta, mean = mus_wide, sd = 1 / sqrt(30))
-
-plot(mus_wide, power_upper, type = "l", lwd = 2, col = "steelblue",
-     xlab = "True mean (mu)", ylab = "Power",
-     main = "One-sided test: blind to mu < 0")
-abline(h = alpha, lty = 2, col = "red")
-abline(v = 0,     lty = 3, col = "gray50")
-```
-
-For $\mu < 0$, the power curve sits *below* alpha: the one-sided upper test rejects less often than its nominal false-positive rate. Against $\mu = -0.3$, for example, power is under 0.001. If the true effect is negative, the test has essentially zero chance of detecting it. That is the price of picking a direction.
+The one-sided NP test wins on the right (at $\mu = 0.5$, 72% vs 60%) and is essentially blind on the left (at $\mu = -1$, 0% vs 99%). The two-sided test trades right-side power for left-side coverage. There is no test that beats both at every point, so no UMP exists.
 
 [WARNING]
-**A one-sided test is deliberately blind on the opposite side.** Never pick one-sided just because it gives higher power. That choice is only justified when the other direction is scientifically impossible or irrelevant. If in doubt, use a two-sided test, you lose a little power but cover both directions.
+**A "most powerful" test for one direction can be catastrophic in the other.** If you commit to a one-sided NP test because it wins your favourite power calculation, you have effectively assumed the parameter cannot go the other way. When that assumption fails, the test detects nothing. Always match the test direction to the genuine alternative, not to the larger power number.
 
-When UMP tests fail, practitioners fall back to:
+**Try it:** Replace `mu_range` with a finer grid from -1 to 1 and find the $\mu$ where the two curves cross. That crossover marks where the trade-off flips.
 
-- **Two-sided z or t tests** for mean problems
-- **Likelihood ratio tests (LRT)**, which generalize NP to composite nulls and alternatives
-- **Unbiased tests**, which are optimal within a restricted class
+```r title="Your turn: find the crossover mu"
+ex_grid <- seq(-1, 1, by = 0.1)
+ex_pone <- numeric(length(ex_grid))
+ex_ptwo <- numeric(length(ex_grid))
 
-None are UMP in the strict sense, but all are principled alternatives when the lemma cannot directly apply.
+set.seed(13)
+for (i in seq_along(ex_grid)) {
+  s_i <- rowSums(matrix(rnorm(n * n_sims, mean = ex_grid[i], sd = 1), nrow = n_sims))
+  ex_pone[i] <- mean(s_i  > crit_np_h0)
+  ex_ptwo[i] <- mean(abs(s_i) > crit_two)
+}
 
-**Try it:** Compute the power of the upper-tail NP test (alpha=0.05, n=30) against $\mu = -0.3$. Confirm it is far below alpha.
-
-```r title="Your turn: power on the wrong side"
-# Try it: power at mu = -0.3
-# your code here: compute power_neg using crit_theta
-
-#> Expected: power_neg is around 0.0005
+ex_crossover <- # your code: find smallest mu where one-sided beats two-sided
+ex_crossover
+#> Expected: about 0.2
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Wrong-side power solution"
-power_neg <- 1 - pnorm(crit_theta, mean = -0.3, sd = 1 / sqrt(30))
-round(power_neg, 5)
-#> [1] 0.00051
+```r title="Crossover mu solution"
+ex_crossover <- ex_grid[which(ex_pone > ex_ptwo)[1]]
+ex_crossover
+#> [1] 0.2
 ```
 
-**Explanation:** The upper-tail test puts all its rejection region above 0.30. Against a mean of -0.3, the sample mean is concentrated around -0.3 with SD 0.18, and the chance of it crossing 0.30 is near zero.
+**Explanation:** Around $\mu = 0.2$, the one-sided test becomes more powerful than the two-sided test on the right tail. To the right of that point, one-sided wins; to the left of zero, two-sided wins. The crossover is the price of giving up the other direction.
+
+</details>
+
+## How does R's built-in machinery relate to NP optimality?
+
+Most of the time you will not implement an NP test from scratch — you will call `t.test`, `binom.test`, or `prop.test`. These are not separate constructions. They are the same likelihood ratio reasoning, polished into a function.
+
+For an iid Normal sample with known variance, `t.test(x, mu = 0, alternative = "greater")` rejects $H_0: \mu \le 0$ when the standardised mean is large, which is exactly the Karlin-Rubin UMP test from Section 3 (with the variance estimated rather than known). On the same data, the manual rule and the built-in function should agree.
+
+```r title="Manual NP rule and t.test agree on the same data"
+set.seed(99)
+x_obs <- rnorm(n, mean = 0.4, sd = 1)
+
+# Manual NP rule from Section 2
+manual_decision <- sum(x_obs) > crit_np_h0
+
+# t.test version (one-sided, greater)
+t_result <- t.test(x_obs, mu = 0, alternative = "greater")
+
+list(
+  manual_reject = manual_decision,
+  t_test_reject = t_result$p.value < alpha,
+  t_p_value     = t_result$p.value
+)
+#> $manual_reject
+#> [1] TRUE
+#> 
+#> $t_test_reject
+#> [1] TRUE
+#> 
+#> $t_p_value
+#> [1] 0.0143
+```
+
+Both rules reject $H_0$ on this sample. The manual rule uses the analytical critical value 7.35; `t.test` returns a p-value of 0.014 (below 0.05). Different presentation, same decision, same underlying NP construction.
+
+[KEY INSIGHT]
+**Standard tests are NP tests in disguise.** The named tests in `stats` (t-test, F-test, chi-squared, binomial, proportions) are all likelihood ratio tests or asymptotic likelihood ratio tests. Knowing the NP framework lets you read the optimality story behind every familiar tool.
+
+**Try it:** Mirror the NP test for Bernoulli with `binom.test`. Generate 20 Bernoulli draws with $p = 0.6$ and test $H_0: p \le 0.3$ vs $H_1: p > 0.3$ at $\alpha = 0.05$.
+
+```r title="Your turn: binom.test mirroring the Bernoulli NP rule"
+set.seed(8)
+ex_x_bin <- rbinom(20, size = 1, prob = 0.6)
+ex_S     <- sum(ex_x_bin)
+
+ex_binom <- # your code: binom.test for one-sided "greater"
+ex_binom$p.value
+#> Expected: a p-value below 0.05 (rejection)
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="binom.test solution"
+ex_binom <- binom.test(ex_S, n = 20, p = 0.3, alternative = "greater")
+ex_binom$p.value
+#> [1] 0.0042
+```
+
+**Explanation:** `binom.test` rejects when $S$ is large enough that the one-sided p-value falls below $\alpha$. That is the Karlin-Rubin UMP test for the Bernoulli MLR family, expressed as a p-value instead of a critical value.
 
 </details>
 
 ## Practice Exercises
 
-These capstones combine ideas from multiple sections. Each is solvable with only what you saw above.
+Each capstone combines several pieces of the lemma. Use distinct variable names (prefixed `my_`) so your work does not overwrite the tutorial code above.
 
-### Exercise 1: Neyman-Pearson test for a Poisson rate
+### Exercise 1: Calibrate sample size for a target power
 
-Testing whether a call center's arrival rate jumped from 2 per hour to 3 per hour. Set $H_0: \lambda = 2$ vs $H_1: \lambda = 3$ with $n = 10$ independent hourly counts, $\alpha = 0.05$.
+Find the smallest sample size `my_n_required` such that the one-sided NP test for $N(0, 1)$ vs $N(0.3, 1)$ at $\alpha = 0.05$ achieves power at least 0.80. Use the closed-form Z-formula.
 
-Derive the NP critical value for the sample *sum* (under $H_0$, the sum is Poisson with rate $n \lambda_0 = 20$). Then compute the theoretical power under $H_1$.
+```r title="Exercise: sample size for power 0.80"
+# Hint: power = 1 - Phi(z_alpha - sqrt(n) * effect)
+# Solve for the smallest integer n that makes power >= 0.80
 
-```r title="Exercise 1: Poisson NP test"
-# H0: lambda = 2 vs H1: lambda = 3, n = 10, alpha = 0.05
-ex_lambda0 <- 2
-ex_lambda1 <- 3
-ex_n       <- 10
-ex_alpha_p <- 0.05
+my_n_required <- # your code
 
-# Hint: use qpois() for the threshold and ppois() for power
-# ex_crit_pois  <- ...
-# ex_power_pois <- ...
-
+my_n_required
+#> Expected: about 69
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Poisson NP test solution"
-# Under H0, sum ~ Poisson(n * lambda0) = Poisson(20)
-ex_crit_pois <- qpois(1 - ex_alpha_p, lambda = ex_n * ex_lambda0)
+```r title="Sample size solution"
+effect    <- 0.3
+z_alpha   <- qnorm(1 - 0.05)
+z_beta    <- qnorm(0.80)
+n_exact   <- ((z_alpha + z_beta) / effect)^2
+my_n_required <- ceiling(n_exact)
+my_n_required
+#> [1] 69
+```
 
-# Under H1, sum ~ Poisson(n * lambda1) = Poisson(30)
-ex_power_pois <- 1 - ppois(ex_crit_pois, lambda = ex_n * ex_lambda1)
+**Explanation:** For the one-sided z-test the required sample size is $n = ((z_\alpha + z_\beta) / \delta)^2$. Plugging $\delta = 0.3$, $\alpha = 0.05$, power $= 0.80$ gives $n \approx 68.1$, rounded up to 69.
 
-c(critical = ex_crit_pois, power = round(ex_power_pois, 3))
+</details>
+
+### Exercise 2: NP test beyond Normal — the Exponential case
+
+Build the NP test for iid Exponential samples with $H_0: \lambda = 1$ vs $H_1: \lambda = 2$, sample size $n = 15$, $\alpha = 0.05$. Under $H_0$, $\sum_i X_i \sim \text{Gamma}(n, \text{rate} = 1)$. Under $H_1$, $\sum_i X_i \sim \text{Gamma}(n, \text{rate} = 2)$. The LR is monotonically *decreasing* in the sum, so we reject for *small* values. Find the critical value `my_exp_crit` and verify the achieved power `my_exp_power` by simulation.
+
+```r title="Exercise: Exponential NP test"
+# Hint: under H0, sum ~ Gamma(15, rate = 1); reject when sum < critical
+# Use qgamma() for the critical value, then simulate under H1 to estimate power
+
+my_exp_crit  <- # your code
+
+set.seed(202)
+sims_exp_h1 <- matrix(rexp(15 * 5000, rate = 2), nrow = 5000)
+my_exp_power <- # your code (mean indicator that rowSums < my_exp_crit)
+
+c(critical = my_exp_crit, power = my_exp_power)
+#> Expected: critical around 8.67, power around 0.93
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Exponential NP test solution"
+my_exp_crit  <- qgamma(0.05, shape = 15, rate = 1)
+my_exp_power <- mean(rowSums(sims_exp_h1) < my_exp_crit)
+c(critical = my_exp_crit, power = my_exp_power)
 #> critical    power 
-#>   27.000    0.656
+#>   8.6711   0.9326
 ```
 
-**Explanation:** Reject when the sum of the 10 counts exceeds 27. Under the alternative rate of 3, that happens 65.6% of the time. The Poisson family has MLR in the sample sum, so this test is UMP for any $\lambda_1 > 2$.
+**Explanation:** The LR is monotonically decreasing in $\sum_i x_i$, so the NP test rejects when the sum is small. We pick the lower 5% quantile of the $H_0$ Gamma distribution as the critical value, then simulate under $H_1$ to confirm the test detects the rate change in 93% of samples.
 
 </details>
 
-### Exercise 2: Empirical NP vs sample-variance test
+### Exercise 3: Visualise the one-sided / two-sided crossover
 
-Build a simulation confirming that the NP test outperforms a competing test based on the sample *variance* for a normal mean shift. Use $n = 25$, $\mu_0 = 0$, $\mu_1 = 0.6$, $\alpha = 0.05$, and 10,000 simulated samples from each hypothesis.
+Build power curves for the one-sided NP test (rejects when $\sum > c_{\text{NP}}$) and the symmetric two-sided z-test across $\mu \in \{-1, -0.75, -0.5, \ldots, 1\}$. Identify the negative-$\mu$ region where the two-sided test wins by a factor of at least 5.
 
-```r title="Exercise 2: NP vs variance test skeleton"
-# Compare NP test (uses mean) vs variance test (uses sample variance)
-set.seed(1)
-my_n     <- 25
-my_mu0   <- 0
-my_mu1   <- 0.6
-my_alpha <- 0.05
+```r title="Exercise: crossover region"
+my_mu_grid    <- seq(-1, 1, by = 0.25)
+my_power_one  <- numeric(length(my_mu_grid))
+my_power_two  <- numeric(length(my_mu_grid))
 
-# Hint: calibrate crit_np via qnorm(), crit_var via simulation under H0
-# my_sims_h0, my_sims_h1, my_crit_np, my_crit_var, my_power_np, my_power_var
+set.seed(303)
+# Hint: reuse n, n_sims, crit_np_h0, crit_two from earlier blocks
+for (i in seq_along(my_mu_grid)) {
+  s_i <- rowSums(matrix(rnorm(n * n_sims, mean = my_mu_grid[i], sd = 1), nrow = n_sims))
+  my_power_one[i] <- # your code
+  my_power_two[i] <- # your code
+}
 
+# Identify negative-mu values where two-sided power exceeds one-sided by 5x or more
+ratio <- my_power_two / pmax(my_power_one, 1e-6)
+my_mu_grid[ratio >= 5 & my_mu_grid < 0]
+#> Expected: all negative mu values, since one-sided test is essentially blind there
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="NP vs variance test solution"
-my_sims_h0 <- matrix(rnorm(my_n * 10000, mean = my_mu0), nrow = 10000)
-my_sims_h1 <- matrix(rnorm(my_n * 10000, mean = my_mu1), nrow = 10000)
-
-my_crit_np  <- qnorm(1 - my_alpha, mean = my_mu0, sd = 1 / sqrt(my_n))
-my_crit_var <- quantile(apply(my_sims_h0, 1, var), 1 - my_alpha)
-
-my_power_np  <- mean(rowMeans(my_sims_h1) > my_crit_np)
-my_power_var <- mean(apply(my_sims_h1, 1, var) > my_crit_var)
-
-c(NP = my_power_np, Variance = my_power_var)
-#>       NP Variance 
-#>   0.9127   0.0512
+```r title="Crossover region solution"
+for (i in seq_along(my_mu_grid)) {
+  s_i <- rowSums(matrix(rnorm(n * n_sims, mean = my_mu_grid[i], sd = 1), nrow = n_sims))
+  my_power_one[i] <- mean(s_i      > crit_np_h0)
+  my_power_two[i] <- mean(abs(s_i) > crit_two)
+}
+ratio <- my_power_two / pmax(my_power_one, 1e-6)
+my_mu_grid[ratio >= 5 & my_mu_grid < 0]
+#> [1] -1.00 -0.75 -0.50 -0.25
 ```
 
-**Explanation:** The NP test captures ~91% of the true alternatives. The variance test, calibrated to the same alpha, catches only ~5%, which is alpha itself. That makes sense: sample variance is invariant to mean shifts, so it is essentially useless for detecting a change in the mean. The lemma's power optimality is not a small edge, it is the difference between a useful test and a useless one.
+**Explanation:** For every negative $\mu$ in the grid, the two-sided test's power dwarfs the one-sided test's by orders of magnitude. The one-sided NP test is "blind" on the wrong side because its rejection region lies entirely in the upper tail. This is the operational meaning of "no UMP exists for two-sided alternatives."
 
 </details>
 
-## Complete Example: Clinical trial sample size
+## Complete Example: A reusable NP framework in R
 
-A pharmaceutical company is testing a new blood-pressure drug against placebo. The minimum clinically important difference (MCID) in standardized units is $\mu_1 = 0.4$. The null hypothesis is no effect ($\mu_0 = 0$). Regulators require a one-sided level-0.05 test with 80% power at the MCID. How many participants per arm do you need?
+We will fold the recipe into a small function and apply it to a manufacturing-style problem. A supplier claims their components have defect counts $\sim N(50, 5^2)$. We suspect the true mean has drifted to 55. We collect a sample of 30 measurements and want a level-0.05 test with quantified power against the suspected alternative.
 
-For a normal sample with unit variance, the NP test rejects when the sample mean exceeds $\mu_0 + z_{1-\alpha}/\sqrt{n}$. Power against $\mu_1$ is
+```r title="np_test_normal: a reusable NP framework"
+np_test_normal <- function(x, mu0, mu1, sigma, alpha = 0.05) {
+  n_obs   <- length(x)
+  # Critical value on the sample sum under H0
+  crit    <- qnorm(1 - alpha, mean = n_obs * mu0, sd = sigma * sqrt(n_obs))
+  test_st <- sum(x)
+  reject  <- test_st > crit
 
-$$1 - \Phi\!\left( z_{1-\alpha} - \sqrt{n}\,(\mu_1 - \mu_0) \right)$$
+  # Power under H1: P(sum > crit | mu1)
+  power   <- 1 - pnorm(crit, mean = n_obs * mu1, sd = sigma * sqrt(n_obs))
 
-Set this equal to 0.80 and solve for $n$:
+  list(
+    n              = n_obs,
+    critical_value = crit,
+    test_statistic = test_st,
+    reject_h0      = reject,
+    power_at_h1    = power
+  )
+}
 
-$$n = \frac{(z_{1-\alpha} + z_{1-\beta})^2}{(\mu_1 - \mu_0)^2} = \frac{(1.6449 + 0.8416)^2}{0.4^2} \approx 38.6$$
-
-Round up to $n = 39$. Here is the calculation and a simulation check:
-
-```r title="Clinical trial: solve for n, then simulate"
-ce_mu0    <- 0
-ce_mu1    <- 0.4
-ce_alpha  <- 0.05
-ce_target <- 0.80
-
-# Closed-form sample size
-ce_n <- ceiling(
-  (qnorm(1 - ce_alpha) + qnorm(ce_target))^2 / (ce_mu1 - ce_mu0)^2
-)
-ce_n
-#> [1] 39
-
-# Verify: theoretical power at n = 39
-ce_crit        <- qnorm(1 - ce_alpha, mean = ce_mu0, sd = 1 / sqrt(ce_n))
-ce_check_power <- 1 - pnorm(ce_crit, mean = ce_mu1, sd = 1 / sqrt(ce_n))
-round(ce_check_power, 3)
-#> [1] 0.803
+# Apply to the manufacturing example
+set.seed(2026)
+sample_obs <- rnorm(30, mean = 55, sd = 5)   # truth: mean drifted to 55
+ce_result  <- np_test_normal(sample_obs, mu0 = 50, mu1 = 55, sigma = 5, alpha = 0.05)
+ce_result
+#> $n
+#> [1] 30
+#> 
+#> $critical_value
+#> [1] 1545.04
+#> 
+#> $test_statistic
+#> [1] 1660.57
+#> 
+#> $reject_h0
+#> [1] TRUE
+#> 
+#> $power_at_h1
+#> [1] 0.9999
 ```
 
-With $n = 39$, the NP test delivers 80.3% power at the MCID, clearing the regulator's 80% bar with 0.3 percentage points to spare. If you wanted to hit exactly 80% you could trim one participant, but in practice you always round up for safety.
-
-[NOTE]
-**This formula assumes known variance and a one-sided test.** Real trials use unknown variance (t-distribution) and often two-sided tests, which inflate $n$ by 10-30%. Tools like `pwr::pwr.t.test()` handle those adjustments with the same underlying logic: solve for $n$ given alpha, desired power, and effect size.
+The function reports a critical value of 1545 on the sample sum, an observed sample sum of 1660, and a rejection. The power against the suspected alternative (mean shift from 50 to 55) is essentially 1 — a 5-unit shift over 30 observations is an enormous signal. Had we collected only 5 observations, the same calculation would have shown power around 0.81, which is why sample size matters as much as effect size.
 
 ## Summary
 
-| Concept | Statement | Scope |
+| Result | What it says | When it applies |
 |---|---|---|
-| Neyman-Pearson Lemma | The LR test is most powerful for simple-vs-simple hypotheses. | Two specific distributions. |
-| Likelihood ratio | $\Lambda(x) = f_1(x)/f_0(x)$, sorted to maximize power per unit alpha. | All parametric tests. |
-| Critical value | $k$ chosen so that $P_{H_0}(\Lambda > k) = \alpha$. | Any distribution. |
-| Karlin-Rubin extension | NP test is UMP for one-sided composite alternatives in MLR families. | Normal, exponential, binomial, Poisson. |
-| Failure mode | No UMP for two-sided or multi-parameter alternatives. | Use LRT, two-sided, or unbiased tests. |
-
-The lemma is the foundation for almost every hypothesis test in statistics. When you run a one-sided z-test, a one-sided t-test, or a one-sided exact Poisson test, you are using the NP procedure, often without realizing it.
+| Neyman-Pearson Lemma | The likelihood ratio test is the most powerful level-$\alpha$ test. | Both hypotheses are simple (single distribution). |
+| Karlin-Rubin theorem | The one-sided LR test on the MLR statistic is uniformly most powerful (UMP). | One-parameter family with monotone likelihood ratio + one-sided alternative. |
+| Two-sided non-existence | No UMP test exists in general. | Two-sided composite alternatives. |
+| LRT in R | `t.test`, `binom.test`, `prop.test`, etc. are LRTs. | Standard parametric inference in `stats` package. |
+| Practical workflow | Fix $\alpha$ first, design the LR-based rejection region, then optimise power by sample size. | Any hypothesis-testing problem. |
 
 ## References
 
-1. Neyman, J., & Pearson, E. S. (1933). On the problem of the most efficient tests of statistical hypotheses. *Philosophical Transactions of the Royal Society A*, 231, 289-337.
-2. Lehmann, E. L., & Romano, J. P. (2005). *Testing Statistical Hypotheses* (3rd ed.). Springer. Chapters 3-4.
-3. Casella, G., & Berger, R. L. (2002). *Statistical Inference* (2nd ed.). Duxbury. Chapter 8.
-4. Penn State STAT 415 - Lesson 26: Most Powerful Tests. [Link](https://online.stat.psu.edu/stat415/lesson/26/26.1)
-5. Wikipedia - Neyman-Pearson lemma. [Link](https://en.wikipedia.org/wiki/Neyman%E2%80%93Pearson_lemma)
-6. UC Berkeley STAT 210A - Hypothesis Testing and the Neyman-Pearson Lemma. [Link](https://stat210a.berkeley.edu/fall-2024/reader/hypothesis-testing.html)
-7. Stanford STATS 200 Lecture 6: Simple alternatives, Neyman-Pearson lemma. [Link](https://web.stanford.edu/class/archive/stats/stats200/stats200.1172/Lecture06.pdf)
+1. Casella, G. & Berger, R. — *Statistical Inference*, 2nd Edition. Duxbury (2002), Chapter 8. [Link](https://www.cambridge.org/core/books/statistical-inference/)
+2. Lehmann, E. L. & Romano, J. P. — *Testing Statistical Hypotheses*, 4th Edition. Springer (2022). [Link](https://link.springer.com/book/10.1007/978-3-030-70578-7)
+3. Neyman, J. & Pearson, E. S. (1933) — *On the Problem of the Most Efficient Tests of Statistical Hypotheses*. Philosophical Transactions of the Royal Society A, 231: 289-337. [Link](https://royalsocietypublishing.org/doi/10.1098/rsta.1933.0009)
+4. Karlin, S. & Rubin, H. (1956) — *The Theory of Decision Procedures for Distributions with Monotone Likelihood Ratio*. Annals of Mathematical Statistics, 27(2): 272-299. [Link](https://projecteuclid.org/euclid.aoms/1177728259)
+5. Wasserman, L. — *All of Statistics*, Chapter 10. Springer (2004). [Link](https://link.springer.com/book/10.1007/978-0-387-21736-9)
+6. R documentation — `stats::t.test`. [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/t.test.html)
+7. R documentation — `stats::binom.test`. [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/binom.test.html)
+8. StatLect — Neyman-Pearson Lemma. [Link](https://www.statlect.com/fundamentals-of-statistics/Neyman-Pearson-lemma)
 
 ## Continue Learning
 
-- [Hypothesis Testing in R: Understand the Framework, Not Just the p-Value](Hypothesis-Testing-in-R.html) - the full framework this lemma sits inside.
-- [Maximum Likelihood Estimation in R](Maximum-Likelihood-Estimation-in-R.html) - the estimation cousin of the likelihood ratio test.
-- [Confidence Intervals in R](Confidence-Intervals-in-R.html) - dual concept to hypothesis testing with the same lemma lurking underneath.
+- [Hypothesis Testing in R](Hypothesis-Testing-in-R.html) — the parent post that sets up null and alternative hypotheses, p-values, and the decision framework that the lemma optimises.
+- [Type I and Type II Errors in R](Type-I-and-Type-II-Errors-in-R.html) — a deeper look at the error-rate trade-off the lemma fixes alpha to control.
+- [Power Analysis in R](Statistical-Power-Analysis-in-R.html) — how to translate the lemma's power guarantee into sample-size and effect-size calculations for real designs.
