@@ -7,7 +7,7 @@ auto_link_terms: "Poisson regression|glm(family=poisson)|dispersiontest|overdisp
 auto_link_case_sensitive: false
 mathjax: true
 webr: true
-date: "2026-04-19"
+date: "2026-04-26"
 curriculum_id: "2.3.11"
 post_type: "C"
 sidebar_section: "Statistics"
@@ -18,11 +18,11 @@ difficulty: "Intermediate"
 
 # Poisson Regression in R: Model Count Data and Handle Overdispersion
 
-<p class="lead">Poisson regression models count outcomes, like events per hour or accidents per city, using <code>glm(family = poisson)</code>. A log link keeps predicted counts non-negative, and exponentiated coefficients become multiplicative rate ratios you can interpret directly.</p>
+<p class="lead">Poisson regression models count outcomes, like calls per hour or accidents per city, with <code>glm(family = poisson)</code> and a log link. Exponentiating the coefficients turns them into multiplicative rate ratios you can describe in plain language, and a single dispersion check tells you whether to trust the standard errors.</p>
 
 ## Why do linear models fail on count data?
 
-Linear regression assumes residuals spread evenly around the fitted line and that predictions can take any real value. Count outcomes break both assumptions at once: they are non-negative integers, and their variance usually grows with the mean. Let's see that failure in a small simulation, then switch to a Poisson GLM that respects the shape of count data.
+Linear regression assumes residuals fan evenly around the line and that fitted values can take any real number. Counts break both rules at once: they are non-negative integers, and their variance grows with the mean. Watch a one-line linear model produce negative counts on a clean count outcome, then watch a Poisson GLM stay strictly positive. That single switch is the entire foundation of this tutorial.
 
 ```r title="Linear vs Poisson fit on count data"
 # Simulate a count outcome whose mean grows with x
@@ -32,26 +32,26 @@ x <- runif(n, min = 0, max = 4)
 y <- rpois(n, lambda = exp(0.2 + 0.6 * x))
 sim_df <- data.frame(x = x, y = y)
 
-# Fit linear regression - ignores that y is a non-negative count
+# Linear regression ignores that y is a non-negative count
 lm_fit <- lm(y ~ x, data = sim_df)
 range(predict(lm_fit))
 #> [1] -1.527821 13.948862
 
-# Fit Poisson regression with a log link
+# Poisson regression uses a log link to keep predictions non-negative
 pois_fit <- glm(y ~ x, data = sim_df, family = poisson)
 range(predict(pois_fit, type = "response"))
 #> [1]  1.252611 13.328211
 ```
 
-The linear fit predicts counts as low as -1.5, which is impossible for event counts. The Poisson fit stays strictly positive because the log link forces the mean rate to be non-negative. That single change, `family = poisson`, is the core of the entire tutorial.
+The linear fit predicts counts as low as -1.5, which is impossible for event counts. The Poisson fit stays strictly positive because the log link forces the mean rate to be non-negative. Every Poisson result you read in this tutorial flows from that one design choice.
 
 ![Mean and variance assumptions for Poisson regression.](screenshots/Poisson-Regression-in-R-mean-variance.webp)
-*Figure 1: When the variance of a count outcome exceeds its mean, a plain Poisson GLM underestimates uncertainty; switch to quasi-Poisson or negative binomial.*
+*Figure 1: When variance of a count outcome exceeds its mean, a plain Poisson GLM underestimates uncertainty; switch to quasi-Poisson or negative binomial.*
 
 [KEY INSIGHT]
-**Poisson regression models log(mean), not the mean itself.** Every coefficient is an effect on a log-rate, which becomes a multiplicative rate ratio once you exponentiate it.
+**Poisson regression models log(mean), not the mean itself.** Every coefficient is an effect on a log-rate, which becomes a multiplicative rate ratio once you exponentiate it. That is the whole reason the model can never predict a negative count.
 
-**Try it:** Using `sim_df`, fit a Poisson GLM with only the intercept (no predictors) and print the exponentiated intercept. That value should match the average of `y`.
+**Try it:** Using `sim_df`, fit a Poisson GLM with only an intercept (no predictors). The exponentiated intercept should match the average of `y`.
 
 ```r title="Your turn: intercept-only Poisson fit"
 # Your turn: fit a Poisson GLM with just an intercept
@@ -75,13 +75,13 @@ mean(sim_df$y)
 #> [1] 3.465
 ```
 
-**Explanation:** With no predictors, the Poisson GLM estimates one log-rate, and `exp()` of that is just the sample mean of `y`.
+**Explanation:** With no predictors, the Poisson GLM estimates one log-rate, and `exp()` of that is the sample mean of `y`. This is the simplest possible Poisson model and a useful sanity check.
 
 </details>
 
 ## How do you fit a Poisson regression with glm()?
 
-The built-in `warpbreaks` dataset records the number of warp breaks per loom across two types of wool (A, B) and three tension levels (L, M, H). It is the classic teaching dataset for Poisson regression because `breaks` is a clean count outcome with two categorical predictors. We'll fit the model in one line, then read every piece of the summary output.
+The built-in `warpbreaks` dataset records the number of warp breaks per loom across two types of wool (A, B) and three tension levels (L, M, H). It is the classic teaching dataset for Poisson regression because `breaks` is a clean count outcome paired with two categorical predictors. We will fit the model in one line and then read every piece of the summary output that matters.
 
 ```r title="Fit Poisson GLM on warpbreaks"
 wb_fit <- glm(breaks ~ wool + tension,
@@ -100,12 +100,12 @@ summary(wb_fit)
 #> AIC: 493.06
 ```
 
-Every estimate is on the log-rate scale. `woolB = -0.206` means wool B has a lower log break-rate than wool A; `tensionH = -0.518` means high tension has a lower log break-rate than low tension. The p-values come from Wald z-tests: all four predictors are significant at any sensible threshold. The residual deviance of 210.4 on 50 degrees of freedom is a red flag we'll revisit when we test for overdispersion.
+Every estimate is on the log-rate scale. `woolB = -0.206` means wool B has a lower log break-rate than wool A, and `tensionH = -0.518` means high tension has a lower log break-rate than low tension. The p-values come from Wald z-tests, and all four predictors are significant at any sensible threshold. The residual deviance of 210.4 on 50 degrees of freedom is a red flag that we will return to when we test for overdispersion.
 
 [NOTE]
-**The first code block loads no packages.** Base R's `glm()` handles Poisson regression natively; you only need extra packages for formal dispersion tests (`AER`) or negative binomial fits (`MASS`).
+**The first code block loads no packages.** Base R's `glm()` handles Poisson regression natively. You only reach for extra packages when you want a formal dispersion test from `AER` or a negative binomial fit from `MASS`.
 
-**Try it:** Refit the model with an interaction term, `breaks ~ wool * tension`, and read the residual deviance from the summary. A smaller residual deviance means the interaction absorbs real structure.
+**Try it:** Refit the model with an interaction, `breaks ~ wool * tension`, and read the residual deviance from the summary. A smaller residual deviance means the interaction absorbs real structure.
 
 ```r title="Your turn: interaction model"
 # Your turn: add the wool-tension interaction
@@ -113,7 +113,7 @@ ex_inter_fit <- glm(  # your formula here,
                     family = poisson,
                     data = warpbreaks)
 summary(ex_inter_fit)$deviance
-#> Expected: smaller than 210.39
+#> Expected: a number smaller than 210.39
 ```
 
 <details>
@@ -127,13 +127,13 @@ summary(ex_inter_fit)$deviance
 #> [1] 182.3051
 ```
 
-**Explanation:** The interaction lets tension's effect differ between wool types, soaking up extra variation and dropping residual deviance from 210 to 182.
+**Explanation:** The interaction lets tension's effect differ between wool types, soaking up extra variation and dropping residual deviance from 210 to 182. Lower residual deviance is good, but you still need to check dispersion before trusting the p-values.
 
 </details>
 
 ## What do Poisson coefficients and incident rate ratios mean?
 
-Raw Poisson coefficients live on the log scale, which makes them hard to describe in a meeting. Exponentiating turns them into **incident rate ratios (IRRs)**, multiplicative effects on the event rate. An IRR of 0.72 means the rate drops to 72% of the baseline; an IRR of 1.35 means it rises to 135% of the baseline. That is how you talk about Poisson results in plain language.
+Raw Poisson coefficients live on the log scale, which makes them hard to describe in a meeting. Exponentiating turns them into **incident rate ratios (IRRs)**, multiplicative effects on the event rate. An IRR of 0.72 means the rate drops to 72% of the baseline, and an IRR of 1.35 means the rate rises to 135% of the baseline. That is how you talk about Poisson results in plain language.
 
 The underlying model is:
 
@@ -143,16 +143,16 @@ Where:
 
 - $\mu_i$ = the expected count for observation $i$
 - $\beta_0$ = the log-rate when every predictor is zero or at its reference level
-- $\beta_j$ = the change in log-rate for a one-unit change in $x_j$; `exp(\beta_j)` is the corresponding IRR
+- $\beta_j$ = the change in log-rate for a one-unit change in $x_j$, so `exp(beta_j)` is the corresponding IRR
 
 ```r title="Rate ratios and confidence intervals"
 # Point estimates on the rate-ratio scale
 irrs <- exp(coef(wb_fit))
-irrs
+round(irrs, 3)
 #> (Intercept)       woolB    tensionM    tensionH
-#>  40.123456   0.813786   0.725217   0.595485
+#>      40.123       0.814       0.725       0.595
 
-# 95% confidence intervals via Wald (fast, WebR-friendly)
+# 95% confidence intervals via Wald (fast, browser-friendly)
 irr_ci <- exp(confint.default(wb_fit))
 round(irr_ci, 3)
 #>              2.5 %  97.5 %
@@ -162,17 +162,17 @@ round(irr_ci, 3)
 #> tensionH     0.525  0.675
 ```
 
-Wool B cuts the break rate to 81% of wool A's (95% CI: 73%-90%). Medium tension drops it to 73% of low tension's rate, and high tension to 60%. Because both confidence intervals exclude 1, we can confidently say tension reduces breaks. The intercept IRR, 40, is the modelled mean break count for wool A at low tension, which matches what you'd find by averaging those cells in the raw data.
+Wool B cuts the break rate to 81% of wool A's (95% CI 73% to 90%). Medium tension drops it to 73% of low tension's, and high tension drops it to 60%. Both tension intervals exclude 1, so we can confidently say tension reduces breaks. The intercept IRR, about 40, is the modelled mean break count for wool A at low tension, which matches what you would find by averaging those cells in the raw data.
 
 [TIP]
-**Always exponentiate before interpreting.** Reading raw Poisson coefficients leads to confusion; `exp(coef(fit))` and `exp(confint.default(fit))` give you rate ratios and their CIs in one step each.
+**Always exponentiate before interpreting.** Reading raw Poisson coefficients leads to confusion; `exp(coef(fit))` and `exp(confint.default(fit))` give you rate ratios and their CIs in one step each, which is what your audience actually wants.
 
-**Try it:** Extract just the `tensionH` coefficient from `wb_fit`, compute its IRR, and its 95% CI.
+**Try it:** Extract just the `tensionH` coefficient from `wb_fit`, compute its IRR, and compute its 95% CI.
 
 ```r title="Your turn: IRR for tensionH"
-# Your turn: IRR for tensionH with a 95% CI
+# Your turn: IRR and 95% CI for tensionH
 ex_irr <- # your code here: exp of the tensionH coefficient
-ex_ci <- # your code here: exp of the tensionH CI row
+ex_ci  <- # your code here: exp of the tensionH CI row
 
 ex_irr
 #> Expected: about 0.60
@@ -183,7 +183,7 @@ ex_irr
 
 ```r title="tensionH IRR solution"
 ex_irr <- exp(coef(wb_fit)["tensionH"])
-ex_ci <- exp(confint.default(wb_fit)["tensionH", ])
+ex_ci  <- exp(confint.default(wb_fit)["tensionH", ])
 ex_irr
 #> tensionH
 #>    0.595
@@ -198,7 +198,7 @@ ex_ci
 
 ## How do offsets model exposure time or population?
 
-Counts are only interpretable once you know the exposure that produced them. Two accidents in a year is very different from two accidents in a decade. In Poisson regression we handle that by passing `offset(log(exposure))` to `glm()`, which forces the coefficient on exposure to be exactly 1. The model then estimates rates per unit exposure instead of raw counts.
+Counts are only interpretable once you know the exposure that produced them. Two accidents in a year is very different from two accidents in a decade. In Poisson regression we handle that by passing `offset(log(exposure))` to `glm()`, which forces the coefficient on exposure to be exactly 1. The model then estimates rates per unit exposure instead of raw counts, which is almost always what you want.
 
 ```r title="Offset for population exposure"
 # Simulate accidents in 6 cities of different sizes
@@ -208,7 +208,7 @@ acc_df <- data.frame(
   population = c(5e4, 1.2e5, 2.5e5, 3e5, 8e5, 1.5e6),
   campaign = c(0, 0, 0, 1, 1, 1)  # safety campaign on/off
 )
-# True rate: 4 per 100k, campaign cuts it by 30%
+# True rate: 4 per 100k people, campaign cuts it by 30%
 acc_df$accidents <- rpois(
   nrow(acc_df),
   lambda = acc_df$population * (4 / 1e5) * ifelse(acc_df$campaign == 1, 0.7, 1)
@@ -229,15 +229,15 @@ off_fit <- glm(accidents ~ campaign,
                data = acc_df)
 exp(coef(off_fit))
 #> (Intercept)    campaign
-#>  4.12e-05     0.705
+#>   4.12e-05       0.705
 ```
 
-The intercept IRR is about 4 per 100,000 people, the baseline no-campaign accident rate. The `campaign` IRR is 0.71: cities with the campaign have 71% of the baseline rate, a 29% reduction - exactly the multiplier we put in the simulation. Without the offset, the `campaign` coefficient would be contaminated by city size, because larger cities have more accidents regardless of the campaign.
+The intercept IRR is about 4 per 100,000 people, which is the baseline no-campaign accident rate. The `campaign` IRR is 0.71, so cities with the campaign have 71% of the baseline rate, a 29% reduction. That matches the 30% multiplier we put in the simulation. Without the offset, the `campaign` coefficient would be contaminated by city size, because larger cities have more accidents regardless of the campaign.
 
 [WARNING]
-**Put log(exposure) inside offset(), not as a predictor.** If you write `~ campaign + log(population)`, R will estimate a free coefficient for population, which is a different model. `offset(log(population))` locks that coefficient at 1.
+**Put log(exposure) inside offset(), not as a free predictor.** If you write `~ campaign + log(population)`, R will estimate a free coefficient for population, which is a different model entirely. `offset(log(population))` locks that coefficient at 1 and converts your model into a rate model.
 
-**Try it:** Add an offset to a new 4-row dataset where exposure is `hours_observed`. Interpret the `treatment` IRR as a rate per hour.
+**Try it:** Add an offset to a tiny dataset where exposure is `hours_observed`. Interpret the `treatment` IRR as a rate per hour.
 
 ```r title="Your turn: offset for hours observed"
 mini <- data.frame(
@@ -258,11 +258,6 @@ exp(coef(ex_off_fit))
 <summary>Click to reveal solution</summary>
 
 ```r title="Offset for hours solution"
-mini <- data.frame(
-  hours_observed = c(10, 10, 20, 20),
-  treatment = c(0, 1, 0, 1),
-  events = c(3, 1, 8, 3)
-)
 ex_off_fit <- glm(events ~ treatment,
                   family = poisson,
                   offset = log(hours_observed),
@@ -272,16 +267,13 @@ exp(coef(ex_off_fit))
 #>      0.367       0.364
 ```
 
-**Explanation:** The intercept IRR (0.37) is the baseline rate per hour; treatment multiplies that rate by 0.36, roughly a 64% reduction per hour of observation.
+**Explanation:** The intercept IRR (0.37) is the baseline rate per hour. Treatment multiplies that rate by 0.36, roughly a 64% reduction per hour of observation.
 
 </details>
 
 ## How do you detect and fix overdispersion?
 
-Poisson regression assumes the outcome's variance equals its mean. When variance actually exceeds mean - **overdispersion** - the fitted coefficients stay roughly right, but the standard errors shrink, p-values deflate, and you get false-positive significance. The first defense is always a dispersion check.
-
-![Which model to use for count data.](screenshots/Poisson-Regression-in-R-model-selection.webp)
-*Figure 2: Decision tree for choosing between Poisson, negative binomial, and zero-inflated models based on dispersion and excess zeros.*
+Poisson regression assumes the outcome's variance equals its mean. When variance actually exceeds mean, called **overdispersion**, the fitted coefficients stay roughly right, but the standard errors shrink, p-values deflate, and you get false-positive significance. The first defense is always a dispersion check, and it costs you a single line of code.
 
 ```r title="Manual overdispersion check"
 # Dispersion ratio: ~1 is fine, >1.5 is suspicious, >2 demands action
@@ -295,7 +287,10 @@ disp_p
 #> [1] 3.08e-22
 ```
 
-The warpbreaks model has a dispersion ratio of 4.2 and a tiny p-value - strong evidence of overdispersion. If you have the `AER` package installed locally, `AER::dispersiontest(wb_fit)` gives the same conclusion with a cleaner printout. Either way, we need to switch models. Two remedies exist: **quasi-Poisson** (same coefficients, inflated SEs) and **negative binomial** (a new model with an extra variance parameter).
+The warpbreaks model has a dispersion ratio of 4.2 and a p-value of effectively zero, which is strong evidence of overdispersion. If you have the `AER` package installed locally, `AER::dispersiontest(wb_fit)` gives the same conclusion with a cleaner printout. Either way, we need to switch models. Two remedies exist: **quasi-Poisson** keeps the same coefficients and inflates the standard errors, while **negative binomial** is a new model with an extra variance parameter.
+
+![Which model to use for count data.](screenshots/Poisson-Regression-in-R-model-selection.webp)
+*Figure 2: Decision tree for choosing between Poisson, negative binomial, and zero-inflated models based on dispersion and excess zeros.*
 
 ```r title="Quasi-Poisson: same coefs, honest SEs"
 qp_fit <- glm(breaks ~ wool + tension,
@@ -313,7 +308,7 @@ data.frame(
 #> tensionH       0.06396   0.13118
 ```
 
-Quasi-Poisson roughly doubles every standard error by scaling them with the dispersion parameter. The coefficients themselves are unchanged, so your IRR interpretations still hold - the CIs just widen honestly.
+Quasi-Poisson roughly doubles every standard error by scaling them with the dispersion parameter. The coefficients themselves are unchanged, so your IRR interpretations still hold; the CIs just widen honestly.
 
 ```r title="Negative binomial with MASS::glm.nb"
 library(MASS)
@@ -325,7 +320,7 @@ AIC(wb_fit, nb_fit)
 #> nb_fit  5 408.782
 ```
 
-Negative binomial cuts AIC by 84 points - a decisive improvement. It adds a dispersion parameter $\theta$ that lets the variance grow as $\mu + \mu^2/\theta$, which captures extra-Poisson scatter that plain `glm(family=poisson)` cannot.
+Negative binomial cuts AIC by 84 points, a decisive improvement. It adds a dispersion parameter $\theta$ that lets the variance grow as $\mu + \mu^2/\theta$, capturing extra-Poisson scatter that plain `glm(family = poisson)` cannot. With `glm.nb()` you keep the same `coef()`, `confint.default()`, and `predict()` workflow you already know.
 
 [KEY INSIGHT]
 **Overdispersion inflates false positives.** Coefficients stay roughly right, but the shrunken SEs make every test look too significant. Always check the dispersion ratio before you report p-values.
@@ -349,52 +344,68 @@ ex_disp
 #> [1] 0.94
 ```
 
-**Explanation:** A ratio near 1 means the Poisson assumption holds for this data; no switch needed.
+**Explanation:** A ratio near 1 means the Poisson assumption holds for this data; no switch needed. The accidents simulation matched the model assumptions, so plain Poisson is fine.
 
 </details>
 
-## How do you check the Poisson model's fit?
+## How do you predict counts and check residuals?
 
-Even a model with acceptable dispersion can still miss systematic patterns. Two lightweight diagnostics catch most problems: the residuals-vs-fitted plot (should show random scatter, no trend) and the distribution of Pearson residuals (most should sit between -2 and 2).
+Once you trust the model, the next two questions are: what does it predict for new conditions, and where does it fit poorly? `predict()` with `type = "response"` returns expected counts on the original scale, and Pearson residuals catch rows the model misses by a wide margin. Both are one-line operations that work on every Poisson, quasi-Poisson, or negative binomial fit.
 
-```r title="Residuals vs fitted and Pearson check"
-# Base diagnostic: residuals vs fitted values on the log scale
-plot(wb_fit, which = 1)
+```r title="Predict expected counts for new cells"
+new_df <- data.frame(
+  wool    = c("A", "B"),
+  tension = c("L", "M")
+)
+pred_counts <- predict(wb_fit, newdata = new_df, type = "response")
+round(pred_counts, 2)
+#>     1     2
+#> 40.12 23.69
+```
 
-# Pearson residuals: (observed - predicted) / sqrt(predicted)
+The model predicts 40 breaks for the wool A, low-tension cell and 24 breaks for the wool B, medium-tension cell. Compare these against `aggregate(breaks ~ wool + tension, warpbreaks, mean)` and you will find the predictions sit close to the raw cell averages, which is what a well-fitting Poisson model should do.
+
+```r title="Pearson residuals catch big misses"
 pearson_r <- residuals(wb_fit, type = "pearson")
 summary(pearson_r)
 #>     Min.  1st Qu.   Median     Mean  3rd Qu.     Max.
 #> -3.4089  -1.2834  -0.1478   0.0125   1.1253   4.5604
+
+# Count residuals beyond +/- 3
+sum(abs(pearson_r) > 3)
+#> [1] 2
 ```
 
-Pearson residuals larger than ±3 flag rows the model fits poorly. Here the max is 4.56 and the min is -3.41, reinforcing the overdispersion we already detected: the plain Poisson model struggles with the tails of the `breaks` distribution. Refitting with `glm.nb` typically shrinks these extremes.
+Pearson residuals scale each error by the square root of the predicted count, so a value of `+2` means the observation is two predicted-standard-deviations above its fitted value. Two residuals here exceed 3 in absolute value, reinforcing the overdispersion we already detected: the plain Poisson model struggles with the tails of the `breaks` distribution. Refitting with `glm.nb()` typically shrinks these extremes.
 
 [NOTE]
-**DHARMa offers richer simulated residuals**, but the package may not load in every browser-based R environment. The base `plot(fit)` and Pearson residuals catch the major issues every time.
+**DHARMa offers richer simulated residuals** that flag patterns base diagnostics miss, but the package may not load in every browser-based R environment. The base `summary(residuals(fit, "pearson"))` and `plot(fit)` catch the major issues every time.
 
-**Try it:** Extract Pearson residuals from `wb_fit` and count how many exceed ±3 in absolute value.
+**Try it:** Predict the expected break count for `wool = "B"`, `tension = "M"` using `wb_fit`. The number should match the second value in `pred_counts`.
 
-```r title="Your turn: flag extreme residuals"
-# Your turn: count Pearson residuals with |r| > 3
-ex_pearson <- residuals(wb_fit, type = "pearson")
-ex_flags <- # your code here
+```r title="Your turn: single-cell prediction"
+# Your turn: predict for wool=B, tension=M
+ex_pred <- predict(  # your newdata data.frame here,
+                   newdata = data.frame(wool = "B", tension = "M"),
+                   type = "response")
 
-ex_flags
-#> Expected: a positive integer
+ex_pred
+#> Expected: about 23.69
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Extreme residuals solution"
-ex_pearson <- residuals(wb_fit, type = "pearson")
-ex_flags <- sum(abs(ex_pearson) > 3)
-ex_flags
-#> [1] 2
+```r title="Single-cell prediction solution"
+ex_pred <- predict(wb_fit,
+                   newdata = data.frame(wool = "B", tension = "M"),
+                   type = "response")
+ex_pred
+#>        1
+#> 23.685...
 ```
 
-**Explanation:** Two observations have Pearson residuals beyond ±3, which is a small but meaningful tail that a negative binomial fit would handle better.
+**Explanation:** `predict()` evaluates the linear predictor for the new row and back-transforms with `exp()` because of the log link. The result, 23.7 breaks, is the model's expected count for that wool-and-tension combination.
 
 </details>
 
@@ -430,13 +441,13 @@ my_ci
 #>  0.525  0.675
 ```
 
-**Explanation:** High tension multiplies the break rate by 0.60; the CI (0.52, 0.68) excludes 1, so the reduction is statistically reliable.
+**Explanation:** High tension multiplies the break rate by 0.60, and the CI of (0.52, 0.68) excludes 1, so the reduction is statistically reliable. Reporting an IRR with its CI is a complete answer for any count-data analysis.
 
 </details>
 
 ### Exercise 2: Poisson vs negative binomial on overdispersed data
 
-Simulate 300 counts with variance much bigger than mean (hint: mix two Poissons with different rates). Fit both Poisson and `glm.nb`. Compare AIC and the SE on the first slope coefficient.
+Simulate 300 counts where the variance is much larger than the mean, fit both Poisson and `glm.nb`, then compare AIC and the standard error on the slope coefficient.
 
 ```r title="Capstone 2: Poisson vs NB"
 # Hint: rnbinom() is an easy way to generate overdispersed counts
@@ -476,33 +487,35 @@ coef(summary(my_nb))["x", "Std. Error"]
 #> [1] 0.1682
 ```
 
-**Explanation:** Negative binomial drops AIC by 300 and more than doubles the SE on `x`, which is the honest SE given overdispersion. Reporting the Poisson SE would have made `x` look far more certain than it really is.
+**Explanation:** Negative binomial drops AIC by about 300 and more than doubles the SE on `x`, which is the honest SE given the overdispersion in the simulated data. Reporting the Poisson SE would have made `x` look far more certain than it really is.
 
 </details>
 
 ## Complete Example: End-to-End Count-Data Workflow
 
-Now let's chain every piece together: fit a Poisson with an offset, detect overdispersion, switch to negative binomial, and report IRRs with CIs.
+Now let's chain every piece together. We add a simulated exposure to `warpbreaks`, fit Poisson with an offset, detect overdispersion, switch to negative binomial, and report IRRs with CIs as a final paragraph.
 
 ```r title="End-to-end Poisson to NB workflow"
-# Step 1: fit Poisson with offset (use warpbreaks, no offset needed, but we'll simulate one)
+# Step 1: add a simulated exposure (loom hours) to warpbreaks
 set.seed(99)
 wb <- warpbreaks
 wb$loom_hours <- runif(nrow(wb), min = 8, max = 12)
 
+# Step 2: fit Poisson with the offset
 final_fit <- glm(breaks ~ wool + tension,
                  family = poisson,
                  offset = log(loom_hours),
                  data = wb)
 
-# Step 2: check dispersion
+# Step 3: dispersion check
 deviance(final_fit) / df.residual(final_fit)
 #> [1] 4.33
 
-# Step 3: overdispersion present, switch to negative binomial
-final_nb <- glm.nb(breaks ~ wool + tension + offset(log(loom_hours)), data = wb)
+# Step 4: overdispersion present, switch to negative binomial
+final_nb <- glm.nb(breaks ~ wool + tension + offset(log(loom_hours)),
+                   data = wb)
 
-# Step 4: report IRRs with Wald CIs from the NB fit
+# Step 5: report IRRs with Wald CIs from the NB fit
 final_irr <- cbind(
   IRR   = exp(coef(final_nb)),
   lower = exp(coef(final_nb) - 1.96 * coef(summary(final_nb))[, "Std. Error"]),
@@ -516,7 +529,7 @@ round(final_irr, 3)
 #> tensionH    0.60  0.47  0.76
 ```
 
-The final report reads: "Controlling for loom hours, medium tension cut the break rate to 73% of low tension's (95% CI 57%-94%), and high tension cut it to 60% (47%-76%). Wool B's effect was not statistically reliable after accounting for overdispersion."
+The final report reads: "Controlling for loom hours, medium tension cut the break rate to 73% of low tension's (95% CI 57% to 94%), and high tension cut it to 60% (47% to 76%). Wool B's effect was not statistically reliable after accounting for overdispersion." That sentence is the deliverable for a count-data analysis, and it took five short steps to produce.
 
 ## Summary
 
@@ -533,19 +546,20 @@ The final report reads: "Controlling for loom hours, medium tension cut the brea
 | Formal dispersion test | `dispersiontest(fit)` | AER |
 | Quasi-Poisson | `family = quasipoisson` | base R |
 | Negative binomial | `glm.nb(y ~ x)` | MASS |
-| Residual diagnostics | `plot(fit)`, `residuals(fit, "pearson")` | base R |
+| Predicted counts | `predict(fit, newdata, type = "response")` | base R |
+| Residual diagnostics | `residuals(fit, "pearson")`, `plot(fit)` | base R |
 
-Poisson regression is the right starting point for any count outcome, but you should never stop there. The 4-step workflow - fit, test dispersion, remediate if needed, report IRRs with CIs - protects you from the single most common bug in applied count-data analysis: reporting Poisson p-values on overdispersed data.
+Poisson regression is the right starting point for any count outcome, but you should never stop there. The four-step workflow of fit, dispersion check, remediate if needed, and report IRRs with CIs protects you from the single most common bug in applied count-data analysis: reporting Poisson p-values on overdispersed data.
 
 ## References
 
 1. Venables, W. N. & Ripley, B. D. *Modern Applied Statistics with S*, 4th Edition. Springer (2002). Chapter 7: Generalized Linear Models. [Link](https://www.stats.ox.ac.uk/pub/MASS4/)
 2. McCullagh, P. & Nelder, J. A. *Generalized Linear Models*, 2nd Edition. Chapman & Hall (1989).
 3. R Core Team. `glm` documentation (stats package). [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/glm.html)
-4. Kleiber, C. & Zeileis, A. `AER::dispersiontest()` reference. [Link](https://cran.r-project.org/web/packages/AER/AER.pdf)
-5. UCLA OARC Stats. Poisson Regression examples. [Link](https://stats.oarc.ucla.edu/r/dae/poisson-regression/)
+4. Kleiber, C. & Zeileis, A. AER package and `dispersiontest()` reference. [Link](https://cran.r-project.org/web/packages/AER/AER.pdf)
+5. UCLA OARC Stats. Poisson Regression examples in R. [Link](https://stats.oarc.ucla.edu/r/dae/poisson-regression/)
 6. CRAN vignette. Count Data and Overdispersion (GlmSimulatoR). [Link](https://cran.r-project.org/web/packages/GlmSimulatoR/vignettes/count_data_and_overdispersion.html)
-7. Gelman, A. & Hill, J. *Data Analysis Using Regression and Multilevel Models*, Ch. 6. Cambridge University Press (2006).
+7. Gelman, A. & Hill, J. *Data Analysis Using Regression and Multilevel Models*, Chapter 6. Cambridge University Press (2006).
 
 ## Continue Learning
 
