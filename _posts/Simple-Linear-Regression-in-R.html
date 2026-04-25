@@ -1,0 +1,850 @@
+---
+title: "Linear Regression in R: Fit Your First Model With lm() and Understand Every Number"
+description: "Fit a linear model with lm() in R and interpret every number in summary(): coefficients, R-squared, F-statistic, residual SE, and t-values, step by step."
+keywords: "linear regression in R, lm() function, simple linear regression, interpret lm summary, R-squared, residual standard error, F-statistic, regression coefficients, OLS regression, regression in R"
+mathjax: true
+webr: true
+curriculum_id: "2.3.2"
+post_type: "C"
+auto_link_terms: "simple linear regression|linear regression in R|lm() function|interpret lm summary|residual standard error|coefficient of determination|ordinary least squares"
+auto_link_case_sensitive: false
+sidebar_section: "Statistics"
+sidebar_title: "Simple Linear Regression"
+sidebar_order: "72"
+---
+<!-- md2html:generated -->
+
+<h1>Linear Regression in R: Fit Your First Model With lm() and Understand Every Number</h1>
+
+<p class="lead">Linear regression in R fits the best straight line through your data using <code>lm(y ~ x, data)</code>, and <code>summary()</code> tells you exactly how strong that relationship is. This tutorial walks through every line of the summary output on a real dataset: coefficients, R², F-statistic, <a class="auto-link" href="Interpreting-Regression-Output-Completely.html" title="Interpreting Regression Output Completely: Every Number in lm Summary">residual standard error</a>, and t-values, with the math behind each number explained from scratch.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="30" data-exercises="9" data-xp="135"></div>
+
+<h2>What does lm() actually do?</h2>
+
+<p>When you call <code>lm(y ~ x, data)</code>, R searches for the slope and intercept of the line that sits as close as possible to every point in your data. "Close" here means the sum of squared vertical distances from each point to the line is as small as possible. That single optimisation is everything <code>lm()</code> does. Every other number in <code>summary()</code> is bookkeeping that grades how good or bad that best line is.</p>
+
+<p>The built-in <code>cars</code> dataset has 50 measurements of car speed (mph) and stopping distance (ft). We will model <code>dist ~ speed</code> and read the full output.</p>
+
+<div class="webr-container" data-block-title="Fit lm() on cars and view summary">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit lm() on cars and view summary</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">model &lt;- lm(dist ~ speed, data = cars)
+summary(model)
+#&gt; 
+#&gt; Call:
+#&gt; lm(formula = dist ~ speed, data = cars)
+#&gt; 
+#&gt; Residuals:
+#&gt;     Min      1Q  Median      3Q     Max 
+#&gt; -29.069  -9.525  -2.272   9.215  43.201 
+#&gt; 
+#&gt; Coefficients:
+#&gt;             Estimate Std. Error t value Pr(&gt;|t|)    
+#&gt; (Intercept) -17.5791     6.7584  -2.601   0.0123 *  
+#&gt; speed         3.9324     0.4155   9.464 1.49e-12 ***
+#&gt; ---
+#&gt; Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+#&gt; 
+#&gt; Residual standard error: 15.38 on 48 degrees of freedom
+#&gt; Multiple R-squared:  0.6511,	Adjusted R-squared:  0.6438 
+#&gt; F-statistic: 89.57 on 1 and 48 DF,  p-value: 1.49e-12</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The slope <code>speed = 3.9324</code> says that for every 1 mph faster, the stopping distance grows by about 3.9 ft on average. The intercept <code>-17.58</code> is the predicted distance at 0 mph, which is meaningless on its own (you cannot drive at 0 and stop in negative feet) but is exactly what the line crosses on the y-axis. The R² of 0.65 says speed explains 65% of the variance in stopping distance. The rest of this post explains where each of those numbers came from.</p>
+
+<p>A quick scatter plot makes the fit visible. We add the regression line with <code>abline()</code>, which knows how to draw a fitted <code>lm</code> object directly.</p>
+
+<div class="webr-container" data-block-title="Plot cars with fitted line">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot cars with fitted line</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">plot(dist ~ speed, data = cars,
+     pch = 19, col = &quot;steelblue&quot;,
+     main = &quot;Stopping distance vs speed&quot;,
+     xlab = &quot;Speed (mph)&quot;, ylab = &quot;Stopping distance (ft)&quot;)
+abline(model, col = &quot;firebrick&quot;, lwd = 2)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The line slopes upward and passes through the cloud of points. Some points sit close to the line; others sit far away. Those vertical gaps are the residuals, and they drive almost every other number in the summary.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong><code>lm()</code> does one thing: it minimises the sum of squared residuals.</strong> Every other quantity in <code>summary()</code>, R², t-values, p-values, F-statistic, residual SE, is computed from the residuals and the fitted coefficients after that optimisation is done.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit a simple linear regression of <code>Petal.Length</code> on <code>Sepal.Length</code> from the built-in <code>iris</code> dataset. Read off the slope from <code>coef()</code> and round it to 2 decimals.</p>
+<div class="webr-container" data-block-title="Your turn: fit lm() on iris">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: fit lm() on iris</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: fit Petal.Length on Sepal.Length
+ex_iris_model &lt;- # your code here
+
+# Test: print the rounded slope
+round(coef(ex_iris_model)[2], 2)
+#&gt; Expected: 1.86</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="iris fit solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">iris fit solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_iris_model &lt;- lm(Petal.Length ~ Sepal.Length, data = iris)
+round(coef(ex_iris_model)[2], 2)
+#&gt; Sepal.Length 
+#&gt;         1.86</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>coef()</code> returns the named vector of coefficients; index <code>[2]</code> picks the slope (the intercept is index 1). Each extra cm of sepal length is associated with about 1.86 cm more petal length.</p>
+
+</details>
+</section>
+
+<h2>How do you read the coefficient table?</h2>
+
+<p>The coefficient block is the heart of the summary. Each row is one coefficient (intercept, slope), and the four columns answer four different questions: what is the estimate, how uncertain is it, how many standard errors away from zero is it, and how surprising would that be if the true value were zero.</p>
+
+<p>The relationships between those columns are not magic. The t-value is exactly <code>Estimate / Std. Error</code>, and the p-value is the two-tailed area under a t-distribution with $n - 2$ degrees of freedom (50 − 2 = 48 here). We can verify both by hand.</p>
+
+<div class="webr-container" data-block-title="Verify t and p from coefficient table">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Verify t and p from coefficient table</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">coefs &lt;- summary(model)$coefficients
+coefs
+#&gt;              Estimate Std. Error   t value     Pr(&gt;|t|)
+#&gt; (Intercept) -17.57909  6.7584402 -2.601058 1.231882e-02
+#&gt; speed         3.93241  0.4155128  9.463990 1.489836e-12
+
+# Manually compute t-value of the slope
+t_slope &lt;- coefs[&quot;speed&quot;, &quot;Estimate&quot;] / coefs[&quot;speed&quot;, &quot;Std. Error&quot;]
+t_slope
+#&gt; [1] 9.46399
+
+# Manually compute the two-tailed p-value (df = n - 2 = 48)
+p_slope &lt;- 2 * pt(-abs(t_slope), df = 48)
+p_slope
+#&gt; [1] 1.489836e-12</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The hand-computed t-value matches the table's 9.464 to four decimals, and the p-value matches <code>1.49e-12</code> exactly. So the rule is: a coefficient is "9.46 standard errors away from zero", which is so unlikely under the <a class="auto-link" href="Hypothesis-Testing-in-R.html" title="Hypothesis Testing in R: Understand the Framework, Not Just the p-Value">null hypothesis</a> (true slope = 0) that the probability of seeing it by chance is roughly one in a trillion.</p>
+
+<p><img src="screenshots/Simple-Linear-Regression-in-R-summary-anatomy.webp" alt="The four blocks of summary(lm(...)) and what each one answers." class="img-responsive img-zoomable" loading="lazy" width="936" height="1282" /></p>
+
+<p><em>Figure 1: The four blocks of <code>summary(lm(...))</code> and what each one answers.</em></p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Significance stars are convenience, not science.</strong> <code>***</code> simply means p < 0.001. Always report the actual p-value alongside the estimate and a confidence interval. Stars hide the difference between p = 0.0009 and p = 1e-12, even though the second is a vastly stronger signal.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The <code>(Intercept)</code> row of <code>coefs</code> lists Estimate −17.5791 and Std. Error 6.7584. Compute its t-value by hand and store it in <code>ex_t</code>.</p>
+<div class="webr-container" data-block-title="Your turn: compute the intercept t-value">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: compute the intercept t-value</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: t = Estimate / Std. Error for the (Intercept) row
+ex_t &lt;- # your code here
+
+ex_t
+#&gt; Expected: about -2.6011</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Intercept t-value solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Intercept t-value solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_t &lt;- coefs[&quot;(Intercept)&quot;, &quot;Estimate&quot;] / coefs[&quot;(Intercept)&quot;, &quot;Std. Error&quot;]
+ex_t
+#&gt; [1] -2.601058</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The same <code>Estimate / Std. Error</code> rule applies to every coefficient row, including the intercept. The negative sign just reflects that the estimate sits below zero.</p>
+
+</details>
+</section>
+
+<h2>What do residuals and residual standard error tell you?</h2>
+
+<p>A residual is the gap between an observed value and what the model predicted: $e_i = y_i - \hat{y}_i$. The five-number summary at the top of <code>summary()</code> (Min, 1Q, Median, 3Q, Max) is just a five-number description of these gaps. If the median is far from zero or the tails are wildly asymmetric, the line is missing something systematic.</p>
+
+<p>The Residual Standard Error (RSE) is the typical size of one residual, in the units of <code>y</code>. Its formula divides the sum of squared residuals by $n - 2$ (because we estimated 2 parameters: intercept and slope) and then takes a square root.</p>
+
+<p>$$\text{RSE} = \sqrt{\frac{\sum_{i=1}^{n}(y_i - \hat{y}_i)^2}{n - 2}}$$</p>
+
+<p>We can compute it directly and check.</p>
+
+<div class="webr-container" data-block-title="Compute residual standard error by hand">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compute residual standard error by hand</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">res &lt;- residuals(model)
+n &lt;- length(res)
+n
+#&gt; [1] 50
+
+# Sum of squared residuals
+ss_res_check &lt;- sum(res^2)
+ss_res_check
+#&gt; [1] 11353.52
+
+# Residual standard error: sqrt(SSR / (n - 2))
+rse &lt;- sqrt(ss_res_check / (n - 2))
+rse
+#&gt; [1] 15.37959
+
+# Compare to the value in summary()
+summary(model)$sigma
+#&gt; [1] 15.37959</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The hand-computed RSE matches <code>summary(model)$sigma</code> exactly: 15.38 ft. That means a typical prediction from this model is off by about 15 ft of stopping distance. Whether that is "good" depends on your context: if average stopping distance is around 43 ft, an error of 15 ft is one third of the response, which is large. RSE is the most concrete way to talk about model error in real-world units.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>RSE is a typical error, not a maximum error.</strong> Roughly 68% of residuals fall within ±1 RSE of zero, and 95% fall within ±2 RSE, if the residuals are approximately normal. Use it as a back-of-envelope sense of prediction precision.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> A property of OLS regression with an intercept is that the residuals always sum to (essentially) zero. Compute <code>mean(residuals(model))</code> and see if it is near zero.</p>
+<div class="webr-container" data-block-title="Your turn: check residual mean">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: check residual mean</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: compute the mean of residuals
+ex_mean_res &lt;- # your code here
+
+ex_mean_res
+#&gt; Expected: a number very close to 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Residual mean solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Residual mean solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_mean_res &lt;- mean(residuals(model))
+ex_mean_res
+#&gt; [1] 8.65974e-17</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The mean is <code>8.66e-17</code>, which is zero up to floating-point error. This is not a coincidence: OLS with an intercept forces the residuals to sum to zero by construction.</p>
+
+</details>
+</section>
+
+<h2>What does R² (and the F-statistic) measure?</h2>
+
+<p>R² (the coefficient of determination) is the share of variance in <code>y</code> that the model explains. It compares the spread of the residuals to the spread of <code>y</code> around its mean.</p>
+
+<p>$$R^2 = 1 - \frac{SS_{res}}{SS_{tot}}, \quad SS_{tot} = \sum (y_i - \bar{y})^2, \quad SS_{res} = \sum (y_i - \hat{y}_i)^2$$</p>
+
+<p>If your model perfectly predicts <code>y</code>, $SS_{res} = 0$ and $R^2 = 1$. If your model is no better than predicting the mean of <code>y</code>, $SS_{res} = SS_{tot}$ and $R^2 = 0$. The F-statistic asks the related question "is the model significantly better than just the intercept?". In simple linear regression with one predictor, the F-statistic equals the square of the slope's t-value, $F = t^2$, and they share a p-value. We can verify both.</p>
+
+<div class="webr-container" data-block-title="Compute R-squared and F-statistic by hand">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compute R-squared and F-statistic by hand</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Total and residual sums of squares
+ss_tot &lt;- sum((cars$dist - mean(cars$dist))^2)
+ss_res &lt;- sum(residuals(model)^2)
+
+# R-squared by formula
+r2 &lt;- 1 - ss_res / ss_tot
+r2
+#&gt; [1] 0.6510794
+
+summary(model)$r.squared
+#&gt; [1] 0.6510794
+
+# F-statistic equals slope's t-value squared
+f_stat &lt;- t_slope^2
+f_stat
+#&gt; [1] 89.56711
+
+summary(model)$fstatistic
+#&gt;    value    numdf    dendf 
+#&gt; 89.56711  1.00000 48.00000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>R² of 0.6511 means 65% of the variation in stopping distance is explained by speed alone, a strong signal for a one-variable model. The F-statistic of 89.57 matches <code>t_slope^2</code> exactly because, with one predictor, "is the model useful?" and "is the slope non-zero?" are literally the same question. With two or more predictors the F-test compares the <em>full</em> model against an intercept-only model, and is no longer the square of any single t-value.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>With one predictor, the F-test on the model and the t-test on the slope test the exact same hypothesis.</strong> That is why their p-values are identical (both <code>1.49e-12</code> here). With multiple predictors they diverge: the F-test is "is <em>any</em> predictor useful?" while each t-test is "is <em>this</em> predictor useful given the others?".</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Adjusted R² penalises R² for the number of predictors using the formula $1 - (1 - R^2) \cdot \frac{n - 1}{n - p - 1}$, where $p$ is the number of predictors (here, $p = 1$). Compute it and store in <code>ex_adj_r2</code>.</p>
+<div class="webr-container" data-block-title="Your turn: compute adjusted R-squared">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: compute adjusted R-squared</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: adjusted R-squared with n = 50, p = 1
+ex_adj_r2 &lt;- # your code here
+
+round(ex_adj_r2, 4)
+#&gt; Expected: 0.6438</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Adjusted R-squared solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Adjusted R-squared solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_adj_r2 &lt;- 1 - (1 - r2) * (n - 1) / (n - 1 - 1)
+round(ex_adj_r2, 4)
+#&gt; [1] 0.6438</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> With one predictor and 50 observations, the penalty for the extra parameter shaves R² from 0.6511 to 0.6438. Always prefer adjusted R² when comparing models with different numbers of predictors.</p>
+
+</details>
+</section>
+
+<h2>How do you check whether the fit is trustworthy?</h2>
+
+<p>Calling <code>plot()</code> on a fitted <code>lm</code> object produces four diagnostic plots: residuals vs fitted, normal Q-Q, scale-location, and <a class="auto-link" href="Regression-Diagnostics-in-R.html" title="Regression Diagnostics in R: 5 Plots That Reveal Model Violations Instantly">residuals vs leverage</a>. Each panel checks one of the assumptions OLS depends on. A 2×2 grid lets you scan all four at once.</p>
+
+<div class="webr-container" data-block-title="Run all 4 diagnostic plots">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Run all 4 diagnostic plots</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">par(mfrow = c(2, 2))
+plot(model)
+#&gt; (prints 4 diagnostic plots: Residuals vs Fitted, Q-Q,
+#&gt;  Scale-Location, Residuals vs Leverage)
+par(mfrow = c(1, 1))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each panel diagnoses a different problem: a curve in the residuals vs fitted plot signals that the relationship is not actually linear; deviation from the diagonal in the <a class="auto-link" href="Normality-and-Variance-Tests-in-R.html" title="Test Normality and Equal Variance in R: What the Tests Can and Can't Tell You">Q-Q plot</a> signals non-normal residuals; a fan or trumpet shape in scale-location signals <a class="auto-link" href="Heteroscedasticity-in-R.html" title="Heteroscedasticity in R: Breusch-Pagan Test & Robust Standard Errors">heteroscedasticity</a> (changing variance); a point outside Cook's-distance contours in residuals vs leverage signals an observation that is single-handedly steering the fit. For the <code>cars</code> model the residuals vs fitted plot has a slight upward curl, suggesting the relationship may bend at high speeds, and observation 49 sits well above the cloud, both worth investigating.</p>
+
+<p><img src="screenshots/Simple-Linear-Regression-in-R-assumption-checks.webp" alt="What each of the four plot(model) diagnostic panels checks." class="img-responsive img-zoomable" loading="lazy" width="922" height="1282" /></p>
+
+<p><em>Figure 2: What each of the four <code>plot(model)</code> diagnostic panels checks.</em></p>
+
+<p>A full treatment of these checks lives in the <a href="Linear-Regression-Assumptions-in-R.html">Linear Regression Assumptions in R</a> post, including formal tests (Breusch-Pagan, Durbin-Watson) and remedies for each violation.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Do not delete an <a class="auto-link" href="Outlier-Treatment-With-R.html" title="Outlier Treatment with R">outlier</a> just because it is far from the line.</strong> A high-leverage point may be the most informative observation in your dataset. Investigate it (data entry error? unusual but real?) before any decision to remove or down-weight it.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> <code>cooks.distance(model)</code> returns one influence value per observation. Use <code>which.max()</code> to find the index of the most influential point and store it in <code>ex_top</code>.</p>
+<div class="webr-container" data-block-title="Your turn: find the most influential point">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: find the most influential point</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: index of largest Cook's distance
+ex_top &lt;- # your code here
+
+ex_top
+#&gt; Expected: 49</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Most influential point solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Most influential point solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_top &lt;- which.max(cooks.distance(model))
+ex_top
+#&gt; 49 
+#&gt; 49</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Observation 49 has the largest Cook's distance, meaning the regression line would change the most if you removed that single row. The output shows both the row name and the row index.</p>
+
+</details>
+</section>
+
+<h2>How do you use the model to predict new values?</h2>
+
+<p>Once a model is fitted, <code>predict()</code> turns it into a <a class="auto-link" href="Time-Series-Forecasting-With-R.html" title="Time Series Forecasting with R">forecasting</a> tool. Pass a <code>data.frame</code> of new x-values to <code>newdata</code>, and choose between two interval types:</p>
+
+<ul>
+
+<li><code>interval = &quot;confidence&quot;</code>: uncertainty in the <em>mean</em> response at the given x. Narrow.</li>
+
+<li><code>interval = &quot;prediction&quot;</code>: uncertainty in a <em>single new observation</em> at the given x. Wider, because it adds the residual noise.</li>
+
+</ul>
+
+<div class="webr-container" data-block-title="Predict with confidence and prediction intervals">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Predict with confidence and prediction intervals</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">new_speeds &lt;- data.frame(speed = c(12, 18, 24))
+
+# Confidence interval (uncertainty in the regression line)
+pred_ci &lt;- predict(model, newdata = new_speeds, interval = &quot;confidence&quot;)
+pred_ci
+#&gt;        fit      lwr      upr
+#&gt; 1 29.60981 24.39514 34.82448
+#&gt; 2 53.20428 47.10796 59.30060
+#&gt; 3 76.79874 67.45765 86.13983
+
+# Prediction interval (uncertainty in a single new observation)
+pred_pi &lt;- predict(model, newdata = new_speeds, interval = &quot;prediction&quot;)
+pred_pi
+#&gt;        fit       lwr      upr
+#&gt; 1 29.60981 -1.749698 60.96932
+#&gt; 2 53.20428 22.094230 84.31432
+#&gt; 3 76.79874 45.071591 108.52589</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>At 18 mph the model predicts a stopping distance of 53.2 ft. The <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">95% confidence interval</a> <code>[47.1, 59.3]</code> says we are 95% confident that the <em>average</em> stopping distance for cars at 18 mph lies in that range. The prediction interval <code>[22.1, 84.3]</code> is much wider because it covers a <em>single</em> car at 18 mph, and a single observation can sit far from the average due to residual noise. Notice the intervals are widest at the edges (12 and 24 mph) and tightest near the centre of the data, because the regression line is most certain near the mean of the predictors.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Do not extrapolate beyond the training range.</strong> The <code>cars</code> dataset only has speeds between 4 and 25 mph. Predicting at speed 60 would technically work, but the line cannot know whether the relationship still holds out there.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Predict the stopping distance at <code>speed = 30</code> with a 95% prediction interval, store in <code>ex_pred95</code>. Then repeat with a 99% prediction interval (use the <code>level</code> argument), store in <code>ex_pred99</code>.</p>
+<div class="webr-container" data-block-title="Your turn: predict at speed 30">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: predict at speed 30</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: prediction intervals at speed = 30
+new_data &lt;- data.frame(speed = 30)
+ex_pred95 &lt;- # your code here (95% prediction interval)
+ex_pred99 &lt;- # your code here (99% prediction interval)
+
+ex_pred95
+ex_pred99
+#&gt; Expected: ex_pred99 is wider than ex_pred95</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Prediction at speed 30 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Prediction at speed 30 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">new_data &lt;- data.frame(speed = 30)
+ex_pred95 &lt;- predict(model, newdata = new_data,
+                     interval = &quot;prediction&quot;, level = 0.95)
+ex_pred99 &lt;- predict(model, newdata = new_data,
+                     interval = &quot;prediction&quot;, level = 0.99)
+ex_pred95
+#&gt;        fit      lwr      upr
+#&gt; 1 100.3938 67.40671 133.3808
+ex_pred99
+#&gt;        fit      lwr      upr
+#&gt; 1 100.3938 56.40293 144.3846</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> A 99% interval is wider than a 95% interval because demanding more confidence forces a larger range. Both intervals are also extremely wide (and extrapolating: speed 30 sits past the training range), so treat the point estimate of 100 ft with caution.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<p>Three capstone problems that combine multiple concepts. Each uses the WebR session's existing variables as starting points.</p>
+
+<h3>Exercise 1: Fit and report the full picture on mtcars</h3>
+
+<p>Fit a simple linear regression of <code>mpg</code> on <code>wt</code> using <code>mtcars</code>, store the result in <code>my_model</code>, then print (a) the slope, (<a class="auto-link" href="Conditional-Probability-in-R.html" title="Conditional Probability in R: P(A|B), Independence, and Bayes — With Real Examples">b)</a> the residual standard error, and (c) the multiple R². Use only base-R extractor functions (<code>coef()</code>, <code>summary()$sigma</code>, <code>summary()$r.squared</code>).</p>
+
+<div class="webr-container" data-block-title="Capstone Exercise 1">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Capstone Exercise 1</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit lm(mpg ~ wt, data = mtcars), report slope, RSE, R²
+
+# Your code here
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_model &lt;- lm(mpg ~ wt, data = mtcars)
+coef(my_model)[&quot;wt&quot;]                 # slope
+#&gt;        wt 
+#&gt; -5.344472
+summary(my_model)$sigma              # residual SE
+#&gt; [1] 3.045882
+summary(my_model)$r.squared          # R-squared
+#&gt; [1] 0.7528328</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Each extra 1000 lb of weight is associated with about 5.34 fewer mpg. Typical prediction error is ±3 mpg, and weight alone explains 75% of the variance in fuel economy.</p>
+
+</details>
+
+<h3>Exercise 2: Verify R² by hand</h3>
+
+<p>Using <code>my_model</code> from Exercise 1, manually compute <code>R² = 1 - SS_res / SS_tot</code> from <code>residuals(my_model)</code> and <code>mtcars$mpg</code>, store the result in <code>my_r2</code>, then confirm it matches <code>summary(my_model)$r.squared</code> to six decimals.</p>
+
+<div class="webr-container" data-block-title="Capstone Exercise 2">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Capstone Exercise 2</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Compute R² by hand and verify against summary()
+
+# Your code here
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ss_res_my &lt;- sum(residuals(my_model)^2)
+ss_tot_my &lt;- sum((mtcars$mpg - mean(mtcars$mpg))^2)
+my_r2 &lt;- 1 - ss_res_my / ss_tot_my
+
+round(my_r2, 6) == round(summary(my_model)$r.squared, 6)
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The two values agree to six decimals, confirming the formula. <code>summary()$r.squared</code> is just a tidy wrapper around this calculation.</p>
+
+</details>
+
+<h3>Exercise 3: Predict with prediction intervals on airquality</h3>
+
+<p>Drop NAs from <code>airquality</code>, store as <code>aq</code>. Fit <code>Ozone ~ Temp</code>, store as <code>aq_model</code>. Predict <code>Ozone</code> at <code>Temp = 80</code> and <code>Temp = 90</code> with 95% prediction intervals, store in <code>aq_pred</code>, then explain in one sentence why the interval at Temp 90 is wider than at Temp 80.</p>
+
+<div class="webr-container" data-block-title="Capstone Exercise 3">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Capstone Exercise 3</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit Ozone ~ Temp on cleaned airquality, predict at 80 and 90
+
+# Your code here
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">aq &lt;- na.omit(airquality)
+aq_model &lt;- lm(Ozone ~ Temp, data = aq)
+aq_pred &lt;- predict(aq_model,
+                   newdata = data.frame(Temp = c(80, 90)),
+                   interval = &quot;prediction&quot;, level = 0.95)
+aq_pred
+#&gt;        fit       lwr      upr
+#&gt; 1 47.30453  4.928432  89.6806
+#&gt; 2 71.13119 28.405069 113.8573</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The interval at Temp 90 is wider because Temp 90 sits closer to the upper edge of the training data, where the line's uncertainty grows (the standard error of the fit is smallest near the mean of the predictor and grows toward the extremes).</p>
+
+</details>
+
+<h2>Complete Example</h2>
+
+<p>Putting everything together on a fresh dataset. We will model ozone on temperature in <code>airquality</code>, walk through the summary, run diagnostics, and predict.</p>
+
+<div class="webr-container" data-block-title="End-to-end pipeline on airquality">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">End-to-end pipeline on airquality</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># 1. Clean and inspect
+aq2 &lt;- na.omit(airquality)
+plot(Ozone ~ Temp, data = aq2,
+     pch = 19, col = &quot;darkgreen&quot;,
+     main = &quot;Ozone vs Temperature&quot;,
+     xlab = &quot;Temperature (°F)&quot;, ylab = &quot;Ozone (ppb)&quot;)
+
+# 2. Fit and inspect
+model_aq &lt;- lm(Ozone ~ Temp, data = aq2)
+abline(model_aq, col = &quot;firebrick&quot;, lwd = 2)
+summary(model_aq)
+#&gt; Call:
+#&gt; lm(formula = Ozone ~ Temp, data = aq2)
+#&gt; 
+#&gt; Coefficients:
+#&gt;             Estimate Std. Error t value Pr(&gt;|t|)    
+#&gt; (Intercept) -147.646     18.755  -7.872 2.76e-12 ***
+#&gt; Temp           2.439      0.239  10.207  &lt; 2e-16 ***
+#&gt; 
+#&gt; Residual standard error: 23.92 on 109 degrees of freedom
+#&gt; Multiple R-squared:  0.4887,	Adjusted R-squared:  0.4841 
+#&gt; F-statistic: 104.2 on 1 and 109 DF,  p-value: &lt; 2.2e-16
+
+# 3. Diagnose
+par(mfrow = c(2, 2)); plot(model_aq); par(mfrow = c(1, 1))
+
+# 4. Predict at a few new temperatures
+pred_aq &lt;- predict(model_aq,
+                   newdata = data.frame(Temp = c(70, 80, 90)),
+                   interval = &quot;prediction&quot;)
+pred_aq
+#&gt;          fit        lwr      upr
+#&gt; 1  23.13088 -24.486107  70.7479
+#&gt; 2  47.51890   0.011577  95.0262
+#&gt; 3  71.90692  24.331866 119.4820</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The slope is 2.44 ppb per °F (highly significant), but R² is only 0.49 and the residual SE is 24 ppb. So temperature is a real driver of ozone but explains less than half of its variability, and a single-day prediction can easily be off by 50 ppb. The diagnostic plots show a mild fan in scale-location and a few high-leverage points worth investigating before trusting this model for forecasting.</p>
+
+<h2>Summary</h2>
+
+<p>Every number in <code>summary(lm(...))</code> answers a specific question. Here is the cheat sheet, mapped back to where each number came from in this tutorial.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Number</th>
+<th>What it answers</th>
+<th>How it was computed</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Estimate</td>
+<td>Intercept and slope of the best line</td>
+<td>OLS minimisation of $\sum e_i^2$</td>
+</tr>
+<tr>
+<td>Std. Error</td>
+<td>Uncertainty in each estimate</td>
+<td>Spread of residuals scaled by predictor variability</td>
+</tr>
+<tr>
+<td>t value</td>
+<td>Estimate measured in standard errors</td>
+<td><code>Estimate / Std. Error</code></td>
+</tr>
+<tr>
+<td>Pr(>\</td>
+<td>t\</td>
+<td>)</td>
+<td>Probability of seeing this t under H₀: coef = 0</td>
+<td>Two-tailed area, t-dist with n−2 df</td>
+</tr>
+<tr>
+<td>Residual standard error</td>
+<td>Typical size of one residual, in y units</td>
+<td>$\sqrt{SS_{res} / (n - 2)}$</td>
+</tr>
+<tr>
+<td>Multiple R²</td>
+<td>Share of variance in y explained</td>
+<td>$1 - SS_{res} / SS_{tot}$</td>
+</tr>
+<tr>
+<td>Adjusted R²</td>
+<td>R² penalised for extra predictors</td>
+<td>$1 - (1 - R^2)(n-1)/(n-p-1)$</td>
+</tr>
+<tr>
+<td>F-statistic</td>
+<td>Is the model better than intercept-only?</td>
+<td>In simple regression, $t^2$ of the slope</td>
+</tr>
+</tbody>
+</table>
+
+<p><img src="screenshots/Simple-Linear-Regression-in-R-fit-pipeline.webp" alt="End-to-end workflow: data, fit, inspect, validate, predict." class="img-responsive img-zoomable" loading="lazy" width="1160" height="1330" /></p>
+
+<p><em>Figure 3: End-to-end workflow: data, fit, inspect, validate, predict.</em></p>
+
+<p>The five-step routine, fit, inspect coefficients, validate residual SE and R², check diagnostics, predict with intervals, is the same on every linear model you will ever fit in R. Multiple regression just adds rows to the coefficient table; the framework is identical.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>R Core Team. <em>An Introduction to R</em>, Chapter 11: Statistical Models in R. <a href="https://cran.r-project.org/doc/manuals/r-release/R-intro.html">Link</a></li>
+
+<li><a class="auto-link" href="Getting-Help-in-R.html" title="Stuck in R? 6 Ways to Get Unstuck Without Wasting Hours">R documentation</a>, <code>?lm</code> and <code>?summary.lm</code>, base R reference. <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/lm.html">Link</a></li>
+
+<li>Faraway, J. <em>Linear Models with R</em>, 2nd edition, CRC Press (2014).</li>
+
+<li>Fox, J. & Weisberg, S. <em>An R Companion to Applied Regression</em>, 3rd edition. <a href="https://socialsciences.mcmaster.ca/jfox/Books/Companion/">Link</a></li>
+
+<li>James, G., Witten, D., Hastie, T., Tibshirani, R. <em>An Introduction to Statistical Learning with Applications in R</em>, Chapter 3: Linear Regression. <a href="https://www.statlearning.com/">Link</a></li>
+
+<li>Kutner, M., Nachtsheim, C., Neter, J., Li, W. <em>Applied Linear Statistical Models</em>, 5th edition, McGraw-Hill (2004).</li>
+
+<li>Wickham, H. & Grolemund, G. <em>R for Data Science</em>, 2nd edition, Model Basics chapter. <a href="https://r4ds.hadley.nz/">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Linear-Regression-Assumptions-in-R.html">Linear Regression Assumptions in R</a>: go deeper on the four <code>plot(model)</code> panels with formal tests and the fix for each violated assumption.</li>
+
+<li><a href="Interpreting-Regression-Output-Completely.html">Interpreting Regression Output Completely</a>: exhaustive walk-through of every number in <code>summary()</code>, including for multiple regression.</li>
+
+<li><a href="Regression-Diagnostics-in-R.html">Regression Diagnostics in R</a>: leverage, Cook's distance, DFBETAs, and influence measures for spotting problem observations.</li>
+
+</ul>
+
+<div id="auto-further-reading">
+<h2>Further Reading</h2>
+<ul class="further-reading-list">
+<li><a href="Interpreting-Regression-Output-Completely.html">Interpreting Regression Output Completely: Every Number in lm Summary</a></li>
+<li><a href="Regression-Through-the-Origin-in-R.html">Regression Through the Origin in R: When to Force a Zero Intercept</a></li>
+</ul>
+</div>
