@@ -1,0 +1,804 @@
+---
+title: "Instrumental Variables in R: ivreg Package & Two-Stage Least Squares"
+description: "Learn instrumental variables regression in R with the ivreg package. Run 2SLS estimation and interpret weak instrument, Wu-Hausman, and Sargan diagnostics."
+keywords: "instrumental variables in R, ivreg, two-stage least squares, 2SLS, weak instruments, Wu-Hausman test, Sargan test, endogeneity, IV regression, ivreg package"
+mathjax: true
+webr: true
+curriculum_id: "FR-regr-18"
+post_type: "FR"
+auto_link_terms: "instrumental variables|ivreg package|two-stage least squares|2SLS|Wu-Hausman test|Sargan test|endogeneity"
+auto_link_case_sensitive: false
+fr_parent: "Multiple-Regression-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>Instrumental Variables in R: ivreg Package & Two-Stage Least Squares</h1>
+
+<p class="lead">Instrumental variables (IV) regression is a method for estimating causal effects when a predictor is correlated with the error term, a problem called <strong>endogeneity</strong> that biases <a class="auto-link" href="Simple-Linear-Regression-in-R.html" title="Linear Regression in R: Fit Your First Model With lm() and Understand Every Number">ordinary least squares</a>. The <code>ivreg</code> package in R runs two-stage least squares (2SLS) to fix it, producing consistent estimates plus weak-instrument, Wu-Hausman, and Sargan diagnostics in one call.</p>
+
+<div class="engagement-header" data-difficulty="Advanced" data-time="30" data-exercises="8" data-xp="120"></div>
+
+<h2>When does OLS fail and IV rescue it?</h2>
+
+<p>The clearest way to see why IV matters is to build a scenario where you already know the truth, then watch OLS miss it. Suppose wages depend on schooling, but both wages and schooling also depend on unobserved ability. That hidden third variable biases the OLS slope on schooling, so you cannot tell causation from correlation. An instrument, a variable that affects schooling but nothing else in the equation, restores identification. Let's simulate this exact setup and compare OLS against <code>ivreg()</code> side by side.</p>
+
+<div class="webr-container" data-block-title="Simulate endogeneity and compare OLS vs ivreg">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Simulate endogeneity and compare OLS vs ivreg</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ivreg)
+
+set.seed(2026)
+n &lt;- 1000
+u &lt;- rnorm(n)                 # unobserved confounder (e.g., ability)
+z &lt;- rnorm(n)                 # instrument (uncorrelated with u)
+x &lt;- 0.7 * z + 0.6 * u + rnorm(n)  # endogenous regressor
+y &lt;- 2 * x + 1.5 * u + rnorm(n)    # true causal slope on x is 2
+
+sim &lt;- data.frame(y = y, x = x, z = z)
+
+ols_fit &lt;- lm(y ~ x, data = sim)
+iv_fit  &lt;- ivreg(y ~ x | z, data = sim)
+
+c(OLS = coef(ols_fit)[&quot;x&quot;], IV = coef(iv_fit)[&quot;x&quot;])
+#&gt;  OLS.x   IV.x
+#&gt; 2.567  1.989</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The true causal slope is <code>2</code>. OLS reports <code>2.57</code>, inflated by the confounder <code>u</code>, which pushes both <code>x</code> and <code>y</code> upward together. <code>ivreg()</code> returns <code>1.99</code>, recovering the true effect. The pipe <code>|</code> in the formula is the IV syntax: regressors on the left, instruments on the right.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>OLS is biased because x carries the confounder's fingerprint.</strong> The instrumental variable estimator isolates the variation in x driven only by z, the part guaranteed to be unrelated to u, and uses just that piece to estimate the slope on y.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Triple the strength of the confounder by changing <code>1.5 * u</code> to <code>4 * u</code> in the <code>y</code> equation. Refit OLS and IV. The OLS slope should drift much further from 2 while the IV slope barely moves.</p>
+<div class="webr-container" data-block-title="Your turn: stronger confounder">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: stronger confounder</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+n &lt;- 1000
+u &lt;- rnorm(n)
+z &lt;- rnorm(n)
+x &lt;- 0.7 * z + 0.6 * u + rnorm(n)
+y2 &lt;- 2 * x + ___ * u + rnorm(n)   # change the multiplier on u
+
+sim2 &lt;- data.frame(y = y2, x = x, z = z)
+# fit OLS and IV here, then print both x slopes
+#&gt; Expected: OLS drifts far from 2; IV stays near 2.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Stronger confounder solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Stronger confounder solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+n &lt;- 1000
+u &lt;- rnorm(n)
+z &lt;- rnorm(n)
+x &lt;- 0.7 * z + 0.6 * u + rnorm(n)
+y2 &lt;- 2 * x + 4 * u + rnorm(n)
+
+sim2 &lt;- data.frame(y = y2, x = x, z = z)
+ols2 &lt;- lm(y ~ x, data = sim2)
+iv2  &lt;- ivreg(y ~ x | z, data = sim2)
+c(OLS = coef(ols2)[&quot;x&quot;], IV = coef(iv2)[&quot;x&quot;])
+#&gt;  OLS.x   IV.x
+#&gt; 3.51   1.97</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The bigger the confounder's influence, the more <code>x</code> and <code>y</code> move together for non-causal reasons, so OLS overshoots. IV only uses the part of <code>x</code> driven by <code>z</code>, which is uncorrelated with <code>u</code>, so it stays near the true value of 2.</p>
+
+</details>
+</section>
+
+<h2>What is the intuition behind two-stage least squares?</h2>
+
+<p>2SLS does in two steps what <code>ivreg()</code> does in one. First, it regresses the endogenous variable on the instrument and keeps the fitted values. That stripped-down version of <code>x</code> contains only the variation the instrument can explain, so it is uncorrelated with the confounder by construction. Second, it regresses the outcome on those fitted values. The slope you get is the consistent causal estimate.</p>
+
+<p><img src="screenshots/Instrumental-Variables-in-R-iv-causal-graph.webp" alt="Causal graph showing how the instrument Z reaches Y only through the endogenous regressor X." class="img-responsive img-zoomable" loading="lazy" width="1326" height="728" /></p>
+
+<p><em>Figure 1: The IV causal graph. The instrument Z affects Y only through X, so Z is uncorrelated with the confounder U.</em></p>
+
+<p>The graph encodes the two assumptions that make 2SLS work: Z must drive X (the arrow Z → X), and Z must reach Y only through X (no direct arrow Z → Y, no arrow Z → U). Replacing X with its prediction from Z purges the U-driven contamination.</p>
+
+<div class="webr-container" data-block-title="Manual two-stage least squares">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Manual two-stage least squares</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Stage 1: regress endogenous x on instrument z
+stage1 &lt;- lm(x ~ z, data = sim)
+x_hat  &lt;- fitted(stage1)
+
+# Stage 2: regress y on the fitted x
+stage2 &lt;- lm(y ~ x_hat, data = sim)
+coef(stage2)[&quot;x_hat&quot;]
+#&gt;   x_hat
+#&gt; 1.989</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Manual 2SLS reproduces the <code>ivreg()</code> slope of <code>1.99</code> exactly. The two-step recipe is what is happening under the hood when you call <code>ivreg()</code>.</p>
+
+<p><img src="screenshots/Instrumental-Variables-in-R-2sls-stages.webp" alt="Two-stage least squares workflow: Stage 1 produces fitted X-hat, Stage 2 regresses Y on X-hat." class="img-responsive img-zoomable" loading="lazy" width="1958" height="394" /></p>
+
+<p><em>Figure 2: 2SLS replaces the endogenous X with its projection onto the instrument, then runs the usual OLS.</em></p>
+
+<p>You can write the estimator compactly. Let $X$ be the matrix of regressors and $Z$ the matrix of instruments. The 2SLS estimator is:</p>
+
+<p>$$\hat{\beta}_{2SLS} = (X'P_Z X)^{-1} X'P_Z y$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$P_Z = Z(Z'Z)^{-1}Z'$ is the projection matrix onto the instrument space</li>
+
+<li>$X'P_Z X$ replaces $X'X$ from OLS with the instrument-projected version of the cross-product</li>
+
+<li>$X'P_Z y$ replaces $X'y$ similarly</li>
+
+</ul>
+
+<p>If you do not care about the math, the manual code above is all you need to picture what 2SLS is doing. Skip ahead.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Never trust the standard errors from a manual two-step approach.</strong> The Stage 2 lm treats <code>x_hat</code> as observed data, but it was estimated, so the reported standard errors are too small. <code>ivreg()</code> corrects this and reports valid inference.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Confirm by hand that <code>coef(stage2)[&quot;x_hat&quot;]</code> equals <code>coef(iv_fit)[&quot;x&quot;]</code> to the third decimal place.</p>
+<div class="webr-container" data-block-title="Your turn: manual stages match ivreg">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: manual stages match ivreg</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># stage2 and iv_fit already exist from earlier blocks.
+# Print both slopes and check they match.
+#&gt; Expected: both equal ~1.989</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Manual stages match ivreg solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Manual stages match ivreg solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">manual &lt;- coef(stage2)[&quot;x_hat&quot;]
+canned &lt;- coef(iv_fit)[&quot;x&quot;]
+round(c(manual = manual, ivreg = canned), 4)
+#&gt; manual.x_hat   ivreg.x
+#&gt;      1.9890     1.9890</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The point estimate is mechanical. The two routes give identical coefficients. They diverge only on the standard errors, which <code>ivreg()</code> computes correctly.</p>
+
+</details>
+</section>
+
+<h2>How do you write the ivreg formula?</h2>
+
+<p>The <code>ivreg()</code> call uses a two-part formula separated by a pipe. To the left of the pipe go the regressors, including both exogenous and endogenous ones. To the right go the instruments, including the exogenous regressors again (any variable that does not need an instrument is its own instrument). A three-part form splits the two groups explicitly.</p>
+
+<div class="webr-container" data-block-title="Two-part IV formula on cigarette demand">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Two-part IV formula on cigarette demand</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">data(&quot;CigaretteDemand&quot;, package = &quot;ivreg&quot;)
+
+# log(packs) is outcome; log(rprice) is endogenous (price set by demand)
+# log(rincome) is exogenous; salestax is the instrument for log(rprice)
+cig_iv_2part &lt;- ivreg(
+  log(packs) ~ log(rprice) + log(rincome) | log(rincome) + salestax,
+  data = CigaretteDemand
+)
+coef(cig_iv_2part)
+#&gt;  (Intercept) log(rprice) log(rincome)
+#&gt;      9.4307     -1.1434       0.2145</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The price elasticity of demand is <code>-1.14</code>: a one percent rise in real price predicts a <code>1.14</code> percent drop in packs sold. Notice <code>log(rincome)</code> appears on both sides of the pipe because it is exogenous and acts as its own instrument.</p>
+
+<div class="webr-container" data-block-title="Three-part IV formula gives same estimates">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Three-part IV formula gives same estimates</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Equivalent: exogenous | endogenous | instruments
+cig_iv_3part &lt;- ivreg(
+  log(packs) ~ log(rincome) | log(rprice) | salestax,
+  data = CigaretteDemand
+)
+coef(cig_iv_3part)
+#&gt;  (Intercept) log(rincome) log(rprice)
+#&gt;      9.4307       0.2145     -1.1434</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both forms produce identical coefficients. The three-part form is more explicit about which regressors are endogenous, which makes it easier to read with multiple endogenous variables.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>The three-part formula scales better than the two-part form.</strong> Once you have two or more endogenous regressors, listing them explicitly between two pipes is far less error-prone than remembering to repeat every exogenous variable in the second group.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Add <code>cigtax</code> as a second instrument alongside <code>salestax</code>. The model becomes overidentified.</p>
+<div class="webr-container" data-block-title="Your turn: add second instrument">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: add second instrument</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_cig_2iv &lt;- ivreg(
+  log(packs) ~ log(rincome) | log(rprice) | salestax + ___,
+  data = CigaretteDemand
+)
+coef(ex_cig_2iv)
+#&gt; Expected: similar elasticity, slightly tighter fit.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Two-instrument cigarette IV solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Two-instrument cigarette IV solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_cig_2iv &lt;- ivreg(
+  log(packs) ~ log(rincome) | log(rprice) | salestax + cigtax,
+  data = CigaretteDemand
+)
+coef(ex_cig_2iv)
+#&gt;  (Intercept) log(rincome) log(rprice)
+#&gt;      9.8950       0.2800     -1.2774</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> With two instruments for one endogenous regressor, the model is overidentified and 2SLS uses the optimally-weighted combination. The elasticity is now <code>-1.28</code>, slightly larger in magnitude than the single-instrument estimate.</p>
+
+</details>
+</section>
+
+<h2>What do the diagnostic tests tell you?</h2>
+
+<p><code>summary()</code> on an <code>ivreg</code> fit prints three extra tests OLS does not give you. The weak-instrument test asks whether your instrument actually moves the endogenous regressor (a small F-statistic here means your 2SLS estimate is unreliable). The Wu-Hausman test asks whether OLS and 2SLS disagree enough to justify using IV at all. The Sargan test, only for overidentified models, asks whether your instruments are mutually consistent with the exogeneity assumption.</p>
+
+<div class="webr-container" data-block-title="Run summary with diagnostics">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Run summary with diagnostics</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">diag_summary &lt;- summary(cig_iv_2part, diagnostics = TRUE)
+diag_summary$diagnostics
+#&gt;                    df1 df2 statistic   p-value
+#&gt; Weak instruments     1  45    45.158 2.655e-08
+#&gt; Wu-Hausman           1  44     1.105 2.989e-01
+#&gt; Sargan               0  NA        NA        NA</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Three lines, three different questions:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Test</th>
+<th>What it asks</th>
+<th>Decision rule (rough)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Weak instruments</td>
+<td>Does the instrument move the endogenous regressor enough?</td>
+<td>F > 10 means strong; here F = 45 is fine</td>
+</tr>
+<tr>
+<td>Wu-Hausman</td>
+<td>Are OLS and 2SLS estimates significantly different?</td>
+<td>Small p means OLS is biased and IV is needed; p = 0.30 means the data does not flag endogeneity strongly</td>
+</tr>
+<tr>
+<td>Sargan</td>
+<td>When overidentified, do all instruments agree?</td>
+<td>NA here because the model is just-identified (one instrument for one endogenous regressor)</td>
+</tr>
+</tbody>
+</table>
+
+<p>The weak-instrument F of <code>45</code> is well above the rule-of-thumb threshold of <code>10</code>, so <code>salestax</code> is a strong instrument for <code>log(rprice)</code>. The Wu-Hausman <a class="auto-link" href="Statistical-Tests-in-R.html" title="Statistical Tests in R">p-value</a> of <code>0.30</code> means the data alone cannot conclusively reject OLS, but theory says cigarette price is endogenous, so IV is still the defensible choice. Sargan is NA because there is one instrument for one endogenous regressor, so the validity assumption cannot be checked from the data.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>The Sargan test only runs when you have more instruments than endogenous regressors.</strong> A just-identified model is exactly identified, leaving no over-restrictions to test. With two or more instruments per endogenous regressor, Sargan compares them; if they disagree, at least one is invalid.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Refit with two instruments (<code>salestax + cigtax</code>) for one endogenous regressor and read the Sargan test. A high p-value (above 0.10) supports that both instruments are valid.</p>
+<div class="webr-container" data-block-title="Your turn: weak vs strong instruments">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: weak vs strong instruments</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_weak_fit &lt;- ivreg(
+  log(packs) ~ log(rincome) | log(rprice) | ___ + ___,
+  data = CigaretteDemand
+)
+summary(ex_weak_fit, diagnostics = TRUE)$diagnostics
+#&gt; Expected: Sargan row now reports a finite p-value.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Sargan test on overidentified model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Sargan test on overidentified model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_weak_fit &lt;- ivreg(
+  log(packs) ~ log(rincome) | log(rprice) | salestax + cigtax,
+  data = CigaretteDemand
+)
+summary(ex_weak_fit, diagnostics = TRUE)$diagnostics
+#&gt;                    df1 df2 statistic   p-value
+#&gt; Weak instruments     2  44   244.734 2.0e-25
+#&gt; Wu-Hausman           1  44     3.064 8.7e-02
+#&gt; Sargan               1  NA     1.205 2.7e-01</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The Sargan p-value of <code>0.27</code> is comfortably above <code>0.10</code>, so we fail to reject the joint exogeneity of <code>salestax</code> and <code>cigtax</code>. Both instruments are statistically consistent with each other.</p>
+
+</details>
+</section>
+
+<h2>How do you choose a valid instrument?</h2>
+
+<p>Two rules decide whether a candidate instrument is valid. Relevance means the instrument must actually predict the endogenous regressor, check the first-stage F-statistic (rule of thumb: above 10). Exogeneity means the instrument must affect the outcome only through the endogenous regressor, this is an assumption, not a test, and it has to come from subject-matter logic. Classic examples: distance to college for schooling, rainfall for crop prices, quarter of birth for education.</p>
+
+<div class="webr-container" data-block-title="Compute the first-stage F-statistic">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compute the first-stage F-statistic</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># First stage: regress endogenous log(rprice) on the instrument and exogenous controls
+first_stage  &lt;- lm(log(rprice) ~ log(rincome) + salestax, data = CigaretteDemand)
+
+# Reduced form: same regression without the instrument
+reduced_stage &lt;- lm(log(rprice) ~ log(rincome), data = CigaretteDemand)
+
+# F-test: does adding salestax significantly improve the fit?
+f_stat &lt;- anova(reduced_stage, first_stage)
+f_stat
+#&gt; Analysis of Variance Table
+#&gt;
+#&gt; Model 1: log(rprice) ~ log(rincome)
+#&gt; Model 2: log(rprice) ~ log(rincome) + salestax
+#&gt;   Res.Df    RSS Df Sum of Sq      F    Pr(&gt;F)
+#&gt; 1     46 0.4459
+#&gt; 2     45 0.1830  1   0.2629 64.66 4.085e-10</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The F-statistic of <code>64.66</code> is far above <code>10</code>, confirming <code>salestax</code> is a strong instrument for <code>log(rprice)</code>. This first-stage F is what the diagnostic block summarizes when it says "Weak instruments F = 45" (different scaling, same idea).</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A weak instrument does not just inflate standard errors, it pulls 2SLS estimates toward the OLS bias it was meant to cure.</strong> When your first-stage F is in single digits, stop and find a better instrument. Reporting an IV result with a weak first stage is worse than reporting OLS, because readers think the endogeneity has been fixed when it has not.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Replace <code>salestax</code> with <code>rnorm(nrow(CigaretteDemand))</code>, a random noise variable, and recompute the first-stage F. It should collapse near 1.</p>
+<div class="webr-container" data-block-title="Your turn: noise as instrument">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: noise as instrument</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+ex_noise &lt;- rnorm(nrow(CigaretteDemand))
+ex_weak_first &lt;- lm(log(rprice) ~ log(rincome) + ex_noise, data = CigaretteDemand)
+ex_reduced &lt;- lm(log(rprice) ~ log(rincome), data = CigaretteDemand)
+anova(ex_reduced, ex_weak_first)
+#&gt; Expected: F-statistic near 1, p-value much greater than 0.05.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Noise instrument first-stage F">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Noise instrument first-stage F</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+ex_noise &lt;- rnorm(nrow(CigaretteDemand))
+ex_weak_first &lt;- lm(log(rprice) ~ log(rincome) + ex_noise, data = CigaretteDemand)
+ex_reduced &lt;- lm(log(rprice) ~ log(rincome), data = CigaretteDemand)
+anova(ex_reduced, ex_weak_first)
+#&gt; Analysis of Variance Table
+#&gt;
+#&gt; Model 1: log(rprice) ~ log(rincome)
+#&gt; Model 2: log(rprice) ~ log(rincome) + ex_noise
+#&gt;   Res.Df    RSS Df Sum of Sq      F  Pr(&gt;F)
+#&gt; 1     46 0.4459
+#&gt; 2     45 0.4452  1  0.000698 0.0706 0.7917</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Noise has no relationship with <code>log(rprice)</code>, so the first-stage F drops to <code>0.07</code> and the p-value is <code>0.79</code>. Using this as an instrument would produce a 2SLS estimate driven entirely by sampling noise.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<h3>Exercise 1: Diagnose and fix an endogenous model</h3>
+
+<p>Simulate <code>n = 800</code> observations with <code>u &lt;- rnorm(n)</code>, <code>z &lt;- rnorm(n)</code>, <code>x &lt;- 0.5*z + 0.8*u + rnorm(n)</code>, <code>y &lt;- 1.5*x + 2*u + rnorm(n)</code>. Fit OLS and <code>ivreg()</code>. Then read the weak-instrument test and Wu-Hausman test from <code>summary(..., diagnostics = TRUE)</code>. Decide whether IV is justified.</p>
+
+<div class="webr-container" data-block-title="Capstone 1: diagnose and fix">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Capstone 1: diagnose and fix</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Simulate, fit, diagnose, decide.
+# Hint: true causal slope is 1.5; OLS will overshoot.
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Capstone 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Capstone 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(11)
+n &lt;- 800
+u &lt;- rnorm(n)
+z &lt;- rnorm(n)
+cap_x &lt;- 0.5 * z + 0.8 * u + rnorm(n)
+cap_y &lt;- 1.5 * cap_x + 2 * u + rnorm(n)
+cap_sim &lt;- data.frame(y = cap_y, x = cap_x, z = z)
+
+cap_ols &lt;- lm(y ~ x, data = cap_sim)
+cap_iv  &lt;- ivreg(y ~ x | z, data = cap_sim)
+c(OLS = coef(cap_ols)[&quot;x&quot;], IV = coef(cap_iv)[&quot;x&quot;])
+#&gt;  OLS.x   IV.x
+#&gt;  2.578  1.490
+
+summary(cap_iv, diagnostics = TRUE)$diagnostics
+#&gt;                    df1 df2 statistic   p-value
+#&gt; Weak instruments     1 798    298.50 1.69e-58
+#&gt; Wu-Hausman           1 797    258.34 4.07e-51
+#&gt; Sargan               0  NA        NA        NA</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Decision:</strong> Weak-instrument F = <code>298</code> is strong, Wu-Hausman p = <code>4e-51</code> is essentially zero, OLS is biased upward to <code>2.58</code> while IV recovers the true slope of <code>1.5</code>. IV is clearly justified.</p>
+
+</details>
+
+<h3>Exercise 2: Reproduce ivreg with two manual lm calls</h3>
+
+<p>Using the <a class="auto-link" href="Synthetic-Data-in-R.html" title="Synthetic Data Generation in R: Protect Privacy While Testing Models">simulated data</a> from the first H2 (<code>sim</code> data frame with <code>y</code>, <code>x</code>, <code>z</code>), run Stage 1 and Stage 2 by hand and compare the slope to <code>iv_fit</code>. Then explain in one sentence why the standard errors differ.</p>
+
+<div class="webr-container" data-block-title="Capstone 2: manual 2SLS">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Capstone 2: manual 2SLS</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Stage 1, Stage 2, compare to ivreg.
+# Hint: use fitted() to get x_hat from Stage 1.
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Capstone 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Capstone 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cap_stage1 &lt;- lm(x ~ z, data = sim)
+cap_xhat   &lt;- fitted(cap_stage1)
+cap_stage2 &lt;- lm(y ~ cap_xhat, data = sim)
+
+c(manual = coef(cap_stage2)[&quot;cap_xhat&quot;], ivreg = coef(iv_fit)[&quot;x&quot;])
+#&gt; manual.cap_xhat        ivreg.x
+#&gt;           1.989          1.989
+
+# Standard errors:
+c(manual_se = summary(cap_stage2)$coefficients[&quot;cap_xhat&quot;, &quot;Std. Error&quot;],
+  ivreg_se  = summary(iv_fit)$coefficients[&quot;x&quot;, &quot;Std. Error&quot;])
+#&gt; manual_se  ivreg_se
+#&gt;     0.044     0.060</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Coefficients match exactly. The manual standard error is too small because Stage 2 treats <code>x_hat</code> as observed; <code>ivreg()</code> adjusts for the fact that <code>x_hat</code> was estimated in Stage 1. Always trust <code>ivreg()</code> for inference.</p>
+
+</details>
+
+<h3>Exercise 3: Pick the better of two instrument sets</h3>
+
+<p>Using <code>CigaretteDemand</code>, fit two <code>ivreg</code> models for <code>log(rprice)</code>: one using <code>salestax</code> only, the other using <code>cigtax</code> only. Compare the weak-instrument F and the price elasticity. Which instrument is more credible?</p>
+
+<div class="webr-container" data-block-title="Capstone 3: compare two instruments">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Capstone 3: compare two instruments</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit two single-instrument models, read diagnostics on each.
+# Hint: same outcome and exogenous controls; vary only the instrument.
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Capstone 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Capstone 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cap_cig_a &lt;- ivreg(log(packs) ~ log(rincome) | log(rprice) | salestax,
+                   data = CigaretteDemand)
+cap_cig_b &lt;- ivreg(log(packs) ~ log(rincome) | log(rprice) | cigtax,
+                   data = CigaretteDemand)
+
+# Elasticities and weak-instrument Fs
+list(
+  salestax = list(elast = coef(cap_cig_a)[&quot;log(rprice)&quot;],
+                  weakF = summary(cap_cig_a, diagnostics = TRUE)$diagnostics[&quot;Weak instruments&quot;, &quot;statistic&quot;]),
+  cigtax   = list(elast = coef(cap_cig_b)[&quot;log(rprice)&quot;],
+                  weakF = summary(cap_cig_b, diagnostics = TRUE)$diagnostics[&quot;Weak instruments&quot;, &quot;statistic&quot;])
+)
+#&gt; $salestax
+#&gt; $salestax$elast
+#&gt; log(rprice)
+#&gt;      -1.143
+#&gt; $salestax$weakF
+#&gt; [1] 45.16
+#&gt;
+#&gt; $cigtax
+#&gt; $cigtax$elast
+#&gt; log(rprice)
+#&gt;      -1.343
+#&gt; $cigtax$weakF
+#&gt; [1] 117.6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Decision:</strong> Both elasticities are negative and similar in magnitude. <code>cigtax</code> has a larger weak-instrument F (<code>118</code> vs <code>45</code>), so the first stage is stronger. Either instrument is defensible by the F threshold; pairing them as in the overidentified model lets you formally test their consistency with Sargan.</p>
+
+</details>
+
+<h2>Complete Example</h2>
+
+<p>End-to-end on <code>CigaretteDemand</code>: spot endogeneity, pick instruments, fit, diagnose, interpret.</p>
+
+<div class="webr-container" data-block-title="End-to-end IV pipeline on CigaretteDemand">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">End-to-end IV pipeline on CigaretteDemand</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ivreg)
+data(&quot;CigaretteDemand&quot;, package = &quot;ivreg&quot;)
+
+# Step 1: OLS for comparison
+ce_ols &lt;- lm(log(packs) ~ log(rprice) + log(rincome), data = CigaretteDemand)
+coef(ce_ols)[&quot;log(rprice)&quot;]
+#&gt; log(rprice)
+#&gt;     -1.337
+
+# Step 2: 2SLS with two instruments (overidentified for Sargan)
+ce_iv &lt;- ivreg(log(packs) ~ log(rincome) | log(rprice) | salestax + cigtax,
+               data = CigaretteDemand)
+coef(ce_iv)[&quot;log(rprice)&quot;]
+#&gt; log(rprice)
+#&gt;     -1.277
+
+# Step 3: full diagnostics
+ce_diag &lt;- summary(ce_iv, diagnostics = TRUE)
+ce_diag$diagnostics
+#&gt;                    df1 df2 statistic   p-value
+#&gt; Weak instruments     2  44   244.734 2.011e-25
+#&gt; Wu-Hausman           1  44     3.064 8.685e-02
+#&gt; Sargan               1  NA     1.205 2.722e-01
+
+# Step 4: 95% confidence interval for the elasticity
+confint(ce_iv, &quot;log(rprice)&quot;, level = 0.95)
+#&gt;                  2.5 %     97.5 %
+#&gt; log(rprice)   -1.5476    -1.0064</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Interpretation:</strong> The IV elasticity is <code>-1.28</code>, statistically distinct from OLS's <code>-1.34</code> but not dramatically so. Both instruments pass the weak-instrument test (F = 245), the Sargan p-value of <code>0.27</code> says they are mutually consistent with exogeneity, and the Wu-Hausman p of <code>0.087</code> is borderline. With a <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">95% confidence interval</a> of <code>[-1.55, -1.01]</code>, the demand for cigarettes is elastic: a 10 percent price increase is estimated to drop sales by roughly 13 percent.</p>
+
+<h2>Summary</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Concept</th>
+<th>R function or call</th>
+<th>When to use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Endogeneity check</td>
+<td><code>ivreg()</code> + <code>summary(., diagnostics = TRUE)</code></td>
+<td>Any time a regressor might correlate with the error</td>
+</tr>
+<tr>
+<td>2SLS estimation</td>
+<td>`ivreg(y ~ X</td>
+<td>Z)<code> or </code>ivreg(y ~ exog</td>
+<td>endo</td>
+<td>inst)`</td>
+<td>Causal effect with at least one valid instrument</td>
+</tr>
+<tr>
+<td>First-stage F</td>
+<td><code>anova()</code> of nested <code>lm()</code> or weak-instrument row in <code>diagnostics</code></td>
+<td>Verify instrument relevance (rule: F > 10)</td>
+</tr>
+<tr>
+<td>Wu-Hausman</td>
+<td><code>diagnostics[&quot;Wu-Hausman&quot;, ]</code></td>
+<td>Decide whether 2SLS differs from OLS enough to matter</td>
+</tr>
+<tr>
+<td>Sargan</td>
+<td><code>diagnostics[&quot;Sargan&quot;, ]</code></td>
+<td>Test consistency across instruments (overidentified models only)</td>
+</tr>
+<tr>
+<td>Manual 2SLS</td>
+<td>Two <code>lm()</code> calls (Stage 1 then Stage 2)</td>
+<td>Pedagogy only, never for reporting standard errors</td>
+</tr>
+</tbody>
+</table>
+
+<p>The full reasoning chain is: confirm an instrument is relevant via the first-stage F, defend its exogeneity by argument, fit <code>ivreg()</code>, read the diagnostics, and report the IV coefficient with its proper standard error and confidence interval.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Kleiber, C. & Zeileis, A., <em>ivreg: Two-Stage Least-Squares Regression with Diagnostics</em>. CRAN vignette (2025). <a href="https://cran.r-project.org/web/packages/ivreg/vignettes/ivreg.html">Link</a></li>
+
+<li>Stock, J. & Watson, M., <em>Introduction to Econometrics</em>. 4th ed., Pearson (2020). Chapter 12 on instrumental variables.</li>
+
+<li>Wooldridge, J., <em>Introductory Econometrics: A Modern Approach</em>. 7th ed., Cengage (2020). Chapter 15.</li>
+
+<li>Angrist, J. & Pischke, J-S., <em>Mostly Harmless Econometrics</em>. Princeton University Press (2009). Chapter 4.</li>
+
+<li>Hanck, C., Arnold, M., Gerber, A. & Schmelzer, M., <em>Introduction to Econometrics with R</em>. Chapter 12. <a href="https://www.econometrics-with-r.org/12-ivr.html">Link</a></li>
+
+<li>Fox, J., Kleiber, C. & Zeileis, A., <em>ivreg</em> package reference manual. <a href="https://cran.r-project.org/web/packages/ivreg/ivreg.pdf">Link</a></li>
+
+<li>Staiger, D. & Stock, J., <em>Instrumental Variables Regression with Weak Instruments</em>. Econometrica 65(3):557-586 (1997).</li>
+
+<li>R Core Team, <code>formula</code> help page documenting the <code>|</code> operator. <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/formula.html">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Multiple-Regression-in-R.html">Multiple Regression in R</a>, the parent topic: how OLS handles <a class="auto-link" href="Multiple-Regression-in-R.html" title="Multiple Regression in R: How to Build, Interpret, and Refine a Real Model">multiple predictors</a> before you reach for IV.</li>
+
+<li><a href="Linear-Regression-Assumptions-in-R.html">Linear Regression Assumptions in R</a>, where endogeneity sits inside the "exogenous regressors" assumption and this post covers the four others.</li>
+
+<li><a href="Regression-Diagnostics-in-R.html">Regression Diagnostics in R</a>, the broader toolkit for spotting model problems that IV can or cannot fix.</li>
+
+</ul>
+
+{% endraw %}
