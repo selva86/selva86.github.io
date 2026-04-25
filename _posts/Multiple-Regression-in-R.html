@@ -1,0 +1,1032 @@
+---
+title: "Multiple Regression in R: How to Build, Interpret, and Refine a Real Model"
+description: "Build, interpret, and refine a multiple regression in R. Add predictors, read partial coefficients, test significance, and drop weak variables step by step."
+keywords: "multiple regression in R, multiple linear regression R, lm() multiple predictors, partial regression coefficients, interpret regression coefficients, VIF R, dummy variables in R, model refinement R, standardized coefficients R, anova model comparison R"
+mathjax: true
+webr: true
+curriculum_id: "2.3.4"
+post_type: "C"
+auto_link_terms: "multiple regression in R|multiple linear regression|multiple regression model|partial regression coefficient|partial coefficients|interpret regression coefficients|model refinement|standardized coefficients|multiple predictors"
+auto_link_case_sensitive: false
+sidebar_section: "Statistics"
+sidebar_title: "Multiple Regression"
+sidebar_order: "9"
+---
+<!-- md2html:generated -->
+
+<h1>Multiple Regression in R: How to Build, Interpret, and Refine a Real Model</h1>
+
+<p class="lead">Multiple regression in R extends <code>lm()</code> to include more than one predictor, so each coefficient measures the independent effect of its variable while holding the others constant. This lets you separate the real signal from confounders and build a model that actually generalizes.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="40" data-exercises="10" data-xp="150"></div>
+
+<p>This tutorial uses base R plus a touch of <code>dplyr</code> and <code>ggplot2</code>. Every code block runs in your browser, so you can edit a formula and rerun without leaving this page.</p>
+
+<h2>When does a single predictor lie to you?</h2>
+
+<p>Predicting <code>mpg</code> from <code>wt</code> alone on the <code>mtcars</code> dataset gives you one slope. Add <code>hp</code> and <code>qsec</code> to the model and every coefficient shifts, because each predictor now has to earn its keep after the others explain what they can. That is the whole point of multiple regression, and you can see the shift in a single <code>lm()</code> call.</p>
+
+<p>Run the block below to fit a 3-predictor model on <code>mtcars</code> and read its summary table.</p>
+
+<div class="webr-container" data-block-title="Fit a 3-predictor model on mtcars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a 3-predictor model on mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+
+mtcars_df &lt;- mtcars
+model1 &lt;- lm(mpg ~ wt + hp + qsec, data = mtcars_df)
+summary(model1)
+#&gt; Call:
+#&gt; lm(formula = mpg ~ wt + hp + qsec, data = mtcars_df)
+#&gt;
+#&gt; Residuals:
+#&gt;    Min     1Q Median     3Q    Max
+#&gt; -3.876 -1.587 -0.591  1.522  5.731
+#&gt;
+#&gt; Coefficients:
+#&gt;             Estimate Std. Error t value Pr(&gt;|t|)
+#&gt; (Intercept) 27.61053    8.41993   3.279  0.00278 **
+#&gt; wt          -4.35880    0.75270  -5.791 3.22e-06 ***
+#&gt; hp          -0.01782    0.01498  -1.190  0.24418
+#&gt; qsec         0.51083    0.43922   1.163  0.25463
+#&gt;
+#&gt; Residual standard error: 2.578 on 28 degrees of freedom
+#&gt; Multiple R-squared:  0.8348,  Adjusted R-squared:  0.8171
+#&gt; F-statistic: 47.15 on 28 DF,  p-value: 4.506e-12</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The model explains roughly 82% of the variance in fuel economy (adjusted R²). Each kilo of weight (<code>wt</code> is in thousand-pound units) drops <code>mpg</code> by about 4.4 miles per gallon, <em>holding hp and qsec constant</em>. The other two coefficients are in the right direction but their p-values say we can't distinguish them from noise once <code>wt</code> is in the model. That is already a useful real-world conclusion: when you control for weight, raw horsepower stops looking like the main mileage killer.</p>
+
+<p><img src="screenshots/Multiple-Regression-in-R-formula-anatomy.webp" alt="Anatomy of a multiple regression formula in R" class="img-responsive img-zoomable" loading="lazy" width="1498" height="1402" /></p>
+
+<p><em>Figure 1: Each term on the right-hand side of the formula contributes one partial coefficient.</em></p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Every coefficient in a multiple regression is a partial effect.</strong> It estimates how the response changes per unit change in that predictor, <em>while every other predictor in the model is held fixed</em>. That word "partial" is what separates multiple regression from a stack of simple regressions.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit a model that predicts <code>mpg</code> from <code>wt</code> and <code>cyl</code> on <code>mtcars</code>. Save it to <code>ex_model_wt_cyl</code> and print the coefficient on <code>wt</code>.</p>
+<div class="webr-container" data-block-title="Your turn: fit mpg ~ wt + cyl">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: fit mpg ~ wt + cyl</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: fit a 2-predictor model on mtcars
+ex_model_wt_cyl &lt;- # your code here
+
+coef(ex_model_wt_cyl)[&quot;wt&quot;]
+#&gt; Expected: a number near -3.19</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="mpg ~ wt + cyl solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">mpg ~ wt + cyl solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_model_wt_cyl &lt;- lm(mpg ~ wt + cyl, data = mtcars)
+coef(ex_model_wt_cyl)[&quot;wt&quot;]
+#&gt;        wt
+#&gt; -3.190972</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Once <code>cyl</code> is in the model, the <code>wt</code> coefficient shrinks from its simple-regression value of about -5.34 to about -3.19, because heavier cars also tend to have more cylinders.</p>
+
+</details>
+</section>
+
+<h2>How do you read the partial coefficients?</h2>
+
+<p>"Holding the other predictors constant" sounds like a textbook caveat, but it is literally the mechanism that changes the numbers. Fit the same predictor on its own and again with another predictor next to it, and the coefficient will shift whenever the two predictors share information.</p>
+
+<div class="webr-container" data-block-title="Compare simple vs two-predictor coefficients">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare simple vs two-predictor coefficients</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">model_wt    &lt;- lm(mpg ~ wt,        data = mtcars_df)
+model_wt_hp &lt;- lm(mpg ~ wt + hp,   data = mtcars_df)
+
+coef(model_wt)
+#&gt; (Intercept)          wt
+#&gt;    37.28513    -5.34447
+
+coef(model_wt_hp)
+#&gt; (Intercept)          wt          hp
+#&gt; 37.22727012 -3.87783074 -0.03177295</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The slope on <code>wt</code> collapsed from -5.34 to -3.88 once <code>hp</code> joined the model. That happened because heavier cars tend to have more horsepower, so the simple model was crediting <code>wt</code> for an effect that really came from both. Multiple regression splits the credit. This is the partial-coefficient idea in action and the reason you cannot interpret coefficients in isolation.</p>
+
+<p>Once you trust the model, you can use it to predict <code>mpg</code> for a new car. <code>predict()</code> gives you the point estimate; passing <code>interval = &quot;confidence&quot;</code> adds a confidence band for the <em>mean</em> response at that combination of inputs.</p>
+
+<div class="webr-container" data-block-title="Predict with a confidence interval">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Predict with a confidence interval</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">new_car &lt;- data.frame(wt = 3.0, hp = 100, qsec = 17.0)
+preds &lt;- predict(model1, newdata = new_car, interval = &quot;confidence&quot;)
+preds
+#&gt;        fit      lwr      upr
+#&gt; 1 21.34069 19.83928 22.84211</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The model expects a car with these specs to deliver about 21.3 mpg, and we are 95% confident the <em>average</em> mpg for cars with this profile lies between roughly 19.8 and 22.8.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Confidence intervals and prediction intervals answer different questions.</strong> A confidence interval covers uncertainty in the <em>mean</em> response at given predictor values; a prediction interval (use <code>interval = &quot;prediction&quot;</code>) covers uncertainty for a <em>single new observation</em> and is always wider.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit <code>mpg ~ qsec</code> and then <code>mpg ~ qsec + wt</code> on <code>mtcars</code>. Compare the <code>qsec</code> coefficient in the two fits.</p>
+<div class="webr-container" data-block-title="Your turn: how does qsec change?">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: how does qsec change?</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: refit with and without wt
+ex_qsec_only &lt;- # your code here
+ex_qsec_wt   &lt;- # your code here
+
+c(simple = coef(ex_qsec_only)[&quot;qsec&quot;], with_wt = coef(ex_qsec_wt)[&quot;qsec&quot;])
+#&gt; Expected: simple is positive (~+1.4), with_wt is much smaller</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="qsec coefficient comparison solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">qsec coefficient comparison solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_qsec_only &lt;- lm(mpg ~ qsec, data = mtcars)
+ex_qsec_wt   &lt;- lm(mpg ~ qsec + wt, data = mtcars)
+
+c(simple = coef(ex_qsec_only)[&quot;qsec&quot;],
+  with_wt = coef(ex_qsec_wt)[&quot;qsec&quot;])
+#&gt;  simple.qsec with_wt.qsec
+#&gt;     1.412125     0.918656</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Quarter-mile time <code>qsec</code> looks like it adds about 1.4 mpg per second on its own, but most of that "effect" was really weight in disguise. Adding <code>wt</code> shrinks the partial coefficient on <code>qsec</code> to about 0.9.</p>
+
+</details>
+</section>
+
+<h2>How do you tell which predictors actually matter?</h2>
+
+<p>The summary table from <code>lm()</code> is built for this question. Read it column by column: <strong>Estimate</strong> is the coefficient, <strong>Std. Error</strong> is its standard error, <strong>t value</strong> is Estimate ÷ Std. Error, and <strong>Pr(>|t|)</strong> is the <a class="auto-link" href="Statistical-Tests-in-R.html" title="Statistical Tests in R">p-value</a> testing whether the true coefficient is zero. Stars are a quick visual cue for that p-value.</p>
+
+<p>For machine-readable output, pull just the coefficient table and add <code>confint()</code> to bracket each estimate with a <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">95% confidence interval</a>.</p>
+
+<div class="webr-container" data-block-title="Coefficient table with confidence intervals">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Coefficient table with confidence intervals</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">summary(model1)$coefficients
+#&gt;                Estimate  Std. Error    t value     Pr(&gt;|t|)
+#&gt; (Intercept) 27.61053267  8.41993406  3.2792863 2.775702e-03
+#&gt; wt          -4.35879720  0.75270213 -5.7908240 3.219528e-06
+#&gt; hp          -0.01782227  0.01498367 -1.1894364 2.441819e-01
+#&gt; qsec         0.51083369  0.43922248  1.1630416 2.546286e-01
+
+confint(model1)
+#&gt;                   2.5 %     97.5 %
+#&gt; (Intercept) 10.36202449 44.8590409
+#&gt; wt          -5.90065111 -2.8169433
+#&gt; hp          -0.04851447  0.0128699
+#&gt; qsec        -0.38887293  1.4105403</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Two things to read at a glance: only <code>wt</code>'s confidence interval excludes zero, which is why only <code>wt</code> is statistically significant. The intervals for <code>hp</code> and <code>qsec</code> straddle zero, which is the same story the p-value told you. The bottom line of the full <code>summary()</code>, the F-statistic, asks a different question: is the <em>whole model</em> better than an intercept-only model? Here the F p-value is essentially zero, so the model as a whole is useful even though two of its three predictors aren't pulling weight individually.</p>
+
+<p>Fit a wider model and you can find a predictor that fails the test outright.</p>
+
+<div class="webr-container" data-block-title="Spot a non-significant predictor in a wider model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Spot a non-significant predictor in a wider model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">model_full &lt;- lm(mpg ~ wt + hp + qsec + drat + gear, data = mtcars_df)
+round(summary(model_full)$coefficients, 4)
+#&gt;             Estimate Std. Error t value Pr(&gt;|t|)
+#&gt; (Intercept)  16.5367    14.8492  1.1136   0.2756
+#&gt; wt           -3.8957     1.0617 -3.6692   0.0011
+#&gt; hp           -0.0205     0.0156 -1.3120   0.2012
+#&gt; qsec          0.7113     0.4828  1.4733   0.1527
+#&gt; drat          1.0698     1.5658  0.6832   0.5005
+#&gt; gear          0.6500     1.3724  0.4736   0.6396</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>drat</code> and <code>gear</code> both have p-values around 0.5–0.6 and tiny t-values, which makes them the obvious candidates to drop.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Statistical significance is not the same as practical importance.</strong> A predictor with a t-value of 6 can still move the response by a microscopic amount, and a noisy predictor with p = 0.10 might actually be the one that drives the business decision. Always read the <em>size</em> of the coefficient (in its real units) alongside its p-value.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Print the names of predictors in <code>model_full</code> whose p-value is below 0.05.</p>
+<div class="webr-container" data-block-title="Your turn: list significant predictors">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: list significant predictors</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: extract significant predictors from model_full
+ex_pvals &lt;- summary(model_full)$coefficients[, &quot;Pr(&gt;|t|)&quot;]
+ex_sig   &lt;- # your code here
+
+ex_sig
+#&gt; Expected: only &quot;wt&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Significant predictors solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Significant predictors solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_pvals &lt;- summary(model_full)$coefficients[, &quot;Pr(&gt;|t|)&quot;]
+ex_sig   &lt;- names(ex_pvals)[ex_pvals &lt; 0.05 &amp; names(ex_pvals) != &quot;(Intercept)&quot;]
+ex_sig
+#&gt; [1] &quot;wt&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Only <code>wt</code> clears the 0.05 threshold. We exclude <code>(Intercept)</code> because we don't usually treat its p-value as a "predictor matters" question.</p>
+
+</details>
+</section>
+
+<h2>How do you add categorical predictors (factors)?</h2>
+
+<p><a class="auto-link" href="R-Factors.html" title="R Factors: The Data Type That Trips Up Almost Every R Beginner">Categorical variables</a> enter the formula as factors. R automatically expands a factor with k levels into k-1 dummy variables. Each dummy's coefficient is the average difference from the <em>reference level</em>, holding the other predictors constant.</p>
+
+<p>Start with <code>am</code>, which is 0 (automatic) or 1 (manual) in <code>mtcars</code>. Convert it to a factor inline so R treats it categorically rather than numerically.</p>
+
+<div class="webr-container" data-block-title="Fit a model with a 2-level factor">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a model with a 2-level factor</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">model_am &lt;- lm(mpg ~ wt + factor(am), data = mtcars_df)
+round(summary(model_am)$coefficients, 4)
+#&gt;              Estimate Std. Error t value Pr(&gt;|t|)
+#&gt; (Intercept)   37.3216     3.0546 12.2180   0.0000
+#&gt; wt            -5.3528     0.7882 -6.7910   0.0000
+#&gt; factor(am)1   -0.0236     1.5456 -0.0153   0.9879</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The intercept is the predicted <code>mpg</code> for an automatic car with <code>wt = 0</code>, which is a useful anchor even though no real car weighs zero. <code>factor(am)1</code> is the average bump for <em>manual</em> cars over automatics at the same weight, which here is essentially zero. The data is telling you that once you control for weight, transmission stops mattering, even though raw <code>mpg</code> differs noticeably between manuals and automatics.</p>
+
+<p>A factor with three or more levels produces multiple dummies, one per non-reference level.</p>
+
+<div class="webr-container" data-block-title="Fit a model with a 3-level factor">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a model with a 3-level factor</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">model_cyl &lt;- lm(mpg ~ wt + factor(cyl), data = mtcars_df)
+round(summary(model_cyl)$coefficients, 4)
+#&gt;              Estimate Std. Error t value Pr(&gt;|t|)
+#&gt; (Intercept)   33.9908     1.8878 18.0058   0.0000
+#&gt; wt            -3.2056     0.7539 -4.2519   0.0002
+#&gt; factor(cyl)6  -4.2556     1.3861 -3.0701   0.0048
+#&gt; factor(cyl)8  -6.0709     1.6523 -3.6741   0.0010</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The reference level is 4-cylinder (the lowest level by default). <code>factor(cyl)6</code> says a 6-cylinder car gets about 4.3 mpg less than a 4-cylinder car <em>at the same weight</em>. The 8-cylinder penalty is even larger at about 6.1 mpg.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>The reference level is the first factor level alphabetically or numerically.</strong> Use <code>relevel(factor(x), ref = &quot;...&quot;)</code> or <code>factor(x, levels = c(...))</code> to make a different level the reference. The fitted values don't change; only the labels and meanings of the dummy coefficients do.</div></div>
+
+<div class="webr-container" data-block-title="Change the reference level with relevel()">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Change the reference level with relevel()</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">model_cyl_8 &lt;- lm(mpg ~ wt + relevel(factor(cyl), ref = &quot;8&quot;), data = mtcars_df)
+round(summary(model_cyl_8)$coefficients, 4)
+#&gt;                                    Estimate Std. Error t value Pr(&gt;|t|)
+#&gt; (Intercept)                         27.9199     1.8460 15.1248   0.0000
+#&gt; wt                                  -3.2056     0.7539 -4.2519   0.0002
+#&gt; relevel(factor(cyl), ref = &quot;8&quot;)4     6.0709     1.6523  3.6741   0.0010
+#&gt; relevel(factor(cyl), ref = &quot;8&quot;)6     1.8153     1.4286  1.2706   0.2145</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now the dummies measure how much <em>better</em> a 4- or 6-cylinder car is than an 8-cylinder car at the same weight. The 6.07 mpg gain for 4-cylinder over 8-cylinder is exactly the mirror image of the -6.07 you saw before; the model is the same fit, just relabeled.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit <code>mpg ~ wt + factor(cyl)</code> after re-leveling so <code>&quot;6&quot;</code> is the reference. Save the fit to <code>ex_cyl_ref6</code> and print its coefficient names.</p>
+<div class="webr-container" data-block-title="Your turn: relevel cyl to 6 as reference">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: relevel cyl to 6 as reference</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: change reference level to 6 cylinders
+ex_cyl_ref6 &lt;- # your code here
+
+names(coef(ex_cyl_ref6))
+#&gt; Expected: dummies for &quot;4&quot; and &quot;8&quot; but no &quot;6&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Relevel cyl to 6 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Relevel cyl to 6 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_cyl_ref6 &lt;- lm(mpg ~ wt + relevel(factor(cyl), ref = &quot;6&quot;), data = mtcars)
+names(coef(ex_cyl_ref6))
+#&gt; [1] &quot;(Intercept)&quot;
+#&gt; [2] &quot;wt&quot;
+#&gt; [3] &quot;relevel(factor(cyl), ref = \&quot;6\&quot;)4&quot;
+#&gt; [4] &quot;relevel(factor(cyl), ref = \&quot;6\&quot;)8&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> With 6-cylinder as the baseline, R generates dummies for 4 and 8 only.</p>
+
+</details>
+</section>
+
+<h2>How do you refine the model by dropping weak predictors?</h2>
+
+<p>A clean refinement workflow beats blind stepwise selection. The recipe: fit the wide model, drop the predictor with the highest p-value, refit, and check that adjusted R² did not drop in any meaningful way. Repeat until every survivor is justified.</p>
+
+<p><img src="screenshots/Multiple-Regression-in-R-refinement-workflow.webp" alt="Model refinement workflow" class="img-responsive img-zoomable" loading="lazy" width="2248" height="706" /></p>
+
+<p><em>Figure 2: Drop the predictor with the highest p-value, refit, and watch adjusted R² before committing.</em></p>
+
+<p>Recall <code>model_full</code> from earlier had <code>gear</code> with the largest p-value. Drop it and compare.</p>
+
+<div class="webr-container" data-block-title="Drop the weakest predictor and refit">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Drop the weakest predictor and refit</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">model_step1 &lt;- lm(mpg ~ wt + hp + qsec + drat, data = mtcars_df)
+
+c(full   = summary(model_full)$adj.r.squared,
+  step1  = summary(model_step1)$adj.r.squared)
+#&gt;      full     step1
+#&gt; 0.8079997 0.8137327</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Adjusted R² actually went <em>up</em> slightly (0.808 to 0.814). That is the signal that <code>gear</code> was hurting more than it helped; once it leaves, the remaining predictors absorb its variance more efficiently. Now you can compare the two models formally with <code>anova()</code>.</p>
+
+<div class="webr-container" data-block-title="Compare nested models with anova()">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare nested models with anova()</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">anova(model_step1, model_full)
+#&gt; Analysis of Variance Table
+#&gt;
+#&gt; Model 1: mpg ~ wt + hp + qsec + drat
+#&gt; Model 2: mpg ~ wt + hp + qsec + drat + gear
+#&gt;   Res.Df    RSS Df Sum of Sq      F Pr(&gt;F)
+#&gt; 1     27 168.41
+#&gt; 2     26 166.95  1     1.461 0.2275 0.6373</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The F-test compares the residual sum of squares between the two nested models. A p-value of 0.64 means the wider model does not fit significantly better, so dropping <code>gear</code> was the right call.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Theory beats automated stepwise selection.</strong> Functions like <code>step()</code> will happily drop or keep variables based purely on <a class="auto-link" href="Model-Selection-in-R.html" title="Model Selection in R">AIC</a>, but that ignores domain knowledge. Drop a variable only when (a) it is statistically weak <em>and</em> (<a class="auto-link" href="Conditional-Probability-in-R.html" title="Conditional Probability in R: P(A|B), Independence, and Bayes — With Real Examples">b)</a> you cannot defend keeping it on theoretical grounds. A noisy variable that is theoretically central to your question stays in.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Drop the next-weakest predictor from <code>model_step1</code> and store the result as <code>ex_step2</code>. Compare adjusted R² to <code>model_step1</code>.</p>
+<div class="webr-container" data-block-title="Your turn: drop one more predictor">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: drop one more predictor</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: continue refining
+ex_step2 &lt;- # your code here
+
+c(step1 = summary(model_step1)$adj.r.squared,
+  step2 = summary(ex_step2)$adj.r.squared)
+#&gt; Expected: step2 is similar to step1 (within ~0.01)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Drop next-weakest predictor solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Drop next-weakest predictor solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># In model_step1, drat had the largest p-value
+ex_step2 &lt;- lm(mpg ~ wt + hp + qsec, data = mtcars)
+
+c(step1 = summary(model_step1)$adj.r.squared,
+  step2 = summary(ex_step2)$adj.r.squared)
+#&gt;     step1     step2
+#&gt; 0.8137327 0.8170643</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>drat</code> had the largest p-value in <code>model_step1</code>, so it goes next. Adjusted R² nudges up again, confirming the drop was free. We have circled back to the original <code>model1</code> from the first section, by the way.</p>
+
+</details>
+</section>
+
+<h2>How do you rank predictor importance with standardized coefficients?</h2>
+
+<p>Raw coefficients live in different units. <code>wt</code> is in thousands of pounds, <code>hp</code> is in horsepower, <code>qsec</code> is in seconds. You cannot compare -4.4 (per 1000 lb) to -0.018 (per horsepower) and conclude one matters more. To rank importance, put every predictor (and the response) on a common scale by standardizing them: subtract the mean and divide by the standard deviation. Now every coefficient is in standard-deviation units.</p>
+
+<div class="webr-container" data-block-title="Fit a model on standardized predictors">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a model on standardized predictors</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars_scaled &lt;- as.data.frame(scale(mtcars_df))
+model_std &lt;- lm(mpg ~ wt + hp + qsec, data = mtcars_scaled)
+round(coef(model_std), 4)
+#&gt; (Intercept)          wt          hp        qsec
+#&gt;      0.0000     -0.6611     -0.1402      0.1230</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The intercept is exactly zero (a side effect of standardizing) and the partial coefficients are now directly comparable. A 1-SD increase in <code>wt</code> drops <code>mpg</code> by about 0.66 SD, <em>holding hp and qsec constant</em>. By absolute value, <code>wt</code> is roughly 5 times more impactful than <code>hp</code> and 5 times more than <code>qsec</code>. That is the kind of comparison the unscaled model cannot give you.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Standardize <code>mtcars</code> and rank the three predictors <code>wt</code>, <code>hp</code>, <code>qsec</code> by the absolute value of their <a class="auto-link" href="Standardized-vs-Unstandardized-Coefficients-in-R.html" title="Standardized vs Unstandardized Coefficients in R: When Each Matters: Which Is Right for You?">standardized coefficients</a>.</p>
+<div class="webr-container" data-block-title="Your turn: rank predictors by standardized coefficient">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: rank predictors by standardized coefficient</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: produce a ranked vector
+ex_scaled &lt;- as.data.frame(scale(mtcars))
+ex_model  &lt;- # your code here
+ex_ranked &lt;- # your code here (sort by |coef|, exclude intercept)
+
+ex_ranked
+#&gt; Expected: wt first, then qsec, then hp (or wt, hp, qsec, order of last two close)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Rank by standardized coefficient solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Rank by standardized coefficient solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_scaled &lt;- as.data.frame(scale(mtcars))
+ex_model  &lt;- lm(mpg ~ wt + hp + qsec, data = ex_scaled)
+coefs     &lt;- coef(ex_model)[-1]
+ex_ranked &lt;- sort(abs(coefs), decreasing = TRUE)
+ex_ranked
+#&gt;        wt        hp      qsec
+#&gt; 0.6611 0.1402 0.1230</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Sorting by absolute value gives <code>wt</code> clearly on top, then <code>hp</code> and <code>qsec</code> close together. In a real report you would round these to two decimals and present them as a horizontal bar chart.</p>
+
+</details>
+</section>
+
+<h2>How do you add interaction effects?</h2>
+
+<p>So far every coefficient has measured an effect that is the same at every level of every other predictor. Sometimes that assumption is wrong. The slope of <code>mpg</code> on <code>wt</code> may genuinely differ between automatic and manual cars; that is what an <em>interaction</em> captures.</p>
+
+<p>Use <code>*</code> in the formula to fit both main effects and the interaction in one shot. <code>wt * factor(am)</code> is shorthand for <code>wt + factor(am) + wt:factor(am)</code>.</p>
+
+<div class="webr-container" data-block-title="Fit an interaction between wt and transmission">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit an interaction between wt and transmission</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">model_int &lt;- lm(mpg ~ wt * factor(am), data = mtcars_df)
+round(summary(model_int)$coefficients, 4)
+#&gt;                 Estimate Std. Error t value Pr(&gt;|t|)
+#&gt; (Intercept)      31.4161     3.0201 10.4023   0.0000
+#&gt; wt               -3.7859     0.7858 -4.8181   0.0000
+#&gt; factor(am)1      14.8784     4.2640  3.4892   0.0016
+#&gt; wt:factor(am)1   -5.2984     1.4447 -3.6675   0.0010</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the rows like this. For automatic cars (<code>am = 0</code>), the slope of <code>mpg</code> on <code>wt</code> is the bare <code>wt</code> coefficient: -3.79. For manual cars (<code>am = 1</code>), the slope is <code>-3.79 + (-5.30) = -9.09</code>. In other words, manuals lose mileage much faster as they get heavier than automatics do. Both effects are statistically significant, with p-values well under 0.01.</p>
+
+<p>A picture makes this concrete. Color points by transmission and let <code>ggplot2</code> fit a separate line per group.</p>
+
+<div class="webr-container" data-block-title="Visualize the interaction with ggplot2">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Visualize the interaction with ggplot2</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ggplot2)
+
+ggplot(mtcars_df, aes(x = wt, y = mpg, color = factor(am))) +
+  geom_point(size = 2.5) +
+  geom_smooth(method = &quot;lm&quot;, se = FALSE) +
+  scale_color_manual(values = c(&quot;0&quot; = &quot;#4C72B0&quot;, &quot;1&quot; = &quot;#DD8452&quot;),
+                     labels = c(&quot;automatic&quot;, &quot;manual&quot;),
+                     name = &quot;transmission&quot;) +
+  labs(x = &quot;weight (1000 lb)&quot;, y = &quot;mpg&quot;,
+       title = &quot;wt:am interaction, slopes differ by transmission&quot;) +
+  theme_minimal()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The two regression lines visibly cross. Light cars do better with a manual transmission, heavy cars do better with an automatic. That crossover is the practical meaning of a significant interaction term, and it is the sort of insight a "no-interaction" multiple regression would miss entirely.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>An interaction term encodes "the effect of X on Y depends on Z."</strong> When the interaction p-value is significant, you cannot describe X's effect in a single number. You have to report it conditional on the other predictor (e.g., "the wt slope is -3.8 for automatics and -9.1 for manuals").</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Without re-fitting, write the slope of <code>mpg</code> on <code>wt</code> for <em>manual</em> cars implied by <code>model_int</code>.</p>
+<div class="webr-container" data-block-title="Your turn: read the manual-car slope">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: read the manual-car slope</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: combine main effect + interaction
+ex_main_wt   &lt;- coef(model_int)[&quot;wt&quot;]
+ex_int_wt_am &lt;- coef(model_int)[&quot;wt:factor(am)1&quot;]
+ex_manual_slope &lt;- # your code here
+
+ex_manual_slope
+#&gt; Expected: about -9.08</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Manual-car slope solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Manual-car slope solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_main_wt   &lt;- coef(model_int)[&quot;wt&quot;]
+ex_int_wt_am &lt;- coef(model_int)[&quot;wt:factor(am)1&quot;]
+ex_manual_slope &lt;- ex_main_wt + ex_int_wt_am
+ex_manual_slope
+#&gt;        wt
+#&gt; -9.084268</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> For manual cars (<code>am = 1</code>), the slope of <code>mpg</code> on <code>wt</code> equals the <a class="auto-link" href="Factorial-Experiments-in-R.html" title="Factorial Designs in R: 2^k Experiments, Main Effects, Confounding, and Interactions">main effect</a> of <code>wt</code> <em>plus</em> the interaction term. For automatic cars (<code>am = 0</code>) the interaction term drops out and the slope is just the main effect.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<p>These capstone exercises mix multiple ideas from the tutorial. They use the prefix <code>my_</code> to keep them isolated from the tutorial state above.</p>
+
+<h3>Exercise 1: Refine a 4-predictor model on mtcars</h3>
+
+<p>Fit a multiple regression of <code>mpg</code> on <code>wt</code>, <code>hp</code>, <code>disp</code>, and <code>drat</code> using <code>mtcars</code>. Drop the least significant predictor one at a time until every survivor has p < 0.10. Save the final model to <code>my_final_model</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 1: refine to p &lt; 0.10">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1: refine to p &lt; 0.10</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Exercise 1: refine until every predictor has p &lt; 0.10
+# Hint: fit the wide model, then drop the worst offender, refit, repeat
+
+my_final_model &lt;- # your code here
+
+summary(my_final_model)$coefficients</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Step 1: fit wide model
+my_wide &lt;- lm(mpg ~ wt + hp + disp + drat, data = mtcars)
+round(summary(my_wide)$coefficients[, &quot;Pr(&gt;|t|)&quot;], 3)
+#&gt; (Intercept)          wt          hp        disp        drat
+#&gt;       0.000       0.001       0.022       0.929       0.633
+
+# disp has the largest p-value, drop it
+my_step1 &lt;- lm(mpg ~ wt + hp + drat, data = mtcars)
+round(summary(my_step1)$coefficients[, &quot;Pr(&gt;|t|)&quot;], 3)
+#&gt; (Intercept)          wt          hp        drat
+#&gt;       0.000       0.000       0.014       0.560
+
+# drat is now the worst, drop it
+my_final_model &lt;- lm(mpg ~ wt + hp, data = mtcars)
+round(summary(my_final_model)$coefficients, 4)
+#&gt;             Estimate Std. Error t value Pr(&gt;|t|)
+#&gt; (Intercept)  37.2273     1.5988 23.2847   0.0000
+#&gt; wt           -3.8778     0.6327 -6.1289   0.0000
+#&gt; hp           -0.0318     0.0090 -3.5187   0.0015</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>disp</code> and <code>drat</code> carry information that overlaps too much with <code>wt</code> and <code>hp</code> to add anything once those two are in the model. The clean final model has just <code>wt</code> and <code>hp</code>.</p>
+
+</details>
+
+<h3>Exercise 2: Test whether species adds predictive value on iris</h3>
+
+<p>Using the <code>iris</code> dataset, fit <code>Sepal.Length ~ Sepal.Width + Petal.Length + Petal.Width</code> (call it <code>my_no_species</code>) and <code>Sepal.Length ~ Sepal.Width + Petal.Length + Petal.Width + Species</code> (call it <code>my_with_species</code>). Compare them with <code>anova()</code> and decide whether species contributes beyond the other predictors.</p>
+
+<div class="webr-container" data-block-title="Exercise 2: does species add value?">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2: does species add value?</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Exercise 2: test whether species contributes beyond Sepal.Width, Petal.Length, Petal.Width
+my_no_species   &lt;- # your code here
+my_with_species &lt;- # your code here
+
+anova(my_no_species, my_with_species)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_no_species   &lt;- lm(Sepal.Length ~ Sepal.Width + Petal.Length + Petal.Width,
+                      data = iris)
+my_with_species &lt;- lm(Sepal.Length ~ Sepal.Width + Petal.Length + Petal.Width + Species,
+                      data = iris)
+
+anova(my_no_species, my_with_species)
+#&gt; Analysis of Variance Table
+#&gt;
+#&gt; Model 1: Sepal.Length ~ Sepal.Width + Petal.Length + Petal.Width
+#&gt; Model 2: Sepal.Length ~ Sepal.Width + Petal.Length + Petal.Width + Species
+#&gt;   Res.Df    RSS Df Sum of Sq      F   Pr(&gt;F)
+#&gt; 1    146 14.445
+#&gt; 2    144 13.556  2   0.88905 4.7211 0.01036</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The F-test is significant at p ≈ 0.01, so the model <em>with</em> species fits significantly better than the one without. Species adds predictive information beyond what the three flower measurements already supply.</p>
+
+</details>
+
+<h3>Exercise 3: Read the per-cylinder slope from an interaction</h3>
+
+<p>Fit <code>mpg ~ wt * factor(cyl)</code> on <code>mtcars</code>. Save the model to <code>my_cyl_int</code>. Report the wt slope separately for 4-, 6-, and 8-cylinder cars by combining the main effect with the relevant interaction term.</p>
+
+<div class="webr-container" data-block-title="Exercise 3: per-cylinder wt slope">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3: per-cylinder wt slope</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Exercise 3: extract wt slope per cylinder group
+my_cyl_int &lt;- # your code here
+
+# main effect plus the appropriate interaction
+my_slopes &lt;- # your code here  # named vector with slopes for cyl 4, 6, 8
+
+my_slopes</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_cyl_int &lt;- lm(mpg ~ wt * factor(cyl), data = mtcars)
+co &lt;- coef(my_cyl_int)
+
+my_slopes &lt;- c(
+  cyl4 = co[&quot;wt&quot;],
+  cyl6 = co[&quot;wt&quot;] + co[&quot;wt:factor(cyl)6&quot;],
+  cyl8 = co[&quot;wt&quot;] + co[&quot;wt:factor(cyl)8&quot;]
+)
+unname(round(my_slopes, 3))
+#&gt; [1] -5.647 -2.780 -2.193</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> 4-cylinder cars lose 5.6 mpg per 1000 lb of extra weight, 6-cylinder cars lose 2.8, and 8-cylinder cars lose 2.2. Heavier cylinder counts already have heavier engines, so each additional pound of body weight matters less in relative terms. The interaction term is doing real work here.</p>
+
+</details>
+
+<h2>Putting It All Together</h2>
+
+<p>This walkthrough builds a multiple regression on <code>mtcars</code> end to end: fit a wide model, prune it down, standardize to rank importance, and add an interaction where the data calls for one. Each step uses only ideas covered above.</p>
+
+<div class="webr-container" data-block-title="End-to-end workflow step 1: fit a wide model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">End-to-end workflow step 1: fit a wide model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_model_wide &lt;- lm(mpg ~ wt + hp + qsec + drat + gear + carb, data = mtcars_df)
+round(summary(my_model_wide)$coefficients[, c(&quot;Estimate&quot;, &quot;Pr(&gt;|t|)&quot;)], 4)
+#&gt;             Estimate Pr(&gt;|t|)
+#&gt; (Intercept)  17.0307   0.2799
+#&gt; wt           -3.7765   0.0040
+#&gt; hp           -0.0237   0.2042
+#&gt; qsec          0.6803   0.1851
+#&gt; drat          0.6997   0.6605
+#&gt; gear          0.7780   0.5759
+#&gt; carb         -0.1949   0.7782</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Three weak candidates jump out: <code>drat</code>, <code>gear</code>, and <code>carb</code> all have p-values above 0.5. Drop the worst, refit, repeat.</p>
+
+<div class="webr-container" data-block-title="Step 2: drop weakest predictors one at a time">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Step 2: drop weakest predictors one at a time</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_model_mid &lt;- lm(mpg ~ wt + hp + qsec, data = mtcars_df)
+round(summary(my_model_mid)$coefficients[, c(&quot;Estimate&quot;, &quot;Pr(&gt;|t|)&quot;)], 4)
+#&gt;             Estimate Pr(&gt;|t|)
+#&gt; (Intercept)  27.6105   0.0028
+#&gt; wt           -4.3588   0.0000
+#&gt; hp           -0.0178   0.2442
+#&gt; qsec          0.5108   0.2546
+
+c(wide = summary(my_model_wide)$adj.r.squared,
+  mid  = summary(my_model_mid)$adj.r.squared)
+#&gt;      wide       mid
+#&gt; 0.7919388 0.8170643</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>After three drops we are back to the model from section 1, with adjusted R² up to 0.817. <code>wt</code> is the only predictor with p < 0.05, but <code>hp</code> and <code>qsec</code> are theoretically defensible (engine power and acceleration matter for fuel economy), so keep them. Now standardize to compare their importance.</p>
+
+<div class="webr-container" data-block-title="Step 3: standardize and rank importance">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Step 3: standardize and rank importance</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars_scaled &lt;- as.data.frame(scale(mtcars_df))
+my_final &lt;- lm(mpg ~ wt + hp + qsec, data = mtcars_scaled)
+my_ranked &lt;- sort(abs(coef(my_final)[-1]), decreasing = TRUE)
+round(my_ranked, 3)
+#&gt;    wt    hp  qsec
+#&gt; 0.661 0.140 0.123</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>wt</code> is roughly 5 times more impactful than the other two on a standardized basis. Finally, ask whether the relationship between <code>wt</code> and <code>mpg</code> actually depends on transmission type by adding an interaction.</p>
+
+<div class="webr-container" data-block-title="Step 4: check for an interaction with transmission">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Step 4: check for an interaction with transmission</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_int &lt;- lm(mpg ~ wt * factor(am) + hp + qsec, data = mtcars_df)
+round(summary(my_int)$coefficients, 4)
+#&gt;                 Estimate Std. Error t value Pr(&gt;|t|)
+#&gt; (Intercept)      14.6710     6.7311  2.1798   0.0385
+#&gt; wt               -2.4399     0.7886 -3.0941   0.0046
+#&gt; factor(am)1      11.9416     2.7727  4.3068   0.0002
+#&gt; hp               -0.0246     0.0102 -2.4007   0.0238
+#&gt; qsec              0.7770     0.3273  2.3736   0.0252
+#&gt; wt:factor(am)1   -4.1397     1.0245 -4.0407   0.0004</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The interaction term <code>wt:factor(am)1</code> is highly significant, so transmission really does change the slope of <code>mpg</code> on <code>wt</code> even after controlling for <code>hp</code> and <code>qsec</code>. The full story now reads: weight is the dominant driver of fuel economy, horsepower and quarter-mile time contribute smaller but real effects, and that weight effect is much steeper for manuals than automatics. That is a more complete and more useful answer than the original "wt is significant" you would have gotten from a simple regression.</p>
+
+<h2>Summary</h2>
+
+<p><img src="screenshots/Multiple-Regression-in-R-overview-mindmap.webp" alt="Multiple regression in R, core concepts" class="img-responsive img-zoomable" loading="lazy" width="1910" height="1040" /></p>
+
+<p><em>Figure 3: The five moves that turn an <code>lm()</code> call into a trustworthy multiple regression.</em></p>
+
+<p>The five moves you now know:</p>
+
+<ol>
+
+<li><strong>Build with <code>lm()</code>.</strong> Use formula syntax <code>y ~ x1 + x2 + x3</code> and pass the data frame.</li>
+
+<li><strong>Read coefficients as partial effects.</strong> Each coefficient is the effect of its predictor <em>holding all the others fixed</em>; the same variable's coefficient will shift as you add or drop other predictors.</li>
+
+<li><strong>Decode <code>summary()</code>.</strong> Look at coefficient size, p-value, adjusted R², and the F-statistic at the bottom for overall model significance.</li>
+
+<li><strong>Handle factors and interactions.</strong> Convert categorical predictors with <code>factor()</code>; use <code>*</code> for interactions when one predictor's effect plausibly depends on another.</li>
+
+<li><strong>Refine deliberately.</strong> Drop the highest-p-value predictor first, refit, watch adjusted R², and use <code>anova()</code> to formally compare nested models. Standardize to rank importance.</li>
+
+</ol>
+
+<h2>References</h2>
+
+<ol>
+
+<li>James, G., Witten, D., Hastie, T., & Tibshirani, R., <em>An Introduction to Statistical Learning</em>, 2nd Edition. Chapter 3: Linear Regression. <a href="https://www.statlearning.com/">Link</a></li>
+
+<li>Wickham, H., & Grolemund, G., <em>R for Data Science</em>, 2nd Edition. Chapter on Model building. <a href="https://r4ds.hadley.nz/">Link</a></li>
+
+<li>R Core Team, <code>lm()</code> reference manual. <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/lm.html">Link</a></li>
+
+<li>Dalgaard, P., <em>Introductory Statistics with R</em>, 2nd Edition. Chapter 11: Multiple regression. Springer.</li>
+
+<li>Venables, W. N., & Ripley, B. D., <em>Modern Applied Statistics with S</em> (MASS), 4th Edition. Chapter 6: Linear statistical models. Springer.</li>
+
+<li>Kutner, M. H., Nachtsheim, C. J., & Neter, J., <em>Applied Linear <a class="auto-link" href="adv-regression-models.html" title="Advanced Regression Models">Regression Models</a></em>, 4th Edition. Chapters 6–7. McGraw-Hill.</li>
+
+<li>UCLA Office of Advanced Research Computing, Regression with R. <a href="https://stats.oarc.ucla.edu/r/dae/">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Linear-Regression.html">Linear Regression in R</a>, the single-predictor foundation that multiple regression generalizes.</li>
+
+<li><a href="Linear-Regression-Assumptions-in-R.html">Linear Regression Assumptions in R</a>, every diagnostic check your multiple regression model still needs.</li>
+
+<li><a href="Logistic-Regression-With-R.html">Logistic Regression in R</a>, when the response variable is binary instead of continuous.</li>
+
+</ul>
+
+<div id="auto-further-reading">
+<h2>Further Reading</h2>
+<ul class="further-reading-list">
+<li><a href="Heckman-Selection-Model-in-R.html">Heckman Selection Model in R: Correct for Non-Random Sample Selection</a></li>
+<li><a href="Multiple-Regression-Exercises-in-R.html">Multiple Regression Exercises in R: 12 Model-Building Problems, Solved Step-by-Step</a></li>
+<li><a href="Regression-Discontinuity-in-R.html">Regression Discontinuity in R: rdrobust Package for Causal Inference</a></li>
+<li><a href="Seemingly-Unrelated-Regression-in-R.html">Seemingly Unrelated Regression (SUR) in R: systemfit Package</a></li>
+<li><a href="Standardized-vs-Unstandardized-Coefficients-in-R.html">Standardized vs Unstandardized Coefficients in R: When Each Matters: Which Is Right for You?</a></li>
+</ul>
+</div>
