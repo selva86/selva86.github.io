@@ -1,0 +1,689 @@
+---
+title: "Autocorrelation in Residuals: Durbin-Watson & Breusch-Godfrey Tests"
+description: "Detect autocorrelated residuals in R with the Durbin-Watson and Breusch-Godfrey tests. Includes decision rules, ACF plots, and fixes like HAC standard errors."
+keywords: "durbin-watson test, breusch-godfrey test, autocorrelation residuals, serial correlation, lmtest package, dwtest, bgtest, regression diagnostics, newey-west, HAC standard errors"
+mathjax: true
+webr: true
+curriculum_id: "FR-regr-6"
+post_type: "FR"
+auto_link_terms: "Durbin-Watson test|Breusch-Godfrey test|autocorrelation in residuals|serial correlation|lag-1 autocorrelation|autocorrelated residuals"
+auto_link_case_sensitive: false
+fr_parent: "Regression-Diagnostics-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>Autocorrelation in Residuals: Durbin-Watson & Breusch-Godfrey Tests</h1>
+
+<p class="lead">Autocorrelation in residuals means the errors from a regression are correlated across observations, usually in time. This breaks the independence assumption and makes standard errors, t-statistics, and p-values unreliable. The Durbin-Watson test checks for lag-1 correlation; the Breusch-Godfrey test generalises it to any lag and works when the model includes lagged dependent variables.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="25" data-exercises="7" data-xp="105"></div>
+
+<h2>Why does autocorrelation in residuals matter?</h2>
+
+<p>OLS assumes each residual is independent of the others. When your data is ordered in time (monthly sales, daily prices, quarterly GDP), that assumption is often quietly violated. Residuals carry information from one observation to the next, and OLS reports standard errors that are far too small. The <code>economics</code> dataset shipped with <code>ggplot2</code> makes the problem easy to see, so let's start there.</p>
+
+<p>The fastest visual diagnostic is the <a class="auto-link" href="EDA-for-Time-Series-in-R.html" title="EDA for Time Series in R: Seasonality, Trend & Autocorrelation Plots">autocorrelation function</a> (ACF) of the residuals. If errors were independent, every bar past lag 0 would sit inside the dashed confidence band. Anything that pokes out is correlation that the model failed to explain.</p>
+
+<div class="webr-container" data-block-title="Detect residual autocorrelation visually">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Detect residual autocorrelation visually</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ggplot2)
+library(lmtest)
+library(car)
+
+# Fit a regression on a time-ordered economic dataset
+model &lt;- lm(unemploy ~ pce + pop, data = economics)
+
+# Numeric payoff: lag-1 autocorrelation of residuals
+res &lt;- resid(model)
+cor(res[-length(res)], res[-1])
+#&gt; [1] 0.969
+
+# Visual companion
+acf(res, main = &quot;ACF of residuals&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The lag-1 residual correlation is 0.97, basically perfect. The accompanying ACF plot shows correlations marching down slowly across many lags, every bar miles outside the dashed band. That's a textbook signature of strong positive autocorrelation. The model is missing something time-dependent and OLS is treating each month as an independent draw when it clearly isn't.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Autocorrelated residuals don't bias the coefficients, they bias the standard errors.</strong> OLS point estimates remain unbiased even with serial correlation, but the standard errors shrink artificially. Your t-statistics balloon and p-values look smaller than they should, so inference is wrong even when the predictions are fine.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit a different regression on the same <code>economics</code> data, this time predicting <code>uempmed</code> (median unemployment duration) from <code>pce</code>, and inspect the residual ACF. Does the autocorrelation pattern persist?</p>
+<div class="webr-container" data-block-title="Your turn: ACF of a different model&#x27;s residuals">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: ACF of a different model&#x27;s residuals</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_model &lt;- lm(uempmed ~ pce, data = economics)
+# your code here
+
+#&gt; Expected: similar slow-decay ACF showing strong residual autocorrelation</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="ACF check on uempmed model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">ACF check on uempmed model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_model &lt;- lm(uempmed ~ pce, data = economics)
+acf(resid(ex_model), main = &quot;ACF of uempmed residuals&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Both unemployment series are persistent over time, so a static OLS regression leaves the same kind of long-memory residual autocorrelation. The visual signature is nearly identical to the first model.</p>
+
+</details>
+</section>
+
+<h2>How does the Durbin-Watson test work?</h2>
+
+<p>The ACF gave you a verdict by eye. Now let's quantify it. The Durbin-Watson test compresses lag-1 residual correlation into a single number <code>d</code>. The intuition is dead simple: compare each residual to the one before it. If they look alike, <code>d</code> drops toward 0; if they flip sign, <code>d</code> climbs toward 4; if they're random, <code>d</code> lands near 2.</p>
+
+<p>The formula adds up the squared differences between adjacent residuals and divides by the sum of squared residuals.</p>
+
+<p>$$d = \frac{\sum_{t=2}^{n} (e_t - e_{t-1})^2}{\sum_{t=1}^{n} e_t^2}$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$e_t$ = the residual at time $t$</li>
+
+<li>$n$ = number of observations</li>
+
+<li>$d$ ranges from 0 (perfect positive autocorrelation) to 4 (perfect negative)</li>
+
+</ul>
+
+<p>A useful rule of thumb is $d \approx 2(1 - \hat{\rho})$, where $\hat{\rho}$ is the lag-1 sample correlation of residuals. So <code>d = 0.4</code> implies $\hat{\rho} \approx 0.8$, a strong positive correlation.</p>
+
+<p>The <code>lmtest</code> package gives you this in one call.</p>
+
+<div class="webr-container" data-block-title="Durbin-Watson test via dwtest">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Durbin-Watson test via dwtest</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">dwtest(model)
+#&gt; 
+#&gt;   Durbin-Watson test
+#&gt; 
+#&gt; data:  model
+#&gt; DW = 0.061162, p-value &lt; 2.2e-16
+#&gt; alternative hypothesis: true autocorrelation is greater than 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A <code>DW</code> of 0.06 sits at the absolute bottom of the scale and the p-value is essentially zero. Translation: residuals at time <code>t</code> are nearly identical to residuals at time <code>t-1</code>. The default <a class="auto-link" href="Hypothesis-Testing-in-R.html" title="Hypothesis Testing in R: Understand the Framework, Not Just the p-Value">alternative hypothesis</a> is "greater than zero" (positive autocorrelation), which is by far the most common situation in time-ordered data.</p>
+
+<p>The <code>car</code> package offers a richer variant with a bootstrap p-value, useful when the sample is small or the asymptotic p-value looks suspicious.</p>
+
+<div class="webr-container" data-block-title="Durbin-Watson with bootstrap p-value">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Durbin-Watson with bootstrap p-value</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(123)
+durbinWatsonTest(model)
+#&gt;  lag Autocorrelation D-W Statistic p-value
+#&gt;    1       0.9690406     0.0611621       0
+#&gt;  Alternative hypothesis: rho != 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Notice the bootstrap version shows the lag-1 autocorrelation directly: <code>rho = 0.97</code>. The <code>d ≈ 2(1 − 0.97) = 0.06</code> rule lines up perfectly. Both implementations agree the residuals are catastrophically autocorrelated.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Don't trust Durbin-Watson when your model includes a lagged dependent variable.</strong> If your right-hand side contains <code>lag(y)</code>, the DW statistic is biased toward 2 and routinely accepts the null even when residuals are correlated. Use Breusch-Godfrey in that situation, see the next section.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Re-run <code>dwtest()</code> on the <code>ex_model</code> from the previous exercise (the one predicting <code>uempmed</code>). What does the DW statistic look like, and is the p-value below 0.05?</p>
+<div class="webr-container" data-block-title="Your turn: Durbin-Watson on uempmed model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: Durbin-Watson on uempmed model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># ex_model is already fitted from the previous exercise
+# your code here
+
+#&gt; Expected: DW &lt; 1 and p-value &lt; 0.05</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Durbin-Watson on uempmed model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Durbin-Watson on uempmed model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">dwtest(ex_model)
+#&gt; 
+#&gt;   Durbin-Watson test
+#&gt; 
+#&gt; data:  ex_model
+#&gt; DW = 0.0228, p-value &lt; 2.2e-16
+#&gt; alternative hypothesis: true autocorrelation is greater than 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The DW is almost zero, mirroring what the ACF showed visually. Both static OLS models on these economic series are dominated by residual autocorrelation.</p>
+
+</details>
+</section>
+
+<h2>When should you use the Breusch-Godfrey test instead?</h2>
+
+<p>Durbin-Watson only looks at lag 1. If your residuals are correlated at lag 4 (quarterly), lag 12 (monthly seasonal), or in some mixed pattern, DW can quietly miss it. Breusch-Godfrey generalises DW in two important ways:</p>
+
+<ol>
+
+<li>It tests <strong>any number of lags</strong> jointly via a single chi-squared statistic.</li>
+
+<li>It stays valid when the <strong>model includes lagged dependent variables</strong>, which DW does not.</li>
+
+</ol>
+
+<p>The mechanics: regress the residuals on their own lags plus the original regressors, then run a Lagrange multiplier (LM) test on whether the lag coefficients are jointly zero. The flowchart below summarises which test to reach for.</p>
+
+<p><img src="screenshots/Autocorrelation-in-Residuals-dw-vs-bg-decision.webp" alt="Decision diagram for choosing between Durbin-Watson and Breusch-Godfrey based on whether the model has lagged y or higher-order autocorrelation is suspected" class="img-responsive img-zoomable" loading="lazy" width="1908" height="760" /></p>
+
+<p><em>Figure 1: When to use Durbin-Watson versus Breusch-Godfrey based on model features.</em></p>
+
+<p>Calling Breusch-Godfrey at order 1 gives you a direct comparison with DW.</p>
+
+<div class="webr-container" data-block-title="Breusch-Godfrey at lag 1">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Breusch-Godfrey at lag 1</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">bgtest(model, order = 1)
+#&gt; 
+#&gt;   Breusch-Godfrey test for serial correlation of order up to 1
+#&gt; 
+#&gt; data:  model
+#&gt; LM test = 543.05, df = 1, p-value &lt; 2.2e-16</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The LM statistic of 543 with one degree of freedom and a vanishing p-value confirms what DW already told us: lag-1 autocorrelation is severe.</p>
+
+<p>But this is monthly data. The real concern is whether the residuals also carry yearly seasonality. We test 12 lags jointly.</p>
+
+<div class="webr-container" data-block-title="Breusch-Godfrey at lag 12 (annual seasonality)">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Breusch-Godfrey at lag 12 (annual seasonality)</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">bgtest(model, order = 12)
+#&gt; 
+#&gt;   Breusch-Godfrey test for serial correlation of order up to 12
+#&gt; 
+#&gt; data:  model
+#&gt; LM test = 555.46, df = 12, p-value &lt; 2.2e-16</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The chi-squared statistic now has 12 degrees of freedom but the p-value is still effectively zero. The model has both short-run persistence and longer cycles in its residuals. Either alone would invalidate the standard errors, both together is a glaring sign of model misspecification.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Reach for Breusch-Godfrey by default when you're uncertain.</strong> It nests Durbin-Watson at order 1, extends naturally to higher orders, and stays valid with lagged dependent variables. The only reason to use DW today is convention or sample-size limits where the bootstrap p-value matters.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Run Breusch-Godfrey at order 4 on <code>model</code>, the equivalent of testing for quarterly autocorrelation. Report the LM statistic.</p>
+<div class="webr-container" data-block-title="Your turn: Breusch-Godfrey at order 4">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: Breusch-Godfrey at order 4</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># your code here
+
+#&gt; Expected: LM test statistic in the hundreds with p-value below 0.05</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Breusch-Godfrey at order 4">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Breusch-Godfrey at order 4</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">bgtest(model, order = 4)
+#&gt; 
+#&gt;   Breusch-Godfrey test for serial correlation of order up to 4
+#&gt; 
+#&gt; data:  model
+#&gt; LM test = 553.48, df = 4, p-value &lt; 2.2e-16</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The LM stat barely changes between orders 1, 4, and 12 because the lag-1 correlation already accounts for almost all the dependence. Adding more lags helps power but doesn't shift the conclusion here.</p>
+
+</details>
+</section>
+
+<h2>How do you choose the lag order for Breusch-Godfrey?</h2>
+
+<p>Picking the right <code>order</code> argument matters. Too few lags and you miss seasonal structure. Too many and the test loses <a class="auto-link" href="Sample-Size-Planning-in-R.html" title="Sample Size in R: Calculate Your N Before You Collect a Single Observation">statistical power</a>. Three rules of thumb cover most situations:</p>
+
+<ol>
+
+<li><strong>Match the seasonal frequency of the data.</strong> Monthly data → 12, quarterly data → 4, weekly data → 52.</li>
+
+<li><strong>Use the partial ACF (PACF) of residuals.</strong> Significant spikes in the PACF at specific lags tell you where the autocorrelation lives.</li>
+
+<li><strong>Apply the heuristic</strong> <code>order = min(10, floor(n/4))</code> when you have no domain knowledge.</li>
+
+</ol>
+
+<p>The PACF is to autocorrelation what individual coefficient tests are to a regression. It strips out indirect dependence so each spike represents the unique contribution of that lag.</p>
+
+<div class="webr-container" data-block-title="PACF of residuals to pick lag order">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">PACF of residuals to pick lag order</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">res &lt;- resid(model)
+pacf(res, main = &quot;PACF of model residuals&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A massive spike at lag 1 followed by smaller (but still significant) spikes at lags 2 and 3 means the bulk of the autocorrelation is short-range. There may also be a smaller bump near lag 12 if monthly seasonality is present. In that scenario, testing both <code>order = 3</code> and <code>order = 12</code> and reporting both is honest and informative.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Use ACF to detect autocorrelation, PACF to size it.</strong> ACF shows total correlation at each lag (direct + indirect). PACF shows direct correlation after removing the influence of intermediate lags. For Breusch-Godfrey order selection, PACF is the right tool.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Run Breusch-Godfrey on <code>model</code> at orders 1, 4, and 12. Print all three p-values and check whether the conclusion changes across orders.</p>
+<div class="webr-container" data-block-title="Your turn: BG at three different orders">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: BG at three different orders</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># your code here
+
+#&gt; Expected: all three p-values are far below 0.05</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="BG at orders 1, 4, 12">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">BG at orders 1, 4, 12</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sapply(c(1, 4, 12), function(k) bgtest(model, order = k)$p.value)
+#&gt; [1] 0 0 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> R prints zero because the actual p-values are below machine precision. The conclusion is identical at every order: residuals are autocorrelated and the OLS standard errors are not safe to use.</p>
+
+</details>
+</section>
+
+<h2>What do you do if residuals are autocorrelated?</h2>
+
+<p>A failed test is not a dead end. You have four practical paths forward, ranked from least to most invasive:</p>
+
+<ol>
+
+<li><strong>Heteroscedasticity and autocorrelation consistent (HAC) standard errors</strong> via Newey-West. Keeps your OLS coefficients, only fixes the standard errors.</li>
+
+<li><strong>Add lagged predictors</strong> like <code>lag(y, 1)</code> or seasonal dummies. Often the autocorrelation reveals dynamic misspecification you can model directly.</li>
+
+<li><strong>Generalised least squares</strong> (<code>nlme::gls(..., correlation = corAR1())</code>) to build the autocorrelation structure into the estimator.</li>
+
+<li><strong>ARIMA-errors regression</strong> (<code>forecast::Arima(..., xreg = X)</code>) when you also need to forecast.</li>
+
+</ol>
+
+<p>The default first move is Newey-West. It's quick, defensible, and lets you keep the <a class="auto-link" href="Standardized-vs-Unstandardized-Coefficients-in-R.html" title="Standardized vs Unstandardized Coefficients in R: When Each Matters: Which Is Right for You?">coefficient interpretation</a> untouched. The <code>sandwich</code> package computes the corrected <a class="auto-link" href="Multivariate-Statistics-in-R.html" title="Multivariate Statistics in R: Distances, Mahalanobis, and Hotelling's T² Demystified">covariance matrix</a>; <code>lmtest::coeftest</code> plugs it into a fresh inference report.</p>
+
+<div class="webr-container" data-block-title="Newey-West HAC standard errors">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Newey-West HAC standard errors</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(sandwich)
+
+# Vanilla OLS standard errors
+naive &lt;- summary(model)$coefficients
+naive[, &quot;Std. Error&quot;]
+#&gt; (Intercept)         pce         pop 
+#&gt; 4.077e+02   2.135e-03   1.218e-04
+
+# Newey-West HAC standard errors
+hac_se &lt;- coeftest(model, vcov = NeweyWest(model, prewhite = FALSE))
+hac_se
+#&gt;              Estimate  Std. Error t value  Pr(&gt;|t|)    
+#&gt; (Intercept) -2.78e+04   3.28e+03   -8.49  &lt; 2.2e-16 ***
+#&gt; pce          1.84e-02   1.81e-02    1.01     0.31    
+#&gt; pop          1.97e-04   1.20e-03    0.16     0.87</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The shock is in the standard errors. The <code>pop</code> SE jumps from 0.0001 to 0.0012, a tenfold increase. The "highly significant" <code>pce</code> coefficient now sits at p = 0.31. Once you account for the dependence the OLS routine ignored, both predictors lose almost all their statistical evidence. The point estimates haven't changed, but the inference is now honest about how little independent information the data actually contains.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Newey-West fixes the inference, not the coefficients.</strong> If your goal is reporting (<a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">confidence intervals</a>, hypothesis tests), HAC is usually enough. If your goal is <a class="auto-link" href="Time-Series-Forecasting-With-R.html" title="Time Series Forecasting with R">forecasting</a> or improving fit, you need to model the dynamics directly with GLS or ARIMA-errors.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute Newey-West HAC standard errors for <code>ex_model</code> (the <code>uempmed ~ pce</code> regression) and compare the t-statistic on <code>pce</code> between vanilla OLS and HAC.</p>
+<div class="webr-container" data-block-title="Your turn: Newey-West on ex_model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: Newey-West on ex_model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_naive &lt;- summary(ex_model)$coefficients
+# your code here
+
+#&gt; Expected: HAC t-statistic for pce is dramatically smaller than naive</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Newey-West comparison on ex_model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Newey-West comparison on ex_model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_hac &lt;- coeftest(ex_model, vcov = NeweyWest(ex_model, prewhite = FALSE))
+data.frame(
+  naive_t = ex_naive[, &quot;t value&quot;],
+  hac_t   = ex_hac[, &quot;t value&quot;]
+)
+#&gt;             naive_t   hac_t
+#&gt; (Intercept)  19.80    2.97
+#&gt; pce          43.65    4.86</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The naive t of 43.65 collapses to under 5 once HAC is applied. Still significant here, but the magnitude shift shows how badly OLS understated uncertainty.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<h3>Exercise 1: Run both tests on a fresh model</h3>
+
+<p>Fit <code>lm(psavert ~ pce, data = economics)</code> and run both Durbin-Watson and Breusch-Godfrey (at order 12) on the residuals. Save the two p-values into a named numeric vector called <code>my_pvals</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 1: combine DW and BG">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1: combine DW and BG</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: extract $p.value from each test result
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_model &lt;- lm(psavert ~ pce, data = economics)
+my_pvals &lt;- c(
+  dw = dwtest(my_model)$p.value,
+  bg = bgtest(my_model, order = 12)$p.value
+)
+my_pvals
+#&gt;  dw  bg 
+#&gt;   0   0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Both tests reject the null. Personal savings rate has strong residual autocorrelation, just like unemployment. With a savings-rate model in particular, you'd want to investigate macroeconomic regime shifts (recessions, stimulus periods) as the underlying driver.</p>
+
+</details>
+
+<h3>Exercise 2: Compare naive and HAC t-statistics</h3>
+
+<p>For the <code>psavert ~ pce</code> model, build a data frame called <code>my_compare</code> with three columns: <code>coef</code>, <code>naive_t</code>, and <code>hac_t</code>. Use <code>NeweyWest(prewhite = FALSE)</code> for HAC.</p>
+
+<div class="webr-container" data-block-title="Exercise 2: HAC vs naive inference">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2: HAC vs naive inference</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: extract the &quot;t value&quot; column from both summary() and coeftest()
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_naive &lt;- summary(my_model)$coefficients
+my_hac   &lt;- coeftest(my_model, vcov = NeweyWest(my_model, prewhite = FALSE))
+
+my_compare &lt;- data.frame(
+  coef    = rownames(my_naive),
+  naive_t = my_naive[, &quot;t value&quot;],
+  hac_t   = my_hac[, &quot;t value&quot;]
+)
+my_compare
+#&gt;          coef naive_t hac_t
+#&gt; (Intercept) 56.72   8.91
+#&gt; pce        -27.05  -3.62</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The HAC t-statistic on <code>pce</code> shrinks from -27 to -3.6 (an eight-fold reduction). The relationship is still significant, but the OLS report exaggerated the certainty by an order of magnitude.</p>
+
+</details>
+
+<h2>Complete Example</h2>
+
+<p>Putting it all together: a full diagnostic and remediation pipeline for a fresh model on the same dataset.</p>
+
+<div class="webr-container" data-block-title="End-to-end autocorrelation workflow">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">End-to-end autocorrelation workflow</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># 1. Fit the model
+final_model &lt;- lm(uempmed ~ pce + pop, data = economics)
+
+# 2. Visualise residual ACF
+acf(resid(final_model), main = &quot;Final model residuals&quot;)
+
+# 3. Quick test
+dwtest(final_model)
+#&gt; DW = 0.018, p-value &lt; 2.2e-16
+
+# 4. Lag-aware test
+bgtest(final_model, order = 12)
+#&gt; LM test = 558.46, df = 12, p-value &lt; 2.2e-16
+
+# 5. Fix inference with HAC SEs
+final_hac &lt;- coeftest(final_model, vcov = NeweyWest(final_model, prewhite = FALSE))
+final_hac
+#&gt;              Estimate Std. Error t value Pr(&gt;|t|)    
+#&gt; (Intercept) -3.39e+00   2.07e+00  -1.638  0.10198    
+#&gt; pce          5.69e-04   1.50e-04   3.795  0.00016 ***
+#&gt; pop          5.20e-05   3.07e-05   1.694  0.09078 .</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walking through it: the ACF and both tests scream autocorrelation, exactly as expected for a static regression on macro time series. The Newey-West correction shifts inference dramatically. The <code>pop</code> coefficient, originally significant, is now borderline (p = 0.09). The <code>pce</code> coefficient remains significant but with a much wider confidence interval. This is the report you'd actually publish.</p>
+
+<h2>Summary</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Situation</th>
+<th>Use this test</th>
+<th>Then...</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Lag-1 only, no lagged DV</td>
+<td>Durbin-Watson (<code>dwtest</code>)</td>
+<td>If reject, fix with HAC or model dynamics</td>
+</tr>
+<tr>
+<td>Higher-order lags suspected</td>
+<td>Breusch-Godfrey (<code>bgtest</code>, <code>order &gt; 1</code>)</td>
+<td>Pick order via PACF or seasonal frequency</td>
+</tr>
+<tr>
+<td>Model includes lagged DV</td>
+<td>Breusch-Godfrey only</td>
+<td>DW is biased toward 2 here</td>
+</tr>
+<tr>
+<td>Want a single SE-only fix</td>
+<td>OLS + Newey-West</td>
+<td><code>sandwich::NeweyWest</code> + <code>lmtest::coeftest</code></td>
+</tr>
+<tr>
+<td>Want to model the dynamics</td>
+<td>GLS or ARIMA-errors</td>
+<td><code>nlme::gls(..., corAR1())</code> or <code>forecast::Arima</code></td>
+</tr>
+</tbody>
+</table>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Durbin, J. & Watson, G. S. (1950). <em>Testing for Serial Correlation in Least Squares Regression I</em>. Biometrika 37 (3-4): 409-428. <a href="https://www.jstor.org/stable/2332391">Link</a></li>
+
+<li>Breusch, T. S. (1978). <em>Testing for Autocorrelation in Dynamic Linear Models</em>. Australian Economic Papers 17: 334-355.</li>
+
+<li>Godfrey, L. G. (1978). <em>Testing Against General Autoregressive and Moving Average Error Models When the Regressors Include Lagged Dependent Variables</em>. Econometrica 46 (6): 1293-1301. <a href="https://www.jstor.org/stable/1913829">Link</a></li>
+
+<li>Zeileis, A. & Hothorn, T. (2002). <em>Diagnostic Checking in Regression Relationships</em>. R News 2 (3): 7-10. <a href="https://cran.r-project.org/package=lmtest">Link</a></li>
+
+<li>Zeileis, A. (2004). <em>Econometric Computing with HC and HAC Covariance Matrix Estimators</em>. Journal of Statistical Software 11 (10). <a href="https://cran.r-project.org/package=sandwich">Link</a></li>
+
+<li>Fox, J. & Weisberg, S. (2019). <em>An R Companion to Applied Regression</em>, 3rd ed. Sage. <a href="https://socialsciences.mcmaster.ca/jfox/Books/Companion/">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><strong><a href="Regression-Diagnostics-in-R.html">Regression Diagnostics in R</a></strong>, the parent post covering <a class="auto-link" href="Regression-Diagnostics-in-R.html" title="Regression Diagnostics in R: 5 Plots That Reveal Model Violations Instantly">residuals vs fitted</a>, Q-Q, scale-location, leverage, and Cook's distance plots in one workflow.</li>
+
+<li><strong><a href="Heteroscedasticity-in-R.html">Heteroscedasticity in R</a></strong>, the non-constant-variance diagnostic that often appears alongside autocorrelation in time-ordered models.</li>
+
+<li><strong><a href="Linear-Regression-Assumptions-in-R.html">Linear Regression Assumptions in R</a></strong>, how independence fits into the full set of <a class="auto-link" href="Linear-Regression-Assumptions-in-R.html" title="Linear Regression Assumptions in R: Test All 5 and Know What to Do When They Fail">OLS assumptions</a> and what to check first.</li>
+
+</ul>
+
+{% endraw %}
