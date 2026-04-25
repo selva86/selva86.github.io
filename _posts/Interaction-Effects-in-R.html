@@ -1,12 +1,12 @@
 ---
 title: "Interaction Effects in R: Add Them, Test Them, and Actually Understand the Output"
-description: "An interaction means the effect of X1 depends on X2. Add * and : in lm(), compute marginal effects with emmeans, plot them, and report findings clearly."
-keywords: "interaction effects in R, interaction terms lm, moderation analysis R, emmeans simple slopes, interaction plot R, regression interaction, categorical interaction R, interaction coefficient interpretation"
+description: "An interaction means X1's slope depends on X2. Add with * or : in lm(), test the term with anova(), plot marginal slopes with emmeans, then report it."
+keywords: "interaction effects in R, interaction terms lm, moderation analysis R, emmeans simple slopes, interaction plot R, categorical interaction R, interaction coefficient interpretation, anova nested models R"
 mathjax: true
 webr: true
 curriculum_id: "2.3.6"
 post_type: "C"
-auto_link_terms: "interaction effects|interaction terms|interaction effect|moderation analysis|simple slopes|marginal effects|interaction plot|emmeans"
+auto_link_terms: "interaction effects|interaction terms|interaction effect|moderation analysis|simple slopes|marginal effects|interaction plot|hierarchical principle"
 auto_link_case_sensitive: false
 sidebar_section: "Statistics"
 sidebar_title: "Interaction Effects"
@@ -16,17 +16,19 @@ sidebar_order: "50"
 
 <h1>Interaction Effects in R: Add Them, Test Them, and Actually Understand the Output</h1>
 
-<p class="lead">An <a class="auto-link" href="Factorial-Experiments-in-R.html" title="Factorial Designs in R: 2^k Experiments, Main Effects, Confounding, and Interactions">interaction effect</a> means the effect of one predictor depends on the value of another. In R you write it with <code>*</code> or <code>:</code> inside <code>lm()</code>, then interpret the term that captures how the slope of one variable shifts with the other.</p>
+<p class="lead">An <a class="auto-link" href="Factorial-Experiments-in-R.html" title="Factorial Designs in R: 2^k Experiments, Main Effects, Confounding, and Interactions">interaction effect</a> means the effect of one predictor on the outcome depends on the value of another. In R you add it inside <code>lm()</code> with <code>*</code> (which expands to both main effects and the cross term) or <code>:</code> (cross term alone), and read the interaction coefficient as the change in slope per unit of the moderator.</p>
 
-<div class="engagement-header" data-difficulty="Intermediate" data-time="35" data-exercises="10" data-xp="150"></div>
+<div class="engagement-header" data-difficulty="Intermediate" data-time="35" data-exercises="9" data-xp="135"></div>
 
-<h2>What is an interaction effect, and when do you need one?</h2>
+<h2>How do you add an interaction term to a linear model in R?</h2>
 
-<p>Here is the setup that motivates everything. Predicting <code>mpg</code> from <code>hp</code> in mtcars is only part of the story. A heavier car may be penalised more per extra horsepower than a lighter one, so the slope of <code>mpg</code> on <code>hp</code> itself depends on <code>wt</code>. That is an interaction. Fit <code>lm(mpg ~ hp * wt)</code> and look at the <code>hp:wt</code> row; if it is non-zero, the two predictors are not acting independently.</p>
+<p>Plain <code>lm(mpg ~ hp + wt)</code> assumes the effect of horsepower on fuel economy is the same at every weight. That is rarely true. Heavy cars may respond to horsepower differently from light ones. To let the slope of <code>hp</code> shift with <code>wt</code>, write <code>hp * wt</code> in the formula. The <code>*</code> operator expands into <code>hp + wt + hp:wt</code>, so you get both main effects plus the cross term that captures the interaction.</p>
 
-<div class="webr-container" data-block-title="Fit a two-predictor interaction model">
+<p>Here is the model and the four-row coefficient table that comes out of it. Watch the <code>hp:wt</code> row, that is the interaction.</p>
+
+<div class="webr-container" data-block-title="Fit an interaction model on mtcars">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a two-predictor interaction model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit an interaction model on mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
     <div class="webr-editor" data-language="r">library(dplyr)
 library(ggplot2)
 library(emmeans)
@@ -47,19 +49,22 @@ round(coef(summary(m1)), 4)
   <div class="webr-plot-output"></div>
 </div>
 
-<p>The <code>hp:wt</code> row is the one that matters. Its estimate is <code>0.0278</code> with p = 0.0015, which is highly significant. Translation: for every extra ton of weight, the slope of <code>hp</code> on <code>mpg</code> shifts upward by <code>0.028</code>, becoming less negative. A 200-hp engine still hurts mileage, but it hurts more in a light car than in a heavy one.</p>
+<p>The <code>hp:wt</code> row is what the interaction adds. Its estimate (<code>0.0278</code>) and p-value (<code>0.0015</code>) say that the slope of <code>mpg</code> on <code>hp</code> is not constant, it shifts by <code>+0.028</code> for every extra unit of <code>wt</code> (1,000 lbs). The negative main effects of <code>hp</code> and <code>wt</code> still apply, but they are now conditional. We will unpack what each coefficient means in the next section.</p>
 
-<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>An interaction is a slope-of-slope.</strong> It captures how much the effect of one variable changes per unit change in the other, and that relationship is symmetrical in X1 and X2.</div></div>
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use <code>*</code> to expand main effects + interaction in one stroke.</strong> Writing <code>hp * wt</code> is shorthand for <code>hp + wt + hp:wt</code>. The two forms produce identical fits, so pick whichever reads better.</div></div>
 
 <section class="tryit-block">
-<p><strong>Try it:</strong> Fit the classic iris interaction: how does the slope of <code>Petal.Width</code> on <code>Petal.Length</code> change across <code>Species</code>? Save the model as <code>ex_m</code> and then pull the coefficient for <code>Petal.Length:Speciesvirginica</code>.</p>
-<div class="webr-container" data-block-title="Your turn: iris interaction">
+<p><strong>Try it:</strong> Refit the same model using <code>:</code> plus explicit main effects instead of <code>*</code>. Check that the coefficients match.</p>
+<div class="webr-container" data-block-title="Your turn: rewrite with the colon operator">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: iris interaction</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r">ex_m &lt;- lm(Petal.Width ~ Petal.Length * Species, data = iris)
-# pull the coefficient table
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: rewrite with the colon operator</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Refit m1 using : for the cross term and + for main effects.
+# Save the new fit as m1b and print round(coef(summary(m1b)), 4).
+
 # your code here
-</div>
+m1b &lt;- lm(  , data = mtcars)
+round(coef(summary(m1b)), 4)
+#&gt; Expected: same four-row table as m1</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -71,17 +76,16 @@ round(coef(summary(m1)), 4)
 <details>
 <summary>Click to reveal solution</summary>
 
-<div class="webr-container" data-block-title="Iris interaction solution">
+<div class="webr-container" data-block-title="Colon-syntax solution">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Iris interaction solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r">ex_m &lt;- lm(Petal.Width ~ Petal.Length * Species, data = iris)
-round(coef(ex_m), 3)
-#&gt;                   (Intercept)                  Petal.Length
-#&gt;                        -0.048                         0.201
-#&gt;             Speciesversicolor              Speciesvirginica
-#&gt;                         0.728                         0.963
-#&gt; Petal.Length:Speciesversicolor Petal.Length:Speciesvirginica
-#&gt;                         0.127                         0.087</div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Colon-syntax solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">m1b &lt;- lm(mpg ~ hp + wt + hp:wt, data = mtcars)
+round(coef(summary(m1b)), 4)
+#&gt;             Estimate Std. Error t value Pr(&gt;|t|)
+#&gt; (Intercept)  49.8084     3.6054 13.8154   0.0000
+#&gt; hp           -0.1201     0.0247 -4.8622   0.0000
+#&gt; wt           -8.2166     1.2699 -6.4702   0.0000
+#&gt; hp:wt         0.0278     0.0079  3.5179   0.0015</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -91,124 +95,50 @@ round(coef(ex_m), 3)
   <div class="webr-plot-output"></div>
 </div>
 
-<p><strong>Explanation:</strong> <code>Petal.Length:Speciesvirginica = 0.087</code> means virginica's slope of Petal.Width on Petal.Length is about 0.087 higher than setosa's baseline slope of 0.201.</p>
+<p><strong>Explanation:</strong> <code>hp * wt</code> is equivalent to <code>hp + wt + hp:wt</code>, so the fits are identical. Use <code>:</code> when you want the cross term but not both main effects (rare in practice, see the hierarchical-principle warning later in the post).</p>
 
 </details>
 </section>
 
-<h2>How do you add interaction terms in R using <code>*</code> and <code>:</code>?</h2>
+<h2>What does an interaction coefficient actually mean?</h2>
 
-<p>R's formula shorthand packs two operators. <code>x1 * x2</code> expands to <code>x1 + x2 + x1:x2</code>, adding the main effects automatically. <code>x1:x2</code> is the pure interaction column, with no main effects. Nine times out of ten you want <code>*</code>; using <code>:</code> alone forces both simple slopes to pivot through the origin, which is almost never what the data actually do.</p>
+<p>The interaction coefficient is the <em>rate of change</em> of one slope with respect to another variable. Once a cross term enters the model, the main effects on their own no longer answer "what is the effect of <code>hp</code> on <code>mpg</code>?" They answer that only at the special case where the moderator is zero.</p>
 
-<p><img src="screenshots/Interaction-Effects-in-R-syntax-comparison.webp" alt="Interaction syntax comparison" class="img-responsive img-zoomable" loading="lazy" width="1002" height="1186" /></p>
+<p>Write the model out with symbols. For our mtcars fit:</p>
 
-<p><em>Figure 1: How <code></em></code>, <code>:</code>, and explicit <code>+</code> forms map to model structure.*</p>
-
-<div class="webr-container" data-block-title="Three syntaxes, two fits">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Three syntaxes, two fits</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r">m_add  &lt;- lm(mpg ~ hp + wt, data = mtcars)
-m_full &lt;- lm(mpg ~ hp + wt + hp:wt, data = mtcars)
-m_star &lt;- lm(mpg ~ hp * wt, data = mtcars)
-
-# m_full and m_star are identical:
-all.equal(coef(m_full), coef(m_star))
-#&gt; [1] TRUE
-
-# AIC comparison against the additive model:
-AIC(m_add, m_full)
-#&gt;        df      AIC
-#&gt; m_add   4 156.6523
-#&gt; m_full  5 149.7198</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p><code>m_full</code> and <code>m_star</code> produce the exact same fit; pick whichever reads best to you. The interaction model beats the additive model on <a class="auto-link" href="Model-Selection-in-R.html" title="Model Selection in R">AIC</a> by about 7 points, which is strong evidence the interaction earns its slot. The <code>all.equal()</code> call is a quick sanity check that your two specifications really are the same model.</p>
-
-<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Always include main effects when you use <code>:</code>.</strong> Writing <code>y ~ x1:x2</code> alone forces both simple slopes to zero at the origin, which is almost never what you want. Stick to <code>x1 * x2</code> unless you have a specific theoretical reason to drop a main effect.</div></div>
-
-<section class="tryit-block">
-<p><strong>Try it:</strong> Write two equivalent formulas for an interaction between <code>hp</code> and <code>factor(cyl)</code> on <code>mpg</code> using mtcars, then verify they fit the same model.</p>
-<div class="webr-container" data-block-title="Your turn: two equivalent formulas">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: two equivalent formulas</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># formula 1: use *
-# formula 2: use + and :
-# your code here
-</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-<details>
-<summary>Click to reveal solution</summary>
-
-<div class="webr-container" data-block-title="Equivalent formulas solution">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Equivalent formulas solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r">f1 &lt;- mpg ~ hp * factor(cyl)
-f2 &lt;- mpg ~ hp + factor(cyl) + hp:factor(cyl)
-all.equal(coef(lm(f1, mtcars)), coef(lm(f2, mtcars)))
-#&gt; [1] TRUE</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p><strong>Explanation:</strong> The <code>*</code> operator is pure sugar for "main effects plus interaction". Both formulas produce an identical design matrix and identical coefficients.</p>
-
-</details>
-</section>
-
-<h2>How do you interpret the interaction coefficient?</h2>
-
-<p>The math helps clarify what each number buys you. In a two-predictor interaction model, the fitted equation is:</p>
-
-<p>$$y = \beta_0 + \beta_1 x_1 + \beta_2 x_2 + \beta_3 x_1 x_2$$</p>
+<p>$$E[\text{mpg} \mid \text{hp}, \text{wt}] = \beta_0 + \beta_1 \, \text{hp} + \beta_2 \, \text{wt} + \beta_3 \, (\text{hp} \times \text{wt})$$</p>
 
 <p>Where:</p>
 
 <ul>
 
-<li>$\beta_0$ is the intercept (predicted <code>y</code> when both predictors are 0)</li>
+<li>$\beta_0$ = expected mpg when <code>hp</code> and <code>wt</code> are both zero (extrapolation, not meaningful here)</li>
 
-<li>$\beta_1$ is the slope of <code>x1</code> when <code>x2 = 0</code></li>
+<li>$\beta_1$ = slope of <code>hp</code> <em>when <code>wt</code> is exactly zero</em></li>
 
-<li>$\beta_2$ is the slope of <code>x2</code> when <code>x1 = 0</code></li>
+<li>$\beta_2$ = slope of <code>wt</code> <em>when <code>hp</code> is exactly zero</em></li>
 
-<li>$\beta_3$ is the interaction; it tells you how much the slope of <code>x1</code> changes per unit increase in <code>x2</code></li>
+<li>$\beta_3$ = how much the slope of <code>hp</code> shifts per extra unit of <code>wt</code> (or symmetrically, how the slope of <code>wt</code> shifts per extra hp)</li>
 
 </ul>
 
-<p>So the conditional slope of <code>x1</code> is $\beta_1 + \beta_3 x_2$. Plug in any value of the moderator and you get the slope of the focal predictor at that moderator value.</p>
+<p>Plug the numbers in. The slope of <code>mpg</code> on <code>hp</code> at any given weight is:</p>
 
-<p><img src="screenshots/Interaction-Effects-in-R-coefficient-meaning.webp" alt="Coefficient meaning" class="img-responsive img-zoomable" loading="lazy" width="992" height="1282" /></p>
+<p>$$\text{slope}_{\text{hp}}(\text{wt}) = \beta_1 + \beta_3 \, \text{wt} = -0.12 + 0.028 \, \text{wt}$$</p>
 
-<p><em>Figure 2: What each coefficient in an interaction model stands for.</em></p>
+<p>So at a 2,000-lb car (<code>wt = 2</code>), each extra horsepower drops mpg by roughly <code>-0.12 + 0.028(2) = -0.064</code>. At a 4,000-lb car, the same extra horsepower drops mpg by only <code>-0.12 + 0.028(4) = -0.008</code>, almost nothing. The data is saying: light cars pay a real mpg penalty for more power, heavy cars are already at low mpg and barely change.</p>
 
-<div class="webr-container" data-block-title="Conditional slope of hp at wt = 2 vs wt = 4">
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Main effects mean different things once an interaction is in the model.</strong> Without the interaction, the <code>hp</code> coefficient was the average effect of <code>hp</code>. With the interaction in, it is the effect of <code>hp</code> <em>only at the level where the moderator equals zero</em>. That is why centering predictors (subtracting the mean before fitting) makes interaction models much easier to read.</div></div>
+
+<p>Let's see this slope shift with a one-line <code>predict()</code> call. We will fix <code>hp</code> at 150 and ask what mpg the model expects at three different weights.</p>
+
+<div class="webr-container" data-block-title="Predict mpg at fixed hp across weights">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Conditional slope of hp at wt = 2 vs wt = 4</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r">b &lt;- coef(m1)
-slope_hp_at_wt2 &lt;- unname(b[&quot;hp&quot;] + b[&quot;hp:wt&quot;] * 2)
-slope_hp_at_wt4 &lt;- unname(b[&quot;hp&quot;] + b[&quot;hp:wt&quot;] * 4)
-c(slope_at_wt_2 = slope_hp_at_wt2, slope_at_wt_4 = slope_hp_at_wt4)
-#&gt; slope_at_wt_2 slope_at_wt_4
-#&gt;       -0.0645       -0.0089</div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Predict mpg at fixed hp across weights</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">new_x &lt;- data.frame(hp = 150, wt = c(2, 3, 4))
+predict(m1, newdata = new_x)
+#&gt;        1        2        3
+#&gt; 21.94545 18.45091 14.95636</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -218,21 +148,136 @@ c(slope_at_wt_2 = slope_hp_at_wt2, slope_at_wt_4 = slope_hp_at_wt4)
   <div class="webr-plot-output"></div>
 </div>
 
-<p>At <code>wt = 2</code> tons, each extra horsepower costs 0.065 mpg. At <code>wt = 4</code> tons, the penalty shrinks to 0.009 mpg, essentially flat. Heavy cars are already so inefficient that a bit more power barely dents their mileage; lightweights pay dearly. The main-effect value for <code>hp</code> alone is the slope at <code>wt = 0</code>, which is nonsense because no car weighs nothing, and that is exactly why centering is usually the right next step.</p>
+<p>Going from <code>wt = 2</code> to <code>wt = 4</code> drops predicted mpg by <code>21.95 - 14.96 = 6.99</code> mpg. If the model were additive (no interaction), the drop would be the same regardless of <code>hp</code>. With the interaction, the drop <em>itself</em> is a function of <code>hp</code>. That curvature is the whole point of an interaction.</p>
 
-<div class="webr-container" data-block-title="Mean-center hp and wt, then refit">
+<section class="tryit-block">
+<p><strong>Try it:</strong> What does the model predict for <code>mpg</code> at <code>hp = 120</code>, comparing <code>wt = 2</code> to <code>wt = 4</code>? Use <code>predict()</code>.</p>
+<div class="webr-container" data-block-title="Your turn: predict at hp = 120 for two weights">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Mean-center hp and wt, then refit</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r">mtcars_c &lt;- mtcars |&gt;
-  mutate(hp_c = hp - mean(hp), wt_c = wt - mean(wt))
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: predict at hp = 120 for two weights</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Make a 2-row data frame and pass it to predict(m1, newdata = ...).
+ex_pred &lt;- predict(  , newdata =   )
+ex_pred
+#&gt; Expected: two predicted mpg values, decreasing with wt</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
 
-m_c &lt;- lm(mpg ~ hp_c * wt_c, data = mtcars_c)
-round(coef(summary(m_c)), 4)
+<div class="webr-container" data-block-title="hp = 120 prediction solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">hp = 120 prediction solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_pred &lt;- predict(m1, newdata = data.frame(hp = 120, wt = c(2, 4)))
+ex_pred
+#&gt;        1        2
+#&gt; 22.59636 16.27636</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> At <code>hp = 120</code>, mpg drops by 6.32 going from 2,000 to 4,000 lbs. At <code>hp = 150</code> (above), the same weight change dropped mpg by 6.99. The drops differ because the interaction makes the <code>wt</code> slope depend on <code>hp</code>.</p>
+
+</details>
+</section>
+
+<h2>How do you handle continuous × categorical and categorical × categorical interactions?</h2>
+
+<p>The same <code>*</code> syntax works when one or both predictors are categorical, but the interpretation changes. With a continuous-by-categorical interaction, you are asking "does the slope differ between groups?" With categorical-by-categorical, you are asking "do the cell means depart from a simple additive pattern?"</p>
+
+<p>Convert categorical columns to factors first. R will silently treat numeric 0/1 columns like <code>am</code> (transmission) as continuous and produce nonsense if you forget.</p>
+
+<div class="webr-container" data-block-title="Continuous x categorical: slope per group">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Continuous x categorical: slope per group</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars2 &lt;- mtcars |&gt; mutate(am = factor(am, labels = c(&quot;auto&quot;, &quot;manual&quot;)),
+                            cyl = factor(cyl))
+
+m2 &lt;- lm(mpg ~ wt * am, data = mtcars2)
+round(coef(summary(m2)), 4)
+#&gt;              Estimate Std. Error t value Pr(&gt;|t|)
+#&gt; (Intercept)   31.4161     3.0201 10.4022   0.0000
+#&gt; wt            -3.7859     0.7856 -4.8189   0.0000
+#&gt; ammanual      14.8784     4.2640  3.4893   0.0016
+#&gt; wt:ammanual   -5.2984     1.4447 -3.6675   0.0010</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read this row by row. The <code>wt</code> row is the slope of <code>mpg</code> on <code>wt</code> for the <em>reference group</em> (<code>auto</code>). For automatic cars, every extra 1,000 lbs costs 3.79 mpg. The <code>ammanual</code> row is the <em>intercept shift</em> for manual cars, not their slope, and it is large because manual cars in mtcars are lighter on average. The interaction row, <code>wt:ammanual = -5.30</code>, says manual cars lose an <em>extra</em> 5.3 mpg per ton beyond what automatic cars lose. So the slope of <code>wt</code> for manuals is <code>-3.79 + (-5.30) = -9.08</code>. Manuals get punished more by weight than autos.</p>
+
+<div class="webr-container" data-block-title="Categorical x categorical: cell means">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Categorical x categorical: cell means</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">m3 &lt;- lm(mpg ~ am * cyl, data = mtcars2)
+round(coef(summary(m3)), 4)
+#&gt;                 Estimate Std. Error t value Pr(&gt;|t|)
+#&gt; (Intercept)      22.9000     1.3618 16.8155   0.0000
+#&gt; ammanual          5.1750     1.9261  2.6868   0.0125
+#&gt; cyl6             -3.7733     2.0945 -1.8014   0.0834
+#&gt; cyl8             -7.9000     1.6678 -4.7367   0.0001
+#&gt; ammanual:cyl6    -1.6017     2.9572 -0.5416   0.5928
+#&gt; ammanual:cyl8    -3.5341     3.0286 -1.1670   0.2538</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>In a categorical-by-categorical model, the interaction terms test whether the <em>combination</em> of two factor levels is more or less than the sum of its parts. Both interaction rows here have large p-values, so the data is roughly consistent with an additive pattern: manuals get a fixed +5.2 mpg bonus regardless of cylinder count, and the cylinder penalty is the same for both transmissions. We will return to formal testing in the next section.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Convert to factors before fitting, or set <code>contrasts</code> explicitly.</strong> R chooses the alphabetically-first level as the reference by default. Use <code>factor(x, levels = c(...))</code> to control which level becomes the baseline, and the rest of the coefficients become much easier to read.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit <code>mpg ~ wt * cyl</code> on <code>mtcars2</code> (note: <code>cyl</code> is already a factor in <code>mtcars2</code>). Look at the coefficients and identify which cylinder group's slope of <code>wt</code> is steepest (most negative).</p>
+<div class="webr-container" data-block-title="Your turn: which cylinder loses mpg fastest with weight?">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: which cylinder loses mpg fastest with weight?</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit the model and inspect coefficients.
+ex_m_cyl &lt;- lm(  , data = mtcars2)
+round(coef(summary(ex_m_cyl)), 4)
+#&gt; Expected: a 6-row table; combine main wt slope with each interaction row</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Cylinder slope solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Cylinder slope solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_m_cyl &lt;- lm(mpg ~ wt * cyl, data = mtcars2)
+round(coef(summary(ex_m_cyl)), 4)
 #&gt;             Estimate Std. Error t value Pr(&gt;|t|)
-#&gt; (Intercept)  18.8776     0.3921 48.1422   0.0000
-#&gt; hp_c         -0.0308     0.0064 -4.8622   0.0000
-#&gt; wt_c         -4.1339     0.3635 -11.3730   0.0000
-#&gt; hp_c:wt_c     0.0278     0.0079  3.5179   0.0015</div>
+#&gt; (Intercept)  39.5712     4.3461  9.1051   0.0000
+#&gt; wt           -5.6475     1.3597 -4.1535   0.0003
+#&gt; cyl6        -11.1623   10.1693 -1.0976   0.2820
+#&gt; cyl8        -15.7034    6.4763 -2.4247   0.0226
+#&gt; wt:cyl6       2.8669     3.1170  0.9197   0.3661
+#&gt; wt:cyl8       3.4548     1.6248  2.1262   0.0428</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -242,319 +287,29 @@ round(coef(summary(m_c)), 4)
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Now every number reads cleanly. The intercept <code>18.88</code> is the predicted mpg of an average-hp, average-wt car. The main effect for <code>hp_c</code> is the slope of <code>hp</code> at the mean weight, and the main effect for <code>wt_c</code> is the slope of <code>wt</code> at the mean horsepower. The interaction coefficient is unchanged at <code>0.028</code>, which is the point.</p>
-
-<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Mean-center continuous predictors before fitting interactions.</strong> The main-effect coefficients become interpretable at the average of the other variable, and <a class="auto-link" href="Multicollinearity-in-R.html" title="Multicollinearity in R: Detect It With VIF Before It Corrupts Your Coefficients">multicollinearity</a> between the interaction column and the main-effect columns drops sharply, shrinking their standard errors.</div></div>
-
-<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Centering changes interpretation, not predictions.</strong> The fitted values and the interaction's t-statistic are identical to the uncentered model; only the meaning of the main effects shifts.</div></div>
-
-<section class="tryit-block">
-<p><strong>Try it:</strong> Using the uncentered model <code>m1</code>, compute the predicted slope of <code>hp</code> when <code>wt = 3.5</code> tons.</p>
-<div class="webr-container" data-block-title="Your turn: conditional slope">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: conditional slope</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># slope_hp = b_hp + b_hp:wt * wt_value
-# your code here
-</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-<details>
-<summary>Click to reveal solution</summary>
-
-<div class="webr-container" data-block-title="Conditional slope solution">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Conditional slope solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r">b &lt;- coef(m1)
-unname(b[&quot;hp&quot;] + b[&quot;hp:wt&quot;] * 3.5)
-#&gt; [1] -0.02269</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p><strong>Explanation:</strong> Plug <code>wt = 3.5</code> into <code>slope of hp = b_hp + b_hp:wt * wt</code>. The slope of hp for a 3.5-ton car is about -0.023 mpg per horsepower.</p>
+<p><strong>Explanation:</strong> The slope of <code>wt</code> for 4-cyl cars (the reference) is -5.65. For 8-cyl cars it is <code>-5.65 + 3.45 = -2.20</code>. The 4-cylinder slope is steepest, meaning 4-cyl cars lose more mpg per ton of weight than 8-cyl cars.</p>
 
 </details>
 </section>
 
-<h2>How do you handle continuous x categorical interactions?</h2>
+<h2>How do you test whether an interaction is statistically meaningful?</h2>
 
-<p>Categorical predictors work exactly like continuous ones, just expanded into dummy columns. When you fit <code>y ~ x * group</code>, R fits one slope per group. The reference level's slope is the main effect of <code>x</code>. Each other group's slope is the main effect plus that group's interaction term. This is the cleanest way to answer "does this relationship differ across groups?".</p>
+<p>Three checks usually agree, and you should run all three before deciding to keep an interaction in your final model. The <a class="auto-link" href="Interpreting-Regression-Output-Completely.html" title="Interpreting Regression Output Completely: Every Number in lm Summary">coefficient p-value</a> is the quickest. The nested-model F test via <code>anova()</code> is the most principled. <a class="auto-link" href="Model-Selection-in-R.html" title="Model Selection in R">AIC</a> and BIC give a quick complexity-adjusted score. If theory or a plot suggests an interaction but all three tests come back null, drop the cross term.</p>
 
-<div class="webr-container" data-block-title="Continuous x categorical on iris">
+<p>The <code>anova()</code> route compares two models, one with and one without the interaction.</p>
+
+<div class="webr-container" data-block-title="Test the interaction with nested-model anova">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Continuous x categorical on iris</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r">m_iris &lt;- lm(Petal.Width ~ Petal.Length * Species, data = iris)
-round(coef(m_iris), 3)
-#&gt;                   (Intercept)                  Petal.Length
-#&gt;                        -0.048                         0.201
-#&gt;             Speciesversicolor              Speciesvirginica
-#&gt;                         0.728                         0.963
-#&gt; Petal.Length:Speciesversicolor Petal.Length:Speciesvirginica
-#&gt;                         0.127                         0.087</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p>Read it row by row. <code>(Intercept) = -0.048</code> is the predicted <code>Petal.Width</code> for a setosa flower with zero-length petals (extrapolated, but that is how the math works). <code>Petal.Length = 0.201</code> is the slope for setosa, the reference level. Versicolor's slope is <code>0.201 + 0.127 = 0.328</code>, and virginica's is <code>0.201 + 0.087 = 0.288</code>. Versicolor flowers gain petal width fastest as their petals grow longer.</p>
-
-<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Continuous x categorical is the tool when you suspect a relationship differs across groups.</strong> You fit a separate slope per group in a single model, and the interaction term directly tests whether the group-specific slopes differ from the reference group.</div></div>
-
-<section class="tryit-block">
-<p><strong>Try it:</strong> Compute the fitted slope of <code>Petal.Length</code> inside versicolor using the coefficients of <code>m_iris</code>.</p>
-<div class="webr-container" data-block-title="Your turn: fitted slope for versicolor">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: fitted slope for versicolor</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># hint: add the reference slope and the versicolor interaction term
-# your code here
-</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-<details>
-<summary>Click to reveal solution</summary>
-
-<div class="webr-container" data-block-title="Versicolor slope solution">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Versicolor slope solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r">b &lt;- coef(m_iris)
-unname(b[&quot;Petal.Length&quot;] + b[&quot;Petal.Length:Speciesversicolor&quot;])
-#&gt; [1] 0.3281</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p><strong>Explanation:</strong> The reference slope (setosa) is <code>b[&quot;Petal.Length&quot;]</code>. Each non-reference group gets the reference slope plus its own interaction coefficient, so versicolor's slope is <code>0.201 + 0.127 = 0.328</code>.</p>
-
-</details>
-</section>
-
-<h2>How do you compute simple slopes with emmeans?</h2>
-
-<p>Adding coefficients by hand works but does not scale. The <code>emmeans</code> package gives you conditional slopes and predicted values with <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">confidence intervals</a> in one line. <code>emtrends()</code> returns the slope of a continuous focal predictor at each moderator level. <code>emmeans()</code> returns the predicted <code>y</code> at specific combinations.</p>
-
-<div class="webr-container" data-block-title="Simple slopes per species with emtrends">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Simple slopes per species with emtrends</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r">slopes &lt;- emtrends(m_iris, specs = &quot;Species&quot;, var = &quot;Petal.Length&quot;)
-slopes
-#&gt;  Species    Petal.Length.trend     SE  df lower.CL upper.CL
-#&gt;  setosa                  0.201 0.0983 144   0.0069    0.396
-#&gt;  versicolor              0.328 0.0596 144   0.2103    0.446
-#&gt;  virginica               0.288 0.0456 144   0.1979    0.378
-#&gt; 
-#&gt; Confidence level used: 0.95</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p>Now you can read species-specific slopes straight off the table, with 95% confidence intervals included. Setosa's slope is imprecise because the group has short, narrow petals with low variation. Versicolor and virginica have tighter CIs that do not overlap with zero, so both slopes are robustly positive.</p>
-
-<div class="webr-container" data-block-title="Predicted petal width at specific lengths">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Predicted petal width at specific lengths</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r">preds &lt;- emmeans(m_iris, ~ Species,
-                 at = list(Petal.Length = c(2, 5)))
-preds
-#&gt;  Species    Petal.Length emmean     SE  df lower.CL upper.CL
-#&gt;  setosa                2  0.354 0.0770 144    0.202    0.506
-#&gt;  versicolor            2  1.238 0.0687 144    1.102    1.374
-#&gt;  virginica             2  1.492 0.0898 144    1.314    1.669
-#&gt;  setosa                5  0.957 0.1937 144    0.574    1.340
-#&gt;  versicolor            5  2.223 0.0581 144    2.108    2.337
-#&gt;  virginica             5  2.357 0.0554 144    2.247    2.467</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p><code>emmeans()</code> is the right tool when you want to answer "what does the model predict at these specific values?". Here you can see that a 5 cm petal predicts a versicolor width of 2.22 cm versus a virginica width of 2.36 cm, a non-trivial difference even though the two slopes are similar.</p>
-
-<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use <code>emtrends()</code> when your focal predictor is continuous and you want slopes.</strong> Use <code>emmeans()</code> when you want predicted y-values at specific moderator combinations. Both return confidence intervals and support <a class="auto-link" href="Post-Hoc-Tests-After-ANOVA.html" title="ANOVA Post-Hoc Tests in R: Tukey, Bonferroni, and Scheffé, Clear Decision Rules">pairwise comparisons</a> via <code>pairs()</code>.</div></div>
-
-<section class="tryit-block">
-<p><strong>Try it:</strong> Using <code>m_iris</code>, compute the simple slope of <code>Petal.Length</code> inside each species and save the result as <code>ex_slopes</code>.</p>
-<div class="webr-container" data-block-title="Your turn: emtrends">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: emtrends</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># use emtrends() with specs = &quot;Species&quot;, var = &quot;Petal.Length&quot;
-# your code here
-</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-<details>
-<summary>Click to reveal solution</summary>
-
-<div class="webr-container" data-block-title="Emtrends solution">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Emtrends solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r">ex_slopes &lt;- emtrends(m_iris, specs = &quot;Species&quot;, var = &quot;Petal.Length&quot;)
-as.data.frame(ex_slopes)[, c(&quot;Species&quot;, &quot;Petal.Length.trend&quot;)]
-#&gt;      Species Petal.Length.trend
-#&gt; 1     setosa              0.201
-#&gt; 2 versicolor              0.328
-#&gt; 3  virginica              0.288</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p><strong>Explanation:</strong> <code>emtrends()</code> does the coefficient arithmetic for you and adds standard errors and confidence intervals.</p>
-
-</details>
-</section>
-
-<h2>How do you visualize an interaction plot?</h2>
-
-<p>A picture makes the story obvious. Parallel lines mean no interaction, divergent lines mean the effect of X1 depends on X2, and crossing lines mean a flat-out reversal. For a continuous-by-categorical model, colour the lines by the categorical variable. For a continuous-by-continuous model, bin the moderator or plot lines at a handful of representative values.</p>
-
-<div class="webr-container" data-block-title="Interaction plot: iris by species">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interaction plot: iris by species</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r">ggplot(iris, aes(x = Petal.Length, y = Petal.Width, colour = Species)) +
-  geom_point(alpha = 0.6) +
-  geom_smooth(method = &quot;lm&quot;, se = TRUE) +
-  labs(title = &quot;Petal.Width vs Petal.Length, slopes by Species&quot;,
-       x = &quot;Petal Length (cm)&quot;, y = &quot;Petal Width (cm)&quot;) +
-  theme_minimal()</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p>The three fitted lines have visibly different slopes, which is the interaction made visual. Setosa's line is shorter and flatter because the species has tight petal dimensions. Versicolor and virginica ramp up at similar rates, consistent with the near-equal slopes you saw from <code>emtrends()</code>.</p>
-
-<div class="webr-container" data-block-title="Continuous x continuous: wt bins on mtcars">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Continuous x continuous: wt bins on mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r">mtcars_bin &lt;- mtcars |&gt;
-  mutate(wt_bin = cut(wt,
-                      breaks = quantile(wt, c(0, 1/3, 2/3, 1)),
-                      labels = c(&quot;light&quot;, &quot;medium&quot;, &quot;heavy&quot;),
-                      include.lowest = TRUE))
-
-ggplot(mtcars_bin, aes(x = hp, y = mpg, colour = wt_bin)) +
-  geom_point() +
-  geom_smooth(method = &quot;lm&quot;, se = FALSE) +
-  labs(title = &quot;mpg vs hp, slopes by weight bin&quot;,
-       x = &quot;Horsepower&quot;, y = &quot;Miles per gallon&quot;, colour = &quot;Weight&quot;) +
-  theme_minimal()</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p>Light cars show the steepest negative slope and heavy cars the flattest, exactly as the conditional-slope calculation predicted. Binning is only a visual shortcut; the model itself is still fit on continuous <code>wt</code>. You can also plot three smooth lines at <code>wt = mean - SD, mean, mean + SD</code> using <code>emmeans</code> output if you prefer fully smooth curves.</p>
-
-<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>For a continuous moderator, bin it for the plot or pick a handful of typical values.</strong> Many analysts use mean and mean +/- one SD, the "pick-a-point" convention from Aiken and West.</div></div>
-
-<section class="tryit-block">
-<p><strong>Try it:</strong> Redraw the mtcars plot using <code>geom_smooth(se = FALSE)</code> so the three lines are cleaner and easier to compare.</p>
-<div class="webr-container" data-block-title="Your turn: cleaner mtcars plot">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: cleaner mtcars plot</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># drop se = TRUE from geom_smooth
-# your code here
-</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-<details>
-<summary>Click to reveal solution</summary>
-
-<div class="webr-container" data-block-title="Cleaner plot solution">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Cleaner plot solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r">ggplot(mtcars_bin, aes(x = hp, y = mpg, colour = wt_bin)) +
-  geom_point() +
-  geom_smooth(method = &quot;lm&quot;, se = FALSE) +
-  theme_minimal()</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p><strong>Explanation:</strong> Setting <code>se = FALSE</code> suppresses the confidence ribbons and lets readers focus on the slope differences between weight bins.</p>
-
-</details>
-</section>
-
-<h2>How do you test if an interaction is statistically significant?</h2>
-
-<p>You have two options and they agree in simple cases. The t-test on the interaction coefficient (the <code>Pr(&gt;|t|)</code> column in <code>summary()</code>) tests whether that single term differs from zero. The F-test from <code>anova()</code> compares the full model to the additive model; it is the cleaner hypothesis test when the interaction involves a factor with more than two levels, because it pools the multiple interaction columns into one test.</p>
-
-<div class="webr-container" data-block-title="F-test for the interaction">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">F-test for the interaction</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r">anova(m_add, m_full)
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Test the interaction with nested-model anova</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">m0 &lt;- lm(mpg ~ hp + wt, data = mtcars)         # additive only
+anova(m0, m1)
 #&gt; Analysis of Variance Table
-#&gt; 
+#&gt;
 #&gt; Model 1: mpg ~ hp + wt
-#&gt; Model 2: mpg ~ hp + wt + hp:wt
-#&gt;   Res.Df    RSS Df Sum of Sq      F   Pr(&gt;F)   
-#&gt; 1     29 195.05                                
-#&gt; 2     28 129.77  1    65.285 14.086 0.000811 ***</div>
+#&gt; Model 2: mpg ~ hp * wt
+#&gt;   Res.Df    RSS Df Sum of Sq      F   Pr(&gt;F)
+#&gt; 1     29 195.05
+#&gt; 2     28 129.76  1    65.29 14.09 0.000812 ***</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -564,15 +319,15 @@ ggplot(mtcars_bin, aes(x = hp, y = mpg, colour = wt_bin)) +
   <div class="webr-plot-output"></div>
 </div>
 
-<p>The F-statistic of 14.1 with p = 0.0008 tells you that adding the <code>hp:wt</code> term explains significantly more variance than the additive model alone. The residual sum of squares drops from 195 to 130, a 33% reduction. For a single-df interaction like this one, the F-test's <a class="auto-link" href="Statistical-Tests-in-R.html" title="Statistical Tests in R">p-value</a> matches the t-test's p-value from <code>summary(m1)</code> exactly.</p>
+<p>The F statistic is 14.1 with p = 0.0008, so adding the <code>hp:wt</code> term significantly improves fit. AIC tells the same story.</p>
 
-<div class="webr-container" data-block-title="AIC as a complementary check">
+<div class="webr-container" data-block-title="AIC complexity-adjusted comparison">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">AIC as a complementary check</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r">AIC(m_add, m_full)
-#&gt;        df      AIC
-#&gt; m_add   4 156.6523
-#&gt; m_full  5 149.7198</div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">AIC complexity-adjusted comparison</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">AIC(m0, m1)
+#&gt;    df      AIC
+#&gt; m0  4 156.6523
+#&gt; m1  5 145.0066</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -582,18 +337,23 @@ ggplot(mtcars_bin, aes(x = hp, y = mpg, colour = wt_bin)) +
   <div class="webr-plot-output"></div>
 </div>
 
-<p>AIC agrees: the interaction model sits about 7 points lower, which counts as strong evidence. When two model-selection criteria point the same way, you can be comfortable keeping the interaction in the final model.</p>
+<p>The interaction model's AIC is lower by 11.6, well past the rule-of-thumb threshold of 4 for "clearly better." Both diagnostics point the same way: keep the interaction.</p>
 
-<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Do not interpret main effects of variables in a significant interaction in isolation.</strong> Always report simple slopes or marginal effects, because the "main effect of hp" only describes one slice of reality (<code>wt = 0</code>, or with centering <code>wt = mean</code>).</div></div>
+<p><img src="screenshots/Interaction-Effects-in-R-decision-flow.webp" alt="Decision flow for keeping or dropping an interaction term." class="img-responsive img-zoomable" loading="lazy" width="2196" height="738" /></p>
+
+<p><em>Figure 1: Decision flow for keeping or dropping an interaction term. The three checks usually agree. When they conflict, trust theory and the plot first.</em></p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Keep both main effects whenever you keep the interaction.</strong> This is the <em>hierarchical principle</em>. Removing a main effect that is part of an interaction (e.g., <code>lm(y ~ x:z + z)</code> with <code>x</code> dropped) makes the model depend on the arbitrary choice of zero for <code>x</code>, and your interaction coefficient becomes uninterpretable. Even if the main effect is "non-significant," leave it in.</div></div>
 
 <section class="tryit-block">
-<p><strong>Try it:</strong> Run an F-test to check whether <code>wt*am</code> improves <code>mpg ~ wt + am</code> on mtcars.</p>
-<div class="webr-container" data-block-title="Your turn: test wt*am">
+<p><strong>Try it:</strong> Use <code>anova()</code> to test the interaction in <code>m2</code> (the wt × am model). Fit a no-interaction version called <code>ex_m2_no_int</code> and compare.</p>
+<div class="webr-container" data-block-title="Your turn: test the wt x am interaction">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: test wt*am</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># fit an additive and an interaction model, then anova() them
-# your code here
-</div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: test the wt x am interaction</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit a no-interaction baseline, then compare with anova().
+ex_m2_no_int &lt;- lm(  , data = mtcars2)
+anova(ex_m2_no_int, m2)
+#&gt; Expected: an F test with one numerator df, p &lt; 0.01</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -605,13 +365,16 @@ ggplot(mtcars_bin, aes(x = hp, y = mpg, colour = wt_bin)) +
 <details>
 <summary>Click to reveal solution</summary>
 
-<div class="webr-container" data-block-title="wt*am F-test solution">
+<div class="webr-container" data-block-title="wt x am interaction test solution">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">wt*am F-test solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r">m_a &lt;- lm(mpg ~ wt + factor(am), data = mtcars)
-m_i &lt;- lm(mpg ~ wt * factor(am), data = mtcars)
-anova(m_a, m_i)
-#&gt;   Res.Df    RSS Df Sum of Sq     F   Pr(&gt;F)
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">wt x am interaction test solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_m2_no_int &lt;- lm(mpg ~ wt + am, data = mtcars2)
+anova(ex_m2_no_int, m2)
+#&gt; Analysis of Variance Table
+#&gt;
+#&gt; Model 1: mpg ~ wt + am
+#&gt; Model 2: mpg ~ wt * am
+#&gt;   Res.Df    RSS Df Sum of Sq      F   Pr(&gt;F)
 #&gt; 1     29 278.32
 #&gt; 2     28 188.01  1    90.31 13.45 0.001018 **</div>
     <div class="webr-buttons">
@@ -623,23 +386,218 @@ anova(m_a, m_i)
   <div class="webr-plot-output"></div>
 </div>
 
-<p><strong>Explanation:</strong> The interaction adds about 90 units of explained sum of squares (F = 13.5, p = 0.001). Manual and automatic cars lose mpg at different rates per ton of weight.</p>
+<p><strong>Explanation:</strong> The interaction adds 90 units of explained sum of squares (F = 13.45, p = 0.001). Manual and automatic cars have meaningfully different <code>wt</code> slopes, so the interaction stays in.</p>
+
+</details>
+</section>
+
+<h2>How do you visualize an interaction in R?</h2>
+
+<p>A plot tells you the <em>shape</em> of the interaction. Four shapes show up over and over: parallel lines (no interaction), fan-in or fan-out (steeper slope at one end), and crossover (slopes flip sign). Naming the shape helps you describe the result without dragging the reader through coefficient algebra.</p>
+
+<p><img src="screenshots/Interaction-Effects-in-R-shapes.webp" alt="The four shapes an interaction can take when you plot the effect of X by levels of Z." class="img-responsive img-zoomable" loading="lazy" width="908" height="1378" /></p>
+
+<p><em>Figure 2: The four shapes an interaction can take when you plot the effect of X by levels of Z. Naming the shape (synergy, antagonism, crossover) lets you describe the finding in one phrase.</em></p>
+
+<p>The fastest plot in R comes from <code>emmip()</code> in the <code>emmeans</code> package. It takes a fitted model and a formula <code>moderator ~ predictor</code>, and draws one line per moderator level.</p>
+
+<div class="webr-container" data-block-title="Quick interaction plot with emmip()">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Quick interaction plot with emmip()</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">emmip(m2, am ~ wt, at = list(wt = c(2, 3, 4, 5)),
+      CIs = TRUE) +
+  ggtitle(&quot;Slope of wt on mpg differs by transmission&quot;) +
+  theme_minimal()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The two lines fan out: at <code>wt = 2</code> the predicted mpg gap between manual and auto is large, at <code>wt = 5</code> it has shrunk. That is the interaction. Now build a publication version directly with <code>ggplot2</code>. We will plot the continuous-by-continuous case (<code>m1</code>, <code>mpg ~ hp * wt</code>) by fixing <code>wt</code> at three round values and letting <code>hp</code> sweep across its observed range.</p>
+
+<div class="webr-container" data-block-title="Publication ggplot of the hp x wt interaction">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Publication ggplot of the hp x wt interaction</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">grid_dat &lt;- expand.grid(hp = seq(50, 330, length.out = 50),
+                        wt = c(2.0, 3.2, 4.5))
+grid_dat$mpg_hat &lt;- predict(m1, newdata = grid_dat)
+
+ggplot(grid_dat, aes(x = hp, y = mpg_hat,
+                     colour = factor(wt), group = factor(wt))) +
+  geom_line(linewidth = 1) +
+  labs(x = &quot;horsepower&quot;, y = &quot;predicted mpg&quot;,
+       colour = &quot;wt (1000 lb)&quot;,
+       title = &quot;Slope of mpg on hp flattens as cars get heavier&quot;) +
+  theme_minimal()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Three coloured lines, one per <code>wt</code> level. The line for light cars (<code>wt = 2.0</code>) drops sharply with <code>hp</code>; the line for heavy cars (<code>wt = 4.5</code>) is nearly flat. That visual is the interaction, plain to anyone who can read a chart. No <a class="auto-link" href="Standardized-vs-Unstandardized-Coefficients-in-R.html" title="Standardized vs Unstandardized Coefficients in R: When Each Matters: Which Is Right for You?">coefficient interpretation</a> required.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Pick at-values you'll defend in writing.</strong> Round numbers (2, 3, 4 thousand lbs) read better than 25th/50th/75th percentiles of <code>wt</code> (2.58, 3.32, 3.61). Match the at-values to whatever you plan to report in the text, so the figure and the prose tell the same story.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Re-draw the <code>emmip()</code> plot for <code>m2</code>, but choose your own three weight values to show. Try <code>wt = c(2.5, 3.5, 4.5)</code>.</p>
+<div class="webr-container" data-block-title="Your turn: emmip with custom weights">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: emmip with custom weights</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">emmip(m2, am ~ wt, at = list(wt =  ),
+      CIs = TRUE) +
+  theme_minimal()
+#&gt; Expected: same fan-out shape, anchored at three weights</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Custom-weight emmip solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Custom-weight emmip solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">emmip(m2, am ~ wt, at = list(wt = c(2.5, 3.5, 4.5)),
+      CIs = TRUE) +
+  ggtitle(&quot;Manual cars lose mpg faster than autos as weight rises&quot;) +
+  theme_minimal()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The two lines diverge at low <code>wt</code> and converge at high <code>wt</code>. The interaction is "fan-in" reading left to right: heavy cars have similar mpg regardless of transmission, light cars differ a lot.</p>
+
+</details>
+</section>
+
+<h2>How do you report interaction results in plain English?</h2>
+
+<p>A reader who isn't a statistician needs three numbers: the slope (or cell mean) inside each level of the moderator, a comparison, and a p-value. Don't make them read coefficients. The <code>emmeans</code> package gives you exactly that table, ready to drop into a results paragraph.</p>
+
+<p>For continuous-by-continuous interactions, <code>emtrends()</code> returns the slope of one variable at chosen values of the other.</p>
+
+<div class="webr-container" data-block-title="emtrends: slope of hp at three weights">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">emtrends: slope of hp at three weights</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">trends_m1 &lt;- emtrends(m1, ~ wt, var = &quot;hp&quot;,
+                      at = list(wt = c(2.0, 3.2, 4.5)))
+trends_m1
+#&gt;   wt hp.trend     SE df lower.CL upper.CL
+#&gt;  2.0 -0.06451 0.0140 28 -0.09319 -0.03583
+#&gt;  3.2 -0.03114 0.0093 28 -0.05015 -0.01213
+#&gt;  4.5  0.00501 0.0125 28 -0.02060  0.03061</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Three numbers, each with a confidence interval. At a 2,000-lb car the slope is <code>-0.065</code> (CI excludes zero, real effect). At a 4,500-lb car the slope is <code>+0.005</code> and the CI spans zero (no effect). That is the whole interaction in plain numbers.</p>
+
+<p>For continuous-by-categorical, ask <code>emmeans</code> for the slope of <code>wt</code> inside each level of <code>am</code>.</p>
+
+<div class="webr-container" data-block-title="emmeans simple slopes per group">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">emmeans simple slopes per group</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">slopes_am &lt;- emtrends(m2, specs = &quot;am&quot;, var = &quot;wt&quot;)
+slopes_am
+#&gt;  am     wt.trend    SE df lower.CL upper.CL
+#&gt;  auto      -3.79 0.790 28    -5.41    -2.18
+#&gt;  manual    -9.08 1.257 28   -11.66    -6.51</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now you can write the result in one paragraph any reader can follow:</p>
+
+<blockquote><p>Vehicle weight predicts mpg differently for the two transmission types (interaction F(1, 28) = 13.5, p = 0.001). Among automatic cars, every extra 1,000 lbs costs 3.8 mpg (95% CI: 2.2 to 5.4). Among manual cars, the same extra weight costs 9.1 mpg (95% CI: 6.5 to 11.7), more than twice the automatic-car penalty. The two <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">confidence intervals</a> do not overlap, so the slopes differ meaningfully.</p></blockquote>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Never report only the interaction coefficient.</strong> "wt:ammanual = -5.3, p = 0.001" tells the reader nothing actionable. "Manuals lose 9.1 mpg per ton, autos lose 3.8 mpg per ton" tells them everything. The interaction coefficient is a difference of two slopes; readers want both slopes.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Using <code>slopes_am</code> above, write a one-paragraph summary of the wt × am interaction in your own words. Aim for three sentences: one stating the interaction exists, one giving the auto slope with CI, one giving the manual slope with CI.</p>
+<div class="webr-container" data-block-title="Your turn: write a results paragraph">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: write a results paragraph</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Look at slopes_am, then write 3 sentences in a comment block below.
+# Sentence 1: state the interaction (cite the F test).
+# Sentence 2: report the auto slope and its 95% CI.
+# Sentence 3: report the manual slope and its 95% CI.
+
+# Your paragraph here:
+#
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Example results paragraph">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Example results paragraph</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Vehicle weight affected mpg differently for automatic and manual transmissions
+# (interaction F(1, 28) = 13.45, p = 0.001). For automatic cars, every extra
+# 1,000 lbs reduced mpg by 3.79 (95% CI: 2.18 to 5.41). For manual cars, the
+# same weight increase reduced mpg by 9.08 (95% CI: 6.51 to 11.66), about
+# 2.4 times the automatic-car effect.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The structure is reusable: state-the-test, group-1-slope, group-2-slope. Numbers come straight from <code>slopes_am</code>. Avoid jargon ("simple slope", "moderator effect"), and pick units a non-statistician will recognise (mpg per 1,000 lbs, not per scaled unit).</p>
 
 </details>
 </section>
 
 <h2>Practice Exercises</h2>
 
-<h3>Exercise 1: Continuous x categorical on mtcars</h3>
+<h3>Exercise 1: Test and report a continuous × categorical interaction</h3>
 
-<p>Fit <code>my_m1 &lt;- lm(mpg ~ wt * factor(am), data = mtcars)</code>. Use <code>emtrends()</code> to get the slope of <code>wt</code> inside each transmission type, and save the result as <code>my_slopes</code>.</p>
+<p>Fit <code>lm(Sepal.Length ~ Petal.Length * Species, data = iris)</code>. Run a nested-model <code>anova()</code> against the no-interaction version. Then use <code>emtrends()</code> to extract the slope of <code>Petal.Length</code> for each species. Save the slopes table as <code>my_iris_slopes</code>.</p>
 
 <div class="webr-container" data-block-title="Exercise 1 starter">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># fit the interaction model, then use emtrends()
-# my_m1 &lt;- ...
-# my_slopes &lt;- ...
+    <div class="webr-editor" data-language="r"># 1. Fit two models: with and without the interaction.
+# 2. anova() to compare them.
+# 3. emtrends() to get one slope per species.
+# my_iris_slopes &lt;- ...
 </div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
@@ -656,12 +614,19 @@ anova(m_a, m_i)
 <div class="webr-container" data-block-title="Exercise 1 solution">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r">my_m1 &lt;- lm(mpg ~ wt * factor(am), data = mtcars)
-my_slopes &lt;- emtrends(my_m1, specs = &quot;am&quot;, var = &quot;wt&quot;)
-my_slopes
-#&gt;  am wt.trend    SE df lower.CL upper.CL
-#&gt;  0     -3.79 0.790 28    -5.41    -2.18
-#&gt;  1     -9.08 1.257 28   -11.66    -6.51</div>
+    <div class="webr-editor" data-language="r">m_iris   &lt;- lm(Sepal.Length ~ Petal.Length * Species, data = iris)
+m_iris_a &lt;- lm(Sepal.Length ~ Petal.Length + Species, data = iris)
+anova(m_iris_a, m_iris)
+#&gt;   Res.Df    RSS Df Sum of Sq      F  Pr(&gt;F)
+#&gt; 1    146 25.502
+#&gt; 2    144 24.585  2   0.91666 2.6843 0.07173 .
+
+my_iris_slopes &lt;- emtrends(m_iris, specs = &quot;Species&quot;, var = &quot;Petal.Length&quot;)
+my_iris_slopes
+#&gt;  Species    Petal.Length.trend    SE  df lower.CL upper.CL
+#&gt;  setosa                  0.542 0.225 144   0.0972    0.987
+#&gt;  versicolor              0.828 0.123 144   0.5847    1.071
+#&gt;  virginica               0.996 0.087 144   0.8242    1.168</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -671,21 +636,19 @@ my_slopes
   <div class="webr-plot-output"></div>
 </div>
 
-<p><strong>Explanation:</strong> Manual cars (am=1) lose 9.1 mpg per ton, automatic cars lose 3.8. The manual group's slope is almost 2.4x steeper, and the two CIs do not overlap, so the slopes differ meaningfully.</p>
+<p><strong>Explanation:</strong> The omnibus <code>anova()</code> is borderline (p = 0.07), but the slopes themselves climb from 0.54 (setosa) to 1.00 (virginica). Most of the interaction is the difference between setosa and the other two species. Report the simple slopes, mention the borderline test, and let the reader judge.</p>
 
 </details>
 
-<h3>Exercise 2: Centering and AIC comparison on iris</h3>
+<h3>Exercise 2: Find the highest-mpg cell in a categorical × categorical model</h3>
 
-<p>Mean-center <code>Sepal.Length</code> as <code>sl_c</code>, fit <code>my_m2 &lt;- lm(Sepal.Width ~ sl_c * Species, data = iris_c)</code>, and compare its AIC to the additive model <code>Sepal.Width ~ sl_c + Species</code>. Which is lower, and by how much?</p>
+<p>Using <code>mtcars2</code> (with <code>am</code> and <code>cyl</code> already as factors), add a <code>vs</code> factor, fit <code>lm(mpg ~ am * vs, data = ...)</code>, and use <code>emmeans()</code> to compute the four estimated marginal means (one per <code>am × vs</code> combination). Identify which combination has the highest mean mpg. Save the table as <code>my_cell_means</code>.</p>
 
 <div class="webr-container" data-block-title="Exercise 2 starter">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># step 1: create iris_c with sl_c = Sepal.Length - mean(Sepal.Length)
-# step 2: fit my_m2 (interaction) and my_m2_add (additive)
-# step 3: AIC(my_m2_add, my_m2)
-# your code here
+    <div class="webr-editor" data-language="r"># Add a vs factor, fit the cat x cat model, then emmeans() for the four cells.
+# my_cell_means &lt;- emmeans(  , specs = ~  )
 </div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
@@ -702,15 +665,16 @@ my_slopes
 <div class="webr-container" data-block-title="Exercise 2 solution">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r">iris_c &lt;- iris |&gt; mutate(sl_c = Sepal.Length - mean(Sepal.Length))
+    <div class="webr-editor" data-language="r">mtcars3 &lt;- mtcars2 |&gt; mutate(vs = factor(vs, labels = c(&quot;V-shape&quot;, &quot;straight&quot;)))
+m_av    &lt;- lm(mpg ~ am * vs, data = mtcars3)
 
-my_m2_add &lt;- lm(Sepal.Width ~ sl_c + Species, data = iris_c)
-my_m2     &lt;- lm(Sepal.Width ~ sl_c * Species, data = iris_c)
-
-AIC(my_m2_add, my_m2)
-#&gt;           df      AIC
-#&gt; my_m2_add  5 113.1040
-#&gt; my_m2      7 105.8473</div>
+my_cell_means &lt;- emmeans(m_av, specs = ~ am * vs)
+my_cell_means
+#&gt;  am     vs       emmean   SE df lower.CL upper.CL
+#&gt;  auto   V-shape    15.0 0.86 28    13.24    16.76
+#&gt;  manual V-shape    19.8 1.39 28    16.96    22.64
+#&gt;  auto   straight   20.7 1.04 28    18.58    22.82
+#&gt;  manual straight   28.4 1.04 28    26.27    30.52</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -720,21 +684,20 @@ AIC(my_m2_add, my_m2)
   <div class="webr-plot-output"></div>
 </div>
 
-<p><strong>Explanation:</strong> The interaction model's AIC is about 7 points lower, strong evidence that the three species have genuinely different slopes of Sepal.Width on Sepal.Length.</p>
+<p><strong>Explanation:</strong> The highest mean mpg (28.4) is for manual transmission with a straight-engine layout. Cell-mean tables answer "which combination is best?" directly, without forcing the reader to decode interaction coefficients.</p>
 
 </details>
 
-<h3>Exercise 3: Two factors on ToothGrowth</h3>
+<h3>Exercise 3: Plot a continuous × categorical interaction with custom anchors</h3>
 
-<p>Fit <code>my_m3 &lt;- lm(len ~ supp * factor(dose), data = ToothGrowth)</code>. Use <code>anova()</code> to test the <code>supp:factor(dose)</code> interaction, then compute predicted tooth length at each combination with <code>emmeans()</code>.</p>
+<p>Fit <code>lm(Sepal.Width ~ Sepal.Length * Species, data = iris)</code>. Use <code>emmip()</code> to draw three lines (one per species), with <code>Sepal.Length</code> swept across <code>c(4.5, 5.5, 6.5, 7.5)</code>. Save the resulting plot to <code>my_iris_plot</code>.</p>
 
 <div class="webr-container" data-block-title="Exercise 3 starter">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># my_m3 &lt;- lm(len ~ supp * factor(dose), data = ToothGrowth)
-# anova(my_m3)
-# emmeans(my_m3, ~ supp * factor(dose))
-# your code here
+    <div class="webr-editor" data-language="r"># emmip(model, line ~ x, at = list(x = ...))
+# my_iris_plot &lt;- emmip(  )
+# my_iris_plot
 </div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
@@ -751,25 +714,13 @@ AIC(my_m2_add, my_m2)
 <div class="webr-container" data-block-title="Exercise 3 solution">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r">my_m3 &lt;- lm(len ~ supp * factor(dose), data = ToothGrowth)
-anova(my_m3)
-#&gt; Analysis of Variance Table
-#&gt; 
-#&gt; Response: len
-#&gt;                   Df  Sum Sq Mean Sq F value    Pr(&gt;F)    
-#&gt; supp               1  205.35  205.35  15.572 0.0002312 ***
-#&gt; factor(dose)       2 2426.43 1213.22  92.000 &lt; 2.2e-16 ***
-#&gt; supp:factor(dose)  2  108.32   54.16   4.107 0.0218603 *
-#&gt; Residuals         54  712.11   13.19
-
-emmeans(my_m3, ~ supp * factor(dose))
-#&gt;  supp dose emmean    SE df lower.CL upper.CL
-#&gt;  OJ   0.5   13.23 1.148 54    10.93     15.5
-#&gt;  VC   0.5    7.98 1.148 54     5.68     10.3
-#&gt;  OJ   1     22.70 1.148 54    20.40     25.0
-#&gt;  VC   1     16.77 1.148 54    14.47     19.1
-#&gt;  OJ   2     26.06 1.148 54    23.76     28.4
-#&gt;  VC   2     25.98 1.148 54    23.68     28.3</div>
+    <div class="webr-editor" data-language="r">m_sw &lt;- lm(Sepal.Width ~ Sepal.Length * Species, data = iris)
+my_iris_plot &lt;- emmip(m_sw, Species ~ Sepal.Length,
+                      at = list(Sepal.Length = c(4.5, 5.5, 6.5, 7.5)),
+                      CIs = TRUE) +
+  ggtitle(&quot;Sepal width vs length by species (interaction)&quot;) +
+  theme_minimal()
+my_iris_plot</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -779,44 +730,45 @@ emmeans(my_m3, ~ supp * factor(dose))
   <div class="webr-plot-output"></div>
 </div>
 
-<p><strong>Explanation:</strong> The interaction is significant (F = 4.1, p = 0.022). The OJ advantage is large at dose 0.5 and 1 but essentially disappears at dose 2, which is exactly what the emmeans table shows numerically.</p>
+<p><strong>Explanation:</strong> The setosa line slopes upward steeply, while versicolor and virginica are flatter. The non-parallel pattern is the interaction visualised. Pick anchor values that span the joint range of <code>Sepal.Length</code> in the data, not extrapolated extremes.</p>
 
 </details>
 
 <h2>Complete Example</h2>
 
-<p>Here is the full workflow from model to reportable finding, end-to-end on mtcars.</p>
+<p>Here is the full workflow on <code>airquality</code>: does temperature predict ozone differently in different months? Fit, test, simple-slope, plot, write up.</p>
 
-<div class="webr-container" data-block-title="End-to-end interaction analysis on mtcars">
+<div class="webr-container" data-block-title="End-to-end interaction analysis on airquality">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">End-to-end interaction analysis on mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># 1. Fit additive and interaction models
-m_add  &lt;- lm(mpg ~ hp + wt, data = mtcars)
-m_full &lt;- lm(mpg ~ hp * wt, data = mtcars)
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">End-to-end interaction analysis on airquality</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">aq &lt;- airquality |&gt;
+  filter(!is.na(Ozone), !is.na(Temp)) |&gt;
+  mutate(Month = factor(Month, labels = c(&quot;May&quot;, &quot;Jun&quot;, &quot;Jul&quot;, &quot;Aug&quot;, &quot;Sep&quot;)))
 
-# 2. Test significance
-anova(m_add, m_full)
-#&gt;   Res.Df    RSS Df Sum of Sq      F    Pr(&gt;F)    
-#&gt; 1     29 195.05                                  
-#&gt; 2     28 129.77  1    65.285 14.086 0.0008108 ***
+# Step 1: fit interaction and additive models
+m_aq    &lt;- lm(Ozone ~ Temp * Month, data = aq)
+m_aq_a  &lt;- lm(Ozone ~ Temp + Month, data = aq)
 
-# 3. Simple slopes of hp at three weights
-emtrends(m_full, specs = &quot;wt&quot;, var = &quot;hp&quot;,
-         at = list(wt = c(2, 3, 4)))
-#&gt;  wt hp.trend     SE df lower.CL upper.CL
-#&gt;   2  -0.0645 0.01291 28 -0.0910  -0.0381
-#&gt;   3  -0.0367 0.00843 28 -0.0540  -0.0195
-#&gt;   4  -0.0089 0.01033 28 -0.0300   0.0122
+# Step 2: test
+anova(m_aq_a, m_aq)
+#&gt;   Res.Df    RSS Df Sum of Sq     F   Pr(&gt;F)
+#&gt; 1    110 49247
+#&gt; 2    106 41030  4    8217 5.308 0.0006 ***
 
-# 4. Interaction plot with wt binned
-mtcars |&gt;
-  mutate(wt_bin = cut(wt, c(0, 2.7, 3.5, Inf),
-                      labels = c(&quot;light&quot;, &quot;medium&quot;, &quot;heavy&quot;))) |&gt;
-  ggplot(aes(hp, mpg, colour = wt_bin)) +
-    geom_point() +
-    geom_smooth(method = &quot;lm&quot;, se = FALSE) +
-    labs(title = &quot;mpg vs hp by car weight&quot;, colour = &quot;Weight&quot;) +
-    theme_minimal()</div>
+# Step 3: simple slopes per month
+emtrends(m_aq, specs = &quot;Month&quot;, var = &quot;Temp&quot;)
+#&gt;  Month Temp.trend   SE df lower.CL upper.CL
+#&gt;  May        1.92 0.71 106    0.51    3.32
+#&gt;  Jun        2.55 1.42 106   -0.27    5.36
+#&gt;  Jul        4.93 0.81 106    3.32    6.54
+#&gt;  Aug        4.45 0.74 106    2.97    5.92
+#&gt;  Sep        2.43 0.50 106    1.43    3.43
+
+# Step 4: plot
+emmip(m_aq, Month ~ Temp, at = list(Temp = seq(60, 95, 5)),
+      CIs = TRUE) +
+  ggtitle(&quot;Ozone-Temperature slope varies by month&quot;) +
+  theme_minimal()</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -826,76 +778,47 @@ mtcars |&gt;
   <div class="webr-plot-output"></div>
 </div>
 
-<p>And here is the two-sentence write-up for a non-statistical audience:</p>
-
-<blockquote><p>"The effect of horsepower on fuel economy depends on a car's weight (F(1, 28) = 14.1, p < 0.001). Lightweight cars lose 0.06 mpg per extra horsepower, medium cars 0.04, and heavy cars less than 0.01, so extra power hurts mileage most in the lightest vehicles."</p></blockquote>
-
-<p>That single paragraph bundles the significance test and the practical implication. You did the stats work; now you translate it.</p>
+<p>The interaction is real (F(4, 106) = 5.3, p = 0.0006). In May, June, and September the slope of ozone on temperature sits around 2 ppb per degree F. In July and August it nearly doubles to 4.5 to 4.9 ppb per degree F, the temperature-pollution link tightens in mid-summer. A reader sees one paragraph, four numbers, one figure, and they have the result.</p>
 
 <h2>Summary</h2>
 
-<table class="table table-striped">
-<thead>
-<tr>
-<th>Concept</th>
-<th>Answer</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>What</td>
-<td>Effect of one predictor depends on another</td>
-</tr>
-<tr>
-<td>Syntax</td>
-<td><code>y ~ x1 * x2</code> (same as <code>x1 + x2 + x1:x2</code>)</td>
-</tr>
-<tr>
-<td>Interpret main effects</td>
-<td>Only meaningful when the other predictor = 0, so center first</td>
-</tr>
-<tr>
-<td>Simple slopes</td>
-<td><code>emtrends()</code> for slopes, <code>emmeans()</code> for predicted values</td>
-</tr>
-<tr>
-<td>Test significance</td>
-<td><code>anova(additive, interaction)</code> F-test or single-term t-test</td>
-</tr>
-<tr>
-<td>Plot</td>
-<td><code>ggplot2</code> lines; parallel = none, divergent = interaction</td>
-</tr>
-<tr>
-<td>Reporting</td>
-<td>Include simple slopes or marginal effects alongside the test</td>
-</tr>
-</tbody>
-</table>
+<p><img src="screenshots/Interaction-Effects-in-R-overview.webp" alt="Workflow recap: how to add, test, understand, and report interaction effects in R." class="img-responsive img-zoomable" loading="lazy" width="1568" height="962" /></p>
 
-<p><img src="screenshots/Interaction-Effects-in-R-overview-mindmap.webp" alt="Interaction workflow overview" class="img-responsive img-zoomable" loading="lazy" width="1666" height="944" /></p>
+<p><em>Figure 3: Workflow recap. Add with <code></em></code> or <code>:</code>, test with <code>anova()</code> and AIC, understand with <code>emtrends</code>/<code>emmip</code>, then report in plain English.*</p>
 
-<p><em>Figure 3: The whole interaction workflow at a glance.</em></p>
+<ul>
+
+<li><strong>Add</strong> an interaction with <code>lm(y ~ x * z)</code> (expands to main effects + cross term) or <code>lm(y ~ x + z + x:z)</code>. The two are identical fits.</li>
+
+<li><strong>Read</strong> the interaction coefficient as the <em>change in slope</em> of one predictor per unit of the other. Main effects no longer mean what they meant in an additive model.</li>
+
+<li><strong>Test</strong> with <code>anova(no_int_model, int_model)</code> for an F test and <code>AIC()</code> for complexity-adjusted comparison. Coefficient p-values are a quick check, not a substitute.</li>
+
+<li><strong>Visualise</strong> with <code>emmip()</code> (quick) or <code>ggplot2 + predict()</code> (publication). The plot's <em>shape</em> (parallel, fan, crossover) names the finding in one phrase.</li>
+
+<li><strong>Report</strong> simple slopes from <code>emtrends()</code> or cell means from <code>emmeans()</code>. Never publish an interaction coefficient without translating it to slopes a non-statistician can read.</li>
+
+<li><strong>Keep</strong> both main effects whenever you keep the interaction (the hierarchical principle). Three-way and higher interactions are rarely worth the interpretation cost; prefer subgroup analyses.</li>
+
+</ul>
 
 <h2>References</h2>
 
 <ol>
 
-<li>UCLA OARC. <em>Decomposing, Probing, and Plotting Interactions in R</em>. <a href="https://stats.oarc.ucla.edu/r/seminars/interactions-r/">Link</a></li>
+<li>Faraway, J. (2014). <em>Linear Models with R</em>, 2nd Edition. Chapman & Hall. Chapter 6: Interactions in Regression.</li>
 
-<li>Long, J. <em>interactions package vignette</em>, CRAN. <a href="https://cran.r-project.org/web/packages/interactions/vignettes/interactions.html">Link</a></li>
+<li>Fox, J., & Weisberg, S. (2018). <em>An R Companion to Applied Regression</em>, 3rd Edition. Sage. Chapter on Linear Models with Categorical and Continuous Predictors.</li>
 
-<li>Lenth, R. <em>emmeans: Estimated Marginal Means</em>, CRAN. <a href="https://cran.r-project.org/package=emmeans">Link</a></li>
+<li>Lenth, R., emmeans package: Interactions in linear models. <a href="https://cran.r-project.org/web/packages/emmeans/vignettes/interactions.html">CRAN vignette</a></li>
 
-<li>Aiken, L. and West, S. <em>Multiple Regression: Testing and Interpreting Interactions</em>. Sage (1991).</li>
+<li>Long, J., interactions package documentation. <a href="https://cran.r-project.org/web/packages/interactions/vignettes/interactions.html">CRAN vignette</a></li>
 
-<li>Gelman, A. and Hill, J. <em>Data Analysis Using Regression and Multilevel/Hierarchical Models</em>. Cambridge University Press (2007).</li>
+<li>Aiken, L. S., & West, S. G. (1991). <em>Multiple Regression: Testing and Interpreting Interactions</em>. Sage.</li>
 
-<li>STHDA. <em>Interaction Effect in Multiple Regression: Essentials</em>. <a href="https://www.sthda.com/english/articles/40-regression-analysis/164-interaction-effect-in-multiple-regression-essentials/">Link</a></li>
+<li>UCLA OARC Stats, Decomposing, Probing, and Plotting Interactions in R. <a href="https://stats.oarc.ucla.edu/r/seminars/interactions-r/">Seminar</a></li>
 
-<li>R Core Team. <em>formula reference</em>. <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/formula.html">Link</a></li>
-
-<li>Wickham, H. <em><a class="auto-link" href="ggplot2-Tutorial-With-R.html" title="ggplot2 Short Tutorial">ggplot2</a>: Elegant Graphics for Data Analysis</em>. Springer.</li>
+<li>R Core Team. <em><a class="auto-link" href="Getting-Help-in-R.html" title="Stuck in R? 6 Ways to Get Unstuck Without Wasting Hours">R Documentation</a>: formula and lm</em>. [<code>?formula</code>](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/formula.html)</li>
 
 </ol>
 
@@ -903,10 +826,10 @@ mtcars |&gt;
 
 <ul>
 
-<li><a href="Dummy-Variables-in-R.html">Dummy Variables in R</a>: how R codes categorical predictors into design-matrix columns, the prerequisite for reading any <code>Species*Petal.Length</code> output.</li>
+<li><a href="Linear-Regression.html">Linear Regression in R</a>, the foundation everything in this post sits on; understand main effects before reaching for interactions.</li>
 
-<li><a href="Multiple-Regression-in-R.html">Multiple Regression in R</a>: the additive model you extend when you add an interaction.</li>
+<li><a href="Linear-Regression-Assumptions-in-R.html">Linear Regression Assumptions in R</a>, interactions don't bypass the usual diagnostics; check residuals after every fit.</li>
 
-<li><a href="Linear-Regression-Assumptions-in-R.html">Linear Regression Assumptions in R</a>: diagnostics that still apply once you have added an interaction term.</li>
+<li><a href="Dummy-Variables-in-R.html">Dummy Variables in R</a>, categorical predictors get encoded into dummies, and reading interaction coefficients with factors gets easier once you know which level is the reference.</li>
 
 </ul>

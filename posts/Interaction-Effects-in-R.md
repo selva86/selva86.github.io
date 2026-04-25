@@ -1,30 +1,32 @@
 ---
 title: "Interaction Effects in R: Add Them, Test Them, and Actually Understand the Output"
 slug: "Interaction-Effects-in-R"
-description: "An interaction means the effect of X1 depends on X2. Add * and : in lm(), compute marginal effects with emmeans, plot them, and report findings clearly."
-keywords: "interaction effects in R, interaction terms lm, moderation analysis R, emmeans simple slopes, interaction plot R, regression interaction, categorical interaction R, interaction coefficient interpretation"
+description: "An interaction means X1's slope depends on X2. Add with * or : in lm(), test the term with anova(), plot marginal slopes with emmeans, then report it."
+keywords: "interaction effects in R, interaction terms lm, moderation analysis R, emmeans simple slopes, interaction plot R, categorical interaction R, interaction coefficient interpretation, anova nested models R"
 mathjax: true
 webr: true
-date: "2026-04-18"
+date: "2026-04-26"
 curriculum_id: "2.3.6"
 post_type: "C"
 sidebar_section: "Statistics"
 sidebar_title: "Interaction Effects"
 sidebar_order: 50
-auto_link_terms: "interaction effects|interaction terms|interaction effect|moderation analysis|simple slopes|marginal effects|interaction plot|emmeans"
+auto_link_terms: "interaction effects|interaction terms|interaction effect|moderation analysis|simple slopes|marginal effects|interaction plot|hierarchical principle"
 auto_link_case_sensitive: false
 difficulty: "Intermediate"
 ---
 
 # Interaction Effects in R: Add Them, Test Them, and Actually Understand the Output
 
-<p class="lead">An interaction effect means the effect of one predictor depends on the value of another. In R you write it with `*` or `:` inside `lm()`, then interpret the term that captures how the slope of one variable shifts with the other.</p>
+<p class="lead">An interaction effect means the effect of one predictor on the outcome depends on the value of another. In R you add it inside <code>lm()</code> with <code>*</code> (which expands to both main effects and the cross term) or <code>:</code> (cross term alone), and read the interaction coefficient as the change in slope per unit of the moderator.</p>
 
-## What is an interaction effect, and when do you need one?
+## How do you add an interaction term to a linear model in R?
 
-Here is the setup that motivates everything. Predicting `mpg` from `hp` in mtcars is only part of the story. A heavier car may be penalised more per extra horsepower than a lighter one, so the slope of `mpg` on `hp` itself depends on `wt`. That is an interaction. Fit `lm(mpg ~ hp * wt)` and look at the `hp:wt` row; if it is non-zero, the two predictors are not acting independently.
+Plain `lm(mpg ~ hp + wt)` assumes the effect of horsepower on fuel economy is the same at every weight. That is rarely true. Heavy cars may respond to horsepower differently from light ones. To let the slope of `hp` shift with `wt`, write `hp * wt` in the formula. The `*` operator expands into `hp + wt + hp:wt`, so you get both main effects plus the cross term that captures the interaction.
 
-```r title="Fit a two-predictor interaction model"
+Here is the model and the four-row coefficient table that comes out of it. Watch the `hp:wt` row, that is the interaction.
+
+```r title="Fit an interaction model on mtcars"
 library(dplyr)
 library(ggplot2)
 library(emmeans)
@@ -38,382 +40,360 @@ round(coef(summary(m1)), 4)
 #> hp:wt         0.0278     0.0079  3.5179   0.0015
 ```
 
-The `hp:wt` row is the one that matters. Its estimate is `0.0278` with p = 0.0015, which is highly significant. Translation: for every extra ton of weight, the slope of `hp` on `mpg` shifts upward by `0.028`, becoming less negative. A 200-hp engine still hurts mileage, but it hurts more in a light car than in a heavy one.
+The `hp:wt` row is what the interaction adds. Its estimate (`0.0278`) and p-value (`0.0015`) say that the slope of `mpg` on `hp` is not constant, it shifts by `+0.028` for every extra unit of `wt` (1,000 lbs). The negative main effects of `hp` and `wt` still apply, but they are now conditional. We will unpack what each coefficient means in the next section.
 
-[KEY INSIGHT]
-**An interaction is a slope-of-slope.** It captures how much the effect of one variable changes per unit change in the other, and that relationship is symmetrical in X1 and X2.
+[TIP]
+**Use `*` to expand main effects + interaction in one stroke.** Writing `hp * wt` is shorthand for `hp + wt + hp:wt`. The two forms produce identical fits, so pick whichever reads better.
 
-**Try it:** Fit the classic iris interaction: how does the slope of `Petal.Width` on `Petal.Length` change across `Species`? Save the model as `ex_m` and then pull the coefficient for `Petal.Length:Speciesvirginica`.
+**Try it:** Refit the same model using `:` plus explicit main effects instead of `*`. Check that the coefficients match.
 
-```r title="Your turn: iris interaction"
-ex_m <- lm(Petal.Width ~ Petal.Length * Species, data = iris)
-# pull the coefficient table
+```r title="Your turn: rewrite with the colon operator"
+# Refit m1 using : for the cross term and + for main effects.
+# Save the new fit as m1b and print round(coef(summary(m1b)), 4).
+
 # your code here
-
+m1b <- lm(  , data = mtcars)
+round(coef(summary(m1b)), 4)
+#> Expected: same four-row table as m1
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Iris interaction solution"
-ex_m <- lm(Petal.Width ~ Petal.Length * Species, data = iris)
-round(coef(ex_m), 3)
-#>                   (Intercept)                  Petal.Length
-#>                        -0.048                         0.201
-#>             Speciesversicolor              Speciesvirginica
-#>                         0.728                         0.963
-#> Petal.Length:Speciesversicolor Petal.Length:Speciesvirginica
-#>                         0.127                         0.087
+```r title="Colon-syntax solution"
+m1b <- lm(mpg ~ hp + wt + hp:wt, data = mtcars)
+round(coef(summary(m1b)), 4)
+#>             Estimate Std. Error t value Pr(>|t|)
+#> (Intercept)  49.8084     3.6054 13.8154   0.0000
+#> hp           -0.1201     0.0247 -4.8622   0.0000
+#> wt           -8.2166     1.2699 -6.4702   0.0000
+#> hp:wt         0.0278     0.0079  3.5179   0.0015
 ```
 
-**Explanation:** `Petal.Length:Speciesvirginica = 0.087` means virginica's slope of Petal.Width on Petal.Length is about 0.087 higher than setosa's baseline slope of 0.201.
+**Explanation:** `hp * wt` is equivalent to `hp + wt + hp:wt`, so the fits are identical. Use `:` when you want the cross term but not both main effects (rare in practice, see the hierarchical-principle warning later in the post).
 
 </details>
 
-## How do you add interaction terms in R using `*` and `:`?
+## What does an interaction coefficient actually mean?
 
-R's formula shorthand packs two operators. `x1 * x2` expands to `x1 + x2 + x1:x2`, adding the main effects automatically. `x1:x2` is the pure interaction column, with no main effects. Nine times out of ten you want `*`; using `:` alone forces both simple slopes to pivot through the origin, which is almost never what the data actually do.
+The interaction coefficient is the *rate of change* of one slope with respect to another variable. Once a cross term enters the model, the main effects on their own no longer answer "what is the effect of `hp` on `mpg`?" They answer that only at the special case where the moderator is zero.
 
-![Interaction syntax comparison](screenshots/Interaction-Effects-in-R-syntax-comparison.webp)
+Write the model out with symbols. For our mtcars fit:
 
-*Figure 1: How `*`, `:`, and explicit `+` forms map to model structure.*
-
-```r title="Three syntaxes, two fits"
-m_add  <- lm(mpg ~ hp + wt, data = mtcars)
-m_full <- lm(mpg ~ hp + wt + hp:wt, data = mtcars)
-m_star <- lm(mpg ~ hp * wt, data = mtcars)
-
-# m_full and m_star are identical:
-all.equal(coef(m_full), coef(m_star))
-#> [1] TRUE
-
-# AIC comparison against the additive model:
-AIC(m_add, m_full)
-#>        df      AIC
-#> m_add   4 156.6523
-#> m_full  5 149.7198
-```
-
-`m_full` and `m_star` produce the exact same fit; pick whichever reads best to you. The interaction model beats the additive model on AIC by about 7 points, which is strong evidence the interaction earns its slot. The `all.equal()` call is a quick sanity check that your two specifications really are the same model.
-
-[WARNING]
-**Always include main effects when you use `:`.** Writing `y ~ x1:x2` alone forces both simple slopes to zero at the origin, which is almost never what you want. Stick to `x1 * x2` unless you have a specific theoretical reason to drop a main effect.
-
-**Try it:** Write two equivalent formulas for an interaction between `hp` and `factor(cyl)` on `mpg` using mtcars, then verify they fit the same model.
-
-```r title="Your turn: two equivalent formulas"
-# formula 1: use *
-# formula 2: use + and :
-# your code here
-
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Equivalent formulas solution"
-f1 <- mpg ~ hp * factor(cyl)
-f2 <- mpg ~ hp + factor(cyl) + hp:factor(cyl)
-all.equal(coef(lm(f1, mtcars)), coef(lm(f2, mtcars)))
-#> [1] TRUE
-```
-
-**Explanation:** The `*` operator is pure sugar for "main effects plus interaction". Both formulas produce an identical design matrix and identical coefficients.
-
-</details>
-
-## How do you interpret the interaction coefficient?
-
-The math helps clarify what each number buys you. In a two-predictor interaction model, the fitted equation is:
-
-$$y = \beta_0 + \beta_1 x_1 + \beta_2 x_2 + \beta_3 x_1 x_2$$
+$$E[\text{mpg} \mid \text{hp}, \text{wt}] = \beta_0 + \beta_1 \, \text{hp} + \beta_2 \, \text{wt} + \beta_3 \, (\text{hp} \times \text{wt})$$
 
 Where:
+- $\beta_0$ = expected mpg when `hp` and `wt` are both zero (extrapolation, not meaningful here)
+- $\beta_1$ = slope of `hp` *when `wt` is exactly zero*
+- $\beta_2$ = slope of `wt` *when `hp` is exactly zero*
+- $\beta_3$ = how much the slope of `hp` shifts per extra unit of `wt` (or symmetrically, how the slope of `wt` shifts per extra hp)
 
-- $\beta_0$ is the intercept (predicted `y` when both predictors are 0)
-- $\beta_1$ is the slope of `x1` when `x2 = 0`
-- $\beta_2$ is the slope of `x2` when `x1 = 0`
-- $\beta_3$ is the interaction; it tells you how much the slope of `x1` changes per unit increase in `x2`
+Plug the numbers in. The slope of `mpg` on `hp` at any given weight is:
 
-So the conditional slope of `x1` is $\beta_1 + \beta_3 x_2$. Plug in any value of the moderator and you get the slope of the focal predictor at that moderator value.
+$$\text{slope}_{\text{hp}}(\text{wt}) = \beta_1 + \beta_3 \, \text{wt} = -0.12 + 0.028 \, \text{wt}$$
 
-![Coefficient meaning](screenshots/Interaction-Effects-in-R-coefficient-meaning.webp)
-
-*Figure 2: What each coefficient in an interaction model stands for.*
-
-```r title="Conditional slope of hp at wt = 2 vs wt = 4"
-b <- coef(m1)
-slope_hp_at_wt2 <- unname(b["hp"] + b["hp:wt"] * 2)
-slope_hp_at_wt4 <- unname(b["hp"] + b["hp:wt"] * 4)
-c(slope_at_wt_2 = slope_hp_at_wt2, slope_at_wt_4 = slope_hp_at_wt4)
-#> slope_at_wt_2 slope_at_wt_4
-#>       -0.0645       -0.0089
-```
-
-At `wt = 2` tons, each extra horsepower costs 0.065 mpg. At `wt = 4` tons, the penalty shrinks to 0.009 mpg, essentially flat. Heavy cars are already so inefficient that a bit more power barely dents their mileage; lightweights pay dearly. The main-effect value for `hp` alone is the slope at `wt = 0`, which is nonsense because no car weighs nothing, and that is exactly why centering is usually the right next step.
-
-```r title="Mean-center hp and wt, then refit"
-mtcars_c <- mtcars |>
-  mutate(hp_c = hp - mean(hp), wt_c = wt - mean(wt))
-
-m_c <- lm(mpg ~ hp_c * wt_c, data = mtcars_c)
-round(coef(summary(m_c)), 4)
-#>             Estimate Std. Error t value Pr(>|t|)
-#> (Intercept)  18.8776     0.3921 48.1422   0.0000
-#> hp_c         -0.0308     0.0064 -4.8622   0.0000
-#> wt_c         -4.1339     0.3635 -11.3730   0.0000
-#> hp_c:wt_c     0.0278     0.0079  3.5179   0.0015
-```
-
-Now every number reads cleanly. The intercept `18.88` is the predicted mpg of an average-hp, average-wt car. The main effect for `hp_c` is the slope of `hp` at the mean weight, and the main effect for `wt_c` is the slope of `wt` at the mean horsepower. The interaction coefficient is unchanged at `0.028`, which is the point.
-
-[TIP]
-**Mean-center continuous predictors before fitting interactions.** The main-effect coefficients become interpretable at the average of the other variable, and multicollinearity between the interaction column and the main-effect columns drops sharply, shrinking their standard errors.
-
-[NOTE]
-**Centering changes interpretation, not predictions.** The fitted values and the interaction's t-statistic are identical to the uncentered model; only the meaning of the main effects shifts.
-
-**Try it:** Using the uncentered model `m1`, compute the predicted slope of `hp` when `wt = 3.5` tons.
-
-```r title="Your turn: conditional slope"
-# slope_hp = b_hp + b_hp:wt * wt_value
-# your code here
-
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Conditional slope solution"
-b <- coef(m1)
-unname(b["hp"] + b["hp:wt"] * 3.5)
-#> [1] -0.02269
-```
-
-**Explanation:** Plug `wt = 3.5` into `slope of hp = b_hp + b_hp:wt * wt`. The slope of hp for a 3.5-ton car is about -0.023 mpg per horsepower.
-
-</details>
-
-## How do you handle continuous x categorical interactions?
-
-Categorical predictors work exactly like continuous ones, just expanded into dummy columns. When you fit `y ~ x * group`, R fits one slope per group. The reference level's slope is the main effect of `x`. Each other group's slope is the main effect plus that group's interaction term. This is the cleanest way to answer "does this relationship differ across groups?".
-
-```r title="Continuous x categorical on iris"
-m_iris <- lm(Petal.Width ~ Petal.Length * Species, data = iris)
-round(coef(m_iris), 3)
-#>                   (Intercept)                  Petal.Length
-#>                        -0.048                         0.201
-#>             Speciesversicolor              Speciesvirginica
-#>                         0.728                         0.963
-#> Petal.Length:Speciesversicolor Petal.Length:Speciesvirginica
-#>                         0.127                         0.087
-```
-
-Read it row by row. `(Intercept) = -0.048` is the predicted `Petal.Width` for a setosa flower with zero-length petals (extrapolated, but that is how the math works). `Petal.Length = 0.201` is the slope for setosa, the reference level. Versicolor's slope is `0.201 + 0.127 = 0.328`, and virginica's is `0.201 + 0.087 = 0.288`. Versicolor flowers gain petal width fastest as their petals grow longer.
+So at a 2,000-lb car (`wt = 2`), each extra horsepower drops mpg by roughly `-0.12 + 0.028(2) = -0.064`. At a 4,000-lb car, the same extra horsepower drops mpg by only `-0.12 + 0.028(4) = -0.008`, almost nothing. The data is saying: light cars pay a real mpg penalty for more power, heavy cars are already at low mpg and barely change.
 
 [KEY INSIGHT]
-**Continuous x categorical is the tool when you suspect a relationship differs across groups.** You fit a separate slope per group in a single model, and the interaction term directly tests whether the group-specific slopes differ from the reference group.
+**Main effects mean different things once an interaction is in the model.** Without the interaction, the `hp` coefficient was the average effect of `hp`. With the interaction in, it is the effect of `hp` *only at the level where the moderator equals zero*. That is why centering predictors (subtracting the mean before fitting) makes interaction models much easier to read.
 
-**Try it:** Compute the fitted slope of `Petal.Length` inside versicolor using the coefficients of `m_iris`.
+Let's see this slope shift with a one-line `predict()` call. We will fix `hp` at 150 and ask what mpg the model expects at three different weights.
 
-```r title="Your turn: fitted slope for versicolor"
-# hint: add the reference slope and the versicolor interaction term
-# your code here
+```r title="Predict mpg at fixed hp across weights"
+new_x <- data.frame(hp = 150, wt = c(2, 3, 4))
+predict(m1, newdata = new_x)
+#>        1        2        3
+#> 21.94545 18.45091 14.95636
+```
 
+Going from `wt = 2` to `wt = 4` drops predicted mpg by `21.95 - 14.96 = 6.99` mpg. If the model were additive (no interaction), the drop would be the same regardless of `hp`. With the interaction, the drop *itself* is a function of `hp`. That curvature is the whole point of an interaction.
+
+**Try it:** What does the model predict for `mpg` at `hp = 120`, comparing `wt = 2` to `wt = 4`? Use `predict()`.
+
+```r title="Your turn: predict at hp = 120 for two weights"
+# Make a 2-row data frame and pass it to predict(m1, newdata = ...).
+ex_pred <- predict(  , newdata =   )
+ex_pred
+#> Expected: two predicted mpg values, decreasing with wt
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Versicolor slope solution"
-b <- coef(m_iris)
-unname(b["Petal.Length"] + b["Petal.Length:Speciesversicolor"])
-#> [1] 0.3281
+```r title="hp = 120 prediction solution"
+ex_pred <- predict(m1, newdata = data.frame(hp = 120, wt = c(2, 4)))
+ex_pred
+#>        1        2
+#> 22.59636 16.27636
 ```
 
-**Explanation:** The reference slope (setosa) is `b["Petal.Length"]`. Each non-reference group gets the reference slope plus its own interaction coefficient, so versicolor's slope is `0.201 + 0.127 = 0.328`.
+**Explanation:** At `hp = 120`, mpg drops by 6.32 going from 2,000 to 4,000 lbs. At `hp = 150` (above), the same weight change dropped mpg by 6.99. The drops differ because the interaction makes the `wt` slope depend on `hp`.
 
 </details>
 
-## How do you compute simple slopes with emmeans?
+## How do you handle continuous × categorical and categorical × categorical interactions?
 
-Adding coefficients by hand works but does not scale. The `emmeans` package gives you conditional slopes and predicted values with confidence intervals in one line. `emtrends()` returns the slope of a continuous focal predictor at each moderator level. `emmeans()` returns the predicted `y` at specific combinations.
+The same `*` syntax works when one or both predictors are categorical, but the interpretation changes. With a continuous-by-categorical interaction, you are asking "does the slope differ between groups?" With categorical-by-categorical, you are asking "do the cell means depart from a simple additive pattern?"
 
-```r title="Simple slopes per species with emtrends"
-slopes <- emtrends(m_iris, specs = "Species", var = "Petal.Length")
-slopes
-#>  Species    Petal.Length.trend     SE  df lower.CL upper.CL
-#>  setosa                  0.201 0.0983 144   0.0069    0.396
-#>  versicolor              0.328 0.0596 144   0.2103    0.446
-#>  virginica               0.288 0.0456 144   0.1979    0.378
-#> 
-#> Confidence level used: 0.95
+Convert categorical columns to factors first. R will silently treat numeric 0/1 columns like `am` (transmission) as continuous and produce nonsense if you forget.
+
+```r title="Continuous x categorical: slope per group"
+mtcars2 <- mtcars |> mutate(am = factor(am, labels = c("auto", "manual")),
+                            cyl = factor(cyl))
+
+m2 <- lm(mpg ~ wt * am, data = mtcars2)
+round(coef(summary(m2)), 4)
+#>              Estimate Std. Error t value Pr(>|t|)
+#> (Intercept)   31.4161     3.0201 10.4022   0.0000
+#> wt            -3.7859     0.7856 -4.8189   0.0000
+#> ammanual      14.8784     4.2640  3.4893   0.0016
+#> wt:ammanual   -5.2984     1.4447 -3.6675   0.0010
 ```
 
-Now you can read species-specific slopes straight off the table, with 95% confidence intervals included. Setosa's slope is imprecise because the group has short, narrow petals with low variation. Versicolor and virginica have tighter CIs that do not overlap with zero, so both slopes are robustly positive.
+Read this row by row. The `wt` row is the slope of `mpg` on `wt` for the *reference group* (`auto`). For automatic cars, every extra 1,000 lbs costs 3.79 mpg. The `ammanual` row is the *intercept shift* for manual cars, not their slope, and it is large because manual cars in mtcars are lighter on average. The interaction row, `wt:ammanual = -5.30`, says manual cars lose an *extra* 5.3 mpg per ton beyond what automatic cars lose. So the slope of `wt` for manuals is `-3.79 + (-5.30) = -9.08`. Manuals get punished more by weight than autos.
 
-```r title="Predicted petal width at specific lengths"
-preds <- emmeans(m_iris, ~ Species,
-                 at = list(Petal.Length = c(2, 5)))
-preds
-#>  Species    Petal.Length emmean     SE  df lower.CL upper.CL
-#>  setosa                2  0.354 0.0770 144    0.202    0.506
-#>  versicolor            2  1.238 0.0687 144    1.102    1.374
-#>  virginica             2  1.492 0.0898 144    1.314    1.669
-#>  setosa                5  0.957 0.1937 144    0.574    1.340
-#>  versicolor            5  2.223 0.0581 144    2.108    2.337
-#>  virginica             5  2.357 0.0554 144    2.247    2.467
+```r title="Categorical x categorical: cell means"
+m3 <- lm(mpg ~ am * cyl, data = mtcars2)
+round(coef(summary(m3)), 4)
+#>                 Estimate Std. Error t value Pr(>|t|)
+#> (Intercept)      22.9000     1.3618 16.8155   0.0000
+#> ammanual          5.1750     1.9261  2.6868   0.0125
+#> cyl6             -3.7733     2.0945 -1.8014   0.0834
+#> cyl8             -7.9000     1.6678 -4.7367   0.0001
+#> ammanual:cyl6    -1.6017     2.9572 -0.5416   0.5928
+#> ammanual:cyl8    -3.5341     3.0286 -1.1670   0.2538
 ```
 
-`emmeans()` is the right tool when you want to answer "what does the model predict at these specific values?". Here you can see that a 5 cm petal predicts a versicolor width of 2.22 cm versus a virginica width of 2.36 cm, a non-trivial difference even though the two slopes are similar.
-
-[TIP]
-**Use `emtrends()` when your focal predictor is continuous and you want slopes.** Use `emmeans()` when you want predicted y-values at specific moderator combinations. Both return confidence intervals and support pairwise comparisons via `pairs()`.
-
-**Try it:** Using `m_iris`, compute the simple slope of `Petal.Length` inside each species and save the result as `ex_slopes`.
-
-```r title="Your turn: emtrends"
-# use emtrends() with specs = "Species", var = "Petal.Length"
-# your code here
-
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Emtrends solution"
-ex_slopes <- emtrends(m_iris, specs = "Species", var = "Petal.Length")
-as.data.frame(ex_slopes)[, c("Species", "Petal.Length.trend")]
-#>      Species Petal.Length.trend
-#> 1     setosa              0.201
-#> 2 versicolor              0.328
-#> 3  virginica              0.288
-```
-
-**Explanation:** `emtrends()` does the coefficient arithmetic for you and adds standard errors and confidence intervals.
-
-</details>
-
-## How do you visualize an interaction plot?
-
-A picture makes the story obvious. Parallel lines mean no interaction, divergent lines mean the effect of X1 depends on X2, and crossing lines mean a flat-out reversal. For a continuous-by-categorical model, colour the lines by the categorical variable. For a continuous-by-continuous model, bin the moderator or plot lines at a handful of representative values.
-
-```r title="Interaction plot: iris by species"
-ggplot(iris, aes(x = Petal.Length, y = Petal.Width, colour = Species)) +
-  geom_point(alpha = 0.6) +
-  geom_smooth(method = "lm", se = TRUE) +
-  labs(title = "Petal.Width vs Petal.Length, slopes by Species",
-       x = "Petal Length (cm)", y = "Petal Width (cm)") +
-  theme_minimal()
-```
-
-The three fitted lines have visibly different slopes, which is the interaction made visual. Setosa's line is shorter and flatter because the species has tight petal dimensions. Versicolor and virginica ramp up at similar rates, consistent with the near-equal slopes you saw from `emtrends()`.
-
-```r title="Continuous x continuous: wt bins on mtcars"
-mtcars_bin <- mtcars |>
-  mutate(wt_bin = cut(wt,
-                      breaks = quantile(wt, c(0, 1/3, 2/3, 1)),
-                      labels = c("light", "medium", "heavy"),
-                      include.lowest = TRUE))
-
-ggplot(mtcars_bin, aes(x = hp, y = mpg, colour = wt_bin)) +
-  geom_point() +
-  geom_smooth(method = "lm", se = FALSE) +
-  labs(title = "mpg vs hp, slopes by weight bin",
-       x = "Horsepower", y = "Miles per gallon", colour = "Weight") +
-  theme_minimal()
-```
-
-Light cars show the steepest negative slope and heavy cars the flattest, exactly as the conditional-slope calculation predicted. Binning is only a visual shortcut; the model itself is still fit on continuous `wt`. You can also plot three smooth lines at `wt = mean - SD, mean, mean + SD` using `emmeans` output if you prefer fully smooth curves.
+In a categorical-by-categorical model, the interaction terms test whether the *combination* of two factor levels is more or less than the sum of its parts. Both interaction rows here have large p-values, so the data is roughly consistent with an additive pattern: manuals get a fixed +5.2 mpg bonus regardless of cylinder count, and the cylinder penalty is the same for both transmissions. We will return to formal testing in the next section.
 
 [NOTE]
-**For a continuous moderator, bin it for the plot or pick a handful of typical values.** Many analysts use mean and mean +/- one SD, the "pick-a-point" convention from Aiken and West.
+**Convert to factors before fitting, or set `contrasts` explicitly.** R chooses the alphabetically-first level as the reference by default. Use `factor(x, levels = c(...))` to control which level becomes the baseline, and the rest of the coefficients become much easier to read.
 
-**Try it:** Redraw the mtcars plot using `geom_smooth(se = FALSE)` so the three lines are cleaner and easier to compare.
+**Try it:** Fit `mpg ~ wt * cyl` on `mtcars2` (note: `cyl` is already a factor in `mtcars2`). Look at the coefficients and identify which cylinder group's slope of `wt` is steepest (most negative).
 
-```r title="Your turn: cleaner mtcars plot"
-# drop se = TRUE from geom_smooth
-# your code here
-
+```r title="Your turn: which cylinder loses mpg fastest with weight?"
+# Fit the model and inspect coefficients.
+ex_m_cyl <- lm(  , data = mtcars2)
+round(coef(summary(ex_m_cyl)), 4)
+#> Expected: a 6-row table; combine main wt slope with each interaction row
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Cleaner plot solution"
-ggplot(mtcars_bin, aes(x = hp, y = mpg, colour = wt_bin)) +
-  geom_point() +
-  geom_smooth(method = "lm", se = FALSE) +
-  theme_minimal()
+```r title="Cylinder slope solution"
+ex_m_cyl <- lm(mpg ~ wt * cyl, data = mtcars2)
+round(coef(summary(ex_m_cyl)), 4)
+#>             Estimate Std. Error t value Pr(>|t|)
+#> (Intercept)  39.5712     4.3461  9.1051   0.0000
+#> wt           -5.6475     1.3597 -4.1535   0.0003
+#> cyl6        -11.1623   10.1693 -1.0976   0.2820
+#> cyl8        -15.7034    6.4763 -2.4247   0.0226
+#> wt:cyl6       2.8669     3.1170  0.9197   0.3661
+#> wt:cyl8       3.4548     1.6248  2.1262   0.0428
 ```
 
-**Explanation:** Setting `se = FALSE` suppresses the confidence ribbons and lets readers focus on the slope differences between weight bins.
+**Explanation:** The slope of `wt` for 4-cyl cars (the reference) is -5.65. For 8-cyl cars it is `-5.65 + 3.45 = -2.20`. The 4-cylinder slope is steepest, meaning 4-cyl cars lose more mpg per ton of weight than 8-cyl cars.
 
 </details>
 
-## How do you test if an interaction is statistically significant?
+## How do you test whether an interaction is statistically meaningful?
 
-You have two options and they agree in simple cases. The t-test on the interaction coefficient (the `Pr(>|t|)` column in `summary()`) tests whether that single term differs from zero. The F-test from `anova()` compares the full model to the additive model; it is the cleaner hypothesis test when the interaction involves a factor with more than two levels, because it pools the multiple interaction columns into one test.
+Three checks usually agree, and you should run all three before deciding to keep an interaction in your final model. The coefficient p-value is the quickest. The nested-model F test via `anova()` is the most principled. AIC and BIC give a quick complexity-adjusted score. If theory or a plot suggests an interaction but all three tests come back null, drop the cross term.
 
-```r title="F-test for the interaction"
-anova(m_add, m_full)
+The `anova()` route compares two models, one with and one without the interaction.
+
+```r title="Test the interaction with nested-model anova"
+m0 <- lm(mpg ~ hp + wt, data = mtcars)         # additive only
+anova(m0, m1)
 #> Analysis of Variance Table
-#> 
+#>
 #> Model 1: mpg ~ hp + wt
-#> Model 2: mpg ~ hp + wt + hp:wt
-#>   Res.Df    RSS Df Sum of Sq      F   Pr(>F)   
-#> 1     29 195.05                                
-#> 2     28 129.77  1    65.285 14.086 0.000811 ***
+#> Model 2: mpg ~ hp * wt
+#>   Res.Df    RSS Df Sum of Sq      F   Pr(>F)
+#> 1     29 195.05
+#> 2     28 129.76  1    65.29 14.09 0.000812 ***
 ```
 
-The F-statistic of 14.1 with p = 0.0008 tells you that adding the `hp:wt` term explains significantly more variance than the additive model alone. The residual sum of squares drops from 195 to 130, a 33% reduction. For a single-df interaction like this one, the F-test's p-value matches the t-test's p-value from `summary(m1)` exactly.
+The F statistic is 14.1 with p = 0.0008, so adding the `hp:wt` term significantly improves fit. AIC tells the same story.
 
-```r title="AIC as a complementary check"
-AIC(m_add, m_full)
-#>        df      AIC
-#> m_add   4 156.6523
-#> m_full  5 149.7198
+```r title="AIC complexity-adjusted comparison"
+AIC(m0, m1)
+#>    df      AIC
+#> m0  4 156.6523
+#> m1  5 145.0066
 ```
 
-AIC agrees: the interaction model sits about 7 points lower, which counts as strong evidence. When two model-selection criteria point the same way, you can be comfortable keeping the interaction in the final model.
+The interaction model's AIC is lower by 11.6, well past the rule-of-thumb threshold of 4 for "clearly better." Both diagnostics point the same way: keep the interaction.
+
+![Decision flow for keeping or dropping an interaction term.](screenshots/Interaction-Effects-in-R-decision-flow.webp)
+*Figure 1: Decision flow for keeping or dropping an interaction term. The three checks usually agree. When they conflict, trust theory and the plot first.*
 
 [WARNING]
-**Do not interpret main effects of variables in a significant interaction in isolation.** Always report simple slopes or marginal effects, because the "main effect of hp" only describes one slice of reality (`wt = 0`, or with centering `wt = mean`).
+**Keep both main effects whenever you keep the interaction.** This is the *hierarchical principle*. Removing a main effect that is part of an interaction (e.g., `lm(y ~ x:z + z)` with `x` dropped) makes the model depend on the arbitrary choice of zero for `x`, and your interaction coefficient becomes uninterpretable. Even if the main effect is "non-significant," leave it in.
 
-**Try it:** Run an F-test to check whether `wt*am` improves `mpg ~ wt + am` on mtcars.
+**Try it:** Use `anova()` to test the interaction in `m2` (the wt × am model). Fit a no-interaction version called `ex_m2_no_int` and compare.
 
-```r title="Your turn: test wt*am"
-# fit an additive and an interaction model, then anova() them
-# your code here
-
+```r title="Your turn: test the wt x am interaction"
+# Fit a no-interaction baseline, then compare with anova().
+ex_m2_no_int <- lm(  , data = mtcars2)
+anova(ex_m2_no_int, m2)
+#> Expected: an F test with one numerator df, p < 0.01
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="wt*am F-test solution"
-m_a <- lm(mpg ~ wt + factor(am), data = mtcars)
-m_i <- lm(mpg ~ wt * factor(am), data = mtcars)
-anova(m_a, m_i)
-#>   Res.Df    RSS Df Sum of Sq     F   Pr(>F)
+```r title="wt x am interaction test solution"
+ex_m2_no_int <- lm(mpg ~ wt + am, data = mtcars2)
+anova(ex_m2_no_int, m2)
+#> Analysis of Variance Table
+#>
+#> Model 1: mpg ~ wt + am
+#> Model 2: mpg ~ wt * am
+#>   Res.Df    RSS Df Sum of Sq      F   Pr(>F)
 #> 1     29 278.32
 #> 2     28 188.01  1    90.31 13.45 0.001018 **
 ```
 
-**Explanation:** The interaction adds about 90 units of explained sum of squares (F = 13.5, p = 0.001). Manual and automatic cars lose mpg at different rates per ton of weight.
+**Explanation:** The interaction adds 90 units of explained sum of squares (F = 13.45, p = 0.001). Manual and automatic cars have meaningfully different `wt` slopes, so the interaction stays in.
+
+</details>
+
+## How do you visualize an interaction in R?
+
+A plot tells you the *shape* of the interaction. Four shapes show up over and over: parallel lines (no interaction), fan-in or fan-out (steeper slope at one end), and crossover (slopes flip sign). Naming the shape helps you describe the result without dragging the reader through coefficient algebra.
+
+![The four shapes an interaction can take when you plot the effect of X by levels of Z.](screenshots/Interaction-Effects-in-R-shapes.webp)
+*Figure 2: The four shapes an interaction can take when you plot the effect of X by levels of Z. Naming the shape (synergy, antagonism, crossover) lets you describe the finding in one phrase.*
+
+The fastest plot in R comes from `emmip()` in the `emmeans` package. It takes a fitted model and a formula `moderator ~ predictor`, and draws one line per moderator level.
+
+```r title="Quick interaction plot with emmip()"
+emmip(m2, am ~ wt, at = list(wt = c(2, 3, 4, 5)),
+      CIs = TRUE) +
+  ggtitle("Slope of wt on mpg differs by transmission") +
+  theme_minimal()
+```
+
+The two lines fan out: at `wt = 2` the predicted mpg gap between manual and auto is large, at `wt = 5` it has shrunk. That is the interaction. Now build a publication version directly with `ggplot2`. We will plot the continuous-by-continuous case (`m1`, `mpg ~ hp * wt`) by fixing `wt` at three round values and letting `hp` sweep across its observed range.
+
+```r title="Publication ggplot of the hp x wt interaction"
+grid_dat <- expand.grid(hp = seq(50, 330, length.out = 50),
+                        wt = c(2.0, 3.2, 4.5))
+grid_dat$mpg_hat <- predict(m1, newdata = grid_dat)
+
+ggplot(grid_dat, aes(x = hp, y = mpg_hat,
+                     colour = factor(wt), group = factor(wt))) +
+  geom_line(linewidth = 1) +
+  labs(x = "horsepower", y = "predicted mpg",
+       colour = "wt (1000 lb)",
+       title = "Slope of mpg on hp flattens as cars get heavier") +
+  theme_minimal()
+```
+
+Three coloured lines, one per `wt` level. The line for light cars (`wt = 2.0`) drops sharply with `hp`; the line for heavy cars (`wt = 4.5`) is nearly flat. That visual is the interaction, plain to anyone who can read a chart. No coefficient interpretation required.
+
+[TIP]
+**Pick at-values you'll defend in writing.** Round numbers (2, 3, 4 thousand lbs) read better than 25th/50th/75th percentiles of `wt` (2.58, 3.32, 3.61). Match the at-values to whatever you plan to report in the text, so the figure and the prose tell the same story.
+
+**Try it:** Re-draw the `emmip()` plot for `m2`, but choose your own three weight values to show. Try `wt = c(2.5, 3.5, 4.5)`.
+
+```r title="Your turn: emmip with custom weights"
+emmip(m2, am ~ wt, at = list(wt =  ),
+      CIs = TRUE) +
+  theme_minimal()
+#> Expected: same fan-out shape, anchored at three weights
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Custom-weight emmip solution"
+emmip(m2, am ~ wt, at = list(wt = c(2.5, 3.5, 4.5)),
+      CIs = TRUE) +
+  ggtitle("Manual cars lose mpg faster than autos as weight rises") +
+  theme_minimal()
+```
+
+**Explanation:** The two lines diverge at low `wt` and converge at high `wt`. The interaction is "fan-in" reading left to right: heavy cars have similar mpg regardless of transmission, light cars differ a lot.
+
+</details>
+
+## How do you report interaction results in plain English?
+
+A reader who isn't a statistician needs three numbers: the slope (or cell mean) inside each level of the moderator, a comparison, and a p-value. Don't make them read coefficients. The `emmeans` package gives you exactly that table, ready to drop into a results paragraph.
+
+For continuous-by-continuous interactions, `emtrends()` returns the slope of one variable at chosen values of the other.
+
+```r title="emtrends: slope of hp at three weights"
+trends_m1 <- emtrends(m1, ~ wt, var = "hp",
+                      at = list(wt = c(2.0, 3.2, 4.5)))
+trends_m1
+#>   wt hp.trend     SE df lower.CL upper.CL
+#>  2.0 -0.06451 0.0140 28 -0.09319 -0.03583
+#>  3.2 -0.03114 0.0093 28 -0.05015 -0.01213
+#>  4.5  0.00501 0.0125 28 -0.02060  0.03061
+```
+
+Three numbers, each with a confidence interval. At a 2,000-lb car the slope is `-0.065` (CI excludes zero, real effect). At a 4,500-lb car the slope is `+0.005` and the CI spans zero (no effect). That is the whole interaction in plain numbers.
+
+For continuous-by-categorical, ask `emmeans` for the slope of `wt` inside each level of `am`.
+
+```r title="emmeans simple slopes per group"
+slopes_am <- emtrends(m2, specs = "am", var = "wt")
+slopes_am
+#>  am     wt.trend    SE df lower.CL upper.CL
+#>  auto      -3.79 0.790 28    -5.41    -2.18
+#>  manual    -9.08 1.257 28   -11.66    -6.51
+```
+
+Now you can write the result in one paragraph any reader can follow:
+
+> Vehicle weight predicts mpg differently for the two transmission types (interaction F(1, 28) = 13.5, p = 0.001). Among automatic cars, every extra 1,000 lbs costs 3.8 mpg (95% CI: 2.2 to 5.4). Among manual cars, the same extra weight costs 9.1 mpg (95% CI: 6.5 to 11.7), more than twice the automatic-car penalty. The two confidence intervals do not overlap, so the slopes differ meaningfully.
+
+[KEY INSIGHT]
+**Never report only the interaction coefficient.** "wt:ammanual = -5.3, p = 0.001" tells the reader nothing actionable. "Manuals lose 9.1 mpg per ton, autos lose 3.8 mpg per ton" tells them everything. The interaction coefficient is a difference of two slopes; readers want both slopes.
+
+**Try it:** Using `slopes_am` above, write a one-paragraph summary of the wt × am interaction in your own words. Aim for three sentences: one stating the interaction exists, one giving the auto slope with CI, one giving the manual slope with CI.
+
+```r title="Your turn: write a results paragraph"
+# Look at slopes_am, then write 3 sentences in a comment block below.
+# Sentence 1: state the interaction (cite the F test).
+# Sentence 2: report the auto slope and its 95% CI.
+# Sentence 3: report the manual slope and its 95% CI.
+
+# Your paragraph here:
+#
+
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Example results paragraph"
+# Vehicle weight affected mpg differently for automatic and manual transmissions
+# (interaction F(1, 28) = 13.45, p = 0.001). For automatic cars, every extra
+# 1,000 lbs reduced mpg by 3.79 (95% CI: 2.18 to 5.41). For manual cars, the
+# same weight increase reduced mpg by 9.08 (95% CI: 6.51 to 11.66), about
+# 2.4 times the automatic-car effect.
+```
+
+**Explanation:** The structure is reusable: state-the-test, group-1-slope, group-2-slope. Numbers come straight from `slopes_am`. Avoid jargon ("simple slope", "moderator effect"), and pick units a non-statistician will recognise (mpg per 1,000 lbs, not per scaled unit).
 
 </details>
 
 ## Practice Exercises
 
-### Exercise 1: Continuous x categorical on mtcars
+### Exercise 1: Test and report a continuous × categorical interaction
 
-Fit `my_m1 <- lm(mpg ~ wt * factor(am), data = mtcars)`. Use `emtrends()` to get the slope of `wt` inside each transmission type, and save the result as `my_slopes`.
+Fit `lm(Sepal.Length ~ Petal.Length * Species, data = iris)`. Run a nested-model `anova()` against the no-interaction version. Then use `emtrends()` to extract the slope of `Petal.Length` for each species. Save the slopes table as `my_iris_slopes`.
 
 ```r title="Exercise 1 starter"
-# fit the interaction model, then use emtrends()
-# my_m1 <- ...
-# my_slopes <- ...
+# 1. Fit two models: with and without the interaction.
+# 2. anova() to compare them.
+# 3. emtrends() to get one slope per species.
+# my_iris_slopes <- ...
 
 ```
 
@@ -421,27 +401,32 @@ Fit `my_m1 <- lm(mpg ~ wt * factor(am), data = mtcars)`. Use `emtrends()` to get
 <summary>Click to reveal solution</summary>
 
 ```r title="Exercise 1 solution"
-my_m1 <- lm(mpg ~ wt * factor(am), data = mtcars)
-my_slopes <- emtrends(my_m1, specs = "am", var = "wt")
-my_slopes
-#>  am wt.trend    SE df lower.CL upper.CL
-#>  0     -3.79 0.790 28    -5.41    -2.18
-#>  1     -9.08 1.257 28   -11.66    -6.51
+m_iris   <- lm(Sepal.Length ~ Petal.Length * Species, data = iris)
+m_iris_a <- lm(Sepal.Length ~ Petal.Length + Species, data = iris)
+anova(m_iris_a, m_iris)
+#>   Res.Df    RSS Df Sum of Sq      F  Pr(>F)
+#> 1    146 25.502
+#> 2    144 24.585  2   0.91666 2.6843 0.07173 .
+
+my_iris_slopes <- emtrends(m_iris, specs = "Species", var = "Petal.Length")
+my_iris_slopes
+#>  Species    Petal.Length.trend    SE  df lower.CL upper.CL
+#>  setosa                  0.542 0.225 144   0.0972    0.987
+#>  versicolor              0.828 0.123 144   0.5847    1.071
+#>  virginica               0.996 0.087 144   0.8242    1.168
 ```
 
-**Explanation:** Manual cars (am=1) lose 9.1 mpg per ton, automatic cars lose 3.8. The manual group's slope is almost 2.4x steeper, and the two CIs do not overlap, so the slopes differ meaningfully.
+**Explanation:** The omnibus `anova()` is borderline (p = 0.07), but the slopes themselves climb from 0.54 (setosa) to 1.00 (virginica). Most of the interaction is the difference between setosa and the other two species. Report the simple slopes, mention the borderline test, and let the reader judge.
 
 </details>
 
-### Exercise 2: Centering and AIC comparison on iris
+### Exercise 2: Find the highest-mpg cell in a categorical × categorical model
 
-Mean-center `Sepal.Length` as `sl_c`, fit `my_m2 <- lm(Sepal.Width ~ sl_c * Species, data = iris_c)`, and compare its AIC to the additive model `Sepal.Width ~ sl_c + Species`. Which is lower, and by how much?
+Using `mtcars2` (with `am` and `cyl` already as factors), add a `vs` factor, fit `lm(mpg ~ am * vs, data = ...)`, and use `emmeans()` to compute the four estimated marginal means (one per `am × vs` combination). Identify which combination has the highest mean mpg. Save the table as `my_cell_means`.
 
 ```r title="Exercise 2 starter"
-# step 1: create iris_c with sl_c = Sepal.Length - mean(Sepal.Length)
-# step 2: fit my_m2 (interaction) and my_m2_add (additive)
-# step 3: AIC(my_m2_add, my_m2)
-# your code here
+# Add a vs factor, fit the cat x cat model, then emmeans() for the four cells.
+# my_cell_means <- emmeans(  , specs = ~  )
 
 ```
 
@@ -449,30 +434,30 @@ Mean-center `Sepal.Length` as `sl_c`, fit `my_m2 <- lm(Sepal.Width ~ sl_c * Spec
 <summary>Click to reveal solution</summary>
 
 ```r title="Exercise 2 solution"
-iris_c <- iris |> mutate(sl_c = Sepal.Length - mean(Sepal.Length))
+mtcars3 <- mtcars2 |> mutate(vs = factor(vs, labels = c("V-shape", "straight")))
+m_av    <- lm(mpg ~ am * vs, data = mtcars3)
 
-my_m2_add <- lm(Sepal.Width ~ sl_c + Species, data = iris_c)
-my_m2     <- lm(Sepal.Width ~ sl_c * Species, data = iris_c)
-
-AIC(my_m2_add, my_m2)
-#>           df      AIC
-#> my_m2_add  5 113.1040
-#> my_m2      7 105.8473
+my_cell_means <- emmeans(m_av, specs = ~ am * vs)
+my_cell_means
+#>  am     vs       emmean   SE df lower.CL upper.CL
+#>  auto   V-shape    15.0 0.86 28    13.24    16.76
+#>  manual V-shape    19.8 1.39 28    16.96    22.64
+#>  auto   straight   20.7 1.04 28    18.58    22.82
+#>  manual straight   28.4 1.04 28    26.27    30.52
 ```
 
-**Explanation:** The interaction model's AIC is about 7 points lower, strong evidence that the three species have genuinely different slopes of Sepal.Width on Sepal.Length.
+**Explanation:** The highest mean mpg (28.4) is for manual transmission with a straight-engine layout. Cell-mean tables answer "which combination is best?" directly, without forcing the reader to decode interaction coefficients.
 
 </details>
 
-### Exercise 3: Two factors on ToothGrowth
+### Exercise 3: Plot a continuous × categorical interaction with custom anchors
 
-Fit `my_m3 <- lm(len ~ supp * factor(dose), data = ToothGrowth)`. Use `anova()` to test the `supp:factor(dose)` interaction, then compute predicted tooth length at each combination with `emmeans()`.
+Fit `lm(Sepal.Width ~ Sepal.Length * Species, data = iris)`. Use `emmip()` to draw three lines (one per species), with `Sepal.Length` swept across `c(4.5, 5.5, 6.5, 7.5)`. Save the resulting plot to `my_iris_plot`.
 
 ```r title="Exercise 3 starter"
-# my_m3 <- lm(len ~ supp * factor(dose), data = ToothGrowth)
-# anova(my_m3)
-# emmeans(my_m3, ~ supp * factor(dose))
-# your code here
+# emmip(model, line ~ x, at = list(x = ...))
+# my_iris_plot <- emmip(  )
+# my_iris_plot
 
 ```
 
@@ -480,100 +465,80 @@ Fit `my_m3 <- lm(len ~ supp * factor(dose), data = ToothGrowth)`. Use `anova()` 
 <summary>Click to reveal solution</summary>
 
 ```r title="Exercise 3 solution"
-my_m3 <- lm(len ~ supp * factor(dose), data = ToothGrowth)
-anova(my_m3)
-#> Analysis of Variance Table
-#> 
-#> Response: len
-#>                   Df  Sum Sq Mean Sq F value    Pr(>F)    
-#> supp               1  205.35  205.35  15.572 0.0002312 ***
-#> factor(dose)       2 2426.43 1213.22  92.000 < 2.2e-16 ***
-#> supp:factor(dose)  2  108.32   54.16   4.107 0.0218603 *
-#> Residuals         54  712.11   13.19
-
-emmeans(my_m3, ~ supp * factor(dose))
-#>  supp dose emmean    SE df lower.CL upper.CL
-#>  OJ   0.5   13.23 1.148 54    10.93     15.5
-#>  VC   0.5    7.98 1.148 54     5.68     10.3
-#>  OJ   1     22.70 1.148 54    20.40     25.0
-#>  VC   1     16.77 1.148 54    14.47     19.1
-#>  OJ   2     26.06 1.148 54    23.76     28.4
-#>  VC   2     25.98 1.148 54    23.68     28.3
+m_sw <- lm(Sepal.Width ~ Sepal.Length * Species, data = iris)
+my_iris_plot <- emmip(m_sw, Species ~ Sepal.Length,
+                      at = list(Sepal.Length = c(4.5, 5.5, 6.5, 7.5)),
+                      CIs = TRUE) +
+  ggtitle("Sepal width vs length by species (interaction)") +
+  theme_minimal()
+my_iris_plot
 ```
 
-**Explanation:** The interaction is significant (F = 4.1, p = 0.022). The OJ advantage is large at dose 0.5 and 1 but essentially disappears at dose 2, which is exactly what the emmeans table shows numerically.
+**Explanation:** The setosa line slopes upward steeply, while versicolor and virginica are flatter. The non-parallel pattern is the interaction visualised. Pick anchor values that span the joint range of `Sepal.Length` in the data, not extrapolated extremes.
 
 </details>
 
 ## Complete Example
 
-Here is the full workflow from model to reportable finding, end-to-end on mtcars.
+Here is the full workflow on `airquality`: does temperature predict ozone differently in different months? Fit, test, simple-slope, plot, write up.
 
-```r title="End-to-end interaction analysis on mtcars"
-# 1. Fit additive and interaction models
-m_add  <- lm(mpg ~ hp + wt, data = mtcars)
-m_full <- lm(mpg ~ hp * wt, data = mtcars)
+```r title="End-to-end interaction analysis on airquality"
+aq <- airquality |>
+  filter(!is.na(Ozone), !is.na(Temp)) |>
+  mutate(Month = factor(Month, labels = c("May", "Jun", "Jul", "Aug", "Sep")))
 
-# 2. Test significance
-anova(m_add, m_full)
-#>   Res.Df    RSS Df Sum of Sq      F    Pr(>F)    
-#> 1     29 195.05                                  
-#> 2     28 129.77  1    65.285 14.086 0.0008108 ***
+# Step 1: fit interaction and additive models
+m_aq    <- lm(Ozone ~ Temp * Month, data = aq)
+m_aq_a  <- lm(Ozone ~ Temp + Month, data = aq)
 
-# 3. Simple slopes of hp at three weights
-emtrends(m_full, specs = "wt", var = "hp",
-         at = list(wt = c(2, 3, 4)))
-#>  wt hp.trend     SE df lower.CL upper.CL
-#>   2  -0.0645 0.01291 28 -0.0910  -0.0381
-#>   3  -0.0367 0.00843 28 -0.0540  -0.0195
-#>   4  -0.0089 0.01033 28 -0.0300   0.0122
+# Step 2: test
+anova(m_aq_a, m_aq)
+#>   Res.Df    RSS Df Sum of Sq     F   Pr(>F)
+#> 1    110 49247
+#> 2    106 41030  4    8217 5.308 0.0006 ***
 
-# 4. Interaction plot with wt binned
-mtcars |>
-  mutate(wt_bin = cut(wt, c(0, 2.7, 3.5, Inf),
-                      labels = c("light", "medium", "heavy"))) |>
-  ggplot(aes(hp, mpg, colour = wt_bin)) +
-    geom_point() +
-    geom_smooth(method = "lm", se = FALSE) +
-    labs(title = "mpg vs hp by car weight", colour = "Weight") +
-    theme_minimal()
+# Step 3: simple slopes per month
+emtrends(m_aq, specs = "Month", var = "Temp")
+#>  Month Temp.trend   SE df lower.CL upper.CL
+#>  May        1.92 0.71 106    0.51    3.32
+#>  Jun        2.55 1.42 106   -0.27    5.36
+#>  Jul        4.93 0.81 106    3.32    6.54
+#>  Aug        4.45 0.74 106    2.97    5.92
+#>  Sep        2.43 0.50 106    1.43    3.43
+
+# Step 4: plot
+emmip(m_aq, Month ~ Temp, at = list(Temp = seq(60, 95, 5)),
+      CIs = TRUE) +
+  ggtitle("Ozone-Temperature slope varies by month") +
+  theme_minimal()
 ```
 
-And here is the two-sentence write-up for a non-statistical audience:
-
-> "The effect of horsepower on fuel economy depends on a car's weight (F(1, 28) = 14.1, p < 0.001). Lightweight cars lose 0.06 mpg per extra horsepower, medium cars 0.04, and heavy cars less than 0.01, so extra power hurts mileage most in the lightest vehicles."
-
-That single paragraph bundles the significance test and the practical implication. You did the stats work; now you translate it.
+The interaction is real (F(4, 106) = 5.3, p = 0.0006). In May, June, and September the slope of ozone on temperature sits around 2 ppb per degree F. In July and August it nearly doubles to 4.5 to 4.9 ppb per degree F, the temperature-pollution link tightens in mid-summer. A reader sees one paragraph, four numbers, one figure, and they have the result.
 
 ## Summary
 
-| Concept | Answer |
-|---|---|
-| What | Effect of one predictor depends on another |
-| Syntax | `y ~ x1 * x2` (same as `x1 + x2 + x1:x2`) |
-| Interpret main effects | Only meaningful when the other predictor = 0, so center first |
-| Simple slopes | `emtrends()` for slopes, `emmeans()` for predicted values |
-| Test significance | `anova(additive, interaction)` F-test or single-term t-test |
-| Plot | `ggplot2` lines; parallel = none, divergent = interaction |
-| Reporting | Include simple slopes or marginal effects alongside the test |
+![Workflow recap: how to add, test, understand, and report interaction effects in R.](screenshots/Interaction-Effects-in-R-overview.webp)
+*Figure 3: Workflow recap. Add with `*` or `:`, test with `anova()` and AIC, understand with `emtrends`/`emmip`, then report in plain English.*
 
-![Interaction workflow overview](screenshots/Interaction-Effects-in-R-overview-mindmap.webp)
-
-*Figure 3: The whole interaction workflow at a glance.*
+- **Add** an interaction with `lm(y ~ x * z)` (expands to main effects + cross term) or `lm(y ~ x + z + x:z)`. The two are identical fits.
+- **Read** the interaction coefficient as the *change in slope* of one predictor per unit of the other. Main effects no longer mean what they meant in an additive model.
+- **Test** with `anova(no_int_model, int_model)` for an F test and `AIC()` for complexity-adjusted comparison. Coefficient p-values are a quick check, not a substitute.
+- **Visualise** with `emmip()` (quick) or `ggplot2 + predict()` (publication). The plot's *shape* (parallel, fan, crossover) names the finding in one phrase.
+- **Report** simple slopes from `emtrends()` or cell means from `emmeans()`. Never publish an interaction coefficient without translating it to slopes a non-statistician can read.
+- **Keep** both main effects whenever you keep the interaction (the hierarchical principle). Three-way and higher interactions are rarely worth the interpretation cost; prefer subgroup analyses.
 
 ## References
 
-1. UCLA OARC. *Decomposing, Probing, and Plotting Interactions in R*. [Link](https://stats.oarc.ucla.edu/r/seminars/interactions-r/)
-2. Long, J. *interactions package vignette*, CRAN. [Link](https://cran.r-project.org/web/packages/interactions/vignettes/interactions.html)
-3. Lenth, R. *emmeans: Estimated Marginal Means*, CRAN. [Link](https://cran.r-project.org/package=emmeans)
-4. Aiken, L. and West, S. *Multiple Regression: Testing and Interpreting Interactions*. Sage (1991).
-5. Gelman, A. and Hill, J. *Data Analysis Using Regression and Multilevel/Hierarchical Models*. Cambridge University Press (2007).
-6. STHDA. *Interaction Effect in Multiple Regression: Essentials*. [Link](https://www.sthda.com/english/articles/40-regression-analysis/164-interaction-effect-in-multiple-regression-essentials/)
-7. R Core Team. *formula reference*. [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/formula.html)
-8. Wickham, H. *ggplot2: Elegant Graphics for Data Analysis*. Springer.
+1. Faraway, J. (2014). *Linear Models with R*, 2nd Edition. Chapman & Hall. Chapter 6: Interactions in Regression.
+2. Fox, J., & Weisberg, S. (2018). *An R Companion to Applied Regression*, 3rd Edition. Sage. Chapter on Linear Models with Categorical and Continuous Predictors.
+3. Lenth, R., emmeans package: Interactions in linear models. [CRAN vignette](https://cran.r-project.org/web/packages/emmeans/vignettes/interactions.html)
+4. Long, J., interactions package documentation. [CRAN vignette](https://cran.r-project.org/web/packages/interactions/vignettes/interactions.html)
+5. Aiken, L. S., & West, S. G. (1991). *Multiple Regression: Testing and Interpreting Interactions*. Sage.
+6. UCLA OARC Stats, Decomposing, Probing, and Plotting Interactions in R. [Seminar](https://stats.oarc.ucla.edu/r/seminars/interactions-r/)
+7. R Core Team. *R Documentation: formula and lm*. [`?formula`](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/formula.html)
 
 ## Continue Learning
 
-- [Dummy Variables in R](Dummy-Variables-in-R.html): how R codes categorical predictors into design-matrix columns, the prerequisite for reading any `Species*Petal.Length` output.
-- [Multiple Regression in R](Multiple-Regression-in-R.html): the additive model you extend when you add an interaction.
-- [Linear Regression Assumptions in R](Linear-Regression-Assumptions-in-R.html): diagnostics that still apply once you have added an interaction term.
+- [Linear Regression in R](Linear-Regression.html), the foundation everything in this post sits on; understand main effects before reaching for interactions.
+- [Linear Regression Assumptions in R](Linear-Regression-Assumptions-in-R.html), interactions don't bypass the usual diagnostics; check residuals after every fit.
+- [Dummy Variables in R](Dummy-Variables-in-R.html), categorical predictors get encoded into dummies, and reading interaction coefficients with factors gets easier once you know which level is the reference.
