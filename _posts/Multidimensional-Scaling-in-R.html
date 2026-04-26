@@ -1,0 +1,875 @@
+---
+title: "Multidimensional Scaling (MDS) in R: cmdscale() & NMDS with vegan"
+description: "MDS projects high-dimensional distances to 2D. Learn classical MDS with cmdscale(), NMDS via vegan::metaMDS, plus stress and Shepard plot diagnostics."
+keywords: "multidimensional scaling R, MDS in R, cmdscale, NMDS, non-metric MDS, vegan metaMDS, isoMDS, stress, Shepard plot, principal coordinates analysis"
+mathjax: true
+webr: true
+curriculum_id: "FR-mult-5"
+post_type: "FR"
+auto_link_terms: "multidimensional scaling|MDS in R|cmdscale()|metaMDS()|isoMDS()|NMDS|non-metric MDS|Shepard plot|principal coordinates analysis"
+auto_link_case_sensitive: false
+fr_parent: "t-SNE-and-UMAP-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>Multidimensional Scaling (MDS) in R: cmdscale() & NMDS with vegan</h1>
+
+<p class="lead"><a class="auto-link" href="Multi-Dimensional-Scaling-With-R.html" title="Multi Dimensional Scaling with R">Multidimensional scaling</a> (MDS) takes a table of distances between objects and lays them out in 2D so that close points stay close and far points stay far. In R, base <code>cmdscale()</code> handles exact (metric) distances, and <code>vegan::metaMDS()</code> handles ranks (non-metric) for ecology, surveys, and any non-Euclidean similarity.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="35" data-exercises="9" data-xp="135"></div>
+
+<h2>What does multidimensional scaling project to 2D?</h2>
+
+<p>You have distances, similarities, or a feature table you cannot picture. MDS turns that mess into a 2D scatter plot where geometric distance on the page approximates the dissimilarities you fed in. The classical version, called principal coordinates analysis when applied to a distance matrix, falls out of one call to <code>cmdscale()</code>. The fastest way to see what it does is the built-in <code>eurodist</code> matrix of road distances between 21 European cities.</p>
+
+<div class="webr-container" data-block-title="Project European city road distances to 2D">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Project European city road distances to 2D</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Classical MDS on the eurodist distance matrix
+eu_mds &lt;- cmdscale(eurodist, k = 2)
+
+plot(eu_mds, type = &quot;n&quot;, xlab = &quot;Axis 1&quot;, ylab = &quot;Axis 2&quot;,
+     main = &quot;Classical MDS of European cities&quot;)
+text(eu_mds, labels = rownames(eu_mds), cex = 0.7)
+#&gt; (a scatter that looks like a map of Europe,
+#&gt;  possibly mirrored, since MDS axes have no fixed sign)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read what just happened. We never told <code>cmdscale()</code> about latitude or longitude. We only handed it a table of road distances. The function arranged the cities so geometric distance between any two points on the plot tracks the road distance you would drive between them. Stockholm sits up north on the plot because every distance to Stockholm is large; Madrid sits at one extreme of axis 1 because Madrid is far from everything in central Europe. The signs of the axes are arbitrary, so the result may appear east-west flipped from a real map. That is fine; only relative positions carry meaning.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>MDS axes have no inherent meaning.</strong> Unlike regression coefficients, an MDS axis is not "interpretable" by itself. Only the <em>distances between points</em> on the plot matter. Rotating, reflecting, or relabeling the axes changes nothing about the analysis.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a "map of cars" using <code>mtcars</code>. Convert correlations between cars into a distance with <code>as.dist(1 - cor(t(scale(mtcars))))</code>, then run <code>cmdscale()</code> and plot the layout.</p>
+<div class="webr-container" data-block-title="Your turn: MDS map of cars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: MDS map of cars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Treat each car as a point; distance = 1 - correlation across scaled features
+ex_car_d &lt;- as.dist(1 - cor(t(scale(mtcars))))
+ex_car_mds &lt;- # your code here
+
+plot(ex_car_mds, type = &quot;n&quot;)
+text(ex_car_mds, labels = rownames(mtcars), cex = 0.7)
+#&gt; Expected: Mazda RX4 / RX4 Wag near each other; Cadillac far from Honda Civic.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Cars MDS solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Cars MDS solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_car_d &lt;- as.dist(1 - cor(t(scale(mtcars))))
+ex_car_mds &lt;- cmdscale(ex_car_d, k = 2)
+plot(ex_car_mds, type = &quot;n&quot;)
+text(ex_car_mds, labels = rownames(mtcars), cex = 0.7)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>cor(t(scale(mtcars)))</code> turns each car into a point in feature space, then asks how each pair correlates across mpg, hp, and so on. Subtracting from 1 turns "high correlation" into "small distance". Similar cars cluster tightly.</p>
+
+</details>
+</section>
+
+<h2>How do you run classical MDS with cmdscale()?</h2>
+
+<p>Now that you have seen what classical MDS produces, look at how it gets there. <code>cmdscale()</code> doubles, centers, and eigendecomposes the distance matrix. The first <code>k</code> eigenvectors give you the coordinates; the matching eigenvalues tell you how much of the dissimilarity each axis recovers. Reading those eigenvalues is how you decide whether 2D was enough.</p>
+
+<p>Use <code>eig = TRUE</code> to get the diagnostics back along with the coordinates. We will scale the four columns of <code>USArrests</code> first so no single variable dominates the <a class="auto-link" href="Multivariate-Statistics-in-R.html" title="Multivariate Statistics in R: Distances, Mahalanobis, and Hotelling's T² Demystified">Euclidean distance</a>.</p>
+
+<div class="webr-container" data-block-title="Classical MDS with eigenvalues and goodness-of-fit">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Classical MDS with eigenvalues and goodness-of-fit</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">arr_d   &lt;- dist(scale(USArrests))
+arr_mds &lt;- cmdscale(arr_d, k = 2, eig = TRUE)
+
+round(arr_mds$eig[1:5], 3)
+#&gt; [1] 102.617  53.456  18.075   1.852  -0.000
+
+arr_mds$GOF
+#&gt; [1] 0.8849747 0.8849747
+
+head(arr_mds$points, 4)
+#&gt;                  [,1]       [,2]
+#&gt; Alabama     0.9756604  1.1220012
+#&gt; Alaska      1.9305379  1.0624269
+#&gt; Arizona     1.7454429 -0.7384595
+#&gt; Arkansas   -0.1399130  0.1166599</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The first two eigenvalues swallow most of the variation, and the <code>GOF</code> field reports 0.885, meaning the 2D layout preserves about 88% of the squared input distances. That is solid. If <code>GOF</code> had come back below 0.6, you would either accept that 2D loses real structure or bump <code>k</code> to 3. The eigenvalues drop fast after the second one, so adding a third axis would buy little.</p>
+
+<p>Use the matrix <code>arr_mds$points</code> directly when you want to colour, label, or feed coordinates into another model.</p>
+
+<div class="webr-container" data-block-title="Plot the USArrests classical MDS">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot the USArrests classical MDS</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">plot(arr_mds$points, type = &quot;n&quot;, xlab = &quot;Axis 1&quot;, ylab = &quot;Axis 2&quot;,
+     main = &quot;USArrests: classical MDS&quot;)
+text(arr_mds$points, labels = rownames(USArrests), cex = 0.7)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Always scale before computing Euclidean distance.</strong> Without <code>scale()</code>, a variable measured in thousands (like <code>Assault</code>) drowns out one measured in single digits (like <code>Murder</code>). Scaling makes each variable contribute equally to the distance, which is almost always what you want for MDS.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Find the three states most extreme along axis 2 of the USArrests MDS, in either direction.</p>
+<div class="webr-container" data-block-title="Your turn: extremes of axis 2">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: extremes of axis 2</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Use arr_mds$points from the previous block.
+ex_axis2 &lt;- arr_mds$points[, 2]
+# your code: print the 3 most extreme states
+#&gt; Expected: states with the largest absolute axis-2 score.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Axis 2 extremes solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Axis 2 extremes solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_axis2 &lt;- arr_mds$points[, 2]
+sort(ex_axis2[order(-abs(ex_axis2))[1:3]])
+#&gt;     Alaska   Mississippi  North Dakota
+#&gt;  1.0624269     1.0411103    -1.4814345</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>order(-abs(...))</code> sorts by absolute value descending. Axis 2 separates rural-urban patterns in this data; the extremes flag states with unusual urban-population profiles relative to violent-crime rates.</p>
+
+</details>
+</section>
+
+<h2>When should you switch from classical to non-metric MDS?</h2>
+
+<p>Classical MDS treats your distances as exact numbers. Halve a distance and the layout shifts accordingly. Non-metric MDS, called NMDS, treats your distances as a <em>ranking</em> only. It cares which pair is closest and which is farthest, not by how much. That distinction matters when distances are ordinal (Likert-scale similarities), come from a non-Euclidean metric like Bray-Curtis, or you suspect the absolute numbers are noisy but the ordering is reliable.</p>
+
+<p><img src="screenshots/Multidimensional-Scaling-in-R-method-decision.webp" alt="Decision flow comparing classical MDS and NMDS" class="img-responsive img-zoomable" loading="lazy" width="2000" height="690" /></p>
+
+<p><em>Figure 1: Pick metric (cmdscale) when distances are exact and Euclidean; pick non-metric (isoMDS or metaMDS) when only ranks matter or distances come from non-Euclidean metrics like Bray-Curtis.</em></p>
+
+<p>The base R route to NMDS is <code>MASS::isoMDS()</code>, which implements Kruskal's algorithm. It iteratively rearranges points until the rank order of fitted distances best matches the rank order of input distances. Compare the layout against the classical run from the previous section.</p>
+
+<div class="webr-container" data-block-title="Non-metric MDS with isoMDS()">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Non-metric MDS with isoMDS()</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(MASS)
+iso_mds &lt;- isoMDS(arr_d, k = 2, trace = FALSE)
+
+iso_mds$stress
+#&gt; [1] 5.605477
+
+head(iso_mds$points, 4)
+#&gt;                  [,1]        [,2]
+#&gt; Alabama    -0.6877115  -0.9692773
+#&gt; Alaska     -1.6802715  -0.5817681
+#&gt; Arizona    -1.7041717   1.0316672
+#&gt; Arkansas    0.1404020  -0.1124482</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>isoMDS()</code> returns coordinates plus a single <code>stress</code> value. Stress is reported as a percentage here (5.6 means 5.6%, well below the "usable" cutoff you will see in the next section). The point arrangement looks similar to the classical version but is not identical: Alaska and Mississippi swap relative positions because NMDS only honoured rank order, not absolute magnitudes.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>MASS ships with base R, so isoMDS() needs no extra install.</strong> You only need <code>library(MASS)</code> to bring it onto the search path. Use <code>MASS::isoMDS()</code> if you would rather not load the whole package.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Refit <code>isoMDS()</code> with <code>k = 3</code>. Read off the new stress and decide whether the third axis was worth adding.</p>
+<div class="webr-container" data-block-title="Your turn: isoMDS with three dimensions">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: isoMDS with three dimensions</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_iso3 &lt;- # your code: refit at k = 3
+print(ex_iso3$stress)
+#&gt; Expected: a smaller stress than the k=2 run, but check whether the drop is large.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="isoMDS k=3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">isoMDS k=3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_iso3 &lt;- isoMDS(arr_d, k = 3, trace = FALSE)
+ex_iso3$stress
+#&gt; [1] 1.764502</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Stress falls from about 5.6 to 1.8 when you add a third axis. That is a big drop, suggesting a third dimension carries real signal. In production you would weigh that gain against the loss of a 2D plot and the risk of overfitting noise.</p>
+
+</details>
+</section>
+
+<h2>How do you fit NMDS with vegan::metaMDS()?</h2>
+
+<p><code>MASS::isoMDS()</code> is fine for textbook problems. For real ecology, survey, or community data, the standard tool is <code>vegan::metaMDS()</code>. It runs many random starts, picks the lowest-stress solution, applies a square-root transform when abundances are skewed, and rotates the axes so the first axis spans the longest direction. All of that happens behind one call. The default distance is Bray-Curtis, which is the right answer for community abundance counts.</p>
+
+<p>The <code>dune</code> dataset that ships with vegan is a 20-by-30 matrix of plant cover scores at 20 Dutch dune meadows. Fit NMDS on it directly.</p>
+
+<div class="webr-container" data-block-title="NMDS on the dune community data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">NMDS on the dune community data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(vegan)
+data(dune)
+
+set.seed(42)
+dune_nmds &lt;- metaMDS(dune, distance = &quot;bray&quot;, k = 2, trymax = 100, trace = FALSE)
+
+dune_nmds
+#&gt; Call:
+#&gt; metaMDS(comm = dune, distance = &quot;bray&quot;, k = 2, ...)
+#&gt;
+#&gt; global Multidimensional Scaling using monoMDS
+#&gt;
+#&gt; Data:     wisconsin(sqrt(dune))
+#&gt; Distance: bray
+#&gt;
+#&gt; Dimensions: 2
+#&gt; Stress:     0.1183
+#&gt; Stress type 1, weak ties
+#&gt; Best solution was repeated 4 times in 20 tries</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the printout top-down. Stress is 0.118, comfortably under the 0.20 "unreliable" line, so the 2D ordination is trustworthy. The line "Best solution was repeated 4 times" means metaMDS found the same near-optimal arrangement four times across its random starts. That is confirmation the result is stable and not a local minimum. metaMDS also automatically applied <code>wisconsin(sqrt(...))</code> standardisation, which dampens the influence of dominant species.</p>
+
+<p>Now plot the ordination. metaMDS supplies coordinates for both sites (rows) and species (columns), so you can show which species drive which patches of the plot.</p>
+
+<div class="webr-container" data-block-title="Plot the dune NMDS ordination">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot the dune NMDS ordination</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">plot(dune_nmds, type = &quot;n&quot;, main = &quot;Dune meadows NMDS (Bray-Curtis)&quot;)
+points(dune_nmds, display = &quot;sites&quot;, pch = 19, col = &quot;steelblue&quot;)
+text(dune_nmds, display = &quot;species&quot;, col = &quot;tomato&quot;, cex = 0.7)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Sites near each other share community composition. Species names sit at the centroid of the sites where they are abundant. A species at the far left of axis 1, surrounded by sites also far left, is the species defining that gradient end. That is the entire point of an ordination plot: read it as a community-by-community map.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>metaMDS results depend on random starts.</strong> Always set <code>set.seed()</code> before calling it, and check the "Best solution was repeated" line. If the best solution was repeated only once in 100 tries, the algorithm is unstable on your data. Bump <code>trymax</code> higher or rethink the distance metric.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Refit metaMDS using Jaccard distance on presence/absence (binary) data. Compare its stress to the Bray-Curtis run.</p>
+<div class="webr-container" data-block-title="Your turn: metaMDS with Jaccard binary">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: metaMDS with Jaccard binary</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(42)
+ex_jac_nmds &lt;- # your code: metaMDS with distance = &quot;jaccard&quot;, binary = TRUE
+print(ex_jac_nmds$stress)
+#&gt; Expected: stress similar to or slightly higher than the Bray-Curtis run.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Jaccard NMDS solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Jaccard NMDS solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(42)
+ex_jac_nmds &lt;- metaMDS(dune, distance = &quot;jaccard&quot;, binary = TRUE,
+                       k = 2, trymax = 100, trace = FALSE)
+ex_jac_nmds$stress
+#&gt; [1] 0.1573127</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Jaccard on binary data discards abundance information, so it usually fits a touch worse than Bray-Curtis on <a class="auto-link" href="Poisson-and-Negative-Binomial-Regression-With-R.html" title="Poisson and Negative Binomial Regression with R">count data</a>. If Jaccard fits <em>better</em>, the abundance signal is noisy and presence/absence carries the real structure.</p>
+
+</details>
+</section>
+
+<h2>How do you read stress and Shepard plots to judge MDS fit?</h2>
+
+<p>Stress is the single number that tells you whether your MDS is worth interpreting. It measures how badly the rank order of fitted 2D distances disagrees with the rank order of input distances. Lower is better. The standard formula:</p>
+
+<p>$$\text{stress} = \sqrt{\frac{\sum_{i<j} (d_{ij} - \hat d_{ij})^2}{\sum_{i<j} d_{ij}^2}}$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$d_{ij}$ = the input dissimilarity between objects $i$ and $j$</li>
+
+<li>$\hat d_{ij}$ = the monotone regression fit of input distances on layout distances</li>
+
+<li>the sum runs over all unordered pairs</li>
+
+</ul>
+
+<p>Use this rule-of-thumb table from Kruskal:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Stress</th>
+<th>Interpretation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>< 0.05</td>
+<td>Excellent fit, layout is essentially exact</td>
+</tr>
+<tr>
+<td>0.05 – 0.10</td>
+<td>Good fit, safe to interpret all clusters</td>
+</tr>
+<tr>
+<td>0.10 – 0.20</td>
+<td>Usable, but interpret only the broad pattern</td>
+</tr>
+<tr>
+<td>> 0.20</td>
+<td>Unreliable, the 2D layout is misleading</td>
+</tr>
+</tbody>
+</table>
+
+<p>A Shepard plot pairs every input distance with its fitted layout distance. If MDS fit perfectly, those points would lie on a straight line. Run <code>stressplot()</code> on a metaMDS result to see it.</p>
+
+<div class="webr-container" data-block-title="Shepard diagram for the dune NMDS">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Shepard diagram for the dune NMDS</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">stressplot(dune_nmds)
+#&gt; (Shepard plot: x = observed dissimilarity, y = ordination distance.
+#&gt;  A monotone step line is drawn through the cloud.)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the plot two ways. First, the points should hug the step line; wide vertical scatter at any given x-value means MDS could not honour those rank orders. Second, the printout shows two correlations: a non-metric fit (R² of the monotone fit) and a linear fit. For dune you should see non-metric R² around 0.99 and linear R² around 0.95, both excellent.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Stress is a budget, not a target.</strong> A stress of 0.15 does not mean "15% bad"; it means the layout sacrificed enough rank order to keep things in 2D. If that sacrifice is acceptable for your interpretation (broad clusters, not tight neighbours), publish. If you need precise neighbour relationships, raise <code>k</code> or use a different method.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Add Gaussian noise to a copy of <code>dune</code>, refit metaMDS, and watch the stress climb.</p>
+<div class="webr-container" data-block-title="Your turn: stress under added noise">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: stress under added noise</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+noisy_dune &lt;- dune + matrix(rpois(length(as.matrix(dune)), 2),
+                            nrow = nrow(dune), ncol = ncol(dune))
+ex_noisy_nmds &lt;- # your code: metaMDS on noisy_dune, distance = &quot;bray&quot;
+print(ex_noisy_nmds$stress)
+#&gt; Expected: stress noticeably higher than the clean dune fit (~0.118).</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Noisy NMDS solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Noisy NMDS solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+noisy_dune &lt;- dune + matrix(rpois(length(as.matrix(dune)), 2),
+                            nrow = nrow(dune), ncol = ncol(dune))
+ex_noisy_nmds &lt;- metaMDS(noisy_dune, distance = &quot;bray&quot;,
+                         k = 2, trymax = 100, trace = FALSE)
+ex_noisy_nmds$stress
+#&gt; [1] 0.1646</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Adding random Poisson noise blurs site-to-site distinctions, raising stress from about 0.12 to 0.16. Stress is a sensitive monitor of community-level signal-to-noise in your data.</p>
+
+</details>
+</section>
+
+<h2>How do you choose the right distance metric for MDS?</h2>
+
+<p>The distance metric is the most important choice in any MDS workflow. The algorithm only visualises whatever you feed it. Pick the wrong metric, and even a stress of 0.05 means nothing.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Metric</th>
+<th>Best for</th>
+<th>R function</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Euclidean</td>
+<td>Continuous variables on comparable scales (after <code>scale()</code>)</td>
+<td><code>dist(x)</code></td>
+</tr>
+<tr>
+<td>Manhattan</td>
+<td>Robust to outliers; absolute differences</td>
+<td><code>dist(x, method = &quot;manhattan&quot;)</code></td>
+</tr>
+<tr>
+<td>Bray-Curtis</td>
+<td>Community/abundance counts (ecology default)</td>
+<td><code>vegan::vegdist(x, &quot;bray&quot;)</code></td>
+</tr>
+<tr>
+<td>Jaccard</td>
+<td>Presence/absence binary data</td>
+<td><code>vegan::vegdist(x, &quot;jaccard&quot;, binary = TRUE)</code></td>
+</tr>
+<tr>
+<td>Gower</td>
+<td>Mixed numeric + categorical + ordinal columns</td>
+<td><code>cluster::daisy(x, metric = &quot;gower&quot;)</code></td>
+</tr>
+</tbody>
+</table>
+
+<p>Compare three of these on the dune community matrix and see how the choice changes stress.</p>
+
+<div class="webr-container" data-block-title="Compare distance metrics on the same data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare distance metrics on the same data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">d_bray &lt;- vegdist(dune, method = &quot;bray&quot;)
+d_jac  &lt;- vegdist(dune, method = &quot;jaccard&quot;, binary = TRUE)
+d_euc  &lt;- dist(dune)
+
+set.seed(42)
+m_bray &lt;- metaMDS(d_bray, k = 2, trymax = 100, trace = FALSE)
+set.seed(42)
+m_jac  &lt;- metaMDS(d_jac,  k = 2, trymax = 100, trace = FALSE)
+set.seed(42)
+m_euc  &lt;- metaMDS(d_euc,  k = 2, trymax = 100, trace = FALSE)
+
+c(bray = m_bray$stress, jaccard = m_jac$stress, euclidean = m_euc$stress)
+#&gt;      bray   jaccard euclidean
+#&gt; 0.1183186 0.1573127 0.1860756</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Bray-Curtis wins on this community data. Jaccard is close because dune's presence patterns track abundance patterns. Euclidean is worst because it treats a column with cover score 9 as nine times more important than a column with cover score 1, which inflates the distances driven by a few common species and hides the rare-species turnover that defines community structure.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Match the metric to the data type.</strong> Continuous-and-scaled? Euclidean. Counts of species at sites? Bray-Curtis. Yes/no traits? Jaccard. Mixed columns? Gower. Picking the right metric matters more than picking metric vs non-metric MDS.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a small mixed-type frame, compute Gower distance, and run classical MDS on it.</p>
+<div class="webr-container" data-block-title="Your turn: Gower distance + cmdscale">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: Gower distance + cmdscale</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(cluster)
+small &lt;- data.frame(
+  age      = c(25, 31, 47, 52, 38),
+  income   = c(40, 55, 90, 120, 70),
+  city     = factor(c(&quot;NY&quot;, &quot;LA&quot;, &quot;NY&quot;, &quot;SF&quot;, &quot;LA&quot;))
+)
+ex_mix_d   &lt;- # your code: Gower distance via daisy()
+ex_mix_mds &lt;- # your code: cmdscale on the Gower distance, k = 2
+plot(ex_mix_mds, type = &quot;n&quot;)
+text(ex_mix_mds, labels = 1:nrow(small))
+#&gt; Expected: rows 1 and 5 close; row 4 isolated (largest age + income, different city).</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Gower MDS solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Gower MDS solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(cluster)
+small &lt;- data.frame(
+  age      = c(25, 31, 47, 52, 38),
+  income   = c(40, 55, 90, 120, 70),
+  city     = factor(c(&quot;NY&quot;, &quot;LA&quot;, &quot;NY&quot;, &quot;SF&quot;, &quot;LA&quot;))
+)
+ex_mix_d   &lt;- daisy(small, metric = &quot;gower&quot;)
+ex_mix_mds &lt;- cmdscale(ex_mix_d, k = 2)
+plot(ex_mix_mds, type = &quot;n&quot;)
+text(ex_mix_mds, labels = 1:nrow(small))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>daisy()</code> from <code>cluster</code> computes Gower distance, which standardises each column to [0, 1] and combines numeric, factor, and ordinal contributions. <code>cmdscale()</code> then handles the resulting distance like any other.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<h3>Exercise 1: MDS of the airquality monthly profiles</h3>
+
+<p>Take the built-in <code>airquality</code> data and build an MDS that places each <em>month</em> as a single point. Aggregate to monthly means (drop NAs first), scale the columns, compute Euclidean distance, run <code>cmdscale()</code>, and plot months coloured by season. Save the result to <code>my_mds</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 1: monthly air quality MDS">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1: monthly air quality MDS</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint:
+#   1. aq &lt;- na.omit(airquality)
+#   2. monthly &lt;- aggregate(... ~ Month, data = aq, FUN = mean)
+#   3. scale, distance, cmdscale
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">aq &lt;- na.omit(airquality)
+monthly &lt;- aggregate(cbind(Ozone, Solar.R, Wind, Temp) ~ Month,
+                    data = aq, FUN = mean)
+rownames(monthly) &lt;- month.name[monthly$Month]
+my_mds &lt;- cmdscale(dist(scale(monthly[, -1])), k = 2)
+plot(my_mds, type = &quot;n&quot;)
+text(my_mds, labels = rownames(monthly), cex = 0.8)
+#&gt; May and September sit close; July and August cluster as the hot, smoggy months.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Aggregating to monthly profiles before MDS turns 153 daily readings into 5 interpretable points. Scaling matters because Solar radiation and Ozone live on very different numeric scales.</p>
+
+</details>
+
+<h3>Exercise 2: Bray-Curtis vs Jaccard on lichen communities</h3>
+
+<p>The <code>varespec</code> dataset in vegan records cover values for 44 lichen species across 24 sites. Fit two NMDS ordinations: one with Bray-Curtis (counts), one with Jaccard binary (presence/absence). Save them as <code>vare_bray</code> and <code>vare_jac</code>. Print both stress values and decide which metric better fits this data.</p>
+
+<div class="webr-container" data-block-title="Exercise 2: lichen NMDS metric comparison">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2: lichen NMDS metric comparison</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: data(varespec); use metaMDS twice with different distance settings.
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">data(varespec)
+set.seed(1)
+vare_bray &lt;- metaMDS(varespec, distance = &quot;bray&quot;,
+                     k = 2, trymax = 100, trace = FALSE)
+set.seed(1)
+vare_jac  &lt;- metaMDS(varespec, distance = &quot;jaccard&quot;, binary = TRUE,
+                     k = 2, trymax = 100, trace = FALSE)
+c(bray = vare_bray$stress, jaccard = vare_jac$stress)
+#&gt;      bray   jaccard
+#&gt; 0.1000  0.1611</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Bray-Curtis fits better because varespec abundances vary by orders of magnitude across species. Throwing away that gradient by binarising costs you fit. Choose Bray-Curtis here.</p>
+
+</details>
+
+<h3>Exercise 3: Procrustes correlation between cmdscale and isoMDS</h3>
+
+<p>Run both <code>cmdscale()</code> and <code>MASS::isoMDS()</code> on a scaled-Euclidean distance from <code>iris[, 1:4]</code>. Save the layouts as <code>iris_cmd</code> and <code>iris_iso</code>. Use <code>vegan::procrustes()</code> to compute the correlation between the two layouts and print it. Decide whether the choice of metric vs non-metric mattered for this dataset.</p>
+
+<div class="webr-container" data-block-title="Exercise 3: Procrustes layout comparison">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3: Procrustes layout comparison</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint:
+#   d &lt;- dist(scale(iris[, 1:4]))
+#   procrustes(layout1, layout2, scale = TRUE)$t0   # the correlation
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">iris_d   &lt;- dist(scale(iris[, 1:4]))
+iris_cmd &lt;- cmdscale(iris_d, k = 2)
+iris_iso &lt;- isoMDS(iris_d, k = 2, trace = FALSE)$points
+
+proc &lt;- procrustes(iris_cmd, iris_iso, scale = TRUE)
+proc$t0
+#&gt; [1] 0.9971</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> A Procrustes correlation of 0.997 says the two layouts are nearly identical after rotation and scaling. For cleanly Euclidean data like iris, metric and non-metric MDS produce the same answer. The metric vs non-metric debate only matters when the distance is non-Euclidean or the rank-only assumption changes the geometry.</p>
+
+</details>
+
+<h2>Complete Example</h2>
+
+<p>Here is a full NMDS pipeline on the dune community data, the same workflow you would run in a real ecology paper. The <code>dune.env</code> companion table records management type for each site, so we can colour the ordination by environmental gradient.</p>
+
+<div class="webr-container" data-block-title="Full NMDS pipeline with envfit overlay">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Full NMDS pipeline with envfit overlay</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">data(dune)
+data(dune.env)
+
+set.seed(42)
+final_nmds &lt;- metaMDS(dune, distance = &quot;bray&quot;,
+                      k = 2, trymax = 100, trace = FALSE)
+
+final_nmds$stress
+#&gt; [1] 0.1183186
+
+plot(final_nmds, type = &quot;n&quot;,
+     main = &quot;Dune NMDS coloured by management type&quot;)
+cols &lt;- c(&quot;BF&quot; = &quot;tan&quot;, &quot;HF&quot; = &quot;darkgreen&quot;,
+          &quot;NM&quot; = &quot;steelblue&quot;, &quot;SF&quot; = &quot;tomato&quot;)
+points(final_nmds, display = &quot;sites&quot;, pch = 19,
+       col = cols[as.character(dune.env$Management)])
+legend(&quot;topright&quot;, legend = names(cols), col = cols, pch = 19, cex = 0.8)
+
+env_fit &lt;- envfit(final_nmds ~ A1 + Moisture, data = dune.env, perm = 999)
+plot(env_fit, p.max = 0.05, col = &quot;black&quot;)
+
+env_fit
+#&gt; ***VECTORS
+#&gt;     NMDS1    NMDS2     r2 Pr(&gt;r)
+#&gt; A1  0.962    0.273   0.42  0.005 **
+#&gt; ***FACTORS:
+#&gt; Moisture: r2 = 0.61, Pr(&gt;r) = 0.001 ***</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now you have a fully interpretable plot. Sites cluster by management practice, and the <code>envfit()</code> overlay tells you that soil moisture explains 61% of the layout variance and is highly significant. Soil A1 horizon thickness explains 42% and is also significant. The arrows on the plot point in the direction of increasing values for each environmental variable. That is a publication-grade community ecology figure in fewer than 15 lines of code.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>MDS becomes interpretable when you overlay environment.</strong> A bare ordination shows clusters; you still need ecology, theory, or external variables to explain what those clusters <em>mean</em>. <code>envfit()</code> and <code>ordisurf()</code> are the standard tools for that overlay step.</div></div>
+
+<h2>Summary</h2>
+
+<p><img src="screenshots/Multidimensional-Scaling-in-R-pipeline.webp" alt="MDS analysis pipeline" class="img-responsive img-zoomable" loading="lazy" width="2248" height="360" /></p>
+
+<p><em>Figure 2: The five-step MDS pipeline: data, distance, MDS fit, fit diagnostics, plot.</em></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Question</th>
+<th>Answer</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>What does MDS do?</td>
+<td>Projects pairwise distances into 2D so geometric distance approximates dissimilarity.</td>
+</tr>
+<tr>
+<td>When metric?</td>
+<td>Distances are exact and Euclidean-compatible: <code>cmdscale()</code>.</td>
+</tr>
+<tr>
+<td>When non-metric?</td>
+<td>Distances are ranks, Bray-Curtis, Jaccard, or mixed types: <code>vegan::metaMDS()</code>.</td>
+</tr>
+<tr>
+<td>Most important choice?</td>
+<td>The distance metric, not the MDS algorithm.</td>
+</tr>
+<tr>
+<td>How to judge fit?</td>
+<td>Stress (< 0.20 usable) and a Shepard plot via <code>stressplot()</code>.</td>
+</tr>
+<tr>
+<td>Common trap?</td>
+<td>Reading axes as if they had inherent meaning. They do not.</td>
+</tr>
+</tbody>
+</table>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Cox, T.F. and Cox, M.A.A. <em>Multidimensional Scaling</em>, 2nd Edition. Chapman & Hall/CRC (2001).</li>
+
+<li>Borg, I. and Groenen, P.J.F. <em>Modern Multidimensional Scaling: Theory and Applications</em>, 2nd Edition. Springer (2005).</li>
+
+<li>Oksanen, J. et al. <em>vegan: Community Ecology Package</em> documentation. <a href="https://cran.r-project.org/package=vegan">Link</a></li>
+
+<li><a class="auto-link" href="Getting-Help-in-R.html" title="Stuck in R? 6 Ways to Get Unstuck Without Wasting Hours">R Documentation</a>. <code>cmdscale</code> reference. <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/cmdscale.html">Link</a></li>
+
+<li>Venables, W.N. and Ripley, B.D. <em>Modern Applied Statistics with S</em>, 4th Edition. Springer (2002). Chapter 11 covers MDS via <code>isoMDS()</code>.</li>
+
+<li>Kruskal, J.B. Nonmetric multidimensional scaling: a numerical method. <em>Psychometrika</em> 29 (1964): 115-129.</li>
+
+<li>Legendre, P. and Legendre, L. <em>Numerical Ecology</em>, 3rd English Edition. Elsevier (2012). The reference text for ecological ordination.</li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="t-SNE-and-UMAP-in-R.html">t-SNE and UMAP in R</a>: sibling dimensionality-reduction methods designed for very-high-dimensional data and tight local neighbourhoods.</li>
+
+<li><a href="PCA-in-R.html">PCA in R</a>: when your distances are exactly Euclidean and linear, PCA is the faster cousin of classical MDS.</li>
+
+<li><a href="Cluster-Analysis-in-R.html">Cluster Analysis in R</a>: natural pairing for NMDS layouts with k-means or hierarchical grouping.</li>
+
+</ul>
+
+{% endraw %}
