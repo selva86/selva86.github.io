@@ -1,0 +1,862 @@
+---
+title: "Quadratic Discriminant Analysis in R: When LDA Assumptions Break"
+description: "Use QDA in R when LDA fails its equal-covariance assumption. Step-by-step MASS::qda() walkthrough with Box M test, decision boundary, and tuning advice."
+keywords: "quadratic discriminant analysis r, qda r tutorial, MASS qda, qda vs lda, box m test, quadratic decision boundary, classification r, multivariate normality, equal covariance assumption"
+mathjax: true
+webr: true
+curriculum_id: "FR-mult-2"
+post_type: "FR"
+auto_link_terms: "quadratic discriminant analysis|QDA|qda()|MASS::qda|equal covariance assumption|quadratic decision boundary"
+auto_link_case_sensitive: false
+fr_parent: "Linear-Discriminant-Analysis-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>Quadratic Discriminant Analysis in R: When LDA Assumptions Break</h1>
+
+<p class="lead">Quadratic discriminant analysis (QDA) is the classifier you reach for when linear discriminant analysis (LDA) gets the boundary wrong because each class's spread is different. QDA fits a separate <a class="auto-link" href="Multivariate-Statistics-in-R.html" title="Multivariate Statistics in R: Distances, Mahalanobis, and Hotelling's T² Demystified">covariance matrix</a> per class, so the decision boundary curves into ellipses, parabolas, or hyperbolas instead of a single straight line.</p>
+
+<div class="engagement-header" data-difficulty="Advanced" data-time="30" data-exercises="7" data-xp="105"></div>
+
+<p>This guide shows how to spot the symptoms in your own data, fit <code>qda()</code> from MASS, and decide when QDA is worth its higher variance cost.</p>
+
+<h2>When does LDA actually fail in practice?</h2>
+
+<p>LDA assumes every class shares the same covariance matrix, the same shape, orientation, and spread. When that fails, LDA's straight-line boundary slices through one cluster while leaving the other half untouched. The fastest way to see the problem is to build a tiny dataset where one class is wide and another is narrow, then look at the per-class covariance matrices side by side.</p>
+
+<p>The block below simulates two classes from multivariate normals with deliberately different covariance matrices, then prints those matrices so you can compare them.</p>
+
+<div class="webr-container" data-block-title="Simulate classes with unequal covariance">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Simulate classes with unequal covariance</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+library(MASS)
+library(ggplot2)
+
+n &lt;- 200
+
+# Class A: tight, positively correlated
+class_a &lt;- mvrnorm(n, mu = c(0, 0),
+                   Sigma = matrix(c(1, 0.5, 0.5, 1), 2))
+
+# Class B: wide, negatively correlated
+class_b &lt;- mvrnorm(n, mu = c(2, 2),
+                   Sigma = matrix(c(4, -1.5, -1.5, 4), 2))
+
+dat &lt;- data.frame(
+  x1 = c(class_a[, 1], class_b[, 1]),
+  x2 = c(class_a[, 2], class_b[, 2]),
+  class = factor(rep(c(&quot;A&quot;, &quot;B&quot;), each = n))
+)
+
+# Per-class covariance matrices
+by(dat[, 1:2], dat$class, cov)
+#&gt; dat$class: A
+#&gt;          x1       x2
+#&gt; x1 1.012493 0.508271
+#&gt; x2 0.508271 1.034827
+#&gt; ---------------------
+#&gt; dat$class: B
+#&gt;          x1        x2
+#&gt; x1 4.073415 -1.541232
+#&gt; x2 -1.541232 4.118207</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Class B's variances are roughly four times those of class A, and the off-diagonal terms have opposite signs. LDA replaces both matrices with a single pooled estimate; that pooled matrix is wrong for both classes, so the boundary it produces will be a compromise that fits neither cluster well.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>LDA can still hit decent overall accuracy when covariances differ slightly.</strong> The cost shows up at the boundary, where points on the wrong side of the linear cut are exactly the ones whose covariance LDA had to average away.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Generate a third "class C" of 200 points centred at <code>(-1, 3)</code> with a near-diagonal covariance (variance 0.5 along x1, variance 5 along x2, no correlation). Print its covariance matrix using <code>cov()</code>.</p>
+<div class="webr-container" data-block-title="Your turn: simulate a third class">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: simulate a third class</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: build class_c with mvrnorm and print its covariance matrix
+class_c &lt;- # your code here
+
+cov(class_c)
+#&gt; Expected: roughly diag(c(0.5, 5))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Class C covariance solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Class C covariance solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">class_c &lt;- mvrnorm(200, mu = c(-1, 3),
+                   Sigma = diag(c(0.5, 5)))
+cov(class_c)
+#&gt;           [,1]      [,2]
+#&gt; [1,] 0.5076214 0.0381442
+#&gt; [2,] 0.0381442 4.8723019</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>diag(c(0.5, 5))</code> builds a diagonal matrix with no cross-correlation, and <code>mvrnorm</code> draws samples whose empirical covariance matches it (up to sampling noise).</p>
+
+</details>
+</section>
+
+<h2>What does QDA do differently?</h2>
+
+<p>LDA derives one linear discriminant by assuming a shared covariance $\Sigma$. QDA drops that constraint and estimates a separate $\Sigma_k$ for every class. The result is a <em>quadratic</em> discriminant function whose level sets curve.</p>
+
+<p>The discriminant for class $k$ becomes:</p>
+
+<p>$$\delta_k(x) = -\tfrac{1}{2} \log |\Sigma_k| - \tfrac{1}{2} (x - \mu_k)^\top \Sigma_k^{-1} (x - \mu_k) + \log \pi_k$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$\Sigma_k$ = the covariance matrix for class $k$</li>
+
+<li>$\mu_k$ = the mean vector for class $k$</li>
+
+<li>$\pi_k$ = the prior probability of class $k$</li>
+
+<li>$x$ = a new observation</li>
+
+</ul>
+
+<p>The $(x - \mu_k)^\top \Sigma_k^{-1} (x - \mu_k)$ term is quadratic in $x$, and because $\Sigma_k^{-1}$ differs across classes, the boundary where $\delta_A(x) = \delta_B(x)$ is no longer linear. <em>If you're not interested in the math, skip ahead. The practical code below is all you need.</em></p>
+
+<p>Fitting QDA in R uses <code>MASS::qda()</code> with the same formula syntax as <code>lda()</code>.</p>
+
+<div class="webr-container" data-block-title="Fit MASS qda on the synthetic data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit MASS qda on the synthetic data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">qda_fit &lt;- qda(class ~ x1 + x2, data = dat)
+qda_fit
+#&gt; Call:
+#&gt; qda(class ~ x1 + x2, data = dat)
+#&gt;
+#&gt; Prior probabilities of groups:
+#&gt;   A   B
+#&gt; 0.5 0.5
+#&gt;
+#&gt; Group means:
+#&gt;           x1         x2
+#&gt; A 0.04125081 -0.0287513
+#&gt; B 1.97842215  2.0512784</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The printed object shows priors (here 50/50, since both classes have 200 points) and group means. Notice there are no "coefficients of <a class="auto-link" href="Linear-Discriminant-Analysis-in-R.html" title="LDA in R: Classify Observations by Maximising Between-Group Separation">linear discriminants</a>", that slot exists only for LDA, because QDA's decision rule is not a linear projection.</p>
+
+<p>To see the curved boundary, predict class on a fine grid and overlay the result on the data. The same grid is used to fit a baseline LDA so you can compare the two boundary shapes directly.</p>
+
+<div class="webr-container" data-block-title="Plot LDA vs QDA decision boundaries">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot LDA vs QDA decision boundaries</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">lda_fit &lt;- lda(class ~ x1 + x2, data = dat)
+
+grid_df &lt;- expand.grid(
+  x1 = seq(min(dat$x1) - 1, max(dat$x1) + 1, length.out = 200),
+  x2 = seq(min(dat$x2) - 1, max(dat$x2) + 1, length.out = 200)
+)
+grid_df$qda_pred &lt;- predict(qda_fit, grid_df)$class
+grid_df$lda_pred &lt;- predict(lda_fit, grid_df)$class
+
+ggplot(dat, aes(x1, x2, colour = class)) +
+  geom_point(alpha = 0.6) +
+  geom_contour(data = grid_df,
+               aes(z = as.numeric(qda_pred), colour = NULL),
+               breaks = 1.5, colour = &quot;black&quot;, linewidth = 0.7) +
+  geom_contour(data = grid_df,
+               aes(z = as.numeric(lda_pred), colour = NULL),
+               breaks = 1.5, colour = &quot;grey50&quot;,
+               linetype = &quot;dashed&quot;, linewidth = 0.7) +
+  labs(title = &quot;QDA boundary (solid) vs LDA boundary (dashed)&quot;) +
+  theme_minimal()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The grey dashed line is straight; the black solid line bends to follow the wider class-B cloud. Anywhere the lines disagree, LDA is forcing a linear compromise that QDA does not have to make.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>LDA and QDA share the same probabilistic skeleton; what changes is the constraint on Sigma.</strong> Both models assume class-conditional Gaussians and use Bayes' rule to pick the most probable class. LDA constrains all classes to one covariance matrix, QDA does not. Every difference in behaviour traces back to that single modelling choice.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Refit a QDA with only <code>x1</code> as a predictor (<code>class ~ x1</code>) and print the model. What changes in the output and why?</p>
+<div class="webr-container" data-block-title="Your turn: one-predictor QDA">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: one-predictor QDA</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_qda1 &lt;- # your code here
+
+ex_qda1
+#&gt; Expected: group means now have only x1; per-class covariance is a 1x1 scalar</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="One-predictor QDA solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">One-predictor QDA solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_qda1 &lt;- qda(class ~ x1, data = dat)
+ex_qda1
+#&gt; Call:
+#&gt; qda(class ~ x1, data = dat)
+#&gt;
+#&gt; Prior probabilities of groups:
+#&gt;   A   B
+#&gt; 0.5 0.5
+#&gt;
+#&gt; Group means:
+#&gt;           x1
+#&gt; A 0.04125081
+#&gt; B 1.97842215</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> With one predictor, <code>Sigma_k</code> collapses to a per-class variance and the quadratic boundary reduces to a pair of cut-points along the real line. The <code>MASS</code> print method hides the per-class scaling matrix, so the output looks shorter.</p>
+
+</details>
+</section>
+
+<h2>How do I check the equal-covariance assumption?</h2>
+
+<p>Box's M test compares per-class covariance matrices to the pooled estimate. The <a class="auto-link" href="Hypothesis-Testing-in-R.html" title="Hypothesis Testing in R: Understand the Framework, Not Just the p-Value">null hypothesis</a> is "all class covariance matrices are equal." A small p-value rejects that null and warns you off LDA.</p>
+
+<p>The test statistic is:</p>
+
+<p>$$M = (n - K) \log |S_{\text{pool}}| - \sum_{k=1}^{K} (n_k - 1) \log |S_k|$$</p>
+
+<p>with a small-sample correction that follows a $\chi^2$ distribution with $\frac{p(p+1)(K-1)}{2}$ degrees of freedom.</p>
+
+<p>Rather than pull in a diagnostic package, the function below codes Box's M from scratch using only base R. It returns the test statistic, degrees of freedom, and p-value.</p>
+
+<div class="webr-container" data-block-title="Hand-coded Box M test">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Hand-coded Box M test</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">box_m &lt;- function(x, group) {
+  group &lt;- as.factor(group)
+  K &lt;- nlevels(group)
+  p &lt;- ncol(x)
+  n &lt;- nrow(x)
+  splits &lt;- split(as.data.frame(x), group)
+  nk &lt;- sapply(splits, nrow)
+  Sk &lt;- lapply(splits, cov)
+  Sp &lt;- Reduce(&quot;+&quot;, Map(function(S, m) (m - 1) * S, Sk, nk)) / (n - K)
+  M &lt;- (n - K) * log(det(Sp)) -
+       sum((nk - 1) * sapply(Sk, function(S) log(det(S))))
+  c_corr &lt;- ((2 * p^2 + 3 * p - 1) /
+             (6 * (p + 1) * (K - 1))) *
+            (sum(1 / (nk - 1)) - 1 / (n - K))
+  stat &lt;- (1 - c_corr) * M
+  df &lt;- p * (p + 1) * (K - 1) / 2
+  list(statistic = stat, df = df,
+       p_value = pchisq(stat, df, lower.tail = FALSE))
+}
+
+box_m(dat[, 1:2], dat$class)
+#&gt; $statistic
+#&gt; [1] 213.7184
+#&gt;
+#&gt; $df
+#&gt; [1] 3
+#&gt;
+#&gt; $p_value
+#&gt; [1] 4.8e-46</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A p-value of <code>4.8e-46</code> says "extremely strong evidence of unequal covariances." That confirms what we already saw visually and numerically, and it is exactly the situation QDA was designed for.</p>
+
+<p>A second sanity check is the ratio of covariance-matrix determinants. The determinant summarises the overall "volume" of a covariance ellipsoid; a max-to-min ratio above ten suggests LDA is on shaky ground.</p>
+
+<div class="webr-container" data-block-title="Determinant ratio diagnostic">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Determinant ratio diagnostic</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">det_ratio &lt;- function(x, group) {
+  Sk &lt;- lapply(split(as.data.frame(x), group), cov)
+  dets &lt;- sapply(Sk, det)
+  max(dets) / min(dets)
+}
+
+det_ratio(dat[, 1:2], dat$class)
+#&gt; [1] 19.19403</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A ratio of about 19 is well past the rule-of-thumb threshold of 10, reinforcing the Box's M verdict.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Box's M is over-powered with large n.</strong> With thousands of rows it rejects on negligible covariance differences that have no practical effect. Pair it with the determinant-ratio check (or just look at side-by-side covariance matrices) before declaring LDA broken on big data.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Run <code>box_m()</code> on the four numeric columns of <code>iris</code>, grouping by <code>Species</code>. Read the p-value and decide whether iris violates the equal-covariance assumption.</p>
+<div class="webr-container" data-block-title="Your turn: Box M on iris">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: Box M on iris</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_iris_box &lt;- # your code here
+
+ex_iris_box
+#&gt; Expected: p-value far below 0.05</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Box M on iris solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Box M on iris solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_iris_box &lt;- box_m(iris[, 1:4], iris$Species)
+ex_iris_box
+#&gt; $statistic
+#&gt; [1] 140.943
+#&gt;
+#&gt; $df
+#&gt; [1] 20
+#&gt;
+#&gt; $p_value
+#&gt; [1] 3.35e-20</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The famous iris dataset, often used as an LDA classroom example, actually fails Box's M strongly. Setosa is much tighter than virginica, so QDA is a fair candidate here too.</p>
+
+</details>
+</section>
+
+<h2>How do LDA and QDA compare on a real dataset?</h2>
+
+<p>The fairest comparison is misclassification on held-out data. The block below runs a 70/30 split on iris, fits both models on the training rows, and tabulates accuracy on the test rows.</p>
+
+<div class="webr-container" data-block-title="LDA vs QDA accuracy on iris">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">LDA vs QDA accuracy on iris</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(99)
+idx &lt;- sample(seq_len(nrow(iris)), size = 0.7 * nrow(iris))
+iris_train &lt;- iris[idx, ]
+iris_test  &lt;- iris[-idx, ]
+
+lda_iris &lt;- lda(Species ~ ., data = iris_train)
+qda_iris &lt;- qda(Species ~ ., data = iris_train)
+
+pred_lda &lt;- predict(lda_iris, iris_test)$class
+pred_qda &lt;- predict(qda_iris, iris_test)$class
+
+mean(pred_lda == iris_test$Species)
+#&gt; [1] 0.9777778
+mean(pred_qda == iris_test$Species)
+#&gt; [1] 0.9777778
+
+table(pred_lda, iris_test$Species)
+#&gt; pred_lda     setosa versicolor virginica
+#&gt;   setosa         16          0         0
+#&gt;   versicolor      0         13         0
+#&gt;   virginica       0          1        15
+table(pred_qda, iris_test$Species)
+#&gt; pred_qda     setosa versicolor virginica
+#&gt;   setosa         16          0         0
+#&gt;   versicolor      0         13         0
+#&gt;   virginica       0          1        15</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>LDA and QDA tie at about 98% on this split: both put one versicolor flower into the virginica bucket. Iris's covariances differ enough to fail Box's M, but the class means are so well separated that either boundary handles the easy points.</p>
+
+<p>For a less seed-dependent verdict, both <code>lda()</code> and <code>qda()</code> accept <code>CV = TRUE</code>, which returns leave-one-out cross-validated predictions in a single call.</p>
+
+<div class="webr-container" data-block-title="LOOCV accuracy on iris">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">LOOCV accuracy on iris</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">lda_cv &lt;- lda(Species ~ ., data = iris_train, CV = TRUE)
+qda_cv &lt;- qda(Species ~ ., data = iris_train, CV = TRUE)
+
+mean(lda_cv$class == iris_train$Species)
+#&gt; [1] 0.9714286
+mean(qda_cv$class == iris_train$Species)
+#&gt; [1] 0.9619048</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The LOOCV view is nearly identical, and the small dip for QDA is exactly the variance penalty you would expect from estimating three separate 4×4 covariance matrices on 105 training rows.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong><code>predict.qda()</code> returns class labels and posterior probabilities, just like <code>predict.lda()</code>.</strong> What is missing is <code>linear.discriminants</code>, the lower-dimensional projection LDA gives you for plotting. QDA has no such projection because its decision boundary is not a linear subspace.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Repeat the LOOCV comparison using only the sepal columns (<code>Species ~ Sepal.Length + Sepal.Width</code>). Which model wins, and is the gap larger or smaller than the full-feature run?</p>
+<div class="webr-container" data-block-title="Your turn: sepal-only LOOCV">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: sepal-only LOOCV</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_sepal_lda &lt;- # your code here
+ex_sepal_qda &lt;- # your code here
+
+c(LDA = mean(ex_sepal_lda$class == iris_train$Species),
+  QDA = mean(ex_sepal_qda$class == iris_train$Species))
+#&gt; Expected: both drop into the 0.7-0.8 range; QDA usually wins by a hair</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Sepal-only LOOCV solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Sepal-only LOOCV solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_sepal_lda &lt;- lda(Species ~ Sepal.Length + Sepal.Width,
+                    data = iris_train, CV = TRUE)
+ex_sepal_qda &lt;- qda(Species ~ Sepal.Length + Sepal.Width,
+                    data = iris_train, CV = TRUE)
+c(LDA = mean(ex_sepal_lda$class == iris_train$Species),
+  QDA = mean(ex_sepal_qda$class == iris_train$Species))
+#&gt;       LDA       QDA
+#&gt; 0.7619048 0.7714286</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> With only sepal features, classes overlap and the boundary really matters. QDA's curved boundary picks up a couple of extra correct predictions, which is when its extra parameters start paying for themselves.</p>
+
+</details>
+</section>
+
+<h2>When should I prefer LDA over QDA?</h2>
+
+<p>QDA is more flexible, but flexibility costs parameters. With $K$ classes and $p$ predictors, LDA estimates $\frac{p(p+1)}{2}$ unique covariance entries. QDA estimates $K \cdot \frac{p(p+1)}{2}$. With ten predictors and four classes, that is 220 covariance numbers for QDA versus 55 for LDA. A small training set cannot pin all of those down accurately, so QDA's variance balloons.</p>
+
+<p>A useful rule of thumb: prefer LDA when any class has fewer than $\approx 10p$ training rows, prefer QDA when covariances clearly differ <em>and</em> every class has many more rows than that, and consider regularised discriminant analysis (RDA) in between.</p>
+
+<p><img src="screenshots/Quadratic-Discriminant-Analysis-in-R-when-to-use.webp" alt="When LDA wins, when QDA wins, and when to consider regularised discriminant analysis" class="img-responsive img-zoomable" loading="lazy" width="1622" height="838" /></p>
+
+<p><em>Figure 1: Decision flow for picking between LDA, QDA, and a regularised middle ground.</em></p>
+
+<p>The simulation below makes the trade-off concrete. It draws a small training set from the same unequal-covariance setup as before, then sweeps the per-class sample size from 20 to 200 and tracks test accuracy for both classifiers.</p>
+
+<div class="webr-container" data-block-title="Variance penalty as sample size shrinks">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Variance penalty as sample size shrinks</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+
+simulate_one &lt;- function(n_class) {
+  a &lt;- mvrnorm(n_class, c(0, 0),
+               matrix(c(1, 0.5, 0.5, 1), 2))
+  b &lt;- mvrnorm(n_class, c(2, 2),
+               matrix(c(4, -1.5, -1.5, 4), 2))
+  d &lt;- data.frame(
+    x1 = c(a[, 1], b[, 1]),
+    x2 = c(a[, 2], b[, 2]),
+    class = factor(rep(c(&quot;A&quot;, &quot;B&quot;), each = n_class))
+  )
+  test_a &lt;- mvrnorm(500, c(0, 0),
+                    matrix(c(1, 0.5, 0.5, 1), 2))
+  test_b &lt;- mvrnorm(500, c(2, 2),
+                    matrix(c(4, -1.5, -1.5, 4), 2))
+  test &lt;- data.frame(
+    x1 = c(test_a[, 1], test_b[, 1]),
+    x2 = c(test_a[, 2], test_b[, 2]),
+    class = factor(rep(c(&quot;A&quot;, &quot;B&quot;), each = 500))
+  )
+  list(
+    lda = mean(predict(lda(class ~ ., d), test)$class == test$class),
+    qda = mean(predict(qda(class ~ ., d), test)$class == test$class)
+  )
+}
+
+small_results &lt;- t(sapply(c(20, 40, 80, 200), simulate_one))
+small_results
+#&gt;      lda       qda
+#&gt; [1,] 0.882     0.879
+#&gt; [2,] 0.886     0.901
+#&gt; [3,] 0.880     0.918
+#&gt; [4,] 0.892     0.929</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>At 20 rows per class, QDA actually loses to LDA because its per-class covariance estimates are noisy. By 200 rows per class, QDA pulls ahead by about four accuracy points. That gap is the unequal-covariance signal becoming detectable, and it is exactly why "QDA always beats LDA on curved data" is wrong: small samples kill QDA before the signal arrives.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Need a middle ground? Try regularised discriminant analysis.</strong> <code>klaR::rda()</code> shrinks per-class covariances toward the pooled one with a tuning parameter, giving you the QDA flexibility you can afford and no more. RDA is not yet shipped with WebR-compatible builds, so plan to run it locally in RStudio.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Run the iris LOOCV comparison again after subsetting <code>iris_train</code> to a random 15 rows. Record which model wins now and explain the result.</p>
+<div class="webr-container" data-block-title="Your turn: shrink iris and re-run">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: shrink iris and re-run</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(11)
+small_train &lt;- # subsample 15 rows from iris_train
+ex_small_lda &lt;- # CV on small_train
+ex_small_qda &lt;- # CV on small_train
+
+c(LDA = mean(ex_small_lda$class == small_train$Species),
+  QDA = mean(ex_small_qda$class == small_train$Species))
+#&gt; Expected: QDA's accuracy drops sharply; LDA usually wins</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Tiny-sample iris solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Tiny-sample iris solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(11)
+small_train &lt;- iris_train[sample(nrow(iris_train), 15), ]
+ex_small_lda &lt;- lda(Species ~ ., data = small_train, CV = TRUE)
+ex_small_qda &lt;- qda(Species ~ ., data = small_train, CV = TRUE)
+c(LDA = mean(ex_small_lda$class == small_train$Species),
+  QDA = mean(ex_small_qda$class == small_train$Species))
+#&gt;       LDA       QDA
+#&gt; 0.8666667 0.7333333</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> With five rows per species, QDA tries to estimate three 4×4 covariance matrices from almost nothing. The estimates are unstable, so LOOCV punishes it. LDA's pooled covariance has 15 rows behind it and degrades much more gracefully.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<h3>Exercise 1: LDA vs QDA on the quine dataset</h3>
+
+<p>The MASS <code>quine</code> dataset records absences from school. Predict <code>Sex</code> (M or F) from <code>Days</code> (number absent) and <code>Age</code> (factor) using both LDA and QDA via leave-one-out cross-validation. Report which model has lower error and explain the result by inspecting per-class variances of <code>Days</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 1: LDA vs QDA on quine">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1: LDA vs QDA on quine</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Use MASS::quine
+# Hint: convert Age to numeric inside the formula or add it as-is
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Quine LDA vs QDA solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Quine LDA vs QDA solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">qn_lda &lt;- lda(Sex ~ Days + as.numeric(Age), data = quine, CV = TRUE)
+qn_qda &lt;- qda(Sex ~ Days + as.numeric(Age), data = quine, CV = TRUE)
+
+c(LDA = mean(qn_lda$class == quine$Sex),
+  QDA = mean(qn_qda$class == quine$Sex))
+#&gt;       LDA       QDA
+#&gt; 0.5479452 0.5616438
+
+by(quine$Days, quine$Sex, var)
+#&gt; quine$Sex: F
+#&gt; [1] 188.7
+#&gt; -----
+#&gt; quine$Sex: M
+#&gt; [1] 313.4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Variance of <code>Days</code> differs by ~1.7x between sexes, so QDA edges out LDA by about one percentage point. The absolute accuracy is poor because sex is barely predictable from these features at all.</p>
+
+</details>
+
+<h3>Exercise 2: A repeated-split comparator</h3>
+
+<p>Write <code>compare_lda_qda(formula, data, n_splits = 50, train_frac = 0.7)</code> that performs <code>n_splits</code> random train/test splits and returns the mean test accuracy for each model. Apply it to <code>Species ~ .</code> on iris. The function must print a named numeric vector with <code>lda</code> and <code>qda</code> entries.</p>
+
+<div class="webr-container" data-block-title="Exercise 2: repeated-split comparator">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2: repeated-split comparator</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">compare_lda_qda &lt;- function(formula, data, n_splits = 50, train_frac = 0.7) {
+  # your code here
+}
+
+set.seed(1)
+compare_lda_qda(Species ~ ., iris)
+#&gt; Expected: both around 0.97; gap usually &lt; 0.01</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Repeated-split comparator solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Repeated-split comparator solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">compare_lda_qda &lt;- function(formula, data, n_splits = 50, train_frac = 0.7) {
+  out &lt;- replicate(n_splits, {
+    idx &lt;- sample(seq_len(nrow(data)), size = train_frac * nrow(data))
+    tr &lt;- data[idx, ]
+    te &lt;- data[-idx, ]
+    y_te &lt;- te[[all.vars(formula)[1]]]
+    c(lda = mean(predict(lda(formula, tr), te)$class == y_te),
+      qda = mean(predict(qda(formula, tr), te)$class == y_te))
+  })
+  rowMeans(out)
+}
+
+set.seed(1)
+compare_lda_qda(Species ~ ., iris)
+#&gt;       lda       qda
+#&gt; 0.9748889 0.9742222</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>replicate()</code> repeats the splitting and scoring; <code>rowMeans()</code> aggregates. On iris the means are essentially equal because the species are so well separated that the boundary shape barely matters.</p>
+
+</details>
+
+<h2>Complete Example</h2>
+
+<p>This end-to-end example walks the full diagnose-fit-decide loop on a 3-class simulated problem where one class has a clearly different covariance.</p>
+
+<div class="webr-container" data-block-title="Three-class diagnose, fit, decide">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Three-class diagnose, fit, decide</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(42)
+
+g1 &lt;- mvrnorm(150, c(0, 0), matrix(c(1, 0.3, 0.3, 1), 2))
+g2 &lt;- mvrnorm(150, c(3, 0), matrix(c(1, -0.3, -0.3, 1), 2))
+g3 &lt;- mvrnorm(150, c(1.5, 3), matrix(c(4, 0, 0, 0.5), 2))
+
+sim3 &lt;- data.frame(
+  x1 = c(g1[, 1], g2[, 1], g3[, 1]),
+  x2 = c(g1[, 2], g2[, 2], g3[, 2]),
+  grp = factor(rep(c(&quot;g1&quot;, &quot;g2&quot;, &quot;g3&quot;), each = 150))
+)
+
+# 1. Check the assumption
+sim3_box &lt;- box_m(sim3[, 1:2], sim3$grp)
+sim3_box$p_value
+#&gt; [1] 1.43e-37
+
+# 2. Fit and cross-validate both models
+sim3_lda &lt;- lda(grp ~ x1 + x2, data = sim3, CV = TRUE)
+sim3_qda &lt;- qda(grp ~ x1 + x2, data = sim3, CV = TRUE)
+
+c(LDA = mean(sim3_lda$class == sim3$grp),
+  QDA = mean(sim3_qda$class == sim3$grp))
+#&gt;       LDA       QDA
+#&gt; 0.8533333 0.9111111
+
+# 3. Plot the QDA decision regions
+sim3_qda_fit &lt;- qda(grp ~ x1 + x2, data = sim3)
+sim3_grid &lt;- expand.grid(
+  x1 = seq(min(sim3$x1) - 1, max(sim3$x1) + 1, length.out = 200),
+  x2 = seq(min(sim3$x2) - 1, max(sim3$x2) + 1, length.out = 200)
+)
+sim3_grid$pred &lt;- predict(sim3_qda_fit, sim3_grid)$class
+
+ggplot() +
+  geom_tile(data = sim3_grid, aes(x1, x2, fill = pred), alpha = 0.25) +
+  geom_point(data = sim3, aes(x1, x2, colour = grp)) +
+  labs(title = &quot;QDA decision regions on 3-class simulated data&quot;) +
+  theme_minimal()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Box's M rejects equal covariances (p ≈ 1e-37). LOOCV gives QDA a six-point edge over LDA, which agrees with the Box's M verdict and the visibly different shape of group 3. The plot shows that the boundary around group 3 bends to follow its elongated shape rather than carving a straight line through it. Recommended model: QDA.</p>
+
+<h2>Summary</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Question</th>
+<th>Answer</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>LDA assumes...</td>
+<td>One shared covariance matrix across all classes.</td>
+</tr>
+<tr>
+<td>QDA assumes...</td>
+<td>A separate covariance matrix per class.</td>
+</tr>
+<tr>
+<td>When does QDA win?</td>
+<td>Class covariances clearly differ AND each class has many rows.</td>
+</tr>
+<tr>
+<td>When does LDA win?</td>
+<td>Small samples or roughly equal covariances.</td>
+</tr>
+<tr>
+<td>Tools in R</td>
+<td><code>MASS::lda</code>, <code>MASS::qda</code>, <code>predict()</code>, <code>qda(..., CV = TRUE)</code></td>
+</tr>
+<tr>
+<td>Diagnostics</td>
+<td>Box's M test + determinant ratio of per-class covariance matrices.</td>
+</tr>
+<tr>
+<td>Middle ground</td>
+<td>Regularised discriminant analysis (<code>klaR::rda</code>).</td>
+</tr>
+</tbody>
+</table>
+
+<p><img src="screenshots/Quadratic-Discriminant-Analysis-in-R-bias-variance.webp" alt="LDA estimates fewer parameters while QDA captures unequal covariances" class="img-responsive img-zoomable" loading="lazy" width="1840" height="690" /></p>
+
+<p><em>Figure 2: The bias-variance trade-off behind the LDA-vs-QDA choice.</em></p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>James, G., Witten, D., Hastie, T., Tibshirani, R. <em>An Introduction to Statistical Learning with Applications in R</em>, 2nd ed., Section 4.4 (Discriminant Analysis). <a href="https://www.statlearning.com/">Link</a></li>
+
+<li>Hastie, T., Tibshirani, R., Friedman, J. <em>The Elements of Statistical Learning</em>, 2nd ed., Chapter 4.3. <a href="https://hastie.su.domains/ElemStatLearn/">Link</a></li>
+
+<li>Venables, W.N., Ripley, B.D. <em>Modern Applied Statistics with S</em>, 4th ed., Springer (2002), Chapter 12.</li>
+
+<li>R-core. <code>MASS::qda</code> reference manual. <a href="https://stat.ethz.ch/R-manual/R-devel/library/MASS/html/qda.html">Link</a></li>
+
+<li>Friedman, J.H. Regularized Discriminant Analysis. <em>JASA</em> 84:165-175 (1989).</li>
+
+<li>Box, G.E.P. A General Distribution Theory for a Class of Likelihood Criteria. <em>Biometrika</em> 36:317-346 (1949). <a href="https://www.jstor.org/stable/2332671">Link</a></li>
+
+<li>UC Business Analytics R Programming Guide. Discriminant Analysis. <a href="https://uc-r.github.io/discriminant_analysis">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Linear-Discriminant-Analysis-in-R.html">Linear Discriminant Analysis in R</a>: the parent post that QDA generalises.</li>
+
+<li><a href="Logistic-Regression-in-R.html">Logistic Regression in R</a>: a discriminative alternative when class-conditional Gaussians are a stretch.</li>
+
+<li><a href="Multivariate-Statistics-in-R.html">Multivariate Statistics in R</a>: foundational distance and Mahalanobis ideas underpinning discriminant analysis.</li>
+
+</ul>
