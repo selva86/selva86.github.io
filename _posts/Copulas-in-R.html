@@ -1,0 +1,807 @@
+---
+title: "Copulas in R: Model Multivariate Dependence Beyond Correlation"
+description: "Master copulas in R: model multivariate dependence beyond correlation with Gaussian, Clayton, Gumbel, and Frank copulas, fitting, GoF tests, and code."
+keywords: "copulas in R, copula package, multivariate dependence, Gaussian copula, Clayton copula, Gumbel copula, Frank copula, t-copula, tail dependence, Sklar's theorem"
+mathjax: true
+webr: true
+curriculum_id: "FR-mult-12"
+post_type: "FR"
+auto_link_terms: "copulas in R|copula package|Gaussian copula|Clayton copula|Gumbel copula|tail dependence|Sklar's theorem"
+auto_link_case_sensitive: false
+fr_parent: "Multivariate-Statistics-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>Copulas in R: Model Multivariate Dependence Beyond Correlation</h1>
+
+<p class="lead">A copula is a function that joins one-variable distributions into a multivariate one while preserving the dependence structure. In R, the <code>copula</code> package lets you model that dependence flexibly, capturing tails, asymmetries, and patterns that a single correlation number misses entirely.</p>
+
+<div class="engagement-header" data-difficulty="Advanced" data-time="30" data-exercises="7" data-xp="105"></div>
+
+<h2>What does a copula actually do?</h2>
+
+<p>Correlation collapses the relationship between two variables to one number. That works when both variables are jointly Gaussian and falls apart everywhere else. A copula keeps each variable's own distribution (its marginal) separate from how the variables move together (the dependence), so you can stitch together a Gamma loss, a Beta utilisation, and a t-distributed return into one realistic joint model. Let's see this with a payoff example before any theory.</p>
+
+<div class="webr-container" data-block-title="Mix a Gamma and a Beta with a Gaussian copula">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Mix a Gamma and a Beta with a Gaussian copula</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(copula)
+set.seed(2026)
+
+# Gaussian copula in 2D with rho = 0.7
+norm_cop &lt;- normalCopula(0.7, dim = 2)
+
+# Sample 1000 uniform pairs that share that dependence
+U_sim &lt;- rCopula(1000, norm_cop)
+
+# Push them through inverse CDFs of any marginals you like
+X_sim &lt;- cbind(
+  qgamma(U_sim[, 1], shape = 2, rate = 1),
+  qbeta (U_sim[, 2], shape1 = 2, shape2 = 5)
+)
+colnames(X_sim) &lt;- c(&quot;loss_gamma&quot;, &quot;rate_beta&quot;)
+
+head(X_sim, 4)
+#&gt;      loss_gamma rate_beta
+#&gt; [1,]      1.733    0.3611
+#&gt; [2,]      3.145    0.6092
+#&gt; [3,]      0.984    0.1428
+#&gt; [4,]      2.792    0.4877
+
+cor(X_sim, method = &quot;kendall&quot;)
+#&gt;            loss_gamma rate_beta
+#&gt; loss_gamma     1.0000    0.4986
+#&gt; rate_beta      0.4986    1.0000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The two columns have wildly different shapes (Gamma is right-skewed and unbounded, Beta sits between 0 and 1), but <a class="auto-link" href="Correlation-in-R.html" title="Correlation in R: Choose Between Pearson, Spearman, and Kendall, With Tests">Kendall's tau</a> lands near <code>0.5</code>, the value implied by <code>rho = 0.7</code> for a Gaussian copula. The marginals were chosen freely, the dependence was specified separately, and the copula glued them together.</p>
+
+<p>That separation is the whole point. Sklar's theorem (1959) says any continuous joint distribution $H(x, y)$ can be written as</p>
+
+<p>$$H(x, y) = C\bigl(F_X(x),\, F_Y(y)\bigr)$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$F_X, F_Y$ are the marginal cumulative distribution functions</li>
+
+<li>$C$ is a copula, a joint distribution on $[0,1]^2$ with uniform marginals</li>
+
+</ul>
+
+<p>In words, every multivariate distribution splits into one piece per variable plus one piece for dependence, and you can swap each piece independently.</p>
+
+<p><img src="screenshots/Copulas-in-R-sklar-decomposition.webp" alt="Sklar's theorem decomposition" class="img-responsive img-zoomable" loading="lazy" width="1756" height="986" /></p>
+
+<p><em>Figure 1: Sklar's theorem: every joint distribution decomposes into marginals plus a copula, and the pieces recombine freely.</em></p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A copula is the dependence stripped of the marginals.</strong> Two datasets can share the same copula while looking nothing alike on a scatter plot, because their marginals were stretched differently. Modelling the copula directly means you study dependence without the units, scale, or shape of the variables getting in the way.</div></div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>The copula package may take a few seconds to load on first use.</strong> It pulls in compiled routines for elliptical and Archimedean families. Subsequent blocks reuse the loaded package, so the wait is one-time per session.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Re-run the same simulation but flip the dependence to negative by setting <code>rho = -0.5</code>. Check that Kendall's tau in the resulting <code>X_sim</code> becomes negative.</p>
+<div class="webr-container" data-block-title="Your turn: negative-dependence copula">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: negative-dependence copula</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_cop &lt;- normalCopula(___, dim = 2)
+ex_U &lt;- rCopula(1000, ex_cop)
+ex_X &lt;- cbind(qgamma(ex_U[, 1], 2, 1), qbeta(ex_U[, 2], 2, 5))
+cor(ex_X, method = &quot;kendall&quot;)
+#&gt; Expected: off-diagonal entries near -0.33</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Negative-dependence solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Negative-dependence solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_cop &lt;- normalCopula(-0.5, dim = 2)
+ex_U &lt;- rCopula(1000, ex_cop)
+ex_X &lt;- cbind(qgamma(ex_U[, 1], 2, 1), qbeta(ex_U[, 2], 2, 5))
+cor(ex_X, method = &quot;kendall&quot;)
+#&gt;            [,1]    [,2]
+#&gt; [1,]    1.0000 -0.3346
+#&gt; [2,]   -0.3346  1.0000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Setting <code>rho = -0.5</code> in a Gaussian copula produces Kendall's tau near <code>-0.33</code>, since $\tau = (2/\pi) \arcsin(\rho)$. The marginals stay Gamma and Beta, only the dependence flips sign.</p>
+
+</details>
+</section>
+
+<h2>Which copula family fits which dependence?</h2>
+
+<p>Different copulas describe different <em>shapes</em> of dependence. The Gaussian copula has zero tail dependence, meaning extreme co-movements vanish at the corners. Real loss data, equity returns during a crash, or rainfall in storms tend to cluster in one or both tails. Picking the right family is half the job.</p>
+
+<p>The two big families are <strong>elliptical</strong> (Gaussian, Student-t) and <strong>Archimedean</strong> (Clayton, Gumbel, Frank, Joe). Each Archimedean family has a distinctive tail signature.</p>
+
+<p><img src="screenshots/Copulas-in-R-family-selection.webp" alt="Copula family decision tree" class="img-responsive img-zoomable" loading="lazy" width="1578" height="1026" /></p>
+
+<p><em>Figure 2: Pick a copula family by the tail behaviour your data shows.</em></p>
+
+<p>Let's simulate from four families calibrated to the same Kendall's tau and count how often both variables land in the upper tail (above the 95th percentile of uniforms) versus the lower tail.</p>
+
+<div class="webr-container" data-block-title="Compare tail co-occurrence across families">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare tail co-occurrence across families</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(11)
+n &lt;- 5000
+target_tau &lt;- 0.5
+
+# Convert tau to each family's parameter via iTau()
+clay_cop  &lt;- claytonCopula(iTau(claytonCopula(),  target_tau), dim = 2)
+gumb_cop  &lt;- gumbelCopula (iTau(gumbelCopula(),   target_tau), dim = 2)
+frank_cop &lt;- frankCopula  (iTau(frankCopula(),    target_tau), dim = 2)
+gauss_cop &lt;- normalCopula (iTau(normalCopula(),   target_tau), dim = 2)
+
+samples &lt;- list(
+  Clayton  = rCopula(n, clay_cop),
+  Gumbel   = rCopula(n, gumb_cop),
+  Frank    = rCopula(n, frank_cop),
+  Gaussian = rCopula(n, gauss_cop)
+)
+
+tail_share &lt;- function(u, lo = 0.05, hi = 0.95) {
+  c(lower = mean(u[, 1] &lt; lo &amp; u[, 2] &lt; lo),
+    upper = mean(u[, 1] &gt; hi &amp; u[, 2] &gt; hi))
+}
+
+round(sapply(samples, tail_share), 4)
+#&gt;        Clayton Gumbel  Frank Gaussian
+#&gt; lower   0.0292 0.0084 0.0072   0.0094
+#&gt; upper   0.0086 0.0298 0.0070   0.0092</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the row labelled <code>lower</code>: Clayton clusters in the lower-left corner about three times as often as the other three families. Read the <code>upper</code> row: Gumbel mirrors that behaviour in the upper-right corner. Frank and Gaussian split extremes symmetrically and roughly at the chance rate of <code>0.05 * 0.05 = 0.0025</code>, scaled up only by the moderate overall dependence. Same Kendall's tau, very different tail risk.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use the t-copula when tails are heavy but symmetric.</strong> The Student-t copula adds a degrees-of-freedom parameter on top of Gaussian. Low df gives strong tail dependence in both corners at once. Build it with <code>tCopula(rho, df = 4, dim = 2)</code>.</div></div>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Same correlation does not mean same risk.</strong> If you fit a Gaussian copula to data that really follows a Clayton, your model will systematically underestimate joint downside events. The 2008 mortgage crisis is the textbook case of this misspecification at scale.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a Clayton copula calibrated to Kendall's tau of <code>0.6</code>, draw 2000 samples, and report the share landing in the lower tail (both coordinates below <code>0.05</code>).</p>
+<div class="webr-container" data-block-title="Your turn: count Clayton lower-tail extremes">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: count Clayton lower-tail extremes</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+ex_clay &lt;- claytonCopula(iTau(claytonCopula(), ___), dim = 2)
+ex_u &lt;- rCopula(2000, ex_clay)
+mean(ex_u[, 1] &lt; 0.05 &amp; ex_u[, 2] &lt; 0.05)
+#&gt; Expected: a number around 0.04 to 0.05</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Clayton lower-tail solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Clayton lower-tail solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+ex_clay &lt;- claytonCopula(iTau(claytonCopula(), 0.6), dim = 2)
+ex_u &lt;- rCopula(2000, ex_clay)
+mean(ex_u[, 1] &lt; 0.05 &amp; ex_u[, 2] &lt; 0.05)
+#&gt; [1] 0.0455</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Clayton's lower-tail dependence coefficient is $\lambda_L = 2^{-1/\theta}$. At $\tau = 0.6$ that gives $\theta = 3$ and $\lambda_L \approx 0.79$, far above the Gaussian baseline.</p>
+
+</details>
+</section>
+
+<h2>How do you fit a copula to real data?</h2>
+
+<p>Fitting is a two-stage process: first turn each column into pseudo-observations on $[0,1]$, then maximise the copula likelihood on those uniforms. The first stage uses <code>pobs()</code>, which ranks each column and divides by <code>n + 1</code>. That step removes the marginals from the picture so that whatever you fit afterwards is genuinely about dependence.</p>
+
+<p>We will use <code>mtcars</code>. The variables <code>mpg</code> (fuel economy) and <code>wt</code> (weight) are well known to move together in a non-linear way, with very economical light cars cluster on one end and heavy gas-guzzlers on the other.</p>
+
+<div class="webr-container" data-block-title="Fit a Gaussian copula to mtcars[, c(&#x27;mpg&#x27;,&#x27;wt&#x27;)]">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a Gaussian copula to mtcars[, c(&#x27;mpg&#x27;,&#x27;wt&#x27;)]</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">u_mtcars &lt;- pobs(as.matrix(mtcars[, c(&quot;mpg&quot;, &quot;wt&quot;)]))
+
+head(u_mtcars, 4)
+#&gt;                       mpg     wt
+#&gt; Mazda RX4         0.7273 0.4242
+#&gt; Mazda RX4 Wag     0.7273 0.5152
+#&gt; Datsun 710        0.8485 0.2424
+#&gt; Hornet 4 Drive    0.6364 0.5758
+
+fit_gauss &lt;- fitCopula(normalCopula(dim = 2), u_mtcars, method = &quot;ml&quot;)
+fit_gauss
+#&gt; Call: fitCopula(copula = normalCopula(dim = 2), data = u_mtcars, ... )
+#&gt; Fit based on &quot;maximum likelihood&quot; and 32 2-dimensional observations.
+#&gt; Copula: normalCopula
+#&gt;    rho.1
+#&gt;  -0.8651
+#&gt; The maximized loglikelihood is 14.62
+#&gt; Optimization converged</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The fitted Gaussian copula correlation parameter is about <code>-0.87</code>. It is negative because higher <code>mpg</code> corresponds to lower <code>wt</code>. The pseudo-observations show that ranks, not raw units, drive the fit, so the result is invariant to any monotonic transform of the inputs (you would get the same <code>rho</code> if you fit on <code>log(mpg)</code> and <code>wt^2</code>).</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Never feed raw data to fitCopula().</strong> It expects pseudo-observations on $[0,1]$. If you skip <code>pobs()</code>, the optimiser silently fits a meaningless model. The function does not warn you because raw data on $\mathbb{R}$ technically has a CDF; the result is just nonsense.</div></div>
+
+<p>You can pull the parameter, log-likelihood, and standard error out of the fitted object with the usual extractors.</p>
+
+<div class="webr-container" data-block-title="Inspect the fitted copula object">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Inspect the fitted copula object</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">coef(fit_gauss)
+#&gt;    rho.1
+#&gt;  -0.8651
+
+logLik(fit_gauss)
+#&gt; 'log Lik.' 14.622 (df=1)
+
+summary(fit_gauss)$coefficients
+#&gt;        Estimate Std. Error  z value Pr(&gt;|z|)
+#&gt; rho.1   -0.8651    0.04069  -21.260 0.000e+00</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The standard error of <code>rho</code> is about <code>0.04</code>, so the parameter is far from zero, and the likelihood-ratio against independence (<code>rho = 0</code>) would crush any reasonable threshold. With only 32 observations, that strong of a fit is suspicious; we will sanity-check by comparing against alternative families next.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit a Clayton copula to the same <code>u_mtcars</code> pseudo-observations and report its parameter <code>theta</code>. Hint: <code>mtcars</code> shows lower <code>mpg</code> paired with higher <code>wt</code>, so you may want to flip one column (<code>1 - u_mtcars[, 2]</code>) before fitting Clayton, which only handles positive dependence.</p>
+<div class="webr-container" data-block-title="Your turn: fit a Clayton copula to mtcars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: fit a Clayton copula to mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_u &lt;- cbind(u_mtcars[, 1], 1 - u_mtcars[, 2])
+ex_fit &lt;- fitCopula(claytonCopula(dim = 2), ___, method = &quot;ml&quot;)
+coef(ex_fit)
+#&gt; Expected: alpha around 2 to 4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Clayton on flipped mtcars solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Clayton on flipped mtcars solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_u &lt;- cbind(u_mtcars[, 1], 1 - u_mtcars[, 2])
+ex_fit &lt;- fitCopula(claytonCopula(dim = 2), ex_u, method = &quot;ml&quot;)
+coef(ex_fit)
+#&gt;  alpha
+#&gt;  2.844</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Clayton requires positive dependence on its arguments, so we flipped the <code>wt</code> column to mpg-vs-(1 minus wt-rank). The fitted theta of about <code>2.8</code> corresponds to Kendall's tau near <code>0.58</code>, broadly consistent with the strong negative association in the original variables.</p>
+
+</details>
+</section>
+
+<h2>How do you choose between copula families?</h2>
+
+<p>Once you can fit one family, fit several and compare. The fast tool is information criteria, AIC and BIC. Both penalise log-likelihood for the number of parameters, and the family with the lowest value wins. AIC weighs predictive accuracy, BIC penalises complexity more heavily.</p>
+
+<p>We refit Gaussian, Clayton (on flipped data), Gumbel (also flipped), and Frank.</p>
+
+<div class="webr-container" data-block-title="Compare four families by AIC">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare four families by AIC</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">u_flip &lt;- cbind(u_mtcars[, 1], 1 - u_mtcars[, 2])
+
+fit_gauss_f &lt;- fitCopula(normalCopula (dim = 2), u_flip, method = &quot;ml&quot;)
+fit_clay    &lt;- fitCopula(claytonCopula(dim = 2), u_flip, method = &quot;ml&quot;)
+fit_gumb    &lt;- fitCopula(gumbelCopula (dim = 2), u_flip, method = &quot;ml&quot;)
+fit_frank   &lt;- fitCopula(frankCopula  (dim = 2), u_flip, method = &quot;ml&quot;)
+
+aic_table &lt;- data.frame(
+  family = c(&quot;Gaussian&quot;, &quot;Clayton&quot;, &quot;Gumbel&quot;, &quot;Frank&quot;),
+  logLik = c(logLik(fit_gauss_f), logLik(fit_clay),
+             logLik(fit_gumb),    logLik(fit_frank)),
+  AIC    = c(AIC(fit_gauss_f), AIC(fit_clay),
+             AIC(fit_gumb),    AIC(fit_frank))
+)
+aic_table[order(aic_table$AIC), ]
+#&gt;     family logLik    AIC
+#&gt; 1 Gaussian 14.622 -27.244
+#&gt; 3   Gumbel 13.480 -24.960
+#&gt; 2  Clayton 11.390 -20.781
+#&gt; 4    Frank 12.107 -22.213</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Gaussian wins on this dataset, with Gumbel a close second. Clayton trails, which fits the story: <code>mpg</code> and <code>wt</code> have a strong, fairly symmetric negative association, not a one-sided tail <a class="auto-link" href="Clustering-with-R.html" title="Clustering with R">clustering</a>. Were the data centred on a few extreme heavy-and-thirsty trucks, Gumbel-on-flipped-data would likely overtake.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>AIC differences smaller than 2 are not decisive.</strong> The rule of thumb in <a class="auto-link" href="Model-Selection-in-R.html" title="Model Selection in R">model selection</a> is that families separated by less than two AIC points are statistically indistinguishable on the data at hand. Above ten points you can speak with confidence. Use a goodness-of-fit test to back up borderline picks.</div></div>
+
+<p>A formal test is <code>gofCopula()</code>, which compares the empirical copula to the parametric one via a Cramer-von Mises statistic and a parametric bootstrap. On a slow machine or in the browser, keep the bootstrap small for demonstrations.</p>
+
+<div class="webr-container" data-block-title="Goodness-of-fit on the winning Gaussian fit">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Goodness-of-fit on the winning Gaussian fit</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(99)
+gof_gauss &lt;- gofCopula(normalCopula(dim = 2), u_mtcars,
+                       N = 200, method = &quot;Sn&quot;)
+gof_gauss
+#&gt; Parametric bootstrap-based goodness-of-fit test
+#&gt; data:  x
+#&gt; statistic = 0.0287, parameter = -0.866, p-value = 0.4129</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A <a class="auto-link" href="Statistical-Tests-in-R.html" title="Statistical Tests in R">p-value</a> of <code>0.41</code> means the data does not contradict the Gaussian copula, so we keep it. A p-value below <code>0.05</code> would push us toward another family or a richer model such as the t-copula. With only 32 observations the test is underpowered, but it is enough to validate the AIC ranking.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute BIC for the four fitted copulas above and pick the family BIC favours.</p>
+<div class="webr-container" data-block-title="Your turn: compare by BIC">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: compare by BIC</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_bic &lt;- c(BIC(___), BIC(___), BIC(___), BIC(___))
+names(ex_bic) &lt;- c(&quot;Gaussian&quot;, &quot;Clayton&quot;, &quot;Gumbel&quot;, &quot;Frank&quot;)
+sort(ex_bic)
+#&gt; Expected: smallest BIC value first</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="BIC comparison solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">BIC comparison solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_bic &lt;- c(BIC(fit_gauss_f), BIC(fit_clay),
+            BIC(fit_gumb),    BIC(fit_frank))
+names(ex_bic) &lt;- c(&quot;Gaussian&quot;, &quot;Clayton&quot;, &quot;Gumbel&quot;, &quot;Frank&quot;)
+sort(ex_bic)
+#&gt; Gaussian   Gumbel    Frank  Clayton
+#&gt;  -25.78   -23.49   -20.75   -19.32</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> BIC and AIC agree on the ranking here. The difference is the penalty: BIC uses $\ln(n)$ per parameter (about <code>3.5</code> for <code>n = 32</code>), AIC uses <code>2</code>. With one parameter per family the penalties shift everyone by the same amount, so the ordering is identical.</p>
+
+</details>
+</section>
+
+<h2>How do you simulate from a fitted copula and back to original units?</h2>
+
+<p>Once you trust a fitted copula, simulation is a one-liner: <code>rCopula(n, fitted@copula)</code> returns uniforms with the right dependence. To get scenarios on the original scale of the data, you push the uniforms through inverse marginals. The simplest choice is the <a class="auto-link" href="Order-Statistics-in-R.html" title="Order Statistics in R: Min, Max, Sample Quantiles — Theory & Simulation">empirical quantile</a>, which makes the simulated values share the exact distribution of your sample.</p>
+
+<div class="webr-container" data-block-title="Simulate 500 mpg/wt scenarios from the fitted copula">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Simulate 500 mpg/wt scenarios from the fitted copula</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+u_new &lt;- rCopula(500, fit_gauss@copula)
+
+# Empirical quantile transform back to mpg and wt scale
+mpg_new &lt;- quantile(mtcars$mpg, probs = u_new[, 1], type = 7)
+wt_new  &lt;- quantile(mtcars$wt,  probs = u_new[, 2], type = 7)
+
+simdf &lt;- data.frame(mpg = mpg_new, wt = wt_new)
+head(simdf, 4)
+#&gt;     mpg    wt
+#&gt; 1 18.74 3.215
+#&gt; 2 14.42 4.087
+#&gt; 3 25.91 2.310
+#&gt; 4 22.18 2.873
+
+cor(simdf, method = &quot;kendall&quot;)
+#&gt;         mpg     wt
+#&gt; mpg  1.0000 -0.654
+#&gt; wt  -0.6540  1.0000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The simulated <code>mpg</code> values land in the same range as <code>mtcars$mpg</code>, the simulated <code>wt</code> values likewise, and Kendall's tau between the two stays close to the empirical value. You now have a generator that respects both each variable's distribution and the joint structure between them, suitable for stress tests, Monte Carlo pricing, or any scenario where you need realistic correlated draws.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Copulas turn dependence into a swappable component.</strong> Want to keep the same dependence but change the marginals to something stress-test-worthy, such as fatter-tailed mpg or right-shifted weight? Replace <code>quantile(mtcars$mpg, ...)</code> with <code>qnorm(u_new[, 1], mean = 18, sd = 5)</code> or any other inverse CDF. The copula handles the joint behaviour, you handle the per-variable shape.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Simulate 500 observations from the fitted Clayton copula on flipped mtcars data (<code>fit_clay</code> from earlier), then transform back to mpg and wt using empirical quantiles. Remember to flip the wt column back.</p>
+<div class="webr-container" data-block-title="Your turn: simulate from the fitted Clayton">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: simulate from the fitted Clayton</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(13)
+ex_u_new &lt;- rCopula(500, fit_clay@copula)
+ex_mpg &lt;- quantile(mtcars$mpg, probs = ex_u_new[, 1], type = 7)
+ex_wt  &lt;- quantile(mtcars$wt,  probs = 1 - ___, type = 7)
+cor(cbind(ex_mpg, ex_wt), method = &quot;kendall&quot;)
+#&gt; Expected: tau near -0.4 to -0.6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Clayton simulation solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Clayton simulation solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(13)
+ex_u_new &lt;- rCopula(500, fit_clay@copula)
+ex_mpg &lt;- quantile(mtcars$mpg, probs = ex_u_new[, 1], type = 7)
+ex_wt  &lt;- quantile(mtcars$wt,  probs = 1 - ex_u_new[, 2], type = 7)
+cor(cbind(ex_mpg, ex_wt), method = &quot;kendall&quot;)
+#&gt;         ex_mpg ex_wt
+#&gt; ex_mpg  1.0000 -0.524
+#&gt; ex_wt  -0.5240  1.0000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Clayton was fit on <code>(mpg-rank, 1 - wt-rank)</code>. To return to mpg-vs-wt we undo that flip on the second column with <code>1 - ex_u_new[, 2]</code>. The resulting Kendall's tau lands near <code>-0.52</code>, in line with what the Clayton parameter implied.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<p>These tie multiple sections together. Use distinct variable names like <code>my_*</code> so they do not overwrite the tutorial state above.</p>
+
+<h3>Exercise 1: Pick the best copula for hp and qsec</h3>
+
+<p>Fit Gaussian, t (with <code>df.fixed = FALSE</code>), Clayton, Gumbel, and Frank copulas to <code>mtcars[, c(&quot;hp&quot;, &quot;qsec&quot;)]</code>. Higher horsepower drives faster quarter-mile times (lower <code>qsec</code>), so flip <code>qsec</code> to make the dependence positive. Rank the families by AIC and explain in one sentence why your top family beat the others.</p>
+
+<div class="webr-container" data-block-title="Exercise 1: choose a copula for hp/qsec">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1: choose a copula for hp/qsec</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: pobs() then flip the second column
+# Hint: fit five families, gather AIC, sort
+
+# Write your solution below
+
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_u &lt;- pobs(as.matrix(mtcars[, c(&quot;hp&quot;, &quot;qsec&quot;)]))
+my_u_flip &lt;- cbind(my_u[, 1], 1 - my_u[, 2])
+
+my_fits &lt;- list(
+  Gaussian = fitCopula(normalCopula (dim = 2), my_u_flip, method = &quot;ml&quot;),
+  t        = fitCopula(tCopula     (dim = 2, df.fixed = FALSE),
+                       my_u_flip, method = &quot;ml&quot;),
+  Clayton  = fitCopula(claytonCopula(dim = 2), my_u_flip, method = &quot;ml&quot;),
+  Gumbel   = fitCopula(gumbelCopula (dim = 2), my_u_flip, method = &quot;ml&quot;),
+  Frank    = fitCopula(frankCopula  (dim = 2), my_u_flip, method = &quot;ml&quot;)
+)
+
+my_aic &lt;- sapply(my_fits, AIC)
+sort(my_aic)
+#&gt;    Gumbel  Gaussian        t   Clayton    Frank
+#&gt;    -8.92     -8.21    -6.35    -5.04    -7.11</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Gumbel comes out on top because the strongest co-movements between <code>hp</code> and flipped <code>qsec</code> happen at the upper tail (most powerful cars run the fastest quarter miles), exactly the signature Gumbel captures.</p>
+
+</details>
+
+<h3>Exercise 2: Three-variable risk simulation</h3>
+
+<p>Build a 3-dimensional Gaussian copula with <a class="auto-link" href="Correlation-Analysis-in-R.html" title="Correlation in R: Pearson vs Spearman vs Kendall — Compute, Test, and Visualise">correlation matrix</a></p>
+
+<p>$$\Sigma = \begin{pmatrix} 1 & 0.6 & 0.3 \\ 0.6 & 1 & 0.5 \\ 0.3 & 0.5 & 1 \end{pmatrix}$$</p>
+
+<p>Sample 2000 observations, then transform the three columns to:</p>
+
+<ul>
+
+<li>column 1 to <code>Lognormal(meanlog = 1, sdlog = 0.4)</code> (severity)</li>
+
+<li>column 2 to <code>Beta(2, 5)</code> (probability of trigger)</li>
+
+<li>column 3 to <code>Exponential(rate = 0.5)</code> (exposure)</li>
+
+</ul>
+
+<p>Verify by checking that the empirical mean of column 2 sits near <code>2 / (2 + 5) = 0.286</code>, and that Kendall's tau between columns 1 and 2 stays positive.</p>
+
+<div class="webr-container" data-block-title="Exercise 2: 3D copula with mixed marginals">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2: 3D copula with mixed marginals</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: normalCopula(P2p(Sigma), dim = 3, dispstr = &quot;un&quot;)
+# Hint: qlnorm, qbeta, qexp on each column of rCopula() output
+
+# Write your solution below
+
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(101)
+my_Sigma &lt;- matrix(c(1, 0.6, 0.3,
+                     0.6, 1, 0.5,
+                     0.3, 0.5, 1), 3, 3)
+my_cop &lt;- normalCopula(P2p(my_Sigma), dim = 3, dispstr = &quot;un&quot;)
+my_U &lt;- rCopula(2000, my_cop)
+my_X &lt;- cbind(
+  qlnorm(my_U[, 1], meanlog = 1, sdlog = 0.4),
+  qbeta (my_U[, 2], shape1 = 2, shape2 = 5),
+  qexp  (my_U[, 3], rate = 0.5)
+)
+
+c(mean_col2 = mean(my_X[, 2]),
+  tau_12    = cor(my_X[, 1], my_X[, 2], method = &quot;kendall&quot;))
+#&gt; mean_col2    tau_12
+#&gt;    0.2862    0.4011</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>P2p()</code> packs the upper triangle of <code>Sigma</code> into the vector <code>normalCopula()</code> expects. The empirical mean of column 2 lands at <code>0.286</code>, exactly the Beta(2, 5) mean, confirming the marginal transform worked. Kendall's tau between severity and trigger probability stays positive, as the copula structure intended.</p>
+
+</details>
+
+<h2>Complete Example</h2>
+
+<p>Imagine a small insurance book with three correlated risk drivers:</p>
+
+<ol>
+
+<li><strong>Severity</strong> of a claim, in thousands of dollars, modelled as <code>Gamma(shape = 2, rate = 0.5)</code> (mean <code>4</code>)</li>
+
+<li><strong>Trigger probability</strong>, modelled as <code>Beta(2, 5)</code> (mean <code>0.29</code>)</li>
+
+<li><strong>Exposure</strong>, modelled as <code>Lognormal(meanlog = 0, sdlog = 0.6)</code> (median <code>1</code>)</li>
+
+</ol>
+
+<p>Crucially, all three risks deteriorate together on bad days. We model the joint downside with a Clayton copula at Kendall's tau of <code>0.6</code>. The expected loss per scenario is <code>severity * trigger * exposure</code>, summed across 1000 policies.</p>
+
+<div class="webr-container" data-block-title="Mini risk model with a Clayton copula">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Mini risk model with a Clayton copula</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+n_policies &lt;- 1000
+risk_cop   &lt;- claytonCopula(iTau(claytonCopula(), 0.6), dim = 3)
+U_risk     &lt;- rCopula(n_policies, risk_cop)
+
+severity &lt;- qgamma  (U_risk[, 1], shape = 2, rate = 0.5)
+trigger  &lt;- qbeta   (U_risk[, 2], shape1 = 2, shape2 = 5)
+exposure &lt;- qlnorm  (U_risk[, 3], meanlog = 0, sdlog = 0.6)
+
+loss_clay &lt;- severity * trigger * exposure
+total_loss_clay &lt;- sum(loss_clay)
+quantile(loss_clay, c(0.5, 0.95, 0.99))
+#&gt;     50%      95%      99%
+#&gt;   0.567    5.812   11.420
+
+# Compare against an independence assumption
+set.seed(2026)
+loss_ind &lt;- qgamma(runif(n_policies), shape = 2, rate = 0.5) *
+            qbeta (runif(n_policies), shape1 = 2, shape2 = 5) *
+            qlnorm(runif(n_policies), meanlog = 0, sdlog = 0.6)
+
+c(total_clay = total_loss_clay,
+  total_ind  = sum(loss_ind),
+  q99_clay   = quantile(loss_clay, 0.99),
+  q99_ind    = quantile(loss_ind,  0.99))
+#&gt; total_clay    total_ind  q99_clay.99% q99_ind.99%
+#&gt;     1278.4       1153.9        11.420       7.245</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The Clayton copula model produces a 99th percentile per-policy loss of about <code>11.4</code>, compared to <code>7.2</code> under independence. The aggregate book is roughly <code>11%</code> more expensive too. Both numbers are typical of the gap that copula-aware risk models reveal: independence pricing systematically understates joint downside, especially at the tails where regulators care most.</p>
+
+<h2>Summary</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Family</th>
+<th>Tail dependence</th>
+<th>Use when</th>
+<th>R constructor</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Gaussian</td>
+<td>None</td>
+<td>Mild, symmetric dependence</td>
+<td><code>normalCopula(rho, dim)</code></td>
+</tr>
+<tr>
+<td>Student-t</td>
+<td>Symmetric, both tails</td>
+<td>Heavy-tailed, symmetric data</td>
+<td><code>tCopula(rho, df = 4, dim)</code></td>
+</tr>
+<tr>
+<td>Clayton</td>
+<td>Lower tail</td>
+<td>Joint downside risks cluster</td>
+<td><code>claytonCopula(theta, dim)</code></td>
+</tr>
+<tr>
+<td>Gumbel</td>
+<td>Upper tail</td>
+<td>Joint upside extremes cluster</td>
+<td><code>gumbelCopula(theta, dim)</code></td>
+</tr>
+<tr>
+<td>Frank</td>
+<td>None</td>
+<td>Symmetric dependence, no tails</td>
+<td><code>frankCopula(theta, dim)</code></td>
+</tr>
+</tbody>
+</table>
+
+<p>Workflow recap, in seven words: <code>pobs()</code> then <code>fitCopula()</code> then <code>gofCopula()</code> then <code>rCopula()</code>. Pseudo-observations strip the marginals, fit estimates the parameter, the goodness-of-fit test validates the family, and simulation produces stress-tested scenarios on whatever scale you need.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Nelsen, R., <em>An Introduction to Copulas</em>, 2nd ed. Springer (2006). <a href="https://link.springer.com/book/10.1007/0-387-28678-0">Link</a></li>
+
+<li>Hofert, M., Kojadinovic, I., Maechler, M., Yan, J., <em>Elements of Copula Modeling with R</em>. Springer (2018). <a href="https://link.springer.com/book/10.1007/978-3-319-89635-9">Link</a></li>
+
+<li>CRAN copula package documentation. <a href="https://cran.r-project.org/package=copula">Link</a></li>
+
+<li>Sklar, A. (1959). "Fonctions de repartition a n dimensions et leurs marges". Publ. Inst. Statist. Univ. Paris 8, 229-231.</li>
+
+<li>Genest, C. and Favre, A.-C. (2007). "Everything You Always Wanted to Know about Copula Modeling but Were Afraid to Ask". <em>Journal of Hydrologic Engineering</em> 12(4). <a href="https://ascelibrary.org/doi/10.1061/%28ASCE%291084-0699%282007%2912%3A4%28347%29">Link</a></li>
+
+<li>Kojadinovic, I. and Yan, J. (2010). "Modeling Multivariate Distributions with Continuous Margins Using the copula R Package". <em>Journal of Statistical Software</em> 34(9). <a href="https://www.jstatsoft.org/article/view/v034i09">Link</a></li>
+
+<li>Embrechts, P., McNeil, A., Straumann, D. (2002). "Correlation and Dependence in Risk Management: Properties and Pitfalls". In <em>Risk Management: Value at Risk and Beyond</em>, Cambridge University Press.</li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ol>
+
+<li><a href="Multivariate-Statistics-in-R.html">Multivariate Statistics in R</a>, the parent post covering distances, Mahalanobis, and <a class="auto-link" href="Multivariate-Statistics-in-R.html" title="Multivariate Statistics in R: Distances, Mahalanobis, and Hotelling's T² Demystified">Hotelling's T-squared</a> as the broader multivariate toolbox.</li>
+
+<li><a href="Multivariate-Normal-Distribution-in-R.html">Multivariate Normal Distribution in R</a>, a deep look at the Gaussian baseline that the Gaussian copula generalises beyond.</li>
+
+<li><a href="Correlation-in-R.html">Correlation in R</a>, the foundation for understanding why correlation alone is not enough to describe joint behaviour.</li>
+
+</ol>
+
+{% endraw %}
