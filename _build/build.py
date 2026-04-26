@@ -301,12 +301,17 @@ def generate_og_image(title, slug_no_ext, force=False):
     return out_path
 
 
+def load_sidebar_sections():
+    """Load sidebar.json and return the raw list of sections (or [])."""
+    if not os.path.exists(SIDEBAR_PATH):
+        return []
+    with open(SIDEBAR_PATH, 'r', encoding='utf-8') as f:
+        return json.load(f)
+
+
 def load_sidebar_map():
     """Load sidebar.json and build a slug -> section_title lookup."""
-    if not os.path.exists(SIDEBAR_PATH):
-        return {}
-    with open(SIDEBAR_PATH, 'r', encoding='utf-8') as f:
-        sections = json.load(f)
+    sections = load_sidebar_sections()
     mapping = {}
     for section in sections:
         title = section.get('title', '')
@@ -315,6 +320,88 @@ def load_sidebar_map():
                 continue
             mapping[item['href']] = title
     return mapping
+
+
+def _esc_html(s):
+    return (s or '').replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;').replace('"', '&quot;')
+
+
+def render_sidebar_html(sections, current_slug):
+    """Render the sidebar markup at build time.
+
+    Mirrors the structure toc.js used to build client-side, minus per-user
+    state (visited dots, collapsed subsections). toc.js applies that state
+    from localStorage on load so the static markup stays the same for every
+    visitor (good for caching and for Ezoic, which strips external JS).
+    """
+    if not sections:
+        return ''
+
+    rendered_sections = []
+    has_active_section = False
+    for i, section in enumerate(sections):
+        items = section.get('items') or []
+        if not items:
+            continue
+        section_active = any(
+            (not it.get('divider')) and it.get('href') == current_slug
+            for it in items
+        )
+        if section_active:
+            has_active_section = True
+        rendered_sections.append((i, section, items, section_active))
+
+    if not has_active_section and rendered_sections:
+        # Match toc.js fallback: expand the first section when no item is active.
+        i0, sec0, items0, _ = rendered_sections[0]
+        rendered_sections[0] = (i0, sec0, items0, True)
+
+    parts = ['<ul class="sidebar-menu list-unstyled">']
+    for i, section, items, section_active in rendered_sections:
+        sec_class = 'sidebar-section expanded' if section_active else 'sidebar-section'
+        title = _esc_html(section.get('title', ''))
+        parts.append(f'<li class="{sec_class}">')
+        parts.append('<div class="sidebar-section-header">')
+        parts.append(f'<span class="sidebar-chevron">&#9656;</span> {title}')
+        parts.append('</div>')
+        parts.append('<ul class="sidebar-section-items list-unstyled">')
+
+        sub_idx = 0
+        for item in items:
+            if item.get('divider'):
+                sub_idx += 1
+                sub_key = f'sec{i}sub{sub_idx}'
+                text = _esc_html(item.get('text', ''))
+                parts.append(
+                    f'<li class="sidebar-divider sidebar-subsection-toggle" '
+                    f'data-subkey="{sub_key}" data-collapsed="false">'
+                    f'<span class="subsec-chevron">&#9660;</span> {text}</li>'
+                )
+                continue
+            href = _esc_html(item.get('href', ''))
+            text = _esc_html(item.get('text', ''))
+            cur_sub_key = f'sec{i}sub{sub_idx}'
+            is_active = item.get('href') == current_slug
+            active_attr = ' class="active"' if is_active else ''
+            parts.append(f'<li data-subkey="{cur_sub_key}">')
+            parts.append(
+                f'<a href="{href}"{active_attr}>'
+                f'<span class="progress-dot"></span>{text}</a></li>'
+            )
+        parts.append('</ul></li>')
+    parts.append('</ul>')
+
+    parts.append('<div class="sidebar-subscribe">')
+    parts.append(
+        '<p>Stay up-to-date. '
+        '<a href="https://docs.google.com/forms/d/1xkMYkLNFU9U39Dd8S_2JC0p8B5t6_Yq6zUQjanQQJpY/viewform">Subscribe!</a></p>'
+    )
+    parts.append(
+        '<p><a href="https://docs.google.com/forms/d/13GrkCFcNa-TOIllQghsz2SIEbc-YqY9eJX02B19l5Ow/viewform">Chat!</a></p>'
+    )
+    parts.append('</div>')
+
+    return ''.join(parts)
 
 
 def load_prev_next_map():
@@ -691,7 +778,7 @@ def build_post(
     template, post_path, sidebar_map=None, prev_next_map=None,
     slug_to_subpath=None, subpath_to_slugs=None,
     post_titles=None, reading_time_cache=None,
-    asset_hrefs=None,
+    asset_hrefs=None, sidebar_sections=None,
 ):
     """Build a single post from its source file."""
     with open(post_path, 'r', encoding='utf-8') as f:
@@ -844,6 +931,9 @@ def build_post(
     page_html = page_html.replace('{{HIGHLIGHT_CSS_HREF}}', _hrefs.get('highlight.css', 'www/highlight.css'))
     page_html = page_html.replace('{{TOC_JS_HREF}}', _hrefs.get('toc.js', 'www/toc.js'))
 
+    sidebar_html = render_sidebar_html(sidebar_sections or [], slug)
+    page_html = page_html.replace('{{SIDEBAR_HTML}}', sidebar_html)
+
     page_html = page_html.replace('{{WEBR_HEAD}}', make_webr_head_block(_hrefs) if webr else '')
     page_html = page_html.replace('{{WEBR_BODY}}', make_webr_body_block(_hrefs) if webr else '')
     page_html = page_html.replace('{{ENGAGEMENT_HEAD}}', make_engagement_head_block(_hrefs) if webr else '')
@@ -987,6 +1077,7 @@ def main():
         print("No posts found in _posts/")
         return
 
+    sidebar_sections = load_sidebar_sections()
     sidebar_map = load_sidebar_map()
     prev_next_map = load_prev_next_map()
     slug_to_subpath, subpath_to_slugs = load_curriculum_siblings()
@@ -1038,7 +1129,7 @@ def main():
         page_html = build_post(
             template, post_path, sidebar_map, prev_next_map,
             slug_to_subpath, subpath_to_slugs, post_titles, reading_time_cache,
-            asset_hrefs,
+            asset_hrefs, sidebar_sections,
         )
         with open(output_path, 'w', encoding='utf-8') as f:
             f.write(page_html)

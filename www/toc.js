@@ -40,109 +40,69 @@ function saveCollapsed(c) {
   }
 })();
 
-// === Dynamic sidebar from sidebar.json ===
+// === Hydrate the static sidebar with per-user state + click handlers ===
+// The sidebar HTML is rendered server-side by build.py, so it ships in the
+// initial response and survives Ezoic's external-script stripping. This
+// block only enhances it: paints the visited dots from localStorage,
+// applies the collapsed-subsection state, and wires up toggle clicks.
 (function() {
-  var currentPage = window.location.pathname.split('/').pop() || 'index.html';
   var sidebarEl = document.getElementById('sidebar-nav');
   if (!sidebarEl) return;
 
-  fetch('/www/sidebar.json')
-    .then(function(r) { return r.json(); })
-    .then(function(sections) {
-      var visited = getVisited();
-      var collapsed = getCollapsed();
-      var html = '<ul class="sidebar-menu list-unstyled">';
+  var visited = getVisited();
+  var collapsed = getCollapsed();
 
-      for (var i = 0; i < sections.length; i++) {
-        var section = sections[i];
-        if (!section.items || section.items.length === 0) continue;
+  // Paint visited dots
+  sidebarEl.querySelectorAll('.sidebar-section-items a').forEach(function(a) {
+    var href = a.getAttribute('href');
+    if (href && visited[href]) {
+      var dot = a.querySelector('.progress-dot');
+      if (dot) dot.classList.add('visited');
+    }
+  });
 
-        var hasActive = false;
-        for (var j = 0; j < section.items.length; j++) {
-          if (section.items[j].divider) continue;
-          if (section.items[j].href === currentPage) { hasActive = true; break; }
-        }
-
-        html += '<li class="sidebar-section' + (hasActive ? ' expanded' : '') + '">';
-        html += '<div class="sidebar-section-header">';
-        html += '<span class="sidebar-chevron">&#9656;</span> ' + section.title;
-        html += '</div>';
-        html += '<ul class="sidebar-section-items list-unstyled">';
-
-        var subIdx = 0;
-        for (var k = 0; k < section.items.length; k++) {
-          var item = section.items[k];
-          if (item.divider) {
-            subIdx++;
-            var subKey = 'sec' + i + 'sub' + subIdx;
-            var isCollapsed = collapsed[subKey] === true;
-            html += '<li class="sidebar-divider sidebar-subsection-toggle" data-subkey="' + subKey + '" data-collapsed="' + isCollapsed + '">';
-            html += '<span class="subsec-chevron">' + (isCollapsed ? '&#9654;' : '&#9660;') + '</span> ';
-            html += item.text;
-            html += '</li>';
-            continue;
-          }
-          var isActive = item.href === currentPage;
-          var isVisited = visited[item.href] === true;
-          var curSubKey = 'sec' + i + 'sub' + subIdx;
-          var isHidden = subIdx > 0 && collapsed[curSubKey] === true;
-          html += '<li' + (isHidden ? ' style="display:none"' : '') + ' data-subkey="' + curSubKey + '">';
-          html += '<a href="' + item.href + '"' + (isActive ? ' class="active"' : '') + '>';
-          html += '<span class="progress-dot' + (isVisited ? ' visited' : '') + '"></span>';
-          html += item.text;
-          html += '</a></li>';
-        }
-
-        html += '</ul></li>';
-      }
-
-      html += '</ul>';
-      html += '<div class="sidebar-subscribe">';
-      html += '<p>Stay up-to-date. <a href="https://docs.google.com/forms/d/1xkMYkLNFU9U39Dd8S_2JC0p8B5t6_Yq6zUQjanQQJpY/viewform">Subscribe!</a></p>';
-      html += '<p><a href="https://docs.google.com/forms/d/13GrkCFcNa-TOIllQghsz2SIEbc-YqY9eJX02B19l5Ow/viewform">Chat!</a></p>';
-      html += '</div>';
-
-      sidebarEl.innerHTML = html;
-
-      // Expand first section if none active
-      if (!sidebarEl.querySelector('.sidebar-section.expanded')) {
-        var first = sidebarEl.querySelector('.sidebar-section');
-        if (first) first.classList.add('expanded');
-      }
-
-      // Section toggle (top-level)
-      sidebarEl.querySelectorAll('.sidebar-section-header').forEach(function(header) {
-        header.addEventListener('click', function() {
-          this.closest('.sidebar-section').classList.toggle('expanded');
-        });
+  // Apply collapsed-subsection state from localStorage
+  sidebarEl.querySelectorAll('.sidebar-subsection-toggle').forEach(function(divider) {
+    var key = divider.getAttribute('data-subkey');
+    if (collapsed[key] === true) {
+      divider.setAttribute('data-collapsed', 'true');
+      var chev = divider.querySelector('.subsec-chevron');
+      if (chev) chev.innerHTML = '&#9654;';
+      sidebarEl.querySelectorAll('li[data-subkey="' + key + '"]:not(.sidebar-subsection-toggle)').forEach(function(li) {
+        li.style.display = 'none';
       });
+    }
+  });
 
-      // Subsection toggle
-      sidebarEl.querySelectorAll('.sidebar-subsection-toggle').forEach(function(divider) {
-        divider.addEventListener('click', function() {
-          var key = this.getAttribute('data-subkey');
-          var nowCollapsed = this.getAttribute('data-collapsed') !== 'true';
-          this.setAttribute('data-collapsed', nowCollapsed);
-          this.querySelector('.subsec-chevron').innerHTML = nowCollapsed ? '&#9654;' : '&#9660;';
+  // Section toggle (top-level)
+  sidebarEl.querySelectorAll('.sidebar-section-header').forEach(function(header) {
+    header.addEventListener('click', function() {
+      this.closest('.sidebar-section').classList.toggle('expanded');
+    });
+  });
 
-          var c = getCollapsed();
-          c[key] = nowCollapsed;
-          saveCollapsed(c);
+  // Subsection toggle
+  sidebarEl.querySelectorAll('.sidebar-subsection-toggle').forEach(function(divider) {
+    divider.addEventListener('click', function() {
+      var key = divider.getAttribute('data-subkey');
+      var nowCollapsed = divider.getAttribute('data-collapsed') !== 'true';
+      divider.setAttribute('data-collapsed', nowCollapsed);
+      var chev = divider.querySelector('.subsec-chevron');
+      if (chev) chev.innerHTML = nowCollapsed ? '&#9654;' : '&#9660;';
 
-          sidebarEl.querySelectorAll('li[data-subkey="' + key + '"]:not(.sidebar-subsection-toggle)').forEach(function(li) {
-            li.style.display = nowCollapsed ? 'none' : '';
-          });
-        });
+      var c = getCollapsed();
+      c[key] = nowCollapsed;
+      saveCollapsed(c);
+
+      sidebarEl.querySelectorAll('li[data-subkey="' + key + '"]:not(.sidebar-subsection-toggle)').forEach(function(li) {
+        li.style.display = nowCollapsed ? 'none' : '';
       });
-    })
-    .catch(function() {});
+    });
+  });
 })();
 
 // === Scroll-spy for right-side TOC ===
 // Uses IntersectionObserver — no scroll handler, no layout reads, no jank.
-// The old implementation called `offsetTop` for every h2 on every scroll tick,
-// forcing a full layout recalc. On pages with 20+ headings and 30+ code blocks
-// that was a visible source of scroll stutter.
 (function() {
   if (!('IntersectionObserver' in window)) return;
   var headings = document.querySelectorAll('#content h2');
@@ -159,8 +119,6 @@ function saveCollapsed(c) {
   var activeId = null;
 
   function updateActive() {
-    // Pick the topmost heading currently inside the "active zone" — if none is
-    // in view (long section body), keep the last one we highlighted.
     var chosen = null;
     for (var i = 0; i < headings.length; i++) {
       if (visibleIds[headings[i].id]) { chosen = headings[i].id; break; }
@@ -172,9 +130,6 @@ function saveCollapsed(c) {
     activeId = chosen;
   }
 
-  // rootMargin: a thin band near the top of the viewport. A heading is
-  // "active" while its text sits in this band. Bottom margin pushes the
-  // zone close to the top so scrolling into a new section switches promptly.
   var io = new IntersectionObserver(function (entries) {
     for (var i = 0; i < entries.length; i++) {
       visibleIds[entries[i].target.id] = entries[i].isIntersecting;
