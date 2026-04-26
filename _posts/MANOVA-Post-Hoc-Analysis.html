@@ -1,0 +1,779 @@
+---
+title: "MANOVA Post-Hoc Analysis: Univariate Follow-Up Tests in R"
+description: "Run univariate ANOVAs after a significant MANOVA in R: apply Bonferroni and Holm corrections, run TukeyHSD pairwise contrasts, and report effect sizes."
+keywords: "MANOVA post-hoc, univariate follow-up MANOVA, Bonferroni MANOVA, summary.aov, TukeyHSD MANOVA, pairwise comparisons MANOVA, p.adjust R, descriptive discriminant analysis, MANOVA effect size R, Holm correction"
+mathjax: true
+webr: true
+curriculum_id: "FR-mult-1"
+post_type: "FR"
+auto_link_terms: "MANOVA post-hoc|MANOVA post hoc|post-hoc MANOVA|univariate follow-up tests|univariate ANOVA after MANOVA|Bonferroni after MANOVA|Games-Howell test|descriptive discriminant analysis"
+auto_link_case_sensitive: false
+fr_parent: "MANOVA-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>MANOVA Post-Hoc Analysis: Univariate Follow-Up Tests in R</h1>
+
+<p class="lead">After a significant MANOVA, the multivariate F tells you the groups differ on the joint outcome bundle, but it does not say which outcomes drive the difference or which group pairs are responsible. Post-hoc analysis answers both questions. The standard recipe runs one univariate ANOVA per outcome, corrects the <a class="auto-link" href="Multiple-Comparisons-in-R.html" title="Multiple Testing in R: Control False Discoveries Without Losing All Your Power">family-wise error rate</a>, then runs pairwise contrasts within each significant outcome.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="30" data-exercises="7" data-xp="105"></div>
+
+<h2>Why do you need a post-hoc step after a significant MANOVA?</h2>
+
+<p>A multivariate F lights up when the bundle of outcomes separates the groups, but it leaves the practical questions open. Which outcome carries the signal? <code>summary.aov()</code> answers that in one line by re-fitting one ANOVA per outcome from the same model object. The F values rank the outcomes by how strongly each one separates the groups, and that ranking guides every later step in the post-hoc workflow.</p>
+
+<div class="webr-container" data-block-title="Per-outcome F values from a fitted MANOVA">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Per-outcome F values from a fitted MANOVA</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit MANOVA on iris, then split into per-outcome ANOVAs
+iris_man &lt;- manova(cbind(Sepal.Length, Sepal.Width, Petal.Length, Petal.Width) ~ Species,
+                   data = iris)
+
+aov_summary &lt;- summary.aov(iris_man)
+aov_summary
+#&gt;  Response Sepal.Length :
+#&gt;             Df Sum Sq Mean Sq F value    Pr(&gt;F)
+#&gt; Species      2 63.212  31.606  119.26 &lt; 2.2e-16 ***
+#&gt; Residuals  147 38.956   0.265
+#&gt;
+#&gt;  Response Sepal.Width :
+#&gt;             Df Sum Sq Mean Sq F value    Pr(&gt;F)
+#&gt; Species      2 11.345  5.6725   49.16 &lt; 2.2e-16 ***
+#&gt; Residuals  147 16.962   0.115
+#&gt;
+#&gt;  Response Petal.Length :
+#&gt;             Df Sum Sq Mean Sq F value    Pr(&gt;F)
+#&gt; Species      2 437.10  218.55  1180.2 &lt; 2.2e-16 ***
+#&gt; Residuals  147  27.22   0.185
+#&gt;
+#&gt;  Response Petal.Width :
+#&gt;             Df Sum Sq Mean Sq F value    Pr(&gt;F)
+#&gt; Species      2  80.41  40.205  960.01 &lt; 2.2e-16 ***
+#&gt; Residuals  147   6.16   0.042</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>All four outcomes are individually significant, but the F values tell the real story. <code>Petal.Length</code> (F = 1180) and <code>Petal.Width</code> (F = 960) overshadow <code>Sepal.Length</code> (F = 119) and <code>Sepal.Width</code> (F = 49) by a factor of ten or more. That ranking is what the multivariate test was hiding inside the single Pillai number, and it is the first piece of information you should report.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The per-outcome F values rank dependent variables by signal strength.</strong> Just like loadings in PCA tell you which axis carries the most variance, the per-DV F values tell you which outcome carries the most group separation. The biggest F is the headline finding.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit a smaller MANOVA on <code>iris</code> using only <code>Sepal.Length</code> and <code>Petal.Length</code>. Save it as <code>ex_man2</code>, then call <code>summary.aov()</code> to print two ANOVA tables.</p>
+<div class="webr-container" data-block-title="Your turn: per-outcome F on a 2-DV MANOVA">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: per-outcome F on a 2-DV MANOVA</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_man2 &lt;- # your code here
+
+summary.aov(ex_man2)
+#&gt; Expected: Response Sepal.Length F approx 119; Response Petal.Length F approx 1180.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Two-DV summary.aov solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Two-DV summary.aov solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_man2 &lt;- manova(cbind(Sepal.Length, Petal.Length) ~ Species, data = iris)
+summary.aov(ex_man2)
+#&gt;  Response Sepal.Length :
+#&gt;             Df Sum Sq Mean Sq F value    Pr(&gt;F)
+#&gt; Species      2 63.212  31.606  119.26 &lt; 2.2e-16 ***
+#&gt;
+#&gt;  Response Petal.Length :
+#&gt;             Df Sum Sq Mean Sq F value    Pr(&gt;F)
+#&gt; Species      2 437.10  218.55  1180.2 &lt; 2.2e-16 ***</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Trim <code>cbind()</code> to two columns. The F values for the two retained DVs match the four-DV fit exactly, because each univariate ANOVA only uses its own column.</p>
+
+</details>
+</section>
+
+<h2>How do you correct for multiple comparisons across the univariate ANOVAs?</h2>
+
+<p>Each univariate ANOVA carries its own 5% false-positive risk. With four outcomes, the chance that <em>at least one</em> lights up by chance is roughly $1 - (1 - 0.05)^4 \approx 0.185$, almost four times the nominal rate. Three classical adjustments fix this. <strong>Bonferroni</strong> divides α by k, the strictest option. <strong>Holm</strong> orders the p-values smallest to largest and applies a stepwise threshold, more powerful than Bonferroni without losing strict Type I control. <strong>Benjamini-Hochberg (BH)</strong> controls the false discovery rate instead, which is appropriate when you have many outcomes and want to identify a set of likely signals.</p>
+
+<p><img src="screenshots/MANOVA-Post-Hoc-Analysis-correction-choice.webp" alt="Choosing a multiple-comparison correction across the univariate ANOVAs." class="img-responsive img-zoomable" loading="lazy" width="1118" height="1154" /></p>
+
+<p><em>Figure 1: Choosing a multiple-comparison correction across the univariate ANOVAs.</em></p>
+
+<p>R bundles all three methods into <code>p.adjust()</code>. You feed it the raw p-vector and a <code>method</code> argument.</p>
+
+<div class="webr-container" data-block-title="Apply three corrections to the per-DV p-values">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Apply three corrections to the per-DV p-values</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Pull raw p-values for the Species effect from each ANOVA table
+pvals &lt;- sapply(aov_summary, function(tab) tab[[&quot;Pr(&gt;F)&quot;]][1])
+names(pvals) &lt;- c(&quot;Sepal.Length&quot;, &quot;Sepal.Width&quot;, &quot;Petal.Length&quot;, &quot;Petal.Width&quot;)
+round(pvals, 4)
+#&gt; Sepal.Length  Sepal.Width Petal.Length  Petal.Width
+#&gt;            0            0            0            0
+
+# Inject a couple of borderline p-values to make the differences visible
+demo_pvals &lt;- c(0.001, 0.020, 0.040, 0.045)
+names(demo_pvals) &lt;- names(pvals)
+
+padj_bonf &lt;- p.adjust(demo_pvals, method = &quot;bonferroni&quot;)
+padj_holm &lt;- p.adjust(demo_pvals, method = &quot;holm&quot;)
+padj_bh   &lt;- p.adjust(demo_pvals, method = &quot;BH&quot;)
+
+round(rbind(raw = demo_pvals, bonferroni = padj_bonf, holm = padj_holm, BH = padj_bh), 4)
+#&gt;            Sepal.Length Sepal.Width Petal.Length Petal.Width
+#&gt; raw              0.0010      0.0200       0.0400      0.0450
+#&gt; bonferroni       0.0040      0.0800       0.1600      0.1800
+#&gt; holm             0.0040      0.0600       0.0800      0.0800
+#&gt; BH               0.0040      0.0400       0.0533      0.0533</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>For the iris model the raw p-values are all effectively zero, so every correction keeps every outcome significant. The <code>demo_pvals</code> row uses fabricated borderline values to expose the differences. Bonferroni multiplies each p-value by k = 4, the harshest. Holm only multiplies the smallest by 4, the next by 3, and so on, retaining more power. BH applies the gentlest adjustment because it controls the false discovery rate rather than the family-wise rate. Pick one method <em>before</em> you look at the data and stick with it.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Choose your correction by study type, not by which one keeps the most outcomes significant.</strong> For confirmatory studies with few outcomes (k ≤ 4) use Bonferroni or Holm. For exploratory analyses with many outcomes (k ≥ 6) use BH. Cherry-picking the most lenient method post-hoc invalidates the whole point of correcting.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Apply the Holm correction to the same <code>demo_pvals</code> vector and save the result as <code>ex_holm</code>. Print it rounded to four decimals.</p>
+<div class="webr-container" data-block-title="Your turn: Holm correction">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: Holm correction</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_holm &lt;- # your code here
+
+round(ex_holm, 4)
+#&gt; Expected: 0.0040 0.0600 0.0800 0.0800</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Holm correction solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Holm correction solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_holm &lt;- p.adjust(demo_pvals, method = &quot;holm&quot;)
+round(ex_holm, 4)
+#&gt; Sepal.Length  Sepal.Width Petal.Length  Petal.Width
+#&gt;       0.0040       0.0600       0.0800       0.0800</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>p.adjust()</code> with <code>method = &quot;holm&quot;</code> orders the p-values, applies a stepwise multiplier (k, k-1, k-2, ...), and enforces monotonicity by clamping each adjusted value to be no smaller than the previous one. That is why Petal.Length and Petal.Width tie at 0.08.</p>
+
+</details>
+</section>
+
+<h2>How do you run pairwise group comparisons within each significant outcome?</h2>
+
+<p>A significant univariate ANOVA tells you "at least one group pair differs on this outcome," but not which pair. <code>TukeyHSD()</code> answers that by computing every pairwise mean difference and a <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">confidence interval</a> that controls the family-wise error rate across the contrasts within one outcome. You feed it a univariate <code>aov()</code> model, not the MANOVA object.</p>
+
+<div class="webr-container" data-block-title="TukeyHSD on the strongest outcome">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">TukeyHSD on the strongest outcome</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Pairwise species comparisons on Petal.Length
+tuk_petal &lt;- TukeyHSD(aov(Petal.Length ~ Species, data = iris))
+tuk_petal
+#&gt; $Species
+#&gt;                       diff     lwr     upr p adj
+#&gt; versicolor-setosa     2.798  2.5942  3.0018     0
+#&gt; virginica-setosa      4.090  3.8862  4.2938     0
+#&gt; virginica-versicolor  1.292  1.0882  1.4958     0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Every species pair differs significantly on petal length. The largest gap (4.09 cm) sits between <em>virginica</em> and <em>setosa</em>, the smallest (1.29 cm) between <em>virginica</em> and <em>versicolor</em>. To run the same comparison across every DV in one shot, wrap the call in <code>lapply()</code>.</p>
+
+<div class="webr-container" data-block-title="TukeyHSD across every dependent variable">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">TukeyHSD across every dependent variable</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Loop TukeyHSD over all four DVs
+dv_names &lt;- c(&quot;Sepal.Length&quot;, &quot;Sepal.Width&quot;, &quot;Petal.Length&quot;, &quot;Petal.Width&quot;)
+
+tuk_all &lt;- lapply(dv_names, function(dv) {
+  fmla &lt;- as.formula(paste(dv, &quot;~ Species&quot;))
+  TukeyHSD(aov(fmla, data = iris))
+})
+names(tuk_all) &lt;- dv_names
+
+tuk_all$Sepal.Width
+#&gt; $Species
+#&gt;                       diff    lwr    upr p adj
+#&gt; versicolor-setosa   -0.658 -0.819 -0.497     0
+#&gt; virginica-setosa    -0.454 -0.615 -0.293     0
+#&gt; virginica-versicolor 0.204  0.043  0.365  0.0088</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>Sepal.Width</code> table shows two large negative gaps, <em>setosa</em> having the widest sepals, and a smaller positive gap between <em>virginica</em> and <em>versicolor</em> that is still significant at p = 0.009. The pattern is qualitatively different from petal length, which is why running <a class="auto-link" href="Post-Hoc-Tests-After-ANOVA.html" title="ANOVA Post-Hoc Tests in R: Tukey, Bonferroni, and Scheffé, Clear Decision Rules">pairwise comparisons</a> per outcome is informative.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>TukeyHSD assumes equal variances across groups.</strong> If <code>bartlett.test()</code> rejects that assumption for your outcome, the Tukey p-values are unreliable. Switch to <code>pairwise.t.test()</code> with <code>pool.sd = FALSE</code> for a Welch-style fallback, or use the <a class="auto-link" href="One-Way-ANOVA-in-R.html" title="One-Way ANOVA in R: F-Test, Levene's Test, and Post-Hoc, Complete Walkthrough">Games-Howell test</a> from a local R session via the <code>rstatix</code> package.</div></div>
+
+<div class="webr-container" data-block-title="Variance check plus Welch fallback">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Variance check plus Welch fallback</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Bartlett test of equal variances per outcome
+bart_results &lt;- sapply(dv_names, function(dv) {
+  fmla &lt;- as.formula(paste(dv, &quot;~ Species&quot;))
+  bartlett.test(fmla, data = iris)$p.value
+})
+round(bart_results, 4)
+#&gt; Sepal.Length  Sepal.Width Petal.Length  Petal.Width
+#&gt;        0.000        0.351        0.000        0.000
+
+# Petal.Length variance differs across species, so use Welch-style pairwise t
+welch_petal &lt;- pairwise.t.test(iris$Petal.Length, iris$Species,
+                               p.adjust.method = &quot;holm&quot;,
+                               pool.sd = FALSE)
+welch_petal
+#&gt;            setosa  versicolor
+#&gt; versicolor &lt; 2e-16 -
+#&gt; virginica  &lt; 2e-16 &lt; 2e-16</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>Sepal.Width</code> is the only outcome that satisfies Bartlett's homogeneity assumption. For the other three, <code>pairwise.t.test()</code> with <code>pool.sd = FALSE</code> runs Welch-style two-sample tests and applies Holm. The conclusions match TukeyHSD here because the species are so well separated, but in marginal cases the Welch version is the safer reference.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Run TukeyHSD on <code>Sepal.Width ~ Species</code> and save the result as <code>ex_tuk_sw</code>. Print it and identify which species pair has the <strong>smallest</strong> absolute mean difference.</p>
+<div class="webr-container" data-block-title="Your turn: pairwise contrasts on Sepal.Width">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: pairwise contrasts on Sepal.Width</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_tuk_sw &lt;- # your code here
+
+ex_tuk_sw
+#&gt; Expected: virginica-versicolor pair has |diff| = 0.204, the smallest of the three.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Sepal.Width pairwise solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Sepal.Width pairwise solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_tuk_sw &lt;- TukeyHSD(aov(Sepal.Width ~ Species, data = iris))
+ex_tuk_sw
+#&gt; $Species
+#&gt;                       diff    lwr    upr p adj
+#&gt; versicolor-setosa   -0.658 -0.819 -0.497     0
+#&gt; virginica-setosa    -0.454 -0.615 -0.293     0
+#&gt; virginica-versicolor 0.204  0.043  0.365  0.0088</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The <code>virginica-versicolor</code> row has the smallest absolute difference at 0.204 cm. It is still significant at p = 0.009, just much closer to the threshold than the other two pairs.</p>
+
+</details>
+</section>
+
+<h2>How do you measure and report MANOVA effect sizes?</h2>
+
+<p>Significance is not <a class="auto-link" href="Effect-Size-in-R.html" title="Effect Size in R: The Number p-Values Never Tell You (Cohen's d, η², and r)">effect size</a>. Two species can differ at p < 0.001 with 1500 observations even if the practical gap is tiny. <strong>Partial eta squared</strong> ($\eta^2_p$) gives you the proportion of variance in each outcome explained by the grouping factor. The formula is straightforward.</p>
+
+<p>$$\eta^2_p = \frac{SS_\text{effect}}{SS_\text{effect} + SS_\text{error}}$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$SS_\text{effect}$ = the between-groups sum of squares for the species term in the per-DV ANOVA.</li>
+
+<li>$SS_\text{error}$ = the within-groups (residuals) sum of squares for the same DV.</li>
+
+<li>$\eta^2_p$ = a value between 0 and 1; conventional benchmarks are small (0.01), medium (0.06), and large (0.14).</li>
+
+</ul>
+
+<p><code>summary.aov()</code> already returns the sums of squares, so a one-line <code>sapply()</code> extracts them.</p>
+
+<div class="webr-container" data-block-title="Partial eta squared per dependent variable">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Partial eta squared per dependent variable</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Pull SS_effect and SS_error from each ANOVA table
+eta_table &lt;- sapply(aov_summary, function(tab) {
+  ss_effect &lt;- tab[[&quot;Sum Sq&quot;]][1]
+  ss_error  &lt;- tab[[&quot;Sum Sq&quot;]][2]
+  ss_effect / (ss_effect + ss_error)
+})
+names(eta_table) &lt;- c(&quot;Sepal.Length&quot;, &quot;Sepal.Width&quot;, &quot;Petal.Length&quot;, &quot;Petal.Width&quot;)
+round(eta_table, 3)
+#&gt; Sepal.Length  Sepal.Width Petal.Length  Petal.Width
+#&gt;        0.619        0.401        0.941        0.929</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>Petal.Length</code> and <code>Petal.Width</code> both clear 0.92, meaning species explains over 92% of the variance in either petal measurement. Sepal width is much smaller at 0.40 (still a large effect by Cohen's benchmarks) and sepal length sits at 0.62. These numbers are the practical complement to the F-table: F says "this effect is reliable," $\eta^2_p$ says "this effect is huge."</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Partial eta squared is biased upward in small samples.</strong> With n < 30 per group, prefer <strong>omega squared</strong>, $\omega^2 = (SS_\text{effect} - df_\text{effect} \cdot MS_\text{error}) / (SS_\text{total} + MS_\text{error})$, which subtracts out the expected chance contribution. The iris sample (n = 50 per species) is large enough that the two estimates agree closely.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Convert the partial eta squared for <code>Petal.Length</code> to <strong><a class="auto-link" href="Power-Analysis-for-ANOVA-in-R.html" title="Power Analysis for ANOVA in R: pwr.anova.test() & Simulation Study">Cohen's f</a></strong> using $f = \sqrt{\eta^2_p / (1 - \eta^2_p)}$. Save it as <code>ex_cohen_f</code>.</p>
+<div class="webr-container" data-block-title="Your turn: convert partial eta squared to Cohen&#x27;s f">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: convert partial eta squared to Cohen&#x27;s f</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_cohen_f &lt;- # your code here
+
+round(ex_cohen_f, 2)
+#&gt; Expected: about 4.01 (a very large effect; Cohen's benchmarks: 0.10 small, 0.25 medium, 0.40 large).</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Cohen&#x27;s f solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Cohen&#x27;s f solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_cohen_f &lt;- sqrt(eta_table[&quot;Petal.Length&quot;] / (1 - eta_table[&quot;Petal.Length&quot;]))
+round(ex_cohen_f, 2)
+#&gt; Petal.Length
+#&gt;         4.01</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Cohen's f is a transformation of $\eta^2_p$ that grows without bound as the effect approaches 1. Petal length sits at $\eta^2_p = 0.941$, which translates to $f \approx 4$, far beyond Cohen's "large" cutoff of 0.40.</p>
+
+</details>
+</section>
+
+<h2>When should you use descriptive discriminant analysis instead?</h2>
+
+<p>Univariate follow-ups treat each outcome in isolation, which throws away the very correlation structure MANOVA used to find the effect in the first place. <strong>Descriptive discriminant analysis (DDA)</strong> does it differently. It finds linear combinations of the outcomes that maximally separate the groups, mirroring the multivariate question MANOVA actually asked. Methodologists like Smith, Lamb, and Henson (2020) argue DDA is the more theoretically appropriate post-hoc when DVs are correlated. R's <code>MASS::lda()</code> runs it in one line.</p>
+
+<div class="webr-container" data-block-title="Descriptive discriminant analysis on iris">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Descriptive discriminant analysis on iris</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(MASS)
+
+# Fit linear discriminant analysis on the same DVs and groups
+lda_fit &lt;- lda(Species ~ Sepal.Length + Sepal.Width + Petal.Length + Petal.Width,
+               data = iris)
+lda_fit$scaling
+#&gt;                     LD1         LD2
+#&gt; Sepal.Length  0.8293776  0.02410215
+#&gt; Sepal.Width   1.5344731  2.16452123
+#&gt; Petal.Length -2.2012117 -0.93192121
+#&gt; Petal.Width  -2.8104603  2.83918785
+
+# Class centroids on the two discriminant axes
+predict(lda_fit, lda_fit$means)$x
+#&gt;                  LD1        LD2
+#&gt; setosa      7.607600  0.215133
+#&gt; versicolor -1.825397 -0.727750
+#&gt; virginica  -5.782203  0.512617</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the <code>scaling</code> matrix column by column. <strong>LD1</strong> (the first discriminant function) places heavy negative weights on <code>Petal.Length</code> and <code>Petal.Width</code>, and positive weights on the sepal measurements. The class centroids on LD1 spread from +7.6 (<em>setosa</em>) to -5.8 (<em>virginica</em>), so LD1 is the "petal versus sepal" axis that separates the species best. <strong>LD2</strong> captures secondary variation, mostly in <code>Sepal.Width</code> versus <code>Petal.Width</code>, but the class centroids on LD2 sit much closer together.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Report DDA alongside univariate ANOVAs in confirmatory work.</strong> The DDA structure tells you which combination of outcomes drives the multivariate effect; the univariate ANOVAs tell you which individual outcomes are interpretable on their own. The two views complement each other and address different questions.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute the predicted-class accuracy of <code>lda_fit</code> on the training data using <code>predict(lda_fit)$class</code> and <code>table()</code>. Save the confusion matrix as <code>ex_conf</code>.</p>
+<div class="webr-container" data-block-title="Your turn: DDA confusion matrix">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: DDA confusion matrix</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_conf &lt;- # your code here
+
+ex_conf
+#&gt; Expected: a 3x3 matrix with most counts on the diagonal; off-diagonal misclassifications between versicolor and virginica.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Confusion matrix solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Confusion matrix solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_conf &lt;- table(actual = iris$Species, predicted = predict(lda_fit)$class)
+ex_conf
+#&gt;             predicted
+#&gt; actual       setosa versicolor virginica
+#&gt;   setosa         50          0         0
+#&gt;   versicolor      0         48         2
+#&gt;   virginica       0          1        49</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <em>setosa</em> is perfectly classified, while <em>versicolor</em> and <em>virginica</em> swap a few flowers, the same pattern that shows up as the smaller group gap in the petal-length pairwise comparisons. DDA gives you a one-shot summary of how separable the groups really are.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<h3>Exercise 1: Full post-hoc on the airquality Month effect</h3>
+
+<p>Use the built-in <code>airquality</code> dataset. Drop incomplete rows with <code>na.omit()</code>. Fit a MANOVA with <code>Ozone, Wind, Temp</code> as joint outcomes and <code>Month</code> (coerced to factor) as the grouping factor. Run <code>summary.aov()</code>, apply Holm correction across the three p-values, identify the strongest outcome (largest F), and run TukeyHSD on it. Save the strongest-DV TukeyHSD object as <code>aq_pairs</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise: airquality post-hoc">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise: airquality post-hoc</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: na.omit() first, then manova(cbind(Ozone, Wind, Temp) ~ factor(Month), data = ...)
+# Hint: summary.aov() returns a list; use sapply on it for the p-vector.
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="airquality post-hoc solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">airquality post-hoc solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">aq &lt;- na.omit(airquality)
+aq_man &lt;- manova(cbind(Ozone, Wind, Temp) ~ factor(Month), data = aq)
+
+aq_aov &lt;- summary.aov(aq_man)
+aq_pvals &lt;- sapply(aq_aov, function(tab) tab[[&quot;Pr(&gt;F)&quot;]][1])
+names(aq_pvals) &lt;- c(&quot;Ozone&quot;, &quot;Wind&quot;, &quot;Temp&quot;)
+round(p.adjust(aq_pvals, method = &quot;holm&quot;), 4)
+#&gt; Ozone   Wind   Temp
+#&gt; 0.0000 0.0061 0.0000
+
+# Strongest outcome: Temp had the largest F
+aq_pairs &lt;- TukeyHSD(aov(Temp ~ factor(Month), data = aq))
+aq_pairs
+#&gt; $`factor(Month)`
+#&gt;      diff      lwr     upr  p adj
+#&gt; 6-5  6.873   1.844 11.901  0.0021
+#&gt; 7-5 12.937   8.181 17.694  0.0000
+#&gt; 8-5 12.708   7.952 17.464  0.0000
+#&gt; 9-5  4.788  -0.146  9.722  0.0617
+#&gt; 7-6  6.064   0.581 11.547  0.0226
+#&gt; 8-6  5.835   0.353 11.318  0.0314
+#&gt; 9-6 -2.085  -7.717  3.547  0.8425
+#&gt; 8-7 -0.229  -5.467  5.009  0.9999
+#&gt; 9-7 -8.149 -13.529 -2.769  0.0008
+#&gt; 9-8 -7.920 -13.300 -2.540  0.0010</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Temperature has the largest F (around 41 from the per-DV table), so Tukey on Temp gives the most informative pairwise picture. July and August are statistically indistinguishable, but every other month-pair contrast either passes or sits very close to 0.05 after Tukey adjustment.</p>
+
+</details>
+
+<h3>Exercise 2: A reusable post-hoc helper function</h3>
+
+<p>Write a function <code>posthoc_manova(model, alpha = 0.05, method = &quot;holm&quot;)</code> that takes a fitted <code>manova</code> object and returns a data frame with one row per DV containing: F, raw_p, adjusted_p, partial_eta2, and a <code>significant</code> flag (TRUE if <code>adjusted_p &lt; alpha</code>). Apply it to <code>iris_man</code> and save the result as <code>posthoc_table</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise: build a post-hoc helper">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise: build a post-hoc helper</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: walk summary.aov(model) and pull F, p, SS_effect, SS_error from each table.
+# Hint: use p.adjust() with method = method on the raw p-vector before assembling the data frame.
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Helper-function solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Helper-function solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">posthoc_manova &lt;- function(model, alpha = 0.05, method = &quot;holm&quot;) {
+  aov_list &lt;- summary.aov(model)
+  rows &lt;- lapply(seq_along(aov_list), function(i) {
+    tab &lt;- aov_list[[i]]
+    ss_effect &lt;- tab[[&quot;Sum Sq&quot;]][1]
+    ss_error  &lt;- tab[[&quot;Sum Sq&quot;]][2]
+    data.frame(
+      dv           = sub(&quot;^ Response &quot;, &quot;&quot;, names(aov_list)[i]),
+      F            = tab[[&quot;F value&quot;]][1],
+      raw_p        = tab[[&quot;Pr(&gt;F)&quot;]][1],
+      partial_eta2 = ss_effect / (ss_effect + ss_error)
+    )
+  })
+  out &lt;- do.call(rbind, rows)
+  out$adjusted_p  &lt;- p.adjust(out$raw_p, method = method)
+  out$significant &lt;- out$adjusted_p &lt; alpha
+  out[, c(&quot;dv&quot;, &quot;F&quot;, &quot;raw_p&quot;, &quot;adjusted_p&quot;, &quot;partial_eta2&quot;, &quot;significant&quot;)]
+}
+
+posthoc_table &lt;- posthoc_manova(iris_man)
+posthoc_table
+#&gt;             dv         F     raw_p adjusted_p partial_eta2 significant
+#&gt; 1 Sepal.Length  119.2645 1.7e-31   3.4e-31        0.6187        TRUE
+#&gt; 2  Sepal.Width   49.1600 4.5e-17   4.5e-17        0.4008        TRUE
+#&gt; 3 Petal.Length 1180.1612 2.9e-91   1.2e-90        0.9414        TRUE
+#&gt; 4  Petal.Width  960.0071 4.2e-85   1.3e-84        0.9289        TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The helper folds five operations, summary.aov walking, p extraction, p.adjust, eta squared, threshold check, into one reusable function. Now any new MANOVA can be summarised with one call. The Holm-adjusted p-values stay tiny because the iris-versus-species effect is enormous.</p>
+
+</details>
+
+<h2>Complete Example</h2>
+
+<p>Putting the entire post-hoc workflow on <code>iris</code> end to end:</p>
+
+<div class="webr-container" data-block-title="Full post-hoc pipeline on iris">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Full post-hoc pipeline on iris</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># 1. Refit MANOVA (self-contained for this block)
+iris_full &lt;- manova(cbind(Sepal.Length, Sepal.Width, Petal.Length, Petal.Width) ~ Species,
+                    data = iris)
+
+# 2. Per-outcome ANOVAs
+iris_aov &lt;- summary.aov(iris_full)
+
+# 3. Holm-corrected p-values
+pvec &lt;- sapply(iris_aov, function(tab) tab[[&quot;Pr(&gt;F)&quot;]][1])
+names(pvec) &lt;- c(&quot;Sepal.Length&quot;, &quot;Sepal.Width&quot;, &quot;Petal.Length&quot;, &quot;Petal.Width&quot;)
+signif(p.adjust(pvec, method = &quot;holm&quot;), 3)
+#&gt; Sepal.Length  Sepal.Width Petal.Length  Petal.Width
+#&gt;      3.4e-31      4.5e-17      1.2e-90      1.3e-84
+
+# 4. Partial eta squared per outcome
+etas &lt;- sapply(iris_aov, function(tab) {
+  tab[[&quot;Sum Sq&quot;]][1] / sum(tab[[&quot;Sum Sq&quot;]])
+})
+names(etas) &lt;- names(pvec)
+round(etas, 3)
+#&gt; Sepal.Length  Sepal.Width Petal.Length  Petal.Width
+#&gt;        0.619        0.401        0.941        0.929
+
+# 5. TukeyHSD on the strongest outcome
+TukeyHSD(aov(Petal.Length ~ Species, data = iris))
+#&gt; All three pairs significant; biggest gap virginica-setosa = 4.09 cm.
+
+# 6. DDA structure for the multivariate view
+lda(Species ~ Sepal.Length + Sepal.Width + Petal.Length + Petal.Width,
+    data = iris)$scaling
+#&gt; LD1 weights: petal-vs-sepal axis. LD2: secondary structure.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Plain-English write-up: <strong>All four floral measurements differ significantly across the three iris species after Holm correction (all adjusted p < 0.001). Petal length and petal width carry the strongest effects (partial η² = 0.94 and 0.93 respectively), and TukeyHSD on petal length confirms every species pair is distinguishable, with the largest gap between <em>virginica</em> and <em>setosa</em> (Δ = 4.09 cm). Descriptive discriminant analysis confirms the multivariate structure: LD1 is a petal-versus-sepal axis that places <em>setosa</em> far from the other two species.</strong> That is exactly the level of detail a peer-reviewed methods section expects.</p>
+
+<h2>Summary</h2>
+
+<p><img src="screenshots/MANOVA-Post-Hoc-Analysis-workflow.webp" alt="The full post-hoc workflow from a significant MANOVA to a journal-ready conclusion." class="img-responsive img-zoomable" loading="lazy" width="2248" height="392" /></p>
+
+<p><em>Figure 2: The full post-hoc workflow from a significant MANOVA to a journal-ready conclusion.</em></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Step</th>
+<th>R recipe</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Per-outcome F-table</td>
+<td><code>summary.aov(manova_object)</code></td>
+</tr>
+<tr>
+<td>Extract raw p-values</td>
+<td><code>sapply(aov_summary, function(tab) tab[[&quot;Pr(&gt;F)&quot;]][1])</code></td>
+</tr>
+<tr>
+<td>Multiple-comparison correction</td>
+<td><code>p.adjust(p, method = &quot;holm&quot;)</code> (or <code>&quot;bonferroni&quot;</code>, <code>&quot;BH&quot;</code>)</td>
+</tr>
+<tr>
+<td>Pairwise contrasts (equal var.)</td>
+<td><code>TukeyHSD(aov(dv ~ group, data = ...))</code></td>
+</tr>
+<tr>
+<td>Pairwise contrasts (unequal var.)</td>
+<td><code>pairwise.t.test(..., pool.sd = FALSE, p.adjust.method = &quot;holm&quot;)</code></td>
+</tr>
+<tr>
+<td>Variance-homogeneity check</td>
+<td><code>bartlett.test(dv ~ group, data = ...)</code></td>
+</tr>
+<tr>
+<td>Effect size per outcome</td>
+<td>$\eta^2_p = SS_\text{effect} / (SS_\text{effect} + SS_\text{error})$</td>
+</tr>
+<tr>
+<td>Multivariate post-hoc view</td>
+<td><code>MASS::lda(group ~ dv1 + dv2 + ...)</code></td>
+</tr>
+<tr>
+<td>When to use Bonferroni</td>
+<td>Few outcomes, confirmatory study</td>
+</tr>
+<tr>
+<td>When to use Holm</td>
+<td>Default for k ≤ 6, strict Type I control with more power than Bonferroni</td>
+</tr>
+<tr>
+<td>When to use BH</td>
+<td>Many outcomes, exploratory study, control FDR</td>
+</tr>
+</tbody>
+</table>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Smith, K. N., Lamb, K. N., & Henson, R. K. (2020). <em>Making Meaning out of MANOVA: The Need for Multivariate Post Hoc Testing in Gifted Education Research.</em> Gifted Child Quarterly, 64(2), 96-115. <a href="https://doi.org/10.1177/0016986219890352">Link</a></li>
+
+<li>Holm, S. (1979). <em>A simple sequentially rejective multiple test procedure.</em> Scandinavian Journal of Statistics, 6(2), 65-70.</li>
+
+<li>Benjamini, Y., & Hochberg, Y. (1995). <em>Controlling the false discovery rate: a practical and powerful approach to multiple testing.</em> Journal of the Royal Statistical Society Series B, 57(1), 289-300.</li>
+
+<li>R Core Team. *<code>?summary.aov</code> and <code>?TukeyHSD</code> in base R.* <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/summary.aov.html">Link</a></li>
+
+<li>Tabachnick, B. G., & Fidell, L. S. (2019). <em>Using <a class="auto-link" href="Multivariate-Statistics-in-R.html" title="Multivariate Statistics in R: Distances, Mahalanobis, and Hotelling's T² Demystified">Multivariate Statistics</a></em>, 7th edition. Pearson. Chapter 7 on MANOVA.</li>
+
+<li>Penn State STAT 505. <em>Lesson 8.5: Comparing Mean Vectors.</em> <a href="https://online.stat.psu.edu/stat505/lesson/8/8.5">Link</a></li>
+
+<li>Datanovia. <em>One-Way MANOVA in R.</em> <a href="https://www.datanovia.com/en/lessons/one-way-manova-in-r/">Link</a></li>
+
+<li>Venables, W. N., & Ripley, B. D. (2002). <em>Modern Applied Statistics with S</em>, 4th edition. Springer. Chapter 12 on <code>MASS::lda</code> and discriminant analysis.</li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ol>
+
+<li><strong><a href="MANOVA-in-R.html">MANOVA in R</a></strong>, the parent tutorial that fits the multivariate model this article picks up from. Read it first if <code>manova()</code> syntax or Pillai versus Wilks feels unfamiliar.</li>
+
+<li><strong><a href="Post-Hoc-Tests-After-ANOVA.html">Post-Hoc Tests After ANOVA</a></strong>, deeper coverage of <code>TukeyHSD()</code>, Bonferroni, and pairwise contrasts in the single-outcome setting that the per-DV step here reduces to.</li>
+
+<li><strong><a href="One-Way-ANOVA-in-R.html">One-Way ANOVA in R</a></strong>, the single-outcome companion that each <code>summary.aov()</code> row corresponds to.</li>
+
+</ol>
+
+{% endraw %}
