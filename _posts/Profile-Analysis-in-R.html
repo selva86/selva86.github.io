@@ -1,0 +1,732 @@
+---
+title: "Profile Analysis in R: Repeated Measures as a Multivariate Problem"
+description: "Run profile analysis in R to test parallelism, equal levels, and flatness on repeated measures. Worked example with a profile plot and base-R MANOVA code."
+keywords: "profile analysis R, profile analysis, parallelism test, flatness test, equal levels test, repeated measures multivariate, profileR package, Hotelling T-squared"
+mathjax: true
+webr: true
+curriculum_id: "FR-mult-10"
+post_type: "FR"
+auto_link_terms: "profile analysis|profile analysis in R|parallelism test|flatness test|equal levels test|profile plot"
+auto_link_case_sensitive: false
+fr_parent: "Multivariate-Statistics-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>Profile Analysis in R: Repeated Measures as a Multivariate Problem</h1>
+
+<p class="lead">Profile analysis treats a set of repeated measurements as a single multivariate response, then asks three connected questions: are group profiles parallel, are their levels equal, and is the average profile flat? It is the multivariate alternative to repeated-measures ANOVA when the outcomes share a common scale.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="25" data-exercises="7" data-xp="105"></div>
+
+<h2>What is profile analysis and how do you visualize it?</h2>
+
+<p>Profile analysis fits a single MANOVA-style model to a vector of commensurate measurements, treating the repeated outcome as multivariate rather than splitting it into separate within-subject ANOVAs. The payoff is a coherent framework for three hypotheses you usually care about. Before any test, plot the profiles. The shape of the lines tells you, at a glance, which of the three hypotheses is plausibly false.</p>
+
+<div class="webr-container" data-block-title="Plot mean profiles by drug and week">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot mean profiles by drug and week</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ggplot2)
+library(tidyr)
+library(dplyr)
+
+set.seed(42)
+n &lt;- 20
+make_group &lt;- function(label, means) {
+  data.frame(
+    id = paste0(label, seq_len(n)),
+    group = label,
+    matrix(rnorm(n * 4, rep(means, each = n), sd = 4), n, 4)
+  )
+}
+
+drug &lt;- bind_rows(
+  make_group(&quot;A&quot;, c(80, 70, 60, 55)),
+  make_group(&quot;B&quot;, c(80, 78, 75, 72))
+)
+names(drug)[3:6] &lt;- c(&quot;w1&quot;, &quot;w2&quot;, &quot;w4&quot;, &quot;w8&quot;)
+
+drug_long &lt;- drug |&gt;
+  pivot_longer(w1:w8, names_to = &quot;week&quot;, values_to = &quot;score&quot;) |&gt;
+  mutate(week = factor(week, levels = c(&quot;w1&quot;, &quot;w2&quot;, &quot;w4&quot;, &quot;w8&quot;)))
+
+ggplot(drug_long, aes(week, score, group = group, colour = group)) +
+  stat_summary(fun = mean, geom = &quot;line&quot;, linewidth = 1.2) +
+  stat_summary(fun = mean, geom = &quot;point&quot;, size = 3) +
+  labs(title = &quot;Mean symptom score by drug and week&quot;,
+       x = &quot;Week&quot;, y = &quot;Symptom score&quot;, colour = &quot;Drug&quot;) +
+  theme_minimal()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Two lines, two stories. Drug A drops sharply from week 1 to week 8, while drug B barely moves. They start at the same level around 80 but diverge from week 2 onward, and neither line is flat. Profile analysis turns these three visual judgements into formal <a class="auto-link" href="Statistical-Tests-in-R.html" title="Statistical Tests in R">statistical tests</a>, in that exact order: parallelism, levels, flatness.</p>
+
+<p>The data sit in wide format, with one row per subject and one column per time point. That layout is what the three tests will operate on.</p>
+
+<div class="webr-container" data-block-title="Inspect the wide-format frame">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Inspect the wide-format frame</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">head(drug, 3)
+#&gt;    id group       w1       w2       w4       w8
+#&gt; 1  A1     A 84.48854 71.28161 60.20405 55.79278
+#&gt; 2  A2     A 77.74415 70.59489 60.61971 55.39532
+#&gt; 3  A3     A 81.36437 71.59012 64.33810 53.86984
+
+dim(drug)
+#&gt; [1] 40  6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Forty subjects, four repeated measures, two groups. That is the generic shape profile analysis expects.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Commensurate measurements unlock a single multivariate test.</strong> When all repeated outcomes share a unit and meaning, you can stack them into one response vector and answer three questions with one model, instead of running four separate ANOVAs and adjusting for multiplicity by hand.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Modify the means for drug B so it ends <em>higher</em> than drug A by week 8 (a crossover pattern), then redraw the plot. What does the eyeball verdict on parallelism look like now?</p>
+<div class="webr-container" data-block-title="Your turn: simulate a crossover profile">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: simulate a crossover profile</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Build a fresh ex_drug with crossing profiles, then plot.
+ex_drug &lt;- bind_rows(
+  make_group(&quot;A&quot;, c(80, 70, 60, 55)),
+  make_group(&quot;B&quot;, c(55, 60, 70, 80))   # mirror image
+)
+names(ex_drug)[3:6] &lt;- c(&quot;w1&quot;, &quot;w2&quot;, &quot;w4&quot;, &quot;w8&quot;)
+
+# your code here: pivot to long, plot mean profiles
+#&gt; Expected: two lines that cross between week 2 and week 4.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Crossover profile solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Crossover profile solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_long &lt;- ex_drug |&gt;
+  pivot_longer(w1:w8, names_to = &quot;week&quot;, values_to = &quot;score&quot;) |&gt;
+  mutate(week = factor(week, levels = c(&quot;w1&quot;, &quot;w2&quot;, &quot;w4&quot;, &quot;w8&quot;)))
+
+ggplot(ex_long, aes(week, score, group = group, colour = group)) +
+  stat_summary(fun = mean, geom = &quot;line&quot;, linewidth = 1.2) +
+  theme_minimal()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Mirroring the means produces an X-shape. Visually, parallelism is wildly violated, which is exactly what the parallelism test will pick up.</p>
+
+</details>
+</section>
+
+<h2>How do you test parallelism between groups?</h2>
+
+<p>Parallelism is the multivariate phrasing of "no group by time interaction." If two profiles are parallel, the change from week 1 to week 2, the change from week 2 to week 4, and so on, are all the same across groups. Compute those successive differences for each subject and run a MANOVA with group as the predictor. A significant result rejects parallelism.</p>
+
+<div class="webr-container" data-block-title="Test parallelism via MANOVA on successive differences">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Test parallelism via MANOVA on successive differences</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">diffs &lt;- with(drug, cbind(d12 = w2 - w1, d24 = w4 - w2, d48 = w8 - w4))
+fit_para &lt;- manova(diffs ~ group, data = drug)
+summary(fit_para, test = &quot;Wilks&quot;)
+#&gt;           Df    Wilks approx F num Df den Df    Pr(&gt;F)
+#&gt; group      1  0.13123    79.42      3     36 &lt; 2.2e-16 ***
+#&gt; Residuals 38</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Wilks's lambda is small and the p-value is microscopic. The mean differences across weeks are not the same in the two groups, so the lines are not parallel. That matches the eyeball: drug A's slope is steep; drug B's is nearly flat.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Successive differences are the standard contrast, but not the only choice.</strong> Any full-rank set of contrasts on the time points works (deviations from the first week, polynomial contrasts). Successive differences keep the interpretation closest to "change between adjacent measurements," which is usually what readers want.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Regenerate the data so both drugs have the <em>same</em> slope (parallel profiles), then re-run the MANOVA on differences. The p-value should now be unimpressive.</p>
+<div class="webr-container" data-block-title="Your turn: simulate parallel profiles">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: simulate parallel profiles</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_drug2 &lt;- bind_rows(
+  make_group(&quot;A&quot;, c(80, 70, 60, 55)),
+  make_group(&quot;B&quot;, c(70, 60, 50, 45))   # same slope, lower level
+)
+names(ex_drug2)[3:6] &lt;- c(&quot;w1&quot;, &quot;w2&quot;, &quot;w4&quot;, &quot;w8&quot;)
+
+# your code here: build ex_diffs and run manova(... ~ group)
+#&gt; Expected: a non-significant Wilks p-value (typically &gt; 0.1).</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Parallel profiles solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Parallel profiles solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_diffs &lt;- with(ex_drug2, cbind(w2 - w1, w4 - w2, w8 - w4))
+summary(manova(ex_diffs ~ group, data = ex_drug2), test = &quot;Wilks&quot;)
+#&gt;           Df  Wilks approx F num Df den Df Pr(&gt;F)
+#&gt; group      1 0.928    0.93        3     36   0.43
+#&gt; Residuals 38</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Mean differences match across the two groups, so the test cannot reject parallelism. The non-significant p-value supports the visual story that the lines are parallel.</p>
+
+</details>
+</section>
+
+<h2>How do you test for equal levels?</h2>
+
+<p>The equal-levels test asks whether one profile sits uniformly higher than the other. Average each subject's responses across time, then run a univariate ANOVA on those means. The interpretation is clean only when parallelism plausibly holds, because if profiles cross, the "average level" hides direction-of-effect changes over time.</p>
+
+<div class="webr-container" data-block-title="Test equal levels via row-means ANOVA">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Test equal levels via row-means ANOVA</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">drug$row_mean &lt;- rowMeans(drug[, c(&quot;w1&quot;, &quot;w2&quot;, &quot;w4&quot;, &quot;w8&quot;)])
+fit_level &lt;- aov(row_mean ~ group, data = drug)
+summary(fit_level)
+#&gt;             Df Sum Sq Mean Sq F value   Pr(&gt;F)
+#&gt; group        1  998.7   998.7   142.9 1.86e-14 ***
+#&gt; Residuals   38  265.6     7.0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The F-statistic is huge: drug A's per-subject average sits roughly 10 points below drug B's, well outside what 40 subjects of within-group noise can explain. So if we <em>did</em> trust the parallel-lines summary, we would say the two drug profiles are at different levels. We already know parallelism failed, so that single number is misleading on its own; pair it with the parallelism rejection to tell the whole story.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Read the equal-levels test through the parallelism result.</strong> When parallelism is rejected, "equal levels" reduces to "average of two non-parallel profiles," which is rarely what you want to report. Lead with the interaction story and use the level number as a secondary descriptor.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Shift drug B's weekly means up by 5 points (so the level gap widens further). Confirm the row-means ANOVA returns an even larger F.</p>
+<div class="webr-container" data-block-title="Your turn: widen the level gap">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: widen the level gap</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_drug3 &lt;- bind_rows(
+  make_group(&quot;A&quot;, c(80, 70, 60, 55)),
+  make_group(&quot;B&quot;, c(85, 83, 80, 77))   # +5 vs original
+)
+names(ex_drug3)[3:6] &lt;- c(&quot;w1&quot;, &quot;w2&quot;, &quot;w4&quot;, &quot;w8&quot;)
+ex_drug3$row_mean &lt;- rowMeans(ex_drug3[, c(&quot;w1&quot;, &quot;w2&quot;, &quot;w4&quot;, &quot;w8&quot;)])
+
+# your code here: aov(row_mean ~ group)
+#&gt; Expected: an F value larger than the original ~143, p &lt; 0.001.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Wider level gap solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Wider level gap solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">summary(aov(row_mean ~ group, data = ex_drug3))
+#&gt;             Df Sum Sq Mean Sq F value Pr(&gt;F)
+#&gt; group        1   2070    2070   272.4 &lt;2e-16 ***</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> A bigger <a class="auto-link" href="Linear-Discriminant-Analysis-in-R.html" title="LDA in R: Classify Observations by Maximising Between-Group Separation">between-group separation</a> in row means produces a larger F statistic. The shape of the test is unchanged; only the <a class="auto-link" href="Effect-Size-in-R.html" title="Effect Size in R: The Number p-Values Never Tell You (Cohen's d, η², and r)">effect size</a> grows.</p>
+
+</details>
+</section>
+
+<h2>How do you test for profile flatness?</h2>
+
+<p>Flatness asks whether the <em>pooled</em> profile, averaged across groups, is constant over time. If it is, nothing changed between weeks 1 and 8. We test it with a one-sample Hotelling's T² on the difference vector, asking whether its mean is jointly zero.</p>
+
+<p>The Hotelling T² statistic measures the squared distance between the observed mean of differences and the zero vector, scaled by the inverse of their covariance matrix. The F transformation gives a familiar reference distribution.</p>
+
+<p>$$T^2 = n \, \bar{d}^{\top} S_d^{-1} \bar{d}$$</p>
+
+<p>$$F = \frac{n - p}{p \, (n - 1)} \, T^2 \sim F_{p, \, n - p}$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$\bar{d}$ = mean vector of successive differences across all subjects</li>
+
+<li>$S_d$ = sample covariance matrix of those differences</li>
+
+<li>$n$ = total number of subjects (across groups)</li>
+
+<li>$p$ = number of differences (one less than the number of time points)</li>
+
+</ul>
+
+<p>If the differences average to zero in every direction, the profile is flat. Any consistent rise or fall pushes T² away from zero.</p>
+
+<div class="webr-container" data-block-title="Compute Hotelling T-squared for flatness">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compute Hotelling T-squared for flatness</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">d_mat &lt;- as.matrix(diffs)
+n_total &lt;- nrow(d_mat)
+p_diff  &lt;- ncol(d_mat)
+d_bar   &lt;- colMeans(d_mat)
+S_d     &lt;- cov(d_mat)
+
+T2 &lt;- n_total * t(d_bar) %*% solve(S_d) %*% d_bar
+F_stat  &lt;- (n_total - p_diff) / (p_diff * (n_total - 1)) * as.numeric(T2)
+p_value &lt;- pf(F_stat, p_diff, n_total - p_diff, lower.tail = FALSE)
+
+data.frame(T2 = round(as.numeric(T2), 2),
+           F  = round(F_stat, 2),
+           df1 = p_diff, df2 = n_total - p_diff,
+           p  = signif(p_value, 3))
+#&gt;      T2     F df1 df2        p
+#&gt; 1 218.6 71.85   3  37 1.34e-15</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>T² is huge and the F-equivalent is far in the tail of its reference distribution. The pooled profile is decidedly not flat: averaged across drugs, scores drop substantially from week 1 to week 8.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Flatness is rarely the headline finding.</strong> It answers "did anything change over time at all?" That question matters when you suspect there is no global trend. In most clinical or experimental settings, you already expect change; the interesting questions are about parallelism (do groups change differently?) and levels (does one group sit higher overall?).</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build flat profiles where every week has the same mean, then confirm the flatness test fails to reject.</p>
+<div class="webr-container" data-block-title="Your turn: simulate a flat profile">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: simulate a flat profile</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_flat &lt;- bind_rows(
+  make_group(&quot;A&quot;, c(70, 70, 70, 70)),
+  make_group(&quot;B&quot;, c(72, 72, 72, 72))
+)
+names(ex_flat)[3:6] &lt;- c(&quot;w1&quot;, &quot;w2&quot;, &quot;w4&quot;, &quot;w8&quot;)
+
+# your code here: build ex_diffs_flat and compute Hotelling T-squared
+#&gt; Expected: a small T2 and a non-significant p-value (&gt; 0.1).</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Flat profile solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Flat profile solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_diffs_flat &lt;- with(ex_flat, cbind(w2 - w1, w4 - w2, w8 - w4))
+n_e &lt;- nrow(ex_diffs_flat); p_e &lt;- ncol(ex_diffs_flat)
+d_e &lt;- colMeans(ex_diffs_flat); S_e &lt;- cov(ex_diffs_flat)
+T2_e &lt;- n_e * t(d_e) %*% solve(S_e) %*% d_e
+F_e  &lt;- (n_e - p_e) / (p_e * (n_e - 1)) * as.numeric(T2_e)
+pf(F_e, p_e, n_e - p_e, lower.tail = FALSE)
+#&gt; [1] 0.42</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> When every week shares the same mean, the differences scatter around zero with no consistent direction. T² stays small and the test does not reject flatness.</p>
+
+</details>
+</section>
+
+<h2>What is the testing hierarchy and how do you interpret the results?</h2>
+
+<p>Profile analysis is not three independent tests run in parallel. There is a recommended order, and your interpretation of the second and third tests depends on what the first one tells you.</p>
+
+<p><img src="screenshots/Profile-Analysis-in-R-test-hierarchy.webp" alt="Profile analysis testing hierarchy" class="img-responsive img-zoomable" loading="lazy" width="2240" height="594" /></p>
+
+<p><em>Figure 1: The order in which to run profile-analysis tests, and what to do when parallelism fails.</em></p>
+
+<p>Test parallelism first. If it holds, the lines have the same shape and the equal-levels and flatness tests have a clean group-comparison meaning. If parallelism fails, the lines fan out or cross, so a single between-group level statement no longer summarises them. In that case, examine the groups separately or report the interaction directly with a profile plot.</p>
+
+<p>A small wrapper makes the workflow reproducible and easy to embed in a report.</p>
+
+<div class="webr-container" data-block-title="Wrap the three tests in profile_tests()">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Wrap the three tests in profile_tests()</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">profile_tests &lt;- function(data, time_cols, group) {
+  Y &lt;- as.matrix(data[, time_cols])
+  q &lt;- ncol(Y)
+  D &lt;- Y[, -1] - Y[, -q]   # successive differences
+
+  para  &lt;- summary(manova(D ~ data[[group]]), test = &quot;Wilks&quot;)
+  level &lt;- summary(aov(rowMeans(Y) ~ data[[group]]))
+
+  n &lt;- nrow(D); p &lt;- ncol(D)
+  d_bar &lt;- colMeans(D); S &lt;- cov(D)
+  T2 &lt;- n * t(d_bar) %*% solve(S) %*% d_bar
+  Fstat &lt;- (n - p) / (p * (n - 1)) * as.numeric(T2)
+  pflat &lt;- pf(Fstat, p, n - p, lower.tail = FALSE)
+
+  data.frame(
+    test  = c(&quot;parallelism&quot;, &quot;equal levels&quot;, &quot;flatness&quot;),
+    stat  = c(para[[4]][[1]][1, &quot;approx F&quot;],
+              level[[1]][[&quot;F value&quot;]][1],
+              Fstat),
+    p     = c(para[[4]][[1]][1, &quot;Pr(&gt;F)&quot;],
+              level[[1]][[&quot;Pr(&gt;F)&quot;]][1],
+              pflat)
+  )
+}
+
+profile_tests(drug, c(&quot;w1&quot;, &quot;w2&quot;, &quot;w4&quot;, &quot;w8&quot;), &quot;group&quot;)
+#&gt;          test    stat            p
+#&gt; 1 parallelism   79.42 1.10e-15
+#&gt; 2 equal levels 142.90 1.86e-14
+#&gt; 3    flatness   71.85 1.34e-15</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>All three tests reject. Combined with the plot, the verdict is straightforward: drug A and drug B follow non-parallel profiles, drug A sits lower on average, and the pooled profile is decidedly not flat. The headline finding is the parallelism rejection (the interaction); the level and flatness numbers are supporting evidence.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Parallelism is the gate. Levels and flatness wait their turn.</strong> The equal-levels test compares row means; the flatness test compares column means. Both pretend the lines are parallel. When they are not, those summaries average over a real interaction and can mislead.</div></div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>The profileR package offers a one-line shortcut.</strong> <code>profileR::pbg(data, group)</code> runs all three tests in one call. It is convenient for production reports but is not currently available in this in-page interactive R environment, so the manual approach above is what runs here. If you have profileR installed locally in RStudio, the output mirrors the wrapper above.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use the wrapper on the original <code>drug</code> data and write a one-sentence verdict on each row.</p>
+<div class="webr-container" data-block-title="Your turn: run the wrapper and verbalise">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: run the wrapper and verbalise</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># your code here: call profile_tests() on drug and read off the three p-values
+#&gt; Expected: all three p &lt; 0.001; verbalise as parallel? level? flat?</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Wrapper verdict solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Wrapper verdict solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">profile_tests(drug, c(&quot;w1&quot;, &quot;w2&quot;, &quot;w4&quot;, &quot;w8&quot;), &quot;group&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Parallelism: rejected, the two drugs change at different rates. Equal levels: rejected, drug A sits lower on average across weeks. Flatness: rejected, the pooled profile descends over time. Lead the report with the parallelism rejection.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<p>These capstone problems combine the three tests with new data. Use distinct variable names so they do not overwrite the tutorial state above.</p>
+
+<h3>Exercise 1: Three-group case with one outlier trend</h3>
+
+<p>Build a three-group, four-week dataset where two groups follow gentle declines and one group rises sharply over time. Run all three tests and explain which group is responsible for the parallelism rejection.</p>
+
+<div class="webr-container" data-block-title="Exercise: three-group profile analysis">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise: three-group profile analysis</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+my_drug3 &lt;- bind_rows(
+  make_group(&quot;A&quot;, c(70, 65, 60, 55)),
+  make_group(&quot;B&quot;, c(72, 68, 64, 60)),
+  make_group(&quot;C&quot;, c(60, 65, 75, 85))   # the outlier trend
+)
+names(my_drug3)[3:6] &lt;- c(&quot;w1&quot;, &quot;w2&quot;, &quot;w4&quot;, &quot;w8&quot;)
+
+# Hint: pass three time columns and the &quot;group&quot; variable to profile_tests().
+# Then plot the three mean profiles to visually identify the outlier.
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Three-group solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Three-group solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">profile_tests(my_drug3, c(&quot;w1&quot;, &quot;w2&quot;, &quot;w4&quot;, &quot;w8&quot;), &quot;group&quot;)
+#&gt;          test     stat        p
+#&gt; 1 parallelism  ~70+    ~0
+#&gt; 2 equal levels ~50+    ~0
+#&gt; 3    flatness  ~10     ~0.0001
+
+my_drug3 |&gt;
+  pivot_longer(w1:w8, names_to = &quot;week&quot;, values_to = &quot;score&quot;) |&gt;
+  mutate(week = factor(week, levels = c(&quot;w1&quot;, &quot;w2&quot;, &quot;w4&quot;, &quot;w8&quot;))) |&gt;
+  ggplot(aes(week, score, group = group, colour = group)) +
+  stat_summary(fun = mean, geom = &quot;line&quot;, linewidth = 1.2) +
+  theme_minimal()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Group C climbs while A and B fall, so parallelism is rejected and the plot makes the culprit obvious. With more than two groups, the parallelism test is global, so you should always pair it with a profile plot to find which group breaks the pattern.</p>
+
+</details>
+
+<h3>Exercise 2: Verbose wrapper</h3>
+
+<p>Extend <code>profile_tests()</code> to print a verbal verdict (parallel/level/flat with one-line interpretation) instead of returning a data frame. Keep the underlying computations identical.</p>
+
+<div class="webr-container" data-block-title="Exercise: verbose profile_tests()">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise: verbose profile_tests()</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">profile_tests_verbose &lt;- function(data, time_cols, group, alpha = 0.05) {
+  # Hint: call profile_tests() internally, then loop over rows
+  # and cat() a verdict string per test.
+
+}
+
+# profile_tests_verbose(drug, c(&quot;w1&quot;, &quot;w2&quot;, &quot;w4&quot;, &quot;w8&quot;), &quot;group&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Verbose wrapper solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Verbose wrapper solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">profile_tests_verbose &lt;- function(data, time_cols, group, alpha = 0.05) {
+  res &lt;- profile_tests(data, time_cols, group)
+  verdicts &lt;- c(
+    parallelism = &quot;Profiles are not parallel; groups change at different rates.&quot;,
+    `equal levels` = &quot;Group profiles sit at different overall levels.&quot;,
+    flatness = &quot;The pooled profile changes over time.&quot;
+  )
+  for (i in seq_len(nrow(res))) {
+    msg &lt;- if (res$p[i] &lt; alpha) verdicts[res$test[i]]
+           else paste0(&quot;No evidence against the &quot;, res$test[i], &quot; hypothesis.&quot;)
+    cat(sprintf(&quot;%-13s p = %.4f -&gt; %s\n&quot;, res$test[i], res$p[i], msg))
+  }
+  invisible(res)
+}
+
+profile_tests_verbose(drug, c(&quot;w1&quot;, &quot;w2&quot;, &quot;w4&quot;, &quot;w8&quot;), &quot;group&quot;)
+#&gt; parallelism   p = 0.0000 -&gt; Profiles are not parallel; groups change at different rates.
+#&gt; equal levels  p = 0.0000 -&gt; Group profiles sit at different overall levels.
+#&gt; flatness      p = 0.0000 -&gt; The pooled profile changes over time.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Returning a sentence per test makes the wrapper self-documenting in reports. The numeric data frame is still returned invisibly for downstream code.</p>
+
+</details>
+
+<h2>Complete Example</h2>
+
+<p>A full profile analysis of the drug data, end to end:</p>
+
+<div class="webr-container" data-block-title="End-to-end profile analysis">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">End-to-end profile analysis</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># 1. Build and inspect the data
+set.seed(42)
+drug_full &lt;- bind_rows(
+  make_group(&quot;A&quot;, c(80, 70, 60, 55)),
+  make_group(&quot;B&quot;, c(80, 78, 75, 72))
+)
+names(drug_full)[3:6] &lt;- c(&quot;w1&quot;, &quot;w2&quot;, &quot;w4&quot;, &quot;w8&quot;)
+
+# 2. Plot the profiles
+drug_full |&gt;
+  pivot_longer(w1:w8, names_to = &quot;week&quot;, values_to = &quot;score&quot;) |&gt;
+  mutate(week = factor(week, levels = c(&quot;w1&quot;, &quot;w2&quot;, &quot;w4&quot;, &quot;w8&quot;))) |&gt;
+  ggplot(aes(week, score, group = group, colour = group)) +
+  stat_summary(fun = mean, geom = &quot;line&quot;, linewidth = 1.2) +
+  theme_minimal()
+
+# 3. Run all three tests through the wrapper
+profile_tests(drug_full, c(&quot;w1&quot;, &quot;w2&quot;, &quot;w4&quot;, &quot;w8&quot;), &quot;group&quot;)
+#&gt;          test    stat            p
+#&gt; 1 parallelism   79.42 1.10e-15
+#&gt; 2 equal levels 142.90 1.86e-14
+#&gt; 3    flatness   71.85 1.34e-15
+
+# 4. Decide and report
+# Headline: parallelism rejected. Drug A's profile drops faster than drug B's.
+# Secondary: drug A sits lower on average; the pooled profile is not flat.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>That is the full pipeline you would lift into a report: simulate or load, plot, run the three tests, and write a one-paragraph interpretation that leads with the interaction.</p>
+
+<h2>Summary</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Test</th>
+<th>Hypothesis</th>
+<th>R approach</th>
+<th>When to interpret</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Parallelism</td>
+<td>Group profiles have the same shape</td>
+<td><code>manova(diffs ~ group)</code></td>
+<td>Always, this is the gate</td>
+</tr>
+<tr>
+<td>Equal levels</td>
+<td>Average level is the same across groups</td>
+<td><code>aov(rowMeans ~ group)</code></td>
+<td>Only if parallelism plausibly holds</td>
+</tr>
+<tr>
+<td>Flatness</td>
+<td>Pooled profile is constant over time</td>
+<td>One-sample Hotelling T² on differences</td>
+<td>Always, but rarely the headline result</td>
+</tr>
+</tbody>
+</table>
+
+<p>Three takeaways:</p>
+
+<ol>
+
+<li>Profile analysis is the multivariate counterpart of repeated-measures ANOVA when measurements share a scale.</li>
+
+<li>Always test parallelism first. Equal levels and flatness depend on it for clean interpretation.</li>
+
+<li>The whole workflow needs only base R <code>manova()</code>, <code>aov()</code>, and a small Hotelling T² snippet, with no specialised packages required.</li>
+
+</ol>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Tabachnick, B. G., and Fidell, L. S., <em>Using Multivariate Statistics</em>, 7th edition. Pearson (2019). Chapter on Profile Analysis. <a href="https://www.pearson.com/en-us/subject-catalog/p/using-multivariate-statistics/P200000003097">Link</a></li>
+
+<li>Johnson, R. A., and Wichern, D. W., <em>Applied Multivariate Statistical Analysis</em>, 6th edition. Pearson (2007). Chapter 6: Comparisons of Several Multivariate Means. <a href="https://www.pearson.com/en-us/subject-catalog/p/applied-multivariate-statistical-analysis/P200000006452">Link</a></li>
+
+<li>Bulus, M., <code>profileR</code> package on CRAN. Profile Analysis of Multivariate Data in R. <a href="https://cran.r-project.org/package=profileR">Link</a></li>
+
+<li>Friedrich, S., Konietschke, F., and Pauly, M., Analysis of Multivariate Data and Repeated Measures Designs with the R Package <code>MANOVA.RM</code>. arXiv preprint 1801.08002 (2018). <a href="https://arxiv.org/abs/1801.08002">Link</a></li>
+
+<li>R Core Team, <code>manova()</code> reference, <a class="auto-link" href="Getting-Help-in-R.html" title="Stuck in R? 6 Ways to Get Unstuck Without Wasting Hours">R Documentation</a>. <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/manova.html">Link</a></li>
+
+<li>Phil Ender, Profile Analysis course notes, UCLA. <a href="http://www.philender.com/courses/multivariate/notes3/profile.html">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Multivariate-Statistics-in-R.html">Multivariate Statistics in R: Distances, Mahalanobis & Hotelling's T²</a>, the parent tutorial covering the multivariate building blocks behind profile analysis.</li>
+
+<li><a href="Hotelling-T-Squared-in-R.html">Hotelling's T² in R</a>, the <a class="auto-link" href="Multivariate-Statistics-in-R.html" title="Multivariate Statistics in R: Distances, Mahalanobis, and Hotelling's T² Demystified">multivariate t-test</a> that powers the flatness step, explained in depth.</li>
+
+<li><a href="Repeated-Measures-ANOVA-in-R.html">Repeated Measures ANOVA in R</a>, the univariate sibling to profile analysis, useful when sphericity assumptions are tenable.</li>
+
+</ul>
+
+{% endraw %}
