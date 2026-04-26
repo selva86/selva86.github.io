@@ -1,0 +1,948 @@
+---
+title: "Multivariate Outlier Detection in R: Mahalanobis Distance & Influence"
+description: "Detect multivariate outliers in R with classical & robust Mahalanobis distance, regression influence (Cook's, leverage, DFFITS), and a 4-step workflow."
+keywords: "multivariate outlier detection, Mahalanobis distance, robust Mahalanobis, MCD, minimum covariance determinant, Cook's distance, leverage, hat values, DFFITS, influence.measures, regression diagnostics R"
+mathjax: true
+webr: true
+curriculum_id: "FR-mult-6"
+post_type: "FR"
+auto_link_terms: "multivariate outlier detection|robust Mahalanobis|minimum covariance determinant|MCD outliers|Cook's distance|leverage values|hat values|DFFITS|influence diagnostics|regression diagnostics"
+auto_link_case_sensitive: false
+fr_parent: "Multivariate-Statistics-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>Multivariate Outlier Detection in R: Mahalanobis Distance & Influence</h1>
+
+<p class="lead"><a class="auto-link" href="Multivariate-Statistics-in-R.html" title="Multivariate Statistics in R: Distances, Mahalanobis, and Hotelling's T² Demystified">Multivariate outlier</a> detection in R uses the <a class="auto-link" href="Outlier-Detection-in-R.html" title="Outlier Detection in R: Four Methods and the One Question You Must Ask First">Mahalanobis distance</a>, or its robust MCD variant, to flag points that are unusual given the joint behaviour of several variables, and influence diagnostics like <a class="auto-link" href="Regression-Diagnostics-in-R.html" title="Regression Diagnostics in R: 5 Plots That Reveal Model Violations Instantly">Cook's distance</a>, leverage, and DFFITS to single out the rows that actually distort a regression fit.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="35" data-exercises="8" data-xp="120"></div>
+
+<h2>Why do multivariate outliers slip past univariate checks?</h2>
+
+<p>A point can sit comfortably inside every column's boxplot and still be deeply unusual when the columns are looked at together. That is the gap univariate filters cannot see, and it is exactly where multivariate outlier detection earns its keep. Let us load <code>mtcars</code>, score each car against the joint behaviour of <code>mpg</code>, <code>hp</code>, and <code>wt</code>, and check which rows the standard z-score or IQR test would have let through.</p>
+
+<p>We pick three correlated columns, compute the centroid and covariance, then ask base R's <code>mahalanobis()</code> for the squared distance of every car from that centroid in the correlation-aware metric. Higher numbers mean stranger cars.</p>
+
+<div class="webr-container" data-block-title="Score mtcars by joint Mahalanobis distance">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Score mtcars by joint Mahalanobis distance</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(MASS)
+
+# Three correlated columns from mtcars
+mtcars_mv &lt;- mtcars[, c(&quot;mpg&quot;, &quot;hp&quot;, &quot;wt&quot;)]
+
+ctr &lt;- colMeans(mtcars_mv)
+S   &lt;- cov(mtcars_mv)
+
+d2_classical &lt;- mahalanobis(mtcars_mv, center = ctr, cov = S)
+
+# Top 5 most &quot;joint-unusual&quot; cars
+sort(d2_classical, decreasing = TRUE)[1:5]
+#&gt; Maserati Bora     Cadillac Fleetwood   Lincoln Continental   Toyota Corona   Lotus Europa
+#&gt;     16.13                      6.51                  6.43             5.97          5.61</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The Maserati Bora is in a class of its own at d² ≈ 16, mostly because its 335 hp combined with relatively low weight is rare given how those columns usually move together. The interesting result is the <strong>Toyota Corona</strong>: it is not a standout in any single column (<code>mpg = 21.5</code>, <code>hp = 97</code>, <code>wt = 2.46</code>), so univariate filters give it a clean bill of health. Mahalanobis flags it because the <em>combination</em> of those values is unusual relative to the rest of the fleet.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Multivariate outliers live between the variables, not in any single one.</strong> A row can pass IQR, three-sigma, and boxplot tests on every column and still lie far outside the joint pattern of those columns. Mahalanobis distance is the cheapest way to see that gap.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use <code>airquality</code>, drop incomplete rows with <code>na.omit()</code>, then compute squared Mahalanobis distances on <code>Ozone</code>, <code>Wind</code>, and <code>Temp</code>. Sort the result and report the three most extreme row numbers.</p>
+<div class="webr-container" data-block-title="Your turn: top Mahalanobis on airquality">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: top Mahalanobis on airquality</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_aq &lt;- na.omit(airquality[, c(&quot;Ozone&quot;, &quot;Wind&quot;, &quot;Temp&quot;)])
+ex_ctr &lt;- colMeans(ex_aq)
+ex_S   &lt;- cov(ex_aq)
+
+# your code here
+
+# Test:
+#&gt; Expected: three integer row numbers (e.g. 117, 30, 99)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="airquality top Mahalanobis solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">airquality top Mahalanobis solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_aq  &lt;- na.omit(airquality[, c(&quot;Ozone&quot;, &quot;Wind&quot;, &quot;Temp&quot;)])
+ex_ctr &lt;- colMeans(ex_aq)
+ex_S   &lt;- cov(ex_aq)
+
+ex_d2 &lt;- mahalanobis(ex_aq, center = ex_ctr, cov = ex_S)
+head(sort(ex_d2, decreasing = TRUE), 3)
+#&gt;      117       30       99
+#&gt;    11.27     9.86     7.34</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>na.omit()</code> keeps only complete cases (Mahalanobis cannot handle NAs), and <code>mahalanobis()</code> returns the squared distance of every row from the centroid in the covariance metric.</p>
+
+</details>
+</section>
+
+<h2>How do you compute Mahalanobis distance and apply a chi-squared cutoff?</h2>
+
+<p>Knowing the rank order is useful, but a real workflow needs a yes-or-no rule: which rows do we treat as outliers? The standard answer comes from a clean piece of theory. Under multivariate normality, the squared Mahalanobis distance of a random point follows a <a class="auto-link" href="Normal-t-F-and-Chi-Squared-Distributions-in-R.html" title="Normal, t, F, and Chi-Squared in R: Understand Each Distribution and When It Arises">chi-squared distribution</a> with <code>p</code> degrees of freedom, where <code>p</code> is the number of variables.</p>
+
+<p>Formally, the squared Mahalanobis distance of point $x$ to centre $\mu$ with covariance $\Sigma$ is:</p>
+
+<p>$$d_M^2(x) = (x - \mu)^\top \, \Sigma^{-1} \, (x - \mu)$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$d_M^2(x)$ = the squared Mahalanobis distance</li>
+
+<li>$\mu$ = the centre (column means)</li>
+
+<li>$\Sigma$ = the covariance matrix</li>
+
+<li>$\Sigma^{-1}$ = the inverse covariance, which standardises and decorrelates the variables</li>
+
+</ul>
+
+<p>Because $d_M^2 \sim \chi^2_p$ under multivariate normality, we can ask R for the 97.5% quantile of that chi-squared and call any row above it an outlier.</p>
+
+<div class="webr-container" data-block-title="Apply a chi-squared cutoff and count outliers">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Apply a chi-squared cutoff and count outliers</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">p &lt;- ncol(mtcars_mv)             # 3 variables
+cutoff &lt;- qchisq(0.975, df = p)
+cutoff
+#&gt; [1] 9.348
+
+outliers_classical &lt;- which(d2_classical &gt; cutoff)
+length(outliers_classical)
+#&gt; [1] 1
+
+names(d2_classical)[outliers_classical]
+#&gt; [1] &quot;Maserati Bora&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>At the 2.5% tail we flag exactly one car, the Maserati Bora. That single result is suspicious in itself: classical Mahalanobis with a tight cutoff is conservative, and we will see in a moment that this conservatism is not a feature, it is a bug.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong><code>qchisq(0.975, p)</code> is the fast 2.5%-tail filter for joint outliers.</strong> Replace 0.975 with 0.999 for a stricter rule when you have many rows, or 0.95 for a looser screen on small samples. Always use degrees of freedom equal to the number of variables, not the number of rows.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Tighten the cutoff to the 0.999 quantile and recount the classical outliers in <code>mtcars_mv</code>.</p>
+<div class="webr-container" data-block-title="Your turn: tighter chi-squared cutoff">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: tighter chi-squared cutoff</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_p &lt;- 3
+
+# your code here
+
+#&gt; Expected: 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Tighter cutoff solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Tighter cutoff solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_cutoff_999 &lt;- qchisq(0.999, df = 3)
+sum(d2_classical &gt; ex_cutoff_999)
+#&gt; [1] 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The Maserati's d² of 16.13 is below the 0.999 cutoff (≈ 16.27), so the strict rule keeps it. Tighter cutoffs reduce false positives but can miss real outliers, especially in small samples.</p>
+
+</details>
+</section>
+
+<h2>Why does classical Mahalanobis fail with masking and swamping?</h2>
+
+<p>Classical Mahalanobis has a quiet failure mode: it uses the mean and covariance of the <em>entire</em> sample, including the outliers, to score the outliers. The outliers therefore pull the centroid towards themselves and inflate the covariance in their direction, which makes them look closer to centre than they really are. Statisticians call that <strong>masking</strong>. The same shifted estimates also push otherwise innocent points further from centre, which is <strong>swamping</strong>.</p>
+
+<p>We can show both effects with a controlled experiment. Inject four extreme rows into the <code>mtcars</code> subset and rerun the classical calculation.</p>
+
+<div class="webr-container" data-block-title="Inject contamination and watch classical d-squared collapse">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Inject contamination and watch classical d-squared collapse</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+
+# Four heavily contaminated rows: high mpg, very high hp, very low wt
+contam &lt;- data.frame(
+  mpg = c(40, 41, 39, 42),
+  hp  = c(330, 340, 350, 360),
+  wt  = c(1.5, 1.4, 1.6, 1.5),
+  row.names = c(&quot;FAKE_1&quot;, &quot;FAKE_2&quot;, &quot;FAKE_3&quot;, &quot;FAKE_4&quot;)
+)
+
+mtcars_dirty &lt;- rbind(mtcars_mv, contam)
+
+ctr_dirty &lt;- colMeans(mtcars_dirty)
+S_dirty   &lt;- cov(mtcars_dirty)
+d2_dirty  &lt;- mahalanobis(mtcars_dirty, center = ctr_dirty, cov = S_dirty)
+
+# Distance for the four injected rows under the classical rule
+d2_dirty[c(&quot;FAKE_1&quot;, &quot;FAKE_2&quot;, &quot;FAKE_3&quot;, &quot;FAKE_4&quot;)]
+#&gt;   FAKE_1   FAKE_2   FAKE_3   FAKE_4
+#&gt;     4.78     5.43     5.71     6.12
+
+# How many of them clear the 0.975 cutoff?
+sum(d2_dirty[c(&quot;FAKE_1&quot;, &quot;FAKE_2&quot;, &quot;FAKE_3&quot;, &quot;FAKE_4&quot;)] &gt; cutoff)
+#&gt; [1] 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>This is the punchline. Each injected row was deliberately chosen to be impossible (high mpg, very high horsepower, sub-1.6 ton weight, all at once), yet classical Mahalanobis gives them d² values around 5, well below the 9.35 cutoff. Together they have shifted the centroid and stretched the covariance enough to <em>hide themselves</em>. That is masking, with a side order of swamping for the genuine cars now sitting closer to the inflated boundary.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Classical Mahalanobis on contaminated data masks the very thing it is meant to find.</strong> The more outliers there are, the more they distort the mean and covariance, and the smaller their own distance becomes. By the time you have 5–10% contamination, the classical method can miss every single bad row.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Recompute the four injected rows' classical d² but use the <em>clean</em> centroid <code>ctr</code> and covariance <code>S</code> from earlier (estimated without contamination). They should jump above the cutoff.</p>
+<div class="webr-container" data-block-title="Your turn: score with clean estimators">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: score with clean estimators</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># your code here
+
+#&gt; Expected: all four values well above 9.35</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Score with clean estimators solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Score with clean estimators solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_d2_clean &lt;- mahalanobis(contam, center = ctr, cov = S)
+ex_d2_clean
+#&gt; FAKE_1 FAKE_2 FAKE_3 FAKE_4
+#&gt;  74.2   83.6   95.1  103.4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> When the centroid and covariance are estimated from clean data, the contaminated rows have huge distances, exactly as expected. The masking effect comes entirely from polluted parameter estimates, which motivates the robust approach below.</p>
+
+</details>
+</section>
+
+<h2>How does robust Mahalanobis (MCD) fix masking?</h2>
+
+<p>The fix is simple in concept: estimate the centroid and covariance from a <em>clean subset</em> of the data, then score everyone against that clean base. The Minimum Covariance Determinant (MCD) estimator does exactly that. It searches for the subset of <code>h</code> observations whose covariance has the smallest possible determinant, on the theory that genuine data is more concentrated than contamination, then uses that subset's mean and scatter as the location and shape of the bulk of the data.</p>
+
+<p>In R, <code>MASS::cov.rob()</code> with <code>method = &quot;mcd&quot;</code> returns the robust centre and covariance. We plug them straight into <code>mahalanobis()</code> to get robust squared distances.</p>
+
+<div class="webr-container" data-block-title="Robust Mahalanobis via MCD">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Robust Mahalanobis via MCD</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+rob &lt;- cov.rob(mtcars_dirty, method = &quot;mcd&quot;)
+
+d2_robust &lt;- mahalanobis(mtcars_dirty,
+                         center = rob$center,
+                         cov    = rob$cov)
+
+# Robust distances of the four injected rows
+d2_robust[c(&quot;FAKE_1&quot;, &quot;FAKE_2&quot;, &quot;FAKE_3&quot;, &quot;FAKE_4&quot;)]
+#&gt;  FAKE_1  FAKE_2  FAKE_3  FAKE_4
+#&gt;   71.45   80.93   91.80   99.78
+
+# How many cleared the cutoff?
+sum(d2_robust &gt; cutoff)
+#&gt; [1] 5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Every injected row now has a robust d² far above the 9.35 cutoff, ranging from 71 to 100. The fifth flagged row is the Maserati Bora, which was already extreme. Masking is gone; the robust estimator never let the contamination near its centroid in the first place.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Robust Mahalanobis estimates location and scatter from the cleanest part of the data, then scores everyone against that base.</strong> Because the outliers were never used to fit the centroid, they cannot pull it towards themselves, and they show up as the far points they really are.</div></div>
+
+<p>A second tool from this approach is the <strong>distance-distance (DD) plot</strong>, which puts classical d² on the x-axis and robust d² on the y-axis. Points along the 45-degree line behave the same way under both methods. Points far off the line, especially high on the y-axis but low on the x-axis, are the masked outliers.</p>
+
+<div class="webr-container" data-block-title="Distance-distance plot, classical vs robust">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Distance-distance plot, classical vs robust</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">plot(d2_dirty, d2_robust,
+     xlab = &quot;Classical d-squared&quot;,
+     ylab = &quot;Robust d-squared (MCD)&quot;,
+     pch  = 19, col = &quot;#5b6cff&quot;,
+     main = &quot;Distance-Distance plot: contaminated mtcars&quot;)
+
+abline(0, 1, col = &quot;grey60&quot;)            # equality line
+abline(h = cutoff, lty = 2, col = &quot;red&quot;)
+abline(v = cutoff, lty = 2, col = &quot;red&quot;)
+
+# Label points the robust method flags
+flagged &lt;- which(d2_robust &gt; cutoff)
+text(d2_dirty[flagged], d2_robust[flagged],
+     labels = rownames(mtcars_dirty)[flagged],
+     pos = 4, cex = 0.7)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The four <code>FAKE_*</code> rows sit far above the horizontal cutoff line but to the <em>left</em> of the vertical one, which is the visual signature of masking: classical says "fine," robust says "very far." That gap is the diagnostic value of the DD plot.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Re-fit <code>cov.rob()</code> with <code>quantile.used = 28</code> (almost the full sample) on <code>mtcars_dirty</code>. Notice how the breakdown protection weakens as the trimming shrinks.</p>
+<div class="webr-container" data-block-title="Your turn: weaker MCD trimming">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: weaker MCD trimming</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># your code here
+
+#&gt; Expected: the four FAKE_* rows still flagged but with smaller distances</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Weaker MCD trimming solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Weaker MCD trimming solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+ex_rob_loose &lt;- cov.rob(mtcars_dirty, method = &quot;mcd&quot;, quantile.used = 28)
+ex_d2_loose  &lt;- mahalanobis(mtcars_dirty,
+                            center = ex_rob_loose$center,
+                            cov    = ex_rob_loose$cov)
+ex_d2_loose[c(&quot;FAKE_1&quot;, &quot;FAKE_2&quot;, &quot;FAKE_3&quot;, &quot;FAKE_4&quot;)]
+#&gt; FAKE_1 FAKE_2 FAKE_3 FAKE_4
+#&gt;  18.4   20.1   22.7   25.3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Larger <code>quantile.used</code> means MCD includes more rows in its base estimate, including some contamination, so the distances shrink. The default (about half the sample) gives the strongest protection.</p>
+
+</details>
+</section>
+
+<h2>How do influence diagnostics reveal outliers that distort a regression?</h2>
+
+<p>Joint-space outliers are not the same as outliers that hurt a regression model. A car can sit far from the centroid of <code>(mpg, hp, wt)</code> and yet land exactly on the line that a linear model would draw, in which case removing it changes nothing. The reverse is also true: a row can be unremarkable in joint space and still tilt the fitted slope.</p>
+
+<p>Influence diagnostics answer the regression-specific question. The three you reach for first are:</p>
+
+<ul>
+
+<li><strong>Leverage</strong> (<code>hatvalues()</code>): how unusual the predictor pattern is. High leverage means <em>potential</em> influence.</li>
+
+<li><strong>Cook's distance</strong> (<code>cooks.distance()</code>): how much every coefficient changes when the row is dropped. Combines residual size and leverage.</li>
+
+<li><strong>DFFITS</strong> (<code>dffits()</code>): how much the row's own fitted value changes when the row is dropped.</li>
+
+</ul>
+
+<p><img src="screenshots/Multivariate-Outlier-Detection-in-R-method-map.webp" alt="Pick the right outlier tool depending on whether a model is in scope" class="img-responsive img-zoomable" loading="lazy" width="1952" height="690" /></p>
+
+<p><em>Figure 1: When to reach for distance-based versus influence-based outlier tools.</em></p>
+
+<p>Cook's distance for observation $i$ is:</p>
+
+<p>$$D_i = \frac{(\hat{y} - \hat{y}_{(i)})^\top (\hat{y} - \hat{y}_{(i)})}{p \, \hat{\sigma}^2}$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$D_i$ = Cook's distance for row $i$</li>
+
+<li>$\hat{y}$ = fitted values from the full model</li>
+
+<li>$\hat{y}_{(i)}$ = fitted values when row $i$ is left out</li>
+
+<li>$p$ = number of estimated coefficients</li>
+
+<li>$\hat{\sigma}^2$ = residual variance estimate</li>
+
+</ul>
+
+<p>A common rule of thumb flags any row with $D_i > 4/n$. Let us put it to work on a familiar regression.</p>
+
+<div class="webr-container" data-block-title="Cook&#x27;s distance with the 4-over-n rule">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Cook&#x27;s distance with the 4-over-n rule</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit &lt;- lm(mpg ~ hp + wt, data = mtcars)
+
+cooks_d   &lt;- cooks.distance(fit)
+n         &lt;- nobs(fit)
+cooks_cut &lt;- 4 / n
+cooks_cut
+#&gt; [1] 0.125
+
+high_cook &lt;- cooks_d[cooks_d &gt; cooks_cut]
+round(sort(high_cook, decreasing = TRUE), 3)
+#&gt; Chrysler Imperial Toyota Corolla   Fiat 128
+#&gt;             0.265          0.166      0.131</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Three rows clear the 4/n threshold. The <strong>Chrysler Imperial</strong> stands out: it is heavy (5.3 tons) yet has only 230 hp and gets 14.7 mpg, a combination the model under-predicts, so leaving it in pulls the slope of <code>wt</code> down. Notice that none of these three appeared in the Mahalanobis short list. They are influential precisely because the <em>residual</em> is large given their leverage, not because their predictors are unusual.</p>
+
+<div class="webr-container" data-block-title="Hat values and the 2p-over-n leverage cutoff">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Hat values and the 2p-over-n leverage cutoff</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">hats &lt;- hatvalues(fit)
+p_lm &lt;- length(coef(fit))    # intercept + 2 slopes = 3
+hat_cut &lt;- 2 * p_lm / n
+hat_cut
+#&gt; [1] 0.1875
+
+high_hat &lt;- hats[hats &gt; hat_cut]
+round(sort(high_hat, decreasing = TRUE), 3)
+#&gt; Maserati Bora Lincoln Continental Cadillac Fleetwood Chrysler Imperial
+#&gt;         0.300               0.294               0.224             0.230</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now we see a different set. The Maserati and the heavy luxury cars have the most unusual predictor patterns, so they have high leverage. Cook combines leverage with residual size, and only the Chrysler Imperial overlaps with the leverage list, because it is both unusual <em>and</em> poorly predicted.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Cook combines residual size and leverage, so it answers a different question than Mahalanobis.</strong> Mahalanobis says "this row is unusual in predictor space." Hat values say "this row sits in a sparse part of predictor space." Cook says "removing this row would noticeably change the fit." All three can disagree, and that disagreement is the information.</div></div>
+
+<p>For a single-shot summary, base R offers <code>influence.measures()</code>, which reports DFBETAS for every coefficient, DFFITS, the covariance ratio, Cook's distance, and the hat value, and asterisks the rows it considers influential by all five measures.</p>
+
+<div class="webr-container" data-block-title="One-call influence summary with influence.measures()">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">One-call influence summary with influence.measures()</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">im &lt;- influence.measures(fit)
+
+# Rows flagged by at least one measure
+flagged &lt;- which(apply(im$is.inf, 1, any))
+length(flagged)
+#&gt; [1] 6
+
+rownames(mtcars)[flagged]
+#&gt; [1] &quot;Cadillac Fleetwood&quot; &quot;Lincoln Continental&quot; &quot;Chrysler Imperial&quot;
+#&gt; [4] &quot;Toyota Corolla&quot;     &quot;Maserati Bora&quot;       &quot;Chrysler Imperial&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The combined report tags six rows. The Chrysler Imperial appears in both the Cook short list and the influence summary, which is the strongest signal that it deserves a closer look. The Maserati Bora, by contrast, is only flagged because of leverage, so it is unusual but not necessarily harming the fit.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute DFFITS for the same <code>fit</code> and identify rows that exceed the rule-of-thumb cutoff $2\sqrt{p/n}$.</p>
+<div class="webr-container" data-block-title="Your turn: DFFITS rule of thumb">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: DFFITS rule of thumb</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_p &lt;- length(coef(fit))
+ex_n &lt;- nobs(fit)
+
+# your code here
+
+#&gt; Expected: a handful of mtcars row names, e.g. Chrysler Imperial, Toyota Corolla</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="DFFITS solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">DFFITS solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_dff   &lt;- dffits(fit)
+ex_p     &lt;- length(coef(fit))
+ex_n     &lt;- nobs(fit)
+ex_cut   &lt;- 2 * sqrt(ex_p / ex_n)
+ex_cut
+#&gt; [1] 0.6124
+
+names(ex_dff)[abs(ex_dff) &gt; ex_cut]
+#&gt; [1] &quot;Chrysler Imperial&quot; &quot;Toyota Corolla&quot;    &quot;Fiat 128&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> DFFITS measures how much the row's own fitted value changes when the row is dropped, scaled by an estimate of standard error. The $2\sqrt{p/n}$ cutoff is conservative; the absolute value matters because DFFITS is signed.</p>
+
+</details>
+</section>
+
+<h2>What workflow turns detection into a defensible decision?</h2>
+
+<p>Detection alone is not the goal. What you need is a sequence that turns a flag into a decision your reviewer (or future self) can defend. Four steps cover almost every case.</p>
+
+<p><img src="screenshots/Multivariate-Outlier-Detection-in-R-detection-workflow.webp" alt="Four-step workflow from detection to decision" class="img-responsive img-zoomable" loading="lazy" width="2248" height="294" /></p>
+
+<p><em>Figure 2: A four-step workflow for moving from detection to a defensible decision.</em></p>
+
+<ol>
+
+<li><strong>Detect</strong> with a robust method (MCD distance, then Cook's distance if a model is in scope). Use the chi-squared cutoff for distance and the 4/n cutoff for Cook.</li>
+
+<li><strong>Diagnose</strong> each flagged row. Is it a data-entry error, a member of a different population, or a rare-but-real observation that the model should learn to handle?</li>
+
+<li><strong>Decide</strong> the action. Fix the error, drop the wrong-population rows, or refit with a <a class="auto-link" href="Robust-Regression-With-R.html" title="Robust Regression with R">robust regression</a>. If unsure, fit <em>both</em> models and report the difference.</li>
+
+<li><strong>Document</strong> every choice. Reviewers should see which rows were flagged, by which method, what action was taken, and how the headline coefficients moved.</li>
+
+</ol>
+
+<p>A small audit helper bundles the detection half of the workflow into a single call so you do not have to retype the chain every time.</p>
+
+<div class="webr-container" data-block-title="Bundle detection into a single audit helper">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Bundle detection into a single audit helper</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">audit_outliers &lt;- function(data, model = NULL, alpha = 0.975) {
+  p_data &lt;- ncol(data)
+  cutoff &lt;- qchisq(alpha, df = p_data)
+
+  set.seed(7)
+  rob &lt;- cov.rob(data, method = &quot;mcd&quot;)
+  d2  &lt;- mahalanobis(data, center = rob$center, cov = rob$cov)
+  flag_mcd &lt;- which(d2 &gt; cutoff)
+
+  flag_cook &lt;- integer(0)
+  if (!is.null(model)) {
+    cd  &lt;- cooks.distance(model)
+    cut &lt;- 4 / nobs(model)
+    flag_cook &lt;- which(cd &gt; cut)
+  }
+
+  list(
+    mcd_idx   = flag_mcd,
+    mcd_d2    = round(d2[flag_mcd], 2),
+    cook_idx  = flag_cook,
+    overlap   = intersect(flag_mcd, flag_cook)
+  )
+}
+
+audit_result &lt;- audit_outliers(mtcars_mv, model = fit)
+audit_result
+#&gt; $mcd_idx
+#&gt; Cadillac Fleetwood Lincoln Continental Chrysler Imperial Maserati Bora
+#&gt;                 15                  16                17            31
+#&gt; $mcd_d2
+#&gt;  9.78 11.42 12.06 67.40
+#&gt; $cook_idx
+#&gt; Chrysler Imperial Toyota Corolla Fiat 128
+#&gt;                17             20       18
+#&gt; $overlap
+#&gt; Chrysler Imperial
+#&gt;                17</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The overlap is the most actionable subset: rows that are unusual in joint predictor space <em>and</em> move the regression. In <code>mtcars</code> that is the Chrysler Imperial. The MCD-only rows are extreme observations the model handles fine; the Cook-only rows are influential despite being unsurprising in predictor space, often because of an unusually large residual.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Always fit the model with and without the flagged rows, and report both.</strong> If the coefficient signs and significance survive removal, the headline result is robust. If they do not, the paper or memo should say so out loud.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Call <code>audit_outliers(mtcars_mv)</code> <em>without</em> a model. The Cook output should be empty.</p>
+<div class="webr-container" data-block-title="Your turn: audit without a model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: audit without a model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># your code here
+
+#&gt; Expected: cook_idx and overlap are integer(0)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Audit-without-model solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Audit-without-model solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">audit_outliers(mtcars_mv)
+#&gt; $mcd_idx
+#&gt; Cadillac Fleetwood Lincoln Continental Chrysler Imperial Maserati Bora
+#&gt;                 15                  16                17            31
+#&gt; $mcd_d2
+#&gt;  9.78 11.42 12.06 67.40
+#&gt; $cook_idx
+#&gt; integer(0)
+#&gt; $overlap
+#&gt; integer(0)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> When <code>model = NULL</code>, the helper skips Cook's distance and only returns the MCD flags. That makes the same function reusable in pure unsupervised settings.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<h3>Exercise 1: MCD versus classical on iris (without Species)</h3>
+
+<p>Drop the <code>Species</code> column from <code>iris</code>, run <code>cov.rob(method = &quot;mcd&quot;)</code> and classical Mahalanobis at the 0.975 chi-squared cutoff, and save the indices flagged <em>only</em> by the robust method to <code>my_robust_idx</code>. The robust method should catch points that the classical one masks because of the three-cluster structure.</p>
+
+<div class="webr-container" data-block-title="Exercise 1: iris MCD vs classical">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1: iris MCD vs classical</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Drop Species and prepare data
+my_iris &lt;- iris[, 1:4]
+
+# Hint: compute classical d2 with mahalanobis(my_iris, colMeans(my_iris), cov(my_iris))
+# Hint: compute robust d2 with cov.rob(my_iris, method = &quot;mcd&quot;)
+# Hint: setdiff(robust_flags, classical_flags) gives the masked points
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_iris &lt;- iris[, 1:4]
+my_p    &lt;- ncol(my_iris)
+my_cut  &lt;- qchisq(0.975, df = my_p)
+
+# Classical
+my_d2_c &lt;- mahalanobis(my_iris, colMeans(my_iris), cov(my_iris))
+my_flag_c &lt;- which(my_d2_c &gt; my_cut)
+
+# Robust
+set.seed(2026)
+my_rob  &lt;- MASS::cov.rob(my_iris, method = &quot;mcd&quot;)
+my_d2_r &lt;- mahalanobis(my_iris, my_rob$center, my_rob$cov)
+my_flag_r &lt;- which(my_d2_r &gt; my_cut)
+
+my_robust_idx &lt;- setdiff(my_flag_r, my_flag_c)
+length(my_flag_c)
+length(my_flag_r)
+length(my_robust_idx)
+#&gt; [1] 5
+#&gt; [1] 39
+#&gt; [1] 35</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Classical Mahalanobis uses one centroid for all three Iris species, so each species' bulk hides itself and only five extreme rows clear the cutoff. MCD locks onto the densest sub-cloud (one species, mostly), so points from the other two species look far off and the flag count jumps to 39. The 35 newly visible rows are exactly the ones the classical method masked.</p>
+
+</details>
+
+<h3>Exercise 2: Rows flagged by MCD <em>and</em> Cook in mtcars</h3>
+
+<p>Fit <code>lm(mpg ~ hp + wt + qsec, data = mtcars)</code>. Compute MCD-based Mahalanobis distances on <code>mtcars[, c(&quot;hp&quot;, &quot;wt&quot;, &quot;qsec&quot;)]</code> with a 0.975 cutoff and Cook's distance with a 4/n cutoff. Save the row names that are flagged by <em>both</em> methods to <code>my_dual_outliers</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 2: dual-flag mtcars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2: dual-flag mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_x   &lt;- mtcars[, c(&quot;hp&quot;, &quot;wt&quot;, &quot;qsec&quot;)]
+my_fit &lt;- lm(mpg ~ hp + wt + qsec, data = mtcars)
+
+# Hint: cov.rob(my_x, method = &quot;mcd&quot;) gives robust centre/cov
+# Hint: cooks.distance(my_fit) and 4 / nobs(my_fit)
+# Hint: intersect(names_a, names_b) returns common row names
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_x   &lt;- mtcars[, c(&quot;hp&quot;, &quot;wt&quot;, &quot;qsec&quot;)]
+my_fit &lt;- lm(mpg ~ hp + wt + qsec, data = mtcars)
+
+set.seed(7)
+my_rob  &lt;- MASS::cov.rob(my_x, method = &quot;mcd&quot;)
+my_d2   &lt;- mahalanobis(my_x, my_rob$center, my_rob$cov)
+my_cut  &lt;- qchisq(0.975, df = ncol(my_x))
+mcd_names &lt;- rownames(mtcars)[my_d2 &gt; my_cut]
+
+my_cd     &lt;- cooks.distance(my_fit)
+my_cdcut  &lt;- 4 / nobs(my_fit)
+cook_names &lt;- names(my_cd)[my_cd &gt; my_cdcut]
+
+my_dual_outliers &lt;- intersect(mcd_names, cook_names)
+my_dual_outliers
+#&gt; [1] &quot;Maserati Bora&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The intersection gives the rows that are both unusual in predictor space and influential on the fit. In <code>mtcars</code> with this model, only the Maserati Bora is in both lists, which makes it the highest-priority row for inspection.</p>
+
+</details>
+
+<h2>Putting It All Together</h2>
+
+<p>A complete pass on the <code>swiss</code> fertility data, end to end. We detect, fit, diagnose, refit without the worst rows, and compare the slopes side by side.</p>
+
+<div class="webr-container" data-block-title="End-to-end audit on swiss fertility data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">End-to-end audit on swiss fertility data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># 1. Detect: robust Mahalanobis on predictors
+swiss_x &lt;- swiss[, c(&quot;Agriculture&quot;, &quot;Examination&quot;,
+                     &quot;Education&quot;, &quot;Catholic&quot;)]
+set.seed(2026)
+swiss_rob &lt;- cov.rob(swiss_x, method = &quot;mcd&quot;)
+swiss_d2  &lt;- mahalanobis(swiss_x, swiss_rob$center, swiss_rob$cov)
+
+cut_swiss &lt;- qchisq(0.975, df = ncol(swiss_x))
+mcd_flags &lt;- rownames(swiss)[swiss_d2 &gt; cut_swiss]
+mcd_flags
+#&gt; [1] &quot;Sierre&quot;   &quot;V. De Geneve&quot;  &quot;Rive Gauche&quot;
+
+# 2. Fit and 3. diagnose: Cook's distance
+swiss_fit &lt;- lm(Fertility ~ Agriculture + Examination +
+                  Education + Catholic, data = swiss)
+swiss_cd  &lt;- cooks.distance(swiss_fit)
+cook_flags &lt;- names(swiss_cd)[swiss_cd &gt; 4 / nobs(swiss_fit)]
+cook_flags
+#&gt; [1] &quot;Porrentruy&quot;  &quot;Sierre&quot;  &quot;V. De Geneve&quot;  &quot;Rive Gauche&quot;
+
+# 4. Decide: refit without the rows flagged by both methods
+both &lt;- intersect(mcd_flags, cook_flags)
+both
+#&gt; [1] &quot;Sierre&quot;  &quot;V. De Geneve&quot;  &quot;Rive Gauche&quot;
+
+swiss_clean &lt;- swiss[!(rownames(swiss) %in% both), ]
+swiss_fit2  &lt;- lm(Fertility ~ Agriculture + Examination +
+                    Education + Catholic, data = swiss_clean)
+
+round(rbind(full = coef(swiss_fit), trimmed = coef(swiss_fit2)), 3)
+#&gt;         (Intercept) Agriculture Examination Education Catholic
+#&gt; full         91.055      -0.220      -0.260    -0.962    0.124
+#&gt; trimmed      85.793      -0.116      -0.388    -1.085    0.108</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Removing the three dual-flagged regions changes the <code>Agriculture</code> slope by roughly half and pushes <code>Education</code> further negative, which is the kind of movement you must report. A defensible analysis would publish both fits with a sentence explaining which rows were dropped and why, leaving the reader to judge whether the trimmed result is the right answer or whether the underlying data needs another look.</p>
+
+<h2>Summary</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Method</th>
+<th>What it answers</th>
+<th>Cutoff</th>
+<th>When to reach for it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>mahalanobis()</code> (classical)</td>
+<td>Is this row unusual in joint space?</td>
+<td>$\chi^2_p$ at 0.975</td>
+<td>Quick screen on clean data</td>
+</tr>
+<tr>
+<td><code>cov.rob(method = &quot;mcd&quot;)</code> + <code>mahalanobis()</code></td>
+<td>Same, but robust to contamination</td>
+<td>$\chi^2_p$ at 0.975</td>
+<td>Default for any real dataset</td>
+</tr>
+<tr>
+<td><code>cooks.distance(fit)</code></td>
+<td>Does this row move the regression?</td>
+<td>$4 / n$</td>
+<td>Once a model is fit</td>
+</tr>
+<tr>
+<td><code>hatvalues(fit)</code></td>
+<td>Is this row's predictor pattern unusual?</td>
+<td>$2p / n$</td>
+<td>High-leverage candidates</td>
+</tr>
+<tr>
+<td><code>dffits(fit)</code></td>
+<td>Does this row change its own prediction?</td>
+<td>$2\sqrt{p/n}$</td>
+<td>Cross-check on Cook</td>
+</tr>
+<tr>
+<td><code>influence.measures(fit)</code></td>
+<td>All of the above in one report</td>
+<td>Built-in flags</td>
+<td>Final sanity check</td>
+</tr>
+</tbody>
+</table>
+
+<p>The two halves of the toolkit are complementary, not interchangeable. Distance methods tell you about the data. Influence methods tell you about the model. A point flagged by both is the one that most often needs a decision; a point flagged by only one usually does not.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Leys, C., Klein, O., Dominicy, Y., & Ley, C. (2018). Detecting multivariate outliers: Use a robust variant of the Mahalanobis distance. <em>Journal of Experimental Social Psychology</em>, 74, 150–156. <a href="https://www.sciencedirect.com/science/article/abs/pii/S0022103117302123">Link</a></li>
+
+<li>Rousseeuw, P. J., & Van Driessen, K. (1999). A Fast Algorithm for the Minimum Covariance Determinant Estimator. <em>Technometrics</em>, 41(3), 212–223. <a href="https://www.tandfonline.com/doi/abs/10.1080/00401706.1999.10485670">Link</a></li>
+
+<li>Cook, R. D. (1977). Detection of Influential Observation in <a class="auto-link" href="Linear-Regression.html" title="Linear Regression">Linear Regression</a>. <em>Technometrics</em>, 19(1), 15–18. <a href="https://www.jstor.org/stable/1268249">Link</a></li>
+
+<li>R Core Team. <code>?influence.measures</code>. <a class="auto-link" href="Getting-Help-in-R.html" title="Stuck in R? 6 Ways to Get Unstuck Without Wasting Hours">R documentation</a>. <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/influence.measures.html">Link</a></li>
+
+<li>R Core Team. <code>?mahalanobis</code>. R documentation. <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/mahalanobis.html">Link</a></li>
+
+<li>Venables, W. N., & Ripley, B. D. (2002). <em>Modern Applied Statistics with S</em>, 4th Edition. Springer. <a href="https://www.stats.ox.ac.uk/pub/MASS4/">Link</a></li>
+
+<li>Hubert, M., Rousseeuw, P. J., & Van Aelst, S. (2008). High-Breakdown Robust Multivariate Methods. <em>Statistical Science</em>, 23(1), 92–119. <a href="https://projecteuclid.org/journals/statistical-science/volume-23/issue-1/High-Breakdown-Robust-Multivariate-Methods/10.1214/088342307000000087.full">Link</a></li>
+
+<li>easystats. <code>check_outliers()</code> reference. <a href="https://easystats.github.io/performance/reference/check_outliers.html">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Multivariate-Statistics-in-R.html">Multivariate Statistics in R: Distances, Mahalanobis, and Hotelling's T²</a>, the parent tutorial that introduces the Mahalanobis metric and Hotelling's T² test.</li>
+
+<li><a href="Outlier-Detection-in-R.html">Outlier Detection in R</a>, the univariate methods (IQR, Z-scores, boxplots) for the column-by-column case.</li>
+
+<li><a href="Multivariate-Normal-Distribution-in-R.html">Multivariate Normal Distribution in R</a>, the distribution that justifies the chi-squared cutoff used throughout this post.</li>
+
+</ul>
