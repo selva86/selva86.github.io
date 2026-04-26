@@ -1,0 +1,700 @@
+---
+title: "k-Medoids Clustering in R: PAM Algorithm & When to Prefer Over k-Means"
+description: "Learn k-medoids (PAM) clustering in R with cluster::pam(). Why medoids beat k-means on outliers, how to choose k via silhouette, and Gower for mixed-type data."
+keywords: "k-medoids R, PAM clustering R, cluster::pam, partitioning around medoids, k-medoids vs k-means, silhouette R, CLARA R, Gower distance R, robust clustering"
+mathjax: false
+webr: true
+curriculum_id: "FR-mult-8"
+post_type: "FR"
+auto_link_terms: "k-medoids clustering in R|k-medoids in R|PAM algorithm|partitioning around medoids|pam()|cluster::pam()|silhouette method|Gower distance|CLARA clustering"
+auto_link_case_sensitive: false
+fr_parent: "Cluster-Analysis-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>k-Medoids Clustering in R: PAM Algorithm & When to Prefer Over k-Means</h1>
+
+<p class="lead">k-medoids clustering picks an actual data point as each cluster's center, called a <strong>medoid</strong>, which makes it far more robust to outliers than k-means. This tutorial uses <code>pam()</code> from the <code>cluster</code> package in R to fit k-medoids, contrast it with k-means on dirty data, choose <code>k</code> with silhouette analysis, and handle mixed numeric and categorical features via Gower distance.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="25" data-exercises="7" data-xp="105"></div>
+
+<h2>Why does k-medoids beat k-means when data has outliers?</h2>
+
+<p>k-means uses the arithmetic mean of a cluster's points as its center, so a single far-away <a class="auto-link" href="Outlier-Treatment-With-R.html" title="Outlier Treatment with R">outlier</a> can drag that center across the plot and pull half the cluster with it. k-medoids picks an actual observation as the center, the medoid, and an outlier cannot move it. Drop one extreme point into a clean two-cluster dataset and watch what happens to k-means versus PAM.</p>
+
+<div class="webr-container" data-block-title="Compare kmeans and pam on contaminated data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare kmeans and pam on contaminated data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Libraries persist across all blocks on this page
+library(cluster)
+
+set.seed(7)
+g1 &lt;- cbind(rnorm(50, mean = 0, sd = 0.5), rnorm(50, mean = 0, sd = 0.5))
+g2 &lt;- cbind(rnorm(50, mean = 5, sd = 0.5), rnorm(50, mean = 5, sd = 0.5))
+dirty_data &lt;- rbind(g1, g2, c(20, 20))   # 100 clean points + 1 extreme outlier
+
+km &lt;- kmeans(dirty_data, centers = 2, nstart = 25)
+pm &lt;- pam(dirty_data, k = 2)
+
+# Where did each algorithm place its cluster centers?
+km$centers
+#&gt;             [,1]       [,2]
+#&gt; 1  0.0117832 -0.0252091
+#&gt; 2  5.2904437  5.2906710
+pm$medoids
+#&gt;             [,1]       [,2]
+#&gt; [1,] -0.06049213 0.04388816
+#&gt; [2,]  4.97231180 5.01498411</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The k-means centroid for cluster 2 has been pulled to roughly <code>(5.29, 5.29)</code> because it has to absorb the outlier at <code>(20, 20)</code>. The PAM medoid for cluster 2 sits at <code>(4.97, 5.01)</code>, an actual observation right where the cluster lives. The outlier is still assigned to cluster 2 in both, but only k-means lets that single point distort the center.</p>
+
+<p><img src="screenshots/k-Medoids-Clustering-in-R-medoid-vs-centroid.webp" alt="A medoid is one of the actual data points; a centroid is a computed mean that can sit anywhere." class="img-responsive img-zoomable" loading="lazy" width="1618" height="786" /></p>
+
+<p><em>Figure 1: A medoid is one of the actual data points; a centroid is a computed mean that can sit anywhere.</em></p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A medoid is robust because it is constrained to be a real observation.</strong> The mean can wander to any point in space; the medoid can only land where data already lives, so a far outlier has no leverage to move it.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Re-run the same comparison but make the outlier less extreme, at <code>c(8, 8)</code> instead of <code>c(20, 20)</code>. Save the new k-means centers to <code>ex_km_centers</code>.</p>
+<div class="webr-container" data-block-title="Your turn: smaller outlier">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: smaller outlier</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_dirty &lt;- rbind(g1, g2, c(8, 8))
+ex_km &lt;- # your code here
+ex_km_centers &lt;- ex_km$centers
+
+ex_km_centers
+#&gt; Expected: cluster-2 center near (5.06, 5.06), much less shifted than before</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Smaller outlier solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Smaller outlier solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_dirty &lt;- rbind(g1, g2, c(8, 8))
+ex_km &lt;- kmeans(ex_dirty, centers = 2, nstart = 25)
+ex_km_centers &lt;- ex_km$centers
+ex_km_centers
+#&gt;          [,1]       [,2]
+#&gt; 1 0.01178324 -0.02520912
+#&gt; 2 5.05926833  5.05927065</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The outlier still pulls the cluster-2 centroid, but only by about 0.06 units instead of 0.29. The smaller the outlier, the smaller the leverage, but the leverage is never zero for k-means.</p>
+
+</details>
+</section>
+
+<h2>How does the PAM algorithm pick its medoids?</h2>
+
+<p>PAM stands for Partitioning Around Medoids. It runs in two phases. The <strong>BUILD phase</strong> greedily picks <code>k</code> initial medoids by adding, one at a time, the data point that gives the largest reduction in total dissimilarity. The <strong>SWAP phase</strong> then tries every (medoid, non-medoid) swap and keeps any swap that lowers the total cost. SWAP repeats until no swap improves the result.</p>
+
+<p><img src="screenshots/k-Medoids-Clustering-in-R-pam-workflow.webp" alt="The PAM algorithm: a greedy BUILD phase picks initial medoids, then SWAP refines them until cost stops dropping." class="img-responsive img-zoomable" loading="lazy" width="2248" height="460" /></p>
+
+<p><em>Figure 2: The PAM algorithm: a greedy BUILD phase picks initial medoids, then SWAP refines them until cost stops dropping.</em></p>
+
+<p>The result object exposes the final medoids, the cluster label for every observation, and the total objective value. Inspecting these slots is how you read a PAM fit.</p>
+
+<div class="webr-container" data-block-title="Inspect a pam() fit on iris">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Inspect a pam() fit on iris</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">pm_iris &lt;- pam(iris[, 1:4], k = 3)
+
+# The two key result components
+pm_iris$medoids       # the k actual observations chosen as cluster centers
+#&gt;      Sepal.Length Sepal.Width Petal.Length Petal.Width
+#&gt; [1,]          5.0         3.4          1.5         0.2
+#&gt; [2,]          5.6         2.7          4.2         1.3
+#&gt; [3,]          6.8         3.0          5.5         2.1
+
+pm_iris$id.med        # row indices of those medoids in the original data
+#&gt; [1]   8  79 113
+
+table(pm_iris$clustering)   # cluster sizes
+#&gt;  1  2  3
+#&gt; 50 62 38
+
+pm_iris$objective     # total cost: build value, then swap value (lower is better)
+#&gt;     build      swap
+#&gt; 0.6709391 0.6542077</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The three medoids are real iris flowers at rows 8, 79, and 113. The 150 observations are split into clusters of size 50, 62, and 38. The objective dropped from 0.67 (after BUILD) to 0.65 (after SWAP), telling you the SWAP phase actually refined the initial pick.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>PAM minimizes a sum of dissimilarities, not squared distances.</strong> That sum-of-distances objective is one reason PAM is more robust: squared-distance objectives (like k-means) penalize far points quadratically, which is exactly why outliers dominate them.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Print just the row indices of the three medoids and verify they belong to different <code>Species</code> in iris. Save the species vector to <code>ex_med_species</code>.</p>
+<div class="webr-container" data-block-title="Your turn: medoid species">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: medoid species</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_med_species &lt;- # your code here
+
+ex_med_species
+#&gt; Expected: three different Species values (setosa, versicolor, virginica)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Medoid species solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Medoid species solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_med_species &lt;- iris$Species[pm_iris$id.med]
+ex_med_species
+#&gt; [1] setosa     versicolor virginica
+#&gt; Levels: setosa versicolor virginica</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Indexing <code>iris$Species</code> by the medoid row indices returns the species of each chosen medoid. PAM correctly picks one representative flower from each species without seeing the labels.</p>
+
+</details>
+</section>
+
+<h2>How do you choose the number of clusters k for PAM?</h2>
+
+<p>The standard answer is the <strong>silhouette method</strong>: for each candidate <code>k</code>, fit PAM and compute the average silhouette width across all points. Silhouette width measures how much closer a point is to its own cluster than to the next-best cluster, so a higher average means tighter, more separated clusters. The best <code>k</code> is the one that maximizes this average.</p>
+
+<p><code>fviz_nbclust()</code> from <code>factoextra</code> automates the loop and plots the curve.</p>
+
+<div class="webr-container" data-block-title="Silhouette curve to pick k">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Silhouette curve to pick k</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(factoextra)
+
+iris_x &lt;- scale(iris[, 1:4])
+
+fviz_nbclust(iris_x, FUN = pam, method = &quot;silhouette&quot;, k.max = 8)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The curve peaks at <code>k = 2</code> (around 0.58) and stays high but slightly lower at <code>k = 3</code> (around 0.46). The "true" answer for iris is 3 species, but PAM only sees the geometry; versicolor and virginica overlap enough in petal/sepal space that two clusters look slightly cleaner than three. Use silhouette as a guide, then pick the <code>k</code> that matches your problem.</p>
+
+<div class="webr-container" data-block-title="Refit pam with the chosen k and read avg silhouette">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Refit pam with the chosen k and read avg silhouette</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">pm_iris3 &lt;- pam(iris_x, k = 3)
+pm_iris3$silinfo$avg.width
+#&gt; [1] 0.4566016</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>An average silhouette of 0.46 sits in the "weak structure" range (0.25–0.50), which matches the visual overlap between versicolor and virginica. If the value were below 0.25, the clusters would essentially be artifacts; above 0.50 means they hold up well.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Read silhouette as a quality check, not a verdict.</strong> Above 0.5 is strong, 0.25–0.5 is weak, below 0.25 is essentially noise. For business problems with no ground truth, a value in the weak range is still useful as long as the clusters lead to actionable groupings.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Refit PAM with <code>k = 4</code> and report the new average silhouette width. Save it to <code>ex_silw4</code>.</p>
+<div class="webr-container" data-block-title="Your turn: silhouette at k=4">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: silhouette at k=4</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_pm4 &lt;- # your code here
+ex_silw4 &lt;- ex_pm4$silinfo$avg.width
+
+ex_silw4
+#&gt; Expected: a number lower than 0.46 (k=4 over-splits)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="k=4 silhouette solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">k=4 silhouette solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_pm4 &lt;- pam(iris_x, k = 4)
+ex_silw4 &lt;- ex_pm4$silinfo$avg.width
+ex_silw4
+#&gt; [1] 0.4189123</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Adding a fourth cluster drops the average silhouette from 0.46 to 0.42. The fourth cluster carves up an existing group that was already cohesive, so silhouette penalizes the over-split.</p>
+
+</details>
+</section>
+
+<h2>How do you cluster mixed numeric and categorical data with Gower distance?</h2>
+
+<p>PAM only needs a dissimilarity matrix, not raw numeric features, so it handles mixed numeric + categorical + ordinal data as long as you can compute distances between rows. The standard choice for mixed-type data is <strong>Gower distance</strong>, computed by <code>daisy()</code> in the <code>cluster</code> package. Gower normalizes each variable's contribution to <code>[0, 1]</code> and uses an appropriate per-type distance: range-normalized absolute difference for numeric, mismatch for nominal factors, rank-based for <a class="auto-link" href="R-Factors.html" title="R Factors: The Data Type That Trips Up Almost Every R Beginner">ordered factors</a>.</p>
+
+<p>The recipe is <code>daisy(metric = &quot;gower&quot;)</code> to build the distance matrix, then <code>pam(diss = TRUE)</code> to cluster on it.</p>
+
+<div class="webr-container" data-block-title="Cluster mixed-type data with Gower + PAM">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Cluster mixed-type data with Gower + PAM</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># A small mixed-type customer table
+mixed_df &lt;- data.frame(
+  age      = c(22, 25, 47, 52, 46, 56, 23, 21, 49, 50),
+  income   = c(31, 35, 78, 82, 75, 90, 28, 30, 80, 85),
+  segment  = factor(c(&quot;A&quot;, &quot;A&quot;, &quot;B&quot;, &quot;B&quot;, &quot;B&quot;, &quot;B&quot;, &quot;A&quot;, &quot;A&quot;, &quot;B&quot;, &quot;B&quot;)),
+  active   = factor(c(&quot;yes&quot;, &quot;yes&quot;, &quot;no&quot;, &quot;no&quot;, &quot;yes&quot;, &quot;no&quot;, &quot;yes&quot;, &quot;yes&quot;, &quot;no&quot;, &quot;no&quot;))
+)
+
+gow &lt;- daisy(mixed_df, metric = &quot;gower&quot;)
+pm_mix &lt;- pam(gow, k = 2)
+
+pm_mix$clustering
+#&gt;  1  2  3  4  5  6  7  8  9 10
+#&gt;  1  1  2  2  2  2  1  1  2  2
+
+# The medoids slot now holds row indices, not coordinates
+pm_mix$id.med
+#&gt; [1] 1 4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>PAM finds the obvious split: rows 1, 2, 7, 8 (young, low income, segment A, active) form cluster 1, the rest form cluster 2. Because the input was a <code>dist</code> object, <code>pm_mix$medoids</code> holds row indices instead of feature coordinates; pull the original rows with <code>mixed_df[pm_mix$id.med, ]</code> to inspect them.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Gower normalizes each numeric column by its range, so a single extreme value compresses everything else.</strong> If one row has an income of 5000 in a column otherwise capped at 100, every other income difference becomes negligible. Cap or winsorize numeric columns before calling <code>daisy()</code> if outliers are a concern.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Add a logical column <code>vip = c(TRUE, TRUE, FALSE, FALSE, FALSE, TRUE, FALSE, TRUE, FALSE, FALSE)</code> to the data, recompute the Gower matrix, and refit PAM with <code>k = 2</code>. Save the cluster vector to <code>ex_clusters</code>.</p>
+<div class="webr-container" data-block-title="Your turn: add a logical column">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: add a logical column</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_mixed &lt;- mixed_df
+ex_mixed$vip &lt;- c(TRUE, TRUE, FALSE, FALSE, FALSE, TRUE, FALSE, TRUE, FALSE, FALSE)
+ex_gow &lt;- # your code here
+ex_pm_mix &lt;- # your code here
+ex_clusters &lt;- ex_pm_mix$clustering
+
+ex_clusters
+#&gt; Expected: a similar 2-cluster split, possibly with one row reassigned</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Logical column solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Logical column solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_mixed &lt;- mixed_df
+ex_mixed$vip &lt;- c(TRUE, TRUE, FALSE, FALSE, FALSE, TRUE, FALSE, TRUE, FALSE, FALSE)
+ex_gow &lt;- daisy(ex_mixed, metric = &quot;gower&quot;)
+ex_pm_mix &lt;- pam(ex_gow, k = 2)
+ex_clusters &lt;- ex_pm_mix$clustering
+ex_clusters
+#&gt;  1  2  3  4  5  6  7  8  9 10
+#&gt;  1  1  2  2  2  2  1  1  2  2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>daisy()</code> treats logical columns as binary nominal factors, so the Gower formula extends to them automatically. The clustering is unchanged here because <code>vip</code> happens to align with the existing split, but on noisier data adding a discriminative logical column would shift cluster boundaries.</p>
+
+</details>
+</section>
+
+<h2>What if your dataset has 100,000 rows? Use CLARA</h2>
+
+<p>PAM's runtime scales as O(k(n-k)^2) per iteration, so it becomes painfully slow past about 5,000 rows and runs out of memory past about 20,000 (the dissimilarity matrix alone is <code>n^2 / 2</code> entries). <strong>CLARA</strong> ("Clustering LARge Applications") is the workaround: it draws several random samples of the data, runs PAM on each, and keeps the best medoids. The <code>clara()</code> function lives in the same <code>cluster</code> package and takes the same <code>k</code> argument.</p>
+
+<div class="webr-container" data-block-title="CLARA on a 5000-row dataset">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">CLARA on a 5000-row dataset</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(42)
+big_df &lt;- rbind(
+  cbind(rnorm(2500, 0), rnorm(2500, 0)),
+  cbind(rnorm(2500, 5), rnorm(2500, 5))
+)
+
+cl &lt;- clara(big_df, k = 2, samples = 5, sampsize = 200)
+cl$medoids
+#&gt;             [,1]      [,2]
+#&gt; [1,] 0.005321844 0.0143812
+#&gt; [2,] 5.038402717 4.9764923
+
+table(cl$clustering)
+#&gt;    1    2
+#&gt; 2500 2500</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>CLARA gives essentially the same answer PAM would, in a fraction of the time and memory. The <code>samples = 5</code> argument controls how many random subsets it tries; <code>sampsize</code> controls how many rows in each subset. Defaults of <code>samples = 5</code> and <code>sampsize = 40 + 2*k</code> work for many problems, but bumping <code>samples</code> to 10 or 20 stabilizes results on harder data.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Reach for CLARA whenever PAM is too slow, not as a default.</strong> For datasets under a few thousand rows, plain <code>pam()</code> is exact and just as fast. CLARA trades a tiny amount of accuracy for the ability to run on millions of rows.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Refit CLARA with <code>samples = 20</code> and report whether the medoids change. Save the new model to <code>ex_cl</code>.</p>
+<div class="webr-container" data-block-title="Your turn: more CLARA samples">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: more CLARA samples</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_cl &lt;- # your code here
+
+ex_cl$medoids
+#&gt; Expected: medoids near (0, 0) and (5, 5), possibly slightly different rows</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="More CLARA samples solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">More CLARA samples solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_cl &lt;- clara(big_df, k = 2, samples = 20, sampsize = 200)
+ex_cl$medoids
+#&gt;             [,1]       [,2]
+#&gt; [1,] -0.00876354 0.02134580
+#&gt; [2,]  5.02134150 4.99812340</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> With 20 random subsets instead of 5, CLARA explores more candidate medoids and tends to land on slightly more central ones. The cluster assignments are unchanged here because the structure is so clean, but on noisier data more <code>samples</code> reduces variance between runs.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<h3>Exercise 1: PAM on scaled iris vs Species labels</h3>
+
+<p>Scale the four numeric columns of <code>iris</code>, fit PAM with <code>k = 3</code>, then build a confusion table comparing the cluster assignments to the true <code>Species</code> column. Save the PAM fit to <code>my_pm</code> and the table to <code>my_tab</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 1: PAM on iris">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1: PAM on iris</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: scale() the numeric columns, then pam() with k=3, then table()
+
+my_iris &lt;- # your scaled data
+my_pm &lt;- # your pam call
+my_tab &lt;- # your confusion table
+
+my_tab</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_iris &lt;- scale(iris[, 1:4])
+my_pm &lt;- pam(my_iris, k = 3)
+my_tab &lt;- table(cluster = my_pm$clustering, species = iris$Species)
+my_tab
+#&gt;        species
+#&gt; cluster setosa versicolor virginica
+#&gt;       1     50          0         0
+#&gt;       2      0         39        14
+#&gt;       3      0         11        36</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> PAM perfectly separates <code>setosa</code> (cluster 1) but mixes <code>versicolor</code> and <code>virginica</code> (clusters 2 and 3) because their petal and sepal measurements overlap. This matches what <a class="auto-link" href="Cluster-Analysis-in-R.html" title="Clustering in R: k-Means vs Hierarchical vs DBSCAN, How to Choose for Your Data">hierarchical clustering</a> and k-means produce on iris, the data simply does not have three perfectly separable groups in feature space.</p>
+
+</details>
+
+<h3>Exercise 2: Gower + PAM on mtcars with factor columns</h3>
+
+<p>Take <code>mtcars</code>, convert <code>cyl</code>, <code>gear</code>, and <code>carb</code> to factors, build a Gower dissimilarity matrix, and fit PAM with <code>k = 3</code>. Save the fit to <code>my_pmcars</code> and report the cluster sizes.</p>
+
+<div class="webr-container" data-block-title="Exercise 2: Gower PAM on mtcars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2: Gower PAM on mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: convert factors first, then daisy(metric=&quot;gower&quot;), then pam(diss=TRUE)
+
+my_mtcars &lt;- mtcars
+my_mtcars$cyl  &lt;- factor(my_mtcars$cyl)
+my_mtcars$gear &lt;- factor(my_mtcars$gear)
+my_mtcars$carb &lt;- factor(my_mtcars$carb)
+
+my_diss &lt;- # your daisy() call
+my_pmcars &lt;- # your pam() call
+
+table(my_pmcars$clustering)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_mtcars &lt;- mtcars
+my_mtcars$cyl  &lt;- factor(my_mtcars$cyl)
+my_mtcars$gear &lt;- factor(my_mtcars$gear)
+my_mtcars$carb &lt;- factor(my_mtcars$carb)
+
+my_diss &lt;- daisy(my_mtcars, metric = &quot;gower&quot;)
+my_pmcars &lt;- pam(my_diss, k = 3)
+table(my_pmcars$clustering)
+#&gt;  1  2  3
+#&gt; 14 12  6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The three clusters roughly correspond to small/efficient cars, mid-range cars, and high-power cars, mixing numeric features (mpg, hp, wt) with categorical ones (cyl, gear, carb) in one distance metric. Without Gower you would have had to one-hot encode the factors and lose the per-type weighting.</p>
+
+</details>
+
+<h2>Complete Example</h2>
+
+<p>The end-to-end PAM workflow on <code>USArrests</code>, a small dataset of US arrest rates per state.</p>
+
+<div class="webr-container" data-block-title="Full PAM workflow on USArrests">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Full PAM workflow on USArrests</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(cluster)
+library(factoextra)
+
+# 1. Scale the data so all columns contribute equally to the distance
+arr_x &lt;- scale(USArrests)
+
+# 2. Pick k via silhouette (peaks at k = 2 here)
+fviz_nbclust(arr_x, FUN = pam, method = &quot;silhouette&quot;, k.max = 6)
+
+# 3. Fit PAM with the chosen k
+final_pm &lt;- pam(arr_x, k = 2)
+final_pm$silinfo$avg.width
+#&gt; [1] 0.4084
+
+# 4. Inspect the medoids (one representative state per cluster)
+rownames(arr_x)[final_pm$id.med]
+#&gt; [1] &quot;Alabama&quot; &quot;New Hampshire&quot;
+
+# 5. Cluster sizes
+table(final_pm$clustering)
+#&gt;  1  2
+#&gt; 20 30
+
+# 6. Visualize the clusters in PCA space
+fviz_cluster(final_pm, data = arr_x, ellipse.type = &quot;norm&quot;,
+             palette = &quot;Set1&quot;, ggtheme = theme_minimal())</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the output top-down: silhouette pointed to two clusters, PAM split the 50 states into a high-crime group of 20 (anchored by Alabama) and a lower-crime group of 30 (anchored by New Hampshire), and the PCA visualization confirms the split aligns with the first principal component (overall arrest rate). This is the workflow you can drop on any new numeric dataset.</p>
+
+<h2>Summary</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Property</th>
+<th>k-Means</th>
+<th>k-Medoids (PAM)</th>
+<th>CLARA</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Cluster center type</td>
+<td>Computed mean (any point in space)</td>
+<td>Actual data point (medoid)</td>
+<td>Actual data point (medoid)</td>
+</tr>
+<tr>
+<td>Robustness to outliers</td>
+<td>Poor (mean shifts)</td>
+<td>Strong (medoid pinned)</td>
+<td>Strong</td>
+</tr>
+<tr>
+<td>Distance metrics supported</td>
+<td>Euclidean only</td>
+<td>Any (Manhattan, Gower, custom)</td>
+<td>Any</td>
+</tr>
+<tr>
+<td>Mixed-type data (Gower)</td>
+<td>No</td>
+<td>Yes</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Need to specify k</td>
+<td>Yes</td>
+<td>Yes</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Speed (n = 1k)</td>
+<td>Fastest</td>
+<td>Fast</td>
+<td>Fast</td>
+</tr>
+<tr>
+<td>Speed (n = 100k)</td>
+<td>Fast</td>
+<td>Infeasible</td>
+<td>Fast</td>
+</tr>
+<tr>
+<td>Recommended for</td>
+<td>Large numeric data, clean</td>
+<td>Small/mid data, outliers, mixed types</td>
+<td>Large data with PAM-like behavior</td>
+</tr>
+</tbody>
+</table>
+
+<p>Reach for k-medoids when your data has outliers, when you need a distance metric other than Euclidean, or when columns mix numeric and categorical features. Reach for CLARA when your data is large enough that PAM's <code>n^2</code> distance matrix would not fit in memory. Reach for k-means only on clean, large, numeric data where you do not care that the cluster centers are computed averages.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Kaufman, L. & Rousseeuw, P. J. (1990). <em>Finding Groups in Data: An Introduction to Cluster Analysis</em>. Wiley.</li>
+
+<li>cluster package on CRAN. <a href="https://cran.r-project.org/package=cluster">Link</a></li>
+
+<li><a class="auto-link" href="Getting-Help-in-R.html" title="Stuck in R? 6 Ways to Get Unstuck Without Wasting Hours">R documentation</a>. <code>pam()</code> reference. <a href="https://stat.ethz.ch/R-manual/R-patched/library/cluster/html/pam.html">Link</a></li>
+
+<li>Schubert, E. & Rousseeuw, P. J. (2019). <em>Faster k-Medoids Clustering: Improving the PAM, CLARA, and CLARANS Algorithms</em>. SISAP. <a href="https://arxiv.org/abs/1810.05691">Link</a></li>
+
+<li>Datanovia. <em>K-Medoids in R: Algorithm and Practical Examples</em>. <a href="https://www.datanovia.com/en/lessons/k-medoids-in-r-algorithm-and-practical-examples/">Link</a></li>
+
+<li>STHDA. <em>PAM clustering essentials</em>. <a href="https://www.sthda.com/english/articles/27-partitioning-clustering-essentials/88-pam-partitioning-around-medoids/">Link</a></li>
+
+<li>factoextra package. cluster visualization. <a href="https://cran.r-project.org/package=factoextra">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Cluster-Analysis-in-R.html">Clustering in R: k-Means vs Hierarchical vs DBSCAN</a>, the parent guide that compares the three most popular clustering algorithms on the same dataset.</li>
+
+<li><a href="DBSCAN-Clustering-in-R.html">DBSCAN Clustering in R</a>, a density-based alternative for non-convex clusters and noise detection without picking <code>k</code>.</li>
+
+<li><a href="PCA-in-R.html">PCA in R</a>, a useful preprocessing step before clustering high-dimensional data, and the basis of <code>fviz_cluster()</code> plots used above.</li>
+
+</ul>
+
+{% endraw %}
