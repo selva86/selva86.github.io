@@ -1,0 +1,908 @@
+---
+title: "Logistic Regression in R: Complete Guide with Diagnostics & Interpretation"
+description: "Master logistic regression in R: fit glm() models, interpret odds ratios, run residual and VIF diagnostics, evaluate with ROC/AUC, and avoid common pitfalls."
+keywords: "logistic regression R, glm binomial R, odds ratio interpretation, logistic regression diagnostics, VIF logistic regression, ROC AUC R, Cook's distance glm, linearity in log-odds, binary classification R"
+mathjax: true
+webr: true
+curriculum_id: "2.7.6"
+post_type: "C"
+auto_link_terms: "logistic regression diagnostics|logistic regression interpretation|odds ratio interpretation|VIF in logistic regression|linearity in log-odds|Hosmer-Lemeshow test|glm binomial diagnostics|logistic regression pitfalls"
+auto_link_case_sensitive: false
+sidebar_section: "Statistics"
+sidebar_title: "Logistic Regression (Diagnostics)"
+sidebar_order: "86"
+---
+<!-- md2html:generated -->
+
+<h1>Logistic Regression in R: Complete Guide with Diagnostics & Interpretation</h1>
+
+<p class="lead">Logistic <a class="auto-link" href="adv-regression-models.html" title="Advanced Regression Models">regression models</a> the probability of a yes/no outcome by fitting an S-curve to your data. In R, a single <code>glm(y ~ x, family = binomial)</code> call gives you a fitted model, and this guide walks through the harder work that comes next: reading diagnostics, turning coefficients into odds ratios and probabilities, choosing a sensible threshold, and avoiding the mistakes that quietly wreck most analyses.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="35" data-exercises="8" data-xp="120"></div>
+
+<h2>How do you fit a logistic regression in R with glm()?</h2>
+
+<p>The workhorse for <a class="auto-link" href="Logistic-Regression-in-R.html" title="Logistic Regression in R: From glm() to Odds Ratios, ROC, and AUC">logistic regression in R</a> is <code>glm()</code> with <code>family = binomial</code>. We will use the built-in <code>mtcars</code> dataset and predict <code>am</code> (1 = manual transmission, 0 = automatic) from car weight and horsepower, since both are intuitive and well known. Fitting the model is one line. Reading what comes back is where the actual learning starts, so we do that next.</p>
+
+<div class="webr-container" data-block-title="Fit a binary logistic regression on mtcars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a binary logistic regression on mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+library(ggplot2)
+library(broom)
+
+cars &lt;- mtcars
+fit1 &lt;- glm(am ~ wt + hp, data = cars, family = binomial)
+summary(fit1)
+#&gt; 
+#&gt; Call:
+#&gt; glm(formula = am ~ wt + hp, family = binomial, data = cars)
+#&gt; 
+#&gt; Coefficients:
+#&gt;             Estimate Std. Error z value Pr(&gt;|z|)   
+#&gt; (Intercept) 18.86630    7.44356   2.535  0.01126 * 
+#&gt; wt          -8.08348    3.06868  -2.634  0.00843 **
+#&gt; hp           0.03626    0.01773   2.044  0.04091 * 
+#&gt; 
+#&gt; (Dispersion parameter for binomial family taken to be 1)
+#&gt; 
+#&gt;     Null deviance: 43.230  on 31  degrees of freedom
+#&gt; Residual deviance: 10.059  on 29  degrees of freedom
+#&gt; AIC: 16.059</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>summary()</code> output has three things you should always look at first. The <strong>Coefficients</strong> table shows each predictor on the <strong>log-odds</strong> scale (we will translate that to odds ratios in the next section). The <strong>z-values</strong> and <code>Pr(&gt;|z|)</code> columns tell you which predictors are statistically distinguishable from zero, and here both <code>wt</code> and <code>hp</code> matter. The <strong>null deviance</strong> (43.23) is how badly an intercept-only model fits, and the <strong>residual deviance</strong> (10.06) is how badly your fitted model fits. A big drop is a good sign, and the gap is what powers the likelihood-ratio test for overall model significance.</p>
+
+<p><img src="screenshots/Logistic-Regression-in-R-2-workflow-flow.webp" alt="End-to-end logistic regression workflow in R" class="img-responsive img-zoomable" loading="lazy" width="2248" height="300" /></p>
+
+<p><em>Figure 1: End-to-end logistic regression workflow in R.</em></p>
+
+<p>The workflow above is the path the rest of this article walks. Fit, interpret, diagnose, predict, threshold, evaluate. None of those steps is optional in serious work, even though most online tutorials stop at "fit".</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit a single-predictor logistic regression of <code>am</code> on <code>mpg</code> only and check the sign of the <code>mpg</code> coefficient. Does higher fuel economy push the prediction toward manual or automatic?</p>
+<div class="webr-container" data-block-title="Your turn: fit am on mpg only">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: fit am on mpg only</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit am ~ mpg using glm(family = binomial)
+ex_fit_mpg &lt;- ___
+
+# Show the coefficient table
+summary(ex_fit_mpg)$coefficients
+#&gt; Expected: a 2-row table with mpg's Estimate showing the effect direction</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="am on mpg solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">am on mpg solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_fit_mpg &lt;- glm(am ~ mpg, data = cars, family = binomial)
+summary(ex_fit_mpg)$coefficients
+#&gt;               Estimate Std. Error   z value    Pr(&gt;|z|)
+#&gt; (Intercept) -6.6035267  2.3506685 -2.809200 0.004966604
+#&gt; mpg          0.3070282  0.1148416  2.673582 0.007506816</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The <code>mpg</code> coefficient is positive (0.307), which means cars with higher fuel economy are more likely to be manual transmissions in this sample. That matches intuition for the era of <code>mtcars</code> (1973–74), where lighter, more fuel-efficient cars tended to come with manual gearboxes.</p>
+
+</details>
+</section>
+
+<h2>How do you interpret logistic regression coefficients?</h2>
+
+<p>A logistic regression coefficient is on the <strong>log-odds scale</strong>, which is unintuitive. The fix is to exponentiate it: <code>exp(coefficient)</code> gives the <strong>odds ratio</strong>, the multiplicative change in odds for a one-unit change in the predictor. From there you can translate any combination of predictor values into a predicted probability via the logistic (a.k.a. inverse-logit) function <code>plogis()</code>.</p>
+
+<p><img src="screenshots/Logistic-Regression-in-R-2-coef-pipeline.webp" alt="From log-odds to odds ratio to predicted probability" class="img-responsive img-zoomable" loading="lazy" width="1710" height="690" /></p>
+
+<p><em>Figure 2: From log-odds to odds ratio to predicted probability.</em></p>
+
+<p>The cleanest way to get odds ratios with <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">confidence intervals</a> is <code>broom::tidy()</code> with <code>exponentiate = TRUE</code>. It returns a <a class="auto-link" href="Tidy-Data-in-R.html" title="Tidy Data: The One Rule That Makes R Code Readable, Reusable, and Debuggable">tidy data</a> frame you can pipe straight into ggplot.</p>
+
+<div class="webr-container" data-block-title="Odds ratios with 95% confidence intervals">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Odds ratios with 95% confidence intervals</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">or_table &lt;- tidy(fit1, exponentiate = TRUE, conf.int = TRUE)
+or_table
+#&gt; # A tibble: 3 x 7
+#&gt;   term            estimate std.error statistic p.value    conf.low conf.high
+#&gt;   &lt;chr&gt;              &lt;dbl&gt;     &lt;dbl&gt;     &lt;dbl&gt;   &lt;dbl&gt;       &lt;dbl&gt;     &lt;dbl&gt;
+#&gt; 1 (Intercept) 156000000.       7.44       2.54 0.0113   78.4       4.85e+17
+#&gt; 2 wt                 0.000308 3.07       -2.63 0.00843   0.0000000 0.0289
+#&gt; 3 hp                 1.04     0.0177      2.04 0.0409    1.00      1.07</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The numeric scale changes everything. The intercept's huge number is the baseline odds when wt and hp are both zero, which is nonsense in this dataset, so ignore it. The interesting rows are <code>wt</code> and <code>hp</code>. The <code>wt</code> odds ratio of 0.0003 means that a one-unit (1000 lb) increase in weight multiplies the odds of being manual by about 0.0003, which is a brutal collapse. The <code>hp</code> odds ratio of 1.04 means each additional horsepower nudges the odds upward by 4 percent. Heavy cars favour automatic transmissions, more powerful cars favour manuals, holding the other variable fixed.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>An odds ratio is not a probability ratio.</strong> Doubling the odds is not doubling the probability when probabilities are already large. Odds = p / (1 − p), so an odds ratio of 2 takes a 33% probability to 50%, but only takes an 80% probability to 89%.</div></div>
+
+<p>Probabilities are what you actually report to decision-makers, and <code>predict(fit, type = &quot;response&quot;)</code> gives them directly. You can ask the model what the probability of manual is for cars with specific values.</p>
+
+<div class="webr-container" data-block-title="Predicted probabilities for new cars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Predicted probabilities for new cars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">new_cars &lt;- data.frame(
+  wt = c(2.0, 3.2, 4.5),
+  hp = c(110, 110, 110)
+)
+new_cars$prob_manual &lt;- predict(fit1, newdata = new_cars, type = &quot;response&quot;)
+new_cars
+#&gt;    wt  hp prob_manual
+#&gt; 1 2.0 110   0.9990480
+#&gt; 2 3.2 110   0.5648353
+#&gt; 3 4.5 110   0.0007017
+
+# Same numbers via the linear predictor + plogis()
+eta &lt;- predict(fit1, newdata = new_cars, type = &quot;link&quot;)
+plogis(eta)
+#&gt; [1] 0.9990480 0.5648353 0.0007017</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Holding hp fixed at 110, a 2,000-lb car has a 99.9% predicted probability of being manual, a 3,200-lb car sits near the 50/50 decision boundary, and a 4,500-lb car has essentially zero probability of being manual. Notice the second column shows the same numbers from the linear predictor passed through <code>plogis()</code>, which is just <code>1 / (1 + exp(-eta))</code>. That equivalence is the whole logistic-regression trick: a linear model in log-odds space, an S-curve in probability space.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use broom::tidy(exponentiate = TRUE, conf.int = TRUE) to get odds ratios with confidence intervals in one step.</strong> The base R alternative is <code>exp(cbind(OR = coef(fit), confint(fit)))</code>, but the tidy version returns a data frame, supports <code>ggplot2</code>, and adds p-values automatically.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The raw <code>hp</code> coefficient from <code>fit1</code> is roughly 0.0363 on the log-odds scale. Compute its odds ratio by hand using <code>exp()</code> and verify it matches the <code>or_table</code> value.</p>
+<div class="webr-container" data-block-title="Your turn: odds ratio for hp">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: odds ratio for hp</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: pull the coefficient out of fit1 and call exp()
+ex_or_hp &lt;- ___
+
+ex_or_hp
+#&gt; Expected: ~1.037 (matches the hp row in or_table)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="hp odds ratio solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">hp odds ratio solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_or_hp &lt;- exp(coef(fit1)[&quot;hp&quot;])
+ex_or_hp
+#&gt;       hp 
+#&gt; 1.036929</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>coef(fit1)[&quot;hp&quot;]</code> extracts the raw log-odds coefficient (0.0363), and <code>exp()</code> converts it to the odds ratio (1.037). Each extra horsepower multiplies the odds of manual by 1.037, or +3.7%.</p>
+
+</details>
+</section>
+
+<h2>What diagnostics check that the model is sound?</h2>
+
+<p>Even a model with significant p-values can be wrong. Logistic regression has four diagnostic checks that catch the failures most beginners ship to production: multicollinearity (correlated predictors that destabilise coefficients), influential points (single rows that move the fit), linearity in the log-odds (the only assumption logistic actually has on continuous predictors), and calibration (do predicted probabilities match observed frequencies).</p>
+
+<p><img src="screenshots/Logistic-Regression-in-R-2-diagnostics-checklist.webp" alt="Logistic regression diagnostics" class="img-responsive img-zoomable" loading="lazy" width="986" height="1282" /></p>
+
+<p><em>Figure 3: The four diagnostics every logistic regression should pass.</em></p>
+
+<p>Start with multicollinearity. If two predictors carry almost the same information, their coefficients become unstable and uninterpretable, even when overall model fit looks fine. The <a class="auto-link" href="Multicollinearity-in-R.html" title="Multicollinearity in R: Detect It With VIF Before It Corrupts Your Coefficients">variance inflation factor</a> (VIF) is the standard check, and <code>car::vif()</code> works on <code>glm</code> objects.</p>
+
+<div class="webr-container" data-block-title="Variance inflation factors with car::vif()">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Variance inflation factors with car::vif()</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(car)
+vif_vals &lt;- vif(fit1)
+vif_vals
+#&gt;       wt       hp 
+#&gt; 1.766268 1.766268</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both VIFs are 1.77, which is fine. The rule of thumb is VIF below 5 is healthy, between 5 and 10 is a yellow flag, and above 10 means a predictor is essentially redundant with another. The two values here are identical because there are only two predictors, so they share the same pairwise correlation; with three or more predictors each gets its own number.</p>
+
+<p>Next, check for influential points using <a class="auto-link" href="Regression-Diagnostics-in-R.html" title="Regression Diagnostics in R: 5 Plots That Reveal Model Violations Instantly">Cook's distance</a> and deviance residuals. A high Cook's distance flags rows whose removal would meaningfully change the fitted coefficients.</p>
+
+<div class="webr-container" data-block-title="Cook&#x27;s distance and deviance residuals">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Cook&#x27;s distance and deviance residuals</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Cook's distance: which cars move the fit the most?
+inf_d &lt;- cooks.distance(fit1)
+top5 &lt;- sort(inf_d, decreasing = TRUE)[1:5]
+round(top5, 3)
+#&gt;          Maserati Bora               Fiat 128         Toyota Corolla 
+#&gt;                  0.731                  0.450                  0.270 
+#&gt;             Merc 230 Lincoln Continental 
+#&gt;                  0.190                  0.105
+
+# Deviance residuals: which observations the model fits worst
+dev_res &lt;- residuals(fit1, type = &quot;deviance&quot;)
+sort(abs(dev_res), decreasing = TRUE)[1:3]
+#&gt; Maserati Bora   Toyota Corolla    Fiat 128 
+#&gt;      1.879         1.482            1.349</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The Maserati Bora is the standout influence point with a Cook's distance of 0.73, well above the soft cutoff of 1 but far above the rest of the sample. Its large deviance residual confirms the model fits it poorly. The right move is to investigate, not delete: the Bora is a heavy (3.57 t) but high-horsepower (335) manual, an unusual combination that contradicts the general pattern.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A high Cook's distance is an invitation to investigate, not a delete button.</strong> If a flagged row is a measurement error, fix it. If it represents a genuine subgroup of the population, your model may need an interaction term, a non-linear term, or a stratified analysis. Quietly deleting influential points to clean up the fit is data fabrication.</div></div>
+
+<p>The third check is linearity in the log-odds. Logistic regression assumes each continuous predictor relates <strong>linearly</strong> to the log-odds of the outcome. The friendliest visual test is to bin the predictor into deciles, compute the empirical log-odds inside each bin, and plot the result. If it bends, you need a transformation or a spline.</p>
+
+<div class="webr-container" data-block-title="Linearity-in-logit + calibration via decile bins">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Linearity-in-logit + calibration via decile bins</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Pair predicted probabilities with the actual outcome
+cal_df &lt;- cars |&gt;
+  mutate(prob = predict(fit1, type = &quot;response&quot;),
+         decile = ntile(prob, 4)) |&gt;
+  group_by(decile) |&gt;
+  summarise(
+    mean_pred = mean(prob),
+    mean_obs  = mean(am),
+    n         = n()
+  )
+cal_df
+#&gt; # A tibble: 4 x 4
+#&gt;   decile  mean_pred mean_obs     n
+#&gt;    &lt;int&gt;      &lt;dbl&gt;    &lt;dbl&gt; &lt;int&gt;
+#&gt; 1      1 0.00000578     0        8
+#&gt; 2      2 0.00415        0        8
+#&gt; 3      3 0.521          0.5      8
+#&gt; 4      4 0.998          1        8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The 4-bin calibration table reads like this: in the lowest probability quartile the model predicted essentially 0% manual and 0% were manual, in the next quartile it predicted 0.4% and again 0% were manual, in the third it predicted 52% and 50% were manual, in the highest it predicted 99.8% and 100% were manual. Predicted and observed frequencies line up almost perfectly across all four bins, which says the model is well calibrated. If you saw the model systematically over-predict in one bin and under-predict in another, that would be the calibration failure to worry about.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>For a formal linearity-in-logit test, use <code>car::boxTidwell()</code> on each continuous predictor.</strong> It augments the model with <code>x * log(x)</code> <a class="auto-link" href="Interaction-Effects-in-R.html" title="Interaction Effects in R: Add Them, Test Them, and Actually Understand the Output">interaction terms</a> and tests them. The decile-binning approach above is more intuitive and catches the same problems for most everyday work, so reach for the formal test when you need a publication-grade citation.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Re-fit the model with all four predictors <code>wt + hp + cyl + disp</code> and recompute VIF. Which two variables have the highest VIF, and what does that tell you?</p>
+<div class="webr-container" data-block-title="Your turn: VIF on a richer model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: VIF on a richer model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit a 4-predictor logistic regression of am on wt, hp, cyl, disp
+ex_fit2 &lt;- ___
+
+# Compute VIFs
+ex_vif2 &lt;- ___
+
+ex_vif2
+#&gt; Expected: numeric vector with one VIF per predictor; expect cyl &amp; disp very high</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Multicollinearity-rich model solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Multicollinearity-rich model solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_fit2 &lt;- glm(am ~ wt + hp + cyl + disp, data = cars, family = binomial)
+ex_vif2 &lt;- vif(ex_fit2)
+ex_vif2
+#&gt;       wt       hp      cyl     disp 
+#&gt; 5.169    4.532   12.871   11.643</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>cyl</code> and <code>disp</code> both blow past the VIF=10 ceiling, which is unsurprising: in <code>mtcars</code> they correlate at 0.90 because more cylinders implies more displacement. Drop one, combine them, or use a regularised model (<code>glmnet</code>) when this happens.</p>
+
+</details>
+</section>
+
+<h2>How do you evaluate predictive performance?</h2>
+
+<p>Once you trust the model, you measure how well it predicts. The pipeline is the same in any binary classifier: produce predicted probabilities, choose a classification threshold, build a confusion matrix, and read off accuracy, precision, recall, and ROC/AUC.</p>
+
+<div class="webr-container" data-block-title="Confusion matrix at threshold 0.5">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Confusion matrix at threshold 0.5</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">probs &lt;- predict(fit1, type = &quot;response&quot;)
+pred05 &lt;- ifelse(probs &gt; 0.5, 1, 0)
+cm05 &lt;- table(Predicted = pred05, Actual = cars$am)
+cm05
+#&gt;          Actual
+#&gt; Predicted  0  1
+#&gt;         0 18  1
+#&gt;         1  1 12
+
+# Accuracy
+acc05 &lt;- sum(diag(cm05)) / sum(cm05)
+round(acc05, 3)
+#&gt; [1] 0.938</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The confusion matrix shows 18 true negatives, 12 true positives, 1 <a class="auto-link" href="Type-I-and-Type-II-Errors-in-R.html" title="Type I and Type II Errors in R: Visualise the Trade-Off Between α and Power">false positive</a>, and 1 false negative for an accuracy of 93.8% on the training data. That is encouraging but also a warning sign: training-set accuracy always overstates real-world performance, especially in a 32-row dataset. We will see this lesson again in the common-mistakes section.</p>
+
+<p>A confusion matrix freezes one threshold. The receiver-operating-characteristic (ROC) curve sweeps every possible threshold and plots the true-positive rate against the false-positive rate. The area under the curve, the AUC, summarises the entire tradeoff in one number. AUC of 0.5 is random guessing, 1.0 is perfect separation, and 0.8 or higher is generally considered strong.</p>
+
+<div class="webr-container" data-block-title="ROC curve and AUC with pROC">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">ROC curve and AUC with pROC</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(pROC)
+roc_obj &lt;- roc(cars$am, probs, quiet = TRUE)
+auc_val &lt;- as.numeric(auc(roc_obj))
+round(auc_val, 3)
+#&gt; [1] 0.997
+
+plot(roc_obj, main = &quot;ROC: am ~ wt + hp&quot;,
+     col = &quot;#9370DB&quot;, lwd = 3, legacy.axes = TRUE)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>AUC of 0.997 means that for almost any random pair of (manual, automatic) cars, the model assigns higher predicted probability to the manual one. That is excellent in absolute terms, though again the small sample makes the number optimistic; on held-out data you should expect noticeably lower.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>AUC is the probability that a random positive case ranks higher than a random negative case.</strong> That makes it a measure of <em>ranking quality</em>, totally separate from where you choose to draw the threshold. A model can have AUC 0.95 and still be useless at threshold 0.5 if its probabilities are miscalibrated; a model can have AUC 0.65 and still be your best decision tool if no other predictor exists.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute precision (positive predictive value) and recall (sensitivity) from the <code>cm05</code> confusion matrix.</p>
+<div class="webr-container" data-block-title="Your turn: precision and recall">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: precision and recall</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Precision = TP / (TP + FP)
+ex_prec &lt;- ___
+
+# Recall = TP / (TP + FN)
+ex_rec &lt;- ___
+
+c(precision = round(ex_prec, 3), recall = round(ex_rec, 3))
+#&gt; Expected: precision around 0.92, recall around 0.92</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Precision and recall solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Precision and recall solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_prec &lt;- cm05[&quot;1&quot;, &quot;1&quot;] / sum(cm05[&quot;1&quot;, ])
+ex_rec  &lt;- cm05[&quot;1&quot;, &quot;1&quot;] / sum(cm05[, &quot;1&quot;])
+c(precision = round(ex_prec, 3), recall = round(ex_rec, 3))
+#&gt; precision    recall 
+#&gt;     0.923     0.923</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> With 12 true positives, 1 false positive, and 1 false negative, both precision and recall are 12/13 = 0.923. They will not always match like this; in imbalanced problems they typically diverge sharply, which is why both numbers are reported.</p>
+
+</details>
+</section>
+
+<h2>How do you choose the classification threshold?</h2>
+
+<p>Threshold 0.5 is a default, not a law. It maximises overall accuracy when classes are balanced and the costs of false positives and false negatives are equal, which is rarely true. Two principled strategies dominate practice. <strong>Youden's J</strong> maximises sensitivity + specificity − 1 and is the right choice when you want one symmetric, statistically defensible number. <strong>Cost-weighted thresholds</strong> are the right choice when miss-cost differs sharply, as in disease screening (a missed positive is worse than a false alarm) or fraud detection (a false alarm is cheap, a missed fraud is expensive).</p>
+
+<div class="webr-container" data-block-title="Youden&#x27;s J optimal threshold">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Youden&#x27;s J optimal threshold</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">best_thr &lt;- coords(roc_obj, &quot;best&quot;, best.method = &quot;youden&quot;, ret = &quot;threshold&quot;)$threshold
+round(best_thr, 3)
+#&gt; [1] 0.376
+
+pred_y &lt;- ifelse(probs &gt; best_thr, 1, 0)
+cm_y &lt;- table(Predicted = pred_y, Actual = cars$am)
+cm_y
+#&gt;          Actual
+#&gt; Predicted  0  1
+#&gt;         0 18  0
+#&gt;         1  1 13
+
+acc_y &lt;- sum(diag(cm_y)) / sum(cm_y)
+round(acc_y, 3)
+#&gt; [1] 0.969</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The Youden-optimal threshold is 0.376, lower than 0.5. Lowering the threshold catches the manual car that the 0.5 cutoff missed, taking accuracy from 93.8% to 96.9% and removing the false negative entirely. The Maserati Bora <a class="auto-link" href="Outlier-Treatment-With-R.html" title="Outlier Treatment with R">outlier</a> we flagged earlier is the one that was misclassified at 0.5; the optimal threshold finds it.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>When false negatives cost more than false positives, push the threshold lower.</strong> Disease screens, fraud filters, and safety alerts all want to catch positives even at the cost of extra false alarms. A simple rule: pick the threshold where you would still act on the prediction.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Apply a stricter threshold of 0.3 instead of 0.5 and rebuild the confusion matrix.</p>
+<div class="webr-container" data-block-title="Your turn: threshold = 0.3">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: threshold = 0.3</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Build a vector of 0/1 predictions using threshold 0.3
+ex_pred_low &lt;- ___
+
+# Confusion matrix
+ex_cm_low &lt;- ___
+
+ex_cm_low
+#&gt; Expected: an Actual-vs-Predicted 2x2 table</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Threshold 0.3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Threshold 0.3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_pred_low &lt;- ifelse(probs &gt; 0.3, 1, 0)
+ex_cm_low &lt;- table(Predicted = ex_pred_low, Actual = cars$am)
+ex_cm_low
+#&gt;          Actual
+#&gt; Predicted  0  1
+#&gt;         0 18  0
+#&gt;         1  1 13</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> At 0.3 the model picks up the same true positive that Youden's J found, with no extra false positives. In this small dataset thresholds between 0.2 and 0.4 give identical confusion matrices, which is a useful reminder that thresholds are coarse on small samples.</p>
+
+</details>
+</section>
+
+<h2>What are the most common logistic regression mistakes?</h2>
+
+<p>Five mistakes show up over and over in practice. Knowing them in advance saves a lot of debugging.</p>
+
+<p><strong>1. Perfect separation.</strong> When a predictor (or combination of predictors) splits the outcome cleanly, the maximum likelihood estimates blow up to infinity and R prints a <code>glm.fit</code> warning. The coefficients become meaningless even though the fit looks suspiciously good.</p>
+
+<div class="webr-container" data-block-title="Perfect separation produces a fit warning">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Perfect separation produces a fit warning</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sep_fit &lt;- glm(c(0, 0, 0, 1, 1, 1) ~ c(1, 2, 3, 4, 5, 6),
+               family = binomial)
+#&gt; Warning messages:
+#&gt; 1: glm.fit: algorithm did not converge
+#&gt; 2: glm.fit: fitted probabilities numerically 0 or 1 occurred
+coef(sep_fit)
+#&gt;     (Intercept) c(1, 2, 3, 4, 5, 6) 
+#&gt;         -149.27               42.65</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The fix is bias-reduced logistic regression (the <code>brglm2</code> package, <code>brglm()</code> function) or a Bayesian penalised approach. Either keeps the estimates finite and interpretable.</p>
+
+<p><strong>2. Class imbalance ignored.</strong> A 90/10 split in the outcome makes accuracy a useless metric: the trivial "always predict the majority" classifier scores 90%. Use AUC, balanced accuracy, or precision/recall depending on the use case.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A 90/10 class imbalance can make accuracy lie to you.</strong> The model that always predicts "no" scores 90% and learns nothing. Always check the class proportions before celebrating an accuracy number, and prefer AUC, balanced accuracy, or precision/recall on imbalanced data.</div></div>
+
+<p><strong>3. Treating coefficients as probability changes.</strong> The coefficient is a log-odds change, not a probability change. The relationship is non-linear, so the same coefficient produces a different probability change at different baseline probabilities. Always report odds ratios <em>and</em> a few example predicted probabilities when communicating results.</p>
+
+<p><strong>4. Evaluating on training data.</strong> The 96.9% accuracy we hit above is on the same 32 rows the model was fit on. Held-out test data, k-fold cross-validation, or a proper bootstrap is required for any honest performance number. Optimism on training data is silently catastrophic in production.</p>
+
+<p><strong>5. Rare-category dummies.</strong> A categorical predictor with 3 observations in one level produces a dummy variable that the model can fit perfectly to those 3 rows, inflating its coefficient and standard error. Either pool rare categories or drop them.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Check the class balance of <code>mtcars$am</code> and compute the accuracy of the trivial classifier that always predicts the majority class.</p>
+<div class="webr-container" data-block-title="Your turn: trivial-classifier accuracy">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: trivial-classifier accuracy</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Count of each class
+ex_balance &lt;- ___
+
+# Majority-class proportion
+ex_trivial_acc &lt;- ___
+
+list(balance = ex_balance, trivial = round(ex_trivial_acc, 3))
+#&gt; Expected: balance 19/13 (auto/manual), trivial accuracy ~0.594</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Class balance solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Class balance solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_balance &lt;- table(cars$am)
+ex_trivial_acc &lt;- max(ex_balance) / sum(ex_balance)
+list(balance = ex_balance, trivial = round(ex_trivial_acc, 3))
+#&gt; $balance
+#&gt; 
+#&gt;  0  1 
+#&gt; 19 13 
+#&gt; 
+#&gt; $trivial
+#&gt; [1] 0.594</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The classes split 19/13 (59% automatic, 41% manual), so a trivial "always automatic" classifier hits 59.4%. Our logistic model's 96.9% accuracy is a real improvement over that baseline. On a 90/10 dataset the same comparison would be far more telling.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<p>These capstone exercises combine multiple concepts from the tutorial. They use the built-in <code>infert</code> dataset (matched case-control study of secondary infertility) so they run in your browser without any extra packages.</p>
+
+<h3>Exercise 1: Fit + odds ratio + VIF on infert</h3>
+
+<p>Fit a logistic regression of <code>case</code> (1 = infertile, 0 = control) on <code>age</code>, <code>parity</code>, <code>induced</code>, and <code>spontaneous</code> from the <code>infert</code> dataset. Report the odds ratio with 95% CI for <code>spontaneous</code>, and compute VIF for all four predictors.</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter: infert model + OR + VIF">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter: infert model + OR + VIF</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit the model on the infert dataset
+my_fit &lt;- ___
+
+# Odds ratios with broom::tidy()
+my_or &lt;- ___
+
+# VIFs
+my_vif &lt;- ___
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_fit &lt;- glm(case ~ age + parity + induced + spontaneous,
+              data = infert, family = binomial)
+my_or &lt;- tidy(my_fit, exponentiate = TRUE, conf.int = TRUE)
+my_or
+#&gt; # A tibble: 5 x 7
+#&gt;   term         estimate std.error statistic  p.value conf.low conf.high
+#&gt;   &lt;chr&gt;           &lt;dbl&gt;     &lt;dbl&gt;     &lt;dbl&gt;    &lt;dbl&gt;    &lt;dbl&gt;     &lt;dbl&gt;
+#&gt; 1 (Intercept)    0.135    0.999     -1.99   4.62e-2   0.0181     0.927
+#&gt; 2 age            1.01     0.0294     0.487  6.27e-1   0.957      1.07
+#&gt; 3 parity         0.701    0.116     -3.07   2.13e-3   0.555      0.873
+#&gt; 4 induced        2.04     0.179      4.00   6.42e-5   1.43       2.89
+#&gt; 5 spontaneous    3.69     0.193      6.74   1.62e-11  2.52       5.39
+
+my_vif &lt;- vif(my_fit)
+my_vif
+#&gt;         age      parity     induced spontaneous 
+#&gt;     1.16        1.31        1.05        1.05</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The <code>spontaneous</code> odds ratio of 3.69 (CI 2.52–5.39) means each additional spontaneous abortion in the patient's history multiplies the odds of being a case by 3.7, controlling for age, parity, and induced abortions. All VIFs are below 1.4, so there is no multicollinearity concern.</p>
+
+</details>
+
+<h3>Exercise 2: ROC, Youden, balanced accuracy</h3>
+
+<p>Using the <code>my_fit</code> model from Exercise 1, compute predicted probabilities, find the Youden-optimal threshold, and compare balanced accuracy at that threshold versus the default 0.5.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter: threshold tuning">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter: threshold tuning</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Predicted probabilities
+my_probs &lt;- ___
+
+# ROC + Youden threshold
+my_roc &lt;- ___
+my_thr &lt;- ___
+
+# Balanced accuracy at 0.5 and at my_thr
+ba_05 &lt;- ___
+ba_yj &lt;- ___
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_probs &lt;- predict(my_fit, type = &quot;response&quot;)
+my_roc &lt;- roc(infert$case, my_probs, quiet = TRUE)
+my_thr &lt;- coords(my_roc, &quot;best&quot;, best.method = &quot;youden&quot;,
+                 ret = &quot;threshold&quot;)$threshold
+
+# Helper: balanced accuracy = (sensitivity + specificity) / 2
+bal_acc &lt;- function(probs, truth, t) {
+  pred &lt;- ifelse(probs &gt; t, 1, 0)
+  cm &lt;- table(factor(pred, levels = c(0, 1)), factor(truth, levels = c(0, 1)))
+  sens &lt;- cm[2, 2] / sum(cm[, 2])
+  spec &lt;- cm[1, 1] / sum(cm[, 1])
+  (sens + spec) / 2
+}
+
+ba_05 &lt;- bal_acc(my_probs, infert$case, 0.5)
+ba_yj &lt;- bal_acc(my_probs, infert$case, my_thr)
+data.frame(threshold = c(0.5, round(my_thr, 3)),
+           balanced_accuracy = round(c(ba_05, ba_yj), 3))
+#&gt;   threshold balanced_accuracy
+#&gt; 1     0.500            0.665
+#&gt; 2     0.336            0.737</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Lowering the threshold from 0.5 to 0.336 lifts balanced accuracy from 0.665 to 0.737, a meaningful jump. That is because the dataset is imbalanced (83 cases vs 165 controls, roughly 1:2), and 0.5 was leaving too many cases on the wrong side of the cutoff.</p>
+
+</details>
+
+<h2>Complete Example</h2>
+
+<p>A worked end-to-end pipeline on the <code>iris</code> dataset, restricted to two species so the outcome is binary. We classify <em>setosa</em> versus <em>versicolor</em> using <code>Sepal.Length</code> and <code>Petal.Width</code>.</p>
+
+<div class="webr-container" data-block-title="End-to-end logistic regression on iris setosa vs versicolor">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">End-to-end logistic regression on iris setosa vs versicolor</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># 1. Build the binary subset
+iris2 &lt;- iris |&gt;
+  filter(Species %in% c(&quot;setosa&quot;, &quot;versicolor&quot;)) |&gt;
+  mutate(species_bin = ifelse(Species == &quot;versicolor&quot;, 1, 0))
+
+# 2. Fit
+iris_fit &lt;- glm(species_bin ~ Sepal.Length + Petal.Width,
+                data = iris2, family = binomial)
+
+# 3. Coefficients (note: perfect separation may push these to extremes)
+tidy(iris_fit, exponentiate = TRUE, conf.int = TRUE)
+#&gt; # A tibble: 3 x 7
+#&gt;   term          estimate  std.error statistic p.value conf.low conf.high
+#&gt;   &lt;chr&gt;            &lt;dbl&gt;      &lt;dbl&gt;     &lt;dbl&gt;   &lt;dbl&gt;    &lt;dbl&gt;     &lt;dbl&gt;
+#&gt; 1 (Intercept)  3.66e-19   1083.       -0.0399   0.968   0          Inf
+#&gt; 2 Sepal.Length 4.39e+ 1   1083.        0.00350  0.997   0          Inf
+#&gt; 3 Petal.Width  3.91e+38   90085.       0.000990 0.999   0          Inf
+
+# 4. Predict + ROC
+iris_probs &lt;- predict(iris_fit, type = &quot;response&quot;)
+iris_roc &lt;- roc(iris2$species_bin, iris_probs, quiet = TRUE)
+auc(iris_roc)
+#&gt; Area under the curve: 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The fit warning fires here because <em>setosa</em> and <em>versicolor</em> are perfectly separable on <code>Petal.Width</code> alone, the textbook example of perfect separation that we covered in the mistakes section. AUC of 1.0 confirms the perfect separation. In practice you would either drop <code>Petal.Width</code> (the offending splitter), use bias-reduced regression via <code>brglm2</code>, or simply recognise that this is the wrong tool for a problem where the classes do not overlap. That is the value of a diagnostics-first workflow: it tells you when to stop, not just how to keep going.</p>
+
+<h2>Summary</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Workflow stage</th>
+<th>R function</th>
+<th>Output</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Fit</td>
+<td><code>glm(y ~ x, family = binomial)</code></td>
+<td>Fitted glm object</td>
+</tr>
+<tr>
+<td>Coefficient summary</td>
+<td><code>summary()</code> / <code>broom::tidy()</code></td>
+<td>Log-odds estimates, p-values</td>
+</tr>
+<tr>
+<td>Odds ratios</td>
+<td><code>tidy(exponentiate = TRUE, conf.int = TRUE)</code></td>
+<td>OR + 95% CI</td>
+</tr>
+<tr>
+<td>Predict</td>
+<td><code>predict(fit, type = &quot;response&quot;)</code></td>
+<td>Probabilities</td>
+</tr>
+<tr>
+<td>Multicollinearity</td>
+<td><code>car::vif()</code></td>
+<td>VIF per predictor</td>
+</tr>
+<tr>
+<td>Influence</td>
+<td><code>cooks.distance()</code>, <code>residuals(type=&quot;deviance&quot;)</code></td>
+<td>Per-observation diagnostics</td>
+</tr>
+<tr>
+<td>Classify</td>
+<td><code>ifelse(probs &gt; threshold, 1, 0)</code> + <code>table()</code></td>
+<td>Confusion matrix</td>
+</tr>
+<tr>
+<td>Rank-evaluate</td>
+<td><code>pROC::roc()</code> + <code>auc()</code></td>
+<td>ROC curve, AUC</td>
+</tr>
+<tr>
+<td>Pick threshold</td>
+<td><code>pROC::coords(roc, &quot;best&quot;)</code></td>
+<td>Youden-optimal cutoff</td>
+</tr>
+</tbody>
+</table>
+
+<p>The pattern holds for every <a class="auto-link" href="Logistic-Regression-With-R.html" title="Logistic Regression with R">binary classification</a> problem you will meet in R. Fit, interpret coefficients on the odds-ratio scale, run all four diagnostics, evaluate with ROC/AUC, choose a threshold for your costs, and stop before the five common mistakes catch you.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>R Core Team. <em>Generalised Linear Models</em>, <code>?glm</code> documentation, stats package. <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/glm.html">Link</a></li>
+
+<li>Hosmer, D. W., Lemeshow, S., Sturdivant, R. X. <em>Applied Logistic Regression</em>, 3rd Edition. Wiley (2013). <a href="https://onlinelibrary.wiley.com/doi/book/10.1002/9781118548387">Link</a></li>
+
+<li>Robin, X. et al. <em>pROC: an open-source package for R and S+ to analyze and compare ROC curves.</em> BMC Bioinformatics (2011). <a href="https://cran.r-project.org/package=pROC">Link</a></li>
+
+<li>Fox, J., Weisberg, S. <em>An R Companion to Applied Regression</em> (<code>car</code> package), 3rd Edition. Sage (2019). <a href="https://socialsciences.mcmaster.ca/jfox/Books/Companion/">Link</a></li>
+
+<li>James, G., Witten, D., Hastie, T., Tibshirani, R. <em>An Introduction to Statistical Learning</em>, 2nd Edition, Chapter 4: Classification. <a href="https://www.statlearning.com/">Link</a></li>
+
+<li>Robinson, D., Hayes, A., Couch, S. <code>broom::tidy.glm</code> reference. <a href="https://broom.tidymodels.org/reference/tidy.glm.html">Link</a></li>
+
+<li>Albert, A., Anderson, J. A. <em>On the existence of maximum likelihood estimates in logistic regression models.</em> Biometrika 71(1), 1984.</li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Odds-Ratios-and-Relative-Risk-in-R.html">Odds Ratios & Relative Risk in R</a>, the sister post on the broader 2x2-table family of metrics, using <code>epitools</code> and <code>epiR</code>.</li>
+
+<li><a href="Linear-Regression-Assumptions-in-R.html">Linear Regression Assumptions in R</a>, diagnostics for the linear cousin so the contrast with logistic's log-odds linearity is sharp.</li>
+
+<li><a href="Multicollinearity-in-R.html">Multicollinearity in R</a>, deeper coverage of VIF, condition numbers, and remedies for collinear predictors.</li>
+
+</ul>
