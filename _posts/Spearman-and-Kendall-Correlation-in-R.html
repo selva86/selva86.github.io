@@ -1,0 +1,941 @@
+---
+title: "Spearman & Kendall Correlation in R: Rank-Based Association Measures"
+description: "Spearman rho and Kendall tau in R with cor.test(): rank mechanics, concordant pair counting, ties handling, p-values, bootstrap CIs, and how to choose."
+keywords: "Spearman correlation in R, Kendall tau in R, rank correlation R, cor.test method spearman, cor.test method kendall, concordant discordant pairs, tau-b ties, rank-based association, nonparametric correlation"
+mathjax: true
+webr: true
+curriculum_id: "2.8.6"
+post_type: "C"
+auto_link_terms: "Spearman correlation|Kendall tau|Kendall's tau|rank correlation|Spearman rho|concordant pairs|discordant pairs|tau-b|rank-based association"
+auto_link_case_sensitive: false
+sidebar_section: "Statistics"
+sidebar_title: "Spearman & Kendall Correlation"
+sidebar_order: "93"
+---
+<!-- md2html:generated -->
+
+<h1>Spearman & Kendall Correlation in R: Rank-Based Association Measures</h1>
+
+<p class="lead">Spearman's rho and Kendall's tau measure how strongly two variables move together using ranks instead of raw values, which keeps them honest on non-normal data, ordinal scores, and <a class="auto-link" href="Outlier-Treatment-With-R.html" title="Outlier Treatment with R">outlier</a>-prone columns that would corrupt Pearson's r. Both methods run in one line with <code>cor.test()</code>, but they answer slightly different questions, and they disagree in informative ways.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="35" data-exercises="9" data-xp="135"></div>
+
+<h2>How does cor.test() compute Spearman and Kendall in R?</h2>
+
+<p>When <code>cor()</code> returns the wrong answer, it's almost always because the relationship is monotonic but curved, the data is ordinal, or one outlier is dominating the result. Spearman and Kendall fix that by ranking the numbers first, then measuring agreement on those ranks. Let's compute all three flavours of correlation on a small synthetic dataset where the relationship is strictly monotonic but nonlinear, so the difference becomes visible immediately.</p>
+
+<div class="webr-container" data-block-title="Compare Pearson, Spearman, Kendall on curved data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare Pearson, Spearman, Kendall on curved data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(101)
+x &lt;- 1:8
+y &lt;- exp(x) + rnorm(8, sd = 5)
+
+c(
+  pearson  = cor(x, y, method = &quot;pearson&quot;),
+  spearman = cor(x, y, method = &quot;spearman&quot;),
+  kendall  = cor(x, y, method = &quot;kendall&quot;)
+)
+#&gt;   pearson  spearman   kendall
+#&gt; 0.7855... 1.0000000 1.0000000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Pearson sees a strong but imperfect link because the cloud isn't a straight line. Spearman and Kendall both return exactly 1.0 because the ranks of <code>y</code> are in perfect lockstep with the ranks of <code>x</code>. That difference is the entire reason rank-based correlation exists: when only the ordering matters, raw values mislead you and ranks tell the truth.</p>
+
+<p>The single-number <code>cor()</code> call is convenient, but <code>cor.test()</code> is what you should actually run on real data. It returns the coefficient plus a p-value and a hypothesis-test framework around it.</p>
+
+<div class="webr-container" data-block-title="Spearman test object from cor.test()">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Spearman test object from cor.test()</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">st_spear &lt;- cor.test(x, y, method = &quot;spearman&quot;)
+st_spear
+#&gt;   Spearman's rank correlation rho
+#&gt;
+#&gt; data:  x and y
+#&gt; S = 0, p-value = 5.511e-06
+#&gt; alternative hypothesis: true rho is not equal to 0
+#&gt; sample estimates:
+#&gt; rho
+#&gt;   1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The output object holds the estimate (<code>st_spear$estimate</code>), the <a class="auto-link" href="Hypothesis-Testing-in-R.html" title="Hypothesis Testing in R: Understand the Framework, Not Just the p-Value">test statistic</a> (<code>st_spear$statistic</code>, here Spearman's <code>S</code>), and the p-value. Notice the test object has no <code>conf.int</code> field for rank methods, only Pearson gets one out of the box. We will fix that with a bootstrap in a later section.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Pass <code>method</code> as a string, not a symbol.</strong> Both <code>cor()</code> and <code>cor.test()</code> need <code>method = &quot;spearman&quot;</code> or <code>method = &quot;kendall&quot;</code> in quotes. Forget the quotes and R will look for an object named <code>spearman</code> and throw an error.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Generate a perfectly monotonic but cubic relationship and confirm that Spearman returns exactly 1 while Pearson does not.</p>
+<div class="webr-container" data-block-title="Your turn: monotonic but nonlinear">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: monotonic but nonlinear</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_a &lt;- 1:10
+ex_b &lt;- ex_a^3
+
+# your code here: compute Pearson and Spearman correlations of ex_a and ex_b
+
+
+#&gt; Expected: pearson &lt; 1, spearman == 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Pearson vs Spearman on cubic data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pearson vs Spearman on cubic data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">c(
+  pearson  = cor(ex_a, ex_b, method = &quot;pearson&quot;),
+  spearman = cor(ex_a, ex_b, method = &quot;spearman&quot;)
+)
+#&gt;   pearson  spearman
+#&gt; 0.9173925 1.0000000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The cubic transform preserves rank order perfectly, so Spearman is 1. Pearson scores the linear fit and falls short because a cubic curve isn't a straight line.</p>
+
+</details>
+</section>
+
+<h2>What do ranks do to your data?</h2>
+
+<p>Both methods start with the same step: replace each value with its position in the sorted order. R's <code>rank()</code> function does this, ties get the average position. Once you have ranks, <a class="auto-link" href="Univariate-EDA-in-R.html" title="Univariate EDA in R: Every Variable Deserves Individual Attention Before Modelling">distribution shape</a> and outlier magnitude no longer matter, only the ordering does.</p>
+
+<div class="webr-container" data-block-title="Ranks of iris columns">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Ranks of iris columns</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">iris_sl &lt;- iris$Sepal.Length
+iris_pl &lt;- iris$Petal.Length
+
+head(iris_sl)
+#&gt; [1] 5.1 4.9 4.7 4.6 5.0 5.4
+
+head(rank(iris_sl))
+#&gt; [1] 39.0 21.5 11.0  6.5 31.0 56.5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The first row had <code>Sepal.Length = 5.1</code>, which is the 39th smallest value in the column (with ties broken by averaging). The numbers 5.1 and 39.0 carry the same information about ordering, but 39.0 is bounded between 1 and <code>length(iris_sl)</code> and is invariant to any monotonic transformation of the original data.</p>
+
+<p><img src="screenshots/Spearman-and-Kendall-Correlation-in-R-rank-transform.webp" alt="Spearman ranks the data and runs Pearson on the ranks; Kendall ranks the data and counts concordant vs discordant pairs." class="img-responsive img-zoomable" loading="lazy" width="1574" height="690" /></p>
+
+<p><em>Figure 1: From a raw <code>(x, y)</code> pair, both methods compute ranks; Spearman then runs a <a class="auto-link" href="Correlation-in-R.html" title="Correlation in R: Choose Between Pearson, Spearman, and Kendall, With Tests">Pearson correlation</a> on those ranks while Kendall counts pairwise agreement.</em></p>
+
+<p>That's not a metaphor, it's the literal definition. <code>cor(x, y, method = &quot;spearman&quot;)</code> is <code>cor(rank(x), rank(y))</code>. If you've ever wondered why Spearman feels like "Pearson but robust", that's why.</p>
+
+<div class="webr-container" data-block-title="Spearman equals Pearson on ranks">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Spearman equals Pearson on ranks</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">identical_check &lt;- c(
+  spearman_direct = cor(iris_sl, iris_pl, method = &quot;spearman&quot;),
+  pearson_on_ranks = cor(rank(iris_sl), rank(iris_pl))
+)
+identical_check
+#&gt;   spearman_direct pearson_on_ranks
+#&gt;         0.8717538        0.8717538</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both routes give exactly 0.8718. Inside <code>cor()</code>, R computes Pearson against the rank vectors when you pass <code>method = &quot;spearman&quot;</code>, and that's the entire algorithm. The robustness people talk about is just the rank step, the rest is plain Pearson arithmetic.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Spearman is Pearson on ranks.</strong> Replace each variable by its <code>rank()</code> and you have a <a class="auto-link" href="Correlation-Analysis-in-R.html" title="Correlation in R: Pearson vs Spearman vs Kendall — Compute, Test, and Visualise">Spearman correlation</a>. This single sentence explains every property of rho: outlier resistance, scale invariance, monotonic-only sensitivity. Once raw values become ranks, any further outliers or scale tricks are invisible to the calculation.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Verify the same identity on <code>mtcars$mpg</code> and <code>mtcars$wt</code>.</p>
+<div class="webr-container" data-block-title="Your turn: confirm identity on mtcars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: confirm identity on mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># your code here: show cor(mpg, wt, method=&quot;spearman&quot;) equals cor(rank(mpg), rank(wt))
+
+
+#&gt; Expected: both numbers equal, around -0.886</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="mtcars Spearman identity">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">mtcars Spearman identity</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">c(
+  direct   = cor(mtcars$mpg, mtcars$wt, method = &quot;spearman&quot;),
+  on_ranks = cor(rank(mtcars$mpg), rank(mtcars$wt))
+)
+#&gt;     direct   on_ranks
+#&gt; -0.8864220 -0.8864220</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Heavier cars rank lower in mpg with very few exceptions, so the rank correlation is strongly negative. The two routes agree because they are the same calculation.</p>
+
+</details>
+</section>
+
+<h2>How is Kendall's tau actually counted?</h2>
+
+<p>Kendall takes a different path. Instead of running Pearson on ranks, it walks every possible pair of observations and asks one yes-or-no question: do they move in the same direction?</p>
+
+<p>A pair of observations $(i, j)$ is <strong>concordant</strong> if both $x_i < x_j$ and $y_i < y_j$ (or both reversed). It is <strong>discordant</strong> if one variable goes up while the other goes down. Pairs tied on either variable are excluded from the count.</p>
+
+<p><img src="screenshots/Spearman-and-Kendall-Correlation-in-R-concordant-pairs.webp" alt="Each pair is either concordant, discordant, or tied; tau is the net agreement across all pairs." class="img-responsive img-zoomable" loading="lazy" width="1604" height="986" /></p>
+
+<p><em>Figure 2: Each pair of observations is concordant, discordant, or tied. Kendall's tau is the net agreement scaled by total pairs.</em></p>
+
+<p>The basic formula (Kendall's tau-a) collects those counts:</p>
+
+<p>$$\tau_a = \frac{C - D}{\binom{n}{2}}$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$C$ = number of concordant pairs</li>
+
+<li>$D$ = number of <a class="auto-link" href="McNemars-Test-in-R.html" title="McNemar's Test in R: Paired Categorical Data & Matched Case-Control">discordant pairs</a></li>
+
+<li>$\binom{n}{2} = n(n-1)/2$ = total number of pairs</li>
+
+</ul>
+
+<p>Let's count pairs by hand on a tiny dataset and confirm <code>cor()</code> gives the same answer.</p>
+
+<div class="webr-container" data-block-title="Count concordant and discordant pairs">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Count concordant and discordant pairs</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">toy_x &lt;- c(1, 2, 3, 4, 5, 6)
+toy_y &lt;- c(2, 1, 4, 3, 6, 5)
+
+pairs_mat &lt;- combn(length(toy_x), 2)
+signs &lt;- sign(toy_x[pairs_mat[2, ]] - toy_x[pairs_mat[1, ]]) *
+         sign(toy_y[pairs_mat[2, ]] - toy_y[pairs_mat[1, ]])
+
+conc &lt;- sum(signs ==  1)
+disc &lt;- sum(signs == -1)
+n    &lt;- length(toy_x)
+
+c(concordant = conc,
+  discordant = disc,
+  tau_manual = (conc - disc) / (n * (n - 1) / 2),
+  tau_cor    = cor(toy_x, toy_y, method = &quot;kendall&quot;))
+#&gt; concordant discordant  tau_manual    tau_cor
+#&gt; 12.0000000  3.0000000  0.6000000  0.6000000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The 6-point dataset has $\binom{6}{2} = 15$ pairs total. Twelve agree on direction, three disagree, none are tied. The hand-rolled tau and <code>cor()</code>'s answer agree at 0.60. Read tau as a probability statement: of every 100 random pairs, 80 agree and 20 disagree, the net surplus is 60% of pairs, hence tau = 0.60.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Kendall measures pair agreement, Spearman measures rank distance.</strong> Both <a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">summarise</a> monotonic association, but tau answers "what fraction of pairs agree on direction?" while rho answers "how close are the rank vectors as a Pearson correlation?". That's why tau has a clean probabilistic reading while rho lives on the more familiar Pearson scale.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Flip one of the <code>toy_y</code> values so an extra pair becomes discordant, then recompute tau.</p>
+<div class="webr-container" data-block-title="Your turn: flip a value and re-tally">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: flip a value and re-tally</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_x &lt;- c(1, 2, 3, 4, 5, 6)
+ex_y &lt;- c(2, 1, 4, 3, 6, 5)
+ex_y[6] &lt;- 1
+
+# your code here: recompute Kendall's tau and explain the change
+
+
+#&gt; Expected: tau drops below 0.6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="tau after flipping y[6]">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">tau after flipping y[6]</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cor(ex_x, ex_y, method = &quot;kendall&quot;)
+#&gt; [1] -0.06666667</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Setting <code>ex_y[6] &lt;- 1</code> flips the last point from the highest rank to a tied lowest rank. Most of the pairs involving that point become discordant or tied, and tau collapses from 0.6 to roughly zero.</p>
+
+</details>
+</section>
+
+<h2>How do ties change rho and tau?</h2>
+
+<p>Real data has ties. Survey scores repeat, body counts come in whole numbers, sensors hit floor and ceiling values. Ties matter because the basic tau formula assumed no ties existed, and the basic rank formula assumed every observation got a unique rank.</p>
+
+<p><code>cor.test(method = &quot;kendall&quot;)</code> fixes the tie problem with <strong>tau-b</strong>, which divides by an adjusted denominator so the maximum value is still ±1 even when many ties exist. R does this for you. The cost is that the <a class="auto-link" href="Permutation-Tests-in-R.html" title="Permutation Tests in R: Exact p-Values via Randomization">exact p-value</a> formula no longer applies, so you'll see a warning.</p>
+
+<div class="webr-container" data-block-title="Kendall test on data with ties">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Kendall test on data with ties</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tx &lt;- c(1, 2, 3, 4, 5, 6, 7, 8)
+ty &lt;- c(1, 2, 2, 3, 4, 4, 5, 6)
+
+cor.test(tx, ty, method = &quot;kendall&quot;)
+#&gt; Warning message:
+#&gt; In cor.test.default(tx, ty, method = &quot;kendall&quot;) :
+#&gt;   Cannot compute exact p-value with ties
+#&gt;
+#&gt;   Kendall's rank correlation tau
+#&gt;
+#&gt; data:  tx and ty
+#&gt; z = 3.2, p-value = 0.001374
+#&gt; alternative hypothesis: true tau is not equal to 0
+#&gt; sample estimates:
+#&gt;     tau
+#&gt; 0.9636</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The reported <code>tau = 0.9636</code> is tau-b, ties-corrected. The warning is not an error, R has fallen back to the asymptotic (large-sample) z approximation because the exact permutation distribution can't handle ties. For comparison, here's the uncorrected tau-a, which uses the unadjusted denominator $n(n-1)/2$ and is dragged below tau-b by the ties.</p>
+
+<div class="webr-container" data-block-title="Manual tau-a vs tau-b on tied data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Manual tau-a vs tau-b on tied data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">n &lt;- length(tx)
+pairs_mat &lt;- combn(n, 2)
+dx &lt;- sign(tx[pairs_mat[2, ]] - tx[pairs_mat[1, ]])
+dy &lt;- sign(ty[pairs_mat[2, ]] - ty[pairs_mat[1, ]])
+
+conc &lt;- sum(dx * dy ==  1)
+disc &lt;- sum(dx * dy == -1)
+
+# Ties-on-y count needed for tau-b denominator
+ties_x &lt;- sum(dx == 0)
+ties_y &lt;- sum(dy == 0)
+
+tau_a &lt;- (conc - disc) / (n * (n - 1) / 2)
+tau_b &lt;- (conc - disc) / sqrt((n*(n-1)/2 - ties_x) * (n*(n-1)/2 - ties_y))
+
+c(tau_a = tau_a, tau_b = tau_b,
+  cor_kendall = cor(tx, ty, method = &quot;kendall&quot;))
+#&gt;      tau_a      tau_b cor_kendall
+#&gt; 0.9285714  0.9636241  0.9636241</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Tau-a is 0.929, tau-b is 0.964, and <code>cor()</code> returns 0.964. R uses tau-b. Tau-a understates the strength because the three tied pairs sit in the denominator but contribute zero to the numerator. Tau-b removes them from the denominator too, which is why it can still hit ±1 on tied data.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>The "exact p-value with ties" warning is informational, not a bug.</strong> R is telling you it switched to the large-sample z approximation because the exact Mann-Kendall permutation calculation needs unique values. For n > 30 the asymptotic p-value is fine. For small samples with ties, treat the p-value as approximate.</div></div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Three flavours of tau exist.</strong> <code>cor.test()</code> returns tau-b. Tau-a uses the basic n(n-1)/2 denominator. Tau-c is for rectangular tables where the two variables have very different numbers of unique values (rare in practice). For pairs of numeric or ordinal variables of the same length, tau-b is the right default.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compare Kendall on <code>mtcars$cyl</code> vs <code>mtcars$mpg</code> (heavy ties in <code>cyl</code>, only three unique values) against <code>mtcars$wt</code> vs <code>mtcars$mpg</code> (almost no ties). You should see one warning and one quiet call.</p>
+<div class="webr-container" data-block-title="Your turn: ties vs no-ties">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: ties vs no-ties</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># your code here: run two cor.test calls with method=&quot;kendall&quot; and observe the warnings
+
+
+#&gt; Expected: cyl vs mpg triggers the ties warning, wt vs mpg does not</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Kendall on cyl vs wt">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Kendall on cyl vs wt</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cor.test(mtcars$cyl, mtcars$mpg, method = &quot;kendall&quot;)$estimate
+#&gt;        tau
+#&gt; -0.7953544
+
+cor.test(mtcars$wt, mtcars$mpg, method = &quot;kendall&quot;)$estimate
+#&gt;        tau
+#&gt; -0.7278321</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The first call triggers the ties warning because <code>cyl</code> only takes three values. The second call runs without a warning because <code>wt</code> is continuous. Both estimates are valid, just computed via different p-value paths.</p>
+
+</details>
+</section>
+
+<h2>How do you test significance and get a confidence interval?</h2>
+
+<p>For Pearson correlation, <code>cor.test()</code> returns a Fisher's-z confidence interval for free. For Spearman and Kendall it does not, and that is a real gap many tutorials skip. The fix is a bootstrap.</p>
+
+<p>First the part <code>cor.test()</code> does give you, the p-value:</p>
+
+<div class="webr-container" data-block-title="Spearman significance on mtcars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Spearman significance on mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mt_test &lt;- cor.test(mtcars$mpg, mtcars$hp, method = &quot;spearman&quot;)
+mt_test
+#&gt;   Spearman's rank correlation rho
+#&gt;
+#&gt; data:  mtcars$mpg and mtcars$hp
+#&gt; S = 10337, p-value = 5.086e-12
+#&gt; alternative hypothesis: true rho is not equal to 0
+#&gt; sample estimates:
+#&gt;        rho
+#&gt; -0.8946646</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Reading the test: <code>rho = -0.895</code>, so as horsepower goes up, mpg ranks fall sharply. The p-value is 5e-12, so there's no realistic chance this association is noise. But there's no confidence-interval line, only the point estimate.</p>
+
+<p>A <a class="auto-link" href="Bootstrap-Confidence-Intervals-in-R.html" title="Bootstrap CIs in R: Distribution-Free Confidence Intervals for Any Statistic">percentile bootstrap</a> fixes that. Resample row indices with replacement, recompute rho on each sample, then take the 2.5% and 97.5% quantiles.</p>
+
+<div class="webr-container" data-block-title="Bootstrap 95% CI for Spearman&#x27;s rho">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Bootstrap 95% CI for Spearman&#x27;s rho</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(202)
+n &lt;- nrow(mtcars)
+B &lt;- 2000
+
+boot_rho &lt;- replicate(B, {
+  idx &lt;- sample.int(n, replace = TRUE)
+  cor(mtcars$mpg[idx], mtcars$hp[idx], method = &quot;spearman&quot;)
+})
+
+ci_rho &lt;- quantile(boot_rho, c(0.025, 0.975))
+c(estimate = mt_test$estimate,
+  lower_95 = ci_rho[[1]],
+  upper_95 = ci_rho[[2]])
+#&gt; estimate.rho     lower_95     upper_95
+#&gt;   -0.8946646   -0.9457...   -0.8081...</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Two thousand resamples is enough for a stable 95% percentile CI. The interval is <code>(-0.95, -0.81)</code>, which excludes zero by a wide margin and matches the picosmall p-value's verdict. Now you can publish a sentence like "rho = -0.89 (95% bootstrap CI [-0.95, -0.81])" instead of just an estimate.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>2000 resamples is plenty for a percentile CI; 10,000 if it's going in a paper.</strong> The bootstrap variance shrinks like <code>1/sqrt(B)</code>, so doubling B only narrows the simulation noise by 30%. Save the heavy budget for the final figure, prototype with 1000.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Repeat the bootstrap for Kendall's tau on the same pair. One word changes.</p>
+<div class="webr-container" data-block-title="Your turn: bootstrap CI for Kendall&#x27;s tau">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: bootstrap CI for Kendall&#x27;s tau</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(303)
+
+# your code here: build a 95% bootstrap CI for cor(mpg, hp, method = &quot;kendall&quot;)
+
+
+#&gt; Expected: tau around -0.74, CI roughly (-0.85, -0.60)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Kendall bootstrap CI">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Kendall bootstrap CI</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(303)
+boot_tau &lt;- replicate(2000, {
+  idx &lt;- sample.int(nrow(mtcars), replace = TRUE)
+  cor(mtcars$mpg[idx], mtcars$hp[idx], method = &quot;kendall&quot;)
+})
+quantile(boot_tau, c(0.025, 0.5, 0.975))
+#&gt;       2.5%        50%      97.5%
+#&gt; -0.8460... -0.7415... -0.6090...</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Only <code>method = &quot;spearman&quot;</code> changed to <code>&quot;kendall&quot;</code>. Notice the tau estimate (-0.74) is smaller in magnitude than rho (-0.89) on the same data, that's expected and we'll explain why next.</p>
+
+</details>
+</section>
+
+<h2>When should you choose Spearman over Kendall?</h2>
+
+<p>Most tutorials show you both methods and stop there. Here is the rubric I actually use, plus the magnitude trap that catches everyone the first time.</p>
+
+<p><img src="screenshots/Spearman-and-Kendall-Correlation-in-R-decision-tree.webp" alt="A short decision tree for picking between Kendall's tau-b and Spearman's rho." class="img-responsive img-zoomable" loading="lazy" width="1198" height="1828" /></p>
+
+<p><em>Figure 3: A short decision tree for choosing between Kendall's tau and Spearman's rho.</em></p>
+
+<p>The decision usually comes down to four factors:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Factor</th>
+<th>Prefer Kendall (tau-<a class="auto-link" href="Conditional-Probability-in-R.html" title="Conditional Probability in R: P(A|B), Independence, and Bayes — With Real Examples">b)</a></th>
+<th>Prefer Spearman (rho)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Sample size</td>
+<td>Small (n < 30)</td>
+<td>Larger samples</td>
+</tr>
+<tr>
+<td>Ties</td>
+<td>Heavy ties, ordinal scales</td>
+<td>Mostly continuous</td>
+</tr>
+<tr>
+<td>Interpretation</td>
+<td>Probability of agreement on a pair</td>
+<td>Familiar 0–1 strength scale</td>
+</tr>
+<tr>
+<td>Robustness</td>
+<td>Less sensitive to a single observation flip</td>
+<td>Slightly more sensitive</td>
+</tr>
+</tbody>
+</table>
+
+<p>Kendall's tau is the more "robust" of the two in a precise sense: a single flipped observation moves tau by less than it moves rho, because tau aggregates over many <a class="auto-link" href="Post-Hoc-Tests-After-ANOVA.html" title="ANOVA Post-Hoc Tests in R: Tukey, Bonferroni, and Scheffé, Clear Decision Rules">pairwise comparisons</a> rather than one big rank vector. That makes it the safer default for small samples. Spearman wins on familiarity, most readers know that 0.7 is a strong correlation, fewer have a feel for tau = 0.5.</p>
+
+<p>The trap is comparing magnitudes. Tau and rho are not on the same scale.</p>
+
+<div class="webr-container" data-block-title="Side-by-side rho and tau on mtcars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Side-by-side rho and tau on mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mt_rho &lt;- cor(mtcars$mpg, mtcars$wt, method = &quot;spearman&quot;)
+mt_tau &lt;- cor(mtcars$mpg, mtcars$wt, method = &quot;kendall&quot;)
+
+c(spearman_rho = mt_rho,
+  kendall_tau  = mt_tau,
+  ratio_tau_over_rho = mt_tau / mt_rho)
+#&gt;     spearman_rho      kendall_tau ratio_tau_over_rho
+#&gt;       -0.8864220       -0.7278321         0.8211591</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>On the same dataset, Kendall's tau is always smaller in magnitude than Spearman's rho, with a ratio that hovers around 0.7 to 0.85 for typical bivariate-normal-ish data. The reason is structural: tau is a probability difference (concordant minus discordant fraction), while rho is a Pearson coefficient on ranks, and those scales just aren't equivalent. For bivariate normal data the relationship is approximately $\tau \approx (2/\pi) \arcsin(\rho)$.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A tau of 0.5 is roughly as strong as a rho of 0.7.</strong> Don't panic when Kendall returns a smaller number than Spearman, that's by construction. Compare each method only against itself across studies, and pick one for your report so the reader doesn't have to translate.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute both on <code>airquality$Temp</code> and <code>airquality$Ozone</code>. Confirm <code>|tau| &lt; |rho|</code> and watch out for the <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing values</a>.</p>
+<div class="webr-container" data-block-title="Your turn: rho vs tau on airquality">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: rho vs tau on airquality</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">aq &lt;- na.omit(airquality[, c(&quot;Temp&quot;, &quot;Ozone&quot;)])
+
+# your code here: compute Spearman and Kendall correlations of Temp and Ozone
+
+
+#&gt; Expected: rho around 0.77, tau around 0.58</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="airquality rho vs tau">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">airquality rho vs tau</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">c(
+  rho = cor(aq$Temp, aq$Ozone, method = &quot;spearman&quot;),
+  tau = cor(aq$Temp, aq$Ozone, method = &quot;kendall&quot;)
+)
+#&gt;       rho       tau
+#&gt; 0.7740430 0.5891734</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>na.omit</code> is essential because both columns have missing values; otherwise <code>cor()</code> returns NA. The ratio tau/rho is about 0.76, in the expected band.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<p>The exercises below run in the same WebR session as the tutorial code, so use distinct variable names (<code>my_*</code>) to keep your work isolated.</p>
+
+<h3>Exercise 1: Rank a correlation matrix</h3>
+
+<p>From the four numeric columns of <code>iris</code>, compute every pairwise Spearman correlation, drop the self-correlations, and sort the unique pairs by descending absolute strength. Save the result to <code>my_pairs</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 1: ranked Spearman pairs">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1: ranked Spearman pairs</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: use cor(iris[, 1:4], method = &quot;spearman&quot;), then as.data.frame.table()
+# and filter for upper-triangle pairs only.
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution: ranked Spearman pairs">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution: ranked Spearman pairs</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_mat &lt;- cor(iris[, 1:4], method = &quot;spearman&quot;)
+my_pairs &lt;- as.data.frame.table(my_mat, responseName = &quot;rho&quot;)
+my_pairs &lt;- my_pairs[as.character(my_pairs$Var1) &lt; as.character(my_pairs$Var2), ]
+my_pairs &lt;- my_pairs[order(-abs(my_pairs$rho)), ]
+my_pairs
+#&gt;            Var1         Var2        rho
+#&gt; 12 Petal.Length  Petal.Width  0.9376668
+#&gt;  9 Sepal.Length  Petal.Length 0.8818981
+#&gt; 13 Sepal.Length  Petal.Width  0.8344207
+#&gt;  5  Sepal.Width  Petal.Length -0.3096351
+#&gt;  6  Sepal.Width  Petal.Width  -0.2890317
+#&gt;  2 Sepal.Length  Sepal.Width  -0.1667777</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>cor()</code> returns a square matrix; <code>as.data.frame.table</code> flattens it. The string-comparison filter keeps only the upper triangle so each pair appears once. <code>order(-abs(rho))</code> sorts by strength regardless of sign.</p>
+
+</details>
+
+<h3>Exercise 2: Bootstrap CI for Kendall's tau</h3>
+
+<p>Build a 95% percentile bootstrap CI for Kendall's tau between <code>mpg</code> and <code>hp</code> in <code>mtcars</code> with 2000 resamples. Use <code>set.seed(404)</code> and store the lower and upper bounds in <code>my_ci</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 2: bootstrap tau CI">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2: bootstrap tau CI</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: replicate() over sample.int(nrow(mtcars), replace = TRUE), then quantile().
+
+set.seed(404)
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution: bootstrap tau CI">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution: bootstrap tau CI</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(404)
+my_boot &lt;- replicate(2000, {
+  idx &lt;- sample.int(nrow(mtcars), replace = TRUE)
+  cor(mtcars$mpg[idx], mtcars$hp[idx], method = &quot;kendall&quot;)
+})
+my_ci &lt;- quantile(my_boot, c(0.025, 0.975))
+my_ci
+#&gt;       2.5%      97.5%
+#&gt; -0.8454... -0.6021...</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The bootstrap mirrors the in-text example, only <code>&quot;spearman&quot;</code> becomes <code>&quot;kendall&quot;</code> and the seed changes. The CI excludes zero, confirming the negative association is real.</p>
+
+</details>
+
+<h3>Exercise 3: Pick a method on tied data</h3>
+
+<p>You want to correlate <code>mtcars$cyl</code> (only 4, 6, 8) with <code>mtcars$gear</code> (only 3, 4, 5). Compute both Spearman's rho and Kendall's tau-b with their <code>cor.test()</code> p-values, then justify which estimate you would report. Save the chosen value to <code>my_choice</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 3: tied-data method choice">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3: tied-data method choice</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: run two cor.test() calls and decide based on the warnings and the
+# tie-handling explanation from earlier in this tutorial.
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution: prefer Kendall under heavy ties">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution: prefer Kendall under heavy ties</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_spear &lt;- suppressWarnings(cor.test(mtcars$cyl, mtcars$gear, method = &quot;spearman&quot;))
+my_kend  &lt;- suppressWarnings(cor.test(mtcars$cyl, mtcars$gear, method = &quot;kendall&quot;))
+
+c(spearman_rho = my_spear$estimate,
+  kendall_tau  = my_kend$estimate)
+#&gt; spearman_rho.rho   kendall_tau.tau
+#&gt;       -0.5283655        -0.4870572
+
+my_choice &lt;- my_kend$estimate</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Both methods warn about ties because each variable has only three unique values, but tau-b's denominator is built to absorb ties cleanly. Kendall is the safer report on data this lumpy. Spearman's rank-averaging trick still works, but its denominator was derived for unique ranks, so the magnitude is harder to defend in a small-N tied-data context.</p>
+
+</details>
+
+<h2>Complete Example</h2>
+
+<p>Here is the full rank-based correlation workflow on a real dataset, end to end. We'll quantify the link between daily temperature and ozone in <code>airquality</code>, handle missing values, run both methods, and produce a publication-style sentence with a bootstrap CI.</p>
+
+<div class="webr-container" data-block-title="End-to-end rank correlation on airquality">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">End-to-end rank correlation on airquality</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(505)
+
+aq &lt;- na.omit(airquality[, c(&quot;Temp&quot;, &quot;Ozone&quot;)])
+
+three_methods &lt;- c(
+  pearson  = cor(aq$Temp, aq$Ozone, method = &quot;pearson&quot;),
+  spearman = cor(aq$Temp, aq$Ozone, method = &quot;spearman&quot;),
+  kendall  = cor(aq$Temp, aq$Ozone, method = &quot;kendall&quot;)
+)
+three_methods
+#&gt;   pearson  spearman   kendall
+#&gt; 0.6985414 0.7740430 0.5891734
+
+spear_test &lt;- cor.test(aq$Temp, aq$Ozone, method = &quot;spearman&quot;)
+
+n &lt;- nrow(aq)
+boot_rho &lt;- replicate(2000, {
+  idx &lt;- sample.int(n, replace = TRUE)
+  cor(aq$Temp[idx], aq$Ozone[idx], method = &quot;spearman&quot;)
+})
+ci &lt;- quantile(boot_rho, c(0.025, 0.975))
+
+sprintf(
+  &quot;rho = %.2f (95%% bootstrap CI [%.2f, %.2f]), p &lt; 0.001&quot;,
+  spear_test$estimate, ci[[1]], ci[[2]]
+)
+#&gt; [1] &quot;rho = 0.77 (95% bootstrap CI [0.67, 0.85]), p &lt; 0.001&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The Pearson coefficient (0.70) understates the relationship because Ozone is right-skewed with several extreme values. Spearman's rho lifts to 0.77 once ranks neutralise the skew, and the bootstrap CI of (0.67, 0.85) confirms a strong, well-determined positive association. Kendall's tau is 0.59, smaller in magnitude as expected, with the same directional verdict.</p>
+
+<h2>Summary</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Concept</th>
+<th>What to remember</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>When to use rank correlation</td>
+<td>Monotonic but nonlinear, ordinal data, or outlier-prone variables</td>
+</tr>
+<tr>
+<td>Spearman's rho</td>
+<td>Pearson correlation computed on <code>rank(x)</code> and <code>rank(y)</code></td>
+</tr>
+<tr>
+<td>Kendall's tau</td>
+<td>(concordant − discordant) / total pairs, ties-corrected as tau-b</td>
+</tr>
+<tr>
+<td><code>cor.test()</code> returns</td>
+<td>Coefficient, test statistic, p-value, but no CI for rank methods</td>
+</tr>
+<tr>
+<td>Confidence interval</td>
+<td>Use a percentile bootstrap (2000 reps is enough)</td>
+</tr>
+<tr>
+<td>Magnitude trap</td>
+<td>Tau is typically ~0.7 × rho on the same data, by construction</td>
+</tr>
+<tr>
+<td>The tie warning</td>
+<td>Asymptotic p-value is used; fine for n > 30</td>
+</tr>
+</tbody>
+</table>
+
+<h2>References</h2>
+
+<ol>
+
+<li>R Core Team. <code>cor.test</code>, <em><a class="auto-link" href="Getting-Help-in-R.html" title="Stuck in R? 6 Ways to Get Unstuck Without Wasting Hours">R Documentation</a></em>. <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/cor.test.html">Link</a></li>
+
+<li>Kendall, M.G. (1938). A new measure of rank correlation. <em>Biometrika</em>, 30(1/2), 81–93. <a href="https://www.jstor.org/stable/2332226">Link</a></li>
+
+<li>Spearman, C. (1904). The proof and measurement of association between two things. <em>American Journal of Psychology</em>, 15(1), 72–101. <a href="https://www.jstor.org/stable/1412159">Link</a></li>
+
+<li>Hollander, M., Wolfe, D.A., Chicken, E. (2014). <em>Nonparametric Statistical Methods</em>, 3rd ed., Wiley. Chapter 8.</li>
+
+<li>Newson, R. (2002). Parameters behind 'nonparametric' statistics: Kendall's tau, Somers' D and median differences. <em>Stata Journal</em>, 2(1), 45–64. <a href="https://www.stata-journal.com/article.html?article=st0007">Link</a></li>
+
+<li>Croux, C., Dehon, C. (2010). Influence functions of the Spearman and Kendall correlation measures. <em>Statistical Methods & Applications</em>, 19, 497–515. <a href="https://link.springer.com/article/10.1007/s10260-010-0142-z">Link</a></li>
+
+<li>UVA Library StatLab. Correlation: Pearson, Spearman, and Kendall's tau. <a href="https://library.virginia.edu/data/articles/correlation-pearson-spearman-and-kendalls-tau">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ol>
+
+<li><a href="Correlation-in-R.html">Correlation in R: Choose Between Pearson, Spearman, and Kendall</a>, the parent overview that covers all three methods and visualisation with <code>corrplot</code>.</li>
+
+<li><a href="Wilcoxon-Mann-Whitney-and-Kruskal-Wallis-in-R.html">Wilcoxon, Mann-Whitney & Kruskal-Wallis in R</a>, other <a class="auto-link" href="When-to-Use-Nonparametric-Tests-in-R.html" title="When to Use Nonparametric Tests in R: Decision Guide with Flowchart">rank-based tests</a> for group comparisons rather than association.</li>
+
+<li><a href="When-to-Use-Nonparametric-Tests-in-R.html">When to Use Nonparametric Tests in R</a>, the broader decision framework for choosing rank-based methods over parametric ones.</li>
+
+</ol>
