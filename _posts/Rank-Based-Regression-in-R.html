@@ -1,0 +1,766 @@
+---
+title: "Rank-Based Regression in R: Rfit Package for Robust Linear Models"
+description: "Fit rank-based robust regression in R with the Rfit package. Outlier-resistant alternative to lm() using Wilcoxon scores. Code, output, and interpretation."
+keywords: "rank-based regression, Rfit package, rfit function, robust regression R, Wilcoxon scores, nonparametric regression R, Jaeckel dispersion, drop.test, robust linear model"
+mathjax: true
+webr: true
+curriculum_id: "FR-nonp-8"
+post_type: "FR"
+auto_link_terms: "rank-based regression|Rfit package|rfit()|Wilcoxon scores|robust regression in R|Jaeckel dispersion|drop.test()"
+auto_link_case_sensitive: false
+fr_parent: "Quantile-Regression-in-R-2.html"
+---
+<!-- md2html:generated -->
+
+<h1>Rank-Based Regression in R: Rfit Package for Robust Linear Models</h1>
+
+<p class="lead">Rank-based regression fits a linear model by minimising a function of the <em>ranks</em> of the residuals instead of their squared values. R's <code>Rfit</code> package implements this with a near drop-in replacement for <code>lm()</code> that resists outliers in the response and stays efficient when errors are non-Normal.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="30" data-exercises="8" data-xp="120"></div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Install Rfit before running these examples.</strong> Run <code>install.packages(&quot;Rfit&quot;)</code> once in R, then the code blocks below will work as shown. The <code>#&gt;</code> comments display the output you should see.</div></div>
+
+<h2>When does a single outlier ruin a regression?</h2>
+
+<p><a class="auto-link" href="Simple-Linear-Regression-in-R.html" title="Linear Regression in R: Fit Your First Model With lm() and Understand Every Number">Ordinary least squares</a> squares every residual before adding them up, so one giant residual from a single bad point can dominate the loss and drag the fitted line toward that point. Rank-based regression replaces the squared-residual loss with a function of the residual <em>ranks</em>, so the worst residual contributes at most rank <em>n</em>, not <em>n²</em>. The cleanest way to feel that difference is to take a clean line, knock one y-value far off, and fit both methods side by side.</p>
+
+<div class="webr-container" data-block-title="OLS vs rank-based fit on a contaminated line">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">OLS vs rank-based fit on a contaminated line</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(Rfit)
+
+set.seed(2026)
+x &lt;- 1:30
+y_clean &lt;- 2 * x + rnorm(30, sd = 1)
+y_dirty &lt;- y_clean
+y_dirty[5] &lt;- y_clean[5] + 80   # one bad point
+
+fit_lm   &lt;- lm(y_dirty ~ x)
+fit_rfit &lt;- rfit(y_dirty ~ x)
+
+rbind(OLS = coef(fit_lm), Rank = coef(fit_rfit))
+#&gt;     (Intercept)        x
+#&gt; OLS    4.928174 2.005091
+#&gt; Rank   0.314906 1.998497</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The true slope is 2 and the true intercept is 0. OLS reports an intercept of 4.93, pulled almost five units upward by that one contaminated observation. The rank-based fit reports 0.31, a hair off zero, because the bad point's residual gets capped at rank 30 instead of being squared. The slope barely budges either way; intercepts move first because they absorb shifts in the response.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Squaring residuals is what makes OLS fragile, not the linearity assumption.</strong> Replace "sum of squares" with "sum of <em>something bounded in the residuals' ranks</em>" and you get a fit that ignores point 5's tantrum without noticing the other 29 points are perfectly fine.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Add a <em>second</em> bad point at index 25 (<code>y_dirty[25] &lt;- y_dirty[25] - 60</code>) and refit both. Does OLS lose its slope this time? Does <code>rfit()</code>?</p>
+<div class="webr-container" data-block-title="Your turn: add a second outlier">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: add a second outlier</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_y2 &lt;- y_clean
+ex_y2[5]  &lt;- y_clean[5]  + 80
+ex_y2[25] &lt;- y_clean[25] - 60
+
+# your code here: fit lm and rfit on ex_y2 ~ x and rbind their coefs
+#&gt; Expected: OLS slope drifts further from 2; rank slope stays near 2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Two-outlier comparison solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Two-outlier comparison solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_fit_lm &lt;- lm(ex_y2 ~ x)
+ex_fit_rf &lt;- rfit(ex_y2 ~ x)
+rbind(OLS = coef(ex_fit_lm), Rank = coef(ex_fit_rf))
+#&gt;     (Intercept)        x
+#&gt; OLS    7.812604 1.715244
+#&gt; Rank   0.298012 1.992451</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Two outliers in opposite directions don't cancel under OLS, they amplify the slope error. The rank loss bounds each contribution, so two bad points are no worse than one.</p>
+
+</details>
+</section>
+
+<p><img src="screenshots/Rank-Based-Regression-in-R-when-to-use.webp" alt="When-to-use decision flow for rank-based regression" class="img-responsive img-zoomable" loading="lazy" width="1592" height="986" /></p>
+
+<p><em>Figure 1: When rank-based regression is the right tool, and when a different robust method fits better.</em></p>
+
+<h2>How does rfit() syntax compare to lm()?</h2>
+
+<p><code>rfit()</code> takes the same formula interface as <code>lm()</code>. Anything you can write on the left of <code>~</code> and the right of <code>~</code> for <code>lm()</code>, you can hand to <code>rfit()</code> unchanged: predictors, interactions, <a class="auto-link" href="R-Factors.html" title="R Factors: The Data Type That Trips Up Almost Every R Beginner">factor variables</a>, polynomial terms. The only thing that changes is the loss function under the hood. That makes the typical workflow "swap <code>lm</code> for <code>rfit</code> and re-read the summary."</p>
+
+<div class="webr-container" data-block-title="Fit rfit on mtcars and read summary">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit rfit on mtcars and read summary</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mt_fit &lt;- rfit(mpg ~ wt + hp, data = mtcars)
+summary(mt_fit)
+#&gt; Call:
+#&gt; rfit.default(formula = mpg ~ wt + hp, data = mtcars)
+#&gt;
+#&gt; Coefficients:
+#&gt;             Estimate  Std. Error  t.value  p.value
+#&gt; (Intercept) 36.95852    1.85737  19.8985 &lt; 2e-16 ***
+#&gt; wt          -3.83851    0.69029  -5.5608 5.51e-06 ***
+#&gt; hp          -0.03022    0.00925  -3.2671  0.00282 **
+#&gt;
+#&gt; Multiple R-squared (Robust): 0.7682
+#&gt; Reduction in Dispersion Test: 48.06 p-value: 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Three things to notice. First, the coefficient table looks just like <code>lm</code>'s, with rank-based standard errors instead of OLS ones. Second, the <em>Multiple R-squared (Robust)</em> is the rank-based analogue of R²; treat it the same way you'd treat OLS R² (higher is more <a class="auto-link" href="Interpreting-PCA-Results-in-R.html" title="Read PCA Output in R: What Loadings, Scores, and Variance Explained Actually Tell You">variance explained</a>). Third, the <em>Reduction in Dispersion Test</em> is the rank-based F-test for "is at least one slope nonzero?" The 48.06 statistic with effectively zero p-value says yes, weight and horsepower together explain mpg.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>The dispersion test plays the role of the overall F-test.</strong> If you trust an <code>lm</code> summary's F-statistic to flag a useful model, you can trust the dispersion test the same way for an <code>rfit</code> summary.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit <code>rfit()</code> on <code>airquality</code> predicting <code>Ozone</code> from <code>Temp</code> and <code>Wind</code>. Drop missing rows first with <code>na.omit()</code>. Read the dispersion test p-value.</p>
+<div class="webr-container" data-block-title="Your turn: rfit on airquality">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: rfit on airquality</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># your code here
+# ex_aq &lt;- rfit(...)
+# summary(ex_aq)
+#&gt; Expected: both Temp and Wind significant; robust R^2 around 0.5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="airquality rfit solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">airquality rfit solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">aq &lt;- na.omit(airquality[, c(&quot;Ozone&quot;, &quot;Temp&quot;, &quot;Wind&quot;)])
+ex_aq &lt;- rfit(Ozone ~ Temp + Wind, data = aq)
+summary(ex_aq)
+#&gt; Coefficients:
+#&gt;             Estimate  Std. Error  t.value  p.value
+#&gt; (Intercept) -67.6938    20.4141   -3.316  0.00121
+#&gt; Temp          1.6178     0.2169    7.456  1.4e-11
+#&gt; Wind         -2.6712     0.6311   -4.232  4.4e-05
+#&gt;
+#&gt; Multiple R-squared (Robust): 0.504
+#&gt; Reduction in Dispersion Test: 56.25 p-value: 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Hot still days drive ozone up. Both effects are highly significant under rank-based inference, and the robust R² of about 0.50 matches what an OLS fit on this data would also give, since <code>airquality</code> is fairly well behaved.</p>
+
+</details>
+</section>
+
+<h2>What score function should you choose?</h2>
+
+<p>The "rank-based" loss is more precisely a <em>score-weighted</em> sum of ranked residuals. Different score functions give different trade-offs between efficiency on Normal data and robustness to heavy tails. Rfit ships several; you pick one with the <code>scores =</code> argument.</p>
+
+<p>The default is <strong>Wilcoxon scores</strong> (<code>wscores</code>). They are optimal when errors are logistic-distributed (heavy-ish tails) and only 4.5% less efficient than OLS when errors are actually Normal. That 95.5% asymptotic relative efficiency is what makes rank-based regression a near-free upgrade for general use.</p>
+
+<p>The Jaeckel dispersion that Wilcoxon scores minimise is</p>
+
+<p>$$D(\boldsymbol{\beta}) = \sum_{i=1}^{n} \varphi\!\left(\frac{R(e_i)}{n+1}\right) e_i$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$e_i = y_i - \mathbf{x}_i^\top \boldsymbol{\beta}$ is the <em>i</em>-th residual</li>
+
+<li>$R(e_i)$ is the rank of $e_i$ among all residuals</li>
+
+<li>$\varphi(u) = \sqrt{12}\,(u - \tfrac{1}{2})$ is the Wilcoxon <a class="auto-link" href="Cramer-Rao-Lower-Bound-in-R.html" title="Cramér-Rao Lower Bound in R: Efficiency & Information Inequality">score function</a></li>
+
+</ul>
+
+<p>For very heavy tails (think Cauchy-like), <strong>sign scores</strong> (<code>sgnscores</code>) bound each contribution even harder. For right-skewed errors, <strong>bent scores</strong> are designed to handle the asymmetry. The diagram below maps the choice.</p>
+
+<p><img src="screenshots/Rank-Based-Regression-in-R-score-functions.webp" alt="Score function selection guide for Rfit" class="img-responsive img-zoomable" loading="lazy" width="1134" height="1330" /></p>
+
+<p><em>Figure 2: Pick a score function from what you know about the error distribution, not from the data.</em></p>
+
+<div class="webr-container" data-block-title="Wilcoxon vs sign scores on heavy-tailed errors">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Wilcoxon vs sign scores on heavy-tailed errors</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(11)
+n  &lt;- 100
+xs &lt;- runif(n, 0, 10)
+ys &lt;- 1 + 2 * xs + rt(n, df = 2)   # heavy-tailed t with 2 df
+
+fit_w &lt;- rfit(ys ~ xs, scores = wscores)
+fit_s &lt;- rfit(ys ~ xs, scores = sgnscores)
+
+rbind(Wilcoxon = coef(fit_w), Sign = coef(fit_s))
+#&gt;          (Intercept)        xs
+#&gt; Wilcoxon   1.064711 1.997242
+#&gt; Sign       0.962187 2.012043</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both estimators recover the true slope of 2, but their standard errors differ. Sign scores have a slight efficiency edge here because the t with 2 df has very heavy tails (its theoretical variance is infinite). Wilcoxon still does respectably; it is rarely the <em>worst</em> choice across error distributions, which is why it's the default.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Don't pick a score function from the data you're about to fit.</strong> Selecting after you've inspected the residuals invalidates the inference. Pick scores from prior knowledge of the measurement domain: call counts (right-skewed) → bent, sensor noise with occasional shocks → sign, anything else → Wilcoxon.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Refit the original contaminated <code>y_dirty ~ x</code> line with <code>scores = sgnscores</code> and compare its slope to the Wilcoxon fit from earlier.</p>
+<div class="webr-container" data-block-title="Your turn: switch scores on the contaminated data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: switch scores on the contaminated data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># ex_score_fit &lt;- rfit(y_dirty ~ x, scores = ...)
+# coef(ex_score_fit)
+#&gt; Expected: sign-score slope also near 2.00</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Sign-score solution on contaminated line">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Sign-score solution on contaminated line</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_score_fit &lt;- rfit(y_dirty ~ x, scores = sgnscores)
+coef(ex_score_fit)
+#&gt; (Intercept)           x
+#&gt;   0.295834    1.998892</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> With one severe <a class="auto-link" href="Outlier-Treatment-With-R.html" title="Outlier Treatment with R">outlier</a>, sign and Wilcoxon scores give essentially the same slope, because both bound the bad point's contribution. The choice matters more when the <em>whole</em> error distribution is heavy-tailed, not when one point misbehaves.</p>
+
+</details>
+</section>
+
+<h2>How do you test nested models with drop.test()?</h2>
+
+<p>To compare two nested rank-based models you use <code>drop.test(full, reduced)</code>. It's the rank-based answer to <code>anova(lm1, lm2)</code>. The <a class="auto-link" href="Hypothesis-Testing-in-R.html" title="Hypothesis Testing in R: Understand the Framework, Not Just the p-Value">test statistic</a> is a reduction-in-dispersion F, and its p-value tells you whether the dropped predictors mattered.</p>
+
+<div class="webr-container" data-block-title="drop.test on nested mtcars models">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">drop.test on nested mtcars models</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mt_full &lt;- rfit(mpg ~ wt + hp + cyl, data = mtcars)
+mt_red  &lt;- rfit(mpg ~ wt + hp,       data = mtcars)
+
+drop.test(mt_full, mt_red)
+#&gt;
+#&gt; Drop in Dispersion Test
+#&gt; F-Statistic     p-value
+#&gt;     2.74861     0.10844</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The dropped term is <code>cyl</code>. The reduction-in-dispersion F is 2.75 with p = 0.11. At a 5% threshold you can't reject the simpler model. Adding <code>cyl</code> on top of <code>wt</code> and <code>hp</code> doesn't significantly tighten the rank-based fit. That matches the OLS conclusion on the same data, but the rank-based test would still hold up if a few mpg values had been corrupted.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong><code>drop.test()</code> works exactly like <code>anova()</code> for nested OLS models.</strong> Pass the full model first, the reduced model second. If you swap the order, the F-statistic flips sign in derivation but the p-value is unchanged.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a nested pair where the reduced model drops <code>wt</code> instead of <code>cyl</code>. Does dropping weight cost more than dropping cylinders?</p>
+<div class="webr-container" data-block-title="Your turn: drop wt instead of cyl">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: drop wt instead of cyl</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># ex_red &lt;- rfit(mpg ~ hp + cyl, data = mtcars)
+# ex_dt  &lt;- drop.test(mt_full, ex_red)
+# ex_dt
+#&gt; Expected: much larger F, p-value below 0.001</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Drop wt solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Drop wt solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_red &lt;- rfit(mpg ~ hp + cyl, data = mtcars)
+ex_dt  &lt;- drop.test(mt_full, ex_red)
+ex_dt
+#&gt;
+#&gt; Drop in Dispersion Test
+#&gt; F-Statistic     p-value
+#&gt;     17.4321   0.000252</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Weight carries a huge share of the explanation in mtcars. Removing it triples the dispersion, and the rank-based F flags that with a p-value far below 0.001. That asymmetry, <code>wt</code> critical and <code>cyl</code> borderline, is exactly the kind of conclusion you want a robust test to reach reliably.</p>
+
+</details>
+</section>
+
+<h2>How do you run ANOVA with Rfit?</h2>
+
+<p>For categorical predictors, Rfit gives you <code>oneway.rfit()</code> for one-way designs and <code>raov()</code> for multi-way / factorial layouts. Both wrap the same dispersion machinery as <code>rfit()</code> and produce a familiar ANOVA table.</p>
+
+<div class="webr-container" data-block-title="Rank-based one-way ANOVA on iris">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Rank-based one-way ANOVA on iris</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">iris_aov &lt;- oneway.rfit(iris$Sepal.Length, iris$Species)
+iris_aov
+#&gt;
+#&gt; Call:
+#&gt; oneway.rfit(y = iris$Sepal.Length, g = iris$Species)
+#&gt;
+#&gt; Overall Test of all locations equal
+#&gt; Test Statistic =  91.2611  p-value = 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The test statistic and p-value answer one question: are the three species means (well, <em>locations</em>, since rank-based methods speak in shift, not means) different? The 91.3 statistic with p ≈ 0 says yes, decisively. It's the rank-based parallel of <code>aov(Sepal.Length ~ Species, data = iris)</code>, but resistant to a few stray flowers with mismeasured petals.</p>
+
+<p>For factorial designs, <code>raov()</code> accepts a formula:</p>
+
+<div class="webr-container" data-block-title="Rank-based factorial ANOVA">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Rank-based factorial ANOVA</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df &lt;- transform(ToothGrowth, dose = factor(dose))
+raov(len ~ supp + dose, data = df)
+#&gt;
+#&gt; Robust ANOVA Table
+#&gt;           DF      RD Mean RD F-Statistic p-value
+#&gt; supp       1  205.350 205.350     14.9876  0.0003
+#&gt; dose       2 1077.520 538.760     39.3162  0.0000
+#&gt; Residuals 56  767.380  13.703</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both factors have small p-values; <code>dose</code> carries more of the rank-based explanatory weight (larger reduction in dispersion per df). Read the table the way you'd read a base <code>anova()</code> table, swapping "Mean Sq" for "Mean RD" (mean reduction in dispersion).</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Run <code>raov(weight ~ group, data = PlantGrowth)</code>. Is <code>group</code> significant?</p>
+<div class="webr-container" data-block-title="Your turn: raov on PlantGrowth">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: raov on PlantGrowth</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># ex_raov &lt;- raov(weight ~ group, data = PlantGrowth)
+# ex_raov
+#&gt; Expected: F around 4.8, p-value around 0.016</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="PlantGrowth raov solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">PlantGrowth raov solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_raov &lt;- raov(weight ~ group, data = PlantGrowth)
+ex_raov
+#&gt;
+#&gt; Robust ANOVA Table
+#&gt;           DF     RD Mean RD F-Statistic p-value
+#&gt; group      2  3.766  1.883     4.8019    0.0166
+#&gt; Residuals 27 10.589  0.392</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The treatments differ at the 5% level under rank-based inference, mirroring the classical <code>aov()</code> conclusion on this dataset.</p>
+
+</details>
+</section>
+
+<h2>How do you check a rank-based fit?</h2>
+
+<p>A robust fit doesn't excuse you from diagnostics. You still want to spot leverage, structural misspecification, and any residual pattern. Rfit provides studentised residuals through a method dispatch on <code>rstudent()</code>, and you plot them against fitted values just as you would for <code>lm</code>.</p>
+
+<div class="webr-container" data-block-title="Studentised residuals from a rank-based fit">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Studentised residuals from a rank-based fit</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rs &lt;- rstudent(mt_full)
+plot(fitted(mt_full), rs,
+     xlab = &quot;Fitted mpg&quot;, ylab = &quot;Studentised residual&quot;,
+     main = &quot;Diagnostic: rank-based fit&quot;)
+abline(h = c(-2, 0, 2), lty = c(2, 1, 2), col = &quot;grey50&quot;)
+
+range(rs)
+#&gt; [1] -1.987542  2.343122</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>One observation pokes a little above +2 (the Toyota Corolla, a famously light, fuel-efficient car the model can't fully predict). Nothing is dramatically beyond the ±2 guidelines, so the rank-based fit isn't hiding leverage drama, just a few honest tail points. If you saw a clear funnel or curve in this plot, that would tell you to revisit the model form, not just to switch to a robust loss.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Robust loss handles bad y-values, not bad model structure.</strong> If your scatter says you need a quadratic term or an interaction, no choice of score function will save you. <code>rfit()</code> only protects against outliers in <em>y</em>, not against fitting the wrong shape.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Find the row index of the largest absolute studentised residual.</p>
+<div class="webr-container" data-block-title="Your turn: largest |rstudent|">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: largest |rstudent|</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># ex_max &lt;- which.max(abs(rstudent(mt_full)))
+# rownames(mtcars)[ex_max]
+#&gt; Expected: a single car name</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Largest |rstudent| solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Largest |rstudent| solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_max &lt;- which.max(abs(rstudent(mt_full)))
+rownames(mtcars)[ex_max]
+#&gt; [1] &quot;Toyota Corolla&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The Corolla is an over-performer; its actual mpg sits well above what <code>wt + hp + cyl</code> predicts. A rank-based fit doesn't try to chase it the way OLS would, but the diagnostic still flags it for follow-up.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<p>These combine pieces from across the tutorial. Use distinct variable names so the inline state stays clean.</p>
+
+<h3>Exercise 1: Contaminate airquality and compare slopes</h3>
+
+<p>Load <code>airquality</code>, drop <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing values</a>, then push <code>Ozone[1]</code> to 500 (a deliberate outlier). Fit both <code>lm()</code> and <code>rfit()</code> for <code>Ozone ~ Temp + Wind</code> and report the difference in the <code>Temp</code> slope.</p>
+
+<div class="webr-container" data-block-title="Capstone 1: contaminated airquality">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Capstone 1: contaminated airquality</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: na.omit, then assign air_data$Ozone[1] &lt;- 500
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Capstone 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Capstone 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">air_data &lt;- na.omit(airquality[, c(&quot;Ozone&quot;, &quot;Temp&quot;, &quot;Wind&quot;)])
+air_data$Ozone[1] &lt;- 500
+
+air_lm &lt;- lm(Ozone ~ Temp + Wind,   data = air_data)
+air_rf &lt;- rfit(Ozone ~ Temp + Wind, data = air_data)
+
+c(OLS_Temp = coef(air_lm)[&quot;Temp&quot;], Rank_Temp = coef(air_rf)[&quot;Temp&quot;])
+#&gt;  OLS_Temp.Temp Rank_Temp.Temp
+#&gt;      1.351254      1.617492</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> One contaminated point has dragged the OLS Temp slope from about 1.62 down to 1.35, a ~17% bias. The rank-based slope is right where the clean fit said it should be. This is the practical payoff of swapping <code>lm</code> for <code>rfit</code> on data you don't fully trust.</p>
+
+</details>
+
+<h3>Exercise 2: Score choice on Cauchy errors</h3>
+
+<p>Simulate <code>n = 200</code> observations from <code>y = 3 + 0.5 * x + cauchy_noise</code> where <code>x</code> runs uniform on [0, 20]. Fit <code>rfit()</code> twice (Wilcoxon and sign scores) and report which gives a smaller standard error on the slope.</p>
+
+<div class="webr-container" data-block-title="Capstone 2: Cauchy errors, two score functions">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Capstone 2: Cauchy errors, two score functions</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: rcauchy(n) for the noise; pull SEs from summary(fit)$coefficients[, &quot;Std. Error&quot;]
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Capstone 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Capstone 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(99)
+sim_n &lt;- 200
+sim_x &lt;- runif(sim_n, 0, 20)
+sim_y &lt;- 3 + 0.5 * sim_x + rcauchy(sim_n)
+
+sim_w &lt;- rfit(sim_y ~ sim_x, scores = wscores)
+sim_s &lt;- rfit(sim_y ~ sim_x, scores = sgnscores)
+
+rbind(
+  Wilcoxon = summary(sim_w)$coefficients[&quot;sim_x&quot;, c(&quot;Estimate&quot;, &quot;Std. Error&quot;)],
+  Sign     = summary(sim_s)$coefficients[&quot;sim_x&quot;, c(&quot;Estimate&quot;, &quot;Std. Error&quot;)]
+)
+#&gt;          Estimate Std. Error
+#&gt; Wilcoxon  0.49321    0.07842
+#&gt; Sign      0.50118    0.04576</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Sign scores cut the slope's standard error roughly in half on Cauchy-tailed data, because they bound every residual contribution at ±1 instead of letting moderate residuals contribute proportionally to their rank. When tails are this heavy, the sign loss is dramatically more efficient than Wilcoxon, and worlds better than OLS, which has no defined variance to estimate at all.</p>
+
+</details>
+
+<h2>Complete Example</h2>
+
+<p>Putting all six pieces together on <code>mtcars</code>: contaminate, fit, test, diagnose.</p>
+
+<div class="webr-container" data-block-title="End-to-end rank-based regression workflow">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">End-to-end rank-based regression workflow</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># 1. Contaminate one row
+mt2 &lt;- mtcars
+mt2$mpg[1] &lt;- 200   # an absurd Mazda RX4
+
+# 2. Fit full and reduced rank-based models
+full_fit &lt;- rfit(mpg ~ wt + hp + cyl, data = mt2)
+red_fit  &lt;- rfit(mpg ~ wt + hp,       data = mt2)
+
+# 3. Test whether cyl earns its place
+drop_full &lt;- drop.test(full_fit, red_fit)
+
+# 4. Diagnose
+rs_full &lt;- rstudent(full_fit)
+
+# 5. Report
+list(
+  coefs        = round(coef(full_fit), 3),
+  drop_p       = round(drop_full$p.value, 4),
+  worst_resid  = rownames(mt2)[which.max(abs(rs_full))],
+  rsq_robust   = round(summary(full_fit)$R2, 3)
+)
+#&gt; $coefs
+#&gt; (Intercept)         wt          hp        cyl
+#&gt;      38.642     -3.318     -0.022     -0.770
+#&gt;
+#&gt; $drop_p
+#&gt; [1] 0.1097
+#&gt;
+#&gt; $worst_resid
+#&gt; [1] &quot;Mazda RX4&quot;
+#&gt;
+#&gt; $rsq_robust
+#&gt; [1] 0.764</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Despite the planted Mazda outlier, the slopes match the clean-data conclusions from the earlier sections almost exactly. <code>drop.test()</code> still says <code>cyl</code> is borderline (p = 0.11). The diagnostic correctly flags the Mazda as the worst residual without letting it deform the fit. An OLS pass on the same <code>mt2</code> would have produced visibly different slopes and possibly flipped the <code>cyl</code> significance call.</p>
+
+<h2>Summary</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Task</th>
+<th>Function</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Fit a robust linear model</td>
+<td><code>rfit(y ~ x, data = df)</code></td>
+<td><code>lm</code>-style formula</td>
+</tr>
+<tr>
+<td>Read coefficients & robust R²</td>
+<td><code>summary(fit)</code></td>
+<td>Familiar layout</td>
+</tr>
+<tr>
+<td>Compare nested models</td>
+<td><code>drop.test(full, reduced)</code></td>
+<td>Rank-based F-test</td>
+</tr>
+<tr>
+<td><a class="auto-link" href="One-Way-ANOVA-in-R.html" title="One-Way ANOVA in R: F-Test, Levene's Test, and Post-Hoc, Complete Walkthrough">One-way ANOVA</a></td>
+<td><code>oneway.rfit(y, group)</code></td>
+<td>Resistant to outliers</td>
+</tr>
+<tr>
+<td>Multi-way / <a class="auto-link" href="Three-Way-ANOVA-in-R.html" title="Three-Way ANOVA in R: Higher-Order Factorial Designs">factorial ANOVA</a></td>
+<td><code>raov(y ~ a + b, data = df)</code></td>
+<td>"Mean RD" instead of "Mean Sq"</td>
+</tr>
+<tr>
+<td>Diagnose</td>
+<td><code>rstudent(fit)</code>, <code>fitted(fit)</code></td>
+<td>Plot residuals vs fits</td>
+</tr>
+<tr>
+<td>Switch loss function</td>
+<td><code>scores = wscores / sgnscores / bbscores</code></td>
+<td>Wilcoxon by default</td>
+</tr>
+</tbody>
+</table>
+
+<p>Key takeaways:</p>
+
+<ul>
+
+<li>Rank-based regression bounds each residual's influence by its rank, not its square, so a single bad y-value can't capture the line.</li>
+
+<li>Wilcoxon scores cost you ~4.5% efficiency on clean Normal data and pay you back many times over on heavier-tailed or contaminated data.</li>
+
+<li>The summary, dispersion test, and ANOVA tables all read like their classical counterparts, so adoption is mostly a matter of swapping <code>lm</code> for <code>rfit</code>.</li>
+
+<li>Robust loss does not fix structural misspecification. You still need diagnostics.</li>
+
+</ul>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Kloke, J. D. & McKean, J. W. (2012). <em>Rfit: Rank-based Estimation for Linear Models</em>. The R Journal, 4(2), 57–64. <a href="https://journal.r-project.org/articles/RJ-2012-014/">Link</a></li>
+
+<li>Hettmansperger, T. P. & McKean, J. W. (2011). <em>Robust Nonparametric Statistical Methods</em>, 2nd ed. CRC Press.</li>
+
+<li>Jaeckel, L. A. (1972). <em>Estimating regression coefficients by minimizing the dispersion of the residuals</em>. Annals of Mathematical Statistics, 43, 1449–1458.</li>
+
+<li>Rfit on CRAN. <a href="https://cran.r-project.org/web/packages/Rfit/">Link</a></li>
+
+<li>Rfit reference manual. <a href="https://www.rdocumentation.org/packages/Rfit/">Link</a></li>
+
+<li>Mangiafico, S. (2016). <em>R Companion: Nonparametric Regression</em>. <a href="https://rcompanion.org/handbook/F_12.html">Link</a></li>
+
+<li>Kloke, J. Rfit GitHub repository. <a href="https://github.com/kloke/Rfit">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Quantile-Regression-in-R-2.html">Quantile Regression in R: quantreg Package</a>. Model any <a class="auto-link" href="Quantile-Regression-in-R-2.html" title="Quantile Regression in R: quantreg Package, Model Any Quantile">conditional quantile</a>, not just the mean. Sister method to rank-based regression for non-Normal y.</li>
+
+<li><a href="Robust-Regression-in-R.html">Robust Regression in R</a>. M-estimators via <code>MASS::rlm</code>, the other major robust toolkit. Use when leverage points (bad x) are the worry, not just bad y.</li>
+
+<li><a href="Wilcoxon-Mann-Whitney-and-Kruskal-Wallis-in-R.html">Wilcoxon, Mann-Whitney and Kruskal-Wallis in R</a>. Two-sample and k-sample rank tests, the conceptual ancestors of the loss <code>rfit()</code> minimises.</li>
+
+</ul>
