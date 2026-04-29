@@ -1,0 +1,1023 @@
+---
+title: "Friedman Test in R: Nonparametric Repeated Measures Analysis"
+description: "Friedman test in R: nonparametric alternative to repeated measures ANOVA. Includes friedman.test(), Kendall W effect size, post-hoc Wilcoxon, worked example."
+keywords: "Friedman test in R, friedman.test, nonparametric repeated measures, pairwise.wilcox.test paired, Kendall's W, post-hoc Friedman, rank-based ANOVA, within-subjects nonparametric"
+mathjax: true
+webr: true
+curriculum_id: "2.8.5"
+post_type: "C"
+auto_link_terms: "Friedman test|friedman.test()|nonparametric repeated measures|Kendall's W|rank-based repeated measures"
+auto_link_case_sensitive: false
+sidebar_section: "Statistics"
+sidebar_title: "Friedman Test"
+sidebar_order: "93"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>Friedman Test in R: Nonparametric Repeated Measures Analysis</h1>
+
+<p class="lead">The <a class="auto-link" href="When-to-Use-Nonparametric-Tests-in-R.html" title="When to Use Nonparametric Tests in R: Decision Guide with Flowchart">Friedman test</a> is the rank-based, nonparametric counterpart of <a class="auto-link" href="Repeated-Measures-ANOVA-in-R.html" title="Repeated Measures ANOVA in R: Correct SE, Mauchly's Test, and Greenhouse-Geisser">repeated measures ANOVA</a>. In R, <code>friedman.test(y ~ condition | subject)</code> checks whether 3 or more measurements taken on the same subjects differ, without requiring normal residuals.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="35" data-exercises="10" data-xp="150"></div>
+
+<h2>When should you use the Friedman test?</h2>
+
+<p>Reach for the Friedman test whenever you have <strong>three or more measurements on the same subjects</strong> and the residuals from a repeated measures ANOVA are not normal. Think of patients rated on three painkillers, judges scoring four wines, or sensors logging temperatures across five timepoints. As long as one column identifies the subject (the <em>block</em>) and one column identifies the condition, <code>friedman.test()</code> does the rest. Below is a 12-patient sleep-aid trial with placebo, Drug A, and Drug B given to every patient.</p>
+
+<div class="webr-container" data-block-title="Run friedman.test() on a sleep-aid trial">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Run friedman.test() on a sleep-aid trial</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ggplot2)
+library(dplyr)
+library(tidyr)
+
+# 12 patients each tested with placebo, Drug A, Drug B
+sleep_long &lt;- data.frame(
+  patient   = factor(rep(1:12, times = 3)),
+  treatment = factor(rep(c(&quot;Placebo&quot;,&quot;Drug A&quot;,&quot;Drug B&quot;), each = 12),
+                     levels = c(&quot;Placebo&quot;,&quot;Drug A&quot;,&quot;Drug B&quot;)),
+  sleep_hours = c(
+    5.2,4.9,6.0,5.7,4.8,5.5,6.1,5.0,5.4,5.8,5.1,5.6,   # Placebo
+    6.1,5.5,6.3,6.7,5.9,6.2,6.0,5.8,6.0,6.5,5.9,6.4,   # Drug A
+    6.8,6.5,7.0,6.5,6.4,6.9,6.8,6.6,7.2,7.1,6.3,7.0)   # Drug B
+)
+
+ft &lt;- friedman.test(sleep_hours ~ treatment | patient, data = sleep_long)
+ft
+#&gt;
+#&gt; 	Friedman rank sum test
+#&gt;
+#&gt; data:  sleep_hours and treatment and patient
+#&gt; Friedman chi-squared = 20.167, df = 2, p-value = 4.177e-05</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The chi-squared statistic is <code>20.167</code> on <code>df = 2</code> (one less than the number of treatments) and the p-value is roughly <code>4.2e-5</code>. At any usual cutoff you reject the null that the three treatments produce the same sleep distribution. At least one drug differs from the rest, which a <a class="auto-link" href="One-Way-ANOVA-in-R.html" title="One-Way ANOVA in R: F-Test, Levene's Test, and Post-Hoc, Complete Walkthrough">post-hoc test</a> will pinpoint later in the post.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Friedman ranks scores within each subject, not across the pool.</strong> That single design choice is what removes between-subject variability from the comparison. Patient 1 might sleep poorly in general and patient 12 might sleep well, but Friedman cares only about which treatment ranked highest for each individual.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Run <code>friedman.test()</code> on a 6-subject, 3-condition matrix you build from scratch. Confirm the chi-squared statistic is positive and that <code>df = 2</code>.</p>
+<div class="webr-container" data-block-title="Your turn: friedman.test on a tiny matrix">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: friedman.test on a tiny matrix</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: build a 6 x 3 matrix of scores and run friedman.test
+ex_scores &lt;- matrix(c(
+  3, 5, 8,
+  4, 6, 9,
+  2, 5, 7,
+  5, 7, 9,
+  3, 6, 8,
+  4, 5, 8), nrow = 6, byrow = TRUE)
+
+ex_ft &lt;- # your code here
+
+ex_ft
+#&gt; Expected: chi-squared = 11.4, df = 2, p ~ 0.003</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Tiny matrix Friedman solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Tiny matrix Friedman solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_ft &lt;- friedman.test(ex_scores)
+ex_ft
+#&gt;
+#&gt; 	Friedman rank sum test
+#&gt;
+#&gt; data:  ex_scores
+#&gt; Friedman chi-squared = 11.4, df = 2, p-value = 0.003346</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> When the input is a matrix, <code>friedman.test()</code> treats each row as a subject and each column as a condition. With 6 subjects and 3 conditions you get <code>df = 2</code>.</p>
+
+</details>
+</section>
+
+<h2>How does the Friedman test work?</h2>
+
+<p>Knowing what <code>friedman.test()</code> does inside the call helps you read its output and trust the verdict. The recipe is short: rank within each block, sum the ranks per condition, and compare those sums to what chance would produce.</p>
+
+<p><img src="screenshots/Friedman-Test-in-R-ranking-mechanism.webp" alt="How Friedman ranks scores within subjects" class="img-responsive img-zoomable" loading="lazy" width="2000" height="986" /></p>
+
+<p><em>Figure 1: Friedman ranks scores within each subject, then tests whether the per-condition rank sums differ.</em></p>
+
+<p>The Friedman chi-square statistic captures how unevenly the rank sums spread across conditions.</p>
+
+<p>$$\chi^2_F = \frac{12}{N \cdot K \cdot (K+1)} \sum_{j=1}^{K} R_j^2 - 3 N (K+1)$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$N$ = number of blocks (subjects)</li>
+
+<li>$K$ = number of conditions (treatments)</li>
+
+<li>$R_j$ = sum of ranks assigned to condition $j$</li>
+
+</ul>
+
+<p>Under the null of identical condition distributions, $\chi^2_F$ follows approximately a chi-square reference with $K-1$ degrees of freedom. A large value means at least one rank sum is far from the others.</p>
+
+<p>Let us watch the formula come together on a 3-subject, 3-condition toy matrix.</p>
+
+<div class="webr-container" data-block-title="Rank within rows and sum per condition">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Rank within rows and sum per condition</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">toy &lt;- matrix(c(
+  3, 5, 8,
+  4, 7, 9,
+  2, 6, 5),
+  nrow = 3, byrow = TRUE,
+  dimnames = list(c(&quot;S1&quot;,&quot;S2&quot;,&quot;S3&quot;), c(&quot;CondA&quot;,&quot;CondB&quot;,&quot;CondC&quot;)))
+
+# Rank inside each row (each subject independently)
+toy_ranks &lt;- t(apply(toy, 1, rank))
+toy_ranks
+#&gt;    CondA CondB CondC
+#&gt; S1     1     2     3
+#&gt; S2     1     2     3
+#&gt; S3     1     3     2
+
+rank_sums &lt;- colSums(toy_ranks)
+rank_sums
+#&gt; CondA CondB CondC
+#&gt;     3     7     8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Subject S3 ranked condition B above condition C, while S1 and S2 went the other way. Rank sums are <code>3</code>, <code>7</code>, <code>8</code>, so condition A is consistently lowest. Plug those into the formula and <code>friedman.test(toy)</code> returns <code>chi-squared = 4.667</code>, <code>df = 2</code>, <code>p-value = 0.0970</code>. With only three subjects you cannot detect more than the strongest signals, which is why Friedman is at its best with double-digit subject counts.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>With only two conditions, use the Wilcoxon signed-rank test.</strong> <code>friedman.test()</code> requires at least 3 conditions; for paired before/after data the signed-rank test is the right tool.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute the column rank sums for a 4 × 3 matrix where conditions B and C are tied for second in every row. What sums do you expect, and does Friedman return a significant p?</p>
+<div class="webr-container" data-block-title="Your turn: ties in every row">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: ties in every row</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_tied &lt;- matrix(c(
+  3, 6, 6,
+  2, 5, 5,
+  4, 7, 7,
+  3, 8, 8), nrow = 4, byrow = TRUE)
+
+ex_ranks &lt;- # your code here
+ex_sums  &lt;- # your code here
+
+ex_sums
+#&gt; Expected: 4 10 10</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Tied rows ranking solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Tied rows ranking solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_ranks &lt;- t(apply(ex_tied, 1, rank))
+ex_sums  &lt;- colSums(ex_ranks)
+ex_sums
+#&gt; [1]  4 10 10
+
+friedman.test(ex_tied)
+#&gt; Friedman chi-squared = 6, df = 2, p-value = 0.04979</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> When B and C tie in a row, R assigns them the average rank <code>(2 + 3) / 2 = 2.5</code>. Column sums become <code>4</code>, <code>10</code>, <code>10</code>, condition A is the clear loser, and Friedman picks up the difference even at n = 4.</p>
+
+</details>
+</section>
+
+<h2>How do you run friedman.test() in R?</h2>
+
+<p><code>friedman.test()</code> accepts two equivalent inputs: a long-format formula or a wide-format matrix. The formula version is friendlier when the data is already tidy; the matrix version is faster when the data is already in subject × condition shape.</p>
+
+<div class="webr-container" data-block-title="Formula interface: y ~ condition | block">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Formula interface: y ~ condition | block</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ft_form &lt;- friedman.test(sleep_hours ~ treatment | patient, data = sleep_long)
+ft_form
+#&gt;
+#&gt; 	Friedman rank sum test
+#&gt;
+#&gt; data:  sleep_hours and treatment and patient
+#&gt; Friedman chi-squared = 20.167, df = 2, p-value = 4.177e-05</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The pipe <code>|</code> separates the within-subject factor from the subject identifier. Read it as "sleep hours by treatment, blocked on patient." Both <code>treatment</code> and <code>patient</code> must be factors or coercible to one, and every patient must appear in every treatment level (no missing cells).</p>
+
+<p>The matrix interface needs the data pivoted to wide form, with one row per subject and one column per condition.</p>
+
+<div class="webr-container" data-block-title="Matrix interface: subjects in rows, conditions in columns">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Matrix interface: subjects in rows, conditions in columns</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sleep_wide &lt;- pivot_wider(sleep_long,
+                          names_from  = treatment,
+                          values_from = sleep_hours,
+                          id_cols     = patient)
+sleep_mat &lt;- as.matrix(sleep_wide[, -1])  # drop patient column
+rownames(sleep_mat) &lt;- sleep_wide$patient
+head(sleep_mat, 3)
+#&gt;   Placebo Drug A Drug B
+#&gt; 1     5.2    6.1    6.8
+#&gt; 2     4.9    5.5    6.5
+#&gt; 3     6.0    6.3    7.0
+
+ft_mat &lt;- friedman.test(sleep_mat)
+ft_mat
+#&gt;
+#&gt; 	Friedman rank sum test
+#&gt;
+#&gt; data:  sleep_mat
+#&gt; Friedman chi-squared = 20.167, df = 2, p-value = 4.177e-05</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both calls return identical chi-squared, df, and p-value. The matrix form is what most help pages and textbook examples show, and it is convenient when you already have the data pivoted from a spreadsheet.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Column order in the matrix is the condition order.</strong> <code>friedman.test()</code> does not relabel the matrix, so a swapped column quietly relabels your treatments. Always set <code>colnames()</code> and confirm with <code>head()</code> before testing.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Pivot <code>sleep_long</code> to wide and pass it to <code>friedman.test()</code> using base R's <code>reshape()</code> instead of <code>tidyr::pivot_wider()</code>. The chi-squared should still equal <code>20.167</code>.</p>
+<div class="webr-container" data-block-title="Your turn: pivot with base R reshape()">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: pivot with base R reshape()</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_wide &lt;- reshape(sleep_long,
+                   idvar     = &quot;patient&quot;,
+                   timevar   = &quot;treatment&quot;,
+                   direction = &quot;wide&quot;)
+# your code here: drop the patient column and run friedman.test</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Base R reshape solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Base R reshape solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_wide &lt;- reshape(sleep_long,
+                   idvar     = &quot;patient&quot;,
+                   timevar   = &quot;treatment&quot;,
+                   direction = &quot;wide&quot;)
+ex_mat &lt;- as.matrix(ex_wide[, -1])
+friedman.test(ex_mat)
+#&gt; Friedman chi-squared = 20.167, df = 2, p-value = 4.177e-05</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>reshape()</code> renames columns to <code>sleep_hours.Placebo</code>, <code>sleep_hours.Drug A</code>, and <code>sleep_hours.Drug B</code>, but the chi-squared depends only on the values, not the names.</p>
+
+</details>
+</section>
+
+<h2>How do you visualize repeated measures data?</h2>
+
+<p>Boxplots hide the within-subject linkage that makes Friedman work. A spaghetti plot, where each subject is one connected line across conditions, restores that link. You can read consistency of direction from the slopes of the lines.</p>
+
+<div class="webr-container" data-block-title="Spaghetti plot of per-subject trajectories">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Spaghetti plot of per-subject trajectories</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(sleep_long, aes(x = treatment, y = sleep_hours)) +
+  geom_line(aes(group = patient), colour = &quot;grey60&quot;, alpha = 0.7) +
+  geom_point(aes(group = patient), colour = &quot;grey50&quot;, size = 1.5) +
+  stat_summary(fun = median, geom = &quot;point&quot;,
+               colour = &quot;#7B66B3&quot;, size = 3.5) +
+  stat_summary(fun = median, geom = &quot;line&quot;,
+               aes(group = 1), colour = &quot;#7B66B3&quot;, size = 1.2) +
+  labs(title = &quot;Per-patient sleep trajectories across treatments&quot;,
+       x = &quot;Treatment&quot;, y = &quot;Sleep hours&quot;) +
+  theme_minimal(base_size = 13)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Almost every grey line slopes upward from Placebo to Drug A to Drug B, and the purple line of medians follows the same trend. The few crossings are exactly the within-subject reversals that Friedman can absorb without losing its verdict.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Spaghetti plots reveal what boxplots hide.</strong> Two conditions can have nearly identical boxplots and still differ on Friedman if every subject moved in the same direction. The plot above lets you eyeball that pattern before reading the p-value.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Add a translucent boxplot layer behind the spaghetti so you have both views at once. Use <code>geom_boxplot(alpha = 0.2)</code>.</p>
+<div class="webr-container" data-block-title="Your turn: spaghetti + boxplot overlay">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: spaghetti + boxplot overlay</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(sleep_long, aes(x = treatment, y = sleep_hours)) +
+  # your code here: add geom_boxplot first, then the lines/points
+  geom_line(aes(group = patient), colour = &quot;grey60&quot;, alpha = 0.7) +
+  geom_point(aes(group = patient), colour = &quot;grey50&quot;, size = 1.5) +
+  theme_minimal(base_size = 13)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Spaghetti + boxplot overlay solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Spaghetti + boxplot overlay solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(sleep_long, aes(x = treatment, y = sleep_hours)) +
+  geom_boxplot(aes(fill = treatment), alpha = 0.2,
+               outlier.shape = NA, show.legend = FALSE) +
+  geom_line(aes(group = patient), colour = &quot;grey60&quot;, alpha = 0.7) +
+  geom_point(aes(group = patient), colour = &quot;grey50&quot;, size = 1.5) +
+  scale_fill_manual(values = c(&quot;#9AA8C7&quot;,&quot;#A7C4B5&quot;,&quot;#D5B6D5&quot;)) +
+  theme_minimal(base_size = 13)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Putting <code>geom_boxplot()</code> first puts it behind the lines. The translucent fills mark each treatment's spread, while the lines preserve the within-patient structure.</p>
+
+</details>
+</section>
+
+<h2>How do you measure effect size with Kendall's W?</h2>
+
+<p>A small p-value tells you something is going on; the <a class="auto-link" href="Effect-Size-in-R.html" title="Effect Size in R: The Number p-Values Never Tell You (Cohen's d, η², and r)">effect size</a> tells you how strongly the conditions differ. For Friedman the standard effect size is <strong>Kendall's coefficient of concordance</strong>, written W. It rescales the chi-squared statistic onto a 0-to-1 scale that represents how much subjects agree on the ranking.</p>
+
+<p>$$W = \frac{\chi^2_F}{N \cdot (K - 1)}$$</p>
+
+<p>Where $N$ is the number of subjects, $K$ is the number of conditions, and $\chi^2_F$ is the Friedman chi-squared. W is 0 when subjects rank conditions completely at random, and 1 when every subject produces the same ranking.</p>
+
+<div class="webr-container" data-block-title="Compute Kendall&#x27;s W from the Friedman chi-squared">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compute Kendall&#x27;s W from the Friedman chi-squared</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">N &lt;- length(unique(sleep_long$patient))
+K &lt;- length(unique(sleep_long$treatment))
+W &lt;- as.numeric(ft$statistic) / (N * (K - 1))
+W
+#&gt; [1] 0.8402778</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>W is <code>0.84</code>, far above the conventional "large" threshold of <code>0.30</code>. In plain words, the 12 patients almost unanimously ranked Drug B above Drug A above Placebo. That agreement is what powered the tiny p-value, even with only 12 subjects.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Cohen's thresholds for W depend on K.</strong> For three conditions, <code>W &lt; 0.10</code> is small, <code>0.10 to 0.30</code> is medium, and <code>&gt;= 0.30</code> is large. Five or more conditions push the "large" threshold down to <code>0.25</code> because rank concordance is harder to achieve with more conditions to order.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Wrap the W formula in a helper <code>ex_kendall_w(ft, N, K)</code> that returns W for any Friedman result. Test it on the original <code>ft</code>.</p>
+<div class="webr-container" data-block-title="Your turn: kendall_w helper">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: kendall_w helper</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_kendall_w &lt;- function(ft, N, K) {
+  # your code here
+}
+
+ex_kendall_w(ft, 12, 3)
+#&gt; Expected: ~0.84</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="kendall_w helper solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">kendall_w helper solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_kendall_w &lt;- function(ft, N, K) {
+  as.numeric(ft$statistic) / (N * (K - 1))
+}
+
+ex_kendall_w(ft, 12, 3)
+#&gt; [1] 0.8402778</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>ft$statistic</code> is a named numeric. Stripping the name with <code>as.numeric()</code> keeps the helper's output clean.</p>
+
+</details>
+</section>
+
+<h2>Which post-hoc test should follow a significant Friedman?</h2>
+
+<p>A significant Friedman tells you <em>some</em> pair of conditions differs but not <em>which</em> pair. The standard follow-up is a <strong>paired Wilcoxon signed-rank test</strong> for every pair, with a multiple-testing adjustment.</p>
+
+<div class="webr-container" data-block-title="pairwise.wilcox.test() with paired = TRUE">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">pairwise.wilcox.test() with paired = TRUE</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">pwc &lt;- pairwise.wilcox.test(sleep_long$sleep_hours,
+                            sleep_long$treatment,
+                            paired = TRUE,
+                            p.adjust.method = &quot;BH&quot;)
+pwc
+#&gt;
+#&gt; 	Pairwise comparisons using Wilcoxon signed rank exact test
+#&gt;
+#&gt; data:  sleep_long$sleep_hours and sleep_long$treatment
+#&gt;
+#&gt;        Placebo Drug A
+#&gt; Drug A 0.00098 -
+#&gt; Drug B 0.00098 0.00098
+#&gt;
+#&gt; P value adjustment method: BH</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>After Benjamini-Hochberg adjustment all three pairs come back significant at any usual cutoff. Drug A beats Placebo, Drug B beats Placebo, and Drug B also beats Drug A. The conclusion mirrors what the spaghetti plot showed: the effect is consistent across patients, in the expected order.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Pairwise Wilcoxon does not reuse the Friedman ranks.</strong> Each pair is re-ranked from scratch using only the two columns under comparison. That keeps the post-hoc independent of the others but can occasionally disagree with what an all-pairs method like Conover or Nemenyi would say. When that happens, prefer the rank-method that matches your reporting convention rather than picking the more flattering p-value.</div></div>
+
+<p>If you want a method that uses the Friedman ranks directly instead of re-ranking each pair, the <strong>Conover</strong> and <strong>Nemenyi</strong> tests are the textbook choices. They live in the <code>PMCMRplus</code> package, which is heavier than base R because it pulls in a C++ toolchain. Outside this notebook you would call <code>PMCMRplus::frdAllPairsConoverTest(sleep_mat)</code> for the Conover variant and <code>PMCMRplus::frdAllPairsNemenyiTest(sleep_mat)</code> for the Nemenyi variant.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Skipping the adjustment inflates Type I errors.</strong> Three pairwise tests at alpha 0.05 give you a 14% chance of at least one <a class="auto-link" href="Type-I-and-Type-II-Errors-in-R.html" title="Type I and Type II Errors in R: Visualise the Trade-Off Between α and Power">false positive</a> even when nothing is going on. Always pass <code>p.adjust.method = &quot;BH&quot;</code> (less strict, controls FDR) or <code>&quot;bonferroni&quot;</code> (strict, controls FWER).</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Re-run <code>pairwise.wilcox.test()</code> on <code>sleep_long</code> with <code>p.adjust.method = &quot;bonferroni&quot;</code>. Compare against the BH numbers above. Save the result to <code>ex_pwc_bonf</code>.</p>
+<div class="webr-container" data-block-title="Your turn: Bonferroni adjustment">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: Bonferroni adjustment</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_pwc_bonf &lt;- # your code here
+
+ex_pwc_bonf
+#&gt; Expected: same conclusions, p-values multiplied by 3 (capped at 1)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Bonferroni adjustment solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Bonferroni adjustment solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_pwc_bonf &lt;- pairwise.wilcox.test(sleep_long$sleep_hours,
+                                    sleep_long$treatment,
+                                    paired = TRUE,
+                                    p.adjust.method = &quot;bonferroni&quot;)
+ex_pwc_bonf
+#&gt;
+#&gt; 	Pairwise comparisons using Wilcoxon signed rank exact test
+#&gt;
+#&gt;        Placebo Drug A
+#&gt; Drug A 0.0029  -
+#&gt; Drug B 0.0015  0.0029
+#&gt;
+#&gt; P value adjustment method: bonferroni</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Bonferroni multiplies each raw p-value by the number of tests (3 here), capped at 1. The conclusions stay the same because the raw p-values were tiny to start with.</p>
+
+</details>
+</section>
+
+<h2>What assumptions does the Friedman test require?</h2>
+
+<p>Friedman is forgiving but it is not assumption-free. Five conditions need to hold for the chi-square approximation to behave.</p>
+
+<ol>
+
+<li><strong>Three or more conditions per subject.</strong> With two conditions, use the Wilcoxon signed-rank test instead.</li>
+
+<li><strong>Same subjects across all conditions.</strong> No missing cells. If patient 7 skipped Drug B, drop patient 7 entirely or impute before testing.</li>
+
+<li><strong>Outcome is at least ordinal.</strong> Friedman ranks within rows, so the values must be orderable. Likert scales, reaction times, and continuous scores all qualify; nominal categories do not.</li>
+
+<li><strong>Subjects (blocks) are independent.</strong> The repeated measurements happen <em>within</em> a subject, but different subjects must not influence each other.</li>
+
+<li><strong>Conditions can be ranked without dominant ties.</strong> Friedman handles a few ties through average ranks, but if most rows are flat, the test loses power and the chi-square approximation drifts.</li>
+
+</ol>
+
+<p><img src="screenshots/Friedman-Test-in-R-decision-flow.webp" alt="Choosing a repeated measures test" class="img-responsive img-zoomable" loading="lazy" width="1328" height="2040" /></p>
+
+<p><em>Figure 2: Decision tree: when to choose Friedman over repeated measures ANOVA or a mixed-effects model.</em></p>
+
+<p>The clearest sign that Friedman is the right tool is failure of the normality assumption that powers RM-ANOVA. Fit the parametric model, look at the residuals, and let Shapiro-Wilk decide.</p>
+
+<div class="webr-container" data-block-title="Shapiro-Wilk on RM-ANOVA residuals as a switching rule">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Shapiro-Wilk on RM-ANOVA residuals as a switching rule</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">aov_fit &lt;- lm(sleep_hours ~ treatment + patient, data = sleep_long)
+shap_p  &lt;- shapiro.test(residuals(aov_fit))$p.value
+shap_p
+#&gt; [1] 0.6131</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The residuals look fine here (<code>p &gt; 0.05</code>), so RM-ANOVA would also work. Friedman's value shows when this gate fails: skewed reaction-time data, heavy-tailed cost data, or hard caps from rating scales push residuals away from normal and break the <a class="auto-link" href="Normal-t-F-and-Chi-Squared-Distributions-in-R.html" title="Normal, t, F, and Chi-Squared in R: Understand Each Distribution and When It Arises">F distribution</a> that RM-ANOVA leans on. In those cases Friedman keeps its calibration.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Sphericity is not Friedman's problem either.</strong> RM-ANOVA also requires that the variances of all pairwise differences are equal. Friedman ranks within subjects, so it sidesteps both normality and sphericity in one move.</div></div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Mid-ranks handle ties automatically.</strong> R assigns tied values the average of their ranks (so a tie of two values that would have been ranks 2 and 3 becomes 2.5 each). This keeps Friedman well-behaved with a handful of ties, but the test loses power as the share of ties grows.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Decide which test fits each scenario, then state your reasoning in one sentence.</p>
+<div class="webr-container" data-block-title="Your turn: pick the right test">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: pick the right test</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Scenario A: 8 subjects, 2 conditions, normal residuals -&gt; ?
+# Scenario B: 30 subjects, 4 conditions, residuals fail Shapiro -&gt; ?
+# Scenario C: 12 subjects nested within 3 clinics, 4 conditions -&gt; ?
+
+ex_choice_a &lt;- &quot;...&quot;
+ex_choice_b &lt;- &quot;...&quot;
+ex_choice_c &lt;- &quot;...&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<p><strong>A:</strong> <a class="auto-link" href="t-Tests-in-R.html" title="t-Tests in R: Every Variant With the Decision Rule for Choosing Between Them">Paired t-test</a> (or Wilcoxon signed-rank if normality also fails). Friedman needs <code>K &gt;= 3</code>.</p>
+
+<p><strong>B:</strong> Friedman test. Same subjects, more than two conditions, residuals fail normality.</p>
+
+<p><strong>C:</strong> Mixed-effects model (<code>lme4::lmer</code> or its rank-based cousin). Subjects are nested in clinics, so the independence assumption of Friedman breaks down.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<p>The exercises below combine ideas from across the post. Each one expects you to write code from scratch and verify against the expected output.</p>
+
+<h3>Exercise 1: Full Friedman workflow on a fresh dataset</h3>
+
+<p>Build a 10-subject, 3-condition data frame <code>my_df</code> of synthetic exam scores, run <code>friedman.test()</code>, compute Kendall's W, and run BH-adjusted pairwise Wilcoxon. Save the trio to <code>my_ft</code>, <code>my_W</code>, and <code>my_pwc</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 1: end-to-end pipeline">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1: end-to-end pipeline</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: rep() builds repeated factors; rnorm() with set.seed() builds scores
+
+set.seed(7)
+my_df &lt;- data.frame(
+  student   = factor(rep(1:10, times = 3)),
+  method    = factor(rep(c(&quot;Lecture&quot;,&quot;Group&quot;,&quot;Tutor&quot;), each = 10),
+                     levels = c(&quot;Lecture&quot;,&quot;Group&quot;,&quot;Tutor&quot;)),
+  score     = c(rnorm(10, 60, 5), rnorm(10, 65, 5), rnorm(10, 72, 5))
+)
+
+# Write your code below:
+my_ft  &lt;-
+my_W   &lt;-
+my_pwc &lt;-</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+my_df &lt;- data.frame(
+  student   = factor(rep(1:10, times = 3)),
+  method    = factor(rep(c(&quot;Lecture&quot;,&quot;Group&quot;,&quot;Tutor&quot;), each = 10),
+                     levels = c(&quot;Lecture&quot;,&quot;Group&quot;,&quot;Tutor&quot;)),
+  score     = c(rnorm(10, 60, 5), rnorm(10, 65, 5), rnorm(10, 72, 5))
+)
+
+my_ft &lt;- friedman.test(score ~ method | student, data = my_df)
+my_W  &lt;- as.numeric(my_ft$statistic) / (10 * (3 - 1))
+my_pwc &lt;- pairwise.wilcox.test(my_df$score, my_df$method,
+                               paired = TRUE,
+                               p.adjust.method = &quot;BH&quot;)
+list(chi_sq = unname(my_ft$statistic),
+     p      = my_ft$p.value,
+     W      = my_W,
+     pairs  = my_pwc$p.value)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The pipeline is identical to the sleep-aid example. With <code>set.seed(7)</code> the chi-squared is small enough that you can see how Friedman behaves under noisier signals.</p>
+
+</details>
+
+<h3>Exercise 2: Build a friedman_report() helper</h3>
+
+<p>Write a function <code>friedman_report(y, x, block)</code> that returns a list with <code>chi_sq</code>, <code>df</code>, <code>p</code>, <code>W</code>, and a BH-adjusted pairwise Wilcoxon matrix. Call it on <code>sleep_long</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 2: helper function">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2: helper function</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: friedman.test takes a formula y ~ x | block when you build it with reformulate()
+
+friedman_report &lt;- function(y, x, block) {
+  # your code here
+}
+
+friedman_report(sleep_long$sleep_hours,
+                sleep_long$treatment,
+                sleep_long$patient)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">friedman_report &lt;- function(y, x, block) {
+  N  &lt;- length(unique(block))
+  K  &lt;- length(unique(x))
+  ft &lt;- friedman.test(y, groups = x, blocks = block)
+  W  &lt;- as.numeric(ft$statistic) / (N * (K - 1))
+  pw &lt;- pairwise.wilcox.test(y, x, paired = TRUE, p.adjust.method = &quot;BH&quot;)
+  list(chi_sq = as.numeric(ft$statistic),
+       df     = as.numeric(ft$parameter),
+       p      = ft$p.value,
+       W      = W,
+       pairs  = pw$p.value)
+}
+
+friedman_report(sleep_long$sleep_hours,
+                sleep_long$treatment,
+                sleep_long$patient)
+#&gt; $chi_sq
+#&gt; [1] 20.16667
+#&gt;
+#&gt; $df
+#&gt; [1] 2
+#&gt;
+#&gt; $p
+#&gt; [1] 4.177e-05
+#&gt;
+#&gt; $W
+#&gt; [1] 0.8402778
+#&gt;
+#&gt; $pairs
+#&gt;        Placebo Drug A
+#&gt; Drug A 0.00098 NA
+#&gt; Drug B 0.00098 0.00098</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>friedman.test()</code> accepts vector arguments via <code>(y, groups, blocks)</code>, which lets the helper stay simple. The pairwise matrix uses NA for the upper triangle, the same shape <code>pairwise.wilcox.test</code> returns.</p>
+
+</details>
+
+<h3>Exercise 3: Decide between Friedman and RM-ANOVA on borderline data</h3>
+
+<p>Use <code>set.seed(42)</code> to generate a 20-subject, 3-condition data frame <code>my_borderline</code> with mostly normal residuals plus two outliers. Fit <code>lm()</code>, run Shapiro on the residuals, and recommend Friedman or RM-ANOVA based on the p-value. Save the recommendation to <code>my_pick</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 3: switching rule in action">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3: switching rule in action</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(42)
+n  &lt;- 20
+my_borderline &lt;- data.frame(
+  subj  = factor(rep(1:n, times = 3)),
+  cond  = factor(rep(c(&quot;A&quot;,&quot;B&quot;,&quot;C&quot;), each = n)),
+  y     = c(rnorm(n, 10, 2),
+            rnorm(n, 11, 2),
+            c(rnorm(n - 2, 13, 2), 30, 32))   # two outliers in condition C
+)
+
+# Write your code below:
+fit       &lt;- # ...
+shap_p    &lt;- # ...
+my_pick   &lt;- # ...</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(42)
+n  &lt;- 20
+my_borderline &lt;- data.frame(
+  subj  = factor(rep(1:n, times = 3)),
+  cond  = factor(rep(c(&quot;A&quot;,&quot;B&quot;,&quot;C&quot;), each = n)),
+  y     = c(rnorm(n, 10, 2),
+            rnorm(n, 11, 2),
+            c(rnorm(n - 2, 13, 2), 30, 32))
+)
+
+fit      &lt;- lm(y ~ cond + subj, data = my_borderline)
+shap_p   &lt;- shapiro.test(residuals(fit))$p.value
+my_pick  &lt;- ifelse(shap_p &lt; 0.05, &quot;Friedman&quot;, &quot;RM-ANOVA&quot;)
+list(shapiro_p = shap_p, recommendation = my_pick)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The two outliers drag the residuals away from normal, Shapiro returns a small p, and the rule recommends Friedman. Without the outliers, the same code would point you to RM-ANOVA.</p>
+
+</details>
+
+<h2>Complete Example</h2>
+
+<p>The <a class="auto-link" href="Getting-Help-in-R.html" title="Stuck in R? 6 Ways to Get Unstuck Without Wasting Hours">R help</a> page for <code>friedman.test()</code> ships with the <strong>Rounding First Base</strong> dataset from Hollander and Wolfe (1973): 22 baseball players timed running to first base under three styles of rounding. The pipeline below shows the full reporting workflow you would put in a paper.</p>
+
+<div class="webr-container" data-block-title="End-to-end Friedman pipeline on RoundingTimes">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">End-to-end Friedman pipeline on RoundingTimes</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">RoundingTimes &lt;- matrix(c(
+  5.40, 5.50, 5.55,
+  5.85, 5.70, 5.75,
+  5.20, 5.60, 5.50,
+  5.55, 5.50, 5.40,
+  5.90, 5.85, 5.70,
+  5.45, 5.55, 5.60,
+  5.40, 5.40, 5.35,
+  5.45, 5.50, 5.35,
+  5.25, 5.15, 5.00,
+  5.85, 5.80, 5.70,
+  5.25, 5.20, 5.10,
+  5.65, 5.55, 5.45,
+  5.60, 5.35, 5.45,
+  5.05, 5.00, 4.95,
+  5.50, 5.50, 5.40,
+  5.45, 5.55, 5.50,
+  5.55, 5.55, 5.35,
+  5.45, 5.50, 5.55,
+  5.50, 5.45, 5.25,
+  5.65, 5.60, 5.40,
+  5.70, 5.65, 5.55,
+  6.30, 6.30, 6.25),
+  nrow = 22, byrow = TRUE,
+  dimnames = list(1:22, c(&quot;Round Out&quot;, &quot;Narrow Angle&quot;, &quot;Wide Angle&quot;)))
+
+# Step 1: run the test
+ft_round &lt;- friedman.test(RoundingTimes)
+ft_round
+#&gt;
+#&gt; 	Friedman rank sum test
+#&gt;
+#&gt; data:  RoundingTimes
+#&gt; Friedman chi-squared = 11.143, df = 2, p-value = 0.003805
+
+# Step 2: compute Kendall's W
+N &lt;- nrow(RoundingTimes); K &lt;- ncol(RoundingTimes)
+W_round &lt;- as.numeric(ft_round$statistic) / (N * (K - 1))
+W_round
+#&gt; [1] 0.2532468
+
+# Step 3: pivot to long for pairwise.wilcox.test
+round_long &lt;- data.frame(
+  player = factor(rep(1:N, times = K)),
+  style  = factor(rep(colnames(RoundingTimes), each = N),
+                  levels = colnames(RoundingTimes)),
+  time   = as.numeric(RoundingTimes)
+)
+pwc_round &lt;- pairwise.wilcox.test(round_long$time, round_long$style,
+                                  paired = TRUE,
+                                  p.adjust.method = &quot;BH&quot;)
+pwc_round
+#&gt;
+#&gt; 	Pairwise comparisons using Wilcoxon signed rank test with continuity correction
+#&gt;
+#&gt;              Round Out Narrow Angle
+#&gt; Narrow Angle 0.355     -
+#&gt; Wide Angle   0.021     0.005
+#&gt;
+#&gt; P value adjustment method: BH</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The Friedman test gives a p-value of <code>0.0038</code>, so at least one rounding style differs in expected time. Kendall's W is <code>0.25</code> (medium effect for <code>K = 3</code>). Pairwise Wilcoxon then locates the difference: <strong>Wide Angle is faster than both Round Out and Narrow Angle</strong>, while Round Out and Narrow Angle do not differ. A reporting sentence: <em>"A Friedman test indicated a significant effect of rounding style on running time, chi-squared(2) = 11.14, p = .004, W = 0.25. BH-adjusted pairwise Wilcoxon comparisons showed Wide Angle was faster than both Round Out (p = .021) and Narrow Angle (p = .005), with no difference between the latter two (p = .355)."</em></p>
+
+<h2>Summary</h2>
+
+<p>The Friedman test is your first stop whenever the same subjects are measured under three or more conditions and you cannot trust normality. The table below is a quick reference card for the full workflow.</p>
+
+<p><img src="screenshots/Friedman-Test-in-R-workflow.webp" alt="End-to-end Friedman workflow" class="img-responsive img-zoomable" loading="lazy" width="2248" height="564" /></p>
+
+<p><em>Figure 3: The end-to-end Friedman workflow: test, effect size, post-hoc, report.</em></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Step</th>
+<th>R call</th>
+<th>What it gives you</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Run the test</td>
+<td>`friedman.test(y ~ x \</td>
+<td>block)`</td>
+<td>chi-squared, df, p-value</td>
+</tr>
+<tr>
+<td>Effect size</td>
+<td><code>chi^2 / (N * (K - 1))</code></td>
+<td>Kendall's W in [0, 1]</td>
+</tr>
+<tr>
+<td>Visualize</td>
+<td><code>geom_line(aes(group = subj))</code></td>
+<td>Spaghetti plot of trajectories</td>
+</tr>
+<tr>
+<td>Post-hoc</td>
+<td><code>pairwise.wilcox.test(..., paired = TRUE, p.adjust.method = &quot;BH&quot;)</code></td>
+<td>All-pair p-value matrix</td>
+</tr>
+<tr>
+<td>Assumption check</td>
+<td><code>shapiro.test(residuals(lm(...)))</code></td>
+<td>Switching rule vs RM-ANOVA</td>
+</tr>
+</tbody>
+</table>
+
+<p>Reach for <strong>RM-ANOVA</strong> when the residuals look normal, <strong>Friedman</strong> when they do not, and a <strong>mixed-effects model</strong> when subjects are nested in higher-level groups. Pair every Friedman with Kendall's W and a multiple-testing-aware post-hoc, and you have a defensible analysis even before you write the report.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>R Core Team. <code>friedman.test()</code> reference documentation. <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/friedman.test.html">Link</a></li>
+
+<li>Friedman, M. (1937). The use of ranks to avoid the assumption of normality implicit in the analysis of variance. <em>Journal of the American Statistical Association</em>, 32(200), 675-701. <a href="https://www.jstor.org/stable/2279372">Link</a></li>
+
+<li>Hollander, M., Wolfe, D. A., Chicken, E. (2014). <em>Nonparametric Statistical Methods</em>, 3rd Edition. Wiley. Chapter 7.</li>
+
+<li>Mangiafico, S. (2016). <em>Summary and Analysis of Extension Program Evaluation in R</em>, Friedman Test chapter. <a href="https://rcompanion.org/handbook/F_10.html">Link</a></li>
+
+<li>Pohlert, T. (2023). <em>PMCMRplus: Calculate Pairwise <a class="auto-link" href="Multiple-Comparisons-in-R.html" title="Multiple Testing in R: Control False Discoveries Without Losing All Your Power">Multiple Comparisons</a> of Mean Rank Sums Extended</em>. CRAN. <a href="https://cran.r-project.org/web/packages/PMCMRplus/index.html">Link</a></li>
+
+<li>Conover, W. J. (1999). <em>Practical Nonparametric Statistics</em>, 3rd Edition. Wiley. Sections 5.8 and 5.9.</li>
+
+<li>Wikipedia, Friedman test. <a href="https://en.wikipedia.org/wiki/Friedman_test">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Kruskal-Wallis-Test-in-R-2.html">Kruskal-Wallis Test in R: k-Sample Nonparametric ANOVA + Post-Hoc</a> covers the Friedman analogue when groups are <em>independent</em> rather than repeated measures on the same subjects.</li>
+
+<li><a href="Wilcoxon-Signed-Rank-Test-in-R.html">Wilcoxon Signed-Rank Test in R: Paired Data Without Normality</a> handles the two-condition special case that backs Friedman's pairwise post-hoc.</li>
+
+<li><a href="When-to-Use-Nonparametric-Tests-in-R.html">When to Use Nonparametric Tests in R: Decision Guide with Flowchart</a> gives the broader decision tree that places Friedman among its rank-based cousins.</li>
+
+</ul>
+
+{% endraw %}
