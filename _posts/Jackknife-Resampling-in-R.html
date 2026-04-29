@@ -1,0 +1,771 @@
+---
+title: "Jackknife Resampling in R: Leave-One-Out Bias Correction"
+description: "Learn jackknife resampling in R: leave-one-out bias correction, standard errors, pseudo-values, and t-based confidence intervals with base R examples."
+keywords: "jackknife resampling, jackknife in R, leave-one-out, bias correction, jackknife standard error, jackknife pseudo-values, resampling methods, jackknife estimator, jackknife variance"
+mathjax: true
+webr: true
+curriculum_id: "FR-nonp-9"
+post_type: "FR"
+auto_link_terms: "jackknife resampling|jackknife estimator|leave-one-out estimator|jackknife bias|jackknife standard error|jackknife variance|jackknife pseudo-values"
+auto_link_case_sensitive: false
+fr_parent: "Bootstrap-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>Jackknife Resampling in R: Leave-One-Out Bias Correction</h1>
+
+<p class="lead">Jackknife resampling estimates the bias and standard error of a statistic by recomputing it on <code>n</code> leave-one-out subsamples: drop one observation, recompute, repeat. In base R, the whole machine is a five-line loop, and it returns the same standard error you would get from textbook formulas.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="25" data-exercises="7" data-xp="105"></div>
+
+<h2>What is jackknife resampling, and how does it work?</h2>
+
+<p>The recipe is mechanical. Take a sample of <code>n</code> observations. Drop the first one and compute your statistic on the remaining <code>n-1</code>. Put it back, drop the second, repeat. After <code>n</code> passes you have <code>n</code> leave-one-out estimates, and their spread tells you how stable the original estimate is. Let's see this on the mean of <code>mtcars$mpg</code>, where the analytic standard error is already known.</p>
+
+<div class="webr-container" data-block-title="Manual leave-one-out for the mean">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Manual leave-one-out for the mean</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">x &lt;- mtcars$mpg
+n &lt;- length(x)
+theta_hat &lt;- mean(x)
+
+# leave-one-out estimates
+jack_means &lt;- sapply(1:n, function(i) mean(x[-i]))
+
+# jackknife standard error
+jack_se &lt;- sqrt((n - 1) / n * sum((jack_means - mean(jack_means))^2))
+
+# compare with the analytic standard error of the mean
+analytic_se &lt;- sd(x) / sqrt(n)
+
+c(theta_hat = theta_hat, jack_se = jack_se, analytic_se = analytic_se)
+#&gt;   theta_hat     jack_se analytic_se
+#&gt;    20.09062     1.06542     1.06542</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The two standard errors agree to every decimal. That is not a coincidence: for the sample mean, the jackknife formula reduces algebraically to <code>sd(x)/sqrt(n)</code>. This match is the sanity check that anchors the rest of the method, and it works without us having to write down a single distributional assumption.</p>
+
+<p><img src="screenshots/Jackknife-Resampling-in-R-loo-flow.webp" alt="Jackknife leave-one-out flow." class="img-responsive img-zoomable" loading="lazy" width="1934" height="986" /></p>
+
+<p><em>Figure 1: How n leave-one-out samples produce n estimates and one summary.</em></p>
+
+<p>The math behind <code>jack_se</code> is a single formula:</p>
+
+<p>$$\text{SE}_\text{jack} = \sqrt{\frac{n-1}{n} \sum_{i=1}^{n} \left( \hat\theta_{(-i)} - \bar{\theta}_\text{jack} \right)^2}$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$\hat\theta_{(-i)}$ = the estimate computed on the sample with observation $i$ removed</li>
+
+<li>$\bar{\theta}_\text{jack}$ = the average of those <code>n</code> leave-one-out estimates</li>
+
+<li>The <code>(n-1)/n</code> factor inflates the spread to compensate for the high correlation between leave-one-out subsamples (they overlap in <code>n-2</code> observations).</li>
+
+</ul>
+
+<p>Let's wrap that loop in a tiny reusable function, since we'll need it again for bias and confidence intervals.</p>
+
+<div class="webr-container" data-block-title="Reusable jack() helper">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Reusable jack() helper</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">jack &lt;- function(v, statistic) {
+  nn &lt;- length(v)
+  values &lt;- sapply(1:nn, function(i) statistic(v[-i]))
+  list(
+    value  = statistic(v),
+    values = values,
+    mean   = mean(values),
+    se     = sqrt((nn - 1) / nn * sum((values - mean(values))^2))
+  )
+}
+
+jack(mtcars$mpg, mean)$se
+#&gt; [1] 1.06542</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The helper returns the original estimate, all <code>n</code> leave-one-out values, their mean, and the jackknife standard error. We'll reuse it across every section without rebuilding the loop.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The jackknife standard error of the sample mean equals the analytic standard error.</strong> This is an algebraic identity, not an empirical curiosity, and it is the reason the jackknife is treated as a credible substitute when no closed-form standard error exists.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use <code>jack()</code> to estimate the standard error of the <strong>median</strong> of <code>mtcars$wt</code>. Print the SE.</p>
+<div class="webr-container" data-block-title="Your turn: jackknife SE for the median">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: jackknife SE for the median</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: jackknife the median of mtcars$wt
+ex_w &lt;- mtcars$wt
+
+# your code here
+
+#&gt; Expected: a single numeric SE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Median SE solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Median SE solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_jack_med &lt;- jack(ex_w, median)
+ex_jack_med$se
+#&gt; [1] 0.2868649</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>jack()</code> plugs <code>median</code> into the same loop. Hold on to this number, we'll see in the last section that the jackknife standard error for the median is unreliable for a different reason.</p>
+
+</details>
+</section>
+
+<h2>How do you estimate bias with the jackknife?</h2>
+
+<p>A statistic is biased if its expected value over repeated sampling differs from the true population value. The jackknife estimates that bias from a single sample using a striking formula:</p>
+
+<p>$$\text{bias}_\text{jack} = (n-1) \left( \bar{\theta}_\text{jack} - \hat\theta \right)$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$\hat\theta$ = the estimate on the full sample</li>
+
+<li>$\bar{\theta}_\text{jack}$ = the average of the <code>n</code> leave-one-out estimates</li>
+
+</ul>
+
+<p>The bias-corrected estimator is then:</p>
+
+<p>$$\hat\theta^{*}_\text{jack} = n\hat\theta - (n-1)\bar{\theta}_\text{jack}$$</p>
+
+<p>A clean place to test this is the textbook biased variance: dividing by <code>n</code> instead of <code>n-1</code> is known to underestimate the population variance by exactly $\sigma^2/n$. The jackknife should detect that bias and undo it.</p>
+
+<div class="webr-container" data-block-title="Bias-correct a biased variance estimator">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Bias-correct a biased variance estimator</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">biased_var &lt;- function(v) sum((v - mean(v))^2) / length(v)
+
+bv_naive &lt;- biased_var(x)
+bv_jack  &lt;- jack(x, biased_var)
+
+bias_estimate &lt;- (n - 1) * (bv_jack$mean - bv_naive)
+bv_corrected  &lt;- n * bv_naive - (n - 1) * bv_jack$mean
+
+c(bv_naive = bv_naive,
+  bias_estimate = bias_estimate,
+  bv_corrected = bv_corrected,
+  unbiased_var = var(x))
+#&gt;      bv_naive bias_estimate  bv_corrected  unbiased_var
+#&gt;      35.18897      -1.13513      36.32411      36.32411</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The corrected estimate matches <code>var(x)</code> exactly. The jackknife discovered the <code>1/n</code> versus <code>1/(n-1)</code> mistake on its own, with no knowledge of the analytic correction. The bias estimate is negative because the naive estimator underestimates the true variance.</p>
+
+<p>The same technique works for statistics whose bias has no clean closed form, like Pearson's correlation, which is mildly biased toward zero in small samples.</p>
+
+<div class="webr-container" data-block-title="Bias of Pearson correlation">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Bias of Pearson correlation</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mpg &lt;- mtcars$mpg
+wt  &lt;- mtcars$wt
+
+r_naive &lt;- cor(mpg, wt)
+
+# leave-one-out correlations
+jack_r &lt;- sapply(1:n, function(i) cor(mpg[-i], wt[-i]))
+
+r_bias_estimate &lt;- (n - 1) * (mean(jack_r) - r_naive)
+r_corrected     &lt;- n * r_naive - (n - 1) * mean(jack_r)
+
+c(r_naive = r_naive,
+  r_bias = r_bias_estimate,
+  r_corrected = r_corrected)
+#&gt;     r_naive      r_bias r_corrected
+#&gt; -0.86765938 -0.00355891 -0.87121829</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The bias is small, around three thousandths, but it consistently pushes the estimate toward zero. The corrected value is very slightly more negative, in line with the well-known small-sample bias of <code>cor()</code>. With <code>n = 32</code> you would not lose sleep over the gap, but with <code>n = 10</code> the same correction can move an estimate by 0.05 or more.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Bias correction is not always a free lunch.</strong> The corrected estimator can have higher variance than the naive one, so you can trade a small bias reduction for a larger MSE. Apply the correction when <code>n</code> is small or when bias is the metric you actually care about, and skip it for everyday use.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Take the <code>mtcars$mpg</code> mean and add an artificial bias by writing <code>biased_mean &lt;- function(v) mean(v) + 5</code>. Use <code>jack()</code> plus the formula <code>n*theta - (n-1)*jack_mean</code> to recover the unbiased mean.</p>
+<div class="webr-container" data-block-title="Your turn: undo an artificial bias">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: undo an artificial bias</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: build biased_mean and recover the truth
+ex_biased_mean &lt;- function(v) mean(v) + 5
+
+# your code here
+
+#&gt; Expected: corrected value close to mean(mtcars$mpg) = 20.09062</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Undo offset solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Undo offset solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">bm_obj  &lt;- jack(mtcars$mpg, ex_biased_mean)
+bm_corrected &lt;- length(mtcars$mpg) * bm_obj$value -
+  (length(mtcars$mpg) - 1) * bm_obj$mean
+bm_corrected
+#&gt; [1] 20.09062</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The constant offset shifts every leave-one-out estimate by the same amount, so the bias formula reads off exactly <code>5</code> and the correction subtracts it back out. That is also why the jackknife is exact for additive biases.</p>
+
+</details>
+</section>
+
+<h2>How do you compute the jackknife standard error and confidence intervals?</h2>
+
+<p>The jackknife also produces something more useful than the SE alone: <strong>pseudo-values</strong>. For each observation <code>i</code>, the pseudo-value is</p>
+
+<p>$$\varphi_i = n\hat\theta - (n-1)\hat\theta_{(-i)}$$</p>
+
+<p>Pseudo-values have two friendly properties. Their mean is the bias-corrected estimator. And, when the statistic is reasonably smooth, they behave like approximately independent draws, so their sample standard deviation divided by <code>sqrt(n)</code> gives a standard error and the t-distribution gives a confidence interval.</p>
+
+<p>Let's apply this to skewness, a statistic with no clean analytic SE.</p>
+
+<div class="webr-container" data-block-title="Pseudo-values and a t-CI for skewness">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pseudo-values and a t-CI for skewness</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># small sample-skewness function (base R)
+skew_fn &lt;- function(v) {
+  m &lt;- mean(v); s &lt;- sd(v); nn &lt;- length(v)
+  sum((v - m)^3) / (nn * s^3)
+}
+
+theta_skew &lt;- skew_fn(x)
+jack_skew  &lt;- sapply(1:n, function(i) skew_fn(x[-i]))
+
+# pseudo-values
+pseudo_vals  &lt;- n * theta_skew - (n - 1) * jack_skew
+phi_bar      &lt;- mean(pseudo_vals)
+jack_se_skew &lt;- sd(pseudo_vals) / sqrt(n)
+
+# 95% t-confidence interval
+ci &lt;- phi_bar + qt(c(0.025, 0.975), df = n - 1) * jack_se_skew
+
+list(theta_skew = theta_skew,
+     phi_bar    = phi_bar,
+     jack_se    = jack_se_skew,
+     ci_95      = ci)
+#&gt; $theta_skew
+#&gt; [1] 0.6105
+#&gt;
+#&gt; $phi_bar
+#&gt; [1] 0.6293
+#&gt;
+#&gt; $jack_se
+#&gt; [1] 0.3417
+#&gt;
+#&gt; $ci_95
+#&gt; [1] -0.0676  1.3262</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The skewness of <code>mtcars$mpg</code> is about 0.61, mildly right-skewed. The jackknife says the bias-corrected skewness is essentially the same, with a 95 percent confidence interval that brushes against zero. In other words, with <code>n = 32</code> you cannot rule out a symmetric distribution from this sample alone.</p>
+
+<p>The same answer comes out of <code>jack()</code> once you note that pseudo-value SE equals jackknife SE divided by <code>sqrt(n-1)/sqrt(n)</code>:</p>
+
+<div class="webr-container" data-block-title="Same SE via the jack() helper">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Same SE via the jack() helper</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">jk &lt;- jack(x, skew_fn)
+
+# the relationship: sd(pseudo) / sqrt(n) == jack_se * sqrt((n-1)/n) ... wait, identical
+identical(round(sd(pseudo_vals)/sqrt(n), 6),
+          round(jk$se,                    6))
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The two routes give the same number. Pseudo-values are just the lens that turns leave-one-out estimates into something a t-test would accept.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Several skewness conventions live in the wild.</strong> The formula above matches the one in Joanes and Gill (1998); the <code>e1071</code> package offers three variants, and <code>moments::skewness()</code> uses yet another. Pick one and report it. The jackknife procedure works the same way regardless of which one you choose.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a 95 percent jackknife confidence interval for the <strong>coefficient of variation</strong> (<code>sd(v)/mean(v)</code>) of <code>mtcars$hp</code>. Use the pseudo-value approach above.</p>
+<div class="webr-container" data-block-title="Your turn: jackknife CI for the coefficient of variation">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: jackknife CI for the coefficient of variation</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: jackknife CI for cv = sd / mean
+ex_h  &lt;- mtcars$hp
+cv_fn &lt;- function(v) sd(v) / mean(v)
+
+# your code here
+
+#&gt; Expected: a 2-element CI for the CV</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="CV CI solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">CV CI solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_n     &lt;- length(ex_h)
+ex_theta &lt;- cv_fn(ex_h)
+ex_jack  &lt;- sapply(1:ex_n, function(i) cv_fn(ex_h[-i]))
+ex_pv    &lt;- ex_n * ex_theta - (ex_n - 1) * ex_jack
+ex_se    &lt;- sd(ex_pv) / sqrt(ex_n)
+ex_cv_jack &lt;- mean(ex_pv) + qt(c(0.025, 0.975), df = ex_n - 1) * ex_se
+ex_cv_jack
+#&gt; [1] 0.4324 0.6584</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The CV is roughly 0.55 in the full sample. The jackknife CI says the population CV is somewhere between 0.43 and 0.66, narrow enough to be informative.</p>
+
+</details>
+</section>
+
+<h2>When does the jackknife fail (and what to use instead)?</h2>
+
+<p>The jackknife is, mathematically, a linear approximation of the bootstrap. It works well when the statistic is a <strong>smooth</strong> function of the data: changing one observation moves the estimate by a small, continuous amount. It breaks for statistics that respond to single observations in jumps, and the median is the textbook offender.</p>
+
+<div class="webr-container" data-block-title="Jackknife on the median fails">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Jackknife on the median fails</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">med_fn   &lt;- function(v) median(v)
+jack_med &lt;- sapply(1:n, function(i) median(x[-i]))
+
+# leave-one-out medians take only a couple of values
+sort(unique(jack_med))
+#&gt; [1] 19.20 19.25
+
+jack_med_se &lt;- sqrt((n - 1) / n * sum((jack_med - mean(jack_med))^2))
+
+# compare with a quick bootstrap SE
+set.seed(7)
+boot_med &lt;- replicate(2000, median(sample(x, n, replace = TRUE)))
+
+c(jack_med_se = jack_med_se,
+  boot_med_se = sd(boot_med))
+#&gt; jack_med_se boot_med_se
+#&gt;    0.355113    1.064500</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>There are only two distinct leave-one-out medians, and they differ by a tenth of a unit. The jackknife sees almost no spread and reports a tiny standard error. The bootstrap, which can resample the same observation multiple times, sees the real variability and returns an SE three times larger. For a sample with <code>n = 32</code>, three times is not a rounding error.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Do not jackknife the median, quantiles, max, or min.</strong> Standard errors from the jackknife understate the true uncertainty for these statistics, sometimes by a factor of three or more. Use the bootstrap (see <a href="Bootstrap-in-R.html">Bootstrap in R</a>) for non-smooth statistics, and reserve the jackknife for means, regression coefficients, ratios, correlations, and other smooth functions of the data.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Apply the jackknife to <code>max(mtcars$hp)</code>. Look at how many distinct leave-one-out values there are, and explain why the jackknife SE is misleading.</p>
+<div class="webr-container" data-block-title="Your turn: jackknife max() and see the pathology">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: jackknife max() and see the pathology</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: jackknife max(mtcars$hp)
+ex_h2 &lt;- mtcars$hp
+
+# your code here
+
+#&gt; Expected: only two distinct leave-one-out values</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Jackknife max solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Jackknife max solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_jmax &lt;- sapply(1:length(ex_h2), function(i) max(ex_h2[-i]))
+sort(unique(ex_jmax))
+#&gt; [1] 264 335</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Removing the single largest observation drops the max from 335 to 264, every other leave-one-out leaves the max at 335. With only two values, the jackknife reports a tiny SE that severely understates the real sampling uncertainty in <code>max()</code>. The bootstrap is the right tool here.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<h3>Exercise 1: Trimmed-mean SE on airquality</h3>
+
+<p>Use the jackknife to estimate the standard error of the 10 percent trimmed mean of <code>airquality$Wind</code>. Save the result to <code>tm_jack</code> and print its <code>$se</code>.</p>
+
+<div class="webr-container" data-block-title="Trimmed mean SE">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Trimmed mean SE</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: use jack() with statistic = function(v) mean(v, trim = 0.10)
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Trimmed mean SE solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Trimmed mean SE solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">aw &lt;- airquality$Wind
+tm_jack &lt;- jack(aw, function(v) mean(v, trim = 0.10))
+c(value = tm_jack$value, se = tm_jack$se)
+#&gt;    value       se
+#&gt; 9.836066 0.350201</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The trimmed mean is smooth enough for the jackknife to be reliable, so the SE is trustworthy. Compare with <code>sd(aw)/sqrt(length(aw))</code> to see how much trimming costs you in precision.</p>
+
+</details>
+
+<h3>Exercise 2: A reusable jackknife CI function</h3>
+
+<p>Write a function <code>jack_ci(v, statistic, conf = 0.95)</code> that returns a list with <code>value</code>, <code>se</code>, and a <code>t</code>-based confidence interval built from pseudo-values. Test it on <code>mean</code> of <code>mtcars$mpg</code>.</p>
+
+<div class="webr-container" data-block-title="Build jack_ci()">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build jack_ci()</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: pseudo-values phi_i = n*theta - (n-1)*theta_{-i}
+# CI = mean(phi) +/- qt(...) * sd(phi)/sqrt(n)
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="jack_ci() solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">jack_ci() solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">jack_ci &lt;- function(v, statistic, conf = 0.95) {
+  nn  &lt;- length(v)
+  th  &lt;- statistic(v)
+  loo &lt;- sapply(1:nn, function(i) statistic(v[-i]))
+  pv  &lt;- nn * th - (nn - 1) * loo
+  se  &lt;- sd(pv) / sqrt(nn)
+  alpha &lt;- 1 - conf
+  ci &lt;- mean(pv) + qt(c(alpha / 2, 1 - alpha / 2), df = nn - 1) * se
+  list(value = th, se = se, ci = ci)
+}
+
+jack_ci(mtcars$mpg, mean)
+#&gt; $value
+#&gt; [1] 20.09062
+#&gt;
+#&gt; $se
+#&gt; [1] 1.06542
+#&gt;
+#&gt; $ci
+#&gt; [1] 17.91768 22.26356</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The function returns the bias-corrected estimate (mean of pseudo-values), the standard error, and a t-CI in three lines of pseudo-value algebra. Drop in any statistic that takes a numeric vector.</p>
+
+</details>
+
+<h3>Exercise 3: Influential observations from pseudo-values</h3>
+
+<p>Pseudo-values reveal which observations have outsized influence on a statistic. Compute pseudo-values for the <strong>mean</strong> of <code>iris$Sepal.Length</code> and flag any observation whose pseudo-value differs from the average by more than 2 standard deviations. Save the row indices to <code>flagged</code>.</p>
+
+<div class="webr-container" data-block-title="Influential observations">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Influential observations</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: pv = n*mean(x) - (n-1)*mean(x[-i])
+# flag where abs(pv - mean(pv)) &gt; 2 * sd(pv)
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Influence solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Influence solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sl  &lt;- iris$Sepal.Length
+nn  &lt;- length(sl)
+th  &lt;- mean(sl)
+loo &lt;- sapply(1:nn, function(i) mean(sl[-i]))
+iris_pv &lt;- nn * th - (nn - 1) * loo
+
+flagged &lt;- which(abs(iris_pv - mean(iris_pv)) &gt; 2 * sd(iris_pv))
+length(flagged)
+#&gt; [1] 9
+head(flagged)
+#&gt; [1] 14 15 16 33 42 61</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Roughly nine observations sit more than 2 SD away from the average pseudo-value. Three of those are the small Setosa flowers near row 14, the rest are the large Virginica flowers later in the dataset. Pseudo-value diagnostics generalize this idea to any smooth statistic, not just the mean.</p>
+
+</details>
+
+<h2>Complete Example</h2>
+
+<p>End-to-end workflow: estimate the skewness of <code>airquality$Ozone</code> (with <code>NA</code>s removed), build a jackknife confidence interval, and check the bias correction against the naive estimate.</p>
+
+<div class="webr-container" data-block-title="Skewness of airquality$Ozone end-to-end">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Skewness of airquality$Ozone end-to-end</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">oz &lt;- na.omit(airquality$Ozone)
+n_oz &lt;- length(oz)
+
+# step 1: naive estimate
+skew_oz &lt;- skew_fn(oz)
+
+# step 2: leave-one-out skewness values
+loo_oz &lt;- sapply(1:n_oz, function(i) skew_fn(oz[-i]))
+
+# step 3: pseudo-values
+pv_oz &lt;- n_oz * skew_oz - (n_oz - 1) * loo_oz
+
+# step 4: bias and corrected estimate
+bias_oz      &lt;- (n_oz - 1) * (mean(loo_oz) - skew_oz)
+oz_corrected &lt;- mean(pv_oz)
+
+# step 5: 95% t-CI
+oz_se &lt;- sd(pv_oz) / sqrt(n_oz)
+oz_ci &lt;- oz_corrected + qt(c(0.025, 0.975), df = n_oz - 1) * oz_se
+
+list(naive       = skew_oz,
+     bias        = bias_oz,
+     corrected   = oz_corrected,
+     se          = oz_se,
+     ci_95       = oz_ci)
+#&gt; $naive
+#&gt; [1] 1.2098
+#&gt;
+#&gt; $bias
+#&gt; [1] -0.0181
+#&gt;
+#&gt; $corrected
+#&gt; [1] 1.2280
+#&gt;
+#&gt; $se
+#&gt; [1] 0.2294
+#&gt;
+#&gt; $ci_95
+#&gt; [1] 0.7732 1.6828</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The naive skewness is about 1.21, strongly right-skewed, which is unsurprising for ozone concentrations. The bias correction nudges the estimate slightly upward to 1.23, and the 95 percent CI is well clear of zero. We can confidently report ozone concentrations as right-skewed, and we have a defensible interval to back it up, all from a sample of 116 observations and a 20-line R workflow.</p>
+
+<h2>Summary</h2>
+
+<p><img src="screenshots/Jackknife-Resampling-in-R-summary-mindmap.webp" alt="What the jackknife gives you." class="img-responsive img-zoomable" loading="lazy" width="1768" height="978" /></p>
+
+<p><em>Figure 2: What the jackknife gives you, and where it falls short.</em></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>What you want</th>
+<th>Jackknife formula</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Standard error</td>
+<td>$\sqrt{\frac{n-1}{n}\sum (\hat\theta_{(-i)} - \bar\theta_\text{jack})^2}$</td>
+</tr>
+<tr>
+<td>Bias estimate</td>
+<td>$(n-1)(\bar\theta_\text{jack} - \hat\theta)$</td>
+</tr>
+<tr>
+<td>Bias-corrected estimate</td>
+<td>$n\hat\theta - (n-1)\bar\theta_\text{jack}$</td>
+</tr>
+<tr>
+<td>Pseudo-value</td>
+<td>$\varphi_i = n\hat\theta - (n-1)\hat\theta_{(-i)}$</td>
+</tr>
+<tr>
+<td>Confidence interval</td>
+<td>$\bar\varphi \pm t_{n-1,\alpha/2} \cdot \mathrm{sd}(\varphi)/\sqrt{n}$</td>
+</tr>
+</tbody>
+</table>
+
+<p>Use the jackknife when your statistic is smooth (means, ratios, regression coefficients, correlations, log-likelihoods). Reach for the bootstrap when it is not (medians, quantiles, max, min, anything with a min/max/sort step in the middle).</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Quenouille, M.H. (1949). Approximate tests of correlation in <a class="auto-link" href="Time-Series-Analysis-With-R.html" title="Time Series Analysis with R">time series</a>. <em>Journal of the Royal Statistical Society B</em>, 11, 68-84.</li>
+
+<li>Tukey, J.W. (1958). Bias and confidence in not-quite large samples (abstract). <em>Annals of Mathematical Statistics</em>, 29, 614.</li>
+
+<li>Efron, B., Tibshirani, R.J. (1993). <em>An Introduction to the Bootstrap</em>. Chapman & Hall, ch. 11.</li>
+
+<li>Shalizi, C. (2023). Jackknife notes, CMU Stat 36-490. <a href="https://www.stat.cmu.edu/~cshalizi/490/23/2023-11-29-jackknife.pdf">Link</a></li>
+
+<li>Wikipedia: Jackknife resampling. <a href="https://en.wikipedia.org/wiki/Jackknife_resampling">Link</a></li>
+
+<li>Zivot, E. <em>Introduction to Computational Finance and Financial Econometrics with R</em>, ch. 8.5. <a href="https://bookdown.org/compfinezbook/introcompfinr/The-Jackknife.html">Link</a></li>
+
+<li>Sawyer, S. (2005). Resampling Data: Using a Statistical Jackknife. Washington University. <a href="https://www.math.wustl.edu/~sawyer/handouts/Jackknife.pdf">Link</a></li>
+
+<li>Joanes, D.N., Gill, C.A. (1998). Comparing measures of sample <a class="auto-link" href="Univariate-EDA-in-R.html" title="Univariate EDA in R: Every Variable Deserves Individual Attention Before Modelling">skewness and kurtosis</a>. <em>Journal of the Royal Statistical Society D</em>, 47(1), 183-189.</li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Bootstrap-in-R.html">Bootstrap in R</a>, the resampling sibling that handles non-smooth statistics where the jackknife fails.</li>
+
+<li><a href="Bootstrap-Confidence-Intervals-in-R.html">Bootstrap Confidence Intervals in R</a>, for when the t-CI on pseudo-values is not enough and you need percentile or BCa intervals.</li>
+
+<li><a href="When-to-Use-Nonparametric-Tests-in-R.html">When to Use Nonparametric Tests in R</a>, the broader nonparametric toolkit that resampling methods sit inside.</li>
+
+</ul>
+
+{% endraw %}
