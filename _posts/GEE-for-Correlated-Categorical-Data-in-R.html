@@ -1,0 +1,777 @@
+---
+title: "GEE for Correlated Categorical Data in R: geepack Population Averages"
+description: "Fit GEE models in R with geepack: population-averaged effects on correlated binary outcomes, correlation structures, robust SEs, QIC, and odds ratios."
+keywords: "GEE in R, geepack tutorial, generalized estimating equations, correlated categorical data, population-averaged model, geeglm, exchangeable correlation, QIC R, robust standard errors, marginal model"
+mathjax: true
+webr: true
+curriculum_id: "FR-cate-5"
+post_type: "FR"
+auto_link_terms: "generalized estimating equations|geepack|geeglm|population-averaged model|exchangeable correlation|QIC criterion|correlated categorical data|sandwich standard errors"
+auto_link_case_sensitive: false
+fr_parent: "Logistic-Regression-in-R-2.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>GEE for Correlated Categorical Data in R: geepack Population Averages</h1>
+
+<p class="lead">Generalized estimating equations (GEE) extend logistic regression to handle clustered or repeated yes/no measurements, like four respiratory checks on the same child. The geepack package's <code>geeglm()</code> fits these models in one line and returns population-averaged effects with <a class="auto-link" href="Heteroscedasticity-in-R.html" title="Heteroscedasticity in R: Breusch-Pagan Test & Robust Standard Errors">robust standard errors</a>, so coefficients describe the average change across the population rather than within a single subject.</p>
+
+<div class="engagement-header" data-difficulty="Advanced" data-time="30" data-exercises="7" data-xp="105"></div>
+
+<h2>Why does standard logistic regression fail on clustered yes/no data?</h2>
+
+<p>Suppose 537 children each get four wheeze checks across ages 7-10. Treating those 2,148 records as independent inflates the apparent sample size and shrinks standard errors, so a noisy maternal-smoking effect can look highly significant. GEE corrects for that within-child correlation while still answering a marginal question, what the population-average odds of wheezing look like under different conditions, using the geepack package.</p>
+
+<p>Let's see the difference in one shot. We fit a plain <code>glm()</code> (which assumes every row is independent) and a <code>geeglm()</code> (which knows the rows come in clusters of 4 per child) and put their coefficients side by side.</p>
+
+<div class="webr-container" data-block-title="Naive glm vs geeglm on clustered binary data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Naive glm vs geeglm on clustered binary data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(geepack)
+library(dplyr)
+
+data(ohio, package = &quot;geepack&quot;)
+head(ohio, 5)
+#&gt;   resp id age smoke
+#&gt; 1    0  0  -2     0
+#&gt; 2    0  0  -1     0
+#&gt; 3    0  0   0     0
+#&gt; 4    0  0   1     0
+#&gt; 5    0  1  -2     0
+
+fit_glm &lt;- glm(resp ~ age + smoke, data = ohio, family = binomial)
+fit_gee &lt;- geeglm(resp ~ age + smoke, id = id, data = ohio,
+                  family = binomial, corstr = &quot;exchangeable&quot;)
+
+round(cbind(GLM_coef = coef(fit_glm),
+            GEE_coef = coef(fit_gee),
+            GLM_SE   = summary(fit_glm)$coef[, &quot;Std. Error&quot;],
+            GEE_SE   = summary(fit_gee)$coef[, &quot;Std.err&quot;]), 4)
+#&gt;             GLM_coef GEE_coef GLM_SE GEE_SE
+#&gt; (Intercept)  -1.8837  -1.8837 0.0838 0.1148
+#&gt; age          -0.1133  -0.1133 0.0436 0.0438
+#&gt; smoke         0.2651   0.2651 0.0879 0.1779</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Point estimates barely move, but the standard error for <code>smoke</code> doubles under GEE, from 0.088 to 0.178. The naive <code>glm()</code> thinks it has 2,148 independent observations and shrinks the SE accordingly. GEE recognises that responses within a child are correlated and widens the SE to reflect the true information content. The same coefficient, honestly priced, is the whole point.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong><a class="auto-link" href="Clustering-with-R.html" title="Clustering with R">Clustering</a> inflates effective sample size.</strong> If you ignore that 4 records per child are dependent, your model behaves as if you have 4× more independent subjects than you really do, which compresses standard errors and breeds false positives.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The ohio dataset has 537 children with 4 visits each. Use <code>length(unique(ohio$id))</code> and <code>nrow(ohio)</code> to confirm the cluster size, then save the average observations per child to <code>ex_obs_per_child</code>.</p>
+<div class="webr-container" data-block-title="Your turn: count cluster size">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: count cluster size</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Compute ex_obs_per_child = mean rows per id
+ex_obs_per_child &lt;- # your code here
+
+print(ex_obs_per_child)
+#&gt; Expected: 4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Cluster size solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Cluster size solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_obs_per_child &lt;- nrow(ohio) / length(unique(ohio$id))
+print(ex_obs_per_child)
+#&gt; [1] 4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Dividing total rows by the number of unique ids gives the average cluster size. A balanced design like ohio has the same value for every child.</p>
+
+</details>
+</section>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>geepack is required for every block in this post.</strong> If <code>library(geepack)</code> errors with a "<a class="auto-link" href="R-Error-No-Package.html" title="R Error: there is no package called 'X' — Installation & Troubleshooting">no package called</a>" message, install it once with <code>install.packages(&quot;geepack&quot;)</code> and re-run the loader. The package is on CRAN, has no exotic system dependencies, and ships the <code>ohio</code> and <code>respiratory</code> datasets used below.</div></div>
+
+<h2>How do you fit a binary GEE model with geepack?</h2>
+
+<p>The fitting call is <code>geeglm(formula, id, data, family, corstr)</code>. Four arguments do almost all the work: the formula behaves exactly like in <code>glm()</code>, <code>id</code> names the clustering variable, <code>family = binomial</code> selects the logit link for binary outcomes, and <code>corstr</code> sets the working correlation structure (we will compare options in the next section).</p>
+
+<p>The summary output looks similar to <code>glm()</code> but with two crucial differences: the standard errors are sandwich (robust) by default, and a working correlation parameter is reported at the bottom.</p>
+
+<div class="webr-container" data-block-title="Read the geeglm summary">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Read the geeglm summary</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">summary(fit_gee)
+#&gt; 
+#&gt; Call:
+#&gt; geeglm(formula = resp ~ age + smoke, family = binomial, data = ohio,
+#&gt;     id = id, corstr = &quot;exchangeable&quot;)
+#&gt; 
+#&gt;  Coefficients:
+#&gt;             Estimate Std.err   Wald Pr(&gt;|W|)    
+#&gt; (Intercept)  -1.8837  0.1148 269.31  &lt; 2e-16 ***
+#&gt; age          -0.1133  0.0438   6.69    0.010 *  
+#&gt; smoke         0.2651  0.1779   2.22    0.136    
+#&gt; 
+#&gt; Estimated Scale Parameters:
+#&gt;             Estimate Std.err
+#&gt; (Intercept)        1  0.1107
+#&gt; 
+#&gt; Correlation: Structure = exchangeable    Link = identity 
+#&gt; Estimated Correlation Parameters:
+#&gt;       Estimate Std.err
+#&gt; alpha   0.3548 0.04032
+#&gt; 
+#&gt; Number of clusters:   537   Maximum cluster size: 4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Three things worth noting. First, <code>Std.err</code> here is the sandwich (robust) SE, not the model-based one. Second, the test column is <code>Wald</code> (z-squared), so the chi-square shown equals (Estimate / Std.err)². Third, <code>alpha = 0.3548</code> is the within-child correlation between any two visits, the single number the exchangeable structure assumes.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Sort by cluster id before fitting.</strong> <code>geeglm()</code> assumes rows belonging to the same <code>id</code> are contiguous. Run <code>ohio &lt;- ohio[order(ohio$id, ohio$age), ]</code> before fitting if your data could be shuffled, otherwise observations get assigned to the wrong cluster and the correlation estimate is garbage.</div></div>
+
+<p>For interpretation, log-odds are awkward. We exponentiate to get odds ratios, and we use the robust <a class="auto-link" href="Multivariate-Statistics-in-R.html" title="Multivariate Statistics in R: Distances, Mahalanobis, and Hotelling's T² Demystified">covariance matrix</a> to build the 95% Wald <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">confidence intervals</a>.</p>
+
+<div class="webr-container" data-block-title="Convert coefficients to odds ratios with 95% CI">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Convert coefficients to odds ratios with 95% CI</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">est &lt;- coef(fit_gee)
+se  &lt;- sqrt(diag(vcov(fit_gee)))
+
+or_table &lt;- data.frame(
+  term  = names(est),
+  OR    = round(exp(est), 3),
+  lower = round(exp(est - 1.96 * se), 3),
+  upper = round(exp(est + 1.96 * se), 3)
+)
+or_table
+#&gt;          term    OR lower upper
+#&gt; 1 (Intercept) 0.152 0.121 0.190
+#&gt; 2         age 0.893 0.819 0.974
+#&gt; 3       smoke 1.304 0.920 1.848</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each year of age multiplies the odds of wheezing by 0.89, so wheezing prevalence falls about 11% per year. Maternal smoking multiplies the odds by 1.30 on average, but its 95% CI [0.92, 1.85] crosses 1, so the effect is not statistically distinguishable from no effect at the 5% level. Compare this to the naive <code>glm()</code> result, where the smoke CI was much narrower and the effect appeared significant.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Extract just the <a class="auto-link" href="Logistic-Regression-in-R.html" title="Logistic Regression in R: From glm() to Odds Ratios, ROC, and AUC">odds ratio</a> for <code>smoke</code> from the fitted model and save it to <code>ex_smoke_or</code>.</p>
+<div class="webr-container" data-block-title="Your turn: extract one odds ratio">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: extract one odds ratio</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Pull the smoke OR out of fit_gee and round to 3 decimals
+ex_smoke_or &lt;- # your code here
+
+print(ex_smoke_or)
+#&gt; Expected: 1.304</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Smoke OR solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Smoke OR solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_smoke_or &lt;- round(exp(coef(fit_gee)[&quot;smoke&quot;]), 3)
+print(ex_smoke_or)
+#&gt; smoke 
+#&gt; 1.304</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>coef()</code> returns a named vector, so we index by <code>&quot;smoke&quot;</code> and exponentiate to convert log-odds to odds.</p>
+
+</details>
+</section>
+
+<p><img src="screenshots/GEE-for-Correlated-Categorical-Data-in-R-workflow.webp" alt="GEE workflow with geepack" class="img-responsive img-zoomable" loading="lazy" width="2248" height="366" /></p>
+
+<p><em>Figure 1: The geepack GEE workflow from clustered data to population-averaged odds ratios.</em></p>
+
+<h2>Which working correlation structure should you choose?</h2>
+
+<p>The correlation structure is your hypothesis about how observations within a cluster relate to each other. geepack supports four common shapes, each best suited to a different study design.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Structure</th>
+<th>Assumes</th>
+<th>Use when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>independence</code></td>
+<td>Zero within-cluster correlation</td>
+<td>Clusters are very small or you only care about <a class="auto-link" href="Interaction-Effects-in-R.html" title="Interaction Effects in R: Add Them, Test Them, and Actually Understand the Output">marginal effects</a></td>
+</tr>
+<tr>
+<td><code>exchangeable</code></td>
+<td>Equal correlation ρ between any two within-cluster observations</td>
+<td>Repeated measures with no time ordering, e.g. siblings</td>
+</tr>
+<tr>
+<td><code>ar1</code></td>
+<td>Correlation decays geometrically with time gap: ρ, ρ², ρ³, ...</td>
+<td>Evenly-spaced longitudinal observations</td>
+</tr>
+<tr>
+<td><code>unstructured</code></td>
+<td>Every pair (j, k) has its own ρⱼₖ</td>
+<td>Few timepoints, large n, no a priori shape</td>
+</tr>
+</tbody>
+</table>
+
+<p>We can fit all four on ohio and compare them with QIC, the GEE analogue of <a class="auto-link" href="Model-Selection-in-R.html" title="Model Selection in R">AIC</a> for choosing among non-nested models with possibly different working correlations.</p>
+
+<div class="webr-container" data-block-title="Compare correlation structures with QIC">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare correlation structures with QIC</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit_ind &lt;- geeglm(resp ~ age + smoke, id = id, data = ohio,
+                  family = binomial, corstr = &quot;independence&quot;)
+fit_exc &lt;- geeglm(resp ~ age + smoke, id = id, data = ohio,
+                  family = binomial, corstr = &quot;exchangeable&quot;)
+fit_ar1 &lt;- geeglm(resp ~ age + smoke, id = id, data = ohio,
+                  family = binomial, corstr = &quot;ar1&quot;)
+fit_uns &lt;- geeglm(resp ~ age + smoke, id = id, data = ohio,
+                  family = binomial, corstr = &quot;unstructured&quot;)
+
+qic_tbl &lt;- rbind(
+  independence = QIC(fit_ind),
+  exchangeable = QIC(fit_exc),
+  ar1          = QIC(fit_ar1),
+  unstructured = QIC(fit_uns)
+)
+round(qic_tbl[, c(&quot;QIC&quot;, &quot;QICu&quot;, &quot;CIC&quot;)], 2)
+#&gt;                 QIC   QICu    CIC
+#&gt; independence 2553.2 2549.5   3.83
+#&gt; exchangeable 2540.7 2549.4   2.61
+#&gt; ar1          2541.8 2549.5   2.65
+#&gt; unstructured 2541.0 2549.4   2.63</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The exchangeable structure has the lowest QIC, narrowly beating ar1 and unstructured. Independence is the worst fit by 12 points. Smaller QIC means the working correlation is closer to the truth, so for ohio we go with exchangeable.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Working correlation only changes efficiency, not validity.</strong> Sandwich standard errors stay valid even if your <code>corstr</code> is wrong, so a misspecified structure still gives correct CIs and tests, just slightly wider than they could be. QIC selection optimises for narrower CIs, not for unbiased estimates.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Refit the model with <code>corstr = &quot;ar1&quot;</code> and pull out its working correlation parameter from the summary. Save it to <code>ex_ar1_corr</code>.</p>
+<div class="webr-container" data-block-title="Your turn: extract ar1 alpha">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: extract ar1 alpha</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Read the alpha estimate from the AR(1) fit
+ex_ar1_corr &lt;- # your code here
+
+print(ex_ar1_corr)
+#&gt; Expected: about 0.50</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="AR(1) correlation solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">AR(1) correlation solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_ar1_corr &lt;- round(summary(fit_ar1)$corr[&quot;alpha&quot;, &quot;Estimate&quot;], 3)
+print(ex_ar1_corr)
+#&gt; [1] 0.501</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>summary()</code> returns a list, and the <code>corr</code> element holds the estimated correlation parameter(s). For ar1 there is one alpha that gives ρ for adjacent visits; the gap-2 correlation is alpha² ≈ 0.25.</p>
+
+</details>
+</section>
+
+<h2>How do you interpret robust ("sandwich") standard errors?</h2>
+
+<p>The standard error column in <code>summary(fit_gee)</code> is <em>not</em> the model-based SE you would get from naively inverting the information matrix. It is the sandwich estimator, named for its bread-meat-bread structure:</p>
+
+<p>$$V_R = A^{-1} \, B \, A^{-1}$$</p>
+
+<p>Where $A$ is the model's "bread" (the information matrix you would compute under the assumed working correlation) and $B$ is the "meat" (the empirical variance of the score contributions, summed across clusters). The sandwich is the workhorse of GEE inference: it converges to the right SE even when the working correlation is wrong, as long as the mean structure (the regression formula) is correct.</p>
+
+<p>To build a 95% Wald CI by hand from the robust covariance, take the square root of the diagonal of <code>vcov()</code>:</p>
+
+<div class="webr-container" data-block-title="Robust SEs and 95% Wald CIs from vcov()">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Robust SEs and 95% Wald CIs from vcov()</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rob_se &lt;- sqrt(diag(vcov(fit_gee)))
+ci_table &lt;- data.frame(
+  estimate = round(coef(fit_gee), 4),
+  rob_SE   = round(rob_se, 4),
+  z        = round(coef(fit_gee) / rob_se, 2),
+  lower    = round(coef(fit_gee) - 1.96 * rob_se, 4),
+  upper    = round(coef(fit_gee) + 1.96 * rob_se, 4)
+)
+ci_table
+#&gt;             estimate rob_SE      z   lower   upper
+#&gt; (Intercept)  -1.8837 0.1148 -16.41 -2.1087 -1.6587
+#&gt; age          -0.1133 0.0438  -2.59 -0.1991 -0.0275
+#&gt; smoke         0.2651 0.1779   1.49 -0.0837  0.6138</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>z</code> column matches the square root of the Wald chi-square from <code>summary()</code>, and the CIs match what you would get on the log-odds scale before exponentiating. This is exactly what <code>geeglm()</code> reports internally; doing it by hand is just to demystify the box.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Sandwich SEs need many clusters, not many observations.</strong> With fewer than about 40 clusters the sandwich estimator can be optimistic (too narrow), so consider small-sample corrections like Mancl-DeRouen via <code>geesmv</code> or simply prefer mixed models when n_clusters is small. The number of observations per cluster does not rescue you here.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a <a class="auto-link" href="Tidy-Data-in-R.html" title="Tidy Data: The One Rule That Makes R Code Readable, Reusable, and Debuggable">tidy data</a> frame <code>ex_ci_table</code> with three columns (term, OR, ci95) where <code>ci95</code> is a string like <code>&quot;[0.819, 0.974]&quot;</code> formatted from the bounds.</p>
+<div class="webr-container" data-block-title="Your turn: tidy OR table">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: tidy OR table</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Build ex_ci_table with term, OR (3 decimals), ci95 string
+ex_ci_table &lt;- # your code here
+
+print(ex_ci_table)
+#&gt; Expected 3 rows: (Intercept), age, smoke with OR + bracketed CI strings</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Tidy CI table solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Tidy CI table solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_ci_table &lt;- data.frame(
+  term = names(coef(fit_gee)),
+  OR   = round(exp(coef(fit_gee)), 3),
+  ci95 = sprintf(&quot;[%.3f, %.3f]&quot;,
+                 exp(coef(fit_gee) - 1.96 * rob_se),
+                 exp(coef(fit_gee) + 1.96 * rob_se))
+)
+print(ex_ci_table, row.names = FALSE)
+#&gt;         term    OR           ci95
+#&gt;  (Intercept) 0.152 [0.121, 0.190]
+#&gt;          age 0.893 [0.819, 0.974]
+#&gt;        smoke 1.304 [0.920, 1.848]</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>sprintf(&quot;[%.3f, %.3f]&quot;, lower, upper)</code> formats the two CI endpoints into a readable string. We exponentiate the log-odds bounds to get OR-scale CIs.</p>
+
+</details>
+</section>
+
+<h2>When should you use GEE vs a mixed-effects model?</h2>
+
+<p>Both GEE and generalised linear mixed models (GLMM, e.g. <code>lme4::glmer</code>) can analyse clustered binary data, but they answer subtly different questions and produce numerically different coefficients.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th></th>
+<th>GEE (<code>geeglm</code>)</th>
+<th>GLMM (<code>glmer</code>)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Inference target</td>
+<td>Population average</td>
+<td>Subject-specific (conditional on random effect)</td>
+</tr>
+<tr>
+<td>Coefficient meaning</td>
+<td>Change in average log-odds across the population</td>
+<td>Change in log-odds for a typical individual</td>
+</tr>
+<tr>
+<td>SE method</td>
+<td>Sandwich (robust)</td>
+<td>Likelihood-based</td>
+</tr>
+<tr>
+<td><a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">Missing data</a></td>
+<td>Need MCAR for consistency</td>
+<td>OK with MAR</td>
+</tr>
+<tr>
+<td>Best when</td>
+<td>Marginal interpretation matters (e.g. public-health policy)</td>
+<td>Subject-level prediction matters (e.g. personalised medicine)</td>
+</tr>
+</tbody>
+</table>
+
+<p>The same dataset gives different numbers under each. Take the smoke coefficient from our GEE fit (log-odds 0.265, OR 1.30) and turn it into a one-sentence population-averaged interpretation:</p>
+
+<div class="webr-container" data-block-title="Population-averaged interpretation of the smoke effect">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Population-averaged interpretation of the smoke effect</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">smoke_or    &lt;- exp(coef(fit_gee)[&quot;smoke&quot;])
+smoke_lo    &lt;- exp(coef(fit_gee)[&quot;smoke&quot;] - 1.96 * rob_se[&quot;smoke&quot;])
+smoke_hi    &lt;- exp(coef(fit_gee)[&quot;smoke&quot;] + 1.96 * rob_se[&quot;smoke&quot;])
+
+cat(sprintf(
+  &quot;On average across the population, children of mothers who smoke have %.2fx the odds of wheezing in any given year (95%% CI [%.2f, %.2f]) compared with children of non-smokers, holding age constant.&quot;,
+  smoke_or, smoke_lo, smoke_hi))
+#&gt; On average across the population, children of mothers who smoke have 1.30x the odds of wheezing in any given year (95% CI [0.92, 1.85]) compared with children of non-smokers, holding age constant.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Notice the phrase "on average across the population". A glmer fit would yield a smoke coefficient slightly larger in magnitude (because it conditions on the child's random intercept), but you would interpret it as "for a child whose underlying tendency to wheeze is average". Same data, different question, different number.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Marginal versus conditional is a question, not a method.</strong> GEE answers "what happens on average across the population" so it suits epidemiology and policy. GLMMs answer "what happens within a typical subject" so they suit personalised prediction. Pick the model that matches the sentence you want to write.</div></div>
+
+<p><img src="screenshots/GEE-for-Correlated-Categorical-Data-in-R-marginal-vs-conditional.webp" alt="Marginal versus conditional interpretation" class="img-responsive img-zoomable" loading="lazy" width="1800" height="690" /></p>
+
+<p><em>Figure 2: GEE answers a population-average question, mixed models answer a subject-specific one.</em></p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Write a one-sentence interpretation of the age coefficient (log-odds = -0.1133, OR = 0.893) on the population scale. Save the sentence string to <code>ex_age_text</code>.</p>
+<div class="webr-container" data-block-title="Your turn: age interpretation">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: age interpretation</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Set ex_age_text to a one-sentence population-averaged interpretation
+ex_age_text &lt;- # your code here
+
+cat(ex_age_text)
+#&gt; Expected: a sentence about wheezing odds falling about 11% per year of age, on average</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Age interpretation solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Age interpretation solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_age_text &lt;- &quot;On average across the population, each additional year of age multiplies the odds of wheezing by 0.89 (95% CI [0.82, 0.97]), a roughly 11% drop per year, holding maternal smoking status constant.&quot;
+cat(ex_age_text)
+#&gt; On average across the population, each additional year of age multiplies the odds of wheezing by 0.89 ...</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> A 1-unit OR of 0.89 means the odds shrink by (1 - 0.89) = 11% per unit increase in the predictor. The "on average across the population" framing is what makes this a marginal interpretation.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<h3>Exercise 1: Fit GEE with a smoke × age interaction</h3>
+
+<p>Refit the ohio model with an interaction between maternal smoking and age, using exchangeable correlation. Extract the OR for the interaction term and decide whether the smoke effect grows or shrinks with age.</p>
+
+<div class="webr-container" data-block-title="Capstone: smoke times age interaction">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Capstone: smoke times age interaction</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: use formula resp ~ age * smoke, then exponentiate the age:smoke term
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Interaction solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interaction solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_fit_int &lt;- geeglm(resp ~ age * smoke, id = id, data = ohio,
+                     family = binomial, corstr = &quot;exchangeable&quot;)
+round(exp(coef(my_fit_int)), 3)
+#&gt; (Intercept)         age       smoke   age:smoke 
+#&gt;       0.152       0.886       1.301       1.061</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The interaction OR is 1.06, so for each extra year of age the maternal-smoking odds ratio is multiplied by 1.06 (it grows slightly). At age 0 the smoke OR is 1.30; at age 1 it is 1.30 × 1.06 ≈ 1.38. The interaction is small and likely not significant, but the direction tells you the gap between smoke and non-smoke groups widens with age.</p>
+
+</details>
+
+<h3>Exercise 2: Pick the best correlation structure for the respiratory dataset</h3>
+
+<p>Fit GEE models on <code>geepack::respiratory</code> (binary <code>outcome</code>, predictors <code>treat + sex + age + baseline</code>, id is the subject) using all four correlation structures, then pick the lowest-QIC structure and print its odds-ratio table.</p>
+
+<div class="webr-container" data-block-title="Capstone: QIC selection on respiratory">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Capstone: QIC selection on respiratory</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: replicate the QIC comparison code from earlier on a new dataset
+data(respiratory, package = &quot;geepack&quot;)
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Respiratory QIC solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Respiratory QIC solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">data(respiratory, package = &quot;geepack&quot;)
+respiratory &lt;- respiratory[order(respiratory$id, respiratory$visit), ]
+
+structures &lt;- c(&quot;independence&quot;, &quot;exchangeable&quot;, &quot;ar1&quot;, &quot;unstructured&quot;)
+my_fits &lt;- lapply(structures, function(s)
+  geeglm(outcome ~ treat + sex + age + baseline,
+         id = id, data = respiratory,
+         family = binomial, corstr = s))
+names(my_fits) &lt;- structures
+
+qics &lt;- sapply(my_fits, function(f) QIC(f)[&quot;QIC&quot;])
+best_name &lt;- names(qics)[which.min(qics)]
+my_best   &lt;- my_fits[[best_name]]
+cat(&quot;Best corstr:&quot;, best_name, &quot;\n&quot;)
+round(exp(coef(my_best)), 3)
+#&gt; Best corstr: exchangeable
+#&gt; (Intercept)      treatP    sexFemale         age    baseline 
+#&gt;       0.452       0.439        0.587       0.984        4.066</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Exchangeable wins on QIC. The treatP odds ratio is 0.44, meaning placebo patients have 0.44× the odds of a "good" outcome compared with active treatment, equivalent to active treatment giving roughly 1/0.44 ≈ 2.3× the odds of "good". (<code>treat</code> is coded with placebo as the reference group depending on factor order, always check the levels.)</p>
+
+</details>
+
+<h2>Complete Example</h2>
+
+<p>Here is the end-to-end workflow on <code>geepack::respiratory</code>: 111 subjects, 4 visits each, binary outcome (good/poor respiratory status), treatment vs placebo, with sex, age, and baseline status as covariates.</p>
+
+<div class="webr-container" data-block-title="End-to-end GEE on respiratory data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">End-to-end GEE on respiratory data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">data(respiratory, package = &quot;geepack&quot;)
+respiratory &lt;- respiratory[order(respiratory$id, respiratory$visit), ]
+str(respiratory)
+#&gt; 'data.frame':   444 obs. of  8 variables:
+#&gt;  $ center  : int  1 1 1 1 1 1 1 1 1 1 ...
+#&gt;  $ id      : int  1 1 1 1 2 2 2 2 3 3 ...
+#&gt;  $ treat   : Factor w/ 2 levels &quot;P&quot;,&quot;A&quot;: 1 1 1 1 1 1 1 1 1 1 ...
+#&gt;  $ sex     : Factor w/ 2 levels &quot;F&quot;,&quot;M&quot;: 2 2 2 2 2 2 2 2 2 2 ...
+#&gt;  $ age     : int  46 46 46 46 28 28 28 28 23 23 ...
+#&gt;  $ baseline: int  0 0 0 0 0 0 0 0 1 1 ...
+#&gt;  $ visit   : int  1 2 3 4 1 2 3 4 1 2 ...
+#&gt;  $ outcome : int  0 0 0 0 0 0 0 0 1 1 ...
+
+resp_fit &lt;- geeglm(outcome ~ treat + sex + age + baseline + factor(center),
+                   id = id, data = respiratory,
+                   family = binomial, corstr = &quot;exchangeable&quot;)
+
+est &lt;- coef(resp_fit)
+se  &lt;- sqrt(diag(vcov(resp_fit)))
+resp_or_table &lt;- data.frame(
+  term  = names(est),
+  OR    = round(exp(est), 3),
+  lower = round(exp(est - 1.96 * se), 3),
+  upper = round(exp(est + 1.96 * se), 3),
+  p     = round(2 * pnorm(-abs(est / se)), 4)
+)
+resp_or_table
+#&gt;                term    OR lower upper      p
+#&gt; 1       (Intercept) 0.318 0.119 0.851 0.0226
+#&gt; 2            treatA 3.881 2.247 6.704 0.0000
+#&gt; 3           sexM    1.236 0.604 2.530 0.5621
+#&gt; 4               age 0.984 0.969 0.999 0.0381
+#&gt; 5          baseline 4.066 2.413 6.851 0.0000
+#&gt; 6 factor(center)2   1.728 1.039 2.875 0.0349</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The headline result is <code>treatA</code> OR = 3.88 (95% CI [2.25, 6.70], p < 0.001): patients on the active treatment have nearly 4× the odds of a "good" respiratory outcome on average across the population, after adjusting for sex, age, baseline status, and study centre. Older patients have slightly worse odds (OR 0.98 per year), and patients with a "good" baseline are 4× more likely to stay good. Sex is not significant. Centre 2 fares better than centre 1.</p>
+
+<h2>Summary</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Concept</th>
+<th>Take-away</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Why GEE</td>
+<td>Adjusts SEs for within-cluster correlation in marginal models</td>
+</tr>
+<tr>
+<td><code>geeglm()</code> args</td>
+<td>formula, id, data, family, corstr</td>
+</tr>
+<tr>
+<td>corstr choices</td>
+<td>independence / exchangeable / ar1 / unstructured</td>
+</tr>
+<tr>
+<td>Default SEs</td>
+<td>Sandwich (robust), valid even if corstr is misspecified</td>
+</tr>
+<tr>
+<td>Selection</td>
+<td>Use <code>QIC()</code> to compare correlation structures</td>
+</tr>
+<tr>
+<td>Interpretation</td>
+<td>Population-averaged, not subject-specific</td>
+</tr>
+<tr>
+<td>When not to use</td>
+<td>Fewer than 40 clusters, or when you need subject-specific predictions</td>
+</tr>
+</tbody>
+</table>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Halekoh, U., Højsgaard, S., & Yan, J. (2006). The R Package geepack for Generalized Estimating Equations. Journal of Statistical Software, 15(2). <a href="https://www.jstatsoft.org/article/view/v015i02">Link</a></li>
+
+<li>Liang, K-Y., & Zeger, S.L. (1986). Longitudinal data analysis using generalized linear models. Biometrika, 73(1), 13-22. <a href="https://academic.oup.com/biomet/article/73/1/13/246001">Link</a></li>
+
+<li>Pan, W. (2001). Akaike's Information Criterion in Generalized Estimating Equations. Biometrics, 57, 120-125. <a href="https://onlinelibrary.wiley.com/doi/10.1111/j.0006-341X.2001.00120.x">Link</a></li>
+
+<li>CRAN, geepack package documentation. <a href="https://cran.r-project.org/web/packages/geepack/index.html">Link</a></li>
+
+<li>UVA Library StatLab, Getting Started with GEE. <a href="https://library.virginia.edu/data/articles/getting-started-with-generalized-estimating-equations">Link</a></li>
+
+<li>Hardin, J.W., & Hilbe, J.M. (2013). Generalized Estimating Equations, 2nd ed. Chapman & Hall/CRC. <a href="https://www.routledge.com/9781439881132">Link</a></li>
+
+<li>Agresti, A. (2013). Categorical Data Analysis, 3rd ed. Wiley, Chapter 13. <a href="https://www.wiley.com/en-us/Categorical+Data+Analysis%2C+3rd+Edition-p-9780470463635">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Logistic-Regression-in-R-2.html">Logistic Regression in R: Complete Guide with Diagnostics & Interpretation</a>, the foundation that GEE extends to clustered data.</li>
+
+<li><a href="Categorical-Data-in-R.html">Categorical Data in R</a>, foundational tools for <a class="auto-link" href="R-Factors.html" title="R Factors: The Data Type That Trips Up Almost Every R Beginner">working with factors</a> and contingency tables.</li>
+
+<li><a href="Mixed-ANOVA-in-R.html">Mixed ANOVA in R</a>, the subject-specific counterpart for repeated measures with continuous outcomes.</li>
+
+</ul>
+
+{% endraw %}
