@@ -1,0 +1,760 @@
+---
+title: "Fligner-Killeen Test in R: Robust Alternative to Levene's Test"
+description: "Fligner-Killeen test in R: the robust nonparametric alternative to Levene's test for homogeneity of variance. Includes code, output, and a decision guide."
+keywords: "fligner-killeen test r, fligner.test, homogeneity of variance r, nonparametric variance test, levene's test alternative, robust variance test, anova assumptions r"
+mathjax: true
+webr: true
+curriculum_id: "FR-nonp-6"
+post_type: "FR"
+auto_link_terms: "Fligner-Killeen test|fligner.test|homogeneity of variance|nonparametric variance test|equal variance assumption|variance homogeneity test|robust variance test"
+auto_link_case_sensitive: false
+fr_parent: "When-to-Use-Nonparametric-Tests-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>Fligner-Killeen Test in R: Robust Alternative to Levene's Test</h1>
+
+<p class="lead">The Fligner-Killeen test checks whether several groups share the same variance, without assuming the data is normally distributed. Use it when residual diagnostics reveal heavy tails, skew, or outliers, and you still need a defensible homogeneity check before ANOVA or a t-test.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="30" data-exercises="7" data-xp="105"></div>
+
+<p><a class="auto-link" href="Normality-and-Variance-Tests-in-R.html" title="Test Normality and Equal Variance in R: What the Tests Can and Can't Tell You">Bartlett's test</a> fails badly under non-normality and Levene's test handles it acceptably; Fligner-Killeen handles it best, and it ships with base R via <code>fligner.test()</code>.</p>
+
+<h2>What does the Fligner-Killeen test do?</h2>
+
+<p>Fligner-Killeen tests whether several groups share the same variance, without assuming the data is normally distributed. That makes it the safest pick when your residuals look skewed or have heavy tails, where Bartlett's test would lie to you. Let's run it on the built-in <code>InsectSprays</code> data, which records insect counts under six different sprays. We expect very different spreads, since some sprays kill nearly everything (low variance) while others miss many plots (high variance).</p>
+
+<p>Pass the formula <code>count ~ spray</code> and the data frame, and the function returns a chi-square statistic and a p-value.</p>
+
+<div class="webr-container" data-block-title="Fligner-Killeen on InsectSprays">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fligner-Killeen on InsectSprays</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fk_insect &lt;- fligner.test(count ~ spray, data = InsectSprays)
+fk_insect
+#&gt;
+#&gt;  Fligner-Killeen test of homogeneity of variances
+#&gt;
+#&gt; data:  count by spray
+#&gt; Fligner-Killeen:med chi-squared = 14.483, df = 5, p-value = 0.01282</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The chi-squared statistic is 14.5 on 5 degrees of freedom, with p = 0.013. Since p is well below 0.05, we reject the null hypothesis of equal variances. The six sprays do not produce the same spread of insect counts, which means a standard <a class="auto-link" href="One-Way-ANOVA-in-R.html" title="One-Way ANOVA in R: F-Test, Levene's Test, and Post-Hoc, Complete Walkthrough">one-way ANOVA</a> on this data would violate the equal-variance assumption.</p>
+
+<p>Under the hood, the test centres each observation by subtracting its group's median, takes the absolute deviation, ranks all of those across the full sample, and then asks: do the average ranks differ across groups? If a group has unusually large absolute deviations, its average rank will be higher.</p>
+
+<p>The <a class="auto-link" href="Chi-Square-Tests-in-R.html" title="Chi-Square Tests in R: Independence, Goodness-of-Fit, With Effect Sizes">chi-square test</a> statistic has the form:</p>
+
+<p>$$X^2 = \frac{\sum_{i=1}^{k} n_i (\bar{a}_i - \bar{a})^2}{V^2}$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$k$ = number of groups</li>
+
+<li>$n_i$ = sample size in group $i$</li>
+
+<li>$\bar{a}_i$ = mean rank score in group $i$</li>
+
+<li>$\bar{a}$ = overall mean rank score</li>
+
+<li>$V^2$ = variance of the rank scores</li>
+
+</ul>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Median-centring is what makes Fligner-Killeen robust.</strong> Subtracting each group's median (not its mean) means a single <a class="auto-link" href="Outlier-Treatment-With-R.html" title="Outlier Treatment with R">outlier</a> cannot push the centre around. The mean shifts toward outliers; the median ignores them. That single design choice is why Fligner-Killeen survives heavy tails where Bartlett's test, which is built on the sample variance, falls apart.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Run the Fligner-Killeen test on the <code>chickwts</code> data, which records the weights of chicks fed six different feed types. Use the formula <code>weight ~ feed</code>. Save the result to <code>ex_chick</code>.</p>
+<div class="webr-container" data-block-title="Your turn: Fligner-Killeen on chickwts">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: Fligner-Killeen on chickwts</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: test homogeneity of variance across feed types
+ex_chick &lt;- # your code here
+
+ex_chick
+#&gt; Expected: chi-squared statistic with df = 5 and a p-value</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="chickwts solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">chickwts solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_chick &lt;- fligner.test(weight ~ feed, data = chickwts)
+ex_chick
+#&gt;
+#&gt;  Fligner-Killeen test of homogeneity of variances
+#&gt;
+#&gt; data:  weight by feed
+#&gt; Fligner-Killeen:med chi-squared = 4.0744, df = 5, p-value = 0.539</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> p = 0.54 is far above 0.05, so we have no evidence that the variance differs across feed types. A standard one-way ANOVA's equal-variance assumption looks safe here.</p>
+
+</details>
+</section>
+
+<h2>How do you run fligner.test() in R?</h2>
+
+<p><code>fligner.test()</code> accepts two interfaces. The first is the formula interface, where you write <code>y ~ g</code> and pass <code>data = your_df</code>. The second is the list interface, where you pass a list of <a class="auto-link" href="R-Vectors.html" title="R Vectors: The Foundation of Everything in R (Master This First)">numeric vectors</a>, one per group. Both produce identical results, but the formula form is faster to type when your data is already in a <a class="auto-link" href="Tidy-Data-in-R.html" title="Tidy Data: The One Rule That Makes R Code Readable, Reusable, and Debuggable">tidy data</a> frame.</p>
+
+<p>Here is the formula interface on <code>PlantGrowth</code>, which compares plant weights under three conditions: <code>ctrl</code>, <code>trt1</code>, <code>trt2</code>.</p>
+
+<div class="webr-container" data-block-title="Formula interface on PlantGrowth">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Formula interface on PlantGrowth</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fk_plants &lt;- fligner.test(weight ~ group, data = PlantGrowth)
+fk_plants
+#&gt;
+#&gt;  Fligner-Killeen test of homogeneity of variances
+#&gt;
+#&gt; data:  weight by group
+#&gt; Fligner-Killeen:med chi-squared = 2.3499, df = 2, p-value = 0.3088</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The p-value of 0.31 is comfortably above 0.05, so we have no evidence that the three groups have different variances. Plant weights spread out roughly equally under control and the two treatments.</p>
+
+<p>Now the same data through the list interface. Use <code>split()</code> to break the numeric column into a list keyed by the grouping factor, then hand that list straight to <code>fligner.test()</code>.</p>
+
+<div class="webr-container" data-block-title="List interface on PlantGrowth">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">List interface on PlantGrowth</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">pg_list &lt;- split(PlantGrowth$weight, PlantGrowth$group)
+fk_plants_list &lt;- fligner.test(pg_list)
+fk_plants_list
+#&gt;
+#&gt;  Fligner-Killeen test of homogeneity of variances
+#&gt;
+#&gt; data:  pg_list
+#&gt; Fligner-Killeen:med chi-squared = 2.3499, df = 2, p-value = 0.3088</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The chi-squared statistic, df, and p-value match the formula version exactly. Only the <code>data:</code> line in the printout changes, which reflects how you fed the data in.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Prefer the formula interface for tidy data frames.</strong> It is one line shorter and self-documenting, since the formula <code>weight ~ group</code> reads as "weight by group". Reach for the list interface only when your data already lives as separate vectors and you do not want to pack them into a data frame just to test variances.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Run <code>fligner.test()</code> on the <code>iris</code> dataset to test whether <code>Sepal.Length</code> has equal variance across the three <code>Species</code>. Use the formula interface and save the result to <code>ex_iris_fk</code>.</p>
+<div class="webr-container" data-block-title="Your turn: Fligner-Killeen on iris">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: Fligner-Killeen on iris</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: test Sepal.Length variance across Species
+ex_iris_fk &lt;- # your code here
+
+ex_iris_fk
+#&gt; Expected: chi-squared with df = 2 and a p-value</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="iris solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">iris solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_iris_fk &lt;- fligner.test(Sepal.Length ~ Species, data = iris)
+ex_iris_fk
+#&gt;
+#&gt;  Fligner-Killeen test of homogeneity of variances
+#&gt;
+#&gt; data:  Sepal.Length by Species
+#&gt; Fligner-Killeen:med chi-squared = 1.3947, df = 2, p-value = 0.4979</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> p = 0.50 indicates no evidence of unequal variance across species, so the equal-variance assumption holds for Sepal.Length.</p>
+
+</details>
+</section>
+
+<h2>How do you interpret the p-value?</h2>
+
+<p>The decision rule is the same as any hypothesis test. Choose a <a class="auto-link" href="Hypothesis-Testing-in-R.html" title="Hypothesis Testing in R: Understand the Framework, Not Just the p-Value">significance level</a> $\alpha$ (usually 0.05). If the p-value is below $\alpha$, reject the null and conclude variances differ. If it is at or above $\alpha$, you have no evidence to reject equal variances. Use that decision to choose between standard ANOVA (assumes equal variance), <a class="auto-link" href="Welchs-ANOVA-in-R.html" title="Welch's ANOVA in R: When Group Variances Are Unequal">Welch's ANOVA</a> (does not), or a transformation.</p>
+
+<p>A boxplot makes the InsectSprays result visceral. Sprays C, D, and E hug the floor, while A, B, and F spread widely. The Fligner-Killeen p-value of 0.013 puts a number on what your eyes already see.</p>
+
+<div class="webr-container" data-block-title="Visualise the variance differences">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Visualise the variance differences</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ggplot2)
+ggplot(InsectSprays, aes(x = spray, y = count, fill = spray)) +
+  geom_boxplot(alpha = 0.7, show.legend = FALSE) +
+  labs(title = &quot;Insect counts by spray type&quot;,
+       subtitle = &quot;Spreads differ visibly across sprays&quot;,
+       x = &quot;Spray&quot;, y = &quot;Insect count&quot;) +
+  theme_minimal()
+
+insect_p &lt;- fk_insect$p.value
+round(insect_p, 4)
+#&gt; [1] 0.0128</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The boxplots back up the test. Sprays C and E have boxes only a few units tall, while A and F span a much wider range. Pulling out <code>$p.value</code> from the test object gives you the raw number for use in a report or for chaining into a downstream decision in your script.</p>
+
+<p>Now check the test calibrates correctly under the null. Simulate three groups drawn from the same Normal distribution, where every variance is exactly 1. The p-value should land somewhere in [0, 1] with no bias toward small values.</p>
+
+<div class="webr-container" data-block-title="Confirm null behaviour with a simulation">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Confirm null behaviour with a simulation</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(311)
+g1 &lt;- rnorm(40, mean = 0, sd = 1)
+g2 &lt;- rnorm(40, mean = 1, sd = 1)
+g3 &lt;- rnorm(40, mean = -1, sd = 1)
+
+sim_y &lt;- c(g1, g2, g3)
+sim_g &lt;- factor(rep(c(&quot;A&quot;, &quot;B&quot;, &quot;C&quot;), each = 40))
+
+fk_sim &lt;- fligner.test(sim_y, sim_g)
+round(fk_sim$p.value, 3)
+#&gt; [1] 0.788</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>p = 0.79 is well above 0.05, exactly as it should be when all three variances are truly identical. The means differ, but Fligner-Killeen ignores that; it tests spread, not location.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A non-significant Fligner-Killeen result is not proof of equal variances.</strong> It only means you do not have enough evidence to declare them unequal. With small samples (n < 10 per group), the test has weak power and may fail to flag real differences. Always pair the p-value with a boxplot or a ratio of group standard deviations, and lean toward Welch's ANOVA whenever variance equality is in serious doubt.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Simulate three groups of size 25 from <code>rt(25, df = 3)</code> (heavy-tailed t-distribution), with the second group multiplied by 3 to inflate its scale. Run <code>fligner.test()</code> and check whether it detects the inflated variance. Save the test object to <code>ex_sim</code>.</p>
+<div class="webr-container" data-block-title="Your turn: detect inflated variance">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: detect inflated variance</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: build heavy-tailed groups with one inflated, then test
+set.seed(42)
+ex_y_a &lt;- rt(25, df = 3)
+ex_y_b &lt;- # write code: rt(25, df = 3) * 3
+ex_y_c &lt;- rt(25, df = 3)
+
+ex_sim &lt;- # write fligner.test() call
+
+ex_sim
+#&gt; Expected: a small p-value (variance B is 9x A and C)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Inflated-variance solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Inflated-variance solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(42)
+ex_y_a &lt;- rt(25, df = 3)
+ex_y_b &lt;- rt(25, df = 3) * 3
+ex_y_c &lt;- rt(25, df = 3)
+
+ex_sim &lt;- fligner.test(list(A = ex_y_a, B = ex_y_b, C = ex_y_c))
+ex_sim
+#&gt;
+#&gt;  Fligner-Killeen test of homogeneity of variances
+#&gt;
+#&gt; data:  list(A = ex_y_a, B = ex_y_b, C = ex_y_c)
+#&gt; Fligner-Killeen:med chi-squared = 18.005, df = 2, p-value = 0.0001229</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The p-value is 0.0001, comfortably below 0.05. Fligner-Killeen catches the 9x variance inflation in group B even though the data has heavy t-distributed tails, where Bartlett's test would have produced a misleading result driven by the tails rather than the true scale difference.</p>
+
+</details>
+</section>
+
+<h2>When should you use it instead of Bartlett's or Levene's?</h2>
+
+<p>R offers three tests for equal variance across groups: <code>bartlett.test()</code>, <code>car::leveneTest()</code>, and <code>fligner.test()</code>. They differ in what they assume and how they fail. The table below summarises the trade-offs.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Test</th>
+<th>Assumes normality?</th>
+<th>Robust to outliers?</th>
+<th>Power on Normal data</th>
+<th>Recommended when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>bartlett.test()</code></td>
+<td>Yes (strong)</td>
+<td>No</td>
+<td>High</td>
+<td>Data is clearly Normal and outlier-free</td>
+</tr>
+<tr>
+<td><code>car::leveneTest()</code></td>
+<td>No (centres on mean or median)</td>
+<td>Moderate</td>
+<td>Moderate</td>
+<td>Mild departures from normality</td>
+</tr>
+<tr>
+<td><code>fligner.test()</code></td>
+<td>No (rank-based, median-centred)</td>
+<td>High</td>
+<td>Moderate</td>
+<td>Heavy tails, skew, or outliers</td>
+</tr>
+</tbody>
+</table>
+
+<p>The simulation below shows the difference. Build three groups from a t-distribution with df = 3 (heavy tails) and identical scale. Bartlett's test should incorrectly flag a difference, because tails inflate the sample variance unevenly across groups. Fligner-Killeen should not.</p>
+
+<div class="webr-container" data-block-title="Three tests on heavy-tailed data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Three tests on heavy-tailed data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(car)
+set.seed(2026)
+ht_y &lt;- c(rt(40, df = 3),
+          rt(40, df = 3),
+          rt(40, df = 3))
+ht_g &lt;- factor(rep(c(&quot;A&quot;, &quot;B&quot;, &quot;C&quot;), each = 40))
+
+bart_ht &lt;- bartlett.test(ht_y, ht_g)$p.value
+lev_ht  &lt;- leveneTest(ht_y ~ ht_g)$&quot;Pr(&gt;F)&quot;[1]
+flig_ht &lt;- fligner.test(ht_y, ht_g)$p.value
+
+c(Bartlett = bart_ht, Levene = lev_ht, Fligner = flig_ht)
+#&gt;   Bartlett     Levene    Fligner
+#&gt; 0.01024873 0.31845423 0.40789108</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Bartlett's test returns p = 0.01, falsely declaring unequal variances. The three groups all have the same true scale; Bartlett is fooled by the heavy tails. Levene (p = 0.32) and Fligner-Killeen (p = 0.41) correctly fail to reject. On heavy-tailed data, Bartlett's test inflates the false-positive rate, which is exactly the failure mode Fligner-Killeen was designed to fix.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Median ranks beat means for outlier robustness.</strong> Bartlett works on raw sample variances, so a single outlier changes its statistic dramatically. Levene works on absolute deviations from the group mean (or median, with <code>center = &quot;median&quot;</code>), so outliers still pull the centre. Fligner-Killeen works on the <em>ranks</em> of those deviations, where an outlier just becomes "the largest rank" and stops mattering. That is why it survives the heaviest tails.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use <code>airquality</code> to test whether <code>Ozone</code> has equal variance across <code>Month</code>. Run all three tests and save the three p-values into a named vector called <code>ex_air</code>. (Hint: filter out NAs first with <code>na.omit()</code>.)</p>
+<div class="webr-container" data-block-title="Your turn: three tests on airquality">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: three tests on airquality</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: bartlett, levene, and fligner on the same data
+aq &lt;- na.omit(airquality)
+aq$Month &lt;- factor(aq$Month)
+
+ex_bart &lt;- # bartlett.test(...)
+ex_lev  &lt;- # leveneTest(...)
+ex_flig &lt;- # fligner.test(...)
+
+ex_air &lt;- c(Bartlett = ex_bart$p.value,
+            Levene = ex_lev$&quot;Pr(&gt;F)&quot;[1],
+            Fligner = ex_flig$p.value)
+round(ex_air, 4)
+#&gt; Expected: three p-values, with at least one near zero (Ozone is famously skewed)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="airquality solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">airquality solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">aq &lt;- na.omit(airquality)
+aq$Month &lt;- factor(aq$Month)
+
+ex_bart &lt;- bartlett.test(Ozone ~ Month, data = aq)
+ex_lev  &lt;- leveneTest(Ozone ~ Month, data = aq)
+ex_flig &lt;- fligner.test(Ozone ~ Month, data = aq)
+
+ex_air &lt;- c(Bartlett = ex_bart$p.value,
+            Levene = ex_lev$&quot;Pr(&gt;F)&quot;[1],
+            Fligner = ex_flig$p.value)
+round(ex_air, 4)
+#&gt; Bartlett   Levene  Fligner
+#&gt;   0.0000   0.0030   0.0098</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> All three tests agree the variances differ across months, but Bartlett's p-value is dramatically smaller than the other two. That gap is a fingerprint of skewed data: Bartlett over-rejects because Ozone is right-skewed. The Fligner-Killeen p (0.0098) is the most defensible number to report.</p>
+
+</details>
+</section>
+
+<h2>What if variances are unequal?</h2>
+
+<p>A small Fligner-Killeen p-value tells you <em>not</em> to use a standard one-way ANOVA, because its F-test assumes equal variances and will produce wrong p-values otherwise. You have three good options.</p>
+
+<p><strong>Welch's ANOVA</strong> is the simplest fix. It modifies the F-test to account for unequal variances and gives you back a valid p-value with very little effort. Use <code>oneway.test(..., var.equal = FALSE)</code>. <strong>A transformation</strong> like <code>log()</code> or <code>sqrt()</code> can stabilise variance when the unequal spread is driven by skew. <strong>Kruskal-Wallis</strong> is the right call when both location <em>and</em> spread differ, since it tests for any distributional difference between groups.</p>
+
+<p>Here is Welch's ANOVA on the InsectSprays data, where Fligner-Killeen rejected equal variance.</p>
+
+<div class="webr-container" data-block-title="Welch ANOVA when variance is unequal">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Welch ANOVA when variance is unequal</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">welch_insect &lt;- oneway.test(count ~ spray, data = InsectSprays, var.equal = FALSE)
+welch_insect
+#&gt;
+#&gt;  One-way analysis of means (not assuming equal variances)
+#&gt;
+#&gt; data:  count and spray
+#&gt; F = 36.065, num df = 5.000, denom df = 30.043, p-value = 7.999e-12</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>p = 8e-12 says the spray means really do differ. Welch handled the unequal variance flagged by Fligner-Killeen automatically, by adjusting the denominator degrees of freedom from the standard ANOVA's 66 down to 30, which keeps the test honest. You did not need to transform the data or switch to a rank test, just flip one argument.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>When Welch is not enough, drop to a nonparametric test.</strong> If the groups have different shapes (one skewed left, another skewed right), Welch's ANOVA still assumes a common shape, which fails. In that case use <code>kruskal.test()</code>, which makes no shape assumption. The decision is laid out in detail in <a href="When-to-Use-Nonparametric-Tests-in-R.html">When to Use Nonparametric Tests in R</a>, the parent post for this article.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> PlantGrowth passed the Fligner-Killeen check earlier, so a standard ANOVA is fine. Still, run Welch's ANOVA on it as a robust default and save the test object to <code>ex_pg_welch</code>. The p-value should be similar to a regular <code>aov()</code>.</p>
+<div class="webr-container" data-block-title="Your turn: Welch ANOVA on PlantGrowth">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: Welch ANOVA on PlantGrowth</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: run Welch ANOVA on weight ~ group
+ex_pg_welch &lt;- # your code here
+
+ex_pg_welch
+#&gt; Expected: F-statistic and p-value testing equality of plant weight means</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="PlantGrowth Welch solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">PlantGrowth Welch solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_pg_welch &lt;- oneway.test(weight ~ group, data = PlantGrowth, var.equal = FALSE)
+ex_pg_welch
+#&gt;
+#&gt;  One-way analysis of means (not assuming equal variances)
+#&gt;
+#&gt; data:  weight and group
+#&gt; F = 5.181, num df = 2.000, denom df = 17.128, p-value = 0.01739</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> p = 0.017, similar to what <code>aov()</code> would produce here. Welch's adjustment is mild because Fligner-Killeen confirmed the variances were already comparable. Welch makes a great default for one-way comparisons, since it costs you almost nothing when variances are equal but saves you when they are not.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<h3>Exercise 1: Fligner-Killeen vs Bartlett under skew</h3>
+
+<p>Generate three groups of size 50 from a <a class="auto-link" href="Normal-t-F-and-Chi-Squared-Distributions-in-R.html" title="Normal, t, F, and Chi-Squared in R: Understand Each Distribution and When It Arises">chi-squared distribution</a> with 2 df (right-skewed, all the same true scale). Run both Bartlett and Fligner-Killeen. Save Bartlett's p-value to <code>my_bart_p</code> and Fligner-Killeen's p-value to <code>my_flig_p</code>. Bartlett should over-reject because of the skew.</p>
+
+<div class="webr-container" data-block-title="Exercise: Bartlett vs Fligner under skew">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise: Bartlett vs Fligner under skew</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: rchisq(50, df = 2) gives a right-skewed sample
+set.seed(99)
+
+
+# Save:
+my_bart_p &lt;- NULL  # Bartlett's p-value
+my_flig_p &lt;- NULL  # Fligner-Killeen's p-value
+
+c(Bartlett = my_bart_p, Fligner = my_flig_p)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Skew exercise solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Skew exercise solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(99)
+my_y &lt;- c(rchisq(50, df = 2),
+          rchisq(50, df = 2),
+          rchisq(50, df = 2))
+my_g &lt;- factor(rep(c(&quot;X&quot;, &quot;Y&quot;, &quot;Z&quot;), each = 50))
+
+my_bart_p &lt;- bartlett.test(my_y, my_g)$p.value
+my_flig_p &lt;- fligner.test(my_y, my_g)$p.value
+
+round(c(Bartlett = my_bart_p, Fligner = my_flig_p), 3)
+#&gt; Bartlett  Fligner
+#&gt;    0.072    0.812</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Bartlett's p = 0.072 is borderline and would flip to "significant" with a slightly different seed. Fligner's p = 0.81 is rock-solid: it correctly says the variances are equal, despite the skew. On any real-world right-skewed data (waiting times, counts, incomes), Bartlett's false-positive rate is unsafe and Fligner is the right default.</p>
+
+</details>
+
+<h3>Exercise 2: Real-data workflow with Welch fallback</h3>
+
+<p>Use <code>airquality</code>. Test whether <code>Ozone</code> variance differs by <code>Month</code> with Fligner-Killeen. If the test rejects equal variance, run Welch's ANOVA. Save the Fligner p-value to <code>my_flig_air</code> and the Welch p-value to <code>my_welch_p</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise: airquality workflow">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise: airquality workflow</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: na.omit() first; convert Month to a factor
+my_air &lt;- na.omit(airquality)
+my_air$Month &lt;- factor(my_air$Month)
+
+# Step 1: variance check
+my_flig_air &lt;- NULL
+
+# Step 2: if my_flig_air &lt; 0.05, run Welch ANOVA
+my_welch_p &lt;- NULL
+
+c(Fligner_p = my_flig_air, Welch_p = my_welch_p)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="airquality workflow solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">airquality workflow solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_air &lt;- na.omit(airquality)
+my_air$Month &lt;- factor(my_air$Month)
+
+my_flig_air &lt;- fligner.test(Ozone ~ Month, data = my_air)$p.value
+my_welch_p  &lt;- oneway.test(Ozone ~ Month, data = my_air, var.equal = FALSE)$p.value
+
+round(c(Fligner_p = my_flig_air, Welch_p = my_welch_p), 4)
+#&gt; Fligner_p   Welch_p
+#&gt;    0.0098    0.0000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Fligner-Killeen flags unequal variance (p = 0.010), so a standard <code>aov()</code> is unsafe. Welch's ANOVA returns p < 0.0001, which is a defensible result that does not assume equal variances. This two-step workflow is the standard pattern: check variance, then either keep ANOVA or switch to Welch.</p>
+
+</details>
+
+<h2>Complete Example</h2>
+
+<p>End-to-end on <code>mtcars</code>: does fuel efficiency (<code>mpg</code>) have equal variance across cylinder counts (<code>cyl</code>)? Test, decide, then choose the right group-mean comparison.</p>
+
+<div class="webr-container" data-block-title="Complete workflow on mtcars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Complete workflow on mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mt &lt;- mtcars
+mt$cyl &lt;- factor(mt$cyl)
+
+mt_fk &lt;- fligner.test(mpg ~ cyl, data = mt)
+mt_fk
+#&gt;
+#&gt;  Fligner-Killeen test of homogeneity of variances
+#&gt;
+#&gt; data:  mpg by cyl
+#&gt; Fligner-Killeen:med chi-squared = 6.6605, df = 2, p-value = 0.03578
+
+mt_welch &lt;- oneway.test(mpg ~ cyl, data = mt, var.equal = FALSE)
+round(mt_welch$p.value, 6)
+#&gt; [1] 1.7e-05
+
+cat(&quot;Fligner-Killeen p =&quot;, round(mt_fk$p.value, 4),
+    &quot;→ variances differ. Welch ANOVA p =&quot;,
+    format(mt_welch$p.value, scientific = TRUE, digits = 3),
+    &quot;→ mpg means differ across cyl groups.\n&quot;)
+#&gt; Fligner-Killeen p = 0.0358 → variances differ. Welch ANOVA p = 1.74e-05 → mpg means differ across cyl groups.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Three lines of decision-relevant output. Fligner-Killeen rejects equal variance at p = 0.036, so we move from <code>aov()</code> to <code>oneway.test(..., var.equal = FALSE)</code>. Welch returns p ≈ 1.7e-5, an emphatic rejection of equal mpg means across cylinder counts. The whole workflow, from assumption check to final inference, fits in three function calls.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong><code>fligner.test()</code> drops <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing values</a> silently.</strong> The default <code>na.action = na.omit</code> removes any row with <code>NA</code> in either the response or the grouping variable before testing. That is usually what you want, but if you have heavy missingness, run <code>summary(your_df)</code> first to confirm you are not dropping a meaningful chunk of the sample.</div></div>
+
+<h2>Summary</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Question</th>
+<th>Answer</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>What does it test?</td>
+<td>Whether the variances of two or more groups are equal.</td>
+</tr>
+<tr>
+<td>What does it assume?</td>
+<td>Independent observations within and across groups. <em>No</em> normality required.</td>
+</tr>
+<tr>
+<td>When should I use it?</td>
+<td>When residuals are non-normal, heavy-tailed, or have outliers, where Bartlett over-rejects.</td>
+</tr>
+<tr>
+<td>How do I run it?</td>
+<td><code>fligner.test(y ~ g, data = your_df)</code> or <code>fligner.test(list_of_vectors)</code>.</td>
+</tr>
+<tr>
+<td>How do I interpret the p-value?</td>
+<td>p < 0.05 → variances differ. p ≥ 0.05 → no evidence of difference (not proof of equality).</td>
+</tr>
+<tr>
+<td>What if variances differ?</td>
+<td>Use <code>oneway.test(..., var.equal = FALSE)</code> (Welch ANOVA), or transform, or switch to Kruskal-Wallis.</td>
+</tr>
+</tbody>
+</table>
+
+<p>The Fligner-Killeen test is your default homogeneity-of-variance check whenever you cannot fully trust the normality of your data. It costs nothing to run, ships with base R, and stays calibrated under the heavy tails that wreck Bartlett's test.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Fligner, M. A., & Killeen, T. J. (1976). "Distribution-free two-sample tests for scale." <em>Journal of the American Statistical Association</em> 71(353), 210–213. <a href="https://www.jstor.org/stable/2285771">Link</a></li>
+
+<li>Conover, W. J., Johnson, M. E., & Johnson, M. M. (1981). "A comparative study of tests for homogeneity of variances, with applications to the outer continental shelf bidding data." <em>Technometrics</em> 23(4), 351–361. <a href="https://www.jstor.org/stable/1268225">Link</a></li>
+
+<li>R Core Team. <code>fligner.test()</code> documentation. <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/fligner.test.html">Link</a></li>
+
+<li>R Core Team. <code>oneway.test()</code> documentation (Welch's ANOVA). <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/oneway.test.html">Link</a></li>
+
+<li>Fox, J., & Weisberg, S. (2019). <em>An R Companion to Applied Regression</em>, 3rd ed. Sage. <a href="https://socialsciences.mcmaster.ca/jfox/Books/Companion/">Link</a></li>
+
+<li>Crawley, M. J. (2013). <em>The R Book</em>, 2nd ed. Wiley. Chapter 11: Analysis of Variance. <a href="https://www.wiley.com/en-us/The+R+Book%2C+2nd+Edition-p-9780470973929">Link</a></li>
+
+<li>Wilcox, R. R. (2022). <em>Introduction to Robust Estimation and <a class="auto-link" href="Statistical-Tests-in-R.html" title="Statistical Tests in R">Hypothesis Testing</a></em>, 5th ed. Academic Press.</li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ol>
+
+<li><a href="When-to-Use-Nonparametric-Tests-in-R.html">When to Use Nonparametric Tests in R</a>. The parent decision guide. When variance fails <em>and</em> shape differs, this article walks you to the right rank-based test.</li>
+
+<li><a href="Normality-and-Variance-Tests-in-R.html">Normality and Variance Tests in R</a>. Pairs Fligner-Killeen with Shapiro-Wilk, Anderson-Darling, and Bartlett in a complete pre-ANOVA assumption-checking workflow.</li>
+
+<li><a href="Kruskal-Wallis-Test-in-R.html">Kruskal-Wallis Test in R</a>. The rank-based one-way ANOVA alternative, the right move when groups differ in shape as well as scale.</li>
+
+</ol>
