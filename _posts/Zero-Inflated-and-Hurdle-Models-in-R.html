@@ -1,0 +1,790 @@
+---
+title: "Zero-Inflated & Hurdle Models in R: pscl Package for Excess Zeros"
+description: "Fit zero-inflated and hurdle models in R with the pscl package. Diagnose excess zeros, interpret zeroinfl() and hurdle() output, and choose between them."
+keywords: "zero-inflated Poisson R, ZIP model, hurdle model R, pscl package, zeroinfl function, hurdle function, excess zeros count data, structural zeros, ZINB, Vuong test"
+mathjax: true
+webr: true
+curriculum_id: "FR-cate-2"
+post_type: "FR"
+auto_link_terms: "zero-inflated Poisson|ZIP model|ZINB|hurdle model|pscl package|zeroinfl()|excess zeros|structural zeros|Vuong test"
+auto_link_case_sensitive: false
+fr_parent: "Poisson-and-Negative-Binomial-Regression.html"
+---
+<!-- md2html:generated -->
+
+<h1>Zero-Inflated & Hurdle Models in R: pscl Package for Excess Zeros</h1>
+
+<p class="lead">Standard Poisson and <a class="auto-link" href="Poisson-and-Negative-Binomial-Regression-With-R.html" title="Poisson and Negative Binomial Regression with R">negative binomial regression</a> underestimate datasets where zero is far more common than the rest of the count distribution would predict. Zero-inflated and hurdle models split the data-generating process into two parts so the zeros and the positive counts get explained separately. R's <code>pscl</code> package gives you <code>zeroinfl()</code> and <code>hurdle()</code> to fit both in a single line.</p>
+
+<div class="engagement-header" data-difficulty="Advanced" data-time="30" data-exercises="8" data-xp="120"></div>
+
+<h2>When do you need a zero-inflated or hurdle model?</h2>
+
+<p>A vanilla Poisson model treats every zero as just an unlikely-but-possible count from the same distribution that produced the larger values. But many real datasets have far more zeros than any single distribution can explain: 30% of grad students publish zero papers, most insurance claimants file zero claims, a third of Medicare patients never visit a doctor in a year. The first diagnostic is to compare the observed share of zeros against what a Poisson fit would predict for that share.</p>
+
+<p>The <code>bioChemists</code> dataset bundled with pscl is the canonical example: 915 PhD students, with their article count over the last three years of grad school as the outcome.</p>
+
+<div class="webr-container" data-block-title="Diagnose excess zeros in bioChemists">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Diagnose excess zeros in bioChemists</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(pscl)
+data(bioChemists)
+
+# Observed share of zero-article students
+obs_p0 &lt;- mean(bioChemists$art == 0)
+obs_p0
+#&gt; [1] 0.3005464
+
+# Vanilla Poisson and its average predicted P(Y=0)
+m_pois &lt;- glm(art ~ ., data = bioChemists, family = poisson)
+pred_p0 &lt;- mean(dpois(0, fitted(m_pois)))
+pred_p0
+#&gt; [1] 0.2086
+
+# The gap
+obs_p0 - pred_p0
+#&gt; [1] 0.0919</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A vanilla Poisson predicts a zero rate of 21%, but 30% of students actually published nothing. That nine-point gap means the Poisson is underfitting the zeros, and 84 of those zero-article students are unaccounted for. This is the textbook signal that you need a model with a dedicated zero component.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Every count model has an implied prediction for P(Y=0).</strong> Before reaching for fancier tools, fit the simple model, average <code>dpois(0, fitted())</code> (or the negative binomial equivalent), and compare to the observed zero share. If they match, ZIP and hurdle add nothing.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute the observed-versus-predicted zero gap for women only (<code>fem == &quot;Women&quot;</code>). The same Poisson coefficients apply, but you re-aggregate over the female subset.</p>
+<div class="webr-container" data-block-title="Your turn: zero gap for women">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: zero gap for women</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Filter bioChemists to women, then compare obs vs predicted P(Y=0)
+ex_women &lt;- bioChemists[bioChemists$fem == &quot;Women&quot;, ]
+
+# your code here
+
+#&gt; Expected: roughly 0.32 observed, 0.22 predicted</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Zero gap for women solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Zero gap for women solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_women &lt;- bioChemists[bioChemists$fem == &quot;Women&quot;, ]
+ex_obs &lt;- mean(ex_women$art == 0)
+ex_pred &lt;- mean(dpois(0, fitted(m_pois)[bioChemists$fem == &quot;Women&quot;]))
+c(observed = ex_obs, predicted = ex_pred, gap = ex_obs - ex_pred)
+#&gt;  observed predicted       gap
+#&gt;     0.319     0.224     0.095</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> We re-use <code>fitted(m_pois)</code> (the per-row predicted means) and subset both the data and the predictions to women. The gap is similar to the overall gap, so the excess zeros are not just driven by men.</p>
+
+</details>
+</section>
+
+<h2>How does a zero-inflated model differ from a hurdle model?</h2>
+
+<p>Both models acknowledge that the zeros come from a different process than the positive counts, but they wire it up differently. A zero-inflated model is a <em>mixture</em>: with some probability $\pi$ the observation is a "structural zero" (always 0, no exceptions), and with probability $1 - \pi$ it comes from an ordinary Poisson or negative binomial that can itself produce zeros. A hurdle model is a <em>two-stage</em> process: first a binary gate decides whether the count is 0 or positive, then a zero-<em>truncated</em> count distribution generates the positive value for the survivors.</p>
+
+<p><img src="screenshots/Zero-Inflated-and-Hurdle-Models-in-R-zip-vs-hurdle.webp" alt="Zero-Inflated vs Hurdle structure" class="img-responsive img-zoomable" loading="lazy" width="1346" height="1282" /></p>
+
+<p><em>Figure 1: The two model families split the count process differently: zero-inflated mixes a structural-zero class with a count process, while hurdle uses a binary gate followed by a zero-truncated count.</em></p>
+
+<p>The math makes the difference concrete. For a zero-inflated Poisson with parameters $\pi$ (structural-zero probability) and $\lambda$ (count rate):</p>
+
+<p>$$ P(Y = y) = \begin{cases} \pi + (1 - \pi) \cdot e^{-\lambda} & \text{if } y = 0 \\ (1 - \pi) \cdot \dfrac{\lambda^y \, e^{-\lambda}}{y!} & \text{if } y > 0 \end{cases} $$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$Y$ = the observed count (e.g., articles published)</li>
+
+<li>$\pi$ = probability of being a structural zero (a person who would never publish)</li>
+
+<li>$\lambda$ = Poisson rate for the regular count process</li>
+
+<li>$e^{-\lambda}$ = Poisson probability of a "sampling" zero, which adds to the structural zeros</li>
+
+</ul>
+
+<p>The headline: a ZIP model lets you observe a zero from <em>either</em> source, while a hurdle says all zeros come from the same gate. <em>If you don't care about the math, the diagram and the next two sections give you everything you need.</em></p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Both reduce to ordinary Poisson when the zero component has no signal.</strong> If $\pi = 0$ in a ZIP, or the gate's probability of "positive" is 1 in a hurdle, you are back to ordinary Poisson. The gain only kicks in when the zero side has real predictive content.</div></div>
+
+<p>A quick visual check shows why these models exist for <code>bioChemists</code>:</p>
+
+<div class="webr-container" data-block-title="Histogram showing the zero spike">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Histogram showing the zero spike</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">hist(bioChemists$art,
+     breaks = 0:20 - 0.5,
+     main = &quot;Articles published in last 3 years of PhD&quot;,
+     xlab = &quot;Articles&quot;, col = &quot;steelblue&quot;, border = &quot;white&quot;)
+#&gt; (Histogram printed to plot panel)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>About 275 students sit in the zero bar alone, and the bars decay rapidly from 1 to 7. Any single-distribution fit has to make a brutal trade-off: explain the zeros well or explain the tail well, but not both.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute the variance-to-mean ratio of <code>bioChemists$art</code> to confirm that <a class="auto-link" href="Poisson-Regression-in-R.html" title="Poisson Regression in R: Model Count Data and Handle Overdispersion">overdispersion</a> (variance > mean) is also present, which is what motivates negative-binomial variants of these models.</p>
+<div class="webr-container" data-block-title="Your turn: variance-to-mean ratio">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: variance-to-mean ratio</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Compute var(art) / mean(art), values much greater than 1 indicate overdispersion
+ex_ratio &lt;- # your code here
+
+ex_ratio
+#&gt; Expected: about 3.7</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Variance-to-mean ratio solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Variance-to-mean ratio solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_ratio &lt;- var(bioChemists$art) / mean(bioChemists$art)
+ex_ratio
+#&gt; [1] 3.692</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> A ratio of 3.7 means the variance is nearly four times the mean, well above the Poisson assumption of equality. That is why ZINB and hurdle-NB usually beat their Poisson cousins on this dataset.</p>
+
+</details>
+</section>
+
+<h2>How do you fit a zero-inflated Poisson with pscl::zeroinfl()?</h2>
+
+<p>The <code>zeroinfl()</code> formula has two pipes: the part before <code>|</code> describes the count process, the part after describes the structural-zero process. Using <code>.</code> on both sides applies all predictors to both components, which is the right starting point when you don't have strong priors about which variables affect each part.</p>
+
+<div class="webr-container" data-block-title="Fit zero-inflated Poisson">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit zero-inflated Poisson</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">m_zip &lt;- zeroinfl(art ~ . | ., data = bioChemists)
+summary(m_zip)
+#&gt; Call:
+#&gt; zeroinfl(formula = art ~ . | ., data = bioChemists)
+#&gt;
+#&gt; Count model coefficients (poisson with log link):
+#&gt;             Estimate Std. Error z value Pr(&gt;|z|)
+#&gt; (Intercept)  0.64084    0.12131   5.283 1.27e-07 ***
+#&gt; femWomen    -0.20916    0.06348  -3.295 0.000986 ***
+#&gt; marMarried   0.10346    0.07111   1.455 0.145696
+#&gt; kid5        -0.14267    0.04738  -3.012 0.002600 **
+#&gt; phd         -0.00633    0.03101  -0.204 0.838255
+#&gt; ment         0.01802    0.00231   7.797 6.34e-15 ***
+#&gt;
+#&gt; Zero-inflation model coefficients (binomial with logit link):
+#&gt;             Estimate Std. Error z value Pr(&gt;|z|)
+#&gt; (Intercept) -0.57706    0.50942  -1.133  0.25733
+#&gt; femWomen     0.10975    0.28008   0.392  0.69518
+#&gt; marMarried  -0.35403    0.31784  -1.114  0.26536
+#&gt; kid5         0.21716    0.19648   1.105  0.26904
+#&gt; phd          0.00127    0.14543   0.009  0.99301
+#&gt; ment        -0.13453    0.04527  -2.972  0.00296 **</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The output is two regressions stacked. The count component reads like a normal Poisson: women publish about $e^{-0.21} \approx 0.81$ as many articles as men, and each additional mentor publication multiplies the student's expected count by $e^{0.018} \approx 1.018$. The zero-inflation component is a logistic regression on whether the student is a <em>structural</em> zero (one who would never publish, regardless of effort): only <code>ment</code> is significant, and the negative coefficient means more-published mentors <em>reduce</em> the odds of having a structural-zero student.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Zero-component coefficients predict structural zeros, not observed zeros.</strong> A negative coefficient there means that variable lowers the odds of being someone who would never publish. The total predicted P(Y=0) for any individual is structural plus Poisson-zero, so a positive zero-component coefficient does not automatically mean a higher overall zero rate.</div></div>
+
+<p>How well does the ZIP close the 9-point gap from before?</p>
+
+<div class="webr-container" data-block-title="Predicted zero rate under ZIP">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Predicted zero rate under ZIP</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">zip_pred_p0 &lt;- mean(predict(m_zip, type = &quot;prob&quot;)[, 1])
+c(observed = obs_p0, poisson = pred_p0, zip = zip_pred_p0)
+#&gt;  observed   poisson       zip
+#&gt;    0.3005    0.2086    0.2986</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The ZIP nails it: the average predicted P(Y=0) is 0.299, almost exactly the observed 0.300, and the Poisson's nine-point miss is gone. This is the easiest sanity check that the inflation component is doing real work.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Refit as a <a class="auto-link" href="Zero-Inflated-Distributions-in-R.html" title="Zero-Inflated Distributions in R: Handle Excess Zeros in Count Data">zero-inflated negative binomial</a> by passing <code>dist = &quot;negbin&quot;</code>. Compare the new <code>theta</code> (dispersion) parameter and the AIC.</p>
+<div class="webr-container" data-block-title="Your turn: fit ZINB">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: fit ZINB</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_zinb &lt;- # your code here
+
+# Print the dispersion parameter and AIC
+# your code here
+
+#&gt; Expected: theta about 2.3, AIC drops by ~16 vs ZIP</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="ZINB solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">ZINB solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_zinb &lt;- zeroinfl(art ~ . | ., data = bioChemists, dist = &quot;negbin&quot;)
+ex_zinb$theta
+#&gt;      [1] 2.265
+AIC(m_zip, ex_zinb)
+#&gt;         df      AIC
+#&gt; m_zip   12 3232.07
+#&gt; ex_zinb 13 3215.92</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The negative binomial absorbs overdispersion explicitly through <code>theta</code>, dropping the AIC by 16, strong evidence that ZINB is preferred over ZIP for this data.</p>
+
+</details>
+</section>
+
+<h2>How do you fit a hurdle model with pscl::hurdle()?</h2>
+
+<p>The <code>hurdle()</code> formula uses the same two-pipe syntax, but the components mean different things. Before <code>|</code> is now a <em>zero-truncated</em> count distribution that fires only when the gate is open. After <code>|</code> is a binary gate predicting whether <code>art &gt; 0</code> at all.</p>
+
+<div class="webr-container" data-block-title="Fit a Poisson hurdle model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a Poisson hurdle model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">m_hurdle &lt;- hurdle(art ~ . | ., data = bioChemists)
+summary(m_hurdle)
+#&gt; Call:
+#&gt; hurdle(formula = art ~ . | ., data = bioChemists)
+#&gt;
+#&gt; Count model coefficients (truncated poisson with log link):
+#&gt;             Estimate Std. Error z value Pr(&gt;|z|)
+#&gt; (Intercept)  0.67114    0.12246   5.481 4.24e-08 ***
+#&gt; femWomen    -0.22858    0.06360  -3.594 0.000326 ***
+#&gt; marMarried   0.09648    0.07097   1.359 0.173962
+#&gt; kid5        -0.14219    0.04748  -2.995 0.002747 **
+#&gt; phd         -0.01244    0.03129  -0.397 0.691015
+#&gt; ment         0.01874    0.00229   8.196 2.49e-16 ***
+#&gt;
+#&gt; Zero hurdle model coefficients (binomial with logit link):
+#&gt;             Estimate Std. Error z value Pr(&gt;|z|)
+#&gt; (Intercept)  0.23680    0.29554   0.801  0.42301
+#&gt; femWomen    -0.25115    0.15911  -1.578  0.11453
+#&gt; marMarried   0.32623    0.18082   1.804  0.07127 .
+#&gt; kid5        -0.28525    0.11113  -2.567  0.01027 *
+#&gt; phd          0.02222    0.07956   0.279  0.78000
+#&gt; ment         0.08012    0.01302   6.155 7.52e-10 ***</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The count coefficients are nearly identical to ZIP because they are estimating the same quantity (the Poisson rate among publishers). What changes is the zero component: it is now a plain logistic regression on <code>art &gt; 0</code>. Its coefficients are easy to interpret: a positive <code>marMarried</code> coefficient means married students are <em>more</em> likely to publish at least once, and <code>kid5</code>'s negative sign says small children at home reduce that probability. No gymnastics with "structural" vs "sampling" zeros.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Hurdle's zero gate is just <code>glm(art &gt; 0 ~ ., family = binomial)</code>.</strong> That makes it easier to debug and to teach: you can fit the gate alone, sanity-check it, then layer the truncated count on top. ZIP cannot be decomposed this way because both components produce zeros.</div></div>
+
+<div class="webr-container" data-block-title="Predicted P(Y&gt;0) under hurdle">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Predicted P(Y&gt;0) under hurdle</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Probability that a &quot;typical&quot; profile crosses the hurdle
+profile &lt;- data.frame(fem = &quot;Women&quot;, mar = &quot;Married&quot;,
+                      kid5 = 1, phd = 3.0, ment = 8)
+predict(m_hurdle, newdata = profile, type = &quot;zero&quot;)
+#&gt;         1
+#&gt; 0.7681</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The hurdle says a married woman PhD with one young child, mid-tier program, and a productive mentor has a 77% chance of publishing at least once. Multiplying by the truncated count gives the full prediction.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Refit hurdle with <code>dist = &quot;negbin&quot;</code> and report which AIC is lower (Poisson hurdle vs NB hurdle).</p>
+<div class="webr-container" data-block-title="Your turn: NB hurdle">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: NB hurdle</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_hurdle_nb &lt;- # your code here
+
+AIC(m_hurdle, ex_hurdle_nb)
+#&gt; Expected: NB hurdle wins by ~12 AIC points</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="NB hurdle solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">NB hurdle solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_hurdle_nb &lt;- hurdle(art ~ . | ., data = bioChemists, dist = &quot;negbin&quot;)
+AIC(m_hurdle, ex_hurdle_nb)
+#&gt;              df      AIC
+#&gt; m_hurdle     12 3225.04
+#&gt; ex_hurdle_nb 13 3213.27</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The NB version of hurdle handles the long tail of high-publishing students much better, dropping the AIC by 12. The truncated negative binomial is the right tail distribution here.</p>
+
+</details>
+</section>
+
+<h2>How do you choose between ZIP, ZINB, and hurdle models?</h2>
+
+<p>Three knobs decide it: dispersion in the positive counts, whether your zeros are theoretically a separate population, and the data's verdict via AIC and the Vuong test. The diagram below sketches the practical decision tree.</p>
+
+<p><img src="screenshots/Zero-Inflated-and-Hurdle-Models-in-R-decision.webp" alt="Picking a count model" class="img-responsive img-zoomable" loading="lazy" width="1136" height="1170" /></p>
+
+<p><em>Figure 2: Decision flow for picking between Poisson, negative binomial, zero-inflated, and hurdle models based on dispersion and zero-rate diagnostics.</em></p>
+
+<p>A head-to-head AIC ranking is the fastest data-driven check. Lower AIC is better and a difference of 2 or more is conventionally meaningful.</p>
+
+<div class="webr-container" data-block-title="AIC across all six count models">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">AIC across all six count models</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(MASS)
+m_nb         &lt;- glm.nb(art ~ ., data = bioChemists)
+m_zinb       &lt;- zeroinfl(art ~ . | ., data = bioChemists, dist = &quot;negbin&quot;)
+m_hurdle_nb  &lt;- hurdle(art ~ . | ., data = bioChemists, dist = &quot;negbin&quot;)
+
+AIC(m_pois, m_nb, m_zip, m_zinb, m_hurdle, m_hurdle_nb)
+#&gt;             df      AIC
+#&gt; m_pois       6 3314.11
+#&gt; m_nb         7 3226.15
+#&gt; m_zip       12 3232.07
+#&gt; m_zinb      13 3215.92
+#&gt; m_hurdle    12 3225.04
+#&gt; m_hurdle_nb 13 3213.27</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Hurdle-NB edges out ZINB by about 3 AIC points, and both leave plain Poisson 100 points behind. Whenever ZINB and hurdle-NB are within a few AIC points, the practical choice should fall back to interpretation: do you have a story about <em>structural</em> zeros, or about a <em>gate</em>?</p>
+
+<p>The Vuong test gives a formal head-to-head between non-nested models, comparing the model-implied likelihood for each observation:</p>
+
+<div class="webr-container" data-block-title="Vuong test: ZIP vs Poisson">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Vuong test: ZIP vs Poisson</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">vuong(m_pois, m_zip)
+#&gt; Vuong Non-Nested Hypothesis Test-Statistic:
+#&gt; (test-statistic is asymptotically distributed N(0,1) under the
+#&gt;  null that the models are indistinguishable)
+#&gt; -------------------------------------------------------------
+#&gt;               Vuong z-statistic             H_A    p-value
+#&gt; Raw                  -6.9087  model2 &gt; model1 2.4392e-12
+#&gt; AIC-corrected        -6.7224  model2 &gt; model1 8.9534e-12
+#&gt; BIC-corrected        -6.1545  model2 &gt; model1 3.7561e-10</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>model2 &gt; model1</code> with z-statistic of about -6.9 means ZIP is overwhelmingly better than vanilla Poisson, every correction agrees and the <a class="auto-link" href="Statistical-Tests-in-R.html" title="Statistical Tests in R">p-value</a> is effectively zero. Vuong is most useful when AIC differences are small or when you want a hypothesis-test framing rather than information criteria.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Pick ZIP/ZINB when "always-zero" subjects are theoretically distinct, hurdle when the question is naturally two-stage.</strong> If you study fishing trips, "non-fishers" never go regardless of weather, that is structural, use ZIP. If you study doctor visits, the question is naturally "did you go at all?" → "if so, how often?", that is a hurdle.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Rank all six models by AIC and identify the winner programmatically.</p>
+<div class="webr-container" data-block-title="Your turn: rank by AIC">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: rank by AIC</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Use AIC() and sort the resulting data.frame by the AIC column ascending
+ex_ranking &lt;- # your code here
+
+ex_ranking
+#&gt; Expected: m_hurdle_nb at the top, m_pois at the bottom</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="AIC ranking solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">AIC ranking solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_aic &lt;- AIC(m_pois, m_nb, m_zip, m_zinb, m_hurdle, m_hurdle_nb)
+ex_ranking &lt;- ex_aic[order(ex_aic$AIC), ]
+ex_ranking
+#&gt;             df      AIC
+#&gt; m_hurdle_nb 13 3213.27
+#&gt; m_zinb      13 3215.92
+#&gt; m_hurdle    12 3225.04
+#&gt; m_nb         7 3226.15
+#&gt; m_zip       12 3232.07
+#&gt; m_pois       6 3314.11</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>order()</code> returns row indices sorted by the AIC column. Hurdle-NB tops the table, then ZINB, then Poisson hurdle, all NB-flavoured variants beat their Poisson cousins because of overdispersion in the positive-count tail.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<h3>Exercise 1: AIC delta between ZINB and hurdle-NB</h3>
+
+<p>Compute the AIC of <code>m_zinb</code> and <code>m_hurdle_nb</code>, take their difference, and decide which model is preferred (a positive difference favours <code>m_hurdle_nb</code> because it has the lower AIC).</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: AIC() accepts multiple models and returns a data frame
+my_delta &lt;- # your code here
+
+my_delta
+#&gt; Expected: about 2.65, hurdle-NB preferred</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_aic &lt;- AIC(m_zinb, m_hurdle_nb)
+my_delta &lt;- my_aic[&quot;m_zinb&quot;, &quot;AIC&quot;] - my_aic[&quot;m_hurdle_nb&quot;, &quot;AIC&quot;]
+my_delta
+#&gt; [1] 2.65</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> A positive delta means ZINB has a higher AIC, so the hurdle-NB is preferred by a small but meaningful margin.</p>
+
+</details>
+
+<h3>Exercise 2: Decompose ZIP's predicted zeros</h3>
+
+<p>For each row, the ZIP-predicted P(Y=0) has two parts: a <em>structural</em> part ($\pi$) from the zero component, and a <em>Poisson-zero</em> part ($(1-\pi) e^{-\lambda}$) from the count component. Compute the average of each part separately and verify they add to the total predicted zero rate.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: predict(m_zip, type = &quot;zero&quot;) returns pi
+#       predict(m_zip, type = &quot;count&quot;) returns lambda
+my_pi    &lt;- # your code here
+my_lam   &lt;- # your code here
+my_struc &lt;- mean(my_pi)
+my_pois  &lt;- mean((1 - my_pi) * exp(-my_lam))
+
+c(structural = my_struc, poisson_zero = my_pois,
+  total = my_struc + my_pois)
+#&gt; Expected: total ≈ 0.299, both parts sum to it</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_pi  &lt;- predict(m_zip, type = &quot;zero&quot;)
+my_lam &lt;- predict(m_zip, type = &quot;count&quot;)
+my_struc &lt;- mean(my_pi)
+my_pois  &lt;- mean((1 - my_pi) * exp(-my_lam))
+c(structural = my_struc, poisson_zero = my_pois,
+  total = my_struc + my_pois)
+#&gt;   structural poisson_zero        total
+#&gt;        0.087        0.212        0.299</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> ZIP attributes about 9 of every 30 zero observations to the structural class, and the remaining 21 to ordinary Poisson sampling at low $\lambda$. The two pieces sum to the model's predicted zero rate.</p>
+
+</details>
+
+<h3>Exercise 3: Compare ZIP and hurdle predictions for one profile</h3>
+
+<p>Predict the expected article count for a hypothetical female biochemist with <code>mar = &quot;Married&quot;</code>, <code>kid5 = 2</code>, <code>phd = 3.5</code>, <code>ment = 8</code> under both <code>m_zip</code> and <code>m_hurdle</code>, and explain why they differ.</p>
+
+<div class="webr-container" data-block-title="Exercise 3 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_profile &lt;- data.frame(fem = &quot;Women&quot;, mar = &quot;Married&quot;,
+                         kid5 = 2, phd = 3.5, ment = 8)
+my_zip_pred    &lt;- # your code here
+my_hurdle_pred &lt;- # your code here
+
+c(zip = my_zip_pred, hurdle = my_hurdle_pred)
+#&gt; Expected: small differences, hurdle slightly higher</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_profile &lt;- data.frame(fem = &quot;Women&quot;, mar = &quot;Married&quot;,
+                         kid5 = 2, phd = 3.5, ment = 8)
+my_zip_pred    &lt;- predict(m_zip,    newdata = my_profile, type = &quot;response&quot;)
+my_hurdle_pred &lt;- predict(m_hurdle, newdata = my_profile, type = &quot;response&quot;)
+c(zip = my_zip_pred, hurdle = my_hurdle_pred)
+#&gt;     zip.1  hurdle.1
+#&gt;     1.029     1.085</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Both models predict around one article for this profile, but the hurdle's truncated Poisson conditions on <code>art &gt; 0</code>, so its expected positive count is slightly higher than the ZIP's mixture of "always-zero" plus "Poisson with the same rate". The two stories give similar headline numbers but different mechanism narratives.</p>
+
+</details>
+
+<h2>Complete Example</h2>
+
+<p>The end-to-end workflow on <code>bioChemists</code> is a good template you can drop onto any count outcome.</p>
+
+<div class="webr-container" data-block-title="End-to-end ZINB workflow">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">End-to-end ZINB workflow</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(pscl); library(MASS)
+data(bioChemists)
+
+# 1. Diagnose excess zeros
+obs &lt;- mean(bioChemists$art == 0)
+m_pois_full &lt;- glm(art ~ ., data = bioChemists, family = poisson)
+pred &lt;- mean(dpois(0, fitted(m_pois_full)))
+c(observed = obs, predicted = pred, gap = obs - pred)
+#&gt;  observed predicted       gap
+#&gt;    0.301     0.209     0.092
+
+# 2. Fit candidates
+m_nb_full     &lt;- glm.nb(art ~ ., data = bioChemists)
+m_zinb_full   &lt;- zeroinfl(art ~ . | ., data = bioChemists, dist = &quot;negbin&quot;)
+m_hnb_full    &lt;- hurdle(art ~ . | ., data = bioChemists, dist = &quot;negbin&quot;)
+
+# 3. Compare with AIC
+AIC(m_pois_full, m_nb_full, m_zinb_full, m_hnb_full)
+#&gt;             df      AIC
+#&gt; m_pois_full  6 3314.11
+#&gt; m_nb_full    7 3226.15
+#&gt; m_zinb_full 13 3215.92
+#&gt; m_hnb_full  13 3213.27
+
+# 4. Vuong head-to-head
+vuong(m_zinb_full, m_hnb_full)
+#&gt; Vuong z-statistic ≈ -1.4, weak evidence for hurdle-NB
+
+# 5. Read the winner's coefficients
+coef(m_hnb_full, model = &quot;count&quot;)
+#&gt; (Intercept)    femWomen  marMarried        kid5         phd        ment
+#&gt;      0.4179     -0.2436      0.0964     -0.1574     -0.0162      0.0298
+coef(m_hnb_full, model = &quot;zero&quot;)
+#&gt; (Intercept)    femWomen  marMarried        kid5         phd        ment
+#&gt;      0.2368     -0.2511      0.3262     -0.2853      0.0222      0.0801</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Hurdle-NB wins by a hair on AIC, and Vuong does not strongly favour either it or ZINB. Because the substantive question reads naturally as "did the student publish at all → if so, how many?", we keep the hurdle. The count component says women publish about $e^{-0.24} \approx 0.78$ times as many articles as men <em>among publishers</em>, and the binary gate says the same effect (women are slightly less likely to cross the hurdle, $e^{-0.25} \approx 0.78$).</p>
+
+<h2>Summary</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Model</th>
+<th>Use when...</th>
+<th>pscl call</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Poisson</td>
+<td>Mean ≈ variance, observed zero rate matches <code>dpois(0, fitted)</code></td>
+<td><code>glm(..., family = poisson)</code></td>
+</tr>
+<tr>
+<td>Negative Binomial</td>
+<td>Variance > mean, no excess zeros after accounting for dispersion</td>
+<td><code>MASS::glm.nb()</code></td>
+</tr>
+<tr>
+<td>ZIP / ZINB</td>
+<td>Excess zeros and you can story-tell two latent classes</td>
+<td>`zeroinfl(... \</td>
+<td>...)`</td>
+</tr>
+<tr>
+<td>Hurdle / Hurdle-NB</td>
+<td>Excess zeros and a clean two-stage process</td>
+<td>`hurdle(... \</td>
+<td>...)`</td>
+</tr>
+</tbody>
+</table>
+
+<p>Three rules of thumb cover most cases. First, always run the observed-vs-predicted zero-share diagnostic before reaching for ZIP or hurdle, if Poisson already nails the zero rate, you are wasting parameters. Second, prefer the negative-binomial flavour (<code>dist = &quot;negbin&quot;</code>) whenever the variance-to-mean ratio is much greater than 1, which is most of the time. Third, when AIC and Vuong leave you indifferent between ZIP and hurdle, let the substantive interpretation break the tie: structural zeros vs two-stage gate is rarely an empirical question.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Zeileis, A., Kleiber, C. & Jackman, S., <em><a class="auto-link" href="adv-regression-models.html" title="Advanced Regression Models">Regression Models</a> for Count Data in R</em>. Journal of Statistical Software (2008). <a href="https://cran.r-project.org/web/packages/pscl/vignettes/countreg.pdf">Vignette PDF</a></li>
+
+<li>pscl package, CRAN. <a href="https://cran.r-project.org/package=pscl">Link</a></li>
+
+<li>Cameron, A. C. & Trivedi, P. K., <em>Regression Analysis of Count Data</em>, 2nd edition. Cambridge University Press (2013).</li>
+
+<li>UCLA OARC, <em>Zero-Inflated and Hurdle Models for Count Data in R</em>. <a href="https://stats.oarc.ucla.edu/r/seminars/zero-inflated-and-hurdle-models-for-count-data-in-r/">Link</a></li>
+
+<li>Vuong, Q. H., <em>Likelihood ratio tests for <a class="auto-link" href="Model-Selection-in-R.html" title="Model Selection in R">model selection</a> and non-nested hypotheses</em>. Econometrica (1989). <a href="https://www.jstor.org/stable/1912557">JSTOR</a></li>
+
+<li>Mullahy, J., <em>Specification and testing of some modified count data models</em>. Journal of Econometrics (1986).</li>
+
+<li>Long, J. S., <em>Regression Models for Categorical and Limited Dependent Variables</em>. Sage (1997). Source of the <code>bioChemists</code> dataset.</li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ol>
+
+<li><em>Poisson & Negative Binomial Regression: Model Count Data in R</em>, the prerequisite parent post that fits and interprets the simpler count models on <code>quine</code> and other examples.</li>
+
+<li><em><a class="auto-link" href="Logistic-Regression-in-R.html" title="Logistic Regression in R: From glm() to Odds Ratios, ROC, and AUC">Logistic Regression in R</a></em>, the binary classifier behind every hurdle model's gate component.</li>
+
+<li><em>Generalized Linear Models in R</em>, the unifying GLM framework that all five models in this post extend.</li>
+
+</ol>
