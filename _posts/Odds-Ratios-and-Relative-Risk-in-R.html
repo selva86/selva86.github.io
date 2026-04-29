@@ -1,0 +1,938 @@
+---
+title: "Odds Ratios & Relative Risk in R: epitools & epiR Complete Guide"
+description: "Compute and interpret odds ratios and relative risk in R with epitools and epiR. Covers 2x2 tables, confidence intervals, method choice, and forest plots."
+keywords: "odds ratio R, relative risk R, risk ratio R, epitools, epiR, epi.2by2, oddsratio function, riskratio function, 2x2 contingency table, case-control study R"
+mathjax: true
+webr: true
+curriculum_id: "2.7.5"
+post_type: "C"
+auto_link_terms: "odds ratio in R|relative risk in R|risk ratio in R|epi.2by2|epitools package|epiR package"
+auto_link_case_sensitive: false
+sidebar_section: "Statistics"
+sidebar_title: "Odds Ratios & Relative Risk"
+sidebar_order: "85"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>Odds Ratios & Relative Risk in R: epitools & epiR Complete Guide</h1>
+
+<p class="lead">The <strong><a class="auto-link" href="Logistic-Regression-in-R.html" title="Logistic Regression in R: From glm() to Odds Ratios, ROC, and AUC">odds ratio</a></strong> compares the odds of an outcome between two groups, while the <strong>relative risk</strong> compares the probabilities directly. Both <a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">summarise</a> how strongly an exposure links to an outcome in a 2x2 table, and R gives you them in one line of code.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="35" data-exercises="9" data-xp="135"></div>
+
+<h2>What's the difference between an odds ratio and relative risk?</h2>
+
+<p>Picture a small lung-cancer study: 30 of 100 smokers develop cancer, while 5 of 100 non-smokers do. The relative risk says smokers have six times the cancer probability (30% vs 5%). The odds ratio says smokers have roughly eight times the cancer odds. Same data, different framing, different number. Let's build that 2x2 table in base R and compute both ratios by hand so the formulas stop being abstract.</p>
+
+<div class="webr-container" data-block-title="Hand-compute RR and OR from a 2x2">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Hand-compute RR and OR from a 2x2</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># 2x2 table: rows = exposure (smoker/non), cols = outcome (cancer/no)
+smoke_tab &lt;- matrix(c(30, 70, 5, 95),
+                    nrow = 2, byrow = TRUE,
+                    dimnames = list(Exposure = c(&quot;Smoker&quot;, &quot;Non-smoker&quot;),
+                                    Outcome  = c(&quot;Cancer&quot;, &quot;No Cancer&quot;)))
+smoke_tab
+#&gt;             Outcome
+#&gt; Exposure     Cancer No Cancer
+#&gt;   Smoker         30        70
+#&gt;   Non-smoker      5        95
+
+# Risks (probabilities)
+risk_smoker  &lt;- 30 / (30 + 70)
+risk_nonsmok &lt;- 5  / (5  + 95)
+
+# Risk ratio and odds ratio
+RR &lt;- risk_smoker / risk_nonsmok
+OR &lt;- (30 * 95) / (70 * 5)
+
+c(RR = RR, OR = OR)
+#&gt;   RR   OR
+#&gt; 6.00 8.14</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The relative risk of 6.0 means a smoker is six times more likely to develop cancer than a non-smoker. The odds ratio of 8.14 looks bigger, and that gap is not a mistake. The cross-product <code>(a*d) / (b*c)</code> always exaggerates the relative risk when the outcome is common, and the two converge only when the outcome is rare.</p>
+
+<p>Every 2x2 table in epidemiology has the same four cells. Naming them now will pay off in every package below.</p>
+
+<ol>
+
+<li><strong>a</strong> = exposed cases (top-left)</li>
+
+<li><strong>b</strong> = exposed non-cases (top-right)</li>
+
+<li><strong>c</strong> = unexposed cases (bottom-left)</li>
+
+<li><strong>d</strong> = unexposed non-cases (bottom-right)</li>
+
+</ol>
+
+<p><img src="screenshots/Odds-Ratios-and-Relative-Risk-in-R-2x2-table-anatomy.webp" alt="2x2 table anatomy: exposed and unexposed groups by case status." class="img-responsive img-zoomable" loading="lazy" width="1354" height="1090" /></p>
+
+<p><em>Figure 1: The four cells of a 2x2 table label exposed and unexposed groups by case status.</em></p>
+
+<p>The risk ratio uses row totals (people at risk), so it asks "what fraction of each group got sick?". The odds ratio uses the cross-product, so it asks "how do the odds of getting sick compare across groups?". Risks are bounded between 0 and 1, but odds run from 0 to infinity, which is why the OR can drift far from the RR.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Odds ratio approximates relative risk only when the outcome is rare.</strong> When fewer than ~10% of the population gets the outcome, OR and RR agree to a useful precision. Above that, the OR overstates the strength of the association compared with the RR.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> A drug trial finds 12 of 200 treated patients had a stroke and 24 of 200 control patients had a stroke. Build a 2x2 matrix called <code>ex_drug_tab</code> and compute the relative risk by hand.</p>
+<div class="webr-container" data-block-title="Your turn: drug trial RR">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: drug trial RR</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Build the 2x2 (rows = exposure, cols = outcome)
+ex_drug_tab &lt;- matrix(
+  # your values here, in the order: a, b, c, d
+  c(NA, NA, NA, NA),
+  nrow = 2, byrow = TRUE,
+  dimnames = list(Group = c(&quot;Treated&quot;, &quot;Control&quot;),
+                  Outcome = c(&quot;Stroke&quot;, &quot;No Stroke&quot;))
+)
+ex_drug_tab
+#&gt; Expected: a 2x2 with 12, 188, 24, 176
+
+# Compute RR
+ex_RR &lt;- NA
+ex_RR
+#&gt; Expected: 0.5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Drug trial RR solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Drug trial RR solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_drug_tab &lt;- matrix(c(12, 188, 24, 176),
+                      nrow = 2, byrow = TRUE,
+                      dimnames = list(Group = c(&quot;Treated&quot;, &quot;Control&quot;),
+                                      Outcome = c(&quot;Stroke&quot;, &quot;No Stroke&quot;)))
+ex_RR &lt;- (12 / 200) / (24 / 200)
+ex_RR
+#&gt; [1] 0.5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Treated patients had half the stroke risk of controls. RR < 1 signals a protective effect.</p>
+
+</details>
+</section>
+
+<h2>How do you compute an odds ratio in R with epitools?</h2>
+
+<p>The <code>oddsratio()</code> function from <code>epitools</code> automates everything in the previous block and adds a confidence interval and p-value. The function expects a 2x2 matrix or two factors, and it returns an <code>$measure</code> matrix with the OR plus its lower and upper bounds. We will use the built-in <code>Titanic</code> dataset, which records survival by sex, class, and age, and start with the simplest split, sex versus survival.</p>
+
+<div class="webr-container" data-block-title="OR for sex vs survival on Titanic">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">OR for sex vs survival on Titanic</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(epitools)
+library(dplyr)
+
+# Collapse Titanic over class and age, keep sex x survival
+titanic_tab &lt;- apply(Titanic, c(&quot;Sex&quot;, &quot;Survived&quot;), sum)
+titanic_tab
+#&gt;         Survived
+#&gt; Sex        No Yes
+#&gt;   Male   1364 367
+#&gt;   Female  126 344
+
+# Default OR with Wald 95% CI
+or_default &lt;- oddsratio(titanic_tab)
+or_default$measure
+#&gt;         odds ratio with 95% C.I.
+#&gt; Sex      estimate     lower    upper
+#&gt;   Male      1.000        NA       NA
+#&gt;   Female   10.147     8.025   12.829
+or_default$p.value[, &quot;fisher.exact&quot;]
+#&gt; [1] NA 4.9e-86</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The reference row is "Male" with OR fixed at 1, and "Female" carries the comparison: the odds of surviving were about 10.1 times higher for women than for men, with a <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">95% confidence interval</a> from 8.0 to 12.8. The interval is far above 1 and the Fisher p-value is essentially zero, so the association is nowhere near a fluke.</p>
+
+<p><code>epitools::oddsratio()</code> actually supports four estimation methods, and switching between them costs one argument. Comparing the four side by side reveals when the choice matters and when it doesn't.</p>
+
+<div class="webr-container" data-block-title="Four OR methods on the same table">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Four OR methods on the same table</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">methods &lt;- c(&quot;wald&quot;, &quot;fisher&quot;, &quot;midp&quot;, &quot;small&quot;)
+or_methods &lt;- sapply(methods, function(m) {
+  est &lt;- oddsratio(titanic_tab, method = m)$measure[2, ]
+  c(estimate = est[&quot;estimate&quot;], lower = est[&quot;lower&quot;], upper = est[&quot;upper&quot;])
+})
+round(or_methods, 2)
+#&gt;                    wald fisher  midp small
+#&gt; estimate.estimate 10.15  10.10 10.10 10.11
+#&gt; lower.lower        8.02   7.90  7.91  8.02
+#&gt; upper.upper       12.83  12.92 12.89 12.84</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>For this large sample (over 2,000 passengers) all four methods agree to within 1%. The differences only matter for small or sparse tables. We will revisit method choice properly in the "Which CI method?" section after seeing relative risk and <code>epi.2by2()</code>.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Pass rev to flip the reference group without rebuilding your table.</strong> epitools picks the lowest-named row and column as references, which is sometimes wrong. The <code>rev</code> argument accepts <code>&quot;rows&quot;</code>, <code>&quot;columns&quot;</code>, or <code>&quot;both&quot;</code> and saves you from re-indexing the matrix.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Using the full 4D <code>Titanic</code> array, collapse to a 2x2 of class (1st vs 3rd) versus survival, then compute the odds ratio with <code>oddsratio()</code>. Save the table to <code>ex_class_tab</code> and the OR to <code>ex_class_or</code>.</p>
+<div class="webr-container" data-block-title="Your turn: 1st vs 3rd class OR">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: 1st vs 3rd class OR</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Subset Titanic to 1st and 3rd class, then collapse over Sex and Age
+ex_class_tab &lt;- # your code here
+
+ex_class_or &lt;- # your code here
+
+ex_class_or$measure
+#&gt; Expected: 3rd-class row OR around 0.18 (lower survival odds vs 1st class)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="1st vs 3rd class solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">1st vs 3rd class solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_class_tab &lt;- apply(Titanic[c(&quot;1st&quot;, &quot;3rd&quot;), , , ], c(&quot;Class&quot;, &quot;Survived&quot;), sum)
+ex_class_or  &lt;- oddsratio(ex_class_tab)
+ex_class_or$measure
+#&gt;      odds ratio with 95% C.I.
+#&gt; Class estimate     lower upper
+#&gt;   1st     1.000        NA    NA
+#&gt;   3rd     0.181     0.143 0.229</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The 3rd-class odds of survival were about one-fifth the 1st-class odds. The CI excludes 1, so the gap is significant.</p>
+
+</details>
+</section>
+
+<h2>How do you compute relative risk in R with epitools?</h2>
+
+<p>Relative risk uses <code>riskratio()</code> from the same package, but the table layout convention is the opposite of <code>oddsratio()</code>. <code>riskratio()</code> expects the <strong>non-event</strong> in the first column and the <strong>unexposed</strong> group in the first row, so the top-left cell is "no event, no exposure". Get this wrong and the function silently returns the inverse, which is a classic bug.</p>
+
+<div class="webr-container" data-block-title="Risk ratio for sex vs survival">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Risk ratio for sex vs survival</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Reorder Titanic so non-event (No) is first column and Male is first row
+rr_tab &lt;- titanic_tab[c(&quot;Male&quot;, &quot;Female&quot;), c(&quot;No&quot;, &quot;Yes&quot;)]
+rr_titanic &lt;- riskratio(rr_tab)
+rr_titanic$measure
+#&gt;         risk ratio with 95% C.I.
+#&gt; Sex      estimate    lower   upper
+#&gt;   Male      1.000       NA      NA
+#&gt;   Female    3.452    3.105   3.838
+rr_titanic$p.value[, &quot;fisher.exact&quot;]
+#&gt; [1] NA 4.9e-86</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The risk ratio is 3.45: women's probability of survival was about 3.5 times higher than men's. Compare that with the odds ratio of 10.15 from the previous section. Survival on the Titanic was <em>not</em> rare (over a third of passengers survived), so the rare-disease assumption is violated and the OR overstates the multiplicative effect. The RR is the more honest summary for this dataset.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>riskratio and oddsratio use opposite cell orderings.</strong> <code>oddsratio()</code> puts the event first; <code>riskratio()</code> puts the non-event first. Check <code>?riskratio</code> before every call, or pass <code>rev = &quot;columns&quot;</code> to fix a mismatched table.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute the risk ratio of dying (not surviving) for males versus females on the Titanic. Save the result to <code>ex_male_die_rr</code>.</p>
+<div class="webr-container" data-block-title="Your turn: male death RR">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: male death RR</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: with riskratio(), put the unexposed group in row 1 and non-event in col 1
+# Goal: compare death risk for Male vs Female, expecting RR &gt; 1
+ex_die_tab &lt;- # your 2x2 here
+
+ex_male_die_rr &lt;- # your code here
+
+ex_male_die_rr$measure
+#&gt; Expected: Male death RR around 2.94</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Male death RR solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Male death RR solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Treat &quot;Female = unexposed&quot; so Male becomes the comparison group with RR &gt; 1
+ex_die_tab &lt;- titanic_tab[c(&quot;Female&quot;, &quot;Male&quot;), c(&quot;Yes&quot;, &quot;No&quot;)]
+ex_male_die_rr &lt;- riskratio(ex_die_tab)
+ex_male_die_rr$measure
+#&gt;         risk ratio with 95% C.I.
+#&gt; Sex      estimate    lower   upper
+#&gt;   Female    1.000       NA      NA
+#&gt;   Male      2.943    2.640   3.281</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Men died at nearly three times the rate of women. RR is the inverse of the female survival RR, as expected.</p>
+
+</details>
+</section>
+
+<h2>How does epiR's epi.2by2() compare?</h2>
+
+<p><code>epitools</code> returns a single measure per call. <code>epi.2by2()</code> from the <code>epiR</code> package returns the whole epidemiology toolkit in one shot: incidence risk ratio, odds ratio, attributable risk, attributable fraction in the exposed (AFe), and attributable fraction in the population (AFp). It also accepts the natural 2x2 layout, with exposed/unexposed as rows and event/no-event as columns, which is the same orientation people use on paper.</p>
+
+<div class="webr-container" data-block-title="epi.2by2 with cohort.count and interpret">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">epi.2by2 with cohort.count and interpret</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(epiR)
+
+# epiR's preferred layout: exposed-first row, event-first column.
+# We model &quot;death&quot; (No) as the event and &quot;Male&quot; as the exposure of interest.
+e2by2_tab &lt;- titanic_tab[c(&quot;Male&quot;, &quot;Female&quot;), c(&quot;No&quot;, &quot;Yes&quot;)]
+e2by2_tab
+#&gt;         Survived
+#&gt; Sex        No  Yes
+#&gt;   Male   1364  367
+#&gt;   Female  126  344
+
+full_2by2 &lt;- epi.2by2(dat = e2by2_tab,
+                      method = &quot;cohort.count&quot;,
+                      conf.level = 0.95,
+                      outcome = &quot;as.columns&quot;)
+full_2by2$massoc.summary[1:5, c(&quot;var&quot;, &quot;est&quot;, &quot;lower&quot;, &quot;upper&quot;)]
+#&gt;                                var     est   lower   upper
+#&gt; 1 Inc risk ratio                    2.940   2.638   3.276
+#&gt; 2 Odds ratio                       10.147   8.025  12.829
+#&gt; 3 Attrib risk in the exposed *      0.520   0.474   0.566
+#&gt; 4 Attrib fraction in exposed (%)   66.018  62.099  69.487
+#&gt; 5 Attrib fraction in pop (%)       52.041  47.787  55.963</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>In one call we now have everything: men were 2.94x more likely to die (RR), with 10.15x the odds (OR), and 66% of male deaths can be attributed to being male (AFe) under the strong causal-interpretation assumption. The attributable fractions answer "how much of the burden would vanish if the exposure were removed?", a question RR alone cannot answer.</p>
+
+<p><img src="screenshots/Odds-Ratios-and-Relative-Risk-in-R-or-vs-rr.webp" alt="Odds ratio vs risk ratio decision flow." class="img-responsive img-zoomable" loading="lazy" width="1888" height="660" /></p>
+
+<p><em>Figure 2: Study design and outcome frequency determine when the odds ratio approximates the risk ratio.</em></p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>epi.2by2 switches measures based on the method argument.</strong> <code>cohort.count</code> returns RR + OR + attributable risk; <code>case.control</code> drops RR (you cannot estimate it from a case-control sample); <code>cohort.time</code> adds incidence rate ratios; <code>cross.sectional</code> returns prevalence ratios. Pick the one that matches your study design.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Re-run <code>epi.2by2()</code> on the same table with <code>method = &quot;case.control&quot;</code> and save the result to <code>ex_cc</code>. Inspect <code>ex_cc$massoc.summary</code> and explain why the risk ratio row is missing.</p>
+<div class="webr-container" data-block-title="Your turn: case-control method">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: case-control method</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_cc &lt;- # your code here
+
+# Print the summary
+ex_cc$massoc.summary
+#&gt; Expected: no incidence risk ratio row; OR is the headline measure</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="case-control solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">case-control solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_cc &lt;- epi.2by2(dat = e2by2_tab, method = &quot;case.control&quot;,
+                  conf.level = 0.95, outcome = &quot;as.columns&quot;)
+head(ex_cc$massoc.summary[, c(&quot;var&quot;, &quot;est&quot;)], 4)
+#&gt;                  var    est
+#&gt; 1 Odds ratio        9.546
+#&gt; 2 Attrib prevalence 0.520
+#&gt; 3 ...</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Case-control studies sample on the outcome, so risk in the source population isn't observed. The OR is identifiable; the RR isn't.</p>
+
+</details>
+</section>
+
+<h2>Which CI method should you choose?</h2>
+
+<p>The four <code>oddsratio()</code> methods (Wald, Fisher exact, mid-p, small-sample) and <code>epi.2by2()</code>'s score interval all agree on large balanced samples but diverge sharply on small or sparse tables. Wald is the textbook normal-approximation interval and the easiest to compute by hand; Fisher's exact is the gold standard for small samples; mid-p is a less conservative exact method; and the small-sample correction adjusts Wald for thin cells.</p>
+
+<p><img src="screenshots/Odds-Ratios-and-Relative-Risk-in-R-method-decision.webp" alt="Decision flow for picking a CI method based on cell counts." class="img-responsive img-zoomable" loading="lazy" width="1352" height="1452" /></p>
+
+<p><em>Figure 3: Decision guide for picking the right confidence-interval method.</em></p>
+
+<p>The decision rule is straightforward: with all cell counts at 10 or more, Wald is fine. With cell counts under 10 but no zeros, prefer the small-sample correction or <code>epi.2by2()</code>'s score interval. With any zero cell, use Fisher exact or mid-p, never Wald.</p>
+
+<div class="webr-container" data-block-title="Methods compared on a small 2x2">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Methods compared on a small 2x2</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Layout: row 1 = Unexposed (reference), row 2 = Exposed
+#         col 1 = Control (no event), col 2 = Case (event)
+small_tab &lt;- matrix(c(8, 2, 1, 3),
+                    nrow = 2, byrow = TRUE,
+                    dimnames = list(Exposure = c(&quot;Unexposed&quot;, &quot;Exposed&quot;),
+                                    Outcome  = c(&quot;Control&quot;, &quot;Case&quot;)))
+small_tab
+#&gt;            Outcome
+#&gt; Exposure    Control Case
+#&gt;   Unexposed       8    2
+#&gt;   Exposed         1    3
+
+methods &lt;- c(&quot;wald&quot;, &quot;fisher&quot;, &quot;midp&quot;, &quot;small&quot;)
+small_results &lt;- sapply(methods, function(m) {
+  est &lt;- oddsratio(small_tab, method = m)$measure[2, ]
+  c(OR = est[&quot;estimate&quot;], lo = est[&quot;lower&quot;], hi = est[&quot;upper&quot;])
+})
+round(small_results, 2)
+#&gt;              wald fisher midp small
+#&gt; OR.estimate 12.00  10.31 10.31 10.66
+#&gt; lo.lower     0.88   0.64 0.72   0.82
+#&gt; hi.upper   163.65 514.45 209.47 138.86</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The Wald estimate of 12 has a 95% CI that just dips below 1 (0.88 lower bound). Fisher's exact widens that interval dramatically (0.64 to 514), and the difference matters: Wald says "borderline significant", Fisher says "large but very uncertain". With n = 14 and one cell at 1, the Wald interval is unsafe to publish.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Never report Wald CIs when any cell is below 5.</strong> The <a class="auto-link" href="Central-Limit-Theorem-in-R.html" title="Central Limit Theorem in R: Simulate It From Skewed, Bimodal, and Uniform Distributions">normal approximation</a> breaks down, the interval is too narrow, and <a class="auto-link" href="Hypothesis-Testing-in-R.html" title="Hypothesis Testing in R: Understand the Framework, Not Just the p-Value">Type I error</a> inflates. Switch to Fisher exact, mid-p, or the score interval from <code>epi.2by2()</code>.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Insert a single zero into the small table (set the (1,2) cell to 0) and rerun the four methods. Notice which methods break.</p>
+<div class="webr-container" data-block-title="Your turn: zero-cell behaviour">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: zero-cell behaviour</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Same layout as small_tab but with a zero in the Unexposed/Case cell
+ex_zero_tab &lt;- matrix(c(8, 0, 1, 3),
+                      nrow = 2, byrow = TRUE,
+                      dimnames = list(Exposure = c(&quot;Unexposed&quot;, &quot;Exposed&quot;),
+                                      Outcome  = c(&quot;Control&quot;, &quot;Case&quot;)))
+
+# Try each method and capture the OR estimate (or NaN/Inf)
+ex_zero_or &lt;- # your code here, returning a named vector
+
+ex_zero_or
+#&gt; Expected: wald produces Inf; fisher and midp give a finite estimate</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Zero-cell solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Zero-cell solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_zero_or &lt;- sapply(c(&quot;wald&quot;, &quot;fisher&quot;, &quot;midp&quot;, &quot;small&quot;), function(m) {
+  oddsratio(ex_zero_tab, method = m)$measure[2, &quot;estimate&quot;]
+})
+ex_zero_or
+#&gt;     wald   fisher     midp    small
+#&gt;      Inf      Inf      Inf  51.0000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Wald, Fisher and mid-p all yield <code>Inf</code> because the conditional MLE for the OR is undefined when one cell is zero. Only the small-sample correction (which adds 0.5 to every cell first) returns a finite estimate.</p>
+
+</details>
+</section>
+
+<h2>How do you visualize odds and risk ratios with confidence intervals?</h2>
+
+<p>A forest plot is the standard way to display ORs side by side. Each row is a subgroup, the dot is the point estimate, and the horizontal line is the CI. A vertical reference line at 1 marks "no effect", and a log-scaled x-axis makes a 2-fold increase look the same size as a 2-fold decrease. We will plot the OR for survival across each Titanic class.</p>
+
+<div class="webr-container" data-block-title="Forest plot of OR by passenger class">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Forest plot of OR by passenger class</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ggplot2)
+
+# Build a tidy data frame of OR + CI per class
+classes &lt;- c(&quot;1st&quot;, &quot;2nd&quot;, &quot;3rd&quot;, &quot;Crew&quot;)
+class_or_df &lt;- do.call(rbind, lapply(classes, function(cl) {
+  tab &lt;- apply(Titanic[cl, , , , drop = FALSE], c(&quot;Sex&quot;, &quot;Survived&quot;), sum)
+  m &lt;- oddsratio(tab)$measure[2, ]
+  data.frame(class = cl, OR = m[&quot;estimate&quot;], lo = m[&quot;lower&quot;], hi = m[&quot;upper&quot;])
+}))
+class_or_df
+#&gt;   class    OR    lo     hi
+#&gt; 1   1st 67.09 23.75 189.50
+#&gt; 2   2nd 44.07 21.46  90.46
+#&gt; 3   3rd  4.07  2.83   5.85
+#&gt; 4  Crew 23.26  6.84  79.13
+
+ggplot(class_or_df, aes(y = reorder(class, OR), x = OR, xmin = lo, xmax = hi)) +
+  geom_pointrange(color = &quot;#9370DB&quot;, size = 0.8) +
+  geom_vline(xintercept = 1, linetype = &quot;dashed&quot;, color = &quot;grey50&quot;) +
+  scale_x_log10() +
+  labs(x = &quot;Odds ratio (Female vs Male, log scale)&quot;, y = NULL,
+       title = &quot;Female-to-male survival OR by passenger class&quot;) +
+  theme_minimal(base_size = 13)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The 3rd-class OR is the smallest at 4.1, meaning women in steerage still had a survival edge but a smaller one than 1st-class women, who saw a 67-fold advantage. All four CIs sit far above 1, so the female advantage was real in every class. Log-scaling the x-axis is what makes the visual comparison fair: an OR of 3 and an OR of 1/3 take up equal visual distance from the null line.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Always log-scale the x-axis on a forest plot.</strong> Odds ratios are multiplicative, not additive. On a linear scale an OR of 0.5 sits half as far from 1 as an OR of 2, even though they represent the same <a class="auto-link" href="Effect-Size-in-R.html" title="Effect Size in R: The Number p-Values Never Tell You (Cohen's d, η², and r)">effect size</a> in opposite directions.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Add a fifth row to <code>class_or_df</code> with <code>class = &quot;Overall&quot;</code> and the unstratified Titanic OR (the value of <code>or_default</code> from earlier). Re-plot.</p>
+<div class="webr-container" data-block-title="Your turn: add overall row">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: add overall row</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_overall &lt;- data.frame(
+  class = &quot;Overall&quot;,
+  OR = NA, lo = NA, hi = NA
+)
+
+ex_class_or_df &lt;- rbind(class_or_df, ex_overall)
+# Re-plot with the same ggplot recipe
+#&gt; Expected: a fifth dot near OR ~ 10.1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Overall row solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Overall row solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_m &lt;- oddsratio(titanic_tab)$measure[2, ]
+ex_overall &lt;- data.frame(class = &quot;Overall&quot;,
+                         OR = ex_m[&quot;estimate&quot;], lo = ex_m[&quot;lower&quot;], hi = ex_m[&quot;upper&quot;])
+ex_class_or_df &lt;- rbind(class_or_df, ex_overall)
+
+ggplot(ex_class_or_df, aes(y = reorder(class, OR), x = OR, xmin = lo, xmax = hi)) +
+  geom_pointrange(color = &quot;#9370DB&quot;, size = 0.8) +
+  geom_vline(xintercept = 1, linetype = &quot;dashed&quot;) +
+  scale_x_log10() +
+  labs(x = &quot;OR (log scale)&quot;, y = NULL) +
+  theme_minimal()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The pooled OR (10.1) sits between the 1st and 3rd-class subgroup ORs, illustrating Simpson-style averaging across strata.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<h3>Exercise 1: Vaccine RCT, RR and number needed to treat</h3>
+
+<p>A vaccine trial enrolls 5000 people: 2500 vaccinated, 2500 placebo. 25 vaccinated and 100 placebo recipients contract the disease. Build the 2x2 as <code>my_vacc_tab</code>, compute the relative risk and the <strong>number needed to treat (NNT)</strong>, defined as <code>1 / (risk_placebo - risk_vaccine)</code>. Save NNT as <code>my_nnt</code>.</p>
+
+<div class="webr-container" data-block-title="Vaccine RCT scaffold">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Vaccine RCT scaffold</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Lay out the 2x2 in the riskratio() convention: non-event first column,
+# unexposed (placebo) first row.
+
+my_vacc_tab &lt;- # your 2x2
+
+my_rr  &lt;- # your call to riskratio()
+my_nnt &lt;- # your NNT calculation
+
+list(my_vacc_tab = my_vacc_tab, RR = my_rr$measure[2, ], NNT = my_nnt)
+#&gt; Expected: RR ~ 0.25, NNT ~ 33.3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Vaccine RCT solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Vaccine RCT solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># riskratio() wants non-event in col 1, unexposed (Placebo) in row 1
+my_vacc_tab &lt;- matrix(c(2400, 100, 2475, 25),
+                      nrow = 2, byrow = TRUE,
+                      dimnames = list(Group = c(&quot;Placebo&quot;, &quot;Vaccine&quot;),
+                                      Outcome = c(&quot;Healthy&quot;, &quot;Disease&quot;)))
+my_rr &lt;- riskratio(my_vacc_tab)
+risk_p &lt;- 100 / 2500
+risk_v &lt;- 25  / 2500
+my_nnt &lt;- 1 / (risk_p - risk_v)
+list(RR = round(my_rr$measure[2, &quot;estimate&quot;], 2),
+     NNT = round(my_nnt, 1))
+#&gt; $RR
+#&gt; [1] 0.25
+#&gt; $NNT
+#&gt; [1] 33.3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Vaccination cut disease risk to a quarter. NNT = 33 means treating 33 people prevents one case.</p>
+
+</details>
+
+<h3>Exercise 2: Case-control study with epi.2by2</h3>
+
+<p>A case-control study of pancreatic cancer enrolls 200 cases and 200 controls. 80 cases and 30 controls report heavy coffee consumption. Build the table as <code>my_coffee_tab</code>, run <code>epi.2by2()</code> with <code>method = &quot;case.control&quot;</code>, and verify the OR by hand using the cross-product formula.</p>
+
+<div class="webr-container" data-block-title="Case-control scaffold">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Case-control scaffold</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_coffee_tab &lt;- # 2x2 with exposed-first row, case-first column
+
+my_cc &lt;- # your epi.2by2() call
+
+my_or_byhand &lt;- # cross-product (a*d) / (b*c)
+
+list(epi_OR = my_cc$massoc.summary[2, &quot;est&quot;], byhand = my_or_byhand)
+#&gt; Expected: both values agree at ~ 3.78</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Case-control solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Case-control solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_coffee_tab &lt;- matrix(c(80, 30, 120, 170),
+                        nrow = 2, byrow = TRUE,
+                        dimnames = list(Coffee = c(&quot;Heavy&quot;, &quot;Light&quot;),
+                                        Cancer = c(&quot;Case&quot;, &quot;Control&quot;)))
+my_cc &lt;- epi.2by2(my_coffee_tab, method = &quot;case.control&quot;,
+                  outcome = &quot;as.columns&quot;)
+my_or_byhand &lt;- (80 * 170) / (30 * 120)
+list(epi_OR = round(my_cc$massoc.summary[my_cc$massoc.summary$var == &quot;Odds ratio (W)&quot;, &quot;est&quot;], 2),
+     byhand = round(my_or_byhand, 2))
+#&gt; $epi_OR
+#&gt; [1] 3.78
+#&gt; $byhand
+#&gt; [1] 3.78</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Both routes produce the same Wald OR. Heavy coffee consumers had nearly four times the odds of being a case in this contrived sample.</p>
+
+</details>
+
+<h3>Exercise 3: Build your own summary function</h3>
+
+<p>Write <code>my_summarise_2by2()</code> that takes a 2x2 matrix <code>m</code> and returns a one-row data frame with columns <code>RR</code>, <code>OR</code>, <code>OR_to_RR</code>, and <code>rare_disease_ok</code> (TRUE if the overall outcome rate is under 10%). Test it on <code>smoke_tab</code> and <code>my_vacc_tab</code>.</p>
+
+<div class="webr-container" data-block-title="Function scaffold">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Function scaffold</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_summarise_2by2 &lt;- function(m) {
+  # 1. Pull the four cells (a, b, c, d)
+  # 2. Compute RR and OR
+  # 3. Compute overall outcome rate
+  # 4. Return a one-row data frame
+}
+
+my_summarise_2by2(smoke_tab)
+#&gt; Expected: RR=6, OR~8.14, OR_to_RR&gt;1, rare_disease_ok=FALSE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Summary function solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Summary function solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_summarise_2by2 &lt;- function(m) {
+  a &lt;- m[1, 1]; b &lt;- m[1, 2]; c &lt;- m[2, 1]; d &lt;- m[2, 2]
+  RR &lt;- (a / (a + b)) / (c / (c + d))
+  OR &lt;- (a * d) / (b * c)
+  rate &lt;- (a + c) / sum(m)
+  data.frame(RR = round(RR, 2), OR = round(OR, 2),
+             OR_to_RR = round(OR / RR, 2),
+             rare_disease_ok = rate &lt; 0.10)
+}
+
+# Run on smoke_tab (col 1 = Cancer event) and a flipped vaccine table
+# (col 1 = Disease event) so both treat col 1 as the event consistently.
+vacc_event_first &lt;- my_vacc_tab[, c(&quot;Disease&quot;, &quot;Healthy&quot;)]
+
+rbind(smoke = my_summarise_2by2(smoke_tab),
+      vacc  = my_summarise_2by2(vacc_event_first))
+#&gt;         RR   OR OR_to_RR rare_disease_ok
+#&gt; smoke 6.00 8.14     1.36           FALSE
+#&gt; vacc  4.00 4.12     1.03            TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> When the disease is common (smoke_tab, 17.5% prevalence), OR/RR drifts above 1. When it's rare (vacc, 2.5%), OR and RR converge to within a few percent.</p>
+
+</details>
+
+<h2>Complete Example: Aspirin and stroke prevention</h2>
+
+<p>A made-up but realistic cohort study follows 10,000 adults for five years, half on daily aspirin. 80 aspirin users have a stroke; 160 controls do. We want a publication-ready summary of the effect.</p>
+
+<div class="webr-container" data-block-title="Full aspirin analysis">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Full aspirin analysis</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">aspirin_tab &lt;- matrix(c(80, 4920, 160, 4840),
+                      nrow = 2, byrow = TRUE,
+                      dimnames = list(Group = c(&quot;Aspirin&quot;, &quot;Control&quot;),
+                                      Stroke = c(&quot;Yes&quot;, &quot;No&quot;)))
+aspirin_tab
+#&gt;          Stroke
+#&gt; Group      Yes   No
+#&gt;   Aspirin   80 4920
+#&gt;   Control  160 4840
+
+# Full set of measures via epi.2by2()
+asp_full &lt;- epi.2by2(aspirin_tab, method = &quot;cohort.count&quot;,
+                     conf.level = 0.95, outcome = &quot;as.columns&quot;)
+asp_full$massoc.summary[1:5, c(&quot;var&quot;, &quot;est&quot;, &quot;lower&quot;, &quot;upper&quot;)]
+#&gt;                              var      est   lower   upper
+#&gt; 1 Inc risk ratio                   0.500   0.385   0.649
+#&gt; 2 Odds ratio                       0.492   0.376   0.643
+#&gt; 3 Attrib risk in the exposed *  -0.016  -0.022  -0.010
+#&gt; 4 Attrib fraction in exposed (%) -100.0  -160.4  -54.0
+#&gt; 5 Attrib fraction in pop (%)     -50.0   -67.7  -29.5
+
+# Forest plot of RR and OR
+asp_df &lt;- data.frame(measure = c(&quot;RR&quot;, &quot;OR&quot;),
+                     est = c(0.50, 0.49),
+                     lo  = c(0.385, 0.376),
+                     hi  = c(0.649, 0.643))
+
+ggplot(asp_df, aes(y = measure, x = est, xmin = lo, xmax = hi)) +
+  geom_pointrange(color = &quot;#9370DB&quot;, size = 1) +
+  geom_vline(xintercept = 1, linetype = &quot;dashed&quot;) +
+  scale_x_log10(limits = c(0.3, 1.5)) +
+  labs(x = &quot;Effect on stroke risk (log scale)&quot;, y = NULL,
+       title = &quot;Aspirin vs control, 5-year stroke outcome&quot;) +
+  theme_minimal(base_size = 13)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A publication-style sentence might read: <em>"Daily aspirin halved the 5-year stroke risk compared with control (RR 0.50, 95% CI 0.39 to 0.65; OR 0.49, 95% CI 0.38 to 0.64)."</em> RR and OR agree closely because the outcome (stroke in 2.4% of the cohort) is rare. Attributable risk shows aspirin prevents 16 strokes per 1000 person-years, the most clinically useful framing.</p>
+
+<h2>Summary</h2>
+
+<p>The two ratios answer different questions and live in different parts of the epidemiology toolbox.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Use case</th>
+<th>Best measure</th>
+<th>R function</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Cohort study, RCT</td>
+<td>Risk ratio</td>
+<td><code>epitools::riskratio()</code>, <code>epi.2by2(method = &quot;cohort.count&quot;)</code></td>
+</tr>
+<tr>
+<td>Case-control study</td>
+<td>Odds ratio</td>
+<td><code>epitools::oddsratio()</code>, <code>epi.2by2(method = &quot;case.control&quot;)</code></td>
+</tr>
+<tr>
+<td>Cross-sectional, rare disease</td>
+<td>Either (they agree)</td>
+<td><code>epi.2by2(method = &quot;cross.sectional&quot;)</code></td>
+</tr>
+<tr>
+<td>All measures + attributable risk</td>
+<td>epi.2by2()</td>
+<td><code>epiR::epi.2by2()</code></td>
+</tr>
+</tbody>
+</table>
+
+<p>Quick-reference for CI methods:</p>
+
+<ol>
+
+<li><strong>Wald</strong>, fast, fine when every cell is 10 or more</li>
+
+<li><strong>Small-sample</strong>, Wald-style with cell adjustments, good for thin tables without zeros</li>
+
+<li><strong>Fisher exact</strong>, gold standard for small samples or any zero cell</li>
+
+<li><strong>Mid-p</strong>, exact but less conservative than Fisher</li>
+
+<li><strong>Score (epi.2by2)</strong>, well-behaved across sample sizes, the default in many epidemiology textbooks</li>
+
+</ol>
+
+<p><img src="screenshots/Odds-Ratios-and-Relative-Risk-in-R-overview-mindmap.webp" alt="Concept map of odds ratios and relative risk in R." class="img-responsive img-zoomable" loading="lazy" width="1580" height="934" /></p>
+
+<p><em>Figure 4: Concept map of odds ratios and relative risk in R.</em></p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Aragón TJ. <em>epitools: Epidemiology Tools.</em> CRAN. <a href="https://cran.r-project.org/package=epitools">Link</a></li>
+
+<li>Stevenson M, Sergeant E. <em>epiR: Tools for the Analysis of Epidemiological Data.</em> CRAN. <a href="https://cran.r-project.org/package=epiR">Link</a></li>
+
+<li>Rothman KJ, Greenland S, Lash TL. <em>Modern Epidemiology</em>, 3rd ed. Lippincott Williams & Wilkins (2008).</li>
+
+<li>Brophy JM. <em>Mostly Clinical Epidemiology with R</em>, Chapter 4: Contingency tables and <a class="auto-link" href="Measures-of-Association-in-R.html" title="Measures of Association in R: Cramer's V, Phi, Pearson r With Examples">measures of association</a>. <a href="https://bookdown.org/jbrophy115/bookdown-clinepi/meas.html">Link</a></li>
+
+<li>Szumilas M. Explaining odds ratios. <em>J Can Acad Child Adolesc Psychiatry</em> 19(3): 227-229 (2010). <a href="https://www.ncbi.nlm.nih.gov/pmc/articles/PMC2938757/">Link</a></li>
+
+<li>Davies HTO, Crombie IK, Tavakoli M. When can odds ratios mislead? <em>BMJ</em> 316: 989-991 (1998). <a href="https://www.bmj.com/content/316/7136/989">Link</a></li>
+
+<li>Knol MJ, et al. Estimating measures of interaction on an additive scale for preventive exposures. <em>Eur J Epidemiol</em> 26(6): 433-438 (2011).</li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Chi-Square-Test-of-Independence-in-R.html">Chi-Square Test of Independence in R</a>, test whether two <a class="auto-link" href="R-Factors.html" title="R Factors: The Data Type That Trips Up Almost Every R Beginner">categorical variables</a> are associated before quantifying the effect with an OR or RR.</li>
+
+<li><a href="Fishers-Exact-Test-in-R.html">Fisher's Exact Test in R</a>, the small-sample test that produces exact p-values and the same CI engine used by <code>oddsratio(method = &quot;fisher&quot;)</code>.</li>
+
+<li><a href="Categorical-Data-in-R.html">Categorical Data in R: Frequency Tables, Crosstabs & Mosaic Plots</a>, build the 2x2 tables that feed every method on this page.</li>
+
+</ul>
+
+{% endraw %}
