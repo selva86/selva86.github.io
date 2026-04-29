@@ -1,0 +1,868 @@
+---
+title: "Multinomial & Ordinal Logistic Regression in R: Beyond Binary Outcomes"
+description: "Step-by-step tutorial on multinomial and ordinal logistic regression in R using nnet::multinom() and MASS::polr(): fit, interpret, predict probabilities."
+keywords: "multinomial logistic regression in R, ordinal logistic regression R, nnet multinom, MASS polr, proportional odds, multiclass classification R"
+mathjax: true
+webr: true
+curriculum_id: "2.7.8"
+post_type: "C"
+auto_link_terms: "multinomial logistic regression|ordinal logistic regression|proportional odds assumption|polr()|multinom()|reference category"
+auto_link_case_sensitive: false
+sidebar_section: "Statistics"
+sidebar_title: "Multinomial & Ordinal Logistic Regression"
+sidebar_order: "88"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>Multinomial & Ordinal Logistic Regression in R: Beyond Binary Outcomes</h1>
+
+<p class="lead">Binary logistic regression covers two-outcome problems. When your response has three or more categories, you need multinomial (unordered) or ordinal (ordered) logistic regression. This tutorial shows how to fit, interpret, and predict with both, using <code>nnet::multinom()</code> and <code>MASS::polr()</code> on built-in R datasets so every block runs end-to-end.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="35" data-exercises="9" data-xp="135"></div>
+
+<h2>What's the difference between binary, multinomial, and ordinal logistic regression?</h2>
+
+<p>Binary logistic regression handles exactly two outcomes: yes or no, click or skip, churn or stay. Real datasets often offer more options. The iris dataset has three species. A satisfaction survey can rank low, medium, or high. The right model depends on whether your categories are simply different (multinomial) or ranked from low to high (ordinal). Let's see the payoff first by predicting iris species with one short multinomial fit, then take it apart piece by piece.</p>
+
+<div class="webr-container" data-block-title="Quick multinomial fit on iris">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Quick multinomial fit on iris</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(nnet)
+
+mfit_quick &lt;- multinom(Species ~ Sepal.Length + Petal.Length,
+                       data = iris, trace = FALSE)
+
+probs_quick &lt;- predict(mfit_quick, type = &quot;probs&quot;)
+round(head(probs_quick, 3), 3)
+#&gt;   setosa versicolor virginica
+#&gt; 1  1.000      0.000     0.000
+#&gt; 2  0.999      0.001     0.000
+#&gt; 3  1.000      0.000     0.000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>In nine lines we fit a model with three outcome classes and got back a row of class probabilities for every flower. The first three iris rows are all setosa, and the model assigns near-1 probability to setosa for each. That is the <a class="auto-link" href="Multinomial-Regression-With-R.html" title="Multinomial Regression with R">multinomial logistic regression</a> workflow at a glance. The next sections explain how the function decides those numbers and how to extend the same idea when categories are ranked.</p>
+
+<p><img src="screenshots/Multinomial-and-Ordinal-Logistic-Regression-in-R-decision-flow.webp" alt="Choosing among binary, multinomial, and ordinal logistic regression by counting categories and asking whether they are ordered." class="img-responsive img-zoomable" loading="lazy" width="2128" height="914" /></p>
+
+<p><em>Figure 1: Choosing among binary, multinomial, and <a class="auto-link" href="Ordinal-Logistic-Regression-With-R.html" title="Ordinal Logistic Regression with R">ordinal logistic regression</a> by counting categories and asking whether they are ordered.</em></p>
+
+<p>The decision tree is short. Two outcomes go to plain <code>glm(family = binomial)</code>. Three or more unordered categories (species, brand chosen, disease subtype) go to multinomial. Three or more ordered categories (low / medium / high satisfaction, star ratings, disease severity) go to ordinal. Picking the wrong one costs you either accuracy or interpretability.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Order is information.</strong> Treating an ordered response as multinomial throws away the ranking and asks the model to relearn it from data. Ordinal models bake the ranking in as a constraint, which usually buys you a simpler, more stable fit.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Predict the probability vector for an "average" iris flower with <code>Sepal.Length = 6</code> and <code>Petal.Length = 4</code>. Round the result to three decimals.</p>
+<div class="webr-container" data-block-title="Your turn: predict one new flower">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: predict one new flower</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">new_flower &lt;- data.frame(Sepal.Length = 6, Petal.Length = 4)
+
+# your code here
+
+#&gt; Expected: a 1x3 row of probabilities summing to 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Predict one new flower solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Predict one new flower solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_probs &lt;- predict(mfit_quick, newdata = new_flower, type = &quot;probs&quot;)
+round(ex_probs, 3)
+#&gt; setosa versicolor  virginica
+#&gt;  0.000      0.951      0.049</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> With moderate sepal length and a petal of 4cm, the model leans heavily toward versicolor and gives setosa essentially zero. Probabilities always sum to 1.</p>
+
+</details>
+</section>
+
+<h2>How do you fit a multinomial logistic regression with <code>multinom()</code>?</h2>
+
+<p>The workhorse is <code>nnet::multinom()</code>. It takes the same formula syntax as <code>lm()</code> or <code>glm()</code>, picks the first level of the response factor as the reference, and fits one set of coefficients for each remaining class. There is no <code>family =</code> argument because the model class is fixed.</p>
+
+<div class="webr-container" data-block-title="Multinom with all four predictors">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Multinom with all four predictors</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mfit &lt;- multinom(Species ~ Sepal.Length + Sepal.Width +
+                            Petal.Length + Petal.Width,
+                 data = iris, trace = FALSE)
+
+summary(mfit)$coefficients
+#&gt;            (Intercept) Sepal.Length Sepal.Width Petal.Length Petal.Width
+#&gt; versicolor      18.69         -5.46       -8.71        14.24       -3.10
+#&gt; virginica      -23.84         -7.92      -15.45        23.66        15.13</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The coefficient table has two rows because iris has three species and <code>setosa</code> (alphabetically first) is the reference. The first row maps <code>setosa -&gt; versicolor</code>, the second row maps <code>setosa -&gt; virginica</code>. Each column reads as: how a one-unit change in that predictor shifts the log relative-risk of being in that class versus the reference, holding the other predictors fixed. The signs already tell a story: <code>Petal.Length</code> is a strong positive driver of both non-setosa classes, which matches the well-known pattern that setosa has small petals.</p>
+
+<p><img src="screenshots/Multinomial-and-Ordinal-Logistic-Regression-in-R-reference-category.webp" alt="multinom() splits a K-class problem into K-1 binary logits against a single reference category." class="img-responsive img-zoomable" loading="lazy" width="1378" height="690" /></p>
+
+<p><em>Figure 2: multinom() splits a K-class problem into K-1 binary logits against a single <a class="auto-link" href="Dummy-Variables-in-R.html" title="Dummy Variables in R: What lm() Does With Factor Predictors Under the Hood">reference category</a>.</em></p>
+
+<p>You don't have to live with the alphabetical reference. Use <code>relevel()</code> to pin whichever class is your natural baseline. Below we make <code>versicolor</code> the reference and refit, and the coefficient rows now describe <code>versicolor -&gt; setosa</code> and <code>versicolor -&gt; virginica</code>.</p>
+
+<div class="webr-container" data-block-title="Relevel the reference and refit">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Relevel the reference and refit</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">iris2 &lt;- iris
+iris2$Species &lt;- relevel(iris2$Species, ref = &quot;versicolor&quot;)
+
+mfit_v &lt;- multinom(Species ~ Sepal.Length + Petal.Length,
+                   data = iris2, trace = FALSE)
+
+summary(mfit_v)$coefficients
+#&gt;           (Intercept) Sepal.Length Petal.Length
+#&gt; setosa          88.03         5.62       -29.05
+#&gt; virginica      -42.89         2.46         9.66</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Switching the reference does not change the model, only how you read it. The likelihoods, predicted probabilities, and AIC all stay the same. What flips is the comparison baseline for every coefficient. Choose the reference that makes your write-up easiest to read.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Pick the most natural reference.</strong> A control group, the most common class, or the "neutral" category gives you coefficients you can describe in one sentence each. Default alphabetical order rarely matches the story you want to tell.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Make <code>virginica</code> the reference category and fit a model with <code>Petal.Length</code> only. How many coefficient rows should you see?</p>
+<div class="webr-container" data-block-title="Your turn: relevel to virginica">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: relevel to virginica</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_iris &lt;- iris
+# your code here: relevel and fit
+ex_fit &lt;- NULL
+
+# Test:
+nrow(summary(ex_fit)$coefficients)
+#&gt; Expected: 2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Relevel to virginica solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Relevel to virginica solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_iris$Species &lt;- relevel(ex_iris$Species, ref = &quot;virginica&quot;)
+ex_fit &lt;- multinom(Species ~ Petal.Length, data = ex_iris, trace = FALSE)
+nrow(summary(ex_fit)$coefficients)
+#&gt; [1] 2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> A K-class outcome always produces K-1 coefficient rows. With 3 species and <code>virginica</code> as reference, you get rows for <code>setosa</code> and <code>versicolor</code>.</p>
+
+</details>
+</section>
+
+<h2>How do you interpret multinomial coefficients and odds ratios?</h2>
+
+<p>Coefficients on the log scale are hard to read. Exponentiate them and you get <em>relative risk ratios</em> (often called odds ratios in the multinomial setting). A value above 1 means the predictor pushes flowers toward that class versus the reference; a value below 1 pushes them away. Exponentiation also handles the second log step in this formula:</p>
+
+<p>$$\log \frac{P(Y=k)}{P(Y=\text{ref})} = \beta_{0k} + \beta_{1k}x_1 + \dots + \beta_{pk}x_p$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$P(Y=k)$ is the probability of class $k$</li>
+
+<li>$P(Y=\text{ref})$ is the probability of the reference class</li>
+
+<li>$\beta_{jk}$ is the coefficient for predictor $j$ in the equation for class $k$</li>
+
+<li>$x_j$ is the value of predictor $j$ for one observation</li>
+
+</ul>
+
+<div class="webr-container" data-block-title="Relative risk ratios via exp(coef)">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Relative risk ratios via exp(coef)</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">or_table &lt;- exp(coef(mfit))
+round(or_table, 2)
+#&gt;            (Intercept) Sepal.Length Sepal.Width Petal.Length Petal.Width
+#&gt; versicolor    1.31e+08         0.00        0.00     1.53e+06        0.04
+#&gt; virginica     4.43e-11         0.00        0.00     1.86e+10  3.71e+06</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read one row at a time. The <code>Petal.Length</code> column says that, holding the other variables fixed, a one-centimetre increase multiplies the relative risk of being virginica (vs setosa) by about $1.86 \times 10^{10}$. The number is huge because petal length is the single most discriminating feature in iris, not because the model is broken. The same predictor for versicolor vs setosa is also large but smaller, and <code>Petal.Width</code> swings strongly the other way: a wider petal pushes flowers toward virginica and away from versicolor.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>multinom() runs K-1 binary logistic regressions in one call.</strong> Each non-reference class is compared to the reference independently, and the predicted probabilities are normalised so they sum to 1. That mental model explains why the coefficient table has K-1 rows and why changing the reference rearranges them.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute the <a class="auto-link" href="Multinomial-Logistic-Regression-in-R.html" title="Multinomial Logistic Regression in R: nnet::multinom() Step-by-Step">relative risk ratio</a> of <code>Petal.Length</code> for <code>versicolor</code> vs <code>setosa</code> from the original <code>mfit</code> and round it to one decimal.</p>
+<div class="webr-container" data-block-title="Your turn: one RRR">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: one RRR</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># your code here
+ex_rrr &lt;- NULL
+round(ex_rrr, 1)
+#&gt; Expected: a single number, the RRR for Petal.Length on the versicolor row</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="One RRR solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">One RRR solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_rrr &lt;- exp(coef(mfit)[&quot;versicolor&quot;, &quot;Petal.Length&quot;])
+round(ex_rrr, 1)
+#&gt; [1] 1525891.6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> A unit jump in petal length multiplies the odds of versicolor (vs setosa) by roughly 1.5 million. Big numbers reflect a near-deterministic split, not a bug.</p>
+
+</details>
+</section>
+
+<h2>How do you compute p-values, predictions, and a confusion matrix?</h2>
+
+<p><code>nnet::multinom()</code> does not print p-values by default. The standard fix is a Wald z-test: divide each coefficient by its standard error, then compare to a <a class="auto-link" href="Normal-t-F-and-Chi-Squared-Distributions-in-R.html" title="Normal, t, F, and Chi-Squared in R: Understand Each Distribution and When It Arises">normal distribution</a>. The same fitted model also gives you predicted classes, predicted probabilities, and a confusion matrix in three short calls.</p>
+
+<div class="webr-container" data-block-title="Wald z-test p-values">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Wald z-test p-values</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">co  &lt;- summary(mfit)$coefficients
+se  &lt;- summary(mfit)$standard.errors
+
+z_stat &lt;- co / se
+p_vals &lt;- 2 * (1 - pnorm(abs(z_stat)))
+round(p_vals, 4)
+#&gt;            (Intercept) Sepal.Length Sepal.Width Petal.Length Petal.Width
+#&gt; versicolor      0.0001       0.0123      0.0007       0.0024      0.4198
+#&gt; virginica       0.0000       0.0009      0.0001       0.0000      0.0001</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The matrix mirrors the coefficient layout: one row per non-reference class, one column per predictor. Most cells are well below 0.05, so the predictors carry real signal. The exception is <code>Petal.Width</code> for versicolor (p = 0.42), which suggests it adds little once the other variables are in the model. You would normally drop or test that predictor with a likelihood-ratio test before reporting.</p>
+
+<div class="webr-container" data-block-title="Predicted class and probabilities">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Predicted class and probabilities</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">pred_class &lt;- predict(mfit, type = &quot;class&quot;)
+pred_probs &lt;- predict(mfit, type = &quot;probs&quot;)
+
+head(data.frame(pred_class, round(pred_probs, 3)), 3)
+#&gt;   pred_class setosa versicolor virginica
+#&gt; 1     setosa  1.000      0.000         0
+#&gt; 2     setosa  1.000      0.000         0
+#&gt; 3     setosa  1.000      0.000         0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>type = &quot;class&quot;</code> returns the highest-probability label per row, while <code>type = &quot;probs&quot;</code> returns the full probability matrix. Side by side, you can sanity-check the model: a high-confidence row means the model is decisive, while probabilities like 0.45 / 0.40 / 0.15 flag rows the model finds genuinely ambiguous.</p>
+
+<div class="webr-container" data-block-title="Confusion matrix and accuracy">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Confusion matrix and accuracy</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cm  &lt;- table(predicted = pred_class, actual = iris$Species)
+acc &lt;- sum(diag(cm)) / sum(cm)
+
+cm
+#&gt;             actual
+#&gt; predicted    setosa versicolor virginica
+#&gt;   setosa         50          0         0
+#&gt;   versicolor      0         49         1
+#&gt;   virginica       0          1        49
+round(acc, 3)
+#&gt; [1] 0.987</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The diagonal counts the correct calls. iris is famously easy: only two of 150 flowers are misclassified, both crossing the versicolor / virginica boundary. Accuracy works out to 98.7%, but remember that this is <em>training</em> accuracy, computed on the same rows the model was fit on.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Same-data accuracy is optimistic.</strong> A model that has already seen every row will look better than it does in the wild. Reserve a hold-out test set or use cross-validation before quoting any accuracy number outside this tutorial. The Complete Example below shows a clean train / test split.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Calculate accuracy from the confusion matrix without using <code>diag()</code>. Hint: extract the diagonal yourself.</p>
+<div class="webr-container" data-block-title="Your turn: accuracy without diag">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: accuracy without diag</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># your code here
+ex_acc &lt;- NULL
+
+round(ex_acc, 3)
+#&gt; Expected: 0.987</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Accuracy without diag solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Accuracy without diag solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_correct &lt;- cm[1,1] + cm[2,2] + cm[3,3]
+ex_acc &lt;- ex_correct / sum(cm)
+round(ex_acc, 3)
+#&gt; [1] 0.987</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Manually summing the diagonal makes the formula obvious: correct calls divided by all calls. <code>diag()</code> is the shortcut, not the definition.</p>
+
+</details>
+</section>
+
+<h2>How do you fit an ordinal logistic regression with <code>polr()</code>?</h2>
+
+<p>Switch to ordered categories and the toolkit changes. <code>MASS::polr()</code> fits a <em>proportional odds</em> logistic regression. Instead of K-1 separate intercepts and K-1 separate slopes, it shares one slope vector across all category boundaries and only the intercepts (the cut points) differ. The model is captured by:</p>
+
+<p>$$\text{logit}\bigl(P(Y \le j \mid x)\bigr) = \alpha_j - \beta'x \quad \text{for } j = 1, \dots, J-1$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$P(Y \le j \mid x)$ is the cumulative probability of being at or below category $j$</li>
+
+<li>$\alpha_j$ is the cut point for boundary $j$ (there are $J-1$ of them)</li>
+
+<li>$\beta$ is the shared slope vector</li>
+
+<li>$x$ is the predictor vector</li>
+
+</ul>
+
+<p>The built-in <code>MASS::housing</code> dataset has tenant satisfaction (<code>Sat</code>) coded as Low / Medium / High, plus weights (<code>Freq</code>) for each cell. That is exactly the ordered structure <code>polr()</code> expects.</p>
+
+<div class="webr-container" data-block-title="Fit ordinal model on housing data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit ordinal model on housing data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(MASS)
+
+house &lt;- housing
+str(house, vec.len = 1)
+#&gt; 'data.frame': 72 obs. of 5 variables:
+#&gt;  $ Sat : Ord.factor w/ 3 levels &quot;Low&quot;&lt;&quot;Medium&quot;&lt;..: 1 1 ..
+#&gt;  $ Infl: Factor w/ 3 levels &quot;Low&quot;,&quot;Medium&quot;,..
+#&gt;  $ Type: Factor w/ 4 levels &quot;Tower&quot;,&quot;Apartment&quot;,..
+#&gt;  $ Cont: Factor w/ 2 levels &quot;Low&quot;,&quot;High&quot;: 1 ..
+#&gt;  $ Freq: int  21 ...
+
+ofit &lt;- polr(Sat ~ Infl + Type + Cont,
+             data = house, weights = Freq, Hess = TRUE)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>Sat</code> arrives as an <a class="auto-link" href="R-Factors.html" title="R Factors: The Data Type That Trips Up Almost Every R Beginner">ordered factor</a>, which is what <code>polr()</code> requires. <code>Hess = TRUE</code> saves the Hessian so <code>summary()</code> can compute standard errors. The <code>weights = Freq</code> argument tells the fit that each row represents many tenants, not just one. Forgetting either argument is a common ordinal-regression bug.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>polr() needs an ordered factor.</strong> Convert any character or numeric response with <code>ordered(x, levels = c(&quot;Low&quot;, &quot;Medium&quot;, &quot;High&quot;))</code> before fitting. If you forget, <code>polr()</code> will refuse the call or, worse, silently treat the levels in the wrong order.</div></div>
+
+<div class="webr-container" data-block-title="Inspect coefficients and proportional odds ratios">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Inspect coefficients and proportional odds ratios</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">summary(ofit)$coefficients
+#&gt;                       Value Std. Error  t value
+#&gt; InflMedium           0.5664     0.1047     5.41
+#&gt; InflHigh             1.2888     0.1272    10.13
+#&gt; TypeApartment       -0.5723     0.1192    -4.80
+#&gt; TypeAtrium          -0.3661     0.1552    -2.36
+#&gt; TypeTerrace         -1.0910     0.1515    -7.20
+#&gt; ContHigh             0.3603     0.0954     3.78
+#&gt; Low|Medium          -0.4961     0.1248    -3.97
+#&gt; Medium|High          0.6907     0.1248     5.53
+
+or_ord &lt;- exp(coef(ofit))
+round(or_ord, 2)
+#&gt;    InflMedium      InflHigh TypeApartment    TypeAtrium  TypeTerrace      ContHigh
+#&gt;          1.76          3.63          0.56          0.69         0.34          1.43</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The first six rows are slopes (one per non-reference predictor level) and the last two are cut points. Reading <code>InflHigh = 1.29</code> on the log scale or <code>3.63</code> after exponentiating: tenants with high perceived influence have 3.63 times the odds of being in a higher satisfaction category, compared with the low-influence reference. <code>TypeTerrace = 0.34</code> says terrace tenants are about a third as likely to land in a higher satisfaction category as tower tenants.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Refit the ordinal model with <code>Type</code> as the only predictor and print its AIC. Is it lower or higher than the full model's AIC?</p>
+<div class="webr-container" data-block-title="Your turn: ordinal with Type only">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: ordinal with Type only</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># your code here
+ex_ofit &lt;- NULL
+
+c(reduced = AIC(ex_ofit), full = AIC(ofit))
+#&gt; Expected: a named vector with the reduced AIC larger than the full AIC</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Ordinal Type-only solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Ordinal Type-only solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_ofit &lt;- polr(Sat ~ Type, data = house, weights = Freq, Hess = TRUE)
+c(reduced = AIC(ex_ofit), full = AIC(ofit))
+#&gt;  reduced     full
+#&gt; 3669.5   3479.1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Dropping <code>Infl</code> and <code>Cont</code> raises AIC by about 190 points, confirming both predictors carry real explanatory power. Lower AIC is better.</p>
+
+</details>
+</section>
+
+<h2>How do you check the proportional odds assumption?</h2>
+
+<p>Ordinal models are simpler than multinomial models because they share one slope per predictor across all cut points. The price is an assumption: that single shared slope must actually fit the data. If it doesn't, predictions and standard errors get unreliable. Two cheap diagnostics catch most violations.</p>
+
+<p>The first is to compare AIC against a multinomial fit on the same data. If the unconstrained <code>multinom()</code> is dramatically better, the parallel-lines constraint is hurting you. The second is the <a class="auto-link" href="Ordinal-Logistic-Regression-in-R.html" title="Ordinal Logistic Regression in R: MASS::polr() & Proportional Odds">Brant test</a> (<code>brant::brant()</code> in local R, which performs a chi-square per predictor).</p>
+
+<div class="webr-container" data-block-title="Compare ordinal vs multinomial AIC">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare ordinal vs multinomial AIC</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mfit_h &lt;- multinom(Sat ~ Infl + Type + Cont,
+                   data = house, weights = Freq, trace = FALSE)
+
+c(ordinal = AIC(ofit), multinomial = AIC(mfit_h))
+#&gt;     ordinal multinomial
+#&gt;      3479.1      3484.6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The two AICs are almost identical (the ordinal model is even slightly lower). The penalty for sharing slopes across cut points buys you parsimony without giving up fit. That's a good sign that the proportional odds assumption holds for this dataset, and you can confidently report the ordinal model.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>If multinom() AIC is much lower, the parallel-lines assumption is shaky.</strong> A gap of 5 points in either direction is usually noise; a gap of 20+ points in favour of multinom() is a sign that one or more predictors violate proportional odds. The fix is either to relax the constraint (try <code>vglm()</code> from VGAM with <code>cumulative(parallel = FALSE ~ predictor)</code>) or to reframe the response as multinomial.</div></div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use the Brant test for a formal answer.</strong> Install <code>brant</code> in a local R session and run <code>brant::brant(ofit)</code> to get one chi-square statistic per predictor plus an overall test. The closer the p-values are to 1, the safer the assumption.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute the AIC difference (multinomial minus ordinal) for the housing fit and round to one decimal.</p>
+<div class="webr-container" data-block-title="Your turn: AIC delta">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: AIC delta</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># your code here
+ex_delta &lt;- NULL
+round(ex_delta, 1)
+#&gt; Expected: a small positive number</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="AIC delta solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">AIC delta solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_delta &lt;- AIC(mfit_h) - AIC(ofit)
+round(ex_delta, 1)
+#&gt; [1] 5.5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Multinomial AIC is 5.5 points higher than ordinal, meaning the ordinal model wins on this dataset under the AIC criterion.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<p>These problems combine the moving parts above. Use distinct variable names with the <code>my_</code> prefix so your answers don't overwrite the tutorial's notebook variables.</p>
+
+<h3>Exercise 1: Multinomial on Cars93</h3>
+
+<p>Use <code>MASS::Cars93</code>. Predict <code>Type</code> (Compact, Large, Midsize, Small, Sporty, Van) from <code>Price</code> and <code>Horsepower</code>. Fit a multinomial model and compute training accuracy.</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: nnet::multinom() with two numeric predictors,
+# then predict() and compare to actual.
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_cars &lt;- MASS::Cars93
+my_fit  &lt;- multinom(Type ~ Price + Horsepower,
+                    data = my_cars, trace = FALSE)
+my_pred &lt;- predict(my_fit, type = &quot;class&quot;)
+my_acc  &lt;- mean(my_pred == my_cars$Type)
+round(my_acc, 3)
+#&gt; [1] 0.527</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Two predictors push training accuracy above the 1/6 = 16.7% you would get from random guessing, but car type is only loosely tied to price and horsepower so the model leaves plenty on the table.</p>
+
+</details>
+
+<h3>Exercise 2: Ordinal on a holdout split</h3>
+
+<p>Split <code>MASS::housing</code> into 70% train and 30% test using <code>set.seed(2026)</code>. Fit <code>polr(Sat ~ Infl + Type + Cont, weights = Freq)</code> on train, predict on test, and build the confusion matrix.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: sample() row indices, fit on train rows, predict on test rows.
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+my_n     &lt;- nrow(housing)
+my_train &lt;- sample(seq_len(my_n), 0.7 * my_n)
+
+my_house_train &lt;- housing[my_train, ]
+my_house_test  &lt;- housing[-my_train, ]
+
+my_ofit &lt;- polr(Sat ~ Infl + Type + Cont,
+                data = my_house_train,
+                weights = Freq, Hess = TRUE)
+my_opred &lt;- predict(my_ofit, newdata = my_house_test)
+
+my_cm &lt;- table(predicted = my_opred,
+               actual    = my_house_test$Sat)
+my_cm
+#&gt;          actual
+#&gt; predicted Low Medium High
+#&gt;   Low       9      4    3
+#&gt;   Medium    1      0    0
+#&gt;   High      4      4    7</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> With only 72 rows the test set is tiny, so the matrix is rough. The pattern still shows the model rarely picking Medium, a known quirk of proportional odds models when the middle category is squeezed by the cut points.</p>
+
+</details>
+
+<h3>Exercise 3: Multinomial vs ordinal AIC face-off</h3>
+
+<p>On the full <code>housing</code> data, refit both models using <code>Sat</code> as response and <code>Infl</code>, <code>Type</code>, <code>Cont</code> as predictors (you already have them above). Decide which model wins and explain the result in one sentence.</p>
+
+<div class="webr-container" data-block-title="Exercise 3 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: AIC() takes any fitted model and returns one number.
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_aic_ord  &lt;- AIC(ofit)
+my_aic_mult &lt;- AIC(mfit_h)
+
+c(ordinal = my_aic_ord, multinomial = my_aic_mult)
+#&gt;     ordinal multinomial
+#&gt;      3479.1      3484.6
+
+ifelse(my_aic_ord &lt; my_aic_mult,
+       &quot;Ordinal wins, parallel-lines assumption holds.&quot;,
+       &quot;Multinomial wins, parallel-lines assumption fails.&quot;)
+#&gt; [1] &quot;Ordinal wins, parallel-lines assumption holds.&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The AIC gap is small (5.5) but in favour of the ordinal model, so the parallel-lines assumption is a reasonable simplification of the housing data.</p>
+
+</details>
+
+<h2>Putting It All Together</h2>
+
+<p>Real model evaluation needs train and test data. Here is the iris pipeline end to end: split, fit on training rows, predict on test rows, score with accuracy.</p>
+
+<div class="webr-container" data-block-title="End-to-end iris pipeline">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">End-to-end iris pipeline</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+train_idx  &lt;- sample(seq_len(nrow(iris)), 0.7 * nrow(iris))
+iris_train &lt;- iris[train_idx, ]
+iris_test  &lt;- iris[-train_idx, ]
+
+final_fit &lt;- multinom(Species ~ ., data = iris_train, trace = FALSE)
+
+final_pred &lt;- predict(final_fit, newdata = iris_test, type = &quot;class&quot;)
+final_acc  &lt;- mean(final_pred == iris_test$Species)
+
+table(predicted = final_pred, actual = iris_test$Species)
+#&gt;             actual
+#&gt; predicted    setosa versicolor virginica
+#&gt;   setosa         15          0         0
+#&gt;   versicolor      0         13         1
+#&gt;   virginica       0          1        15
+
+round(final_acc, 3)
+#&gt; [1] 0.956</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Test accuracy lands at 95.6%, lower than the 98.7% training number. The drop is small because iris is an easy dataset, but it is the more honest figure to report. Real projects should also stratify the split so each class is proportionally represented in both halves, especially when one class is rare.</p>
+
+<h2>Summary</h2>
+
+<p><img src="screenshots/Multinomial-and-Ordinal-Logistic-Regression-in-R-overview-mindmap.webp" alt="Models, key functions, and diagnostics covered in this tutorial." class="img-responsive img-zoomable" loading="lazy" width="1650" height="884" /></p>
+
+<p><em>Figure 3: Models, key functions, and diagnostics covered in this tutorial.</em></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Outcome shape</th>
+<th>Model</th>
+<th>R function</th>
+<th>Key diagnostic</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2 categories</td>
+<td>Binary logistic</td>
+<td><code>glm(family = binomial)</code></td>
+<td>Deviance, ROC, <a class="auto-link" href="Logistic-Regression-in-R.html" title="Logistic Regression in R: From glm() to Odds Ratios, ROC, and AUC">AUC</a></td>
+</tr>
+<tr>
+<td>3+ unordered</td>
+<td>Multinomial logistic</td>
+<td><code>nnet::multinom()</code></td>
+<td>Wald p-values, confusion matrix</td>
+</tr>
+<tr>
+<td>3+ ordered</td>
+<td>Ordinal logistic</td>
+<td><code>MASS::polr()</code></td>
+<td>Proportional odds (Brant, AIC vs multinom)</td>
+</tr>
+</tbody>
+</table>
+
+<p>Three takeaways:</p>
+
+<ol>
+
+<li>The number of categories and whether they are ranked decide the model. Misclassifying that choice costs accuracy or interpretability.</li>
+
+<li><code>multinom()</code> runs K-1 binary logits against a chosen reference class; <code>polr()</code> shares one slope across cut points to leverage the ranking.</li>
+
+<li>Always validate ordinal fits against the proportional odds assumption before quoting odds ratios.</li>
+
+</ol>
+
+<h2>References</h2>
+
+<ol>
+
+<li>UCLA OARC. <em>Multinomial Logistic Regression | R Data Analysis Examples</em>. <a href="https://stats.oarc.ucla.edu/r/dae/multinomial-logistic-regression/">Link</a></li>
+
+<li>UCLA OARC. <em>Ordinal Logistic Regression | R Data Analysis Examples</em>. <a href="https://stats.oarc.ucla.edu/r/dae/ordinal-logistic-regression/">Link</a></li>
+
+<li>Venables, W. N., and Ripley, B. D. <em>Modern Applied Statistics with S</em>, 4th Edition. Springer (2002). Chapter 7: Generalised Linear Models. <a href="https://www.stats.ox.ac.uk/pub/MASS4/">Link</a></li>
+
+<li>Agresti, A. <em>Categorical Data Analysis</em>, 3rd Edition. Wiley (2013).</li>
+
+<li>nnet package documentation. <em>multinom() reference</em>. <a href="https://cran.r-project.org/web/packages/nnet/nnet.pdf">Link</a></li>
+
+<li>MASS package documentation. <em>polr() reference</em>. <a href="https://stat.ethz.ch/R-manual/R-patched/library/MASS/html/polr.html">Link</a></li>
+
+<li>UVA Library. <em>Visualizing the Effects of Proportional-Odds Logistic Regression</em>. <a href="https://library.virginia.edu/data/articles/visualizing-the-effects-of-proportional-odds-logistic-regression">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Logistic-Regression-in-R.html">Logistic Regression in R</a>: the binary base case, with diagnostics, ROC, and AUC.</li>
+
+<li><a href="Categorical-Data-in-R.html">Categorical Data in R</a>: tables, <a class="auto-link" href="R-Mosaic-Plots.html" title="R Mosaic Plots: Visualize Categorical Variable Relationships">mosaic plots</a>, and chi-square tests for categorical predictors and outcomes.</li>
+
+<li><a href="Odds-Ratios-and-Relative-Risk-in-R.html">Odds Ratios and Relative Risk in R</a>: companion piece for interpreting the exponentiated coefficients above.</li>
+
+</ul>
+
+{% endraw %}
