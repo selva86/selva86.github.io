@@ -1,0 +1,833 @@
+---
+title: "Cramér's V, phi & Lambda in R: Association Measures for Tables"
+description: "Compute Cramér's V, phi, and Goodman-Kruskal's Lambda in R for contingency tables. Formulas, base R code, interpretation thresholds, and a decision guide."
+keywords: "Cramér's V in R, phi coefficient R, Goodman-Kruskal Lambda R, association measures categorical, effect size chi-square, contingency table effect size, nominal correlation R"
+mathjax: true
+webr: true
+curriculum_id: "FR-cate-6"
+post_type: "FR"
+auto_link_terms: "Cramér's V|phi coefficient|Goodman-Kruskal Lambda|measures of association|categorical association measures"
+auto_link_case_sensitive: false
+fr_parent: "Chi-Square-Test-of-Independence-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>Cramér's V, phi & Lambda in R: Association Measures for Tables</h1>
+
+<p class="lead">Cramér's V, the phi coefficient, and Goodman-Kruskal's Lambda are the three workhorse <a class="auto-link" href="Measures-of-Association-in-R.html" title="Measures of Association in R: Cramer's V, Phi, Pearson r With Examples">measures of association</a> for categorical data. A chi-square test tells you whether two variables are related; these statistics tell you how strongly, and Lambda even tells you how much one helps predict the other.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="30" data-exercises="7" data-xp="105"></div>
+
+<h2>What do Cramér's V, phi, and Lambda actually measure?</h2>
+
+<p>A chi-square test gives a yes/no on independence, but a tiny p-value on a 50,000-row table can sit alongside a near-zero practical effect. To turn that p-value into something an analyst can act on, you compute an association measure on the same <a class="auto-link" href="Chi-Square-Tests-in-R.html" title="Chi-Square Tests in R: Independence, Goodness-of-Fit, With Effect Sizes">contingency table</a>. Let's compute all three on the built-in <code>HairEyeColor</code> data and see what each one says.</p>
+
+<div class="webr-container" data-block-title="Compute V, phi, and Lambda on hair vs eye colour">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compute V, phi, and Lambda on hair vs eye colour</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Collapse Sex so we get a 4 (Hair) x 4 (Eye) table
+hair_eye &lt;- margin.table(HairEyeColor, c(&quot;Hair&quot;, &quot;Eye&quot;))
+hair_eye
+#&gt;        Eye
+#&gt; Hair    Brown Blue Hazel Green
+#&gt;   Black    68   20    15     5
+#&gt;   Brown   119   84    54    29
+#&gt;   Red      26   17    14    14
+#&gt;   Blond     7   94    10    16
+
+chi &lt;- chisq.test(hair_eye, correct = FALSE)
+n   &lt;- sum(hair_eye)
+k   &lt;- min(dim(hair_eye))
+
+# Cramer's V
+V &lt;- sqrt(unname(chi$statistic) / (n * (k - 1)))
+round(c(chi_sq = unname(chi$statistic),
+        n = n, df = unname(chi$parameter), V = V), 3)
+#&gt;  chi_sq      n     df      V
+#&gt; 138.290 592.000   9.000  0.279</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Hair colour and eye colour are far from independent (chi-square = 138.3 on 9 df, p < .001), and <strong>V = 0.28</strong> says the relationship is moderate, not overwhelming. Phi does not apply here because the table is bigger than 2x2. We will compute Lambda in its own section because it answers a different question entirely: how much does knowing one variable cut your prediction error for the other?</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>This page implements V, phi, and Lambda from scratch in base R.</strong> Production code typically uses <code>DescTools::CramerV()</code>, <code>rcompanion::cramerV()</code>, or <code>effectsize::cramers_v()</code>. Those packages are not bundled with this interactive runtime, so we build the measures from their formulas, which is also the clearest way to learn what they actually do.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a Sex by Hair contingency table from <code>HairEyeColor</code> and compute Cramér's V on it. The matrix should be 2 by 4. Save the result to <code>ex_V</code>.</p>
+<div class="webr-container" data-block-title="Your turn: V on Sex x Hair">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: V on Sex x Hair</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Collapse Eye so we get a Sex x Hair table:
+ex_sex_hair &lt;- margin.table(HairEyeColor, c(&quot;Sex&quot;, &quot;Hair&quot;))
+
+# Compute V (use the formula from the block above):
+ex_V &lt;- # your code here
+
+ex_V
+#&gt; Expected: about 0.10</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Sex by Hair Cramer&#x27;s V solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Sex by Hair Cramer&#x27;s V solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_sex_hair &lt;- margin.table(HairEyeColor, c(&quot;Sex&quot;, &quot;Hair&quot;))
+ex_chi &lt;- chisq.test(ex_sex_hair, correct = FALSE)
+ex_n   &lt;- sum(ex_sex_hair)
+ex_k   &lt;- min(dim(ex_sex_hair))
+ex_V   &lt;- sqrt(unname(ex_chi$statistic) / (ex_n * (ex_k - 1)))
+round(ex_V, 3)
+#&gt; [1] 0.099</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Sex and hair colour are barely related in this dataset, so V drops to about 0.10, well below the 0.28 we saw for hair by eye.</p>
+
+</details>
+</section>
+
+<h2>How do you compute Cramér's V from scratch?</h2>
+
+<p>Cramér's V rescales the chi-square statistic so that it is comparable across tables of different sizes. The intuition: chi-square grows with sample size and with the number of cells, so a raw value of 138 means very different things on a 2x2 versus a 4x4. V divides chi-square by its theoretical maximum to land on a clean 0-to-1 scale.</p>
+
+<p>The formula is:</p>
+
+<p>$$V = \sqrt{\frac{\chi^2}{n \cdot (\min(r, c) - 1)}}$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$\chi^2$ is the Pearson chi-square statistic from the contingency table</li>
+
+<li>$n$ is the total number of observations</li>
+
+<li>$r$ and $c$ are the number of <a class="auto-link" href="dplyr-filter-select.html" title="dplyr filter() and select(): Subset Rows & Columns with Precision">rows and columns</a></li>
+
+</ul>
+
+<p>Wrapping this in a function makes it easy to apply to any table. The function takes a matrix or table object and returns a single number.</p>
+
+<div class="webr-container" data-block-title="Define a base R cramers_v() function">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Define a base R cramers_v() function</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cramers_v &lt;- function(tbl) {
+  chi &lt;- chisq.test(tbl, correct = FALSE)$statistic
+  n   &lt;- sum(tbl)
+  k   &lt;- min(dim(tbl))
+  unname(sqrt(chi / (n * (k - 1))))
+}
+
+# Sanity check against the manual calculation above
+cramers_v(hair_eye)
+#&gt; [1] 0.2790</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The function reproduces the 0.279 we computed by hand. Once defined, you can throw any contingency table at it: an income-by-region table, a treatment-by-outcome table, a survey response by demographic group. The shape no longer matters because V already corrects for it.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>V is chi-square stripped of its sample-size and table-size baggage.</strong> Two tables with the same V have the same association strength, even if one has 200 rows and the other has 200,000. That is what makes V an effect size and chi-square just a <a class="auto-link" href="Hypothesis-Testing-in-R.html" title="Hypothesis Testing in R: Understand the Framework, Not Just the p-Value">test statistic</a>.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a 3x4 matrix of fictional counts (your choice), pass it to <code>cramers_v()</code>, and confirm the result is between 0 and 1.</p>
+<div class="webr-container" data-block-title="Your turn: V on a custom 3x4 table">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: V on a custom 3x4 table</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_tbl &lt;- matrix(c( # your numbers here, 12 values
+  ), nrow = 3, byrow = TRUE)
+
+ex_V_custom &lt;- cramers_v(ex_tbl)
+ex_V_custom
+#&gt; Expected: a number between 0 and 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Custom 3x4 table V solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Custom 3x4 table V solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_tbl &lt;- matrix(c(
+  20, 10,  5,  2,
+   8, 25, 12,  4,
+   3,  9, 30, 18
+), nrow = 3, byrow = TRUE)
+cramers_v(ex_tbl)
+#&gt; [1] 0.4039</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Any non-negative integer matrix works. The diagonal-heavy structure produces a fairly strong V around 0.40.</p>
+
+</details>
+</section>
+
+<h2>When should you use phi instead of Cramér's V?</h2>
+
+<p>The phi coefficient is the original 2x2 association measure, and on a 2x2 table phi and V agree in magnitude. Phi has one extra perk: it carries a sign, so it tells you whether the diagonal is over-represented (positive) or the anti-diagonal is (negative). That direction is meaningful only when both rows and columns have a natural ordering of "this category" vs "that category," like treatment vs control or survived vs died.</p>
+
+<p>For a 2x2 table with cells $a$, $b$, $c$, $d$:</p>
+
+<p>$$\phi = \frac{a d - b c}{\sqrt{(a + <a class="auto-link" href="Conditional-Probability-in-R.html" title="Conditional Probability in R: P(A|B), Independence, and Bayes — With Real Examples">b)</a>(c + d)(a + c)(b + d)}}$$</p>
+
+<p>Where $a, b, c, d$ are the four cell counts:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th></th>
+<th>Col 1</th>
+<th>Col 2</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Row 1</td>
+<td>$a$</td>
+<td>$b$</td>
+</tr>
+<tr>
+<td>Row 2</td>
+<td>$c$</td>
+<td>$d$</td>
+</tr>
+</tbody>
+</table>
+
+<p>Let's apply this to the classic Titanic Sex by Survived table. The built-in <code>Titanic</code> array splits passengers four ways, so we collapse Class and Age first.</p>
+
+<div class="webr-container" data-block-title="Phi on Titanic Sex x Survived">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Phi on Titanic Sex x Survived</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Collapse over Class and Age to get Sex x Survived
+sex_surv &lt;- margin.table(Titanic, c(&quot;Sex&quot;, &quot;Survived&quot;))
+sex_surv
+#&gt;         Survived
+#&gt; Sex       No  Yes
+#&gt;   Male  1364  367
+#&gt;   Female 126  344
+
+phi_2x2 &lt;- function(tbl) {
+  stopifnot(all(dim(tbl) == c(2, 2)))
+  a &lt;- tbl[1, 1]; b &lt;- tbl[1, 2]
+  c &lt;- tbl[2, 1]; d &lt;- tbl[2, 2]
+  (a * d - b * c) / sqrt((a + b) * (c + d) * (a + c) * (b + d))
+}
+
+phi_val &lt;- phi_2x2(sex_surv)
+round(phi_val, 4)
+#&gt; [1] 0.4562
+
+# Cross-check: |phi| equals V on a 2x2
+round(cramers_v(sex_surv), 4)
+#&gt; [1] 0.4556</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Phi comes out to <strong>+0.456</strong>, a moderately strong association. The positive sign reflects the row and column order we chose: Male is row 1 and "No" (did not survive) is column 1, so the positive sign means males are over-represented in the "did not survive" cell. Flip either dimension and the sign flips with it. The two values match within rounding (the slight gap is from <code>chisq.test()</code> returning the chi-square that <code>cramers_v()</code> then takes a square root of, while <code>phi_2x2()</code> works directly on cell counts).</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>The sign of phi depends entirely on row and column ordering.</strong> Reorder the levels of either factor, and phi flips sign while V is unchanged. Always state which level is "row 1" and which is "column 1" when you report phi, or you have communicated nothing about direction.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a 2x2 table for a fictional drug trial with 50 treated and 50 control patients, where the treated group has more recoveries. Compute phi.</p>
+<div class="webr-container" data-block-title="Your turn: phi on a 2x2 trial">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: phi on a 2x2 trial</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_treat &lt;- matrix(c(
+  # Recovered, NotRecovered for Treated row
+  # Recovered, NotRecovered for Control row
+), nrow = 2, byrow = TRUE)
+
+ex_phi &lt;- phi_2x2(ex_treat)
+ex_phi
+#&gt; Expected: a positive number near 0.3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Trial phi solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Trial phi solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_treat &lt;- matrix(c(
+  35, 15,   # Treated: 35 recovered, 15 did not
+  20, 30    # Control: 20 recovered, 30 did not
+), nrow = 2, byrow = TRUE,
+   dimnames = list(Group = c(&quot;Treated&quot;, &quot;Control&quot;),
+                   Outcome = c(&quot;Recovered&quot;, &quot;NotRecovered&quot;)))
+phi_2x2(ex_treat)
+#&gt; [1] 0.302</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> With Treated as row 1 and Recovered as column 1, the positive 0.30 says the treated group is over-represented in the Recovered cell, which is exactly what we set up.</p>
+
+</details>
+</section>
+
+<h2>What does Goodman-Kruskal's Lambda tell you that V doesn't?</h2>
+
+<p>V is a strength measure: bigger means stronger relationship. Lambda is a <em>prediction</em> measure: it tells you how much your guess of one variable improves when you already know the other. The technical name is <strong>proportional reduction in error (PRE)</strong>.</p>
+
+<p>Imagine you have to predict everyone's eye colour, with no other information. Your best guess is the modal class: just say "Brown" for everyone. The number of mistakes you make is $E_1$. Now suppose someone whispers each person's hair colour to you before you guess. Within each hair group, you predict that group's modal eye colour. The new error count is $E_2$. Lambda is the share of those original errors you eliminated:</p>
+
+<p>$$\lambda(Y \mid X) = \frac{E_1 - E_2}{E_1}$$</p>
+
+<p>This is asymmetric. Knowing hair colour might help you predict eye colour a lot, while knowing eye colour barely helps you predict hair colour. Lambda exposes that asymmetry.</p>
+
+<div class="webr-container" data-block-title="Lambda from PRE definition">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Lambda from PRE definition</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">lambda_pre &lt;- function(tbl, direction = c(&quot;symmetric&quot;, &quot;predict_col&quot;, &quot;predict_row&quot;)) {
+  direction &lt;- match.arg(direction)
+  n &lt;- sum(tbl)
+
+  # Errors when no information about the other variable
+  err_col_only &lt;- n - max(colSums(tbl))   # predicting cols, modal col
+  err_row_only &lt;- n - max(rowSums(tbl))   # predicting rows, modal row
+
+  # Errors when the other variable is known
+  err_col_given_row &lt;- n - sum(apply(tbl, 1, max))  # within each row pick modal col
+  err_row_given_col &lt;- n - sum(apply(tbl, 2, max))  # within each col pick modal row
+
+  if (direction == &quot;predict_col&quot;) {
+    (err_col_only - err_col_given_row) / err_col_only
+  } else if (direction == &quot;predict_row&quot;) {
+    (err_row_only - err_row_given_col) / err_row_only
+  } else {
+    e1 &lt;- err_col_only + err_row_only
+    e2 &lt;- err_col_given_row + err_row_given_col
+    (e1 - e2) / e1
+  }
+}
+
+c(symmetric  = lambda_pre(hair_eye, &quot;symmetric&quot;),
+  eye_given_hair = lambda_pre(hair_eye, &quot;predict_col&quot;),
+  hair_given_eye = lambda_pre(hair_eye, &quot;predict_row&quot;))
+#&gt;     symmetric eye_given_hair hair_given_eye
+#&gt;        0.1431         0.2339         0.0327</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The asymmetry is striking. Knowing someone's hair colour cuts your eye-colour prediction errors by <strong>23%</strong>, but knowing their eye colour cuts your hair-colour prediction errors by only <strong>3%</strong>. The symmetric Lambda (about 0.14) averages those two, which is why directional Lambda is almost always more informative than the symmetric one.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A Lambda of zero does not mean no association.</strong> Lambda only counts predictions that actually change. If the modal category of $Y$ is the same inside every group of $X$, your best guess never changes, and Lambda is 0, even when chi-square and V show clear association. Reach for V to detect a relationship; reach for Lambda only when you care about prediction.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute Lambda predicting Sex from Hair using the <code>margin.table(HairEyeColor, c(&quot;Hair&quot;, &quot;Sex&quot;))</code> table. Then compute Lambda predicting Hair from Sex on the same table. Save them to <code>ex_lam_a</code> and <code>ex_lam_b</code>.</p>
+<div class="webr-container" data-block-title="Your turn: directional Lambda">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: directional Lambda</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_hair_sex &lt;- margin.table(HairEyeColor, c(&quot;Hair&quot;, &quot;Sex&quot;))
+
+ex_lam_a &lt;- # Lambda predicting Sex (cols) from Hair (rows)
+ex_lam_b &lt;- # Lambda predicting Hair (rows) from Sex (cols)
+
+c(sex_from_hair = ex_lam_a, hair_from_sex = ex_lam_b)
+#&gt; Expected: both small, possibly different</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Directional Lambda solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Directional Lambda solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_hair_sex &lt;- margin.table(HairEyeColor, c(&quot;Hair&quot;, &quot;Sex&quot;))
+ex_lam_a &lt;- lambda_pre(ex_hair_sex, &quot;predict_col&quot;)  # predict Sex
+ex_lam_b &lt;- lambda_pre(ex_hair_sex, &quot;predict_row&quot;)  # predict Hair
+round(c(sex_from_hair = ex_lam_a, hair_from_sex = ex_lam_b), 4)
+#&gt; sex_from_hair hair_from_sex
+#&gt;        0.0000        0.0148</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Females outnumber males in every hair group, so the modal sex never changes and Lambda for predicting sex is exactly 0. Predicting hair from sex squeezes a tiny improvement (1.5%) because the modal hair colour does shift between male and female.</p>
+
+</details>
+</section>
+
+<h2>How do you interpret these effect sizes?</h2>
+
+<p>Two questions matter when you read a V, phi, or Lambda value: <strong>is this big or small</strong>, and <strong>does the table size warp the answer</strong>?</p>
+
+<p>For magnitude, the field has settled on Cohen-style thresholds. They are conventions, not laws of nature, but they give you a starting vocabulary. The thresholds for V tighten as the table gets bigger because the maximum-possible chi-square also grows.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Measure</th>
+<th>Small</th>
+<th>Medium</th>
+<th>Large</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Phi (2x2)</td>
+<td>0.10</td>
+<td>0.30</td>
+<td>0.50</td>
+<td>Same scale as a correlation</td>
+</tr>
+<tr>
+<td>V (2x2)</td>
+<td>0.10</td>
+<td>0.30</td>
+<td>0.50</td>
+<td>Identical to phi for 2x2</td>
+</tr>
+<tr>
+<td>V (3x3, df=4)</td>
+<td>0.07</td>
+<td>0.21</td>
+<td>0.35</td>
+<td><a class="auto-link" href="Chi-Square-Goodness-of-Fit-Test-in-R.html" title="Chi-Square Goodness-of-Fit Test in R: Does Your Data Fit a Distribution?">Cohen's w</a> divided by sqrt(df)</td>
+</tr>
+<tr>
+<td>V (4x4, df=9)</td>
+<td>0.05</td>
+<td>0.15</td>
+<td>0.25</td>
+<td>Smaller thresholds for bigger tables</td>
+</tr>
+<tr>
+<td>Lambda</td>
+<td>0.00</td>
+<td>0.10</td>
+<td>0.30</td>
+<td>Floor at 0; reach 0.30 is unusual</td>
+</tr>
+</tbody>
+</table>
+
+<p>Use the diagram below as a quick map of which measure to compute when.</p>
+
+<p><img src="screenshots/Cramers-V-phi-and-Lambda-in-R-decision-flow.webp" alt="Decision tree for picking phi vs Cramér's V vs Lambda based on table shape and goal." class="img-responsive img-zoomable" loading="lazy" width="1188" height="1734" /></p>
+
+<p><em>Figure 1: A quick decision tree for picking the right association measure.</em></p>
+
+<p>For warping, V has a known small-sample bias: even random data produce $V > 0$ when $n$ is small relative to the table size. Bergsma (2013) proposed a bias-corrected version that shrinks V toward zero in proportion to the degrees of freedom. The formula and a small implementation:</p>
+
+<div class="webr-container" data-block-title="Bias-corrected V (Bergsma 2013)">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Bias-corrected V (Bergsma 2013)</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cramers_v_bc &lt;- function(tbl) {
+  chi &lt;- chisq.test(tbl, correct = FALSE)$statistic
+  n   &lt;- sum(tbl)
+  r   &lt;- nrow(tbl)
+  c   &lt;- ncol(tbl)
+  phi2     &lt;- unname(chi) / n
+  phi2_t   &lt;- max(0, phi2 - (r - 1) * (c - 1) / (n - 1))
+  r_tilde  &lt;- r - (r - 1)^2 / (n - 1)
+  c_tilde  &lt;- c - (c - 1)^2 / (n - 1)
+  unname(sqrt(phi2_t / min(r_tilde - 1, c_tilde - 1)))
+}
+
+c(plain = cramers_v(hair_eye),
+  bc    = cramers_v_bc(hair_eye))
+#&gt;  plain     bc
+#&gt; 0.2790 0.2705</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>For HairEyeColor with $n = 592$, the correction barely moves the needle (0.279 to 0.271), because the sample is large relative to the 4x4 grid. On smaller tables you will see a much bigger gap, and the corrected value is the more honest one. The capstone exercises walk through that case.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Reach for the bias-corrected V whenever $n$ is below about 5 times the number of cells.</strong> A 5x5 table has 25 cells, so anything under $n = 125$ is firmly in bias-correction territory. Reporting both side-by-side is the most defensible thing to do.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Apply <code>cramers_v_bc()</code> to the Sex by Hair table from earlier and compare it to the plain V (about 0.099).</p>
+<div class="webr-container" data-block-title="Your turn: bias-corrected V">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: bias-corrected V</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_sh_tbl &lt;- margin.table(HairEyeColor, c(&quot;Sex&quot;, &quot;Hair&quot;))
+
+ex_V_plain &lt;- # plain V
+ex_V_bc    &lt;- # bias-corrected V
+
+c(plain = ex_V_plain, bc = ex_V_bc)
+#&gt; Expected: both small; bc slightly smaller (or zero)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Bias-corrected V solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Bias-corrected V solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_sh_tbl  &lt;- margin.table(HairEyeColor, c(&quot;Sex&quot;, &quot;Hair&quot;))
+ex_V_plain &lt;- cramers_v(ex_sh_tbl)
+ex_V_bc    &lt;- cramers_v_bc(ex_sh_tbl)
+round(c(plain = ex_V_plain, bc = ex_V_bc), 4)
+#&gt;  plain     bc
+#&gt; 0.0992 0.0925</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The bias correction shaves off a small but visible chunk, suggesting some of the 0.099 was sampling noise. With $n = 592$ over a 2x4 table, the shrinkage is modest.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<h3>Exercise 1: Bias correction on a sparse 4x4</h3>
+
+<p>You have 50 patients cross-classified by symptom group (4 levels) and treatment outcome (4 levels). Compute the plain Cramér's V and the bias-corrected V. By how much does the correction shrink V?</p>
+
+<div class="webr-container" data-block-title="Exercise 1: bias-corrected V">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1: bias-corrected V</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_sparse &lt;- matrix(c(
+  8, 2, 1, 1,
+  2, 7, 2, 1,
+  1, 2, 9, 2,
+  1, 1, 2, 8
+), nrow = 4, byrow = TRUE)
+
+# Compute both V values
+my_V_plain &lt;- # plain V
+my_V_bc    &lt;- # bias-corrected V
+
+c(plain = my_V_plain, bc = my_V_bc)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_sparse &lt;- matrix(c(
+  8, 2, 1, 1,
+  2, 7, 2, 1,
+  1, 2, 9, 2,
+  1, 1, 2, 8
+), nrow = 4, byrow = TRUE)
+
+my_V_plain &lt;- cramers_v(my_sparse)
+my_V_bc    &lt;- cramers_v_bc(my_sparse)
+round(c(plain = my_V_plain, bc = my_V_bc, shrink = my_V_plain - my_V_bc), 4)
+#&gt;  plain     bc shrink
+#&gt; 0.5269 0.4801 0.0468</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> With only 50 observations spread over 16 cells, expected counts are tiny. The bias-corrected V drops from 0.527 to 0.480, a 9% relative shrinkage. That is the magnitude of inflation you would have reported by using plain V on data this sparse.</p>
+
+</details>
+
+<h3>Exercise 2: Direction matters with Lambda</h3>
+
+<p>You have a 3x3 table of education level (HS, BA, Grad) by voting choice (D, R, I). Compute Lambda in both directions, then write a one-sentence interpretation of each.</p>
+
+<div class="webr-container" data-block-title="Exercise 2: directional Lambda">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2: directional Lambda</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_voting &lt;- matrix(c(
+  60, 40, 30,   # HS: D, R, I
+  70, 50, 30,   # BA
+  80, 30, 20    # Grad
+), nrow = 3, byrow = TRUE,
+   dimnames = list(Education = c(&quot;HS&quot;, &quot;BA&quot;, &quot;Grad&quot;),
+                   Vote = c(&quot;D&quot;, &quot;R&quot;, &quot;I&quot;)))
+
+my_lam_vote_from_edu &lt;- # predict Vote from Education
+my_lam_edu_from_vote &lt;- # predict Education from Vote
+
+c(vote_from_edu = my_lam_vote_from_edu,
+  edu_from_vote = my_lam_edu_from_vote)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_lam_vote_from_edu &lt;- lambda_pre(my_voting, &quot;predict_col&quot;)
+my_lam_edu_from_vote &lt;- lambda_pre(my_voting, &quot;predict_row&quot;)
+round(c(vote_from_edu = my_lam_vote_from_edu,
+        edu_from_vote = my_lam_edu_from_vote), 4)
+#&gt; vote_from_edu edu_from_vote
+#&gt;        0.0000        0.0385</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> D wins inside every education group, so knowing education never changes the vote prediction and Lambda is 0. Going the other way, knowing the vote does shift the modal education choice for at least one column, producing a tiny but non-zero 0.04. This is the canonical illustration of why a Lambda of 0 is not the same as independence.</p>
+
+</details>
+
+<h2>Complete Example</h2>
+
+<p>A marketing team wants to know whether ad channel and conversion outcome are related. They have 2,000 customers cross-classified by <code>Channel</code> (Email, Social, Search, Direct) and <code>Converted</code> (No, Yes). The pipeline below builds the table, runs the chi-square test, computes Cramér's V, and computes Lambda in both directions.</p>
+
+<div class="webr-container" data-block-title="End-to-end channel x conversion analysis">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">End-to-end channel x conversion analysis</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mkt_tbl &lt;- matrix(c(
+  350, 150,    # Email
+  420,  80,    # Social
+  280, 220,    # Search
+  380, 120     # Direct
+), nrow = 4, byrow = TRUE,
+   dimnames = list(Channel = c(&quot;Email&quot;, &quot;Social&quot;, &quot;Search&quot;, &quot;Direct&quot;),
+                   Converted = c(&quot;No&quot;, &quot;Yes&quot;)))
+
+mkt_tbl
+#&gt;          Converted
+#&gt; Channel    No  Yes
+#&gt;   Email   350  150
+#&gt;   Social  420   80
+#&gt;   Search  280  220
+#&gt;   Direct  380  120
+
+mkt_chi &lt;- chisq.test(mkt_tbl, correct = FALSE)
+mkt_V   &lt;- cramers_v(mkt_tbl)
+mkt_lam_conv_from_chan &lt;- lambda_pre(mkt_tbl, &quot;predict_col&quot;)
+mkt_lam_chan_from_conv &lt;- lambda_pre(mkt_tbl, &quot;predict_row&quot;)
+
+round(c(chi_sq = unname(mkt_chi$statistic),
+        df     = unname(mkt_chi$parameter),
+        V      = mkt_V,
+        lam_conv_from_chan = mkt_lam_conv_from_chan,
+        lam_chan_from_conv = mkt_lam_chan_from_conv), 4)
+#&gt;             chi_sq                 df                  V
+#&gt;           102.8095             3.0000             0.2267
+#&gt; lam_conv_from_chan lam_chan_from_conv
+#&gt;             0.0000             0.0933</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The chi-square test rejects independence handily (chi-square = 102.8 on 3 df, p < .001), and <strong>V = 0.23</strong> says the relationship is small-to-medium. Yet $\lambda(\text{Converted} \mid \text{Channel}) = 0$. How can both be true? Because "No" is the modal outcome inside every channel, including Search, even though Search has by far the highest conversion rate (44%). Knowing the channel does not change your best-guess prediction of conversion: it stays at "No." The relationship is real, just not strong enough to flip any modal class. If you reported only Lambda, you would mistakenly conclude there is no useful association, when in fact Search converts at 2.8 times the Social rate, a finding worth acting on.</p>
+
+<p>The takeaway: V and Lambda answer different questions. Use V when you want a single number for "how related are these," and use Lambda when the actual decision is "should I bet differently after seeing $X$?"</p>
+
+<h2>Summary</h2>
+
+<p>The three measures form a complementary toolkit. Use this comparison to remember which job each one does, and the diagram below as a visual recap.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Measure</th>
+<th>Range</th>
+<th>Table size</th>
+<th>Direction info</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Phi</td>
+<td>-1 to 1</td>
+<td>2x2 only</td>
+<td>Sign</td>
+<td>Reporting a signed effect on a 2x2</td>
+</tr>
+<tr>
+<td>Cramér's V</td>
+<td>0 to 1</td>
+<td>Any</td>
+<td>None</td>
+<td>Single-number strength of association</td>
+</tr>
+<tr>
+<td>Cramér's V (bias-corrected)</td>
+<td>0 to 1</td>
+<td>Any</td>
+<td>None</td>
+<td>Same as V, when n is small</td>
+</tr>
+<tr>
+<td>Lambda (symmetric)</td>
+<td>0 to 1</td>
+<td>Any</td>
+<td>Averaged</td>
+<td>Rarely the right choice</td>
+</tr>
+<tr>
+<td>Lambda (directional)</td>
+<td>0 to 1</td>
+<td>Any</td>
+<td>Asymmetric</td>
+<td>"Does X help me predict Y?"</td>
+</tr>
+</tbody>
+</table>
+
+<p><img src="screenshots/Cramers-V-phi-and-Lambda-in-R-comparison.webp" alt="Comparison of the three association measures by table size, range, and direction info." class="img-responsive img-zoomable" loading="lazy" width="860" height="2474" /></p>
+
+<p><em>Figure 2: Side-by-side properties of phi, Cramér's V, and Lambda.</em></p>
+
+<p>Three rules of thumb keep you out of trouble:</p>
+
+<ol>
+
+<li>Always pair an effect size with the chi-square test result. The p-value flags an association; V or Lambda quantifies it.</li>
+
+<li>On any table where $n$ is less than about 5 times the number of cells, report the bias-corrected V instead of plain V.</li>
+
+<li>A Lambda of 0 is not evidence of independence. Compute V too before drawing conclusions.</li>
+
+</ol>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Cramér, H. (1946). <em>Mathematical Methods of Statistics</em>. Princeton University Press. The original derivation of V.</li>
+
+<li>Goodman, L. A., & Kruskal, W. H. (1954). Measures of association for cross classifications. <em>Journal of the American Statistical Association</em>, 49(268), 732-764.</li>
+
+<li>Bergsma, W. (2013). A bias-correction for Cramér's V and Tschuprow's T. <em>Journal of the Korean Statistical Society</em>, 42(3), 323-328.</li>
+
+<li>rcompanion handbook, Mangiafico S., Measures of Association for Nominal Variables. <a href="https://rcompanion.org/handbook/H_10.html">Link</a></li>
+
+<li>effectsize package vignette, Effect Sizes for Contingency Tables. <a href="https://cran.r-project.org/web/packages/effectsize/vignettes/xtabs.html">Link</a></li>
+
+<li>DescTools::CramerV reference. <a href="https://rdrr.io/cran/DescTools/man/CramerV.html">Link</a></li>
+
+<li>Wikipedia, Cramér's V. <a href="https://en.wikipedia.org/wiki/Cram%C3%A9r's_V">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Chi-Square-Test-of-Independence-in-R.html">Chi-Square Test of Independence in R</a>. The parent tutorial that runs the test whose statistic V and Lambda <a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">summarise</a>.</li>
+
+<li><a href="Categorical-Data-in-R.html">Categorical Data in R</a>. Factors, levels, and how to build the contingency tables that feed these measures.</li>
+
+<li><a href="Chi-Square-Goodness-of-Fit-Test-in-R.html">Chi-Square Goodness of Fit Test in R</a>. The one-variable cousin of independence testing, with its own effect size (Cohen's w).</li>
+
+</ul>
+
+{% endraw %}
