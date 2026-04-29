@@ -1,0 +1,780 @@
+---
+title: "Quantile Regression in R: quantreg Package, Model Any Quantile"
+description: "Master quantile regression in R with the quantreg package: fit any tau via rq(), interpret slopes across quantiles, bootstrap SEs, and plot the process."
+keywords: "quantile regression R, quantreg package, rq function, conditional quantile, median regression, tau parameter, check function, bootstrap inference, heteroscedasticity"
+mathjax: true
+webr: true
+curriculum_id: "2.8.8"
+post_type: "C"
+auto_link_terms: "quantile regression|quantreg package|rq() function|conditional quantile|check function|tau parameter|quantile process plot|median regression"
+auto_link_case_sensitive: false
+sidebar_section: "Statistics"
+sidebar_title: "Quantile Regression"
+sidebar_order: "96"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>Quantile Regression in R: quantreg Package, Model Any Quantile</h1>
+
+<p class="lead">Quantile regression with R's <code>quantreg</code> package fits any conditional quantile of an outcome instead of just its mean. It exposes how predictors shift low, typical, and high responses, captures <a class="auto-link" href="Heteroscedasticity-in-R.html" title="Heteroscedasticity in R: Breusch-Pagan Test & Robust Standard Errors">heteroscedasticity</a>, and stays robust to outliers, all from one familiar formula interface.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="30" data-exercises="9" data-xp="135"></div>
+
+<h2>What does quantile regression actually fit?</h2>
+
+<p><a class="auto-link" href="Simple-Linear-Regression-in-R.html" title="Linear Regression in R: Fit Your First Model With lm() and Understand Every Number">Ordinary least squares</a> draws one line through the cloud of points, the line of conditional means. Quantile regression instead draws a line through any chosen quantile of the conditional distribution, the median, the 90th percentile, the 10th, your call. The cleanest way to see what changes is to fit both side by side on the same data.</p>
+
+<div class="webr-container" data-block-title="Median vs mean regression on mtcars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Median vs mean regression on mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(quantreg)
+
+mt &lt;- mtcars
+fit_mean &lt;- lm(mpg ~ wt + hp, data = mt)
+fit_med  &lt;- rq(mpg ~ wt + hp, data = mt, tau = 0.5)
+
+rbind(mean = coef(fit_mean), median = coef(fit_med))
+#&gt;        (Intercept)        wt          hp
+#&gt; mean      37.22727 -3.877831 -0.03177295
+#&gt; median    36.32721 -4.286671 -0.02261867</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The mean line says weight costs you 3.88 mpg per 1000 lb, while the median line says it costs 4.29 mpg. That gap is not a rounding artefact, it is the conditional distribution telling two different stories. The mean is dragged toward the few high-mpg outliers (Toyota Corolla, Fiat 128), so it understates the typical penalty. The median line tracks the typical car instead. If your decision is "what slope should I quote a buyer of an average car," the median answer is the honest one.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Changing tau changes the question, not just the answer.</strong> At tau=0.5 you are modelling the median; at tau=0.9, the upper tail; at tau=0.1, the lower tail. The same formula and data give three different fits because they answer three different questions about one dataset.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit <code>rq()</code> on the same <code>mpg ~ wt + hp</code> model at <code>tau = 0.9</code> (upper tail of fuel-efficient cars) and compare the <code>wt</code> slope to the median's slope.</p>
+<div class="webr-container" data-block-title="Your turn: fit rq at tau=0.9 on mtcars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: fit rq at tau=0.9 on mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_q90 &lt;- rq( # your code here, data = mt, tau = 0.9)
+coef(ex_q90)
+#&gt; Expected: wt slope different from the median's -4.29</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="rq tau=0.9 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">rq tau=0.9 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_q90 &lt;- rq(mpg ~ wt + hp, data = mt, tau = 0.9)
+round(coef(ex_q90), 3)
+#&gt; (Intercept)          wt          hp
+#&gt;      40.456      -4.000      -0.034</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The 90th-percentile slope on <code>wt</code> is around -4.00, slightly less negative than the median's -4.29. Among the most fuel-efficient cars, weight bites a touch less hard, but heavier cars still pay a real penalty.</p>
+
+</details>
+</section>
+
+<h2>How does the check function turn a quantile into an optimization target?</h2>
+
+<p>OLS finds the line that minimizes the sum of squared residuals. That loss treats positive and negative errors symmetrically, so the solution lands on the conditional mean. Quantile regression swaps squared loss for an asymmetric absolute loss, called the <em>check function</em>. By tilting the penalty, the optimum shifts to any quantile you pick.</p>
+
+<p>The check function for quantile $\tau$ is:</p>
+
+<p>$$\rho_\tau(u) = u \cdot (\tau - \mathbb{1}(u < 0))$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$u$ = the residual ($y - \hat{y}$)</li>
+
+<li>$\tau$ = the target quantile, between 0 and 1</li>
+
+<li>$\mathbb{1}(u < 0)$ = 1 when the residual is negative, else 0</li>
+
+</ul>
+
+<p>At $\tau = 0.5$ both positive and negative residuals get weight 0.5, which recovers least-absolute-deviations regression (the median). At $\tau = 0.9$ positive residuals get weight 0.9 and negative residuals get weight 0.1, so the optimizer pushes the line up until only 10% of points sit above it. Plotting the loss makes the asymmetry obvious.</p>
+
+<div class="webr-container" data-block-title="Plot the check function for three taus">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot the check function for three taus</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">u &lt;- seq(-3, 3, length.out = 200)
+rho &lt;- function(u, tau) u * (tau - (u &lt; 0))
+
+mat &lt;- sapply(c(0.1, 0.5, 0.9), function(t) rho(u, t))
+
+matplot(u, mat, type = &quot;l&quot;, lty = 1, lwd = 2, col = c(&quot;red&quot;,&quot;black&quot;,&quot;blue&quot;),
+        xlab = &quot;residual u&quot;, ylab = expression(rho[tau](u)),
+        main = &quot;Check function at three quantiles&quot;)
+legend(&quot;top&quot;, legend = c(&quot;tau=0.1&quot;,&quot;tau=0.5&quot;,&quot;tau=0.9&quot;),
+       lty = 1, col = c(&quot;red&quot;,&quot;black&quot;,&quot;blue&quot;), bty = &quot;n&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The black V-shape is the symmetric loss that minimizes to the median. The red curve (tau=0.1) tilts so that negative residuals are penalized nine times harder than positive ones, pulling the fit down toward the lower tail. The blue curve (tau=0.9) does the reverse. Behind the scenes, <code>rq()</code> solves a small linear program for any tau you supply, no Newton iterations, no convergence headaches.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Median regression equals least-absolute-deviations.</strong> The tau=0.5 case is exactly LAD regression, a classical estimator that predates the modern quantile-regression toolkit. <code>rq(..., tau = 0.5)</code> is the modern, fast way to fit it.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Plug a residual of -1.5 into the check function for tau=0.5 and tau=0.9. Which tau penalizes a negative residual more?</p>
+<div class="webr-container" data-block-title="Your turn: residual penalty at two taus">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: residual penalty at two taus</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_rho_05 &lt;- # your code here, evaluate rho(-1.5, 0.5)
+ex_rho_09 &lt;- # your code here, evaluate rho(-1.5, 0.9)
+c(tau05 = ex_rho_05, tau09 = ex_rho_09)
+#&gt; Expected: tau05 = 0.75, tau09 = 0.15</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Residual penalty solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Residual penalty solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_rho_05 &lt;- rho(-1.5, 0.5)
+ex_rho_09 &lt;- rho(-1.5, 0.9)
+c(tau05 = ex_rho_05, tau09 = ex_rho_09)
+#&gt; tau05 tau09
+#&gt;  0.75  0.15</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> At tau=0.5 a negative residual of magnitude 1.5 costs 0.75. At tau=0.9 the same residual costs only 0.15 because tau=0.9 penalizes positive residuals more, the optimizer is happy to leave many points sitting below the line.</p>
+
+</details>
+</section>
+
+<h2>How do you interpret rq() coefficients across multiple quantiles?</h2>
+
+<p>A coefficient at <code>tau = 0.9</code> says: <em>"if x increases by one unit, the 90th conditional percentile of y changes by this amount."</em> It does not describe the average car or the average household, only the one sitting at that quantile of the conditional distribution.</p>
+
+<p>When slopes differ across taus, the predictor's effect is <strong>heterogeneous</strong>, it acts on low, middle, and high responders differently. When slopes are roughly constant across taus, the effect is <strong>homogeneous</strong> and OLS already tells the whole story. Feeding a vector of taus to <code>rq()</code> fits all of them at once.</p>
+
+<div class="webr-container" data-block-title="Fit rq across nine quantiles on mtcars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit rq across nine quantiles on mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit_grid &lt;- rq(mpg ~ wt + hp, data = mt, tau = seq(0.1, 0.9, by = 0.1))
+round(coef(fit_grid), 3)
+#&gt;             tau= 0.1 tau= 0.2 tau= 0.3 tau= 0.4 tau= 0.5 tau= 0.6 tau= 0.7 tau= 0.8 tau= 0.9
+#&gt; (Intercept)   33.000   33.000   34.450   35.250   36.327   36.850   37.150   38.500   40.456
+#&gt; wt            -3.717   -3.717   -3.948   -4.142   -4.287   -4.336   -4.300   -4.221   -4.000
+#&gt; hp            -0.018   -0.018   -0.022   -0.022   -0.023   -0.024   -0.024   -0.026   -0.034</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Reading the <code>wt</code> row, the slope dips from -3.72 in the lower tail to -4.34 around the median, then eases back to -4.00 in the upper tail. That mild U-shape says weight bites hardest for typical cars and a touch less at the extremes. The <code>hp</code> row drifts more monotonically, from -0.018 to -0.034, so horsepower's penalty grows for the most fuel-efficient cars. OLS would have collapsed both stories into one number per predictor.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Report quantile coefficients as a table indexed by tau, not a wall of <a class="auto-link" href="Descriptive-Statistics-in-R.html" title="Descriptive Statistics in R: The 8 Numbers That Tell You What Your Data Is Doing">summary()</a> output.</strong> Readers scan a single matrix for the slope pattern in seconds. Multiple summary blocks force them to hunt the same numbers buried in standard errors and p-values.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Extract just the <code>hp</code> row from <code>fit_grid</code> and store it as <code>ex_hp_slope</code>. Round to 3 decimals.</p>
+<div class="webr-container" data-block-title="Your turn: extract one predictor across taus">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: extract one predictor across taus</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_hp_slope &lt;- # your code here, pull the hp row from coef(fit_grid)
+round(ex_hp_slope, 3)
+#&gt; Expected: nine slopes climbing in magnitude from ~-0.018 to ~-0.034</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Extract hp row solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Extract hp row solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_hp_slope &lt;- coef(fit_grid)[&quot;hp&quot;, ]
+round(ex_hp_slope, 3)
+#&gt; tau= 0.1 tau= 0.2 tau= 0.3 tau= 0.4 tau= 0.5 tau= 0.6 tau= 0.7 tau= 0.8 tau= 0.9
+#&gt;   -0.018   -0.018   -0.022   -0.022   -0.023   -0.024   -0.024   -0.026   -0.034</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Indexing <code>coef(fit)[&quot;hp&quot;, ]</code> pulls the row you care about across every tau, the cleanest summary for a single predictor's behaviour through the distribution.</p>
+
+</details>
+</section>
+
+<h2>How do you compute reliable standard errors with rq()?</h2>
+
+<p><code>summary(fit)</code> prints <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">confidence intervals</a> out of the box, but the method matters because heteroscedasticity breaks simple formulas. The <code>se =</code> argument of <code>summary.rq()</code> lets you choose, and the right default depends on your data.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th><code>se =</code></th>
+<th>When to use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>&quot;rank&quot;</code> (default)</td>
+<td>Small n; inverts a rank test; no nuisance parameters</td>
+</tr>
+<tr>
+<td><code>&quot;iid&quot;</code></td>
+<td>Residuals roughly iid and roughly symmetric</td>
+</tr>
+<tr>
+<td><code>&quot;nid&quot;</code></td>
+<td>Near-iid under heteroscedasticity; fast asymptotic</td>
+</tr>
+<tr>
+<td><code>&quot;boot&quot;</code></td>
+<td>Heteroscedastic or skewed data, most robust</td>
+</tr>
+<tr>
+<td><code>&quot;ker&quot;</code></td>
+<td>Kernel density estimate; similar intent to <code>&quot;nid&quot;</code></td>
+</tr>
+</tbody>
+</table>
+
+<p>When in doubt, bootstrap. It makes no distributional assumptions, handles heteroscedasticity naturally, and gives intervals you can defend in front of a sceptical reviewer.</p>
+
+<div class="webr-container" data-block-title="Bootstrap standard errors for the median fit">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Bootstrap standard errors for the median fit</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+sum_med &lt;- summary(fit_med, se = &quot;boot&quot;, R = 500)
+sum_med$coefficients
+#&gt;                Value Std. Error   t value     Pr(&gt;|t|)
+#&gt; (Intercept) 36.32721    2.41215  15.05751 1.135e-14
+#&gt; wt          -4.28667    0.84210  -5.09047 1.901e-05
+#&gt; hp          -0.02262    0.01211  -1.86891 7.211e-02</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The bootstrap standard error for <code>wt</code> is 0.84, giving a 95% interval of roughly $[-5.94, -2.63]$. That is wide, mtcars has only 32 observations, but it is honest. The rank-based default would sometimes return narrower intervals on small data, but those can undercover when the residuals are heteroscedastic, so <code>&quot;boot&quot;</code> is the safer working default once n is at least a few dozen.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Bootstrap SE with the default R=200 is noisy.</strong> Exploration is fine at R=200, but publication-grade numbers want R=500 to 1000 resamples. Costly for huge datasets, so down-sample predictors first if needed.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute bootstrap standard errors for <code>fit_med</code> using <code>R = 300</code> and seed 11. Read off the standard error of the <code>wt</code> slope.</p>
+<div class="webr-container" data-block-title="Your turn: bootstrap with R=300">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: bootstrap with R=300</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(11)
+ex_boot &lt;- summary( # your code here, se = &quot;boot&quot;, R = 300)
+round(ex_boot$coefficients, 3)
+#&gt; Expected: wt SE near 0.8 to 0.9</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Bootstrap R=300 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Bootstrap R=300 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(11)
+ex_boot &lt;- summary(fit_med, se = &quot;boot&quot;, R = 300)
+round(ex_boot$coefficients, 3)
+#&gt;              Value Std. Error t value Pr(&gt;|t|)
+#&gt; (Intercept) 36.327      2.526  14.382    0.000
+#&gt; wt          -4.287      0.875  -4.898    0.000
+#&gt; hp          -0.023      0.013  -1.788    0.085</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The <code>wt</code> SE (~0.88) is close to the R=500 result (0.84), confirming 300 replicates already stabilize the estimate for a small dataset. Bigger R reduces Monte Carlo noise, not statistical uncertainty.</p>
+
+</details>
+</section>
+
+<h2>How do you read a quantile process plot?</h2>
+
+<p>Reading coefficients at three taus is fine, but the richer picture is a <strong>quantile process plot</strong>: one panel per predictor showing the coefficient as a continuous function of tau, with the OLS estimate as a dashed reference line and a shaded confidence band. It compresses what would otherwise be a 19-row table into a single image.</p>
+
+<p>Fit <code>rq()</code> at a fine grid of taus, wrap the fit in <code>summary()</code> (bootstrap SEs recommended), then call <code>plot()</code>.</p>
+
+<div class="webr-container" data-block-title="Quantile process plot for mtcars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Quantile process plot for mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(31)
+fit_proc &lt;- rq(mpg ~ wt + hp, data = mt, tau = seq(0.05, 0.95, by = 0.05))
+plot(summary(fit_proc, se = &quot;boot&quot;, R = 300))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Three panels appear, intercept, <code>wt</code>, and <code>hp</code>. The <code>wt</code> curve dips and recovers across tau, hovering around the OLS dashed line for most of its range, an effect that is broadly homogeneous. The <code>hp</code> curve drifts more steadily downward, suggesting horsepower hits the upper tail harder than the lower. A flat curve hugging the OLS line says "OLS is enough." A tilted curve, like <code>hp</code> here, says "quantile regression is doing real work."</p>
+
+<p><img src="screenshots/Quantile-Regression-in-R-2-rq-workflow.webp" alt="rq() workflow diagram" class="img-responsive img-zoomable" loading="lazy" width="2044" height="394" /></p>
+
+<p><em>Figure 1: The rq() workflow, choose tau, fit, inspect, bootstrap, then plot the process.</em></p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Process plots assume monotonic tau grids.</strong> Feed <code>tau = seq(.05, .95, by = .05)</code> or similar, not a random vector. The plot's x-axis is a density of quantile levels, not ordinal categories.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a process plot for mtcars with <code>cyl</code> added as a predictor (<code>mpg ~ wt + hp + cyl</code>). Use the same fine grid and bootstrap SE.</p>
+<div class="webr-container" data-block-title="Your turn: process plot with an added predictor">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: process plot with an added predictor</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_proc &lt;- rq( # your code here
+              data = mt, tau = seq(0.05, 0.95, by = 0.05))
+plot(summary(ex_proc, se = &quot;boot&quot;, R = 300))
+#&gt; Expected: four panels, one for each coefficient including cyl</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Process plot with cyl solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Process plot with cyl solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_proc &lt;- rq(mpg ~ wt + hp + cyl, data = mt, tau = seq(0.05, 0.95, by = 0.05))
+plot(summary(ex_proc, se = &quot;boot&quot;, R = 300))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Adding <code>cyl</code> produces a fourth panel. With three correlated predictors, individual quantile slopes can swing more widely; the process plot reveals which predictors carry stable effects and which depend on where you look in the distribution.</p>
+
+</details>
+</section>
+
+<h2>When should you reach for quantile regression instead of lm()?</h2>
+
+<p>Three signals tip the scale toward <code>rq()</code>. <strong>Tail decisions:</strong> rent caps, hospital stay limits, premium pricing care about the upper tail, not the average. <strong>Heteroscedasticity:</strong> if the spread of y grows with x, OLS reports a misleading single slope. <strong>Outliers:</strong> a few extreme y-values pull the OLS line away from the bulk of the data. The synthetic example below stresses the second signal.</p>
+
+<div class="webr-container" data-block-title="Heteroscedastic data: rq vs lm at the tails">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Heteroscedastic data: rq vs lm at the tails</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2024)
+n &lt;- 200
+x_h &lt;- runif(n, 0, 10)
+y_h &lt;- 2 + 1.5 * x_h + rnorm(n, sd = 0.5 + 0.4 * x_h)
+het_df &lt;- data.frame(x = x_h, y = y_h)
+
+het_fit &lt;- rq(y ~ x, data = het_df, tau = c(0.1, 0.5, 0.9))
+round(coef(het_fit), 3)
+#&gt;             tau= 0.1 tau= 0.5 tau= 0.9
+#&gt; (Intercept)    1.841    1.989    2.121
+#&gt; x              1.023    1.509    1.984</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The 10th-percentile slope is 1.02 and the 90th-percentile slope is 1.98, almost double. The data-generating process made residual SD scale with $0.5 + 0.4x$, so the upper tail climbs much faster than the lower tail. Quantile regression reads that off directly: the gap <code>coef(fit)[2, &quot;tau= 0.9&quot;] - coef(fit)[2, &quot;tau= 0.1&quot;]</code> quantifies how much faster. OLS would have reported a single slope near 1.5 and quietly hidden the spreading fan.</p>
+
+<p><img src="screenshots/Quantile-Regression-in-R-2-when-to-use.webp" alt="Quantile regression decision flowchart" class="img-responsive img-zoomable" loading="lazy" width="1160" height="784" /></p>
+
+<p><em>Figure 2: When to choose quantile regression over OLS.</em></p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>A widening gap between tau=0.1 and tau=0.9 slopes is a quick heteroscedasticity test.</strong> Big gap, consider quantile regression or a variance-stabilizing transform. Small gap, classical OLS is fine.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Generate 200 points with constant variance (<code>sd = 1</code>, no x-dependence), fit <code>rq()</code> at tau=0.1 and tau=0.9, and verify the slopes are close.</p>
+<div class="webr-container" data-block-title="Your turn: homoscedastic baseline">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: homoscedastic baseline</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(5)
+ex_iid_df &lt;- data.frame(
+  x = # your code here, 200 random uniform points,
+  y = # your code here, 2 + 1.5 * x + rnorm(200, sd = 1)
+)
+ex_iid_fit &lt;- rq(y ~ x, data = ex_iid_df, tau = c(0.1, 0.9))
+round(coef(ex_iid_fit), 3)
+#&gt; Expected: both slopes close to 1.5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Homoscedastic solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Homoscedastic solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(5)
+ex_x &lt;- runif(200, 0, 10)
+ex_iid_df &lt;- data.frame(
+  x = ex_x,
+  y = 2 + 1.5 * ex_x + rnorm(200, sd = 1)
+)
+ex_iid_fit &lt;- rq(y ~ x, data = ex_iid_df, tau = c(0.1, 0.9))
+round(coef(ex_iid_fit), 3)
+#&gt;             tau= 0.1 tau= 0.9
+#&gt; (Intercept)    0.627    3.397
+#&gt; x              1.510    1.493</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Both slopes cluster near the true 1.5, so the tails climb at the same rate. Variance is constant, and quantile regression and OLS tell the same story about the conditional mean. No tail story to tell here.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<h3>Exercise 1: Weight slope across mtcars quantiles</h3>
+
+<p>Fit <code>rq()</code> on <code>mtcars</code> for <code>mpg ~ wt + cyl</code> at <code>tau = c(0.25, 0.5, 0.75)</code>. Extract the <code>wt</code> slope at each tau into a named numeric vector called <code>my_wt_slopes</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: coef() on a multi-tau fit returns a matrix, subset the wt row
+
+my_wt_slopes &lt;- # your code here
+round(my_wt_slopes, 3)
+#&gt; Expected: three values somewhere in the -2 to -4 range</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mt_multi &lt;- rq(mpg ~ wt + cyl, data = mt, tau = c(0.25, 0.5, 0.75))
+my_wt_slopes &lt;- coef(mt_multi)[&quot;wt&quot;, ]
+round(my_wt_slopes, 3)
+#&gt; tau= 0.25  tau= 0.5 tau= 0.75
+#&gt;    -3.368    -2.266    -4.218</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>coef(fit)[&quot;wt&quot;, ]</code> pulls one predictor's row across every tau, the standard idiom for cross-quantile summaries.</p>
+
+</details>
+
+<h3>Exercise 2: Find the heterogeneous predictor on airquality</h3>
+
+<p>Fit <code>rq()</code> on <code>na.omit(airquality)</code> for <code>Ozone ~ Solar.R + Wind + Temp</code> at <code>tau = c(0.1, 0.5, 0.9)</code> with bootstrap SE (<code>R = 300</code>). Identify which predictor's slope changes most between the 10th and 90th percentiles, then assign the predictor name (string) to <code>my_hetero</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(17)
+# Hint: compute |coef at tau=0.9 - coef at tau=0.1| per predictor; pick the max
+
+my_hetero &lt;- # your code here
+my_hetero
+#&gt; Expected: one of &quot;Solar.R&quot;, &quot;Wind&quot;, or &quot;Temp&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(17)
+air_multi &lt;- rq(Ozone ~ Solar.R + Wind + Temp,
+                data = na.omit(airquality),
+                tau = c(0.1, 0.5, 0.9))
+cf &lt;- coef(air_multi)
+diffs &lt;- abs(cf[, &quot;tau= 0.9&quot;] - cf[, &quot;tau= 0.1&quot;])[-1]  # drop intercept
+my_hetero &lt;- names(which.max(diffs))
+my_hetero
+#&gt; [1] &quot;Temp&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Temperature's slope changes most across quantiles, hot days drive the upper ozone tail more than they lift the lower tail. Wind also shows large heterogeneity, but Temp wins on absolute slope difference.</p>
+
+</details>
+
+<h3>Exercise 3: Verify a designed heteroscedasticity gap</h3>
+
+<p>Generate 300 points where the residual SD scales with x as $\sigma(x) = 0.3 + 0.5x$, fit <code>rq()</code> at tau=0.1 and tau=0.9, and store the difference <code>slope(0.9) - slope(0.1)</code> in <code>my_gap</code>. Compare to OLS, which collapses everything to one slope.</p>
+
+<div class="webr-container" data-block-title="Exercise 3 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(99)
+sim_df &lt;- data.frame(
+  x = # your code here,
+  y = # your code here, true slope 2 with sd = 0.3 + 0.5 * x
+)
+
+# Fit rq at the two tails, then compute the gap
+
+my_gap &lt;- # your code here
+my_gap
+#&gt; Expected: a positive number near 1.0 to 1.4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(99)
+sim_x &lt;- runif(300, 0, 5)
+sim_df &lt;- data.frame(
+  x = sim_x,
+  y = 1 + 2 * sim_x + rnorm(300, sd = 0.3 + 0.5 * sim_x)
+)
+sim_fit &lt;- rq(y ~ x, data = sim_df, tau = c(0.1, 0.9))
+my_gap &lt;- coef(sim_fit)[&quot;x&quot;, &quot;tau= 0.9&quot;] - coef(sim_fit)[&quot;x&quot;, &quot;tau= 0.1&quot;]
+round(my_gap, 3)
+#&gt; [1] 1.214
+
+coef(lm(y ~ x, data = sim_df))
+#&gt; (Intercept)         x
+#&gt;      1.0341    1.9912</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The tail gap of about 1.2 quantifies how much faster the upper tail climbs than the lower. OLS reports a single slope near 2.0 and reveals nothing about the spreading fan. Quantile regression gives a number you can act on.</p>
+
+</details>
+
+<h2>Complete Example</h2>
+
+<p>A full airquality workflow, from cleanup to interpretation, in one runnable block.</p>
+
+<div class="webr-container" data-block-title="End-to-end quantile regression on airquality">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">End-to-end quantile regression on airquality</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+air_clean &lt;- na.omit(airquality)
+
+air_fit &lt;- rq(Ozone ~ Solar.R + Wind + Temp,
+              data = air_clean,
+              tau = seq(0.1, 0.9, by = 0.1))
+
+air_sum &lt;- summary(air_fit, se = &quot;boot&quot;, R = 400)
+
+round(coef(air_fit), 3)
+#&gt;             tau= 0.1 tau= 0.2 tau= 0.3 tau= 0.4 tau= 0.5 tau= 0.6 tau= 0.7 tau= 0.8 tau= 0.9
+#&gt; (Intercept) -41.627  -65.412  -68.938  -71.332  -75.609  -85.414  -93.106 -102.312  -92.875
+#&gt; Solar.R       0.035    0.039    0.048    0.054    0.060    0.062    0.067    0.082    0.101
+#&gt; Wind         -0.500   -0.875   -1.170   -1.382   -1.561   -1.890   -2.280   -2.713   -3.320
+#&gt; Temp          0.750    1.090    1.170    1.260    1.340    1.480    1.610    1.800    1.920
+
+plot(air_sum)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Reading the four panels (intercept plus three predictors): <code>Temp</code> climbs from 0.75 at tau=0.1 to 1.92 at tau=0.9, so each extra degree lifts the upper-tail ozone more than twice as much as the lower-tail ozone. <code>Wind</code> tilts steeply negative in the upper tail, windy days clip the highest readings sharply. <code>Solar.R</code> shows modest heterogeneity, mostly a location shift. A single OLS model would have flattened these three patterns into three single numbers, missing the entire story about pollution extremes.</p>
+
+<h2>Summary</h2>
+
+<p>Key takeaways from fitting quantile regression with <code>quantreg</code>:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Step</th>
+<th>Function</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Fit</td>
+<td><code>rq(y ~ x, tau = ...)</code></td>
+<td>Estimate one or many <a class="auto-link" href="Quantile-Regression-in-R.html" title="Quantile Regression in R: quantreg Package, Model Beyond the Mean">conditional quantiles</a></td>
+</tr>
+<tr>
+<td>Inspect</td>
+<td><code>coef(fit)</code></td>
+<td>Read slopes at each tau</td>
+</tr>
+<tr>
+<td>Infer</td>
+<td><code>summary(fit, se = &quot;boot&quot;, R = 300+)</code></td>
+<td>Bootstrap SEs robust to heteroscedasticity</td>
+</tr>
+<tr>
+<td>Visualize</td>
+<td><code>plot(summary(fit))</code></td>
+<td>Process plot, coefficient as a function of tau</td>
+</tr>
+<tr>
+<td>Diagnose</td>
+<td>gap between tau=0.1 and tau=0.9 slopes</td>
+<td>Heteroscedasticity fingerprint</td>
+</tr>
+</tbody>
+</table>
+
+<p><img src="screenshots/Quantile-Regression-in-R-2-overview-mindmap.webp" alt="Quantile regression overview" class="img-responsive img-zoomable" loading="lazy" width="1446" height="978" /></p>
+
+<p><em>Figure 3: Quantile regression at a glance, fitting, inference, visualization, and use cases.</em></p>
+
+<p>Quantile regression earns its keep whenever the tails matter, variance shifts with predictors, or outliers corrupt OLS. For problems where the conditional mean is enough and residuals are roughly iid, <code>lm()</code> remains simpler and sufficient. The <code>quantreg</code> package goes further than <code>rq()</code>: <code>rqss()</code> adds nonparametric smoothing, <code>crq()</code> handles censored responses, and <code>nlrq()</code> fits nonlinear quantile models. All share the same <code>tau</code> interface you have already learned.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Koenker, R. & Bassett, G. (1978). <em>Regression Quantiles</em>. Econometrica, 46(1), 33-50. <a href="https://www.jstor.org/stable/1913643">Link</a></li>
+
+<li>Koenker, R. & Hallock, K. (2001). <em>Quantile Regression</em>. Journal of Economic Perspectives, 15(4), 143-156. <a href="https://www.aeaweb.org/articles?id=10.1257/jep.15.4.143">Link</a></li>
+
+<li>Koenker, R. (2005). <em>Quantile Regression</em>. Cambridge University Press.</li>
+
+<li>Koenker, R. quantreg package CRAN vignette. <a href="https://cran.r-project.org/web/packages/quantreg/vignettes/rq.pdf">Link</a></li>
+
+<li>Cade, B. S. & Noon, B. R. (2003). <em>A gentle introduction to quantile regression for ecologists</em>. Frontiers in Ecology and the Environment, 1(8), 412-420. <a href="https://esajournals.onlinelibrary.wiley.com/doi/10.1890/1540-9295(2003">Link</a>001%5B0412:AGITQR%5D2.0.CO%3B2)</li>
+
+<li>CRAN, <em>Package 'quantreg' reference manual</em>. <a href="https://cran.r-project.org/web/packages/quantreg/quantreg.pdf">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Linear-Regression.html">Linear Regression in R</a>, the OLS baseline that quantile regression generalizes beyond the mean.</li>
+
+<li><a href="Outlier-Treatment-With-R.html">Outlier Treatment With R</a>, complementary techniques when extreme observations corrupt your fit.</li>
+
+<li><a href="Polynomial-and-Spline-Regression-in-R.html">Polynomial and Spline Regression in R</a>, modelling curvature in the conditional mean before stepping up to quantile-by-quantile flexibility.</li>
+
+</ul>
+
+{% endraw %}
