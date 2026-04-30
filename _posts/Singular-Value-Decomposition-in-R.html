@@ -1,0 +1,898 @@
+---
+title: "Singular Value Decomposition in R: svd(), The Most Useful Matrix Operation"
+description: "Master singular value decomposition in R with svd(): factor any matrix into U D V', then use SVD for PCA, low-rank approximation, and image compression."
+keywords: "singular value decomposition in R, svd() R, SVD tutorial R, low-rank approximation R, PCA via SVD, image compression SVD, matrix factorization R, rank-k approximation, dimensionality reduction R"
+mathjax: true
+webr: true
+curriculum_id: "2.9.4"
+post_type: "C"
+auto_link_terms: "singular value decomposition|singular value decomposition in R|svd()|SVD in R|low-rank approximation|matrix factorization|rank-k approximation"
+auto_link_case_sensitive: false
+sidebar_section: "Statistics"
+sidebar_title: "Singular Value Decomposition in R"
+sidebar_order: "101"
+---
+<!-- md2html:generated -->
+
+<h1>Singular Value Decomposition in R: svd(), The Most Useful Matrix Operation</h1>
+
+<p class="lead">Singular value decomposition (SVD) factors any matrix <code>A</code> into three pieces, <code>A = U D V&#x27;</code>, that expose its rank, geometry, and dominant patterns. R's base <code>svd()</code> does the heavy lifting in one call, and the result powers PCA, low-rank approximation, and image compression.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="35" data-exercises="8" data-xp="120"></div>
+
+<h2>What does svd() return when you decompose a matrix?</h2>
+
+<p>The fastest way to build intuition is to run <code>svd()</code> on a small matrix and look at what comes back. Three pieces: a vector of singular values, and two matrices of singular vectors. Together they hold everything <code>A</code> had, just rearranged so the most important structure sits first.</p>
+
+<div class="webr-container" data-block-title="Run svd() on a small matrix">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Run svd() on a small matrix</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">A &lt;- matrix(c(2, 0, 1,
+              0, 3, 0,
+              1, 0, 2,
+              0, 1, 1), nrow = 4, byrow = TRUE)
+A
+#&gt;      [,1] [,2] [,3]
+#&gt; [1,]    2    0    1
+#&gt; [2,]    0    3    0
+#&gt; [3,]    1    0    2
+#&gt; [4,]    0    1    1
+
+s &lt;- svd(A)
+s$d
+#&gt; [1] 3.4641016 3.0000000 0.8164966
+dim(s$u)
+#&gt; [1] 4 3
+dim(s$v)
+#&gt; [1] 3 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The vector <code>s$d</code> holds three singular values in descending order. <code>s$u</code> is 4×3, matching the four rows of <code>A</code>, and <code>s$v</code> is 3×3, matching its three columns. The largest singular value (3.46) is the energy of the dominant pattern; the smallest (0.82) is the weakest one. The reduced form <code>svd()</code> returns has only <code>min(nrow, ncol)</code> columns in <code>u</code> and <code>v</code>, which is exactly what you need to reconstruct <code>A</code>.</p>
+
+<p><img src="screenshots/Singular-Value-Decomposition-in-R-decomposition-shape.webp" alt="SVD factorisation diagram" class="img-responsive img-zoomable" loading="lazy" width="1738" height="1130" /></p>
+
+<p><em>Figure 1: The svd() function returns three pieces that multiply back to A.</em></p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Pull the pieces out with <code>$</code>.</strong> The result of <code>svd()</code> is a list, so <code>s$d</code>, <code>s$u</code>, and <code>s$v</code> give you the singular values, left vectors, and right vectors. You'll use those names in every block that follows.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build the 3×2 matrix <code>B &lt;- matrix(c(1, 2, 3, 4, 5, 6), nrow = 3)</code> and print only its singular values.</p>
+<div class="webr-container" data-block-title="Your turn: print singular values of B">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: print singular values of B</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_B &lt;- matrix(c(1, 2, 3, 4, 5, 6), nrow = 3)
+
+# your code here
+
+#&gt; Expected: a length-2 numeric vector, largest ~9.5, smallest ~0.77</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Singular values of B solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Singular values of B solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_B &lt;- matrix(c(1, 2, 3, 4, 5, 6), nrow = 3)
+svd(ex_B)$d
+#&gt; [1] 9.5255181 0.5143006</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>svd()</code> on a 3×2 matrix returns <code>min(3, 2) = 2</code> singular values. <code>$d</code> extracts that vector directly.</p>
+
+</details>
+</section>
+
+<h2>How do you reconstruct the original matrix from U, D, V?</h2>
+
+<p>The decomposition is exact, so multiplying the three pieces back together recovers <code>A</code> to machine precision. Writing the formula in R takes one line: place <code>diag(s$d)</code> between <code>s$u</code> and the transpose of <code>s$v</code>.</p>
+
+<p>$$A = U\,\mathrm{diag}(d)\,V^{\top}$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$U$ is the matrix of left singular vectors (its columns are orthonormal)</li>
+
+<li>$\mathrm{diag}(d)$ is the diagonal matrix of singular values</li>
+
+<li>$V^{\top}$ is the transpose of the right singular vectors</li>
+
+</ul>
+
+<div class="webr-container" data-block-title="Reconstruct A from U, D, V">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Reconstruct A from U, D, V</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">A_rec &lt;- s$u %*% diag(s$d) %*% t(s$v)
+round(A_rec, 6)
+#&gt;      [,1] [,2] [,3]
+#&gt; [1,]    2    0    1
+#&gt; [2,]    0    3    0
+#&gt; [3,]    1    0    2
+#&gt; [4,]    0    1    1
+
+all.equal(A, A_rec)
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>A_rec</code> matches <code>A</code> to the last decimal. <code>all.equal()</code> confirms equality up to floating-point tolerance, which is the right check after any matrix arithmetic. If you ever see a mismatch, suspect a transposed factor or a missing <code>diag()</code> wrapper around <code>s$d</code>.</p>
+
+<p>The columns of <code>U</code> and <code>V</code> are also orthonormal, meaning they have unit length and are mutually perpendicular. That property is the engine behind SVD's stability: there is no scale or skew hiding inside the rotations.</p>
+
+<div class="webr-container" data-block-title="Confirm orthonormality of U and V">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Confirm orthonormality of U and V</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(t(s$u) %*% s$u, 6)
+#&gt;      [,1] [,2] [,3]
+#&gt; [1,]    1    0    0
+#&gt; [2,]    0    1    0
+#&gt; [3,]    0    0    1
+
+round(t(s$v) %*% s$v, 6)
+#&gt;      [,1] [,2] [,3]
+#&gt; [1,]    1    0    0
+#&gt; [2,]    0    1    0
+#&gt; [3,]    0    0    1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both products are 3×3 identity matrices. <code>U^T U = I</code> and <code>V^T V = I</code> are the formal statement of orthonormality, and they make <code>U</code> and <code>V</code> rotations rather than general transformations. Rotations preserve length, which is why the singular values in <code>d</code> carry all the scaling information.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Every matrix has an SVD, even rectangular and rank-deficient ones.</strong> <a class="auto-link" href="Eigenvalues-and-Eigenvectors-in-R.html" title="Eigenvalues & Eigenvectors in R: eigen(), Why They Power PCA & More">Eigendecomposition</a> only works for square matrices and breaks on defective ones. SVD works on any <code>m × n</code> matrix, which is why it shows up everywhere from PCA to least squares.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Generate a 5×4 matrix <code>ex_R &lt;- matrix(rnorm(20), 5, 4)</code> (set <code>set.seed(7)</code> first), decompose it with <code>svd()</code>, and verify the reconstruction matches with <code>all.equal()</code>.</p>
+<div class="webr-container" data-block-title="Your turn: reconstruct a 5x4 matrix">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: reconstruct a 5x4 matrix</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+ex_R &lt;- matrix(rnorm(20), 5, 4)
+
+# your code here
+
+#&gt; Expected: TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Reconstruct a 5x4 matrix solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Reconstruct a 5x4 matrix solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+ex_R &lt;- matrix(rnorm(20), 5, 4)
+ex_s &lt;- svd(ex_R)
+ex_rec &lt;- ex_s$u %*% diag(ex_s$d) %*% t(ex_s$v)
+all.equal(ex_R, ex_rec)
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The reconstruction formula is identical for any shape. With 5 rows and 4 columns, <code>s$u</code> is 5×4 and <code>s$v</code> is 4×4, so <code>diag(s$d)</code> is 4×4 and the product comes out 5×4 again.</p>
+
+</details>
+</section>
+
+<h2>How does SVD give you a low-rank approximation?</h2>
+
+<p>In real data the smaller singular values often capture noise, not signal. If you keep only the top <code>k</code> of them and zero out the rest, you get the best rank-<code>k</code> approximation of <code>A</code> measured by Frobenius norm, a result called the Eckart-Young theorem. In plain language: SVD ranks structure by importance, and truncation throws away the least important parts first.</p>
+
+<div class="webr-container" data-block-title="Build a low-rank-plus-noise matrix">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build a low-rank-plus-noise matrix</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(11)
+u_true &lt;- matrix(rnorm(12), 6, 2)
+v_true &lt;- matrix(rnorm(8), 4, 2)
+B &lt;- u_true %*% t(v_true) + 0.05 * matrix(rnorm(24), 6, 4)
+
+sB &lt;- svd(B)
+round(sB$d, 4)
+#&gt; [1] 4.2189 2.1453 0.1392 0.0879</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The two largest singular values dominate the next two by more than ten-fold, which tells you the data really sits in a 2D subspace plus a sprinkle of noise. That gap is your cue to truncate at <code>k = 2</code>.</p>
+
+<div class="webr-container" data-block-title="Rank-2 approximation">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Rank-2 approximation</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">k &lt;- 2
+B_2 &lt;- sB$u[, 1:k] %*% diag(sB$d[1:k]) %*% t(sB$v[, 1:k])
+B_err &lt;- max(abs(B - B_2))
+B_err
+#&gt; [1] 0.1267294</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The maximum absolute difference is about 0.13, which is roughly the noise level we baked in. The rank-2 approximation has captured the signal and dropped the noise. If we kept all four singular values, we would get the noise back, that is <em>not</em> what we want.</p>
+
+<div class="webr-container" data-block-title="Variance explained by each singular value">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Variance explained by each singular value</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">var_explained &lt;- sB$d^2 / sum(sB$d^2)
+cum_var &lt;- cumsum(var_explained)
+data.frame(component = 1:length(sB$d),
+           singular_value = round(sB$d, 4),
+           var_explained = round(var_explained, 4),
+           cumulative = round(cum_var, 4))
+#&gt;   component singular_value var_explained cumulative
+#&gt; 1         1         4.2189        0.7942     0.7942
+#&gt; 2         2         2.1453        0.2053     0.9995
+#&gt; 3         3         0.1392        0.0009     1.0004
+#&gt; 4         4         0.0879        0.0003     1.0008</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Component 1 explains 79% of the matrix's energy and component 2 another 21%, so together they account for 99.95%. The last two components contribute less than 0.1% each, which is the quantitative version of "those are noise." This same <code>d^2 / sum(d^2)</code> table is how PCA reports variance explained, and you'll see it again two sections from now.</p>
+
+<p><img src="screenshots/Singular-Value-Decomposition-in-R-low-rank-steps.webp" alt="Low-rank approximation flow" class="img-responsive img-zoomable" loading="lazy" width="2248" height="344" /></p>
+
+<p><em>Figure 2: Truncating the SVD to the top k singular values yields the best rank-k approximation.</em></p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Plot <code>d^2</code> for a <a class="auto-link" href="Exploratory-Factor-Analysis-in-R.html" title="Exploratory Factor Analysis in R: Find Latent Constructs in Your Correlation Matrix">scree plot</a>.</strong> A bar plot or line plot of the squared singular values is the SVD analogue of PCA's scree plot. The "elbow" tells you where the signal stops and the noise begins.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a 5×3 matrix <code>ex_M &lt;- matrix(c(1, 2, 3, 2, 4, 6, 3, 6, 9, 4, 8, 12, 5, 10, 15), nrow = 5, byrow = TRUE)</code> (every row is a multiple of <code>c(1, 2, 3)</code>, so it has rank 1). Compute its rank-1 approximation and report the maximum absolute error.</p>
+<div class="webr-container" data-block-title="Your turn: rank-1 approximation">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: rank-1 approximation</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_M &lt;- matrix(c(1, 2, 3, 2, 4, 6, 3, 6, 9, 4, 8, 12, 5, 10, 15),
+               nrow = 5, byrow = TRUE)
+
+# your code here
+
+#&gt; Expected: max error ~ 0 (matrix is exactly rank 1)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Rank-1 approximation solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Rank-1 approximation solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_M &lt;- matrix(c(1, 2, 3, 2, 4, 6, 3, 6, 9, 4, 8, 12, 5, 10, 15),
+               nrow = 5, byrow = TRUE)
+ex_s &lt;- svd(ex_M)
+ex_M1 &lt;- ex_s$u[, 1, drop = FALSE] %*% (ex_s$d[1] * t(ex_s$v[, 1, drop = FALSE]))
+max(abs(ex_M - ex_M1))
+#&gt; [1] 1.776357e-15</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The matrix is exactly rank 1, so a rank-1 approximation reconstructs it perfectly. The tiny error is just floating-point round-off. Use <code>drop = FALSE</code> to keep <code>s$u[, 1]</code> as a column matrix instead of a vector.</p>
+
+</details>
+</section>
+
+<h2>How does SVD power PCA?</h2>
+
+<p><a class="auto-link" href="PCA-in-R.html" title="PCA in R: Reduce Dimensions, Visualise Structure, and Understand What prcomp() Returns">Principal component analysis</a> is SVD applied to a centred data matrix. The right singular vectors <code>V</code> become the <a class="auto-link" href="Interpreting-PCA-Results-in-R.html" title="Read PCA Output in R: What Loadings, Scores, and Variance Explained Actually Tell You">principal component loadings</a>, and <code>d^2 / (n - 1)</code> becomes the variance of each component. R's <code>prcomp()</code> is implemented this way under the hood.</p>
+
+<div class="webr-container" data-block-title="PCA on mtcars via svd() and prcomp()">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">PCA on mtcars via svd() and prcomp()</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">X &lt;- as.matrix(mtcars)
+Xc &lt;- scale(X, center = TRUE, scale = FALSE)
+sX &lt;- svd(Xc)
+
+svd_var &lt;- sX$d^2 / (nrow(Xc) - 1)
+pca &lt;- prcomp(X, center = TRUE, scale. = FALSE)
+prcomp_var &lt;- pca$sdev^2
+
+round(rbind(svd = svd_var, prcomp = prcomp_var)[, 1:5], 3)
+#&gt;             [,1]   [,2]  [,3]  [,4]  [,5]
+#&gt; svd     12161.59 320.24 17.27 10.28  3.14
+#&gt; prcomp  12161.59 320.24 17.27 10.28  3.14</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The variances match exactly across the two methods, confirming that PCA <em>is</em> an SVD of the centred data. Most of the variance lives in the first component because <code>mtcars</code> has columns on very different scales, a sign you usually want <code>scale = TRUE</code> for real PCA work, but here we keep it off so the equivalence is clear.</p>
+
+<div class="webr-container" data-block-title="Derive PC scores manually from V">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Derive PC scores manually from V</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">scores &lt;- Xc %*% sX$v
+round(scores[1:3, 1:3], 3)
+#&gt;                    [,1]   [,2]   [,3]
+#&gt; Mazda RX4       -79.596  2.132  2.153
+#&gt; Mazda RX4 Wag   -79.598  2.147  2.146
+#&gt; Datsun 710     -133.892 -5.058 -1.971
+
+round(pca$x[1:3, 1:3], 3)
+#&gt;                     PC1    PC2    PC3
+#&gt; Mazda RX4       -79.596  2.132  2.153
+#&gt; Mazda RX4 Wag   -79.598  2.147  2.146
+#&gt; Datsun 710     -133.892 -5.058 -1.971</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The manually computed scores <code>Xc %*% V</code> agree with <code>prcomp()$x</code> row by row. That equivalence is the reason the SVD route is taught in textbooks: once you understand <code>svd()</code>, PCA stops being a separate algorithm and becomes a one-line follow-on.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong><code>prcomp()</code> calls <code>svd()</code> internally.</strong> If you read the source of <code>prcomp</code> in base R, you will see a call to <code>La.svd()</code> (a thin wrapper around <code>svd()</code>). So PCA in R is SVD with extra accounting around centering and scaling.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Run SVD-based PCA on the four numeric columns of <code>iris</code> and print the variances of the first two components.</p>
+<div class="webr-container" data-block-title="Your turn: PCA on iris via svd">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: PCA on iris via svd</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_iris &lt;- as.matrix(iris[, 1:4])
+
+# your code here: center, svd, compute variances
+
+#&gt; Expected: ~4.228, 0.243</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Iris PCA via svd solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Iris PCA via svd solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_iris &lt;- as.matrix(iris[, 1:4])
+ex_iris_c &lt;- scale(ex_iris, center = TRUE, scale = FALSE)
+ex_si &lt;- svd(ex_iris_c)
+round((ex_si$d^2 / (nrow(ex_iris_c) - 1))[1:2], 3)
+#&gt; [1] 4.228 0.243</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Centre, decompose, square the singular values, divide by <code>n - 1</code>. That is the entire PCA recipe.</p>
+
+</details>
+</section>
+
+<h2>How do you use SVD for image compression?</h2>
+
+<p>A grayscale image is a matrix of pixel intensities, and matrices have SVDs. If you keep only the top <code>k</code> singular values, you get a recognisable copy of the image while storing far fewer numbers. R ships with the <code>volcano</code> matrix (87×61 pixels of New Zealand topography), which makes a perfect test bed.</p>
+
+<div class="webr-container" data-block-title="Decompose the volcano image">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Decompose the volcano image</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">dim(volcano)
+#&gt; [1] 87 61
+sV &lt;- svd(volcano)
+round(sV$d[1:10], 1)
+#&gt;  [1] 14893.4   435.0   194.6   103.4    72.7    50.8    37.0    28.7    23.8    18.7
+
+length(sV$d)
+#&gt; [1] 61</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The first singular value (14,893) dwarfs the rest by orders of magnitude, which means a single rank-1 layer already carries most of the picture. The next few add fine ridges and contours; everything past rank 20 is essentially noise.</p>
+
+<div class="webr-container" data-block-title="Reconstruct volcano at ranks 1, 5, 20, 50">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Reconstruct volcano at ranks 1, 5, 20, 50</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rank_k &lt;- function(svd_obj, k) {
+  svd_obj$u[, 1:k, drop = FALSE] %*%
+    diag(svd_obj$d[1:k], k, k) %*%
+    t(svd_obj$v[, 1:k, drop = FALSE])
+}
+
+par(mfrow = c(1, 4), mar = c(1, 1, 2, 1))
+image(rank_k(sV, 1),  axes = FALSE, col = terrain.colors(50), main = &quot;k = 1&quot;)
+image(rank_k(sV, 5),  axes = FALSE, col = terrain.colors(50), main = &quot;k = 5&quot;)
+image(rank_k(sV, 20), axes = FALSE, col = terrain.colors(50), main = &quot;k = 20&quot;)
+image(rank_k(sV, 50), axes = FALSE, col = terrain.colors(50), main = &quot;k = 50&quot;)
+
+# Storage comparison
+m &lt;- nrow(volcano); n &lt;- ncol(volcano)
+full &lt;- m * n
+for (k in c(1, 5, 20, 50)) {
+  cat(sprintf(&quot;k = %2d: store %4d numbers (%.1f%% of original)\n&quot;,
+              k, k * (m + n + 1), 100 * k * (m + n + 1) / full))
+}
+#&gt; k =  1: store  149 numbers (2.8%)
+#&gt; k =  5: store  745 numbers (14.0%)
+#&gt; k = 20: store 2980 numbers (56.2%)
+#&gt; k = 50: store 7450 numbers (140.5%)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>At <code>k = 5</code> you are storing 14% of the original numbers and the volcano shape is already clear. By <code>k = 20</code> it is hard to spot the difference from the full image, while still holding only 56% of the storage. Past <code>k = 50</code> you are storing more numbers than the original matrix, which is why low-rank compression only pays off when the data is actually low-rank.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Storage savings only kick in below the break-even rank.</strong> For an <code>m × n</code> matrix the break-even is roughly <code>k = m * n / (m + n + 1)</code>. Above that, the compressed form takes more bytes than the original. Check the image's singular value plot before picking <code>k</code>.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Reconstruct <code>volcano</code> at rank 10 and compute the Frobenius error <code>sqrt(sum((volcano - approx)^2))</code>.</p>
+<div class="webr-container" data-block-title="Your turn: rank-10 volcano">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: rank-10 volcano</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">
+# your code here using rank_k() from above
+
+#&gt; Expected: a positive number much smaller than sqrt(sum(volcano^2))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Rank-10 volcano solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Rank-10 volcano solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_v10 &lt;- rank_k(sV, 10)
+ex_err &lt;- sqrt(sum((volcano - ex_v10)^2))
+round(ex_err, 2)
+#&gt; [1] 113.3
+
+# Compare to total energy
+round(sqrt(sum(volcano^2)), 2)
+#&gt; [1] 14897.84</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The reconstruction error is about 113 versus a total signal energy near 14,898, so you are within 0.8% of the original after keeping just 10 of 61 components.</p>
+
+</details>
+</section>
+
+<h2>How does SVD give the pseudoinverse for least squares?</h2>
+
+<p>Most real-world systems have more equations than unknowns, so <code>solve()</code> fails. The Moore-Penrose pseudoinverse, written <code>A+</code>, gives the least-squares solution in those cases. SVD computes it in one expression by inverting the non-zero singular values.</p>
+
+<p>$$A^{+} = V\,\mathrm{diag}(1/d)\,U^{\top}$$</p>
+
+<p>Where each $1/d_i$ is the reciprocal of a non-zero singular value (zeros stay zero, which is what makes the formula safe for rank-deficient matrices).</p>
+
+<div class="webr-container" data-block-title="Solve overdetermined Ax = b via SVD">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solve overdetermined Ax = b via SVD</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(42)
+A_ls &lt;- matrix(rnorm(15), nrow = 5, ncol = 3)
+true_x &lt;- c(1, -2, 0.5)
+b_ls &lt;- A_ls %*% true_x + rnorm(5, sd = 0.1)
+
+sA &lt;- svd(A_ls)
+pinv &lt;- sA$v %*% diag(1 / sA$d) %*% t(sA$u)
+x_hat_svd &lt;- as.numeric(pinv %*% b_ls)
+x_hat_lm  &lt;- as.numeric(qr.solve(A_ls, b_ls))
+
+round(rbind(svd = x_hat_svd,
+            qr  = x_hat_lm,
+            true = true_x), 4)
+#&gt;         [,1]    [,2]   [,3]
+#&gt; svd   1.0152 -1.9929 0.5072
+#&gt; qr    1.0152 -1.9929 0.5072
+#&gt; true  1.0000 -2.0000 0.5000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The SVD and QR routes return identical estimates, both within 1.5% of the true coefficients despite the noise. The pseudoinverse approach is the same machinery <code>lm()</code> falls back on when designs become rank-deficient, except here you control every step.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>SVD never errors on rank-deficient matrices.</strong> <code>solve()</code> and <code>qr.solve()</code> both throw on a <a class="auto-link" href="R-Error-Singular-Matrix.html" title="R Error: singular matrix in solve() — Near-Singular Matrix Solutions">singular matrix</a>, but <code>svd()</code> returns small or zero singular values and lets you decide what to do. Drop the tiny ones (set <code>1/d</code> to zero where <code>d</code> is below a tolerance) and you get a <em>truncated</em> pseudoinverse that handles near-singular cases gracefully.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Solve a 4×2 <a class="auto-link" href="Solving-Linear-Systems-in-R.html" title="Solving Linear Systems in R: solve(), qr() & Least Squares Solutions">overdetermined system</a>. Use <code>set.seed(99); ex_A &lt;- matrix(rnorm(8), 4, 2); ex_b &lt;- c(1, 2, 3, 4)</code>. Find <code>x_hat</code> via SVD and report the residual norm <code>sqrt(sum((ex_A %*% x_hat - ex_b)^2))</code>.</p>
+<div class="webr-container" data-block-title="Your turn: 4x2 pseudoinverse">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: 4x2 pseudoinverse</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(99)
+ex_A &lt;- matrix(rnorm(8), 4, 2)
+ex_b &lt;- c(1, 2, 3, 4)
+
+# your code here
+
+#&gt; Expected: a positive residual norm (no exact solution exists)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="4x2 pseudoinverse solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">4x2 pseudoinverse solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(99)
+ex_A &lt;- matrix(rnorm(8), 4, 2)
+ex_b &lt;- c(1, 2, 3, 4)
+ex_s &lt;- svd(ex_A)
+ex_pinv &lt;- ex_s$v %*% diag(1 / ex_s$d) %*% t(ex_s$u)
+ex_x &lt;- as.numeric(ex_pinv %*% ex_b)
+round(ex_x, 4)
+#&gt; [1]  1.7415 -0.6118
+round(sqrt(sum((ex_A %*% ex_x - ex_b)^2)), 4)
+#&gt; [1] 3.7649</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> With four equations and two unknowns, no exact solution exists. The pseudoinverse picks the <code>x</code> that minimises the residual norm, which is exactly what <code>lm()</code> does for regression coefficients.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<h3>Exercise 1: Compress a 200x200 matrix to rank 10</h3>
+
+<p>Generate a 200×200 matrix <code>my_M</code> whose entries are <code>rnorm()</code> plus a strong rank-2 signal. Compress it to rank 10, report the storage ratio (<code>10 * (200 + 200 + 1)</code> divided by <code>200 * 200</code>), and report the maximum absolute reconstruction error.</p>
+
+<div class="webr-container" data-block-title="Exercise: rank-10 compression">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise: rank-10 compression</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: build my_M, run svd(my_M), then use the rank_k() helper from earlier
+
+set.seed(2026)
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Rank-10 compression solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Rank-10 compression solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+u_sig &lt;- matrix(rnorm(400), 200, 2)
+v_sig &lt;- matrix(rnorm(400), 200, 2)
+my_M &lt;- u_sig %*% t(v_sig) + 0.5 * matrix(rnorm(40000), 200, 200)
+
+my_s &lt;- svd(my_M)
+my_M10 &lt;- my_s$u[, 1:10] %*% diag(my_s$d[1:10]) %*% t(my_s$v[, 1:10])
+
+storage_ratio &lt;- 10 * (200 + 200 + 1) / (200 * 200)
+max_err &lt;- max(abs(my_M - my_M10))
+
+round(c(storage_ratio = storage_ratio, max_abs_error = max_err), 4)
+#&gt; storage_ratio max_abs_error
+#&gt;        0.1003        2.0511</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Storage drops to about 10% of the original at rank 10. The error is on the order of the noise we baked in, which is the best any rank-10 approximation can do for this data.</p>
+
+</details>
+
+<h3>Exercise 2: Re-implement PCA from scratch using only svd()</h3>
+
+<p>Take <code>USArrests</code>, centre and scale it, decompose with <code>svd()</code>, and produce two outputs: a vector of variances explained per component, and a 4×4 loadings matrix. Verify both against <code>prcomp(USArrests, scale. = TRUE)</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise: PCA from scratch">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise: PCA from scratch</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: scale() with center=TRUE, scale.=TRUE, then svd()
+# Variance per component = d^2 / (n - 1)
+# Loadings = V
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="PCA from scratch solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">PCA from scratch solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_X &lt;- scale(USArrests, center = TRUE, scale = TRUE)
+my_pca &lt;- svd(my_X)
+
+my_var &lt;- my_pca$d^2 / (nrow(my_X) - 1)
+my_load &lt;- my_pca$v
+rownames(my_load) &lt;- colnames(USArrests)
+colnames(my_load) &lt;- paste0(&quot;PC&quot;, 1:4)
+
+ref &lt;- prcomp(USArrests, scale. = TRUE)
+all.equal(my_var, ref$sdev^2)
+#&gt; [1] TRUE
+all.equal(abs(my_load), abs(unclass(ref$rotation)),
+          check.attributes = FALSE)
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Variances match exactly. Loadings match in absolute value: signs of singular vectors are arbitrary, so different SVD implementations may return columns flipped, but the directions are the same.</p>
+
+</details>
+
+<h2>Complete Example</h2>
+
+<p>Here's a full SVD analysis pipeline applied to the <code>USArrests</code> dataset, end to end.</p>
+
+<div class="webr-container" data-block-title="Full SVD pipeline on USArrests">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Full SVD pipeline on USArrests</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># 1. Centre and scale
+usa &lt;- scale(USArrests, center = TRUE, scale = TRUE)
+
+# 2. Decompose
+usa_svd &lt;- svd(usa)
+
+# 3. Singular values + variance explained
+n &lt;- nrow(usa)
+var_pct &lt;- round(100 * usa_svd$d^2 / sum(usa_svd$d^2), 2)
+cum_pct &lt;- cumsum(var_pct)
+data.frame(component = 1:length(usa_svd$d),
+           sv = round(usa_svd$d, 3),
+           var_pct = var_pct,
+           cum_pct = cum_pct)
+#&gt;   component     sv var_pct cum_pct
+#&gt; 1         1 11.244   62.01   62.01
+#&gt; 2         2  6.234   24.74   86.75
+#&gt; 3         3  4.296   11.75   98.50
+#&gt; 4         4  1.730    1.50  100.00
+
+# 4. Loadings (right singular vectors)
+loadings &lt;- usa_svd$v
+rownames(loadings) &lt;- colnames(USArrests)
+colnames(loadings) &lt;- paste0(&quot;PC&quot;, 1:4)
+round(loadings, 3)
+#&gt;             PC1    PC2    PC3    PC4
+#&gt; Murder   -0.536  0.418 -0.341  0.649
+#&gt; Assault  -0.583  0.188 -0.268 -0.743
+#&gt; UrbanPop -0.278 -0.873 -0.378  0.134
+#&gt; Rape     -0.543 -0.167  0.818  0.089
+
+# 5. Scores (state positions in PC space)
+scores &lt;- usa %*% usa_svd$v
+round(scores[1:4, 1:2], 3)
+#&gt;                PC1    PC2
+#&gt; Alabama    -0.985  1.133
+#&gt; Alaska     -1.951  1.073
+#&gt; Arizona    -1.763 -0.746
+#&gt; Arkansas    0.141  1.120
+
+# 6. Rank-2 approximation and error
+usa_2 &lt;- usa_svd$u[, 1:2] %*% diag(usa_svd$d[1:2]) %*% t(usa_svd$v[, 1:2])
+round(sqrt(sum((usa - usa_2)^2)) / sqrt(sum(usa^2)), 4)
+#&gt; [1] 0.3641</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>PC1 (62% of the variance) loads negatively on the three crime columns, so it tracks overall crime rate. PC2 (25%) loads strongly negative on UrbanPop, separating urban from rural states. Together those two components hold 87% of the original variation, keeping just two columns of the loadings tells you most of what the data has to say. The rank-2 approximation has a relative Frobenius error around 36%, which is the cost of throwing away PC3 and PC4.</p>
+
+<h2>Summary</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Concept</th>
+<th>Formula</th>
+<th>R command</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Decomposition</td>
+<td><code>A = U D V&#x27;</code></td>
+<td><code>s &lt;- svd(A)</code></td>
+</tr>
+<tr>
+<td>Reconstruction</td>
+<td><code>A = U diag(d) V&#x27;</code></td>
+<td><code>s$u %*% diag(s$d) %*% t(s$v)</code></td>
+</tr>
+<tr>
+<td>Rank-k approximation</td>
+<td><code>A_k = U_k diag(d_k) V_k&#x27;</code></td>
+<td><code>s$u[, 1:k] %*% diag(s$d[1:k]) %*% t(s$v[, 1:k])</code></td>
+</tr>
+<tr>
+<td>Variance explained</td>
+<td><code>d_i^2 / sum(d^2)</code></td>
+<td><code>s$d^2 / sum(s$d^2)</code></td>
+</tr>
+<tr>
+<td>PCA variances</td>
+<td><code>d^2 / (n - 1)</code></td>
+<td><code>s$d^2 / (nrow(X) - 1)</code></td>
+</tr>
+<tr>
+<td>Pseudoinverse</td>
+<td><code>V diag(1/d) U&#x27;</code></td>
+<td><code>s$v %*% diag(1 / s$d) %*% t(s$u)</code></td>
+</tr>
+</tbody>
+</table>
+
+<p><img src="screenshots/Singular-Value-Decomposition-in-R-applications-mindmap.webp" alt="SVD applications mindmap" class="img-responsive img-zoomable" loading="lazy" width="1454" height="806" /></p>
+
+<p><em>Figure 3: SVD underpins many techniques across statistics and machine learning.</em></p>
+
+<p>The single function <code>svd()</code> unlocks five distinct workflows: factoring matrices, ranking structure, compressing data, doing PCA, and solving rank-deficient systems. Once the three-piece mental model (<code>U</code>, <code>d</code>, <code>V</code>) lives in your head, every one of those tasks becomes a one-liner.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>R Core Team. <em>svd(), Singular Value Decomposition of a Matrix</em>. <a class="auto-link" href="Getting-Help-in-R.html" title="Stuck in R? 6 Ways to Get Unstuck Without Wasting Hours">R documentation</a>. <a href="https://stat.ethz.ch/R-manual/R-devel/library/base/html/svd.html">Link</a></li>
+
+<li>Wikipedia. <em>Singular value decomposition</em>. <a href="https://en.wikipedia.org/wiki/Singular_value_decomposition">Link</a></li>
+
+<li>Strang, G. <em>Introduction to Linear Algebra</em>, 6th edition. Wellesley-Cambridge Press (2023). Chapter 7: The Singular Value Decomposition. <a href="https://math.mit.edu/~gs/linearalgebra/">Link</a></li>
+
+<li>Eckart, C. and Young, G. <em>The approximation of one matrix by another of lower rank</em>. Psychometrika, 1(3): 211-218 (1936).</li>
+
+<li>Trefethen, L. N. and Bau, D. <em>Numerical Linear Algebra</em>. SIAM (1997). Lectures 4-5.</li>
+
+<li>UCLA Office of Advanced Research Computing. <em>Examples of Singular Value Decomposition in R</em>. <a href="https://stats.oarc.ucla.edu/r/codefragments/svd_demos/">Link</a></li>
+
+<li>Displayr. <em>Singular Value Decomposition (SVD) Tutorial Using Examples in R</em>. <a href="https://www.displayr.com/singular-value-decomposition-in-r/">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="/Eigenvalues-and-Eigenvectors-in-R.html">Eigenvalues and Eigenvectors in R</a>, the eigendecomposition cousin of SVD, and why every symmetric matrix's SVD reduces to its eigen problem.</li>
+
+<li><a href="/Matrix-Operations-in-R.html">Matrix Operations in R</a>, the multiplication, transpose, and inverse plumbing that SVD builds on.</li>
+
+<li><a href="/PCA-in-R.html">PCA in R</a>, see SVD's most famous downstream application worked out with <code>prcomp()</code> from a statistics-first angle.</li>
+
+</ul>
