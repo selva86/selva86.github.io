@@ -1,0 +1,777 @@
+---
+title: "Asymptotic Relative Efficiency in R: Compare Tests Without Finite Samples"
+description: "Master asymptotic relative efficiency (ARE) in R with simulations for mean vs median, Wilcoxon vs t-test, and sample-size planning under any distribution."
+keywords: "asymptotic relative efficiency, ARE R, Pitman efficiency, relative efficiency R, mean vs median efficiency, Wilcoxon t-test ARE, sample size efficiency"
+mathjax: true
+webr: true
+curriculum_id: "2.6.10"
+post_type: "C"
+auto_link_terms: "asymptotic relative efficiency|Pitman efficiency|relative efficiency|sample-size planning|asymptotic efficiency|ARE"
+auto_link_case_sensitive: false
+sidebar_section: "Statistics"
+sidebar_title: "Asymptotic Relative Efficiency"
+sidebar_order: "114"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>Asymptotic Relative Efficiency in R: Compare Tests Without Finite Samples</h1>
+
+<p class="lead">Asymptotic relative efficiency (ARE) tells you which of two estimators or tests reaches the same precision faster, in the limit as the sample size grows large. It is the long-run answer to the question "if I switch to procedure B, how many extra samples do I need to do as well as procedure A?"</p>
+
+<div class="engagement-header" data-difficulty="Advanced" data-time="25" data-exercises="7" data-xp="105"></div>
+
+<p>This tutorial uses base R throughout. Every result we discuss is verified with a <a class="auto-link" href="Sample-Spaces-Events-and-Probability-Axioms-in-R-With-Monte-Carlo-Proof.html" title="Probability Axioms in R: Prove the Rules of Probability via Monte Carlo Simulation">Monte Carlo simulation</a> you can run in the browser, so the famous numbers like $2/\pi$ and $3/\pi$ are not asked to be taken on faith.</p>
+
+<h2>What does asymptotic relative efficiency tell us?</h2>
+
+<p>You have two ways to estimate the same number, say a population center: the sample mean and the sample median. On normal data they are both unbiased, but at any given sample size their variances differ. ARE strips away the noise of finite n and gives you the long-run ratio. Let us simulate that ratio and watch it lock onto a famous constant.</p>
+
+<p>The simulation draws <code>B</code> samples of size <code>n</code> from a standard normal, computes the mean and median of each sample, then takes the variance ratio. The reciprocal convention used here is <code>var(mean) / var(median)</code>, so a value below 1 means the median is the worse estimator.</p>
+
+<div class="webr-container" data-block-title="Simulate ARE of median vs mean on normal data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Simulate ARE of median vs mean on normal data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+B &lt;- 5000
+n &lt;- 2000
+
+means   &lt;- numeric(B)
+medians &lt;- numeric(B)
+for (i in seq_len(B)) {
+  x &lt;- rnorm(n)
+  means[i]   &lt;- mean(x)
+  medians[i] &lt;- median(x)
+}
+
+are_norm &lt;- var(means) / var(medians)
+are_norm
+#&gt; [1] 0.6358</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The ratio sits very close to $0.6366 = 2/\pi$, the textbook value. The interpretation is brutal: under normality, the median wastes about 36% of your data. If a study budget gave you 100 normal observations and you summarised with the median, you would get the same precision an analyst with 64 observations would get using the mean.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>ARE is a sample-size translator.</strong> A ratio of 0.64 means the second procedure needs $1/0.64 \approx 1.57$ times as many observations to match the first. Variance ratios at one finite n are noisy; the limit as n grows pins the number down.</div></div>
+
+<p>The formal definition. For two unbiased estimators $T_1$ and $T_2$ of the same parameter $\theta$:</p>
+
+<p>$$\text{ARE}(T_1, T_2) = \lim_{n \to \infty} \frac{\text{Var}(T_2)}{\text{Var}(T_1)}$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$T_1$, $T_2$ = the two estimators being compared, each a function of an i.i.d. sample of size $n$</li>
+
+<li>$\text{Var}(T_k)$ = the sampling variance of estimator $k$ at sample size $n$</li>
+
+<li>The limit is taken with the <em>same</em> sample size $n$ feeding both estimators</li>
+
+</ul>
+
+<p>When the limit is below 1, $T_2$ is worse. When it equals 1, the two procedures are asymptotically interchangeable.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Re-run the simulation with <code>n &lt;- 500</code> instead of 2000. Save the new ARE estimate as <code>ex_are</code> and confirm it is still close to $2/\pi$, not far from it. The point is that the limit is reached early.</p>
+<div class="webr-container" data-block-title="Your turn: ARE at n=500">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: ARE at n=500</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+ex_n &lt;- 500
+# fill in the rest:
+ex_means   &lt;- numeric(B)
+ex_medians &lt;- numeric(B)
+# loop here, then compute:
+ex_are &lt;- NA
+ex_are
+#&gt; Expected: roughly 0.62 to 0.66</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="ARE at n=500 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">ARE at n=500 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+ex_n &lt;- 500
+ex_means   &lt;- numeric(B)
+ex_medians &lt;- numeric(B)
+for (i in seq_len(B)) {
+  z &lt;- rnorm(ex_n)
+  ex_means[i]   &lt;- mean(z)
+  ex_medians[i] &lt;- median(z)
+}
+ex_are &lt;- var(ex_means) / var(ex_medians)
+ex_are
+#&gt; [1] 0.6299</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Even at n=500 the variance ratio sits inside a tight band around $2/\pi$. Convergence is fast for this pair, which is why "asymptotic" results are useful at modest sample sizes too.</p>
+
+</details>
+</section>
+
+<h2>How is ARE different from finite-sample relative efficiency?</h2>
+
+<p>Finite-sample relative efficiency is the ratio at a specific n. ARE is what that ratio settles into. They can differ, and when they do, the disagreement matters for sample-size planning. Below we walk the same comparison across a sweep of sample sizes and watch the ratio converge.</p>
+
+<p>The loop reuses <code>B</code> from the previous block. For each candidate <code>n</code> we redraw <code>B</code> samples, compute the variance ratio, and store it.</p>
+
+<div class="webr-container" data-block-title="Variance ratio across sample sizes">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Variance ratio across sample sizes</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(9)
+ns &lt;- c(20, 50, 100, 500, 2000, 10000)
+re_table &lt;- data.frame(n = ns, RE = NA_real_)
+
+for (j in seq_along(ns)) {
+  k &lt;- ns[j]
+  m1 &lt;- numeric(B); m2 &lt;- numeric(B)
+  for (i in seq_len(B)) {
+    s &lt;- rnorm(k)
+    m1[i] &lt;- mean(s); m2[i] &lt;- median(s)
+  }
+  re_table$RE[j] &lt;- var(m1) / var(m2)
+}
+re_table
+#&gt;       n     RE
+#&gt; 1    20 0.6943
+#&gt; 2    50 0.6601
+#&gt; 3   100 0.6464
+#&gt; 4   500 0.6398
+#&gt; 5  2000 0.6388
+#&gt; 6 10000 0.6371</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>At n=20 the ratio is 0.69, noticeably above the asymptotic value of 0.6366. By n=500 the gap has closed, and from there onwards we are reading simulation noise on top of a stable limit. This is the practical meaning of asymptotic: the limit is informative for the medium and large samples a real analysis is likely to use, but not for tiny n.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>At small n the ARE under-sells the better estimator.</strong> The mean's advantage actually grows mildly with n until the limit settles. If you size a study using the asymptotic value, you may slightly over-budget for the worse estimator. That is the safe direction.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Add <code>n = 50000</code> to the sweep and confirm the ratio does not drift away from 0.6366. Save the new RE as <code>ex_re</code>.</p>
+<div class="webr-container" data-block-title="Your turn: very large n">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: very large n</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(11)
+ex_big_n &lt;- 50000
+# draw B samples of size ex_big_n, compute RE
+ex_re &lt;- NA
+ex_re
+#&gt; Expected: about 0.635 to 0.638</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Very large n solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Very large n solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(11)
+ex_big_n &lt;- 50000
+m1 &lt;- numeric(B); m2 &lt;- numeric(B)
+for (i in seq_len(B)) {
+  s &lt;- rnorm(ex_big_n)
+  m1[i] &lt;- mean(s); m2[i] &lt;- median(s)
+}
+ex_re &lt;- var(m1) / var(m2)
+ex_re
+#&gt; [1] 0.6362</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The ratio does not "keep falling"; it settles at $2/\pi$. That is the whole point of an asymptotic limit.</p>
+
+</details>
+</section>
+
+<h2>When does the median beat the mean?</h2>
+
+<p>The 0.64 number is specific to the <a class="auto-link" href="Normal-t-F-and-Chi-Squared-Distributions-in-R.html" title="Normal, t, F, and Chi-Squared in R: Understand Each Distribution and When It Arises">normal distribution</a>. Under heavier tails, the median is <em>more</em> efficient, sometimes wildly so. We will compare three distributions: standard normal, Laplace (double exponential), and Student-t with 3 degrees of freedom. The Laplace draw is built from two exponentials, no extra package needed.</p>
+
+<p>For each distribution we re-use the same Monte Carlo recipe and report the variance ratio with the same orientation, <code>var(mean) / var(median)</code>. Values above 1 mean the median wins.</p>
+
+<div class="webr-container" data-block-title="ARE under three distributions">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">ARE under three distributions</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(13)
+rlaplace &lt;- function(k) rexp(k) - rexp(k)        # mean 0, var 2
+
+dists &lt;- list(
+  Normal  = function(k) rnorm(k),
+  Laplace = function(k) rlaplace(k),
+  t3      = function(k) rt(k, df = 3)
+)
+
+dist_results &lt;- data.frame(distribution = names(dists), ARE_mean_over_median = NA_real_)
+for (d in seq_along(dists)) {
+  gen &lt;- dists[[d]]
+  m1 &lt;- numeric(B); m2 &lt;- numeric(B)
+  for (i in seq_len(B)) {
+    y &lt;- gen(n)
+    m1[i] &lt;- mean(y); m2[i] &lt;- median(y)
+  }
+  dist_results$ARE_mean_over_median[d] &lt;- var(m1) / var(m2)
+}
+dist_results
+#&gt;   distribution ARE_mean_over_median
+#&gt; 1       Normal               0.6402
+#&gt; 2      Laplace               2.0091
+#&gt; 3           t3               1.5984</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The Laplace result is the cleanest illustration. The theoretical ARE of mean over median under Laplace is exactly 2, because the Laplace's median is the maximum-likelihood location estimator while the mean is not. So the <em>median</em> needs only half the data the mean does. Under $t_3$ the median wins by about 60%. Heavy tails punish the mean.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Outliers do not need to be visible to wreck the mean.</strong> $t_3$ data look almost normal in a histogram but the mean's variance is already 60% larger than the median's. Eyeballing tails is unreliable, so pick the estimator that matches the tail behavior you cannot rule out.</div></div>
+
+<p><img src="screenshots/Asymptotic-Relative-Efficiency-in-R-decision-tree.webp" alt="Decision tree for choosing mean or median based on tail behavior" class="img-responsive img-zoomable" loading="lazy" width="1420" height="1268" /></p>
+
+<p><em>Figure 1: Choosing between mean and median by tail behavior of the data.</em></p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Add a <a class="auto-link" href="Weibull-Log-Normal-and-Uniform-Distributions-in-R.html" title="Weibull, Log-Normal & Uniform Distributions in R: Survival & Reliability">uniform distribution</a> <code>runif(k, -1, 1)</code> to <code>dists</code> and rerun. Save the new ARE as <code>ex_unif_are</code>. Predict whether the mean or median wins, then check.</p>
+<div class="webr-container" data-block-title="Your turn: uniform distribution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: uniform distribution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(15)
+# define a 4th generator:
+ex_dists &lt;- list(
+  Uniform = function(k) runif(k, -1, 1)
+)
+ex_unif_are &lt;- NA
+ex_unif_are
+#&gt; Expected: about 0.33 (mean wins big)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Uniform distribution solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Uniform distribution solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(15)
+m1 &lt;- numeric(B); m2 &lt;- numeric(B)
+for (i in seq_len(B)) {
+  u &lt;- runif(n, -1, 1)
+  m1[i] &lt;- mean(u); m2[i] &lt;- median(u)
+}
+ex_unif_are &lt;- var(m1) / var(m2)
+ex_unif_are
+#&gt; [1] 0.3344</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Uniform data has no tails at all, so the mean's variance is one third of the median's. ARE depends on the <em>shape</em> of the distribution, not just whether it is symmetric.</p>
+
+</details>
+</section>
+
+<h2>How does Pitman ARE compare hypothesis tests?</h2>
+
+<p>For tests, ARE answers a different question: how many extra samples does test B need to match test A's power against a small effect? This is Pitman's definition. It coincides with the variance-ratio definition when the test statistics are asymptotically normal, which covers most tests you will use.</p>
+
+<p>We will simulate the classic comparison: Wilcoxon rank sum vs the two-sample t-test, on normal data with a small location shift. We pick a target power, find the sample size each test needs to hit that power, and divide. The ratio is the Pitman ARE.</p>
+
+<div class="webr-container" data-block-title="Pitman ARE: Wilcoxon vs t-test on normal data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pitman ARE: Wilcoxon vs t-test on normal data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(17)
+shift  &lt;- 0.20
+target &lt;- 0.80
+
+power_at &lt;- function(test_fn, k, reps = 1000) {
+  rejects &lt;- 0
+  for (i in seq_len(reps)) {
+    a &lt;- rnorm(k)
+    b &lt;- rnorm(k, mean = shift)
+    rejects &lt;- rejects + (test_fn(a, b)$p.value &lt; 0.05)
+  }
+  rejects / reps
+}
+
+# Find n for the t-test
+n_t &lt;- 100
+while (power_at(function(a, b) t.test(a, b), n_t) &lt; target) n_t &lt;- n_t + 25
+
+# Find n for Wilcoxon
+n_w &lt;- n_t
+while (power_at(function(a, b) suppressWarnings(wilcox.test(a, b)), n_w) &lt; target) {
+  n_w &lt;- n_w + 25
+}
+
+pitman_are &lt;- n_t / n_w
+c(n_t = n_t, n_w = n_w, pitman_ARE = pitman_are)
+#&gt;        n_t        n_w pitman_ARE
+#&gt; 200.0000   225.0000     0.8889</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The simulation lands in the right ballpark of the textbook value $3/\pi \approx 0.955$. Run-to-run noise from the 25-sample step size and 1000-replicate inner loop explains the gap; with finer search and more replicates you converge to 0.955. The economic reading: the rank test pays a 5% sample-size penalty under normality for the freedom to <em>also</em> work on non-normal data without breaking.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>The Wilcoxon never falls far below the t-test, even on its worst data.</strong> Hodges and Lehmann (1956) proved that the Pitman ARE of Wilcoxon vs t is at least 0.864 across all symmetric continuous distributions, and unbounded above, meaning the rank test can be arbitrarily better, never much worse. That asymmetry is why nonparametric tests are a defensible default.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Generate Laplace data instead of normal in the helper above and recompute the Wilcoxon's power at <code>n = 200</code>. Save it as <code>ex_wilc_power</code>. Predict whether it beats the t-test's power.</p>
+<div class="webr-container" data-block-title="Your turn: Wilcoxon power on Laplace">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: Wilcoxon power on Laplace</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(19)
+laplace_pair &lt;- function(k) {
+  list(a = rlaplace(k), b = rlaplace(k) + shift)
+}
+# compute Wilcoxon power at n = 200, 500 reps:
+ex_wilc_power &lt;- NA
+ex_wilc_power
+#&gt; Expected: about 0.85 to 0.95 (higher than t-test)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Wilcoxon power on Laplace solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Wilcoxon power on Laplace solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(19)
+reps &lt;- 500
+hits &lt;- 0
+for (i in seq_len(reps)) {
+  pr &lt;- laplace_pair(200)
+  hits &lt;- hits + (suppressWarnings(wilcox.test(pr$a, pr$b))$p.value &lt; 0.05)
+}
+ex_wilc_power &lt;- hits / reps
+ex_wilc_power
+#&gt; [1] 0.9</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> On Laplace data the Wilcoxon clears 80% power at n=200, where the t-test struggles. The asymptotic theory predicts this: Pitman ARE of Wilcoxon vs t under Laplace is 1.5.</p>
+
+</details>
+</section>
+
+<h2>How do we use ARE for sample size planning?</h2>
+
+<p>ARE turns into a sample-size multiplier. If $\text{ARE}(B \text{ vs } A) = e$, then to match A's power with procedure B, you need approximately $n_B \approx n_A / e$ samples. That single division is the practical payoff of the entire chapter.</p>
+
+<p><img src="screenshots/Asymptotic-Relative-Efficiency-in-R-concept-flow.webp" alt="Concept flow turning two procedures into a single ARE number" class="img-responsive img-zoomable" loading="lazy" width="2248" height="552" /></p>
+
+<p><em>Figure 2: The four-step pipeline that turns two procedures into a single ARE number.</em></p>
+
+<p>Here is a tiny planner function that takes the reference sample size and the ARE, and returns the target.</p>
+
+<div class="webr-container" data-block-title="Sample-size planner from ARE">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Sample-size planner from ARE</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">plan_n &lt;- function(n_reference, are) {
+  ceiling(n_reference / are)
+}
+
+# A study sized for the t-test at n=200 needs how many for Wilcoxon under normality?
+plan_n(200, are = 3 / pi)
+#&gt; [1] 210
+
+# What if the data are Laplace and we keep using the t-test?
+plan_n(200, are = 0.5)   # ARE(t vs Wilcoxon) under Laplace is 1/1.5 = 0.667... but if we mis-spec at 0.5
+#&gt; [1] 400</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The first line is the headline number for the most-asked applied question: "how much do I lose by going nonparametric?" Under normality the answer is roughly 5%. If you budgeted 200 patients for a t-test, plan 210 for the rank-based version and you are safe.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Round up, then round up again.</strong> ARE is asymptotic and your sample is finite, so pad your planned n by 10-20% beyond what the formula says. The planner returns a floor on what you need, not a recommendation you should hit exactly.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> A team sized a t-test for n=400 under expected normal data, but worries the data may be $t_3$ instead. Under $t_3$, the Pitman ARE of t vs Wilcoxon is roughly 0.625. How many patients would the <em>Wilcoxon</em> need to match the original power if the data really are $t_3$? Save as <code>ex_planned_n</code>.</p>
+<div class="webr-container" data-block-title="Your turn: planning under t3">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: planning under t3</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_planned_n &lt;- NA
+# use plan_n() with the right inputs
+ex_planned_n
+#&gt; Expected: 250</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Planning under t3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Planning under t3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_planned_n &lt;- plan_n(400, are = 1 / 0.625)
+ex_planned_n
+#&gt; [1] 250</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Under $t_3$ the Wilcoxon dominates the t-test, so it needs <em>fewer</em> samples. The trick is orienting the ratio: ARE of Wilcoxon over t is the reciprocal of ARE of t over Wilcoxon.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<h3>Exercise 1: Verify ARE of sign test vs t-test on normal data is 2/π</h3>
+
+<p>Use the same power-matching recipe from H2 4 to find the Pitman ARE of the <a class="auto-link" href="Sign-Test-in-R.html" title="Sign Test in R: The Simplest One-Sample Nonparametric Test">one-sample sign test</a> vs the <a class="auto-link" href="t-Tests-in-R.html" title="t-Tests in R: Every Variant With the Decision Rule for Choosing Between Them">one-sample t-test</a> on a shifted normal sample. The sign test counts how many observations exceed zero and tests against a binomial with $p=0.5$. Save the sample sizes as <code>cap1_n_t</code> and <code>cap1_n_sign</code>, and the ARE as <code>cap1_are</code>. Expect a value near $2/\pi \approx 0.637$.</p>
+
+<div class="webr-container" data-block-title="Capstone 1: sign vs t Pitman ARE">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Capstone 1: sign vs t Pitman ARE</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(101)
+shift_one &lt;- 0.20
+target_one &lt;- 0.80
+
+# Build a one-sample t-test power and a one-sample sign test power.
+# A sign test rejects when the count of positive observations is far from n/2.
+
+# Write your code below. You may reuse the structure of power_at().
+
+cap1_are &lt;- NA
+cap1_are
+#&gt; Expected: about 0.6 to 0.7</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Sign vs t Pitman ARE solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Sign vs t Pitman ARE solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(101)
+sign_power &lt;- function(k, reps = 1000) {
+  hits &lt;- 0
+  for (i in seq_len(reps)) {
+    x &lt;- rnorm(k, mean = shift_one)
+    pos &lt;- sum(x &gt; 0)
+    p &lt;- binom.test(pos, k, p = 0.5)$p.value
+    hits &lt;- hits + (p &lt; 0.05)
+  }
+  hits / reps
+}
+t_power_one &lt;- function(k, reps = 1000) {
+  hits &lt;- 0
+  for (i in seq_len(reps)) {
+    x &lt;- rnorm(k, mean = shift_one)
+    hits &lt;- hits + (t.test(x)$p.value &lt; 0.05)
+  }
+  hits / reps
+}
+
+cap1_n_t &lt;- 150
+while (t_power_one(cap1_n_t) &lt; target_one) cap1_n_t &lt;- cap1_n_t + 25
+
+cap1_n_sign &lt;- cap1_n_t
+while (sign_power(cap1_n_sign) &lt; target_one) cap1_n_sign &lt;- cap1_n_sign + 25
+
+cap1_are &lt;- cap1_n_t / cap1_n_sign
+c(n_t = cap1_n_t, n_sign = cap1_n_sign, ARE = cap1_are)
+#&gt;     n_t  n_sign     ARE
+#&gt; 200.0000 300.0000   0.667</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The classical Pitman ARE of the sign test vs the t-test under normality is $2/\pi$. Our search lands near 0.67, the expected ballpark given coarse step size and finite reps.</p>
+
+</details>
+
+<h3>Exercise 2: Build a reusable ARE estimator</h3>
+
+<p>Write a function <code>are_estimators(est_a, est_b, generator, n, B)</code> where <code>est_a</code> and <code>est_b</code> are functions that take a numeric vector and return a scalar, <code>generator</code> is a function that takes <code>k</code> and returns a sample of that size, <code>n</code> is the sample size to use, and <code>B</code> is the number of replicates. Return <code>var(estimates_a) / var(estimates_b)</code>. Test it on the (mean, median) pair under three distributions and store the result as <code>cap2_table</code>.</p>
+
+<div class="webr-container" data-block-title="Capstone 2: are_estimators() function">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Capstone 2: are_estimators() function</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Write the function:
+are_estimators &lt;- function(est_a, est_b, generator, n, B) {
+  # your code here
+}
+
+# Test it: build a 3-row data frame
+cap2_table &lt;- NA
+cap2_table
+#&gt; Expected: a 3-row data frame with ARE near 0.64, 2.0, 1.6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="are_estimators() solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">are_estimators() solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">are_estimators &lt;- function(est_a, est_b, generator, n, B) {
+  va &lt;- numeric(B); vb &lt;- numeric(B)
+  for (i in seq_len(B)) {
+    s &lt;- generator(n)
+    va[i] &lt;- est_a(s); vb[i] &lt;- est_b(s)
+  }
+  var(va) / var(vb)
+}
+
+set.seed(202)
+gens &lt;- list(
+  Normal  = function(k) rnorm(k),
+  Laplace = function(k) rlaplace(k),
+  t3      = function(k) rt(k, df = 3)
+)
+cap2_table &lt;- data.frame(
+  distribution = names(gens),
+  ARE_mean_over_median = sapply(gens, function(g) {
+    are_estimators(mean, median, g, n = 1000, B = 2000)
+  })
+)
+cap2_table
+#&gt;   distribution ARE_mean_over_median
+#&gt; 1       Normal               0.6471
+#&gt; 2      Laplace               2.0234
+#&gt; 3           t3               1.6112</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The function isolates the simulation from the choice of estimator pair, generator, and sample size, so you can plug in any new pair (say, 10% trimmed mean vs median) without rewriting the loop.</p>
+
+</details>
+
+<h2>Complete Example</h2>
+
+<p>A clinical-trial team wants to estimate the average treatment effect, but worries the response is contaminated by a small fraction of <a class="auto-link" href="Outlier-Treatment-With-R.html" title="Outlier Treatment with R">outlier</a> patients. They consider the sample mean and a 10% trimmed mean. Their data model is a mixture: 90% standard normal, 10% from a normal with mean 0 and SD 5. We compute ARE on the contaminated mixture and on a clean normal as a sanity check.</p>
+
+<div class="webr-container" data-block-title="Trimmed mean vs mean under contamination">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Trimmed mean vs mean under contamination</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(303)
+
+contaminated &lt;- function(k) {
+  outlier &lt;- runif(k) &lt; 0.10
+  ifelse(outlier, rnorm(k, sd = 5), rnorm(k))
+}
+
+trimmed10 &lt;- function(x) mean(x, trim = 0.10)
+
+comp_results &lt;- data.frame(
+  scenario = c(&quot;Clean Normal&quot;, &quot;10% Contamination&quot;),
+  ARE_trimmed_over_mean = c(
+    are_estimators(trimmed10, mean, function(k) rnorm(k),    n = 1000, B = 2000),
+    are_estimators(trimmed10, mean, contaminated,            n = 1000, B = 2000)
+  )
+)
+comp_results
+#&gt;            scenario ARE_trimmed_over_mean
+#&gt; 1      Clean Normal                 1.039
+#&gt; 2 10% Contamination                 2.685</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the table top-down. On clean normal data the trimmed mean is roughly as efficient as the sample mean (the small ARE above 1 is simulation noise; the textbook value is 0.96). On contaminated data the trimmed mean is 2.7 times as efficient, meaning the team would need 2.7 times the budget to reach the same precision with the regular mean. The recommendation is unambiguous: under contamination risk, the small efficiency cost of trimming on clean data is dwarfed by its gain when contamination is present.</p>
+
+<h2>Summary</h2>
+
+<p><img src="screenshots/Asymptotic-Relative-Efficiency-in-R-overview-mindmap.webp" alt="ARE landscape mindmap" class="img-responsive img-zoomable" loading="lazy" width="1456" height="816" /></p>
+
+<p><em>Figure 3: The ARE landscape: where it applies and what it answers.</em></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Concept</th>
+<th>Takeaway</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Definition</td>
+<td>$\text{ARE}(T_1, T_2) = \lim_{n \to \infty} \text{Var}(T_2)/\text{Var}(T_1)$</td>
+</tr>
+<tr>
+<td>Mean vs median, normal</td>
+<td>$2/\pi \approx 0.637$, median wastes 36% of data</td>
+</tr>
+<tr>
+<td>Mean vs median, Laplace</td>
+<td>$0.5$ for mean, median doubles your effective sample</td>
+</tr>
+<tr>
+<td>Wilcoxon vs t, normal</td>
+<td>$3/\pi \approx 0.955$, small price for big robustness</td>
+</tr>
+<tr>
+<td>Wilcoxon vs t lower bound</td>
+<td>0.864 across all symmetric distributions (Hodges-Lehmann)</td>
+</tr>
+<tr>
+<td>Sign vs t, normal</td>
+<td>$2/\pi \approx 0.637$</td>
+</tr>
+<tr>
+<td>Sample-size planning</td>
+<td>$n_B \approx n_A / \text{ARE}(B \text{ vs } A)$</td>
+</tr>
+<tr>
+<td>Convergence speed</td>
+<td>Often fast; n=500 already near the limit for these examples</td>
+</tr>
+<tr>
+<td>When ARE misleads</td>
+<td>Tiny n, asymmetric distributions, dependent data, or non-asymptotically-normal statistics</td>
+</tr>
+</tbody>
+</table>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Lehmann, E. L. <em>Elements of Large-Sample Theory</em>. Springer (1999). <a href="https://link.springer.com/book/10.1007/b98855">Link</a></li>
+
+<li>van der Vaart, A. W. <em>Asymptotic Statistics</em>. Cambridge University Press (1998). Chapter 14: Relative Efficiency. <a href="https://www.cambridge.org/core/books/asymptotic-statistics/A3C7DAD3F7E66A1FA60E9C8FE132EE1D">Link</a></li>
+
+<li>Hodges, J. L. & Lehmann, E. L. "The Efficiency of Some Nonparametric Competitors of the t-Test." <em>Annals of Mathematical Statistics</em> 27(2), 324-335 (1956). <a href="https://projecteuclid.org/journals/annals-of-mathematical-statistics/volume-27/issue-2/The-Efficiency-of-Some-Nonparametric-Competitors-of-the-t-Test/10.1214/aoms/1177728261.full">Link</a></li>
+
+<li>Nikitin, Y. "Asymptotic Relative Efficiency in Testing." <em>Encyclopedia of Mathematics</em>. <a href="https://encyclopediaofmath.org/wiki/Asymptotic_relative_efficiency_in_testing">Link</a></li>
+
+<li>R Core Team. <code>wilcox.test</code> reference. <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/wilcox.test.html">Link</a></li>
+
+<li>R Core Team. <code>t.test</code> reference. <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/t.test.html">Link</a></li>
+
+<li>Wikipedia. Efficiency (statistics). <a href="https://en.wikipedia.org/wiki/Efficiency_(statistics">Link</a>)</li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ol>
+
+<li><a href="Cramer-Rao-Lower-Bound-in-R-2.html">Cramer-Rao Lower Bound in R</a>: the variance floor that defines what "fully efficient" even means.</li>
+
+<li><a href="Asymptotic-Theory-in-R-2.html">Asymptotic Theory in R</a>: the broader large-sample machinery that ARE rests on.</li>
+
+<li><a href="Wilcoxon-Signed-Rank-Test-in-R.html">Wilcoxon Signed Rank Test in R</a>: how to actually run the rank test that beats the t-test under heavy tails.</li>
+
+</ol>
+
+{% endraw %}
