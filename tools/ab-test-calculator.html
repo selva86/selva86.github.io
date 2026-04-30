@@ -1,0 +1,2248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>A/B Test Calculator · r-statistics.co</title>
+<meta name="description" content="Plan and analyze A/B tests — sample size, frequentist significance, and Bayesian probability all in one place. Free, runs in your browser, with R code.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Serif:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<link rel="stylesheet" href="/css/main.min.css?h=6dc6f6d7">
+<style>
+  :root{
+    --c-text:#0d1117;--c-text-soft:#4a5160;--c-text-mute:#757a87;
+    --c-bg:#fafbfc;--c-bg-alt:#f1f3f6;--c-border:#d8dce2;--c-border-soft:#e8eaef;
+    --c-surface:#ffffff;--c-rule:#d8dce2;
+    --c-link:#1d3158;--c-accent:#1d3158;--c-accent-soft:rgba(29,49,88,0.07);--c-accent-deep:#0f1c3a;
+    --c-accent-line:rgba(29,49,88,0.20);
+    --c-success:#1f6f48;--c-success-soft:rgba(31,111,72,0.10);
+    --c-warn:#8b6500;--c-warn-soft:rgba(139,101,0,0.10);
+    --c-danger:#9b1d1d;--c-danger-soft:rgba(155,29,29,0.10);
+    --c-mono:#0d1117;
+    --c-violet:#4a3a8b;--c-violet-soft:rgba(74,58,139,0.08);
+    --shadow-sm:0 1px 2px rgba(13,17,23,0.04);
+    --shadow-md:0 1px 2px rgba(13,17,23,0.04),0 6px 24px rgba(13,17,23,0.045);
+    --shadow-lg:0 1px 3px rgba(13,17,23,0.05),0 12px 40px rgba(13,17,23,0.07);
+    --spring:cubic-bezier(0.34,1.32,0.64,1);--ease:cubic-bezier(0.4,0,0.2,1);
+    --ff-sans:'IBM Plex Sans',-apple-system,sans-serif;
+    --ff-serif:'IBM Plex Serif',Georgia,serif;--ff-mono:'IBM Plex Mono',monospace;
+  }
+  html.dark{
+    --c-text:#e8eaee;--c-text-soft:#b0b5bf;--c-text-mute:#6e7382;
+    --c-bg:#0c0d10;--c-bg-alt:#1a1d22;--c-border:#262a31;--c-border-soft:#1e2228;
+    --c-surface:#14161a;--c-rule:#262a31;
+    --c-link:#92a4d8;--c-accent:#92a4d8;--c-accent-soft:rgba(146,164,216,0.10);--c-accent-deep:#b3c4f0;
+    --c-accent-line:rgba(146,164,216,0.30);
+    --c-success:#7cb89a;--c-success-soft:rgba(124,184,154,0.12);
+    --c-warn:#d4a634;--c-warn-soft:rgba(212,166,52,0.12);
+    --c-danger:#e07b7b;--c-danger-soft:rgba(224,123,123,0.12);
+    --c-mono:#0a0d12;--c-violet-soft:rgba(146,124,200,0.12);
+    --shadow-md:0 1px 2px rgba(0,0,0,0.30),0 6px 24px rgba(0,0,0,0.35);
+  }
+  *,*::before,*::after{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--c-bg);color:var(--c-text);font-family:'IBM Plex Sans',-apple-system,sans-serif;font-size:16px;line-height:1.65}
+  @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:0.01ms!important;transition-duration:0.01ms!important}}
+
+  a{color:var(--c-link);text-decoration:none}
+  a:hover{text-decoration:underline}
+  code{font-family:'IBM Plex Mono',monospace;font-size:0.9em;background:var(--c-bg-alt);padding:1px 5px;border-radius:3px;color:var(--c-mono)}
+  kbd{font-family:'IBM Plex Mono',monospace;font-size:11px;background:var(--c-bg-alt);padding:1px 5px;border-radius:3px;border:1px solid var(--c-border)}
+  button{font-family:inherit}
+  input,select{font-family:inherit;font-size:inherit;color:inherit}
+
+  .container{max-width:980px;margin:0 auto;padding:0 22px}
+
+  /* ===== Masthead ===== */
+  .masthead{border-bottom:1px solid var(--c-border);padding:14px 0 10px;background:var(--c-bg);position:sticky;top:0;z-index:30;backdrop-filter:saturate(140%) blur(8px)}
+  .masthead-inner{display:flex;align-items:center;justify-content:space-between;gap:14px}
+  .site-title{font-weight:700;font-size:18px}
+  .site-title a{color:var(--c-link)}
+  .site-title small{color:var(--c-text-mute);margin-left:6px;font-size:11px;font-weight:400}
+  .masthead-right{display:flex;align-items:center;gap:8px}
+  .mh-btn{background:var(--c-bg-alt);border:1px solid var(--c-border);border-radius:8px;padding:6px 11px;font-size:13px;color:var(--c-text-soft);cursor:pointer;transition:all 0.2s var(--ease)}
+  .mh-btn:hover{background:var(--c-bg);transform:translateY(-1px);box-shadow:var(--shadow-sm)}
+
+  /* ===== Beginner switch ===== */
+  .beginner-switch{display:inline-flex;align-items:center;gap:8px;background:var(--c-bg-alt);border:1px solid var(--c-border);border-radius:6px;padding:5px 11px 5px 7px;font-size:12.5px;color:var(--c-text-soft);cursor:pointer;transition:all 0.2s var(--ease)}
+  .beginner-switch:hover{background:var(--c-bg);border-color:var(--c-text-mute)}
+  .beginner-switch .bs-pill{display:inline-block;width:26px;height:14px;background:var(--c-border);border-radius:99px;position:relative;transition:background 0.25s var(--ease)}
+  .beginner-switch .bs-pill::after{content:'';position:absolute;top:2px;left:2px;width:10px;height:10px;background:#fff;border-radius:50%;box-shadow:0 1px 2px rgba(0,0,0,0.15);transition:transform 0.3s var(--spring)}
+  .beginner-switch.on{color:var(--c-link);border-color:var(--c-link)}
+  .beginner-switch.on .bs-pill{background:var(--c-link)}
+  .beginner-switch.on .bs-pill::after{transform:translateX(12px)}
+
+  /* ===== Header ===== */
+  .breadcrumb{font-size:13px;color:var(--c-text-mute);margin:18px 0 6px}
+  .breadcrumb a{color:var(--c-text-mute)}
+  h1.tool-title{font-family:'IBM Plex Serif',Georgia,serif;font-weight:700;font-size:2.2em;line-height:1.15;margin:0 0 8px;letter-spacing:-0.012em}
+  .tool-meta{display:flex;gap:14px;flex-wrap:wrap;font-size:12.5px;color:var(--c-text-mute);margin-bottom:14px}
+  .tool-meta-item{display:inline-flex;align-items:center;gap:5px}
+  p.lead{font-size:1.05em;color:var(--c-text);font-weight:400;border-left:3px solid var(--c-accent);padding:2px 0 2px 16px;margin:14px 0 24px}
+
+  /* ===== Mode tabs ===== */
+  .mode-tabs{position:relative;display:grid;grid-template-columns:1fr 1fr;background:linear-gradient(180deg,rgba(255,255,255,0.5),rgba(244,246,249,0.85));border:1px solid rgba(15,23,42,0.06);border-radius:12px;padding:4px;margin-bottom:24px;box-shadow:var(--shadow-sm)}
+  html.dark .mode-tabs{background:linear-gradient(180deg,rgba(30,41,59,0.6),rgba(15,23,42,0.4));border-color:rgba(148,163,184,0.12)}
+  .mode-slider{position:absolute;top:4px;bottom:4px;left:4px;width:calc(50% - 4px);background:linear-gradient(180deg,#ffffff,#fafbfd);border:1px solid rgba(15,23,42,0.05);border-radius:9px;box-shadow:0 1px 1px rgba(15,23,42,0.04),0 4px 14px rgba(59,130,246,0.08);transition:transform 0.42s var(--spring);pointer-events:none}
+  html.dark .mode-slider{background:linear-gradient(180deg,#293548,#1e293b);border-color:rgba(148,163,184,0.18)}
+  .mode-tabs[data-mode="analyze"] .mode-slider{transform:translateX(100%)}
+  .mode-tab{position:relative;z-index:1;display:flex;align-items:center;justify-content:center;gap:8px;padding:11px 14px;background:none;border:none;cursor:pointer;font-size:14px;font-weight:500;color:var(--c-text-mute);transition:color 0.25s var(--ease)}
+  .mode-tab .mt-icon{width:16px;height:16px;color:var(--c-text-mute);transition:color 0.25s,transform 0.42s var(--spring)}
+  .mode-tabs[data-mode="plan"] .mode-tab[data-mode="plan"],
+  .mode-tabs[data-mode="analyze"] .mode-tab[data-mode="analyze"]{color:var(--c-text);font-weight:600}
+  .mode-tabs[data-mode="plan"] .mode-tab[data-mode="plan"] .mt-icon,
+  .mode-tabs[data-mode="analyze"] .mode-tab[data-mode="analyze"] .mt-icon{color:var(--c-accent);transform:scale(1.06)}
+  .mt-sub{font-size:11.5px;color:var(--c-text-mute);font-weight:400}
+
+  /* ===== Workshop — two-pane layout ===== */
+  .workshop{display:grid;grid-template-columns:360px 1fr;gap:0;border:1px solid var(--c-border);border-radius:10px;overflow:hidden;margin:0 0 22px;background:var(--c-bg)}
+  @media(max-width:880px){.workshop{grid-template-columns:1fr}}
+  .ws-inputs{background:var(--c-bg-alt);padding:22px 22px 24px;border-right:1px solid var(--c-border)}
+  @media(max-width:880px){.ws-inputs{border-right:none;border-bottom:1px solid var(--c-border)}}
+  .ws-output{padding:22px 26px 26px;background:var(--c-bg);min-width:0}
+  .ws-section-tag{font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--c-text-mute);margin:0 0 14px;display:block}
+
+  /* Form rows when inside a narrow input column */
+  .ws-inputs .form-row{display:flex;flex-direction:column;align-items:stretch;gap:4px;margin-bottom:14px;grid-template-columns:none}
+  .ws-inputs .form-row > .form-label{font-size:13px;font-weight:600;color:var(--c-text);margin-bottom:2px}
+  .ws-inputs .form-row > .form-label .form-help{font-size:11.5px;color:var(--c-text-mute);font-weight:400;margin-top:2px;line-height:1.45;display:block}
+  .ws-inputs .form-row > .form-control{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .ws-inputs .form-row > .form-control input,.ws-inputs .form-row > .form-control select{flex:1;min-width:0;padding:7px 10px;font-size:13.5px;border:1.5px solid var(--c-border);border-radius:6px;background:var(--c-bg);color:var(--c-text)}
+  .ws-inputs .form-row > .form-control input:focus,.ws-inputs .form-row > .form-control select:focus{outline:none;border-color:var(--c-accent);box-shadow:0 0 0 3px rgba(59,130,246,0.15)}
+  .ws-inputs .form-row > .form-toggle{flex:0 0 auto;display:inline-flex;background:var(--c-bg);border:1px solid var(--c-border);border-radius:5px;padding:1px;gap:0}
+  .ws-inputs .form-row > .form-toggle button{background:none;border:none;padding:4px 8px;font-size:11.5px;color:var(--c-text-mute);cursor:pointer;border-radius:3px;font-family:inherit}
+  .ws-inputs .form-row > .form-toggle button.on{background:var(--c-bg-alt);color:var(--c-text);font-weight:600}
+  .ws-inputs .form-row > .form-value{font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--c-link);text-align:left;font-weight:400;margin-top:1px;line-height:1.4}
+  .ws-inputs .form-row.row-derived::after{content:attr(data-derived);display:block;font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--c-text-mute);margin-top:3px;line-height:1.4;font-style:italic}
+
+  /* Output column tweaks — drop redundant card chrome */
+  .ws-output .live-summary{margin:0 0 14px}
+  .ws-output .result-card{background:transparent;border:none;border-radius:0;padding:0;margin:0 0 16px;box-shadow:none}
+  .ws-output .r-chunk-card{margin:14px 0}
+  .ws-output .chart-wrap{margin:14px 0 4px}
+
+  /* ===== Card (legacy, used outside workshop) ===== */
+  .card{background:var(--c-bg);border:1px solid var(--c-border-soft);border-radius:14px;padding:22px 24px;margin-bottom:18px;box-shadow:var(--shadow-sm)}
+  .card.input-card{background:linear-gradient(180deg,#fbfbfd,#f6f7fa);border-color:rgba(15,23,42,0.06)}
+  html.dark .card.input-card{background:linear-gradient(180deg,#1a2438,#1e293b)}
+  .card-title{font-family:'IBM Plex Serif',serif;font-size:18px;font-weight:600;margin:0 0 4px;letter-spacing:-0.005em}
+  .card-sub{font-size:13px;color:var(--c-text-mute);margin:0 0 16px}
+
+  /* ===== Form rows ===== */
+  .form-row{display:grid;grid-template-columns:200px 1fr 110px;gap:14px;align-items:center;margin-bottom:14px}
+  @media(max-width:680px){.form-row{grid-template-columns:1fr}}
+  .form-label{font-size:14px;font-weight:600;color:var(--c-text)}
+  .form-help{display:block;font-size:12px;color:var(--c-text-mute);font-weight:400;margin-top:2px;line-height:1.45}
+  .beginner-only{display:none}
+  body.beginner .beginner-only{display:block}
+  .form-control input[type="number"],.form-control input[type="text"]{width:100%;padding:9px 12px;border:1.5px solid var(--c-border);border-radius:8px;background:var(--c-bg);color:var(--c-text);font-size:14px;transition:border-color 0.2s,box-shadow 0.2s}
+  .form-control input:focus{outline:none;border-color:var(--c-accent);box-shadow:0 0 0 3px rgba(59,130,246,0.15)}
+  .form-control input.invalid{border-color:var(--c-danger)}
+  .form-control input.invalid:focus{box-shadow:0 0 0 3px rgba(220,38,38,0.15)}
+  .form-control select{padding:9px 12px;border:1.5px solid var(--c-border);border-radius:8px;background:var(--c-bg);color:var(--c-text);font-size:14px;cursor:pointer}
+  .form-value{font-family:'IBM Plex Mono',monospace;font-size:13.5px;color:var(--c-link);text-align:right;font-weight:500}
+  .form-row input[type="range"]{width:100%;accent-color:var(--c-accent)}
+  .form-toggle{display:inline-flex;background:var(--c-bg-alt);border:1px solid var(--c-border);border-radius:8px;padding:2px;gap:0}
+  .form-toggle button{background:none;border:none;padding:6px 12px;font-size:12.5px;color:var(--c-text-mute);cursor:pointer;border-radius:6px;transition:all 0.2s var(--ease)}
+  .form-toggle button.on{background:var(--c-bg);color:var(--c-text);font-weight:600;box-shadow:var(--shadow-sm)}
+
+  /* ===== Glossary tooltip ===== */
+  .glossary{border-bottom:1px dotted var(--c-text-mute);cursor:help;position:relative}
+  .glossary:hover .gloss-tip{opacity:1;pointer-events:auto;transform:translateX(-50%) translateY(0)}
+  .gloss-tip{position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%) translateY(4px);background:var(--c-mono);color:#fff;padding:10px 13px;border-radius:8px;font-size:12.5px;line-height:1.5;width:260px;opacity:0;pointer-events:none;transition:all 0.2s var(--ease);z-index:100;box-shadow:0 8px 24px rgba(0,0,0,0.2);font-weight:400}
+  .gloss-tip::after{content:'';position:absolute;top:100%;left:50%;margin-left:-6px;border:6px solid transparent;border-top-color:var(--c-mono)}
+  .gloss-tip strong{color:#fbbf24}
+  .gloss-tip a{color:#93c5fd;font-size:11.5px;display:block;margin-top:6px}
+
+  /* ===== Beginner walkthrough ===== */
+  .walkthrough{background:linear-gradient(135deg,var(--c-violet-soft),transparent);border:1px solid rgba(139,92,246,0.18);border-radius:12px;padding:14px 18px;margin-bottom:18px;font-size:13.5px;line-height:1.7}
+  .walkthrough summary{cursor:pointer;font-weight:600;color:var(--c-violet);list-style:none}
+  .walkthrough summary::before{content:'▸';display:inline-block;margin-right:8px;transition:transform 0.2s}
+  .walkthrough[open] summary::before{transform:rotate(90deg)}
+  .walkthrough ol{margin:8px 0 6px;padding-left:24px}
+  .walkthrough li{margin-bottom:4px}
+  .walkthrough button{background:var(--c-violet);color:#fff;border:none;padding:6px 14px;border-radius:7px;font-size:12.5px;font-weight:500;cursor:pointer;margin-top:8px;margin-right:6px;transition:all 0.2s var(--ease)}
+  .walkthrough button:hover{background:#7c3aed;transform:translateY(-1px);box-shadow:0 4px 12px rgba(139,92,246,0.3)}
+  .walkthrough button.secondary{background:transparent;color:var(--c-violet);border:1px solid rgba(139,92,246,0.3)}
+  .walkthrough button.secondary:hover{background:rgba(139,92,246,0.05)}
+
+  /* ===== Result card — console-output styled, editorial ===== */
+  .result-card{background:var(--c-bg);border:1px solid var(--c-border);border-top:3px solid var(--c-accent);border-radius:0 0 8px 8px;padding:24px 28px;margin-bottom:18px;position:relative}
+  html.dark .result-card{background:var(--c-bg-alt)}
+  .result-tag{display:inline-block;color:var(--c-accent);font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase}
+  .result-primary{display:flex;align-items:baseline;gap:14px;margin:8px 0 4px;flex-wrap:wrap;position:relative}
+  .result-primary::before{content:'▸';position:absolute;left:-22px;top:14px;font-family:'IBM Plex Mono',monospace;font-size:18px;color:var(--c-accent);font-weight:600;line-height:1}
+  @media(max-width:680px){.result-primary::before{display:none}}
+  .result-num{font-family:'IBM Plex Serif',Georgia,serif;font-size:46px;font-weight:600;color:var(--c-text);letter-spacing:-0.018em;line-height:1.05;transition:color 0.25s}
+  .result-num.warn{color:var(--c-warn)}
+  .result-num.ok{color:var(--c-success)}
+  .result-unit{font-size:17px;color:var(--c-text-mute);font-weight:400;font-family:'IBM Plex Mono',monospace}
+
+  /* ===== Live R chunk — code-cell styled, sits with inputs ===== */
+  .r-chunk-card{background:#1a2438;border:1px solid #2c3a55;border-radius:8px;padding:0;margin-bottom:18px;overflow:hidden;font-family:'IBM Plex Mono',monospace;color:#e2e8f0}
+  html.dark .r-chunk-card{background:#0e1726;border-color:#1e293b}
+  .r-chunk-head{display:flex;align-items:center;justify-content:space-between;padding:8px 14px;background:rgba(255,255,255,0.03);border-bottom:1px solid rgba(255,255,255,0.06);font-size:11px;color:#94a3b8;letter-spacing:0.06em;text-transform:uppercase}
+  .r-chunk-head .r-tag{color:#fbbf24;font-weight:700;letter-spacing:0.1em;font-size:10px;background:rgba(251,191,36,0.12);padding:2px 7px;border-radius:99px}
+  .r-chunk-head .r-actions{display:inline-flex;gap:6px}
+  .r-chunk-head .r-actions button{background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#cbd5e1;font-size:11px;padding:3px 10px;border-radius:4px;cursor:pointer;font-family:inherit;letter-spacing:0}
+  .r-chunk-head .r-actions button:hover{background:rgba(255,255,255,0.12)}
+  .r-chunk-head .r-actions button.copied{background:var(--c-success);color:#fff;border-color:transparent}
+  .r-chunk-body{padding:12px 16px;font-size:12.5px;line-height:1.7;overflow-x:auto;white-space:pre}
+  .r-chunk-body .keyword{color:#c084fc}
+  .r-chunk-body .string{color:#86efac}
+  .r-chunk-body .comment{color:#94a3b8;font-style:italic}
+  .r-chunk-body .number{color:#fdba74}
+  .r-chunk-body .fn{color:#7dd3fc}
+  .r-chunk-body .live{background:rgba(251,191,36,0.18);color:#fde68a;padding:0 3px;border-radius:2px}
+
+  /* ===== Console-style result block (used INSIDE result-card) ===== */
+  .console-out{font-family:'IBM Plex Mono',monospace;font-size:14px;line-height:1.7;color:var(--c-text);background:transparent;border-left:2px solid var(--c-border);padding:8px 0 8px 14px;margin:14px 0}
+  .console-out .co-prompt{color:var(--c-accent);margin-right:6px;font-weight:600}
+  .console-out .co-key{color:var(--c-text-mute);font-size:12.5px}
+  .console-out .co-val{color:var(--c-text);font-weight:500}
+
+  /* Form-value derived hints */
+  .form-value{font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:var(--c-text-mute);text-align:right;font-weight:400;line-height:1.4}
+  .form-value strong{color:var(--c-link);font-weight:500}
+  .result-desc{font-size:14px;color:var(--c-text-soft);margin:8px 0 0;line-height:1.55;max-width:560px}
+
+  .result-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:0;margin:18px 0;border-top:1px solid var(--c-border-soft);border-bottom:1px solid var(--c-border-soft)}
+  .result-stat{padding:12px 14px;border-right:1px solid var(--c-border-soft)}
+  .result-stat:last-child{border-right:none}
+  @media(max-width:680px){.result-stat{border-right:none;border-bottom:1px solid var(--c-border-soft)}.result-stat:last-child{border-bottom:none}}
+  .result-stat-label{font-size:11px;font-weight:600;letter-spacing:0.05em;color:var(--c-text-mute);text-transform:uppercase}
+  .result-stat-value{font-family:'IBM Plex Mono',monospace;font-size:17px;font-weight:500;color:var(--c-text);margin-top:4px}
+
+  .result-explainer{margin-top:14px}
+  .result-explainer summary{cursor:pointer;font-size:13px;color:var(--c-link);font-weight:500;padding:4px 0;list-style:none;display:inline-flex;align-items:center;gap:6px}
+  .result-explainer summary::before{content:'▸';font-size:10px;transition:transform 0.2s}
+  .result-explainer[open] summary::before{transform:rotate(90deg)}
+  body.beginner .result-explainer:not([open]) summary{color:var(--c-violet)}
+  .result-explainer-body{margin-top:8px;font-size:13.5px;color:var(--c-text-soft);line-height:1.65;background:rgba(255,255,255,0.4);padding:12px 14px;border-radius:8px;border-left:3px solid var(--c-accent)}
+  html.dark .result-explainer-body{background:rgba(15,23,42,0.4)}
+
+  /* ===== R code block ===== */
+  .r-code-block{margin-top:18px;background:var(--c-mono);color:#e2e8f0;border-radius:10px;padding:14px 18px;font-family:'IBM Plex Mono',monospace;font-size:12.5px;line-height:1.65;overflow-x:auto;position:relative}
+  .r-code-block::before{content:'R';position:absolute;top:8px;right:60px;font-size:9px;font-weight:700;letter-spacing:0.1em;color:#fbbf24;background:rgba(251,191,36,0.15);padding:2px 7px;border-radius:99px}
+  .r-code-block .copy-btn{position:absolute;top:6px;right:8px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.12);color:#cbd5e1;font-size:11px;padding:4px 10px;border-radius:6px;cursor:pointer;transition:all 0.2s var(--ease)}
+  .r-code-block .copy-btn:hover{background:rgba(255,255,255,0.16)}
+  .r-code-block .copy-btn.copied{background:var(--c-success);color:#fff;border-color:transparent}
+  .r-code-block .keyword{color:#c084fc}
+  .r-code-block .string{color:#86efac}
+  .r-code-block .comment{color:#94a3b8;font-style:italic}
+  .r-code-block .number{color:#fdba74}
+  .r-code-block .fn{color:#7dd3fc}
+
+  /* ===== Verdict box ===== */
+  .verdict{display:flex;align-items:flex-start;gap:12px;padding:14px 18px;border-radius:10px;margin:16px 0;border:1px solid transparent}
+  .verdict-icon{font-size:22px;line-height:1}
+  .verdict-body{flex:1}
+  .verdict-title{font-weight:600;font-size:14.5px;margin-bottom:2px}
+  .verdict-desc{font-size:13px;line-height:1.55;color:var(--c-text-soft)}
+  .verdict.success{background:var(--c-success-soft);border-color:rgba(22,163,74,0.25);color:#15803d}
+  html.dark .verdict.success{color:#86efac}
+  .verdict.warn{background:var(--c-warn-soft);border-color:rgba(245,158,11,0.25);color:#92400e}
+  html.dark .verdict.warn{color:#fcd34d}
+  .verdict.danger{background:var(--c-danger-soft);border-color:rgba(220,38,38,0.25);color:#991b1b}
+  html.dark .verdict.danger{color:#fca5a5}
+  .verdict.info{background:var(--c-accent-soft);border-color:rgba(59,130,246,0.25);color:#1e40af}
+  html.dark .verdict.info{color:#93c5fd}
+
+  /* ===== Sub-tabs (Frequentist / Bayesian) ===== */
+  .sub-tabs{display:inline-flex;background:var(--c-bg-alt);border:1px solid var(--c-border);border-radius:9px;padding:3px;gap:0;margin-bottom:14px}
+  .sub-tab{background:none;border:none;padding:7px 14px;font-size:13px;color:var(--c-text-mute);cursor:pointer;border-radius:7px;transition:all 0.2s var(--ease)}
+  .sub-tab.on{background:var(--c-bg);color:var(--c-text);font-weight:600;box-shadow:var(--shadow-sm)}
+
+  /* ===== Sensitivity chart wrapper ===== */
+  .chart-wrap{margin:14px 0 4px;height:240px;position:relative}
+  .chart-caption{font-size:12px;color:var(--c-text-mute);text-align:center;margin-top:6px;font-style:italic}
+
+  /* ===== Action row ===== */
+  .action-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px;padding-top:14px;border-top:1px solid var(--c-border-soft)}
+  .btn{display:inline-flex;align-items:center;gap:6px;padding:9px 16px;font-size:13.5px;font-weight:500;border-radius:8px;cursor:pointer;transition:all 0.2s var(--ease);border:1px solid transparent;font-family:inherit}
+  .btn:hover{transform:translateY(-1px)}
+  .btn-primary{background:var(--c-accent);color:#fff;border:none;box-shadow:0 1px 3px rgba(59,130,246,0.25)}
+  .btn-primary:hover{background:var(--c-accent-deep);box-shadow:0 6px 16px rgba(59,130,246,0.3)}
+  .btn-secondary{background:var(--c-bg);color:var(--c-text);border-color:var(--c-border)}
+  .btn-secondary:hover{background:var(--c-bg-alt);box-shadow:var(--shadow-sm)}
+  .btn-ghost{background:transparent;color:var(--c-text-mute);padding:9px 12px}
+  .btn-ghost:hover{color:var(--c-text);background:var(--c-bg-alt)}
+
+  /* ===== Editorial sections — semantically differentiated ===== */
+  .container{counter-reset:section}
+  h2.section-h{
+    display:flex;align-items:baseline;gap:14px;
+    font-family:'IBM Plex Serif',Georgia,serif;
+    font-size:1.4em;font-weight:600;letter-spacing:-0.012em;
+    margin:48px 0 18px;padding-bottom:10px;
+    border-bottom:1px solid var(--c-border);
+  }
+  h2.section-h::before{
+    counter-increment:section;
+    content:counter(section, decimal-leading-zero);
+    font-family:'IBM Plex Mono',monospace;
+    font-size:0.55em;font-weight:500;color:var(--c-text-mute);
+    letter-spacing:0.05em;
+    flex:0 0 auto;
+  }
+
+  /* Anatomy — math on left, prose on right */
+  .anatomy-step{
+    display:grid;grid-template-columns:minmax(220px,40%) 1fr;
+    gap:24px;align-items:baseline;
+    background:none;border:none;border-radius:0;
+    border-bottom:1px solid var(--c-border-soft);
+    padding:18px 0;margin:0;
+  }
+  .anatomy-step:last-child{border-bottom:none}
+  .anatomy-num{display:none}
+  .anatomy-formula{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:13.5px;line-height:1.65;
+    color:var(--c-text);
+    background:var(--c-bg-alt);
+    padding:14px 16px;border-radius:6px;
+    border-left:3px solid var(--c-accent);
+    overflow-x:auto;
+  }
+  .anatomy-body{font-size:14.5px;line-height:1.75;color:var(--c-text-soft)}
+  .anatomy-body strong{color:var(--c-text);font-weight:600}
+  .anatomy-body code{background:var(--c-bg-alt);padding:1px 6px;border-radius:3px;font-size:0.9em;color:var(--c-mono)}
+  @media(max-width:760px){.anatomy-step{grid-template-columns:1fr;gap:10px}}
+
+  /* When wrong — IF / USE comparative matrix */
+  dl.alt-list{
+    display:grid;grid-template-columns:minmax(200px,42%) 1fr;
+    gap:0;margin:18px 0 0;padding:0;
+    border-top:1px solid var(--c-border);
+  }
+  dl.alt-list .alt-header{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10.5px;letter-spacing:0.08em;text-transform:uppercase;
+    color:var(--c-text-mute);font-weight:700;
+    padding:10px 18px 10px 0;
+    border-bottom:1px solid var(--c-border);
+    margin:0;
+  }
+  dl.alt-list .alt-header.alt-header-right{
+    padding:10px 0 10px 20px;
+    border-left:1px solid var(--c-border-soft);
+  }
+  dl.alt-list dt{
+    color:var(--c-text);font-weight:500;font-size:13.5px;
+    padding:13px 18px 13px 0;
+    border-bottom:1px solid var(--c-border-soft);
+    border-right:1px solid var(--c-border-soft);
+    line-height:1.55;
+    margin:0;
+  }
+  dl.alt-list dd{
+    margin:0;color:var(--c-text-soft);font-size:13.5px;
+    padding:13px 0 13px 20px;
+    border-bottom:1px solid var(--c-border-soft);
+    line-height:1.55;
+  }
+  dl.alt-list dd a{font-weight:500}
+  dl.alt-list dt:nth-last-of-type(1),
+  dl.alt-list dd:nth-last-of-type(1){border-bottom:none}
+  @media(max-width:600px){
+    dl.alt-list{grid-template-columns:1fr}
+    dl.alt-list dt{border-right:none;padding-bottom:4px}
+    dl.alt-list dd{padding-left:0;padding-top:0;padding-bottom:13px}
+    dl.alt-list .alt-header.alt-header-right{display:none}
+  }
+
+  /* Further reading — bibliography style */
+  ul.further-list{list-style:none;padding:0;margin:18px 0 0}
+  ul.further-list li{
+    background:none;border:none;border-radius:0;
+    padding:9px 0;margin:0;
+    font-size:14.5px;line-height:1.7;color:var(--c-text-soft);
+  }
+  ul.further-list li a{
+    font-family:'IBM Plex Serif',Georgia,serif;
+    font-style:italic;font-weight:500;color:var(--c-link);
+  }
+  ul.further-list li a:hover{text-decoration:underline}
+
+  /* ===== Cross-tool CTAs ===== */
+  .next-tool{display:inline-flex;align-items:center;gap:6px;background:transparent;border:1px solid var(--c-border);color:var(--c-link);padding:7px 13px;border-radius:6px;font-size:13px;font-weight:500;text-decoration:none;transition:all 0.2s var(--ease);cursor:pointer;font-family:inherit}
+  .next-tool:hover{background:var(--c-bg-alt);border-color:var(--c-link);text-decoration:none}
+
+  /* ===== Toast ===== */
+  .toast-area{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);z-index:200;display:flex;flex-direction:column;gap:6px;align-items:center}
+  .toast{background:var(--c-mono);color:#fff;padding:9px 18px;border-radius:99px;font-size:13px;animation:toastIn 0.3s var(--spring),toastOut 0.3s var(--ease) 2.7s forwards;box-shadow:0 8px 24px rgba(0,0,0,0.2)}
+  @keyframes toastIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+  @keyframes toastOut{to{opacity:0;transform:translateY(8px)}}
+
+  /* ===== Number animation — smoother subtle ease ===== */
+  @keyframes numberPulse{
+    0%{transform:translateY(0);opacity:1}
+    25%{transform:translateY(-2px);opacity:0.85}
+    100%{transform:translateY(0);opacity:1}
+  }
+  .result-num.changing{animation:numberPulse 0.42s var(--ease)}
+
+  /* ===== "Live" pulse on the result tag — signals recompute ===== */
+  @keyframes liveDot{
+    0%{box-shadow:0 0 0 0 rgba(34,197,94,0.6)}
+    70%{box-shadow:0 0 0 6px rgba(34,197,94,0)}
+    100%{box-shadow:0 0 0 0 rgba(34,197,94,0)}
+  }
+  .result-tag{display:inline-flex;align-items:center;gap:7px}
+  .result-tag::before{content:'';display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--c-success);transition:background 0.3s}
+  .result-tag.flash::before{animation:liveDot 0.9s var(--ease)}
+
+  /* ===== Stat grid hierarchy — first stat is primary ===== */
+  .result-stat:first-child{background:var(--c-accent-soft);position:relative}
+  .result-stat:first-child .result-stat-label{color:var(--c-link)}
+  .result-stat:first-child .result-stat-value{color:var(--c-link);font-weight:600;font-size:19px}
+  html.dark .result-stat:first-child{background:rgba(59,130,246,0.10)}
+
+  /* ===== Keyboard hint pill (in masthead) ===== */
+  .kbd-hint{display:inline-flex;align-items:center;gap:5px;background:var(--c-bg-alt);border:1px solid var(--c-border);border-radius:6px;padding:4px 8px;font-size:11.5px;color:var(--c-text-mute);cursor:pointer;font-family:inherit}
+  .kbd-hint:hover{background:var(--c-bg);color:var(--c-text);border-color:var(--c-text-mute)}
+  .kbd-hint kbd{background:var(--c-bg);border:1px solid var(--c-border);border-radius:3px;padding:1px 5px;font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--c-text);box-shadow:0 1px 0 var(--c-border)}
+
+  /* ===== Shortcuts overlay ===== */
+  .kbd-overlay{position:fixed;inset:0;background:rgba(15,23,42,0.5);display:none;align-items:center;justify-content:center;z-index:300;backdrop-filter:blur(2px)}
+  .kbd-overlay.show{display:flex}
+  .kbd-overlay-card{background:var(--c-bg);border:1px solid var(--c-border);border-radius:10px;padding:22px 26px;max-width:440px;box-shadow:0 20px 60px rgba(0,0,0,0.25)}
+  .kbd-overlay h3{font-family:'IBM Plex Serif',serif;font-size:16px;font-weight:600;margin:0 0 14px}
+  .kbd-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;font-size:13.5px;border-bottom:1px solid var(--c-border-soft)}
+  .kbd-row:last-of-type{border-bottom:none}
+  .kbd-row-action{color:var(--c-text-soft)}
+  .kbd-row-keys{display:inline-flex;gap:4px}
+  .kbd-row-keys kbd{background:var(--c-bg-alt);border:1px solid var(--c-border);border-radius:3px;padding:2px 7px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--c-text);box-shadow:0 1px 0 var(--c-border)}
+  .kbd-overlay-close{margin-top:14px;font-size:11.5px;color:var(--c-text-mute);text-align:center}
+
+  /* ===== Copy button feedback ===== */
+  .check-anim{display:inline-block;animation:checkPop 0.4s var(--spring)}
+  @keyframes checkPop{0%{transform:scale(0)}60%{transform:scale(1.2)}100%{transform:scale(1)}}
+
+  /* ===== Worked examples — horizontal tabs ===== */
+  .scenarios-section{margin:0 0 22px;border-bottom:1px solid var(--c-border)}
+  .scenarios-label{font-family:'IBM Plex Sans',sans-serif;font-size:11.5px;font-weight:600;color:var(--c-text-mute);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px}
+  .scenarios-row{display:flex;flex-wrap:wrap;gap:0;list-style:none;padding:0;margin:0}
+  .scenario-card{display:inline-flex;align-items:center;padding:9px 14px;background:transparent;border:none;border-bottom:2px solid transparent;border-radius:0;cursor:pointer;font-family:inherit;font-size:13px;font-weight:500;color:var(--c-text-mute);transition:all 0.15s var(--ease);margin-bottom:-1px}
+  .scenario-card::before{display:none}
+  .scenario-card:hover{color:var(--c-text)}
+  .scenario-card.active{color:var(--c-link);border-bottom-color:var(--c-accent);font-weight:600}
+  .scenario-icon,.scenario-desc{display:none}
+  .scenario-card>div,.scenario-body{display:inline}
+  .scenario-name{font-size:13px;font-weight:inherit;color:inherit;white-space:nowrap}
+
+  /* ===== Pre-flight checklist ===== */
+  .preflight{background:var(--c-bg-alt);border:1px solid var(--c-border);border-radius:8px;padding:14px 18px;margin-bottom:18px;font-size:13.5px}
+  .preflight summary{cursor:pointer;font-weight:600;color:var(--c-text);list-style:none;display:flex;align-items:center;gap:8px}
+  .preflight summary::before{content:'▸';font-size:11px;transition:transform 0.2s}
+  .preflight[open] summary::before{transform:rotate(90deg)}
+  .preflight-progress{margin-left:auto;font-size:11.5px;font-family:'IBM Plex Mono',monospace;color:var(--c-text-mute);font-weight:500}
+  .preflight-list{margin:10px 0 4px;padding-left:24px;list-style:decimal;color:var(--c-text-soft)}
+  .preflight-list li{padding:6px 0;line-height:1.55;font-size:13.5px}
+  .preflight-list li strong{color:var(--c-text);font-weight:600}
+  .preflight-list li small{display:block;color:var(--c-text-mute);font-size:12.5px;margin-top:2px;line-height:1.5}
+  .preflight-prose{margin:14px 0 4px;color:var(--c-text-soft);font-size:13.5px;line-height:1.7}
+  .preflight-prose p{margin:0 0 12px}
+  .preflight-prose p:last-child{margin-bottom:0}
+  .preflight-prose strong{color:var(--c-text);font-weight:600}
+  .preflight-prose code{background:var(--c-bg);padding:1px 5px;border-radius:3px;color:var(--c-mono);font-size:0.92em}
+  .preflight-prose .pf-heading{display:block;font-family:'IBM Plex Sans',sans-serif;font-size:11.5px;font-weight:700;color:var(--c-text);text-transform:uppercase;letter-spacing:0.06em;margin-top:18px;margin-bottom:6px}
+  .preflight-prose .pf-heading:first-child{margin-top:4px}
+
+  /* ===== Live plain-English summary — editorial pull-quote style ===== */
+  .live-summary{background:transparent;border:none;border-left:3px solid var(--c-accent);padding:4px 0 4px 16px;margin:0 0 16px;font-size:1.05em;line-height:1.65;color:var(--c-text);font-family:'IBM Plex Serif',Georgia,serif;font-weight:400;letter-spacing:-0.003em}
+  .live-summary strong{color:var(--c-text);font-weight:600}
+
+  /* ===== Decision card (Analyze) — flat tints, editorial ===== */
+  .decision-card{padding:18px 22px;border-radius:8px;margin-bottom:18px;display:flex;align-items:flex-start;gap:14px;border:1px solid;border-left-width:4px;position:relative}
+  .decision-card.ship{background:var(--c-success-soft);border-color:#16a34a;color:#14532d}
+  html.dark .decision-card.ship{background:rgba(22,163,74,0.10);color:#86efac}
+  .decision-card.wait{background:var(--c-warn-soft);border-color:#d97706;color:#78350f}
+  html.dark .decision-card.wait{background:rgba(245,158,11,0.10);color:#fcd34d}
+  .decision-card.dont{background:var(--c-danger-soft);border-color:#dc2626;color:#7f1d1d}
+  html.dark .decision-card.dont{background:rgba(220,38,38,0.10);color:#fca5a5}
+  .dc-icon{font-size:24px;line-height:1.1;flex:0 0 auto;opacity:0.85}
+  .dc-body{flex:1}
+  .dc-verdict{font-family:'IBM Plex Serif',Georgia,serif;font-size:20px;font-weight:600;letter-spacing:-0.005em;line-height:1.25;margin-bottom:4px}
+  .dc-rationale{font-size:13.5px;line-height:1.55;opacity:0.92}
+  .dc-action{margin-top:8px;font-size:13px;font-weight:500}
+  .dc-action::before{content:'→ ';opacity:0.6}
+
+  /* ===== What-if button row ===== */
+  .whatif-row{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0 0;padding-top:14px;border-top:1px dashed var(--c-border)}
+  .whatif-label{flex:1 0 100%;font-size:11.5px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:var(--c-text-mute);margin-bottom:4px}
+  .whatif-btn{background:var(--c-bg);border:1px solid var(--c-border);color:var(--c-text-soft);padding:7px 13px;border-radius:99px;font-size:12.5px;cursor:pointer;font-family:inherit;transition:all 0.2s var(--ease);display:inline-flex;align-items:center;gap:5px}
+  .whatif-btn:hover{border-color:var(--c-accent);color:var(--c-link);transform:translateY(-1px);box-shadow:0 4px 12px rgba(59,130,246,0.1)}
+  .whatif-btn .wif-arrow{font-size:11px;opacity:0.6}
+
+  /* ===== Risk/reward block ===== */
+  .risk-reward{background:var(--c-bg-alt);border:1px solid var(--c-border-soft);border-radius:11px;padding:14px 16px;margin-top:14px}
+  .risk-reward-input{display:flex;align-items:center;gap:10px;font-size:13px}
+  .risk-reward-input label{flex:0 0 auto;font-weight:500;color:var(--c-text-soft)}
+  .risk-reward-input input{flex:0 0 110px;padding:7px 10px;border:1.5px solid var(--c-border);border-radius:7px;background:var(--c-bg);color:var(--c-text);font-size:13px;font-family:inherit}
+  .risk-reward-result{display:none;margin-top:12px;padding-top:12px;border-top:1px dashed var(--c-border);font-size:13.5px;line-height:1.65}
+  .risk-reward.has-value .risk-reward-result{display:block}
+  .rrr-row{display:flex;justify-content:space-between;gap:12px;padding:4px 0}
+  .rrr-row strong{font-family:'IBM Plex Mono',monospace;font-weight:600}
+  .rrr-row.win strong{color:var(--c-success)}
+  .rrr-row.lose strong{color:var(--c-danger)}
+  .rrr-row.expected{font-weight:600;border-top:1px solid var(--c-border-soft);margin-top:4px;padding-top:8px}
+
+  /* ===== Mistake warnings (inline) ===== */
+  .mistake-warn{background:var(--c-warn-soft);border:1px solid rgba(245,158,11,0.3);border-left:4px solid var(--c-warn);border-radius:8px;padding:10px 14px;margin:10px 0;font-size:13px;display:flex;align-items:flex-start;gap:10px;line-height:1.5}
+  .mistake-warn-icon{flex:0 0 auto;font-size:16px}
+  .mistake-warn strong{color:var(--c-warn);font-weight:700}
+  html.dark .mistake-warn{background:rgba(245,158,11,0.12);color:var(--c-text)}
+
+  /* ===== Scenario context card — editorial card ===== */
+  .scenario-context{display:none;background:var(--c-bg-alt);border:1px solid var(--c-border);border-left:3px solid var(--c-accent);border-radius:0 8px 8px 0;padding:14px 18px;margin:0 0 16px;animation:fadeSlide 0.32s var(--spring)}
+  html.dark .scenario-context{background:rgba(59,130,246,0.06)}
+  .scenario-context.show{display:block}
+  @keyframes fadeSlide{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
+  .sc-head{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+  .sc-icon{font-size:22px;line-height:1}
+  .sc-title{font-family:'IBM Plex Serif',Georgia,serif;font-weight:600;font-size:16.5px;color:var(--c-text);letter-spacing:-0.005em;flex:1}
+  .sc-clear{background:transparent;border:1px solid rgba(15,23,42,0.12);color:var(--c-text-mute);font-size:11.5px;padding:4px 10px;border-radius:99px;cursor:pointer;font-family:inherit;transition:all 0.2s var(--ease)}
+  .sc-clear:hover{background:var(--c-bg);color:var(--c-text);border-color:var(--c-text-mute)}
+  .sc-story{font-size:14px;color:var(--c-text-soft);line-height:1.55;margin:0 0 10px}
+  .sc-meta{display:flex;flex-wrap:wrap;gap:14px;font-size:12.5px;color:var(--c-text-soft)}
+  .sc-meta-item{display:inline-flex;align-items:flex-start;gap:5px;line-height:1.45}
+  .sc-meta-item strong{color:var(--c-text);font-weight:600}
+  .sc-meta-icon{flex:0 0 auto}
+
+  /* ===== Top-of-page persistent scenario chip ===== */
+  .scenario-chip{display:none;align-items:center;gap:8px;background:var(--c-bg-alt);border:1px solid var(--c-border);color:var(--c-text-soft);font-size:12.5px;padding:4px 6px 4px 11px;border-radius:6px;font-weight:500;animation:fadeSlide 0.32s var(--spring)}
+  .scenario-chip.show{display:inline-flex}
+  .scenario-chip .sc-chip-x{background:transparent;border:none;color:var(--c-text-mute);width:18px;height:18px;cursor:pointer;font-size:14px;line-height:1;display:inline-flex;align-items:center;justify-content:center;font-family:inherit;border-radius:3px}
+  .scenario-chip .sc-chip-x:hover{background:var(--c-border);color:var(--c-text)}
+
+  /* ===== Inline benchmark note (next to inputs) ===== */
+  .bench-note{display:inline-block;background:rgba(139,92,246,0.08);color:var(--c-violet);font-size:11.5px;padding:2px 8px;border-radius:99px;margin-left:8px;font-weight:500}
+  html.dark .bench-note{background:rgba(139,92,246,0.18);color:#c4b5fd}
+
+  /* ===== Intro card — restrained editorial overview ===== */
+  .intro-card{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;border:1px solid var(--c-border);border-radius:8px;padding:16px 20px;margin-bottom:20px;background:var(--c-bg)}
+  @media(max-width:720px){.intro-card{grid-template-columns:1fr;gap:12px}}
+  .intro-step{display:flex;gap:10px}
+  .intro-num{flex:0 0 22px;width:22px;height:22px;border-radius:50%;background:transparent;color:var(--c-link);border:1.5px solid var(--c-link);display:flex;align-items:center;justify-content:center;font-weight:600;font-size:11.5px;font-family:'IBM Plex Mono',monospace;flex-shrink:0}
+  .intro-text{font-size:13px;color:var(--c-text-soft);line-height:1.55}
+  .intro-text strong{color:var(--c-text);font-weight:600}
+
+  /* ===== Inline benchmark hint ===== */
+  .inline-bench{display:block;font-size:11.5px;color:var(--c-text-mute);margin-top:4px;font-style:italic;line-height:1.4}
+
+  /* ===== Confetti ===== */
+  .confetti-piece{position:fixed;width:8px;height:14px;top:-20px;pointer-events:none;z-index:300;animation:confettiFall 1.2s linear forwards}
+  @keyframes confettiFall{
+    0%{opacity:1;transform:translateY(0) rotate(0deg)}
+    100%{opacity:0;transform:translateY(100vh) rotate(720deg)}
+  }
+  @media(prefers-reduced-motion:reduce){.confetti-piece{display:none}}
+
+</style>
+<style id="tool-chrome-css">.tool-chrome{max-width:1280px;margin:0 auto;padding:24px 24px 48px;display:grid;grid-template-columns:260px 1fr;gap:32px;align-items:start}.tool-chrome-side{position:sticky;top:72px;max-height:calc(100vh - 100px);overflow-y:auto;padding-right:8px;font-family:-apple-system,BlinkMacSystemFont,sans-serif}.tool-chrome-side #sidebar-nav{padding:0}.tool-chrome-main{min-width:0}@media(max-width:880px){.tool-chrome{grid-template-columns:1fr;padding:16px}.tool-chrome-side{display:none}}</style>
+</head>
+<body><header class="site-masthead"><div class="site-masthead-inner"><a class="masthead-wordmark" href="/"><span class="masthead-mark">R</span><span class="masthead-name">r&#8209;statistics<span class="masthead-tld">.co</span></span></a><nav class="masthead-nav"><a class="masthead-nav-link" href="/">Home</a><a class="masthead-nav-link" href="/posts/">Compendium</a></nav><div class="masthead-tools"><form onsubmit="window.open('https://google.com/search?q='+document.getElementById('tool-search').value+'%20site:r-statistics.co');return false" class="masthead-search"><input type="text" id="tool-search" placeholder="Search…" aria-label="Search r-statistics.co"></form></div></div></header><div class="tool-chrome" data-tool-chrome="injected"><aside class="tool-chrome-side"><div id="sidebar-nav"><div class="continue-chip" data-continue-chip><span class="chip-label">Continue reading</span><a href="#" data-continue-link></a></div><div class="sidebar-tabs" role="tablist"><button class="sidebar-tab" data-tab="posts" type="button" role="tab">Posts</button><button class="sidebar-tab active" data-tab="tools" type="button" role="tab">Tools</button></div><div class="sidebar-panel" data-panel="posts"><ul class="sidebar-menu list-unstyled"><li class="sidebar-section expanded"><div class="sidebar-section-header"><span class="sidebar-chevron">&#9656;</span> Learn R<span class="section-meta" data-section-meta></span></div><ul class="sidebar-section-items list-unstyled"><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec0sub1" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Getting Started</li><li data-subkey="sec0sub1"><a href="Is-R-Worth-Learning-in-2026.html"><span class="progress-dot"></span>Is R Worth Learning?</a></li><li data-subkey="sec0sub1"><a href="Install-R-and-RStudio-2026.html"><span class="progress-dot"></span>Install R &amp; RStudio</a></li><li data-subkey="sec0sub1"><a href="RStudio-IDE-Tour.html"><span class="progress-dot"></span>RStudio IDE Tour</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec0sub2" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> R Fundamentals</li><li data-subkey="sec0sub2"><a href="R-Syntax-101.html"><span class="progress-dot"></span>R Syntax 101</a></li><li data-subkey="sec0sub2"><a href="R-Data-Types.html"><span class="progress-dot"></span>R Data Types</a></li><li data-subkey="sec0sub2"><a href="R-Vectors.html"><span class="progress-dot"></span>R Vectors</a></li><li data-subkey="sec0sub2"><a href="R-Matrices.html"><span class="progress-dot"></span>R Matrices</a></li><li data-subkey="sec0sub2"><a href="R-Factors.html"><span class="progress-dot"></span>R Factors</a></li><li data-subkey="sec0sub2"><a href="R-Data-Frames.html"><span class="progress-dot"></span>R Data Frames</a></li><li data-subkey="sec0sub2"><a href="R-Lists.html"><span class="progress-dot"></span>R Lists</a></li><li data-subkey="sec0sub2"><a href="R-Control-Flow.html"><span class="progress-dot"></span>R Control Flow</a></li><li data-subkey="sec0sub2"><a href="R-Special-Values.html"><span class="progress-dot"></span>R Special Values</a></li><li data-subkey="sec0sub2"><a href="R-Type-Coercion.html"><span class="progress-dot"></span>R Type Coercion</a></li><li data-subkey="sec0sub2"><a href="R-Functions.html"><span class="progress-dot"></span>Writing R Functions</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec0sub3" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Working Effectively</li><li data-subkey="sec0sub3"><a href="R-Subsetting.html"><span class="progress-dot"></span>R Subsetting</a></li><li data-subkey="sec0sub3"><a href="Getting-Help-in-R.html"><span class="progress-dot"></span>Getting Help in R</a></li><li data-subkey="sec0sub3"><a href="R-Project-Structure.html"><span class="progress-dot"></span>R Project Structure</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec0sub4" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> R Career &amp; Resources</li><li data-subkey="sec0sub4"><a href="R-vs-Python.html"><span class="progress-dot"></span>R vs Python</a></li><li data-subkey="sec0sub4"><a href="How-to-Learn-R.html"><span class="progress-dot"></span>How to Learn R</a></li><li data-subkey="sec0sub4"><a href="R-for-Excel-Users.html"><span class="progress-dot"></span>R for Excel Users</a></li><li data-subkey="sec0sub4"><a href="R-Interview-Questions.html"><span class="progress-dot"></span>R Interview Questions</a></li><li data-subkey="sec0sub4"><a href="R-Cheat-Sheet.html"><span class="progress-dot"></span>R Cheat Sheet</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec0sub5" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Professional R</li><li data-subkey="sec0sub5"><a href="Data-Ethics-in-R.html"><span class="progress-dot"></span>Data Ethics</a></li><li data-subkey="sec0sub5"><a href="Bias-in-Data-and-Models.html"><span class="progress-dot"></span>Bias in Data &amp; Models</a></li><li data-subkey="sec0sub5"><a href="Reproducibility-Crisis.html"><span class="progress-dot"></span>Reproducibility</a></li><li data-subkey="sec0sub5"><a href="Data-Privacy-in-R.html"><span class="progress-dot"></span>Data Privacy</a></li><li data-subkey="sec0sub5"><a href="Communicating-Uncertainty.html"><span class="progress-dot"></span>Communicating Uncertainty</a></li></ul></li><li class="sidebar-section"><div class="sidebar-section-header"><span class="sidebar-chevron">&#9656;</span> Data Wrangling<span class="section-meta" data-section-meta></span></div><ul class="sidebar-section-items list-unstyled"><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec1sub1" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Import &amp; Setup</li><li data-subkey="sec1sub1"><a href="Importing-Data-in-R.html"><span class="progress-dot"></span>Importing Data</a></li><li data-subkey="sec1sub1"><a href="R-Pipe-Operator.html"><span class="progress-dot"></span>Pipe Operator</a></li><li data-subkey="sec1sub1"><a href="Tidy-Data-in-R.html"><span class="progress-dot"></span>Tidy Data</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec1sub2" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> dplyr Essentials</li><li data-subkey="sec1sub2"><a href="dplyr-filter-select.html"><span class="progress-dot"></span>dplyr filter &amp; select</a></li><li data-subkey="sec1sub2"><a href="dplyr-mutate-rename.html"><span class="progress-dot"></span>dplyr mutate &amp; rename</a></li><li data-subkey="sec1sub2"><a href="dplyr-group-by-summarise.html"><span class="progress-dot"></span>dplyr group_by &amp; summarise</a></li><li data-subkey="sec1sub2"><a href="dplyr-arrange-slice.html"><span class="progress-dot"></span>dplyr arrange &amp; slice</a></li><li data-subkey="sec1sub2"><a href="dplyr-across.html"><span class="progress-dot"></span>dplyr across()</a></li><li data-subkey="sec1sub2"><a href="dplyr-case-when.html"><span class="progress-dot"></span>dplyr case_when()</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec1sub3" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Join &amp; Reshape</li><li data-subkey="sec1sub3"><a href="R-Joins.html"><span class="progress-dot"></span>R Joins</a></li><li data-subkey="sec1sub3"><a href="pivot_longer-pivot_wider-Reshape-Data-in-R.html"><span class="progress-dot"></span>pivot_longer &amp; pivot_wider</a></li><li data-subkey="sec1sub3"><a href="tidyr-separate-unite-Split-Combine-Columns-in-R.html"><span class="progress-dot"></span>separate() &amp; unite()</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec1sub4" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Clean &amp; Quality</li><li data-subkey="sec1sub4"><a href="Missing-Values-in-R-Detect-Count-Remove-Impute-NA.html"><span class="progress-dot"></span>Missing Values (NA)</a></li><li data-subkey="sec1sub4"><a href="Data-Quality-Checking-in-R.html"><span class="progress-dot"></span>Data Quality Checking</a></li><li data-subkey="sec1sub4"><a href="janitor-Package-in-R.html"><span class="progress-dot"></span>janitor Package</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec1sub5" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Strings &amp; Dates</li><li data-subkey="sec1sub5"><a href="stringr-in-R.html"><span class="progress-dot"></span>stringr</a></li><li data-subkey="sec1sub5"><a href="R-Regex-stringr-Pattern-Matching.html"><span class="progress-dot"></span>Regex Patterns</a></li><li data-subkey="sec1sub5"><a href="lubridate-in-R.html"><span class="progress-dot"></span>lubridate</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec1sub6" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Scale &amp; Connect</li><li data-subkey="sec1sub6"><a href="DBI-in-R.html"><span class="progress-dot"></span>DBI &amp; Databases</a></li><li data-subkey="sec1sub6"><a href="DuckDB-in-R.html"><span class="progress-dot"></span>DuckDB &amp; duckplyr</a></li><li data-subkey="sec1sub6"><a href="Web-Scraping-in-R-with-rvest.html"><span class="progress-dot"></span>Web Scraping (rvest)</a></li><li data-subkey="sec1sub6"><a href="REST-APIs-in-R-with-httr2.html"><span class="progress-dot"></span>REST APIs (httr2)</a></li></ul></li><li class="sidebar-section"><div class="sidebar-section-header"><span class="sidebar-chevron">&#9656;</span> Visualization<span class="section-meta" data-section-meta></span></div><ul class="sidebar-section-items list-unstyled"><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec2sub1" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> ggplot2 Foundations</li><li data-subkey="sec2sub1"><a href="ggplot2-Grammar-of-Graphics.html"><span class="progress-dot"></span>Grammar of Graphics</a></li><li data-subkey="sec2sub1"><a href="ggplot2-Getting-Started.html"><span class="progress-dot"></span>ggplot2 Getting Started</a></li><li data-subkey="sec2sub1"><a href="ggplot2-Aesthetics-aes-Map-Data.html"><span class="progress-dot"></span>ggplot2 Aesthetics (aes)</a></li><li data-subkey="sec2sub1"><a href="ggplot2-Colours.html"><span class="progress-dot"></span>ggplot2 Colours</a></li><li data-subkey="sec2sub1"><a href="ggplot2-Scales.html"><span class="progress-dot"></span>ggplot2 Scales</a></li><li data-subkey="sec2sub1"><a href="ggplot2-Themes-in-R.html"><span class="progress-dot"></span>ggplot2 Themes</a></li><li data-subkey="sec2sub1"><a href="ggplot2-Labels-and-Annotations.html"><span class="progress-dot"></span>Labels &amp; Annotations</a></li><li data-subkey="sec2sub1"><a href="ggplot2-Facets.html"><span class="progress-dot"></span>ggplot2 Facets</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec2sub2" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Core Charts</li><li data-subkey="sec2sub2"><a href="ggplot2-Scatter-Plots.html"><span class="progress-dot"></span>Scatter Plots</a></li><li data-subkey="sec2sub2"><a href="ggplot2-Line-Charts.html"><span class="progress-dot"></span>Line Charts</a></li><li data-subkey="sec2sub2"><a href="ggplot2-Bar-Charts.html"><span class="progress-dot"></span>Bar Charts</a></li><li data-subkey="sec2sub2"><a href="ggplot2-Distribution-Charts.html"><span class="progress-dot"></span>Distribution Charts</a></li><li data-subkey="sec2sub2"><a href="Error-Bars-in-R.html"><span class="progress-dot"></span>Error Bars</a></li><li data-subkey="sec2sub2"><a href="geom_smooth-in-R.html"><span class="progress-dot"></span>geom_smooth()</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec2sub3" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Distributions &amp; Groups</li><li data-subkey="sec2sub3"><a href="Violin-Plot-in-R.html"><span class="progress-dot"></span>Violin Plot</a></li><li data-subkey="sec2sub3"><a href="Ridgeline-Plot-in-R.html"><span class="progress-dot"></span>Ridgeline Plot</a></li><li data-subkey="sec2sub3"><a href="Lollipop-Chart-in-R.html"><span class="progress-dot"></span>Lollipop Chart</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec2sub4" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Relationships</li><li data-subkey="sec2sub4"><a href="Bubble-Chart-in-R.html"><span class="progress-dot"></span>Bubble Chart</a></li><li data-subkey="sec2sub4"><a href="Heatmap-in-R.html"><span class="progress-dot"></span>Heatmap in R</a></li><li data-subkey="sec2sub4"><a href="Correlation-Matrix-Plot-in-R.html"><span class="progress-dot"></span>Correlation Matrix</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec2sub5" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Advanced Charts</li><li data-subkey="sec2sub5"><a href="Pie-Donut-Chart-in-R.html"><span class="progress-dot"></span>Pie &amp; Donut Chart</a></li><li data-subkey="sec2sub5"><a href="Treemap-in-R.html"><span class="progress-dot"></span>Treemap</a></li><li data-subkey="sec2sub5"><a href="Waffle-Chart-in-R.html"><span class="progress-dot"></span>Waffle Chart</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec2sub6" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Exploratory Analysis</li><li data-subkey="sec2sub6"><a href="Exploratory-Data-Analysis-in-R.html"><span class="progress-dot"></span>EDA (7-Step Framework)</a></li><li data-subkey="sec2sub6"><a href="Univariate-EDA-in-R.html"><span class="progress-dot"></span>Univariate EDA</a></li><li data-subkey="sec2sub6"><a href="Bivariate-EDA-in-R.html"><span class="progress-dot"></span>Bivariate EDA</a></li><li data-subkey="sec2sub6"><a href="Descriptive-Statistics-in-R.html"><span class="progress-dot"></span>Descriptive Statistics</a></li><li data-subkey="sec2sub6"><a href="Correlation-Analysis-in-R.html"><span class="progress-dot"></span>Correlation Analysis</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec2sub7" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Interactive &amp; Maps</li><li data-subkey="sec2sub7"><a href="Combining-ggplot2-with-plotly.html"><span class="progress-dot"></span>ggplot2 + plotly Interactive</a></li><li data-subkey="sec2sub7"><a href="Interactive-Maps-in-R-with-leaflet.html"><span class="progress-dot"></span>Leaflet Interactive Maps</a></li><li data-subkey="sec2sub7"><a href="Spatial-Data-in-R-with-sf.html"><span class="progress-dot"></span>Spatial Data (sf)</a></li><li data-subkey="sec2sub7"><a href="Choropleth-Maps-in-R.html"><span class="progress-dot"></span>Choropleth Maps (sf)</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec2sub8" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Customization &amp; Reference</li><li data-subkey="sec2sub8"><a href="ggplot2-Legends-in-R.html"><span class="progress-dot"></span>ggplot2 Legends</a></li><li data-subkey="sec2sub8"><a href="ggplot2-Secondary-Axis.html"><span class="progress-dot"></span>Secondary Axis</a></li><li data-subkey="sec2sub8"><a href="ggplot2-Log-Scale.html"><span class="progress-dot"></span>Log Scale</a></li><li data-subkey="sec2sub8"><a href="patchwork-Package.html"><span class="progress-dot"></span>patchwork (Combine Plots)</a></li><li data-subkey="sec2sub8"><a href="Publication-Quality-Figures-in-R.html"><span class="progress-dot"></span>Publication-Ready Figures</a></li><li data-subkey="sec2sub8"><a href="ggplot2-cheatsheet.html"><span class="progress-dot"></span>ggplot2 Quickref</a></li></ul></li><li class="sidebar-section"><div class="sidebar-section-header"><span class="sidebar-chevron">&#9656;</span> Statistics<span class="section-meta" data-section-meta></span></div><ul class="sidebar-section-items list-unstyled"><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec3sub1" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> EDA &amp; Data Quality</li><li data-subkey="sec3sub1"><a href="Automated-EDA-in-R.html"><span class="progress-dot"></span>Automated EDA</a></li><li data-subkey="sec3sub1"><a href="Missing-Data-Visualization-in-R-naniar.html"><span class="progress-dot"></span>Missing Data Viz (naniar)</a></li><li data-subkey="sec3sub1"><a href="Outlier-Detection-in-R.html"><span class="progress-dot"></span>Outlier Detection</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec3sub2" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Probability</li><li data-subkey="sec3sub2"><a href="Sample-Spaces-Events-and-Probability-Axioms-in-R-With-Monte-Carlo-Proof.html"><span class="progress-dot"></span>Probability Axioms</a></li><li data-subkey="sec3sub2"><a href="Conditional-Probability-in-R.html"><span class="progress-dot"></span>Conditional Probability</a></li><li data-subkey="sec3sub2"><a href="Random-Variables-in-R.html"><span class="progress-dot"></span>Random Variables</a></li><li data-subkey="sec3sub2"><a href="Binomial-and-Poisson-Distributions-in-R.html"><span class="progress-dot"></span>Binomial vs Poisson</a></li><li data-subkey="sec3sub2"><a href="Normal-t-F-and-Chi-Squared-Distributions-in-R.html"><span class="progress-dot"></span>Normal, t, F, Chi-Squared</a></li><li data-subkey="sec3sub2"><a href="Central-Limit-Theorem-in-R.html"><span class="progress-dot"></span>Central Limit Theorem</a></li><li data-subkey="sec3sub2"><a href="Sampling-Distributions-in-R.html"><span class="progress-dot"></span>Sampling Distributions</a></li><li data-subkey="sec3sub2"><a href="Law-of-Large-Numbers-vs-CLT-in-R.html"><span class="progress-dot"></span>LLN vs CLT</a></li><li data-subkey="sec3sub2"><a href="What-Is-Probability-Simulation-First-Intuition-in-R-Before-the-Formulas.html"><span class="progress-dot"></span>Probability (Simulation-First)</a></li><li data-subkey="sec3sub2"><a href="Expected-Value-and-Variance-in-R.html"><span class="progress-dot"></span>Expected Value and Variance</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec3sub3" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Inference &amp; Estimation</li><li data-subkey="sec3sub3"><a href="Maximum-Likelihood-Estimation-in-R.html"><span class="progress-dot"></span>Maximum Likelihood Estimation</a></li><li data-subkey="sec3sub3"><a href="Hypothesis-Testing-in-R.html"><span class="progress-dot"></span>Hypothesis Testing</a></li><li data-subkey="sec3sub3"><a href="Sample-Size-Planning-in-R.html"><span class="progress-dot"></span>Sample Size Planning</a></li><li data-subkey="sec3sub3"><a href="Which-Statistical-Test-in-R.html"><span class="progress-dot"></span>Choosing the Right Test</a></li><li data-subkey="sec3sub3"><a href="Statistical-Tests-in-R.html"><span class="progress-dot"></span>Statistical Tests</a></li><li data-subkey="sec3sub3"><a href="Measures-of-Association-in-R.html"><span class="progress-dot"></span>Measures of Association</a></li><li data-subkey="sec3sub3"><a href="Point-Estimation-in-R.html"><span class="progress-dot"></span>Point Estimation</a></li><li data-subkey="sec3sub3"><a href="Confidence-Intervals-in-R.html"><span class="progress-dot"></span>Confidence Intervals</a></li><li data-subkey="sec3sub3"><a href="Type-I-and-Type-II-Errors-in-R.html"><span class="progress-dot"></span>Type I and II Errors</a></li><li data-subkey="sec3sub3"><a href="Statistical-Power-Analysis-in-R.html"><span class="progress-dot"></span>Power Analysis</a></li><li data-subkey="sec3sub3"><a href="Effect-Size-in-R.html"><span class="progress-dot"></span>Effect Size</a></li><li data-subkey="sec3sub3"><a href="t-Tests-in-R.html"><span class="progress-dot"></span>t-Tests</a></li><li data-subkey="sec3sub3"><a href="Proportion-Tests-in-R.html"><span class="progress-dot"></span>Proportion Tests</a></li><li data-subkey="sec3sub3"><a href="Normality-and-Variance-Tests-in-R.html"><span class="progress-dot"></span>Normality &amp; Variance Tests</a></li><li data-subkey="sec3sub3"><a href="Chi-Square-Tests-in-R.html"><span class="progress-dot"></span>Chi-Square Tests</a></li><li data-subkey="sec3sub3"><a href="Wilcoxon-Mann-Whitney-and-Kruskal-Wallis-in-R.html"><span class="progress-dot"></span>Wilcoxon, Mann-Whitney &amp; Kruskal-Wallis</a></li><li data-subkey="sec3sub3"><a href="Multiple-Comparisons-in-R.html"><span class="progress-dot"></span>Multiple Testing Correction</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec3sub4" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Regression</li><li data-subkey="sec3sub4"><a href="Linear-Regression.html"><span class="progress-dot"></span>Linear Regression</a></li><li data-subkey="sec3sub4"><a href="Logistic-Regression-With-R.html"><span class="progress-dot"></span>Logistic Regression</a></li><li data-subkey="sec3sub4"><a href="Variable-Selection-and-Importance-With-R.html"><span class="progress-dot"></span>Feature Selection</a></li><li data-subkey="sec3sub4"><a href="Model-Selection-in-R.html"><span class="progress-dot"></span>Model Selection</a></li><li data-subkey="sec3sub4"><a href="Missing-Value-Treatment-With-R.html"><span class="progress-dot"></span>Missing Value Treatment</a></li><li data-subkey="sec3sub4"><a href="Outlier-Treatment-With-R.html"><span class="progress-dot"></span>Outlier Analysis</a></li><li data-subkey="sec3sub4"><a href="adv-regression-models.html"><span class="progress-dot"></span>Advanced Regression Models</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec3sub5" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Reporting</li><li data-subkey="sec3sub5"><a href="Statistical-Consulting-in-R.html"><span class="progress-dot"></span>Statistical Consulting</a></li><li data-subkey="sec3sub5"><a href="Statistical-Report-Writing-in-R.html"><span class="progress-dot"></span>Statistical Report Writing</a></li><li data-subkey="sec3sub5"><a href="Bootstrap-Confidence-Intervals-in-R.html"><span class="progress-dot"></span>Bootstrap Confidence Intervals</a></li><li data-subkey="sec3sub5"><a href="Reporting-Statistics-in-R.html"><span class="progress-dot"></span>Reporting Statistics</a></li><li data-subkey="sec3sub5"><a href="Correlation-in-R.html"><span class="progress-dot"></span>Correlation (Pearson, Spearman, Kendall)</a></li><li data-subkey="sec3sub5"><a href="Linear-Regression-Assumptions-in-R.html"><span class="progress-dot"></span>Linear Regression Assumptions</a></li><li data-subkey="sec3sub5"><a href="Dummy-Variables-in-R.html"><span class="progress-dot"></span>Dummy Variables in R</a></li><li data-subkey="sec3sub5"><a href="Interaction-Effects-in-R.html"><span class="progress-dot"></span>Interaction Effects</a></li><li data-subkey="sec3sub5"><a href="Regression-Diagnostics-in-R.html"><span class="progress-dot"></span>Regression Diagnostics</a></li><li data-subkey="sec3sub5"><a href="Logistic-Regression-in-R.html"><span class="progress-dot"></span>Logistic Regression (glm + ROC)</a></li><li data-subkey="sec3sub5"><a href="Variable-Selection-in-R.html"><span class="progress-dot"></span>Variable Selection</a></li><li data-subkey="sec3sub5"><a href="Poisson-Regression-in-R.html"><span class="progress-dot"></span>Poisson Regression</a></li><li data-subkey="sec3sub5"><a href="Ridge-and-Lasso-Regression-in-R.html"><span class="progress-dot"></span>Ridge &amp; Lasso Regression</a></li><li data-subkey="sec3sub5"><a href="Polynomial-and-Spline-Regression-in-R.html"><span class="progress-dot"></span>Polynomial &amp; Splines</a></li><li data-subkey="sec3sub5"><a href="Regression-Tables-in-R.html"><span class="progress-dot"></span>Regression Tables (3 packages)</a></li><li data-subkey="sec3sub5"><a href="One-Way-ANOVA-in-R.html"><span class="progress-dot"></span>One-Way ANOVA</a></li><li data-subkey="sec3sub5"><a href="Post-Hoc-Tests-After-ANOVA.html"><span class="progress-dot"></span>Post-Hoc Tests After ANOVA</a></li><li data-subkey="sec3sub5"><a href="Two-Way-ANOVA-in-R.html"><span class="progress-dot"></span>Two-Way ANOVA</a></li><li data-subkey="sec3sub5"><a href="Repeated-Measures-ANOVA-in-R.html"><span class="progress-dot"></span>Repeated Measures ANOVA</a></li><li data-subkey="sec3sub5"><a href="ANCOVA-in-R.html"><span class="progress-dot"></span>ANCOVA</a></li><li data-subkey="sec3sub5"><a href="Experimental-Design-Principles-in-R.html"><span class="progress-dot"></span>Experimental Design in R</a></li><li data-subkey="sec3sub5"><a href="Factorial-Experiments-in-R.html"><span class="progress-dot"></span>Factorial Designs (2^k)</a></li><li data-subkey="sec3sub5"><a href="AB-Testing-in-R.html"><span class="progress-dot"></span>A/B Testing</a></li><li data-subkey="sec3sub5"><a href="MANOVA-in-R.html"><span class="progress-dot"></span>MANOVA</a></li><li data-subkey="sec3sub5"><a href="Mixed-ANOVA-in-R.html"><span class="progress-dot"></span>Mixed ANOVA</a></li><li data-subkey="sec3sub5"><a href="Multivariate-Statistics-in-R.html"><span class="progress-dot"></span>Multivariate Distances &amp; Hotelling's T²</a></li><li data-subkey="sec3sub5"><a href="PCA-in-R.html"><span class="progress-dot"></span>PCA with prcomp()</a></li><li data-subkey="sec3sub5"><a href="Interpreting-PCA-Results-in-R.html"><span class="progress-dot"></span>Interpreting PCA Output</a></li><li data-subkey="sec3sub5"><a href="Exploratory-Factor-Analysis-in-R.html"><span class="progress-dot"></span>Exploratory Factor Analysis</a></li><li data-subkey="sec3sub5"><a href="CFA-and-Structural-Equation-Modeling-in-R.html"><span class="progress-dot"></span>SEM and CFA (lavaan)</a></li><li data-subkey="sec3sub5"><a href="Linear-Discriminant-Analysis-in-R.html"><span class="progress-dot"></span>LDA (Linear Discriminant Analysis)</a></li><li data-subkey="sec3sub5"><a href="Cluster-Analysis-in-R.html"><span class="progress-dot"></span>Clustering (k-Means / HC / DBSCAN)</a></li><li data-subkey="sec3sub5"><a href="Correspondence-Analysis-in-R.html"><span class="progress-dot"></span>Correspondence Analysis</a></li><li data-subkey="sec3sub5"><a href="t-SNE-and-UMAP-in-R.html"><span class="progress-dot"></span>t-SNE and UMAP</a></li><li data-subkey="sec3sub5"><a href="Simple-Linear-Regression-in-R.html"><span class="progress-dot"></span>Simple Linear Regression</a></li><li data-subkey="sec3sub5"><a href="Multiple-Regression-in-R.html"><span class="progress-dot"></span>Multiple Regression</a></li><li data-subkey="sec3sub5"><a href="Robust-Regression-in-R.html"><span class="progress-dot"></span>Robust Regression (rlm)</a></li><li data-subkey="sec3sub5"><a href="factoextra-and-FactoMineR.html"><span class="progress-dot"></span>factoextra (PCA + Clusters)</a></li><li data-subkey="sec3sub5"><a href="Categorical-Data-in-R.html"><span class="progress-dot"></span>Categorical Data (Tables &amp; Mosaic)</a></li><li data-subkey="sec3sub5"><a href="Chi-Square-Test-of-Independence-in-R.html"><span class="progress-dot"></span>Chi-Square Test of Independence</a></li><li data-subkey="sec3sub5"><a href="Chi-Square-Goodness-of-Fit-Test-in-R.html"><span class="progress-dot"></span>Chi-Square Goodness-of-Fit</a></li><li data-subkey="sec3sub5"><a href="Fishers-Exact-Test-in-R.html"><span class="progress-dot"></span>Fisher's Exact Test</a></li><li data-subkey="sec3sub5"><a href="Odds-Ratios-and-Relative-Risk-in-R.html"><span class="progress-dot"></span>Odds Ratios &amp; Relative Risk</a></li><li data-subkey="sec3sub5"><a href="Logistic-Regression-in-R-2.html"><span class="progress-dot"></span>Logistic Regression (Diagnostics)</a></li><li data-subkey="sec3sub5"><a href="Poisson-and-Negative-Binomial-Regression.html"><span class="progress-dot"></span>Poisson &amp; Negative Binomial Regression</a></li><li data-subkey="sec3sub5"><a href="Multinomial-and-Ordinal-Logistic-Regression-in-R.html"><span class="progress-dot"></span>Multinomial &amp; Ordinal Logistic Regression</a></li><li data-subkey="sec3sub5"><a href="When-to-Use-Nonparametric-Tests-in-R.html"><span class="progress-dot"></span>When to Use Nonparametric Tests</a></li><li data-subkey="sec3sub5"><a href="Wilcoxon-Signed-Rank-Test-in-R.html"><span class="progress-dot"></span>Wilcoxon Signed-Rank Test</a></li><li data-subkey="sec3sub5"><a href="Mann-Whitney-U-Test-in-R.html"><span class="progress-dot"></span>Mann-Whitney U Test</a></li><li data-subkey="sec3sub5"><a href="Kruskal-Wallis-Test-in-R-2.html"><span class="progress-dot"></span>Kruskal-Wallis Test</a></li><li data-subkey="sec3sub5"><a href="Friedman-Test-in-R.html"><span class="progress-dot"></span>Friedman Test</a></li><li data-subkey="sec3sub5"><a href="Spearman-and-Kendall-Correlation-in-R.html"><span class="progress-dot"></span>Spearman &amp; Kendall Correlation</a></li><li data-subkey="sec3sub5"><a href="Bootstrap-in-R.html"><span class="progress-dot"></span>Bootstrap (boot package)</a></li><li data-subkey="sec3sub5"><a href="Quantile-Regression-in-R-2.html"><span class="progress-dot"></span>Quantile Regression</a></li><li data-subkey="sec3sub5"><a href="Matrix-Operations-in-R.html"><span class="progress-dot"></span>Matrix Operations in R</a></li><li data-subkey="sec3sub5"><a href="Solving-Linear-Systems-in-R.html"><span class="progress-dot"></span>Solving Linear Systems in R</a></li><li data-subkey="sec3sub5"><a href="Eigenvalues-and-Eigenvectors-in-R.html"><span class="progress-dot"></span>Eigenvalues &amp; Eigenvectors in R</a></li><li data-subkey="sec3sub5"><a href="Singular-Value-Decomposition-in-R.html"><span class="progress-dot"></span>Singular Value Decomposition in R</a></li><li data-subkey="sec3sub5"><a href="Projections-and-the-Hat-Matrix-in-R.html"><span class="progress-dot"></span>Projections &amp; the Hat Matrix</a></li><li data-subkey="sec3sub5"><a href="QR-Decomposition-in-R.html"><span class="progress-dot"></span>QR Decomposition in R</a></li><li data-subkey="sec3sub5"><a href="Quadratic-Forms-in-R.html"><span class="progress-dot"></span>Quadratic Forms</a></li><li data-subkey="sec3sub5"><a href="Matrix-Derivatives-and-the-Hessian-in-R.html"><span class="progress-dot"></span>Matrix Derivatives &amp; Hessian</a></li><li data-subkey="sec3sub5"><a href="Exponential-Family-Distributions-in-R.html"><span class="progress-dot"></span>Exponential Family Distributions</a></li><li data-subkey="sec3sub5"><a href="Sufficient-Statistics-in-R.html"><span class="progress-dot"></span>Sufficient Statistics</a></li><li data-subkey="sec3sub5"><a href="Complete-and-Ancillary-Statistics-in-R.html"><span class="progress-dot"></span>Complete &amp; Ancillary Statistics</a></li><li data-subkey="sec3sub5"><a href="UMVUE-in-R-2.html"><span class="progress-dot"></span>UMVUE (Rao-Blackwell &amp; Lehmann-Scheffé)</a></li><li data-subkey="sec3sub5"><a href="Cramer-Rao-Lower-Bound-in-R-2.html"><span class="progress-dot"></span>Cramér-Rao Lower Bound</a></li><li data-subkey="sec3sub5"><a href="Asymptotic-Theory-in-R-2.html"><span class="progress-dot"></span>Asymptotic Theory</a></li><li data-subkey="sec3sub5"><a href="Neyman-Pearson-Lemma-in-R-2.html"><span class="progress-dot"></span>Neyman-Pearson Lemma</a></li><li data-subkey="sec3sub5"><a href="Likelihood-Ratio-Tests-and-Pivotal-Methods.html"><span class="progress-dot"></span>Likelihood Ratio &amp; Pivotal Methods</a></li><li data-subkey="sec3sub5"><a href="Decision-Theory-in-R.html"><span class="progress-dot"></span>Decision Theory</a></li><li data-subkey="sec3sub5"><a href="Asymptotic-Relative-Efficiency-in-R.html"><span class="progress-dot"></span>Asymptotic Relative Efficiency</a></li></ul></li><li class="sidebar-section"><div class="sidebar-section-header"><span class="sidebar-chevron">&#9656;</span> Time Series<span class="section-meta" data-section-meta></span></div><ul class="sidebar-section-items list-unstyled"><li data-subkey="sec4sub0"><a href="Time-Series-Analysis-With-R.html"><span class="progress-dot"></span>Time Series Analysis</a></li><li data-subkey="sec4sub0"><a href="Time-Series-Forecasting-With-R.html"><span class="progress-dot"></span>Time Series Forecasting</a></li><li data-subkey="sec4sub0"><a href="Time-Series-Forecasting-With-R-part2.html"><span class="progress-dot"></span>More Time Series Forecasting</a></li></ul></li><li class="sidebar-section"><div class="sidebar-section-header"><span class="sidebar-chevron">&#9656;</span> Advanced R<span class="section-meta" data-section-meta></span></div><ul class="sidebar-section-items list-unstyled"><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec5sub1" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Functional Programming</li><li data-subkey="sec5sub1"><a href="Functional-Programming-in-R.html"><span class="progress-dot"></span>Functional Programming</a></li><li data-subkey="sec5sub1"><a href="purrr-map-Variants.html"><span class="progress-dot"></span>purrr map() Variants</a></li><li data-subkey="sec5sub1"><a href="R-Anonymous-Functions.html"><span class="progress-dot"></span>R Anonymous Functions</a></li><li data-subkey="sec5sub1"><a href="R-Function-Factories.html"><span class="progress-dot"></span>R Function Factories</a></li><li data-subkey="sec5sub1"><a href="R-Function-Operators.html"><span class="progress-dot"></span>R Function Operators</a></li><li data-subkey="sec5sub1"><a href="Reduce-Filter-Map-in-R.html"><span class="progress-dot"></span>Reduce, Filter, Map</a></li><li data-subkey="sec5sub1"><a href="Memoization-in-R.html"><span class="progress-dot"></span>Memoization in R</a></li><li data-subkey="sec5sub1"><a href="Writing-Composable-R-Code.html"><span class="progress-dot"></span>Composable R Code</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec5sub2" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> OOP in R</li><li data-subkey="sec5sub2"><a href="OOP-in-R.html"><span class="progress-dot"></span>OOP in R: S3/S4/R6</a></li><li data-subkey="sec5sub2"><a href="S3-Classes-in-R.html"><span class="progress-dot"></span>S3 Classes</a></li><li data-subkey="sec5sub2"><a href="S3-Method-Dispatch-in-R.html"><span class="progress-dot"></span>S3 Method Dispatch</a></li><li data-subkey="sec5sub2"><a href="S4-Classes-in-R.html"><span class="progress-dot"></span>S4 Classes</a></li><li data-subkey="sec5sub2"><a href="S4-Methods-in-R.html"><span class="progress-dot"></span>S4 Methods &amp; Dispatch</a></li><li data-subkey="sec5sub2"><a href="R6-Classes-in-R.html"><span class="progress-dot"></span>R6 Classes</a></li><li data-subkey="sec5sub2"><a href="R6-Advanced.html"><span class="progress-dot"></span>R6 Advanced</a></li><li data-subkey="sec5sub2"><a href="Operator-Overloading-in-R.html"><span class="progress-dot"></span>Operator Overloading</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec5sub3" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> How R Works</li><li data-subkey="sec5sub3"><a href="R-Names-and-Values.html"><span class="progress-dot"></span>R Names &amp; Values</a></li><li data-subkey="sec5sub3"><a href="R-Assignment-Deep-Dive.html"><span class="progress-dot"></span>R Assignment Deep Dive</a></li><li data-subkey="sec5sub3"><a href="R-Memory-lobstr.html"><span class="progress-dot"></span>R Memory &amp; lobstr</a></li><li data-subkey="sec5sub3"><a href="R-Environments.html"><span class="progress-dot"></span>R Environments</a></li><li data-subkey="sec5sub3"><a href="R-Lexical-Scoping.html"><span class="progress-dot"></span>Lexical Scoping</a></li><li data-subkey="sec5sub3"><a href="R-Closures.html"><span class="progress-dot"></span>R Closures</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec5sub4" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Debugging &amp; Performance</li><li data-subkey="sec5sub4"><a href="R-Conditions-System.html"><span class="progress-dot"></span>Conditions System</a></li><li data-subkey="sec5sub4"><a href="R-Debugging.html"><span class="progress-dot"></span>Debugging R Code</a></li><li data-subkey="sec5sub4"><a href="R-Common-Errors.html"><span class="progress-dot"></span>50 Common R Errors</a></li><li data-subkey="sec5sub4"><a href="Parallel-Computing-With-R.html"><span class="progress-dot"></span>Parallel Computing</a></li><li data-subkey="sec5sub4"><a href="Strategies-To-Improve-And-Speedup-R-Code.html"><span class="progress-dot"></span>Speedup R Code</a></li></ul></li><li class="sidebar-section"><div class="sidebar-section-header"><span class="sidebar-chevron">&#9656;</span> Classic Tutorials<span class="section-meta" data-section-meta></span></div><ul class="sidebar-section-items list-unstyled"><li data-subkey="sec6sub0"><a href="R-Tutorial.html"><span class="progress-dot"></span>R Tutorial (Classic)</a></li><li data-subkey="sec6sub0"><a href="ggplot2-Tutorial-With-R.html"><span class="progress-dot"></span>ggplot2 Short Tutorial</a></li><li data-subkey="sec6sub0"><a href="Complete-Ggplot2-Tutorial-Part1-With-R-Code.html"><span class="progress-dot"></span>ggplot2 Tutorial 1 - Intro</a></li><li data-subkey="sec6sub0"><a href="Complete-Ggplot2-Tutorial-Part2-Customizing-Theme-With-R-Code.html"><span class="progress-dot"></span>ggplot2 Tutorial 2 - Theme</a></li><li data-subkey="sec6sub0"><a href="Top50-Ggplot2-Visualizations-MasterList-R-Code.html"><span class="progress-dot"></span>ggplot2 Tutorial 3 - Masterlist</a></li><li data-subkey="sec6sub0"><a href="Association-Mining-With-R.html"><span class="progress-dot"></span>Association Mining</a></li><li data-subkey="sec6sub0"><a href="Multi-Dimensional-Scaling-With-R.html"><span class="progress-dot"></span>Multi Dimensional Scaling</a></li><li data-subkey="sec6sub0"><a href="Optimization-With-R.html"><span class="progress-dot"></span>Optimization</a></li><li data-subkey="sec6sub0"><a href="Information-Value-With-R.html"><span class="progress-dot"></span>InformationValue Package</a></li></ul></li><li class="sidebar-section"><div class="sidebar-section-header"><span class="sidebar-chevron">&#9656;</span> Practice Exercises<span class="section-meta" data-section-meta></span></div><ul class="sidebar-section-items list-unstyled"><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec7sub1" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> R Fundamentals</li><li data-subkey="sec7sub1"><a href="R-Basics-Exercises.html"><span class="progress-dot"></span>R Basics (15 problems)</a></li><li data-subkey="sec7sub1"><a href="R-Vectors-Exercises.html"><span class="progress-dot"></span>R Vectors (12 problems)</a></li><li data-subkey="sec7sub1"><a href="R-Data-Frames-Exercises.html"><span class="progress-dot"></span>R Data Frames (15 problems)</a></li><li data-subkey="sec7sub1"><a href="R-Lists-Exercises.html"><span class="progress-dot"></span>R Lists (10 problems)</a></li><li data-subkey="sec7sub1"><a href="R-Control-Flow-Exercises.html"><span class="progress-dot"></span>R Control Flow (12 problems)</a></li><li data-subkey="sec7sub1"><a href="R-Functions-Exercises.html"><span class="progress-dot"></span>R Functions (10 problems)</a></li><li data-subkey="sec7sub1"><a href="R-String-Exercises.html"><span class="progress-dot"></span>R Strings (10 problems)</a></li><li data-subkey="sec7sub1"><a href="R-Date-Time-Exercises.html"><span class="progress-dot"></span>R Date &amp; Time (10 problems)</a></li><li data-subkey="sec7sub1"><a href="R-Apply-Exercises.html"><span class="progress-dot"></span>R apply Family (12 problems)</a></li><li data-subkey="sec7sub1"><a href="R-Subsetting-Exercises.html"><span class="progress-dot"></span>R Subsetting (10 problems)</a></li><li data-subkey="sec7sub1"><a href="R-Functional-Programming-Exercises.html"><span class="progress-dot"></span>Functional Programming (10 problems)</a></li><li data-subkey="sec7sub1"><a href="R-OOP-Exercises.html"><span class="progress-dot"></span>OOP in R (8 problems)</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec7sub2" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Data Wrangling</li><li data-subkey="sec7sub2"><a href="R-Data-Import-Exercises.html"><span class="progress-dot"></span>Data Import (10 problems)</a></li><li data-subkey="sec7sub2"><a href="dplyr-Exercises.html"><span class="progress-dot"></span>dplyr (15 problems)</a></li><li data-subkey="sec7sub2"><a href="dplyr-filter-select-Exercises.html"><span class="progress-dot"></span>dplyr filter() &amp; select() (12 problems)</a></li><li data-subkey="sec7sub2"><a href="dplyr-group-by-summarise-Exercises.html"><span class="progress-dot"></span>dplyr group_by() &amp; summarise() (10 problems)</a></li><li data-subkey="sec7sub2"><a href="dplyr-Join-Exercises.html"><span class="progress-dot"></span>dplyr Joins (10 problems)</a></li><li data-subkey="sec7sub2"><a href="data-table-Exercises.html"><span class="progress-dot"></span>data.table (12 problems)</a></li><li data-subkey="sec7sub2"><a href="purrr-Exercises.html"><span class="progress-dot"></span>purrr (10 problems)</a></li><li data-subkey="sec7sub2"><a href="tidyr-Reshaping-Exercises.html"><span class="progress-dot"></span>tidyr Reshaping (10 problems)</a></li><li data-subkey="sec7sub2"><a href="Missing-Data-in-R-Exercises.html"><span class="progress-dot"></span>Missing Data in R (10 problems)</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec7sub3" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Visualization</li><li data-subkey="sec7sub3"><a href="ggplot2-Exercises.html"><span class="progress-dot"></span>ggplot2 (15 problems)</a></li><li data-subkey="sec7sub3"><a href="ggplot2-Geom-Exercises.html"><span class="progress-dot"></span>ggplot2 Geoms (12 problems)</a></li><li data-subkey="sec7sub3"><a href="ggplot2-Aesthetics-Exercises.html"><span class="progress-dot"></span>ggplot2 Aesthetics (10 problems)</a></li><li data-subkey="sec7sub3"><a href="ggplot2-Customization-Exercises.html"><span class="progress-dot"></span>ggplot2 Customization (10 problems)</a></li><li data-subkey="sec7sub3"><a href="ggplot2-Facet-Exercises.html"><span class="progress-dot"></span>ggplot2 Facets (8 problems)</a></li><li data-subkey="sec7sub3"><a href="R-Visualization-Project.html"><span class="progress-dot"></span>R Visualization Project (5 charts)</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec7sub4" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Statistics</li><li data-subkey="sec7sub4"><a href="Probability-in-R-Exercises.html"><span class="progress-dot"></span>Probability in R Exercises</a></li><li data-subkey="sec7sub4"><a href="R-Probability-Distributions-Exercises.html"><span class="progress-dot"></span>R Probability Distributions (12 problems)</a></li><li data-subkey="sec7sub4"><a href="Binomial-Distribution-Exercises-in-R.html"><span class="progress-dot"></span>Binomial Distribution Exercises</a></li><li data-subkey="sec7sub4"><a href="Poisson-Distribution-Exercises-in-R.html"><span class="progress-dot"></span>Poisson Distribution Exercises</a></li><li data-subkey="sec7sub4"><a href="Central-Limit-Theorem-Exercises-in-R.html"><span class="progress-dot"></span>Central Limit Theorem Exercises</a></li><li data-subkey="sec7sub4"><a href="Hypothesis-Testing-Exercises-in-R.html"><span class="progress-dot"></span>Hypothesis Testing Exercises</a></li><li data-subkey="sec7sub4"><a href="t-Test-Exercises-in-R.html"><span class="progress-dot"></span>t-Test Exercises (12 problems)</a></li><li data-subkey="sec7sub4"><a href="Chi-Square-Test-Exercises-in-R.html"><span class="progress-dot"></span>Chi-Square Exercises (10 problems)</a></li><li data-subkey="sec7sub4"><a href="Confidence-Interval-Exercises-in-R.html"><span class="progress-dot"></span>Confidence Interval (10 problems)</a></li><li data-subkey="sec7sub4"><a href="Power-Analysis-Exercises-in-R.html"><span class="progress-dot"></span>Power Analysis Exercises (8 problems)</a></li><li data-subkey="sec7sub4"><a href="Nonparametric-Tests-Exercises-in-R.html"><span class="progress-dot"></span>Nonparametric Exercises (10 problems)</a></li><li data-subkey="sec7sub4"><a href="Multiple-Testing-Exercises-in-R.html"><span class="progress-dot"></span>Multiple Testing (8 problems)</a></li><li data-subkey="sec7sub4"><a href="Multiple-Regression-Exercises-in-R.html"><span class="progress-dot"></span>Multiple Regression Exercises</a></li><li data-subkey="sec7sub4"><a href="Logistic-Regression-Exercises-in-R.html"><span class="progress-dot"></span>Logistic Regression Exercises (10 problems)</a></li><li data-subkey="sec7sub4"><a href="Regression-Diagnostics-Exercises-in-R.html"><span class="progress-dot"></span>Regression Diagnostics Exercises</a></li><li data-subkey="sec7sub4"><a href="Ridge-and-Lasso-Exercises-in-R.html"><span class="progress-dot"></span>Ridge &amp; Lasso Exercises</a></li><li data-subkey="sec7sub4"><a href="GLM-Exercises-in-R.html"><span class="progress-dot"></span>GLM Exercises (10 problems)</a></li><li data-subkey="sec7sub4"><a href="ANOVA-Exercises-in-R.html"><span class="progress-dot"></span>ANOVA Exercises (15 problems)</a></li><li data-subkey="sec7sub4"><a href="Post-Hoc-Tests-Exercises-in-R.html"><span class="progress-dot"></span>Post-Hoc Tests Exercises (8 problems)</a></li><li data-subkey="sec7sub4"><a href="Repeated-Measures-Exercises-in-R.html"><span class="progress-dot"></span>Repeated Measures (8 problems)</a></li><li data-subkey="sec7sub4"><a href="Experimental-Design-Exercises-in-R.html"><span class="progress-dot"></span>Experimental Design Exercises (8 problems)</a></li><li data-subkey="sec7sub4"><a href="AB-Testing-Exercises-in-R.html"><span class="progress-dot"></span>A/B Testing Exercises (8 problems)</a></li><li data-subkey="sec7sub4"><a href="Linear-Regression-Exercises-in-R.html"><span class="progress-dot"></span>Linear Regression (15 problems)</a></li><li data-subkey="sec7sub4"><a href="PCA-Exercises-in-R.html"><span class="progress-dot"></span>PCA Exercises (10 problems)</a></li><li data-subkey="sec7sub4"><a href="Cluster-Analysis-Exercises-in-R.html"><span class="progress-dot"></span>Clustering Exercises (10 problems)</a></li><li data-subkey="sec7sub4"><a href="SEM-Exercises-in-R.html"><span class="progress-dot"></span>SEM Exercises (8 problems)</a></li></ul></li></ul><div class="sidebar-subscribe"><p>Stay up-to-date. <a href="https://docs.google.com/forms/d/1xkMYkLNFU9U39Dd8S_2JC0p8B5t6_Yq6zUQjanQQJpY/viewform">Subscribe!</a></p><p><a href="https://docs.google.com/forms/d/13GrkCFcNa-TOIllQghsz2SIEbc-YqY9eJX02B19l5Ow/viewform">Chat!</a></p></div></div><div class="sidebar-panel active" data-panel="tools"><ul class="sidebar-tools-list list-unstyled"><li class="sidebar-divider"><span class="subsec-chevron">&#9660;</span> Calculators</li><li><a href="/tools/ab-test-calculator.html" class="active"><span class="tool-icon"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="3.5" width="4" height="9" rx="0.5"/><rect x="9.5" y="3.5" width="4" height="9" rx="0.5"/></svg></span><span class="tool-label">A/B Test Calculator</span></a></li><li><a href="/tools/confidence-interval-calculator.html"><span class="tool-icon"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 4v8M3.5 4H5M3.5 12H5"/><circle cx="8" cy="8" r="1.4" fill="currentColor" stroke="none"/><path d="M12.5 4v8M12.5 4H11M12.5 12H11"/></svg></span><span class="tool-label">Confidence Interval</span></a></li><li><a href="/tools/effect-size-converter.html"><span class="tool-icon"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 5.5h11M11 3l2.5 2.5L11 8"/><path d="M13.5 10.5h-11M5 8l-2.5 2.5L5 13"/></svg></span><span class="tool-label">Effect Size Converter</span></a></li><li><a href="/tools/power-analysis.html"><span class="tool-icon"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 2L4 9h3.5L7 14l5-7H8.5z"/></svg></span><span class="tool-label">Power Analysis</span></a></li><li><a href="/tools/z-score-percentile.html"><span class="tool-icon"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 13c2 0 3-1 4-3s1.5-6 2-6 .5 6 2 6 2.5 0 4 0"/><path d="M2 13.5h12"/></svg></span><span class="tool-label">Z-Score &amp; Percentile</span></a></li><li class="sidebar-divider"><span class="subsec-chevron">&#9660;</span> Interpreters</li><li><a href="/tools/confusion-matrix-interpreter.html"><span class="tool-icon"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="2.5" width="4.5" height="4.5"/><rect x="9" y="2.5" width="4.5" height="4.5"/><rect x="2.5" y="9" width="4.5" height="4.5"/><rect x="9" y="9" width="4.5" height="4.5"/></svg></span><span class="tool-label">Confusion Matrix</span></a></li><li><a href="/tools/lm-output-interpreter.html"><span class="tool-icon"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 13.5L14 3"/><circle cx="4" cy="11.5" r="1" fill="currentColor" stroke="none"/><circle cx="7.5" cy="9" r="1" fill="currentColor" stroke="none"/><circle cx="11" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg></span><span class="tool-label">lm() Output</span></a></li><li><a href="/tools/glm-output-interpreter.html"><span class="tool-icon"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 13C5 13 5 3 8 3s3 10 6 10"/><path d="M2 13.5h12"/></svg></span><span class="tool-label">glm() Output</span></a></li><li class="sidebar-divider"><span class="subsec-chevron">&#9660;</span> Pickers</li><li><a href="/tools/multiple-testing-correction.html"><span class="tool-icon"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 4l2 2 3-3M2.5 8l2 2 3-3M2.5 12l2 2 3-3"/><path d="M10.5 4h3M10.5 8h3M10.5 12h3"/></svg></span><span class="tool-label">Multiple Testing</span></a></li><li><a href="/tools/normality-test-picker.html"><span class="tool-icon"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 13c2 0 3-1 4-3s1.5-6 2-6 .5 6 2 6 2.5 0 4 0"/><circle cx="13" cy="4" r="1.6" fill="currentColor" stroke="none"/></svg></span><span class="tool-label">Normality Test Picker</span></a></li></ul></div></div></aside><main class="tool-chrome-main">
+
+
+
+<div class="container">
+
+  <div class="breadcrumb"><a href="/">Home</a> <span style="margin:0 6px">›</span> <a href="/tools/">Tools</a> <span style="margin:0 6px">›</span> A/B Test Calculator</div>
+
+  <h1 class="tool-title">A/B Test Calculator</h1>
+  <div class="tool-meta">
+    <span>Live computation as you type</span>
+    <span>·</span>
+    <span>Frequentist and Bayesian views</span>
+    <span>·</span>
+    <span>R code emitted alongside</span>
+    <span>·</span>
+    <span>Runs entirely in your browser</span>
+  </div>
+  <p class="lead">Plan how many visitors your A/B test needs, or analyze the results once you have them. Switch between the classical (frequentist) view that gives you a p-value, and the Bayesian view that gives you a probability the variant is better. We emit the R code so you can reproduce everything offline.</p>
+
+  <!-- Worked examples -->
+  <div class="scenarios-section">
+    <div class="scenarios-label">Worked examples</div>
+    <div class="scenarios-row" id="scenarios-row">
+      <button class="scenario-card" data-scenario="ecom" onclick="loadScenario('ecom')">
+        <span class="scenario-icon">🛒</span>
+        <div class="scenario-body">
+          <div class="scenario-name">E-commerce CTA</div>
+          <div class="scenario-desc">3% baseline · +0.3pp lift</div>
+        </div>
+      </button>
+      <button class="scenario-card" data-scenario="saas" onclick="loadScenario('saas')">
+        <span class="scenario-icon">📝</span>
+        <div class="scenario-body">
+          <div class="scenario-name">SaaS sign-up</div>
+          <div class="scenario-desc">5% baseline · +1pp lift</div>
+        </div>
+      </button>
+      <button class="scenario-card" data-scenario="email" onclick="loadScenario('email')">
+        <span class="scenario-icon">📧</span>
+        <div class="scenario-body">
+          <div class="scenario-name">Email subject line</div>
+          <div class="scenario-desc">25% open · +2pp lift</div>
+        </div>
+      </button>
+      <button class="scenario-card" data-scenario="install" onclick="loadScenario('install')">
+        <span class="scenario-icon">📱</span>
+        <div class="scenario-body">
+          <div class="scenario-name">App install</div>
+          <div class="scenario-desc">2% baseline · +0.4pp lift</div>
+        </div>
+      </button>
+      <button class="scenario-card" data-scenario="redesign" onclick="loadScenario('redesign')">
+        <span class="scenario-icon">🎨</span>
+        <div class="scenario-body">
+          <div class="scenario-name">Landing redesign</div>
+          <div class="scenario-desc">10% baseline · +3pp lift</div>
+        </div>
+      </button>
+      <button class="scenario-card" data-scenario="custom" onclick="loadScenario('custom')">
+        <span class="scenario-icon">⚙️</span>
+        <div class="scenario-body">
+          <div class="scenario-name">Custom</div>
+          <div class="scenario-desc">Start with your own numbers</div>
+        </div>
+      </button>
+    </div>
+  </div>
+
+  <!-- Scenario context card — appears when a scenario is selected -->
+  <div class="scenario-context" id="scenario-context">
+    <div class="sc-head">
+      <span class="sc-icon" id="sc-icon">📝</span>
+      <span class="sc-title" id="sc-title">SaaS sign-up</span>
+      <button class="sc-clear" onclick="clearScenario()">× clear scenario</button>
+    </div>
+    <p class="sc-story" id="sc-story">You're testing a redesigned sign-up form on your home page. Visitors either start a trial or bounce.</p>
+    <div class="sc-meta">
+      <span class="sc-meta-item"><span class="sc-meta-icon">📊</span><span><strong>Typical baseline:</strong> <span id="sc-benchmark">2–8%</span></span></span>
+      <span class="sc-meta-item"><span class="sc-meta-icon">⏱</span><span><strong>Recommended duration:</strong> <span id="sc-duration">≥14 days for weekly cycles</span></span></span>
+      <span class="sc-meta-item"><span class="sc-meta-icon">⚠️</span><span><strong>Watch for:</strong> <span id="sc-pitfall">Free-trial signups ≠ paid customers; verify both</span></span></span>
+    </div>
+  </div>
+
+  <!-- Notes on this method -->
+  <details class="preflight" id="preflight">
+    <summary><span>How A/B testing works</span></summary>
+    <div class="preflight-prose">
+      <span class="pf-heading">What it is</span>
+      <p>You have two versions of something — your current website (A) and a new design (B). You want to know which one gets more people to click, sign up, or buy. An <strong>A/B test</strong> is the structured way to find out: show A to some users, B to others, count what happens, and decide if the difference you see is a real improvement or just random luck.</p>
+
+      <span class="pf-heading">How it works</span>
+      <p>The trick is randomness. If you randomly assign each visitor to see A or B, then any difference at the end comes from one of two sources: your design change, or just chance. Statistics gives you a way to tell those two apart.</p>
+      <p>Before the test, decide three things:</p>
+      <p>1. <strong>The metric</strong> — what counts as "winning"? (Conversion rate, click-through, signup rate.)<br>2. <strong>The smallest improvement you'd care about</strong> — a 1% lift? 10%? Powering for tiny effects costs huge samples.<br>3. <strong>How careful you want to be</strong> — usually 95% confidence (willing to be wrong 1 time in 20) and 80% power (chance of catching a real effect).</p>
+      <p>These three numbers determine how many users you need in each group. Run the test until you hit that number, then compare.</p>
+
+      <span class="pf-heading">What you put in</span>
+      <p>• Your current rate (e.g., 10 out of 100 visitors buy = 10%)<br>• The lift you want to be able to detect (e.g., a relative 12% improvement)<br>• Confidence and power levels — the defaults (95% / 80%) are fine 99% of the time<br>• After the test runs, plug in the actual results (successes and total visitors per version) to get the verdict</p>
+
+      <span class="pf-heading">What you get out</span>
+      <p><strong>Before the test:</strong> the sample size you need per version. ("You need ~7,800 visitors per group.")</p>
+      <p><strong>After the test:</strong> the observed lift, a confidence interval for it, a p-value, and a <strong>Bayesian probability that B beats A</strong> — usually the easiest number to act on. ("96% probability B is better.")</p>
+
+      <span class="pf-heading">How to interpret it in practice</span>
+      <p>The single most actionable number is <strong>"probability B beats A."</strong> It's intuitive — most people understand "96% confident" without needing a stats degree.</p>
+      <p>• Above 95% → ship B<br>• Below 80% → B isn't winning<br>• Between 80–95% → leaning toward B but not certain</p>
+      <p>Look at the confidence interval too. A range of [+0.5%, +5%] is a real win even though it's wide. A range of [−1%, +3%] crosses zero — your test was inconclusive (not a tie, just not enough data).</p>
+      <p>If results look "almost significant," it's tempting to run a few more days and check again. <strong>Don't.</strong> Peeking inflates false positives dramatically. Pick your sample size, run to that size, then look once.</p>
+
+      <span class="pf-heading">When to use this</span>
+      <p>Anywhere you can randomly route visitors to one of two versions and measure a clear short-term outcome:</p>
+      <p>• Landing pages and signup flows<br>• Email subject lines<br>• Button colors, copy, layouts<br>• Pricing and packaging<br>• Recommendation algorithms</p>
+      <p>It doesn't work as well for slow-moving outcomes like annual retention or lifetime value, where you'd need other designs (switchback tests, holdouts, geo experiments).</p>
+
+      <span class="pf-heading">Common pitfalls</span>
+      <p><strong>Peeking and stopping early.</strong> Looking at the p-value mid-test and stopping when it dips below 0.05 multiplies your false-positive rate. Decide n upfront and stick to it.</p>
+      <p><strong>Testing many variants without correction.</strong> Run 10 variants and one will look "significant" by chance even if all are identical. Use multiple-testing correction.</p>
+      <p><strong>Changing too many things at once.</strong> If button color and copy and layout all change between A and B, you can't tell which one drove the result.</p>
+      <p><strong>Calling an inconclusive test a "tie."</strong> Inconclusive doesn't mean "A = B"; it means "you don't have enough data to tell." Either pick the cheaper option or run longer.</p>
+    </div>
+  </details>
+
+  <details class="walkthrough beginner-only">
+    <summary>New to A/B testing? Walk me through with an example →</summary>
+    <div>
+      <p style="margin:6px 0 4px;color:var(--c-text-soft)">Imagine you run a SaaS product. Your sign-up button currently converts 5% of visitors. You think a green button might do better.</p>
+      <ol>
+        <li>Set <strong>baseline conversion rate</strong> to 5% (your current rate).</li>
+        <li>Set <strong>minimum detectable lift</strong> to 1 percentage point — the smallest improvement worth caring about.</li>
+        <li>Keep significance and power at their defaults (5% and 80%).</li>
+        <li>You'll see how many visitors you need per variant.</li>
+        <li>Run the test, then switch to <strong>Analyze</strong> and plug in the results.</li>
+      </ol>
+      <button onclick="loadExample()">Load these example values</button>
+      <button class="secondary" onclick="this.closest('details').open=false">Skip walkthrough</button>
+    </div>
+  </details>
+
+  <!-- Mode tabs -->
+  <div class="mode-tabs" data-mode="plan" id="mode-tabs">
+    <span class="mode-slider"></span>
+    <button class="mode-tab" data-mode="plan" onclick="setMode('plan')">
+      <svg class="mt-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/>
+      </svg>
+      <span>Plan</span> <span class="mt-sub">— sample size needed</span>
+    </button>
+    <button class="mode-tab" data-mode="analyze" onclick="setMode('analyze')">
+      <svg class="mt-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M3 3v18h18M7 14l4-4 4 4 5-5"/>
+      </svg>
+      <span>Analyze</span> <span class="mt-sub">— results in</span>
+    </button>
+  </div>
+
+  <!-- ============================================================
+       PLAN MODE
+       ============================================================ -->
+  <div id="pane-plan">
+
+    <div class="workshop">
+    <aside class="ws-inputs">
+      <span class="ws-section-tag">Inputs</span>
+
+      <div class="form-row">
+        <label class="form-label" for="p-baseline">
+          Baseline <span data-vocab="conversion">conversion</span> rate
+          <small class="form-help">Your current rate — what fraction of <span data-vocab="visitor">visitors</span> <span data-vocab="convertVerb">convert</span> today. Enter as a proportion (0.05 = 5%) or click the % toggle.</small>
+        </label>
+        <div class="form-control">
+          <input type="number" id="p-baseline" min="0.0001" max="0.9999" step="0.001" value="0.05" oninput="recomputePlan()">
+        </div>
+        <div class="form-toggle" role="group" aria-label="Display unit">
+          <button class="on" onclick="setUnit('prop',this)">0.05</button>
+          <button onclick="setUnit('pct',this)">5%</button>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <label class="form-label" for="p-mde">
+          Minimum detectable lift
+          <small class="form-help">The smallest improvement you'd care to detect. Smaller lifts need much bigger samples — keep this realistic.</small>
+        </label>
+        <div class="form-control">
+          <input type="number" id="p-mde" min="0.0001" max="0.5" step="0.001" value="0.01" oninput="recomputePlan()">
+        </div>
+        <div class="form-toggle" role="group" aria-label="MDE type">
+          <button class="on" onclick="setMdeType('absolute',this)">absolute</button>
+          <button onclick="setMdeType('relative',this)">relative</button>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <label class="form-label" for="p-alpha">
+          Significance <span class="glossary">α<span class="gloss-tip"><strong>Significance level (α)</strong> — the chance you'll wrongly conclude there's a difference when there isn't (false positive). 0.05 = 5%. Lower = stricter. <a href="/p-value/">Read more →</a></span></span>
+          <small class="form-help">Default 0.05 (5% false-positive rate). Stricter (0.01) for high-stakes calls; looser (0.10) for early exploration.</small>
+        </label>
+        <div class="form-control">
+          <select id="p-alpha" onchange="recomputePlan()">
+            <option value="0.01">0.01 — strict (1% false-positive)</option>
+            <option value="0.05" selected>0.05 — standard</option>
+            <option value="0.10">0.10 — lenient</option>
+          </select>
+        </div>
+        <div></div>
+      </div>
+
+      <div class="form-row">
+        <label class="form-label" for="p-power">
+          <span class="glossary">Power<span class="gloss-tip"><strong>Statistical power</strong> — the chance your test correctly detects a real effect when there is one. 0.80 = 80% chance of catching the difference. <a href="/statistical-power/">Read more →</a></span></span> (1 − β)
+          <small class="form-help">Default 0.80. Higher power = more confidence you won't miss a real effect, but needs a larger sample.</small>
+        </label>
+        <div class="form-control">
+          <select id="p-power" onchange="recomputePlan()">
+            <option value="0.70">0.70 — relaxed</option>
+            <option value="0.80" selected>0.80 — standard</option>
+            <option value="0.90">0.90 — high</option>
+            <option value="0.95">0.95 — very high</option>
+          </select>
+        </div>
+        <div></div>
+      </div>
+
+      <div class="form-row">
+        <label class="form-label" for="p-tail">
+          Test direction
+          <small class="form-help">Two-tailed checks "is B different from A?" — the safe default. One-tailed checks "is B better than A?" — only valid if you'd ignore B-worse-than-A results.</small>
+        </label>
+        <div class="form-control">
+          <select id="p-tail" onchange="recomputePlan()">
+            <option value="2" selected>Two-tailed (B different from A)</option>
+            <option value="1">One-tailed (B better than A)</option>
+          </select>
+        </div>
+        <div></div>
+      </div>
+
+      <div class="form-row">
+        <label class="form-label" for="p-traffic">
+          Daily visitors (optional)
+          <small class="form-help">If you tell us your traffic, we'll estimate how many days the test will take.</small>
+        </label>
+        <div class="form-control">
+          <input type="number" id="p-traffic" min="0" step="100" placeholder="e.g., 1000" oninput="recomputePlan()">
+        </div>
+        <div></div>
+      </div>
+    </aside>
+
+    <main class="ws-output">
+
+    <div class="live-summary" id="plan-summary">Pick a scenario above, or start filling in your test plan to see a plain-English summary here.</div>
+
+    <div class="result-card">
+      <span class="result-tag">Required sample size</span>
+      <div class="result-primary">
+        <span class="result-num" id="r-n-per-variant">—</span>
+        <span class="result-unit">per variant</span>
+      </div>
+      <p class="result-desc" id="r-n-desc">Enter your inputs above to see the required sample size.</p>
+
+      <div class="result-grid">
+        <div class="result-stat">
+          <div class="result-stat-label">Total sample</div>
+          <div class="result-stat-value" id="r-n-total">—</div>
+        </div>
+        <div class="result-stat">
+          <div class="result-stat-label">Variant B target rate</div>
+          <div class="result-stat-value" id="r-p2">—</div>
+        </div>
+        <div class="result-stat">
+          <div class="result-stat-label">Test duration</div>
+          <div class="result-stat-value" id="r-duration">—</div>
+        </div>
+        <div class="result-stat">
+          <div class="result-stat-label">Detectable lift</div>
+          <div class="result-stat-value" id="r-lift">—</div>
+        </div>
+      </div>
+
+      <details class="result-explainer" id="explainer-plan">
+        <summary>What does this mean?</summary>
+        <div class="result-explainer-body" id="explainer-plan-body">
+          You'll need this many visitors per variant for an 80% chance of detecting your specified lift, if the lift is real. Smaller samples may miss true effects (false negatives); much larger samples cost extra without much extra confidence.
+        </div>
+      </details>
+
+      <div class="chart-wrap"><canvas id="sensitivity-chart"></canvas></div>
+      <p class="chart-caption">How sample size scales as you change the minimum detectable lift. Smaller effects require dramatically more visitors.</p>
+
+      <div class="whatif-row">
+        <span class="whatif-label">What if you tweaked your plan?</span>
+        <button class="whatif-btn" onclick="whatIf('halveMde')">Halve the MDE <span class="wif-arrow">→</span></button>
+        <button class="whatif-btn" onclick="whatIf('doubleMde')">Double the MDE <span class="wif-arrow">→</span></button>
+        <button class="whatif-btn" onclick="whatIf('lowerPower')">Drop power to 70% <span class="wif-arrow">→</span></button>
+        <button class="whatif-btn" onclick="whatIf('higherPower')">Raise power to 90% <span class="wif-arrow">→</span></button>
+        <button class="whatif-btn" onclick="whatIf('strictAlpha')">Stricter α (0.01) <span class="wif-arrow">→</span></button>
+        <button class="whatif-btn" onclick="whatIf('reset')">↻ Reset</button>
+      </div>
+
+      <div class="r-chunk-card" id="plan-r-chunk-wrap">
+        <div class="r-chunk-head">
+          <span class="r-tag">R</span>
+          <div class="r-actions">
+            <button onclick="copyCode('plan')" id="plan-copy-btn">Copy</button>
+          </div>
+        </div>
+<pre class="r-chunk-body" id="r-code-plan"><span class="comment"># Compute sample size for a two-proportion z-test</span>
+<span class="keyword">library</span>(<span class="fn">pwr</span>)
+
+p1 &lt;- <span class="number">0.05</span>      <span class="comment"># baseline</span>
+p2 &lt;- <span class="number">0.06</span>      <span class="comment"># expected with treatment</span>
+h  &lt;- <span class="fn">ES.h</span>(p1, p2)  <span class="comment"># Cohen's effect size for proportions</span>
+
+<span class="fn">pwr.2p.test</span>(
+  h          = h,
+  sig.level  = <span class="number">0.05</span>,
+  power      = <span class="number">0.80</span>,
+  alternative = <span class="string">"two.sided"</span>
+)</pre>
+      </div>
+
+      <div class="risk-reward" id="plan-risk-reward">
+        <div class="risk-reward-input">
+          <label for="p-revenue">💰 Revenue per conversion ($, optional)</label>
+          <input type="number" id="p-revenue" min="0" step="1" placeholder="e.g., 25" oninput="updateRiskReward()">
+          <span style="font-size:12px;color:var(--c-text-mute)">— translate the result into business impact</span>
+        </div>
+        <div class="risk-reward-result" id="plan-rr-out">
+          <div class="rrr-row win"><span>If B truly works, lift in revenue per year (at planned traffic)</span><strong id="rr-win">—</strong></div>
+          <div class="rrr-row"><span>Cost of running the test (sample × revenue × current rate)</span><strong id="rr-cost">—</strong></div>
+        </div>
+      </div>
+
+      <div class="action-row">
+        <button class="next-tool" onclick="setMode('analyze')">
+          <span>I have results — analyze them</span> <span>→</span>
+        </button>
+        <a class="next-tool" href="/tools/effect-size-converter/">
+          <span>Convert lift to Cohen's h</span> <span>→</span>
+        </a>
+        <a class="next-tool" href="/tools/power-analysis/">
+          <span>Power analysis for other designs</span> <span>→</span>
+        </a>
+      </div>
+    </div>
+    </main>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       ANALYZE MODE
+       ============================================================ -->
+  <div id="pane-analyze" style="display:none">
+
+    <div class="workshop">
+    <aside class="ws-inputs">
+      <span class="ws-section-tag">Test results</span>
+
+      <div class="form-row">
+        <label class="form-label" for="a-n1">
+          Variant A — <span data-vocab="visitor">visitors</span>
+          <small class="form-help">Your control. The number of unique <span data-vocab="visitor">visitors</span> who saw the original.</small>
+        </label>
+        <div class="form-control">
+          <input type="number" id="a-n1" min="1" step="1" value="1000" oninput="recomputeAnalyze()">
+        </div>
+        <div></div>
+      </div>
+
+      <div class="form-row">
+        <label class="form-label" for="a-c1">
+          Variant A — <span data-vocab="conversion">conversions</span>
+          <small class="form-help">Of those <span data-vocab="visitor">visitors</span>, how many <span data-vocab="convertedNoun">converted</span>.</small>
+        </label>
+        <div class="form-control">
+          <input type="number" id="a-c1" min="0" step="1" value="50" oninput="recomputeAnalyze()">
+        </div>
+        <div class="form-value" id="a-rate1">5.00%</div>
+      </div>
+
+      <div class="form-row">
+        <label class="form-label" for="a-n2">
+          Variant B — <span data-vocab="visitor">visitors</span>
+          <small class="form-help">Your treatment / new version. Total <span data-vocab="visitor">visitors</span> exposed.</small>
+        </label>
+        <div class="form-control">
+          <input type="number" id="a-n2" min="1" step="1" value="1000" oninput="recomputeAnalyze()">
+        </div>
+        <div></div>
+      </div>
+
+      <div class="form-row">
+        <label class="form-label" for="a-c2">
+          Variant B — <span data-vocab="conversion">conversions</span>
+          <small class="form-help"><span data-vocab="conversion">Conversions</span> on the new variant.</small>
+        </label>
+        <div class="form-control">
+          <input type="number" id="a-c2" min="0" step="1" value="65" oninput="recomputeAnalyze()">
+        </div>
+        <div class="form-value" id="a-rate2">6.50%</div>
+      </div>
+
+      <div class="form-row">
+        <label class="form-label" for="a-alpha">
+          Significance α
+          <small class="form-help">Same as in Plan mode — typically 0.05.</small>
+        </label>
+        <div class="form-control">
+          <select id="a-alpha" onchange="recomputeAnalyze()">
+            <option value="0.01">0.01</option>
+            <option value="0.05" selected>0.05</option>
+            <option value="0.10">0.10</option>
+          </select>
+        </div>
+        <div></div>
+      </div>
+    </aside>
+
+    <main class="ws-output">
+
+    <div class="live-summary" id="analyze-summary">Drop in your visitors and conversions above to see a plain-English read of your test.</div>
+
+    <div id="analyze-mistakes"></div>
+
+    <div class="decision-card wait" id="decision-card" style="display:none">
+      <span class="dc-icon" id="dc-icon">⏳</span>
+      <div class="dc-body">
+        <div class="dc-verdict" id="dc-verdict">Waiting for inputs</div>
+        <div class="dc-rationale" id="dc-rationale">Enter your test results above and we'll give you a clear ship / wait / don't-ship recommendation.</div>
+        <div class="dc-action" id="dc-action" style="display:none"></div>
+      </div>
+    </div>
+
+    <div class="risk-reward" id="analyze-risk-reward">
+      <div class="risk-reward-input">
+        <label for="a-revenue">💰 Revenue per conversion ($, optional)</label>
+        <input type="number" id="a-revenue" min="0" step="1" placeholder="e.g., 25" oninput="updateAnalyzeRiskReward()">
+        <span style="font-size:12px;color:var(--c-text-mute)">— translate the result into expected value</span>
+      </div>
+      <div class="risk-reward-result" id="analyze-rr-out">
+        <div class="rrr-row win"><span>If you ship and B is truly better (annual lift, at observed traffic)</span><strong id="arr-win">—</strong></div>
+        <div class="rrr-row lose"><span>If you ship and B is actually worse (annual loss exposure)</span><strong id="arr-lose">—</strong></div>
+        <div class="rrr-row expected"><span>Expected value of shipping (probability-weighted)</span><strong id="arr-ev">—</strong></div>
+      </div>
+    </div>
+
+    <div class="sub-tabs" id="analyze-subtabs">
+      <button class="sub-tab on" data-view="frequentist" onclick="setView('frequentist')">Frequentist (p-value)</button>
+      <button class="sub-tab" data-view="bayesian" onclick="setView('bayesian')">Bayesian (probability)</button>
+    </div>
+
+    <!-- FREQUENTIST -->
+    <div class="card result-card" id="result-freq">
+      <span class="result-tag">Frequentist analysis</span>
+      <div class="result-primary">
+        <span class="result-num" id="freq-lift">—</span>
+        <span class="result-unit">absolute lift</span>
+      </div>
+      <p class="result-desc" id="freq-desc">Variant B converts at <strong id="freq-p2-text">6.50%</strong> vs <strong id="freq-p1-text">5.00%</strong> for A — a 1.5 percentage-point absolute lift, or +30% relative.</p>
+
+      <div class="result-grid">
+        <div class="result-stat">
+          <div class="result-stat-label">95% CI for lift</div>
+          <div class="result-stat-value" id="freq-ci">—</div>
+        </div>
+        <div class="result-stat">
+          <div class="result-stat-label">Z-statistic</div>
+          <div class="result-stat-value" id="freq-z">—</div>
+        </div>
+        <div class="result-stat">
+          <div class="result-stat-label">p-value</div>
+          <div class="result-stat-value" id="freq-p">—</div>
+        </div>
+        <div class="result-stat">
+          <div class="result-stat-label">Relative lift</div>
+          <div class="result-stat-value" id="freq-rel">—</div>
+        </div>
+      </div>
+
+      <div class="verdict info" id="freq-verdict">
+        <span class="verdict-icon">ℹ️</span>
+        <div class="verdict-body">
+          <div class="verdict-title">Verdict</div>
+          <div class="verdict-desc" id="freq-verdict-desc">Enter your numbers to see the verdict.</div>
+        </div>
+      </div>
+
+      <details class="result-explainer">
+        <summary>What does the p-value mean here?</summary>
+        <div class="result-explainer-body" id="freq-explainer-body">
+          A p-value of 0.03 means: <em>if the true conversion rates were identical, you'd see a difference at least this large by random chance about 3% of the time.</em> A small p-value is evidence against "no difference," but it doesn't tell you how big the real difference is — that's what the confidence interval shows.
+        </div>
+      </details>
+
+      <div class="r-code-block">
+        <button class="copy-btn" onclick="copyCode('freq')">Copy</button>
+<pre id="r-code-freq"><span class="comment"># Two-proportion z-test</span>
+<span class="fn">prop.test</span>(
+  x = <span class="fn">c</span>(<span class="number">50</span>, <span class="number">65</span>),
+  n = <span class="fn">c</span>(<span class="number">1000</span>, <span class="number">1000</span>),
+  conf.level = <span class="number">0.95</span>,
+  correct = <span class="keyword">FALSE</span>
+)</pre>
+      </div>
+    </div>
+
+    <!-- BAYESIAN -->
+    <div class="card result-card" id="result-bayes" style="display:none">
+      <span class="result-tag">Bayesian analysis</span>
+      <div class="result-primary">
+        <span class="result-num" id="bayes-prob">—</span>
+        <span class="result-unit">probability B is better</span>
+      </div>
+      <p class="result-desc" id="bayes-desc">After seeing your data and using a non-informative prior, this is the chance that variant B's true conversion rate is higher than A's.</p>
+
+      <div class="result-grid">
+        <div class="result-stat">
+          <div class="result-stat-label">95% credible interval</div>
+          <div class="result-stat-value" id="bayes-ci">—</div>
+        </div>
+        <div class="result-stat">
+          <div class="result-stat-label">Posterior mean lift</div>
+          <div class="result-stat-value" id="bayes-mean">—</div>
+        </div>
+        <div class="result-stat">
+          <div class="result-stat-label">Expected loss if pick A</div>
+          <div class="result-stat-value" id="bayes-loss-a">—</div>
+        </div>
+        <div class="result-stat">
+          <div class="result-stat-label">Expected loss if pick B</div>
+          <div class="result-stat-value" id="bayes-loss-b">—</div>
+        </div>
+      </div>
+
+      <div class="verdict info" id="bayes-verdict">
+        <span class="verdict-icon">ℹ️</span>
+        <div class="verdict-body">
+          <div class="verdict-title">Verdict</div>
+          <div class="verdict-desc" id="bayes-verdict-desc">Enter your numbers above to see the Bayesian verdict.</div>
+        </div>
+      </div>
+
+      <div class="chart-wrap"><canvas id="posterior-chart"></canvas></div>
+      <p class="chart-caption">Posterior densities for A's and B's true conversion rates. Where the curves overlap is uncertainty about which is higher.</p>
+
+      <details class="result-explainer">
+        <summary>How is this different from the frequentist p-value?</summary>
+        <div class="result-explainer-body">
+          <strong>Frequentist:</strong> "If A and B were truly identical, what's the chance I'd see a difference this big by accident?" <br>
+          <strong>Bayesian:</strong> "Given my data, what's the chance B is genuinely better than A?" <br><br>
+          The Bayesian view answers the question most people *think* they're getting from the p-value. Both views are valid; they just answer different questions. The credible interval has a clean interpretation: there's a 95% chance the true lift falls inside it (under our prior).
+        </div>
+      </details>
+
+      <div class="r-code-block">
+        <button class="copy-btn" onclick="copyCode('bayes')">Copy</button>
+<pre id="r-code-bayes"><span class="comment"># Bayesian via beta-binomial conjugate</span>
+<span class="comment"># Prior Beta(1,1) is uniform / non-informative</span>
+<span class="keyword">set.seed</span>(<span class="number">42</span>)
+post_a &lt;- <span class="fn">rbeta</span>(<span class="number">1e5</span>, <span class="number">1</span> + <span class="number">50</span>, <span class="number">1</span> + <span class="number">1000</span> - <span class="number">50</span>)
+post_b &lt;- <span class="fn">rbeta</span>(<span class="number">1e5</span>, <span class="number">1</span> + <span class="number">65</span>, <span class="number">1</span> + <span class="number">1000</span> - <span class="number">65</span>)
+
+<span class="comment"># Probability B beats A</span>
+<span class="fn">mean</span>(post_b &gt; post_a)
+
+<span class="comment"># 95% credible interval for the lift</span>
+<span class="fn">quantile</span>(post_b - post_a, <span class="fn">c</span>(<span class="number">0.025</span>, <span class="number">0.975</span>))</pre>
+      </div>
+    </div>
+
+    <div class="action-row">
+      <a class="next-tool" href="/tools/effect-size-converter/">
+        <span>Convert this lift to Cohen's h</span> <span>→</span>
+      </a>
+      <a class="next-tool" href="/tools/multiple-testing-correction/">
+        <span>Running multiple tests? Correct for it</span> <span>→</span>
+      </a>
+    </div>
+
+    </main>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       Anatomy + alternatives + further reading (always visible)
+       ============================================================ -->
+  <h2 class="section-h">Anatomy of the answer</h2>
+  <div class="anatomy-step">
+    <div class="anatomy-formula">h = 2 · (arcsin√p₂ − arcsin√p₁)</div>
+    <div class="anatomy-body"><strong>Cohen's h.</strong> An effect-size measure tailored to comparing two proportions. Unlike a raw difference, h corrects for the fact that going from 1% to 2% is much harder than from 50% to 51%.</div>
+  </div>
+  <div class="anatomy-step">
+    <div class="anatomy-formula">n = (z<sub>1−α/2</sub> + z<sub>1−β</sub>)² · [ p₁(1−p₁) + p₂(1−p₂) ] / (p₂ − p₁)²</div>
+    <div class="anatomy-body"><strong>Sample size.</strong> The standard two-proportion formula. Matches R's <code>pwr::pwr.2p.test()</code> exactly.</div>
+  </div>
+  <div class="anatomy-step">
+    <div class="anatomy-formula">z = (p̂₂ − p̂₁) / √[ p̂(1−p̂) · (1/n₁ + 1/n₂) ]</div>
+    <div class="anatomy-body"><strong>Two-proportion z-test.</strong> No continuity correction by default. The 95% CI uses pooled variance under H₀ for the test and unpooled variance for the CI — matches <code>prop.test(..., correct=FALSE)</code>.</div>
+  </div>
+  <div class="anatomy-step">
+    <div class="anatomy-formula">pᵢ | data ~ Beta(α₀ + cᵢ, β₀ + nᵢ − cᵢ)</div>
+    <div class="anatomy-body"><strong>Beta-Binomial conjugate.</strong> A Beta(1,1) prior is uniform on [0,1]. After data, each variant's posterior is Beta(1 + conversions, 1 + non-conversions). We draw 100,000 samples per arm to compute P(B&gt;A) and the credible interval. Matches <code>rbeta()</code> simulation in R.</div>
+  </div>
+
+  <h2 class="section-h">When this is the wrong tool</h2>
+  <dl class="alt-list">
+    <dt class="alt-header">If you have…</dt>
+    <dd class="alt-header alt-header-right">Use instead</dd>
+    <dt>Very small samples (n &lt; 30 per variant)</dt>
+    <dd><a href="/tools/fishers-exact-test/">Fisher's exact test</a> — z-approximation breaks down at this scale.</dd>
+    <dt>Continuous outcomes (revenue, time-on-site)</dt>
+    <dd><a href="/tools/power-analysis/">Power Analysis tool</a> — continuous data needs a t-test, not a proportion test.</dd>
+    <dt>Three or more variants</dt>
+    <dd><a href="/tools/multiple-testing-correction/">Multiple Testing Correction</a> — or consider a multi-armed bandit.</dd>
+    <dt>You "peeked" at results mid-test</dt>
+    <dd><a href="/sequential-testing/">Sequential testing tutorial</a> — standard p-values assume a single look at the end.</dd>
+    <dt>You want to control for covariates</dt>
+    <dd><a href="/cuped/">CUPED tutorial</a> — covariate-adjusted estimators reduce variance.</dd>
+  </dl>
+
+  <h2 class="section-h">Further reading</h2>
+  <ul class="further-list">
+    <li><a href="/ab-testing/">The complete guide to A/B testing in R</a> — formulas, code, common pitfalls.</li>
+    <li><a href="/p-value/">What a p-value really means</a> — and what it doesn't.</li>
+    <li><a href="/bayesian-ab/">Why Bayesian A/B testing is winning</a> — a friendly primer.</li>
+    <li><a href="/statistical-power/">Statistical power, explained</a> — the most important concept most people misunderstand.</li>
+  </ul>
+
+</div>
+
+<div class="toast-area" id="toast-area"></div>
+
+<!-- Keyboard shortcuts overlay -->
+<div class="kbd-overlay" id="kbd-overlay" onclick="if(event.target===this)hideShortcuts()">
+  <div class="kbd-overlay-card">
+    <h3>Keyboard shortcuts</h3>
+    <div class="kbd-row"><span class="kbd-row-action">Focus first input</span><span class="kbd-row-keys"><kbd>⌘</kbd><kbd>K</kbd></span></div>
+    <div class="kbd-row"><span class="kbd-row-action">Switch Plan ↔ Analyze</span><span class="kbd-row-keys"><kbd>⌘</kbd><kbd>↹</kbd></span></div>
+    <div class="kbd-row"><span class="kbd-row-action">Copy R code</span><span class="kbd-row-keys"><kbd>⌘</kbd><kbd>R</kbd></span></div>
+    <div class="kbd-row"><span class="kbd-row-action">Copy share link</span><span class="kbd-row-keys"><kbd>⌘</kbd><kbd>L</kbd></span></div>
+    <div class="kbd-row"><span class="kbd-row-action">Show this overlay</span><span class="kbd-row-keys"><kbd>?</kbd></span></div>
+    <div class="kbd-row"><span class="kbd-row-action">Close overlay / blur input</span><span class="kbd-row-keys"><kbd>Esc</kbd></span></div>
+    <div class="kbd-overlay-close">Click anywhere outside to close</div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// Math primitives
+// ============================================================
+
+// Standard normal CDF (Hart's algorithm; abs error < 7.5e-8)
+function pnorm(x){
+  const a1=0.254829592,a2=-0.284496736,a3=1.421413741,a4=-1.453152027,a5=1.061405429,p=0.3275911;
+  const sign = x<0 ? -1 : 1;
+  x = Math.abs(x)/Math.sqrt(2);
+  const t = 1.0/(1.0+p*x);
+  const y = 1.0 - (((((a5*t+a4)*t)+a3)*t+a2)*t+a1)*t*Math.exp(-x*x);
+  return 0.5*(1.0+sign*y);
+}
+
+// Inverse standard normal (Wichura AS 241; max abs err ~7.5e-9)
+function qnorm(p){
+  if (p<=0 || p>=1) return p<=0 ? -Infinity : Infinity;
+  const q = p - 0.5;
+  let r;
+  if (Math.abs(q) <= 0.425) {
+    r = q*q;
+    return q*(((((((2509.0809287301226727*r + 33430.575583588128105)*r + 67265.770927008700853)*r + 45921.953931549871457)*r + 13731.693765509461125)*r + 1971.5909503065514427)*r + 133.14166789178437745)*r + 3.387132872796366608)/(((((((5226.495278852854561*r + 28729.085735721942674)*r + 39307.89580009271061)*r + 21213.794301586595867)*r + 5394.1960214247511077)*r + 687.1870074920579083)*r + 42.313330701600911252)*r + 1);
+  }
+  r = q<0 ? p : 1-p;
+  r = Math.sqrt(-Math.log(r));
+  let val;
+  if (r <= 5) {
+    r -= 1.6;
+    val = (((((((0.00077454501427834140764*r + 0.0227238449892691845833)*r + 0.24178072517745061177)*r + 1.27045825245236838258)*r + 3.64784832476320460504)*r + 5.7694972214606914055)*r + 4.6303378461565452959)*r + 1.42343711074968357734)/(((((((0.00000010507500716444169*r + 0.0005475938084995344946)*r + 0.0151986665636164571966)*r + 0.14810397642748007459)*r + 0.68976733498510000455)*r + 1.6763848301838038494)*r + 2.05319162663775882187)*r + 1);
+  } else {
+    r -= 5;
+    val = (((((((0.000000201033439929228813265*r + 0.0000271155556874348757815)*r + 0.0012426609473880784386)*r + 0.026532189526576123093)*r + 0.29656057182850489123)*r + 1.7848265399172913358)*r + 5.4637849111641143699)*r + 6.6579046435011037772)/(((((((0.00000000204426310338993978564*r + 0.00000014215117583164458887)*r + 0.0000018463183175100546818)*r + 0.0000786869131145613259)*r + 0.0014875361290850615)*r + 0.013692988092273580531)*r + 0.059983220655588793769)*r + 1);
+  }
+  return q<0 ? -val : val;
+}
+
+// Sample size for two-proportion z-test, equal allocation
+// Returns required n per group
+function sampleSizeTwoProp(p1, p2, alpha, power, tail){
+  const zA = qnorm(1 - alpha/tail);
+  const zB = qnorm(power);
+  const numerator = Math.pow(zA + zB, 2) * (p1*(1-p1) + p2*(1-p2));
+  const denominator = Math.pow(p2 - p1, 2);
+  if (denominator === 0) return Infinity;
+  return Math.ceil(numerator / denominator);
+}
+
+// Two-proportion z-test (with pooled variance under H0)
+function twoPropTest(c1, n1, c2, n2){
+  const p1 = c1/n1, p2 = c2/n2;
+  const pPool = (c1+c2) / (n1+n2);
+  const se = Math.sqrt(pPool*(1-pPool)*(1/n1 + 1/n2));
+  const z = (p2 - p1) / se;
+  const pTwoSided = 2 * (1 - pnorm(Math.abs(z)));
+  // CI for p2 - p1 using unpooled variance (Wald)
+  const seCi = Math.sqrt(p1*(1-p1)/n1 + p2*(1-p2)/n2);
+  const z95 = qnorm(0.975);
+  return {
+    p1, p2, diff: p2-p1, relDiff: (p2-p1)/p1, z, p: pTwoSided,
+    ciLow: (p2-p1) - z95*seCi,
+    ciHigh: (p2-p1) + z95*seCi
+  };
+}
+
+// Gamma sampling (Marsaglia & Tsang, shape ≥ 1; for shape <1 boost trick)
+function rgamma(shape, scale){
+  scale = scale || 1;
+  if (shape < 1){
+    const u = Math.random();
+    return rgamma(shape+1, scale) * Math.pow(u, 1/shape);
+  }
+  const d = shape - 1/3;
+  const c = 1/Math.sqrt(9*d);
+  let x, v;
+  while(true){
+    do { x = randNormal(); v = 1 + c*x; } while (v <= 0);
+    v = v*v*v;
+    const u = Math.random();
+    if (u < 1 - 0.0331*x*x*x*x) return d*v*scale;
+    if (Math.log(u) < 0.5*x*x + d*(1 - v + Math.log(v))) return d*v*scale;
+  }
+}
+let _spareNormal = null;
+function randNormal(){
+  if (_spareNormal !== null){ const s = _spareNormal; _spareNormal = null; return s; }
+  let u, v, s;
+  do { u = Math.random()*2-1; v = Math.random()*2-1; s = u*u+v*v; } while(s>=1 || s===0);
+  const m = Math.sqrt(-2*Math.log(s)/s);
+  _spareNormal = v*m;
+  return u*m;
+}
+function rbeta(alpha, beta){
+  const x = rgamma(alpha, 1), y = rgamma(beta, 1);
+  return x / (x+y);
+}
+
+// Bayesian beta-binomial analysis (10k posterior draws)
+function bayesAnalysis(c1, n1, c2, n2, nDraws = 10000){
+  const a1 = 1 + c1, b1 = 1 + n1 - c1;
+  const a2 = 1 + c2, b2 = 1 + n2 - c2;
+  const draws = new Array(nDraws);
+  let bBeatsA = 0, sumDiff = 0;
+  for (let i=0; i<nDraws; i++){
+    const pA = rbeta(a1, b1);
+    const pB = rbeta(a2, b2);
+    if (pB > pA) bBeatsA++;
+    const d = pB - pA;
+    draws[i] = d;
+    sumDiff += d;
+  }
+  draws.sort((a,b)=>a-b);
+  const meanDiff = sumDiff / nDraws;
+  const ci025 = draws[Math.floor(nDraws*0.025)];
+  const ci975 = draws[Math.floor(nDraws*0.975)];
+  // Expected loss: E[max(pA-pB,0)] if pick B; E[max(pB-pA,0)] if pick A
+  let lossPickB = 0, lossPickA = 0;
+  for (let i=0; i<nDraws; i++){
+    const d = draws[i];  // pB - pA
+    if (d < 0) lossPickB += -d;
+    if (d > 0) lossPickA += d;
+  }
+  return {
+    probBeatsA: bBeatsA/nDraws,
+    meanDiff, ci025, ci975,
+    lossPickA: lossPickA/nDraws,
+    lossPickB: lossPickB/nDraws,
+    a1, b1, a2, b2
+  };
+}
+
+// ============================================================
+// State + UI
+// ============================================================
+
+let unit = 'prop';
+let mdeType = 'absolute';
+let mode = 'plan';
+let view = 'frequentist';
+let beginnerMode = false;
+let sensitivityChart = null;
+let posteriorChart = null;
+
+function $(id){ return document.getElementById(id); }
+function num(id){ return parseFloat($(id).value); }
+
+function setMode(m){
+  mode = m;
+  $('mode-tabs').dataset.mode = m;
+  $('pane-plan').style.display = m==='plan' ? '' : 'none';
+  $('pane-analyze').style.display = m==='analyze' ? '' : 'none';
+  if (m==='plan') recomputePlan(); else recomputeAnalyze();
+}
+
+function setView(v){
+  view = v;
+  document.querySelectorAll('.sub-tab').forEach(t => t.classList.toggle('on', t.dataset.view === v));
+  $('result-freq').style.display = v==='frequentist' ? '' : 'none';
+  $('result-bayes').style.display = v==='bayesian' ? '' : 'none';
+  if (v==='bayesian') recomputeAnalyze();
+}
+
+function setUnit(u, btn){
+  unit = u;
+  document.querySelectorAll('.form-toggle')[0].querySelectorAll('button').forEach(b => b.classList.remove('on'));
+  btn.classList.add('on');
+  // Convert displayed values
+  const inputs = ['p-baseline','p-mde'];
+  inputs.forEach(id => {
+    const el = $(id);
+    let v = parseFloat(el.value);
+    if (isNaN(v)) return;
+    if (u === 'pct' && v < 1) el.value = (v*100).toFixed(2);
+    else if (u === 'prop' && v > 1) el.value = (v/100).toFixed(4);
+  });
+  recomputePlan();
+}
+
+function setMdeType(t, btn){
+  mdeType = t;
+  btn.parentElement.querySelectorAll('button').forEach(b => b.classList.remove('on'));
+  btn.classList.add('on');
+  recomputePlan();
+}
+
+function getProp(id){
+  const v = parseFloat($(id).value);
+  if (unit === 'pct') return v/100;
+  return v;
+}
+
+function fmtPct(p, dec){ return (p*100).toFixed(dec ?? 2) + '%'; }
+function fmtNum(n){ return n.toLocaleString('en-US'); }
+
+function animateNumber(el){
+  el.classList.remove('changing');
+  void el.offsetWidth;
+  el.classList.add('changing');
+  // Also pulse the live dot on the corresponding result tag
+  flashResultTag();
+}
+
+// ============================================================
+// PLAN MODE COMPUTATION
+// ============================================================
+function recomputePlan(){
+  const p1 = getProp('p-baseline');
+  let mde = parseFloat($('p-mde').value);
+  if (unit === 'pct') mde = mde/100;
+  const alpha = parseFloat($('p-alpha').value);
+  const power = parseFloat($('p-power').value);
+  const tail = parseInt($('p-tail').value);
+  const traffic = parseFloat($('p-traffic').value) || null;
+
+  // Validate
+  if (isNaN(p1) || p1 <= 0 || p1 >= 1){ showInvalid('p-baseline'); return clearPlan('Baseline must be between 0 and 1 (exclusive).'); }
+  clearInvalid('p-baseline');
+  if (isNaN(mde) || mde <= 0){ showInvalid('p-mde'); return clearPlan('Minimum detectable lift must be greater than 0.'); }
+  clearInvalid('p-mde');
+  let p2;
+  if (mdeType === 'absolute') p2 = p1 + mde;
+  else p2 = p1 * (1 + mde);
+  if (p2 >= 1 || p2 <= 0){ showInvalid('p-mde'); return clearPlan('The implied target rate must stay between 0 and 1.'); }
+
+  const n = sampleSizeTwoProp(p1, p2, alpha, power, tail);
+  if (!isFinite(n)){ return clearPlan('Couldn\'t compute — check inputs.'); }
+
+  $('r-n-per-variant').textContent = fmtNum(n);
+  animateNumber($('r-n-per-variant'));
+  $('r-n-total').textContent = fmtNum(n*2);
+  $('r-p2').textContent = fmtPct(p2, 2);
+  $('r-lift').textContent = fmtPct(p2-p1, 2) + ' (abs)';
+
+  if (traffic && traffic > 0){
+    const days = (n*2) / traffic;
+    if (days < 1) $('r-duration').textContent = '<1 day';
+    else if (days < 60) $('r-duration').textContent = days.toFixed(1) + ' days';
+    else $('r-duration').textContent = (days/30).toFixed(1) + ' months';
+  } else {
+    $('r-duration').textContent = '— (set traffic)';
+  }
+
+  $('r-n-desc').innerHTML = `Expose ${fmtNum(n)} visitors to each variant (${fmtNum(n*2)} total) for an ${(power*100).toFixed(0)}% chance of detecting a ${fmtPct(p2-p1,2)} absolute lift if it's real.`;
+
+  updatePlanSummary(p1, p2, n, alpha, power, traffic);
+  updateRiskReward();
+
+  // R code update
+  $('r-code-plan').innerHTML = `<span class="comment"># Compute sample size for a two-proportion z-test</span>
+<span class="keyword">library</span>(<span class="fn">pwr</span>)
+
+p1 &lt;- <span class="number">${p1}</span>      <span class="comment"># baseline</span>
+p2 &lt;- <span class="number">${p2.toFixed(4)}</span>      <span class="comment"># expected with treatment</span>
+h  &lt;- <span class="fn">ES.h</span>(p1, p2)  <span class="comment"># Cohen's effect size for proportions</span>
+
+<span class="fn">pwr.2p.test</span>(
+  h          = h,
+  sig.level  = <span class="number">${alpha}</span>,
+  power      = <span class="number">${power}</span>,
+  alternative = <span class="string">"${tail===2?'two.sided':'greater'}"</span>
+)`;
+
+  // Sensitivity chart
+  drawSensitivity(p1, alpha, power, tail);
+}
+
+function clearPlan(msg){
+  $('r-n-per-variant').textContent = '—';
+  $('r-n-total').textContent = '—';
+  $('r-p2').textContent = '—';
+  $('r-duration').textContent = '—';
+  $('r-lift').textContent = '—';
+  $('r-n-desc').textContent = msg || 'Enter inputs above.';
+}
+
+function showInvalid(id){ $(id).classList.add('invalid'); }
+function clearInvalid(id){ $(id).classList.remove('invalid'); }
+
+function drawSensitivity(p1, alpha, power, tail){
+  const ctx = $('sensitivity-chart');
+  if (!ctx || !window.Chart) return;
+  const lifts = [];
+  const ns = [];
+  const maxLift = Math.min(0.5, 1 - p1 - 0.001);
+  const minLift = 0.001;
+  for (let i=0; i<=40; i++){
+    const lift = minLift + (maxLift - minLift) * (i/40);
+    const p2 = p1 + lift;
+    const n = sampleSizeTwoProp(p1, p2, alpha, power, tail);
+    if (isFinite(n) && n < 1e7){
+      lifts.push((lift*100).toFixed(2));
+      ns.push(n);
+    }
+  }
+  if (sensitivityChart) sensitivityChart.destroy();
+  const isDark = document.documentElement.classList.contains('dark');
+  sensitivityChart = new Chart(ctx, {
+    type:'line',
+    data:{
+      labels:lifts,
+      datasets:[{
+        label:'Sample size per variant',
+        data:ns,
+        borderColor:'#3b82f6',
+        backgroundColor:'rgba(59,130,246,0.08)',
+        borderWidth:2,
+        fill:true,
+        tension:0.25,
+        pointRadius:0,
+        pointHoverRadius:5
+      }]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},
+      tooltip:{
+        callbacks:{
+          title:(items)=>'Lift: '+items[0].label+' percentage points',
+          label:(item)=>'n = '+fmtNum(item.parsed.y)+' per variant'
+        }
+      }},
+      scales:{
+        y:{type:'logarithmic',title:{display:true,text:'sample size per variant (log scale)'},grid:{color:isDark?'rgba(148,163,184,0.1)':'rgba(15,23,42,0.06)'},ticks:{color:isDark?'#94a3b8':'#64748b',callback:v=>fmtNum(v)}},
+        x:{title:{display:true,text:'minimum detectable lift (percentage points)'},grid:{color:isDark?'rgba(148,163,184,0.1)':'rgba(15,23,42,0.06)'},ticks:{color:isDark?'#94a3b8':'#64748b',maxTicksLimit:8}}
+      }
+    }
+  });
+}
+
+// ============================================================
+// ANALYZE MODE COMPUTATION
+// ============================================================
+function recomputeAnalyze(){
+  const n1 = num('a-n1'), c1 = num('a-c1'), n2 = num('a-n2'), c2 = num('a-c2');
+  const alpha = parseFloat($('a-alpha').value);
+
+  if ([n1,c1,n2,c2].some(x => isNaN(x))) return clearAnalyze('Enter all four numbers above.');
+  if (n1 < 1 || n2 < 1) return clearAnalyze('Visitors must be ≥ 1.');
+  if (c1 < 0 || c2 < 0 || c1 > n1 || c2 > n2){
+    if (c1 > n1) showInvalid('a-c1');
+    if (c2 > n2) showInvalid('a-c2');
+    return clearAnalyze('Conversions can\'t exceed visitors.');
+  }
+  clearInvalid('a-c1'); clearInvalid('a-c2');
+
+  $('a-rate1').textContent = fmtPct(c1/n1, 2);
+  $('a-rate2').textContent = fmtPct(c2/n2, 2);
+
+  // Frequentist
+  const f = twoPropTest(c1, n1, c2, n2);
+
+  // Plain-English summary + decision card + mistakes detection (always)
+  updateAnalyzeSummary(c1, n1, c2, n2, f, alpha);
+  updateDecisionCard(c1, n1, c2, n2, f, alpha);
+  detectMistakes(c1, n1, c2, n2, f, alpha);
+  updateAnalyzeRiskReward();
+  $('freq-lift').textContent = (f.diff*100 >= 0 ? '+' : '') + (f.diff*100).toFixed(2) + 'pp';
+  animateNumber($('freq-lift'));
+  $('freq-lift').className = 'result-num ' + (f.p < alpha ? (f.diff > 0 ? 'ok' : 'warn') : '');
+  $('freq-p1-text').textContent = fmtPct(f.p1, 2);
+  $('freq-p2-text').textContent = fmtPct(f.p2, 2);
+  $('freq-desc').innerHTML = `Variant B converts at <strong>${fmtPct(f.p2,2)}</strong> vs <strong>${fmtPct(f.p1,2)}</strong> for A — a ${(f.diff*100).toFixed(2)}pp absolute lift, or ${f.relDiff>=0?'+':''}${(f.relDiff*100).toFixed(1)}% relative.`;
+  $('freq-ci').textContent = `[${(f.ciLow*100).toFixed(2)}, ${(f.ciHigh*100).toFixed(2)}]pp`;
+  $('freq-z').textContent = f.z.toFixed(3);
+  $('freq-p').textContent = f.p < 0.0001 ? '<0.0001' : f.p.toFixed(4);
+  $('freq-rel').textContent = (f.relDiff>=0?'+':'')+(f.relDiff*100).toFixed(1) + '%';
+
+  // Verdict
+  const v = $('freq-verdict');
+  const vIcon = v.querySelector('.verdict-icon');
+  const vTitle = v.querySelector('.verdict-title');
+  const vDesc = v.querySelector('.verdict-desc');
+  v.className = 'verdict';
+  if (f.p < alpha){
+    if (f.diff > 0){
+      v.classList.add('success');
+      vIcon.textContent = '✓';
+      vTitle.textContent = 'Statistically significant — B beats A';
+      vDesc.textContent = `p = ${f.p < 0.0001?'<0.0001':f.p.toFixed(4)} at α = ${alpha}. The lift is unlikely to be due to chance alone.`;
+    } else {
+      v.classList.add('warn');
+      vIcon.textContent = '⚠️';
+      vTitle.textContent = 'Statistically significant — but B is worse';
+      vDesc.textContent = `p = ${f.p < 0.0001?'<0.0001':f.p.toFixed(4)}. Variant B underperforms A by a margin unlikely to be chance.`;
+    }
+  } else {
+    v.classList.add('info');
+    vIcon.textContent = 'ℹ️';
+    vTitle.textContent = 'Not statistically significant';
+    vDesc.textContent = `p = ${f.p.toFixed(4)} at α = ${alpha}. We can't rule out that the difference is just noise. Consider running longer or treating the result as inconclusive.`;
+  }
+
+  // Frequentist explainer body
+  $('freq-explainer-body').innerHTML = `A p-value of <strong>${f.p.toFixed(4)}</strong> means: <em>if the true conversion rates were identical, you'd see a difference at least this large by random chance about ${(f.p*100).toFixed(1)}% of the time.</em> A small p-value is evidence against "no difference," but it doesn't tell you how big the real difference is — that's what the 95% CI <code>[${(f.ciLow*100).toFixed(2)}, ${(f.ciHigh*100).toFixed(2)}]pp</code> shows.`;
+
+  // R code freq
+  $('r-code-freq').innerHTML = `<span class="comment"># Two-proportion z-test</span>
+<span class="fn">prop.test</span>(
+  x = <span class="fn">c</span>(<span class="number">${c1}</span>, <span class="number">${c2}</span>),
+  n = <span class="fn">c</span>(<span class="number">${n1}</span>, <span class="number">${n2}</span>),
+  conf.level = <span class="number">${1-alpha}</span>,
+  correct = <span class="keyword">FALSE</span>
+)`;
+
+  // Bayesian (only if visible to save cycles)
+  if (view === 'bayesian'){
+    const b = bayesAnalysis(c1, n1, c2, n2, 10000);
+    $('bayes-prob').textContent = (b.probBeatsA*100).toFixed(1) + '%';
+    animateNumber($('bayes-prob'));
+    $('bayes-prob').className = 'result-num ' + (b.probBeatsA > 0.95 ? 'ok' : (b.probBeatsA < 0.05 ? 'warn' : ''));
+    $('bayes-ci').textContent = `[${(b.ci025*100).toFixed(2)}, ${(b.ci975*100).toFixed(2)}]pp`;
+    $('bayes-mean').textContent = (b.meanDiff*100).toFixed(2) + 'pp';
+    $('bayes-loss-a').textContent = (b.lossPickA*100).toFixed(3) + 'pp';
+    $('bayes-loss-b').textContent = (b.lossPickB*100).toFixed(3) + 'pp';
+    $('bayes-desc').innerHTML = `After seeing your data and using a non-informative prior, there's a <strong>${(b.probBeatsA*100).toFixed(1)}%</strong> probability that B's true conversion rate is higher than A's.`;
+
+    const bv = $('bayes-verdict');
+    bv.className = 'verdict';
+    if (b.probBeatsA > 0.95){ bv.classList.add('success'); bv.querySelector('.verdict-icon').textContent='✓';
+      bv.querySelector('.verdict-title').textContent='Strong evidence B is better';
+      bv.querySelector('.verdict-desc').textContent=`P(B > A) = ${(b.probBeatsA*100).toFixed(1)}%. Picking B carries an expected loss of just ${(b.lossPickB*100).toFixed(3)}pp.`;
+    } else if (b.probBeatsA < 0.05){ bv.classList.add('warn'); bv.querySelector('.verdict-icon').textContent='⚠️';
+      bv.querySelector('.verdict-title').textContent='Strong evidence A is better';
+      bv.querySelector('.verdict-desc').textContent=`P(B > A) = ${(b.probBeatsA*100).toFixed(1)}%. The data favors keeping A.`;
+    } else { bv.classList.add('info'); bv.querySelector('.verdict-icon').textContent='ℹ️';
+      bv.querySelector('.verdict-title').textContent='Inconclusive';
+      bv.querySelector('.verdict-desc').textContent=`P(B > A) = ${(b.probBeatsA*100).toFixed(1)}%. Not enough evidence to call it; consider running longer.`;
+    }
+
+    drawPosterior(b);
+    $('r-code-bayes').innerHTML = `<span class="comment"># Bayesian via beta-binomial conjugate</span>
+<span class="comment"># Prior Beta(1,1) is uniform / non-informative</span>
+<span class="keyword">set.seed</span>(<span class="number">42</span>)
+post_a &lt;- <span class="fn">rbeta</span>(<span class="number">1e5</span>, <span class="number">${b.a1}</span>, <span class="number">${b.b1}</span>)
+post_b &lt;- <span class="fn">rbeta</span>(<span class="number">1e5</span>, <span class="number">${b.a2}</span>, <span class="number">${b.b2}</span>)
+
+<span class="comment"># Probability B beats A</span>
+<span class="fn">mean</span>(post_b &gt; post_a)
+
+<span class="comment"># 95% credible interval for the lift</span>
+<span class="fn">quantile</span>(post_b - post_a, <span class="fn">c</span>(<span class="number">0.025</span>, <span class="number">0.975</span>))`;
+  }
+}
+
+function clearAnalyze(msg){
+  $('freq-lift').textContent = '—';
+  $('freq-ci').textContent='—';$('freq-z').textContent='—';$('freq-p').textContent='—';$('freq-rel').textContent='—';
+  $('freq-desc').textContent = msg || '';
+}
+
+// Posterior chart: draw approximate Beta densities
+function drawPosterior(b){
+  const ctx = $('posterior-chart');
+  if (!ctx || !window.Chart) return;
+  // Compute beta pdf values
+  const pdfBeta = (x, a, β) => {
+    if (x <= 0 || x >= 1) return 0;
+    // Use log to avoid overflow
+    const logBeta = lgamma(a) + lgamma(β) - lgamma(a+β);
+    const logPdf = (a-1)*Math.log(x) + (β-1)*Math.log(1-x) - logBeta;
+    return Math.exp(logPdf);
+  };
+  // determine plot range — concentrate around the data
+  const meanA = b.a1/(b.a1+b.b1), meanB = b.a2/(b.a2+b.b2);
+  const sd = Math.max(Math.sqrt(meanA*(1-meanA)/(b.a1+b.b1)), Math.sqrt(meanB*(1-meanB)/(b.a2+b.b2)));
+  const pmin = Math.max(0.0001, Math.min(meanA, meanB) - 6*sd);
+  const pmax = Math.min(0.9999, Math.max(meanA, meanB) + 6*sd);
+  const xs = [], ya = [], yb = [];
+  const N = 200;
+  for (let i=0; i<=N; i++){
+    const x = pmin + (pmax-pmin)*(i/N);
+    xs.push((x*100).toFixed(2));
+    ya.push(pdfBeta(x, b.a1, b.b1));
+    yb.push(pdfBeta(x, b.a2, b.b2));
+  }
+  if (posteriorChart) posteriorChart.destroy();
+  const isDark = document.documentElement.classList.contains('dark');
+  posteriorChart = new Chart(ctx, {
+    type:'line',
+    data:{labels:xs,datasets:[
+      {label:'A',data:ya,borderColor:'#94a3b8',backgroundColor:'rgba(148,163,184,0.18)',borderWidth:2,fill:true,tension:0.25,pointRadius:0},
+      {label:'B',data:yb,borderColor:'#3b82f6',backgroundColor:'rgba(59,130,246,0.18)',borderWidth:2,fill:true,tension:0.25,pointRadius:0}
+    ]},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:true,position:'top',labels:{color:isDark?'#cbd5e1':'#475569'}},tooltip:{enabled:false}},
+      scales:{
+        y:{display:false},
+        x:{title:{display:true,text:'true conversion rate (%)'},grid:{color:isDark?'rgba(148,163,184,0.1)':'rgba(15,23,42,0.06)'},ticks:{color:isDark?'#94a3b8':'#64748b',maxTicksLimit:8}}
+      }
+    }
+  });
+}
+
+// log-Gamma via Stirling-based series (Lanczos approximation)
+function lgamma(z){
+  const g = 7;
+  const c = [0.99999999999980993,676.5203681218851,-1259.1392167224028,771.32342877765313,-176.61502916214059,12.507343278686905,-0.13857109526572012,9.9843695780195716e-6,1.5056327351493116e-7];
+  if (z < 0.5) return Math.log(Math.PI/Math.sin(Math.PI*z)) - lgamma(1-z);
+  z -= 1;
+  let x = c[0];
+  for (let i=1; i<g+2; i++) x += c[i]/(z+i);
+  const t = z + g + 0.5;
+  return 0.5*Math.log(2*Math.PI) + (z+0.5)*Math.log(t) - t + Math.log(x);
+}
+
+// ============================================================
+// Helpers / wiring
+// ============================================================
+
+function copyCode(which){
+  const el = $('r-code-'+which);
+  navigator.clipboard.writeText(el.innerText.replace(/ /g,' '));
+  const btn = el.parentElement.querySelector('.copy-btn');
+  btn.classList.add('copied');
+  btn.innerHTML = '<span class="check-anim">✓</span> Copied';
+  setTimeout(()=>{btn.classList.remove('copied');btn.textContent='Copy';},1500);
+  toast('R code copied to clipboard');
+}
+
+function toast(msg){
+  const t = document.createElement('div');
+  t.className = 'toast';
+  t.textContent = msg;
+  $('toast-area').appendChild(t);
+  setTimeout(()=>t.remove(),3200);
+}
+
+function copyShareLink(){
+  const params = new URLSearchParams();
+  params.set('mode', mode);
+  if (mode === 'plan'){
+    params.set('p1', $('p-baseline').value);
+    params.set('mde', $('p-mde').value);
+    params.set('alpha', $('p-alpha').value);
+    params.set('power', $('p-power').value);
+    params.set('tail', $('p-tail').value);
+    params.set('traffic', $('p-traffic').value);
+    if ($('p-revenue').value) params.set('rev', $('p-revenue').value);
+  } else {
+    params.set('n1', $('a-n1').value);
+    params.set('c1', $('a-c1').value);
+    params.set('n2', $('a-n2').value);
+    params.set('c2', $('a-c2').value);
+    params.set('alpha', $('a-alpha').value);
+    if ($('a-revenue').value) params.set('rev', $('a-revenue').value);
+    params.set('view', view);
+  }
+  const url = `${location.origin}${location.pathname}#${params.toString()}`;
+  navigator.clipboard.writeText(url);
+  toast('Share link copied — paste anywhere to restore this view');
+}
+
+function restoreFromHash(){
+  const hash = location.hash.slice(1);
+  if (!hash) return;
+  const params = new URLSearchParams(hash);
+  const m = params.get('mode');
+  if (m === 'plan' || m === 'analyze') setMode(m);
+  if (params.has('p1')) $('p-baseline').value = params.get('p1');
+  if (params.has('mde')) $('p-mde').value = params.get('mde');
+  if (params.has('power')) $('p-power').value = params.get('power');
+  if (params.has('tail')) $('p-tail').value = params.get('tail');
+  if (params.has('traffic')) $('p-traffic').value = params.get('traffic');
+  if (params.has('alpha') && mode === 'plan') $('p-alpha').value = params.get('alpha');
+  if (params.has('n1')) $('a-n1').value = params.get('n1');
+  if (params.has('c1')) $('a-c1').value = params.get('c1');
+  if (params.has('n2')) $('a-n2').value = params.get('n2');
+  if (params.has('c2')) $('a-c2').value = params.get('c2');
+  if (params.has('alpha') && mode === 'analyze') $('a-alpha').value = params.get('alpha');
+  if (params.has('rev')) {
+    if ($('p-revenue')) $('p-revenue').value = params.get('rev');
+    if ($('a-revenue')) $('a-revenue').value = params.get('rev');
+  }
+  if (params.has('view') && mode === 'analyze') setView(params.get('view'));
+  if (mode === 'plan') recomputePlan(); else recomputeAnalyze();
+}
+
+function showShortcuts(){ $('kbd-overlay').classList.add('show'); }
+function hideShortcuts(){ $('kbd-overlay').classList.remove('show'); }
+
+function flashResultTag(){
+  document.querySelectorAll('.result-tag').forEach(t => {
+    t.classList.remove('flash');
+    void t.offsetWidth;
+    t.classList.add('flash');
+  });
+}
+
+// Keyboard shortcuts
+document.addEventListener('keydown', e => {
+  const inField = ['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName);
+  if ((e.metaKey || e.ctrlKey) && e.key === 'k'){
+    e.preventDefault();
+    const firstInput = document.querySelector('.ws-inputs input, .ws-inputs select');
+    if (firstInput){ firstInput.focus(); firstInput.select?.(); }
+  } else if ((e.metaKey || e.ctrlKey) && e.key === 'l'){
+    e.preventDefault();
+    copyShareLink();
+  } else if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'Tab'){
+    // Mac: Cmd+Shift+Tab; intercept to switch mode without browser tab navigation
+  } else if ((e.altKey || e.metaKey) && e.key === 'Tab'){
+    e.preventDefault();
+    setMode(mode === 'plan' ? 'analyze' : 'plan');
+  } else if (e.key === '?' && !inField){
+    e.preventDefault();
+    showShortcuts();
+  } else if (e.key === 'Escape'){
+    if ($('kbd-overlay').classList.contains('show')) hideShortcuts();
+    else if (inField) document.activeElement.blur();
+  }
+});
+
+function toggleBeginner(){
+  beginnerMode = !beginnerMode;
+  document.body.classList.toggle('beginner', beginnerMode);
+  $('beginner-toggle').classList.toggle('on', beginnerMode);
+  $('beginner-toggle').setAttribute('aria-pressed', beginnerMode);
+  // Auto-open all explainers in beginner mode
+  document.querySelectorAll('.result-explainer').forEach(d => d.open = beginnerMode);
+  document.querySelectorAll('.walkthrough').forEach(d => d.open = beginnerMode);
+  localStorage.setItem('rstat_beginner_mode', beginnerMode ? '1' : '0');
+}
+
+function toggleDark(){
+  document.documentElement.classList.toggle('dark');
+  localStorage.setItem('rstat_dark', document.documentElement.classList.contains('dark') ? '1' : '0');
+  recomputePlan();
+  if (mode==='analyze' && view==='bayesian') recomputeAnalyze();
+}
+
+function loadExample(){ loadScenario('saas'); }
+
+// ============================================================
+// Scenarios — instant orientation for newcomers
+// ============================================================
+const SCENARIOS = {
+  ecom: {
+    name:'E-commerce CTA', icon:'🛒',
+    story:"You're testing a 'Buy Now' button color change on a product page. Each shopper either purchases or doesn't.",
+    benchmark:'1–3% conversion',
+    duration:'Through at least one full weekend (≥7 days) to capture shopping cycles',
+    pitfall:'Returning vs new shoppers behave very differently — segment your analysis',
+    vocab:{visitor:'shoppers', visitorSingle:'shopper', conversion:'purchases', convertVerb:'purchase', convertedNoun:'purchased'},
+    p1:0.03, mde:0.003, traffic:5000, alpha:0.05, power:0.80, revenue:50,
+    analyze:{n1:5000,c1:150,n2:5000,c2:175}
+  },
+  saas: {
+    name:'SaaS sign-up', icon:'📝',
+    story:"You're testing a redesigned sign-up form on your home page. Visitors either start a trial or bounce.",
+    benchmark:'2–8% sign-up rate',
+    duration:'≥14 days to capture weekly cycles',
+    pitfall:'Free-trial sign-ups ≠ paid customers; verify the funnel downstream',
+    vocab:{visitor:'visitors', visitorSingle:'visitor', conversion:'sign-ups', convertVerb:'sign up', convertedNoun:'signed up'},
+    p1:0.05, mde:0.01, traffic:1000, alpha:0.05, power:0.80, revenue:480,
+    analyze:{n1:3000,c1:150,n2:3000,c2:195}
+  },
+  email: {
+    name:'Email subject line', icon:'📧',
+    story:"You're A/B-testing two subject lines on tomorrow's newsletter blast. Each recipient either opens or doesn't.",
+    benchmark:'15–35% open rate',
+    duration:'Single send; results land within hours',
+    pitfall:'Subject lines over-index on novelty — B may regress on the next blast',
+    vocab:{visitor:'recipients', visitorSingle:'recipient', conversion:'opens', convertVerb:'open', convertedNoun:'opened'},
+    p1:0.25, mde:0.02, traffic:50000, alpha:0.05, power:0.80, revenue:2,
+    analyze:{n1:50000,c1:12500,n2:50000,c2:13500}
+  },
+  install: {
+    name:'App install', icon:'📱',
+    story:"You're testing a screenshot order in your app store listing. Each store visitor either installs or doesn't.",
+    benchmark:'1–4% install rate',
+    duration:'≥7 days for the store algorithm to stabilize',
+    pitfall:'Store recommendation algorithms may treat variants differently — limited control',
+    vocab:{visitor:'store visitors', visitorSingle:'visitor', conversion:'installs', convertVerb:'install', convertedNoun:'installed'},
+    p1:0.02, mde:0.004, traffic:8000, alpha:0.05, power:0.80, revenue:8,
+    analyze:{n1:8000,c1:160,n2:8000,c2:208}
+  },
+  redesign: {
+    name:'Landing redesign', icon:'🎨',
+    story:"You're testing a full landing-page redesign vs the current page. Each visitor either completes your primary goal or not.",
+    benchmark:'3–15% conversion',
+    duration:'≥2 weeks for a confident signal across traffic sources',
+    pitfall:"Multiple changes at once — you can't tell which one drove the lift",
+    vocab:{visitor:'visitors', visitorSingle:'visitor', conversion:'conversions', convertVerb:'convert', convertedNoun:'converted'},
+    p1:0.10, mde:0.03, traffic:1500, alpha:0.05, power:0.80, revenue:120,
+    analyze:{n1:1500,c1:150,n2:1500,c2:200}
+  },
+  custom: {
+    name:'Custom', icon:'⚙️',
+    story:"Your own setup — fill in the numbers to match your test.",
+    benchmark:'Depends on your domain',
+    duration:'Plan for ≥2 weeks unless your traffic is enormous',
+    pitfall:"Don't pick the metric that's easy to move — pick the one that matters",
+    vocab:{visitor:'visitors', visitorSingle:'visitor', conversion:'conversions', convertVerb:'convert', convertedNoun:'converted'},
+    p1:0.05, mde:0.01, traffic:'', alpha:0.05, power:0.80, revenue:'', clear:true,
+    analyze:{n1:'',c1:'',n2:'',c2:''}
+  }
+};
+
+// Active scenario context (vocabulary + warnings drive on this)
+let activeScenario = null;
+const DEFAULT_VOCAB = {visitor:'visitors', visitorSingle:'visitor', conversion:'conversions', convertVerb:'convert', convertedNoun:'converted'};
+function vocab(){ return activeScenario ? activeScenario.vocab : DEFAULT_VOCAB; }
+
+function loadScenario(key){
+  const s = SCENARIOS[key];
+  if (!s) return;
+  activeScenario = (key === 'custom') ? null : s;
+
+  document.querySelectorAll('.scenario-card').forEach(c => c.classList.toggle('active', c.dataset.scenario === key));
+
+  // Plan inputs (in current display unit)
+  if (s.clear){
+    $('p-baseline').value = '';
+    $('p-mde').value = '';
+    $('p-traffic').value = '';
+    $('p-revenue').value = '';
+  } else {
+    if (unit === 'pct'){
+      $('p-baseline').value = (s.p1*100).toFixed(2);
+      $('p-mde').value = (s.mde*100).toFixed(2);
+    } else {
+      $('p-baseline').value = s.p1;
+      $('p-mde').value = s.mde;
+    }
+    $('p-traffic').value = s.traffic || '';
+    $('p-revenue').value = s.revenue || '';
+  }
+  $('p-alpha').value = s.alpha;
+  $('p-power').value = s.power;
+
+  // Analyze inputs
+  if (s.analyze){
+    $('a-n1').value = s.analyze.n1; $('a-c1').value = s.analyze.c1;
+    $('a-n2').value = s.analyze.n2; $('a-c2').value = s.analyze.c2;
+    $('a-revenue').value = s.revenue || '';
+  }
+
+  // Show context card + chip + benchmark note (skip for "custom")
+  if (key !== 'custom') {
+    $('sc-icon').textContent = s.icon;
+    $('sc-title').textContent = s.name;
+    $('sc-story').textContent = s.story;
+    $('sc-benchmark').textContent = s.benchmark;
+    $('sc-duration').textContent = s.duration;
+    $('sc-pitfall').textContent = s.pitfall;
+    $('scenario-context').classList.add('show');
+
+    $('scenario-chip-icon').textContent = s.icon;
+    $('scenario-chip-name').textContent = s.name;
+    $('scenario-chip').classList.add('show');
+
+    // Inline benchmark hint near baseline input
+    let bench = document.getElementById('p-baseline-bench');
+    if (!bench){
+      bench = document.createElement('span');
+      bench.id = 'p-baseline-bench';
+      bench.className = 'bench-note';
+      $('p-baseline').parentElement.appendChild(bench);
+    }
+    bench.textContent = `Typical: ${s.benchmark}`;
+    bench.style.display = '';
+  } else {
+    clearScenario(true);  // soft-clear (don't reset numbers, user just picked Custom)
+  }
+
+  applyVocabulary();
+  recomputePlan();
+  if (mode === 'analyze') recomputeAnalyze();
+  toast(`Loaded: ${s.name}`);
+}
+
+function clearScenario(softNumbersOnly){
+  activeScenario = null;
+  document.querySelectorAll('.scenario-card').forEach(c => c.classList.remove('active'));
+  $('scenario-context').classList.remove('show');
+  $('scenario-chip').classList.remove('show');
+  const bench = document.getElementById('p-baseline-bench');
+  if (bench) bench.style.display = 'none';
+  applyVocabulary();
+  if (!softNumbersOnly) {
+    recomputePlan();
+    if (mode === 'analyze') recomputeAnalyze();
+    toast('Scenario cleared');
+  }
+}
+
+// Substitute domain-specific words into static labels
+function applyVocabulary(){
+  const v = vocab();
+  document.querySelectorAll('[data-vocab]').forEach(el => {
+    const key = el.dataset.vocab;
+    if (v[key]) el.textContent = v[key];
+  });
+}
+
+// ============================================================
+// Live plain-English summary (Plan)
+// ============================================================
+function updatePlanSummary(p1, p2, n, alpha, power, traffic){
+  const el = $('plan-summary');
+  if (isNaN(p1) || isNaN(p2) || !isFinite(n)){
+    el.innerHTML = 'Pick a scenario above, or fill in your test plan to see a plain-English summary here.';
+    return;
+  }
+  const v = vocab();
+  const direction = p2 > p1 ? 'lifting' : 'reducing';
+  const lift = Math.abs(p2-p1);
+  let timeStr = '';
+  if (traffic && traffic > 0){
+    const days = (n*2) / traffic;
+    if (days < 1) timeStr = ` — that's <strong>under a day</strong> at ${fmtNum(traffic)} ${v.visitor}/day`;
+    else if (days < 14) timeStr = ` — that's <strong>${days.toFixed(1)} days</strong> at ${fmtNum(traffic)} ${v.visitor}/day`;
+    else if (days < 60) timeStr = ` — that's <strong>${(days/7).toFixed(1)} weeks</strong> at ${fmtNum(traffic)} ${v.visitor}/day`;
+    else timeStr = ` — that's <strong>${(days/30).toFixed(1)} months</strong> at ${fmtNum(traffic)} ${v.visitor}/day`;
+  }
+  el.innerHTML = `You're testing whether a change is ${direction} ${v.conversion} from <strong>${fmtPct(p1,2)}</strong> to <strong>${fmtPct(p2,2)}</strong> (a ${fmtPct(lift,2)} ${p2>p1?'lift':'drop'}). To detect that with ${(power*100).toFixed(0)}% confidence at α=${alpha}, you need <strong>${fmtNum(n)} ${v.visitor} per variant</strong>${timeStr}.`;
+}
+
+// ============================================================
+// Live plain-English summary (Analyze) + decision card + mistakes
+// ============================================================
+function updateAnalyzeSummary(c1, n1, c2, n2, f, alpha){
+  const sumEl = $('analyze-summary');
+  const v = vocab();
+  const p1 = c1/n1, p2 = c2/n2;
+  const liftPp = (p2-p1)*100;
+  const liftRel = (p2-p1)/p1*100;
+  sumEl.innerHTML = `Your test ran <strong>${fmtNum(n1+n2)} ${v.visitor}</strong> total. Variant A ${v.convertedNoun} at <strong>${fmtPct(p1,2)}</strong>, B at <strong>${fmtPct(p2,2)}</strong> — a <strong>${liftPp>=0?'+':''}${liftPp.toFixed(2)}pp absolute lift</strong> (${liftRel>=0?'+':''}${liftRel.toFixed(1)}% relative). The 95% CI says the true lift is somewhere between ${(f.ciLow*100).toFixed(2)}pp and ${(f.ciHigh*100).toFixed(2)}pp.`;
+}
+
+function updateDecisionCard(c1, n1, c2, n2, f, alpha){
+  const card = $('decision-card');
+  card.style.display = '';
+  const icon = $('dc-icon'), verdict = $('dc-verdict'), rationale = $('dc-rationale'), action = $('dc-action');
+  action.style.display = '';
+
+  const significant = f.p < alpha;
+  const positive = f.diff > 0;
+  const totalN = n1 + n2;
+  const minPerArm = Math.min(n1, n2);
+
+  card.classList.remove('ship','wait','dont');
+
+  if (significant && positive){
+    card.classList.add('ship');
+    icon.textContent = '🚀';
+    verdict.textContent = 'Ship it';
+    rationale.innerHTML = `Strong evidence B beats A. The lift is <strong>${(f.diff*100).toFixed(2)}pp</strong> with p = ${f.p < 0.0001?'<0.0001':f.p.toFixed(4)} — the chance this is a fluke is below your ${(alpha*100)}% threshold.`;
+    action.textContent = 'Roll out variant B. Continue monitoring for novelty effects in week 2.';
+    if (f.p < 0.001 && f.diff > 0) tryConfetti();
+  } else if (significant && !positive){
+    card.classList.add('dont');
+    icon.textContent = '⛔';
+    verdict.textContent = "Don't ship";
+    rationale.innerHTML = `Strong evidence B is <strong>worse</strong> than A. The drop is ${(f.diff*100).toFixed(2)}pp with p = ${f.p < 0.0001?'<0.0001':f.p.toFixed(4)}. Keep A.`;
+    action.textContent = "Revert to A. Investigate why the change hurt conversions before iterating.";
+  } else {
+    card.classList.add('wait');
+    icon.textContent = '⏳';
+    verdict.textContent = 'Wait or call it a tie';
+    if (minPerArm < 30){
+      rationale.innerHTML = `<strong>Underpowered:</strong> only ${fmtNum(minPerArm)} visitors in the smaller arm. Anything you conclude here is unreliable.`;
+      action.textContent = "Run more traffic — aim for at least a few hundred per arm before deciding.";
+    } else {
+      rationale.innerHTML = `Result is inconclusive (p = ${f.p.toFixed(4)} ≥ ${alpha}). The difference could be real but you don't have enough data to rule out chance.`;
+      action.textContent = "Either run longer to gather more data, or call it a tie and keep A (conservative default).";
+    }
+  }
+}
+
+function detectMistakes(c1, n1, c2, n2, f, alpha, plannedDays){
+  const wrap = $('analyze-mistakes');
+  const warnings = [];
+  // SRM
+  const total = n1 + n2, expected = total/2;
+  const srm = Math.abs(n1 - expected) / expected;
+  if (srm > 0.05 && total > 200){
+    warnings.push({icon:'⚠️', html:`<strong>Sample-ratio mismatch.</strong> Your two arms differ by ${(srm*100).toFixed(1)}%, well beyond what 50/50 randomization should produce. Likely cause: unequal traffic split, broken assignment, or one arm crashing more often. Fix this before trusting any other number.`});
+  }
+  // Underpowered
+  if (Math.min(n1, n2) < 30){
+    warnings.push({icon:'🔬', html:`<strong>Very small sample.</strong> Less than 30 visitors per arm — the z-test is not reliable here. Either run longer or use Fisher's exact test.`});
+  }
+  // Zero conversions
+  if (c1 === 0 || c2 === 0){
+    warnings.push({icon:'⚠️', html:`<strong>Zero conversions in one arm.</strong> The frequentist CI is degenerate. The Bayesian view handles this gracefully — switch sub-tabs to use it.`});
+  }
+  // Implausible lift
+  if (Math.abs(f.relDiff) > 0.5 && Math.min(n1,n2) > 100){
+    warnings.push({icon:'🤔', html:`<strong>Lift looks implausibly large</strong> (${(f.relDiff*100).toFixed(0)}% relative). Double-check: are you measuring the same metric in both arms? Any tracking pipeline differences? Real A/B lifts are usually under 20%.`});
+  }
+  // Significant but tiny effect
+  if (f.p < alpha && Math.abs(f.diff) < 0.001 && total > 100000){
+    warnings.push({icon:'📏', html:`<strong>Statistically significant but practically tiny.</strong> Lift is &lt;0.1pp on a huge sample — the test detected a real but trivial difference. Consider whether this lift is worth shipping.`});
+  }
+  // Scenario-specific pitfall (always shown when active)
+  if (activeScenario && activeScenario.pitfall){
+    warnings.push({icon:'💡', html:`<strong>${activeScenario.name} reminder:</strong> ${activeScenario.pitfall}.`});
+  }
+  wrap.innerHTML = warnings.map(w => `<div class="mistake-warn"><span class="mistake-warn-icon">${w.icon}</span><div>${w.html}</div></div>`).join('');
+}
+
+// ============================================================
+// What-if buttons (Plan)
+// ============================================================
+let _whatIfReset = null;
+function whatIf(action){
+  // Snapshot the first time so reset always works
+  if (!_whatIfReset){
+    _whatIfReset = {
+      baseline: $('p-baseline').value,
+      mde: $('p-mde').value,
+      alpha: $('p-alpha').value,
+      power: $('p-power').value
+    };
+  }
+  if (action === 'halveMde'){ $('p-mde').value = (parseFloat($('p-mde').value)/2).toFixed(unit==='pct'?2:4); }
+  else if (action === 'doubleMde'){ $('p-mde').value = (parseFloat($('p-mde').value)*2).toFixed(unit==='pct'?2:4); }
+  else if (action === 'lowerPower'){ $('p-power').value = '0.70'; }
+  else if (action === 'higherPower'){ $('p-power').value = '0.90'; }
+  else if (action === 'strictAlpha'){ $('p-alpha').value = '0.01'; }
+  else if (action === 'reset' && _whatIfReset){
+    $('p-baseline').value = _whatIfReset.baseline;
+    $('p-mde').value = _whatIfReset.mde;
+    $('p-alpha').value = _whatIfReset.alpha;
+    $('p-power').value = _whatIfReset.power;
+    _whatIfReset = null;
+  }
+  recomputePlan();
+}
+
+// ============================================================
+// Risk/reward translator
+// ============================================================
+function updateRiskReward(){
+  const wrap = $('plan-risk-reward');
+  const rev = parseFloat($('p-revenue').value);
+  if (isNaN(rev) || rev <= 0){ wrap.classList.remove('has-value'); return; }
+  wrap.classList.add('has-value');
+
+  const p1 = getProp('p-baseline');
+  let mde = parseFloat($('p-mde').value);
+  if (unit === 'pct') mde = mde/100;
+  const traffic = parseFloat($('p-traffic').value) || 0;
+  const annualTraffic = traffic * 365;
+  const annualLift = annualTraffic * mde * rev;
+  const sampleSize = parseInt($('r-n-per-variant').textContent.replace(/,/g,''),10);
+  const testCost = isNaN(sampleSize) ? 0 : sampleSize*2 * p1 * rev;  // conversions during test, valued at $rev (opportunity baseline)
+  $('rr-win').textContent = traffic > 0 ? '$' + fmtNum(Math.round(annualLift)) + '/year' : '— (set traffic)';
+  $('rr-cost').textContent = isNaN(sampleSize) ? '—' : '$' + fmtNum(Math.round(testCost)) + ' baseline';
+}
+
+function updateAnalyzeRiskReward(){
+  const wrap = $('analyze-risk-reward');
+  const rev = parseFloat($('a-revenue').value);
+  if (isNaN(rev) || rev <= 0){ wrap.classList.remove('has-value'); return; }
+  wrap.classList.add('has-value');
+  const n1 = num('a-n1'), c1 = num('a-c1'), n2 = num('a-n2'), c2 = num('a-c2');
+  if ([n1,c1,n2,c2].some(x => isNaN(x) || x<=0)) { wrap.classList.remove('has-value'); return; }
+
+  const f = twoPropTest(c1, n1, c2, n2);
+  // Annual traffic: assume same as observed total over the test period as a proxy
+  // For simplicity, frame as "per 100k visitors": more universal
+  const visitorsRef = 100000;
+  const winLift = f.diff * visitorsRef * rev;
+  const ciLowLift = f.ciLow * visitorsRef * rev;
+  const ciHighLift = f.ciHigh * visitorsRef * rev;
+  // Bayesian: use Bayesian P(B>A) as the probability for expected value
+  const b = bayesAnalysis(c1, n1, c2, n2, 5000);
+  const ev = b.meanDiff * visitorsRef * rev;
+
+  $('arr-win').textContent = '+$' + fmtNum(Math.round(Math.max(winLift, ciHighLift)));
+  $('arr-lose').textContent = ciLowLift < 0 ? '−$' + fmtNum(Math.round(Math.abs(ciLowLift))) : '$0 (CI doesn\'t cross zero)';
+  const evSign = ev >= 0 ? '+' : '−';
+  $('arr-ev').textContent = evSign + '$' + fmtNum(Math.round(Math.abs(ev))) + ' per 100k visitors';
+}
+
+// ============================================================
+// Pre-flight checklist progress
+// ============================================================
+// Preflight is now prose; no checkbox tracking needed.
+
+// ============================================================
+// Confetti — once per significant win per session
+// ============================================================
+let _confettiFired = false;
+function tryConfetti(){
+  if (_confettiFired) return;
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  _confettiFired = true;
+  const colors = ['#3b82f6','#16a34a','#fbbf24','#8b5cf6','#ec4899'];
+  const N = 50;
+  for (let i=0; i<N; i++){
+    const piece = document.createElement('div');
+    piece.className = 'confetti-piece';
+    piece.style.left = (Math.random()*100) + 'vw';
+    piece.style.background = colors[i%colors.length];
+    piece.style.animationDelay = (Math.random()*0.3) + 's';
+    piece.style.animationDuration = (1 + Math.random()*0.6) + 's';
+    document.body.appendChild(piece);
+    setTimeout(()=>piece.remove(), 2200);
+  }
+}
+
+// Init
+window.addEventListener('DOMContentLoaded', () => {
+  if (localStorage.getItem('rstat_dark') === '1') document.documentElement.classList.add('dark');
+  if (localStorage.getItem('rstat_beginner_mode') === '1') toggleBeginner();
+
+  // Clear scenario highlight when user manually types in inputs
+  ['p-baseline','p-mde','p-traffic','p-revenue','a-n1','a-c1','a-n2','a-c2','a-revenue'].forEach(id => {
+    const el = $(id);
+    if (el) el.addEventListener('focus', () => {
+      document.querySelectorAll('.scenario-card').forEach(c => c.classList.remove('active'));
+    });
+  });
+
+  // Load the SaaS sign-up worked example by default so the page lands in a working state
+  loadScenario('saas');
+  // Restore state from URL hash (after default scenario, in case hash overrides)
+  restoreFromHash();
+  window.addEventListener('hashchange', restoreFromHash);
+});
+
+// ============================================================
+// Built-in tests (simple smoke tests; runs in console)
+// ============================================================
+window.runSmokeTests = function(){
+  const tests = [
+    {desc:'Sample size matches pwr.2p.test for p1=0.05, p2=0.06, α=0.05, power=0.80',
+     fn:()=>sampleSizeTwoProp(0.05, 0.06, 0.05, 0.80, 2),
+     expect: 9298, tol: 50},   // pwr::pwr.2p.test gives ~9304; formula gives 9298
+    {desc:'qnorm(0.975) ≈ 1.96',
+     fn:()=>qnorm(0.975), expect:1.96, tol:0.005},
+    {desc:'pnorm(1.96) ≈ 0.975',
+     fn:()=>pnorm(1.96), expect:0.975, tol:0.001},
+    {desc:'two-prop test: 50/1000 vs 65/1000 → p ≈ 0.13',
+     fn:()=>twoPropTest(50,1000,65,1000).p, expect:0.131, tol:0.005},
+  ];
+  console.group('A/B Calculator smoke tests');
+  let passed = 0;
+  tests.forEach(t => {
+    const got = t.fn();
+    const ok = Math.abs(got - t.expect) < t.tol;
+    console.log((ok?'✓':'✗')+' '+t.desc+'  got='+got+' expected='+t.expect);
+    if (ok) passed++;
+  });
+  console.log(`${passed}/${tests.length} passed`);
+  console.groupEnd();
+};
+</script>
+</main></div><script defer src="/www/toc.min.js?h=d28a1a80"></script></body>
+</html>

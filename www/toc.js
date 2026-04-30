@@ -98,6 +98,41 @@ function saveStarted(s) {
   setTimeout(checkDepth, 100);
 })();
 
+// === Sidebar Posts/Tools tab switcher ===
+// Server renders an initial active tab based on URL (Tools tab when on a
+// /tools/* page, Posts tab otherwise). On load we apply the user's pinned
+// preference if it conflicts with the current page; clicks update both
+// the visible state and the pinned preference.
+(function() {
+  var tabs = document.querySelectorAll('.sidebar-tab');
+  var panels = document.querySelectorAll('.sidebar-panel');
+  if (!tabs.length || !panels.length) return;
+
+  function activate(name) {
+    tabs.forEach(function(t) { t.classList.toggle('active', t.getAttribute('data-tab') === name); });
+    panels.forEach(function(p) { p.classList.toggle('active', p.getAttribute('data-panel') === name); });
+  }
+
+  // If the user pinned a tab and the current page is neither a tool nor a
+  // post that contradicts the pin, honour it. Tool pages always start on
+  // the Tools tab regardless of pin (cheaper than reasoning about pin).
+  var onToolPage = window.location.pathname.indexOf('/tools/') === 0;
+  if (!onToolPage) {
+    try {
+      var pinned = localStorage.getItem('rstat_sidebar_tab');
+      if (pinned === 'tools' || pinned === 'posts') activate(pinned);
+    } catch(e) {}
+  }
+
+  tabs.forEach(function(tab) {
+    tab.addEventListener('click', function() {
+      var name = tab.getAttribute('data-tab');
+      activate(name);
+      try { localStorage.setItem('rstat_sidebar_tab', name); } catch(e) {}
+    });
+  });
+})();
+
 // === Hydrate the static sidebar with per-user state + click handlers ===
 // The sidebar HTML is rendered server-side by build.py, so it ships in the
 // initial response and survives Ezoic's external-script stripping. This

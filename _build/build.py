@@ -326,6 +326,102 @@ def _esc_html(s):
     return (s or '').replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;').replace('"', '&quot;')
 
 
+# Inline monochrome icons for the sidebar Tools tab. 16x16 viewBox, single
+# stroke colour via currentColor, kept tiny so they don't bloat every page.
+_TOOL_ICONS = {
+    'ab-test-calculator.html':
+        '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        '<rect x="2.5" y="3.5" width="4" height="9" rx="0.5"/>'
+        '<rect x="9.5" y="3.5" width="4" height="9" rx="0.5"/></svg>',
+    'confidence-interval-calculator.html':
+        '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        '<path d="M3.5 4v8M3.5 4H5M3.5 12H5"/>'
+        '<circle cx="8" cy="8" r="1.4" fill="currentColor" stroke="none"/>'
+        '<path d="M12.5 4v8M12.5 4H11M12.5 12H11"/></svg>',
+    'effect-size-converter.html':
+        '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        '<path d="M2.5 5.5h11M11 3l2.5 2.5L11 8"/>'
+        '<path d="M13.5 10.5h-11M5 8l-2.5 2.5L5 13"/></svg>',
+    'power-analysis.html':
+        '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        '<path d="M9 2L4 9h3.5L7 14l5-7H8.5z"/></svg>',
+    'z-score-percentile.html':
+        '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        '<path d="M2 13c2 0 3-1 4-3s1.5-6 2-6 .5 6 2 6 2.5 0 4 0"/>'
+        '<path d="M2 13.5h12"/></svg>',
+    'confusion-matrix-interpreter.html':
+        '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        '<rect x="2.5" y="2.5" width="4.5" height="4.5"/>'
+        '<rect x="9" y="2.5" width="4.5" height="4.5"/>'
+        '<rect x="2.5" y="9" width="4.5" height="4.5"/>'
+        '<rect x="9" y="9" width="4.5" height="4.5"/></svg>',
+    'lm-output-interpreter.html':
+        '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        '<path d="M2 13.5L14 3"/>'
+        '<circle cx="4" cy="11.5" r="1" fill="currentColor" stroke="none"/>'
+        '<circle cx="7.5" cy="9" r="1" fill="currentColor" stroke="none"/>'
+        '<circle cx="11" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg>',
+    'glm-output-interpreter.html':
+        '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        '<path d="M2 13C5 13 5 3 8 3s3 10 6 10"/>'
+        '<path d="M2 13.5h12"/></svg>',
+    'multiple-testing-correction.html':
+        '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        '<path d="M2.5 4l2 2 3-3M2.5 8l2 2 3-3M2.5 12l2 2 3-3"/>'
+        '<path d="M10.5 4h3M10.5 8h3M10.5 12h3"/></svg>',
+    'normality-test-picker.html':
+        '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        '<path d="M2 13c2 0 3-1 4-3s1.5-6 2-6 .5 6 2 6 2.5 0 4 0"/>'
+        '<circle cx="13" cy="4" r="1.6" fill="currentColor" stroke="none"/></svg>',
+}
+
+
+# Sidebar Tools tab — interactive calculators / interpreters.
+# Each entry maps a tool slug to a sidebar group + display title.
+# Update here when adding new tools (also drop the HTML into /tools/).
+COMPENDIUM_TOOLS = [
+    {'group': 'Calculators', 'slug': 'ab-test-calculator.html',           'text': 'A/B Test Calculator'},
+    {'group': 'Calculators', 'slug': 'confidence-interval-calculator.html', 'text': 'Confidence Interval'},
+    {'group': 'Calculators', 'slug': 'effect-size-converter.html',        'text': 'Effect Size Converter'},
+    {'group': 'Calculators', 'slug': 'power-analysis.html',               'text': 'Power Analysis'},
+    {'group': 'Calculators', 'slug': 'z-score-percentile.html',           'text': 'Z-Score &amp; Percentile'},
+    {'group': 'Interpreters', 'slug': 'confusion-matrix-interpreter.html', 'text': 'Confusion Matrix'},
+    {'group': 'Interpreters', 'slug': 'lm-output-interpreter.html',       'text': 'lm() Output'},
+    {'group': 'Interpreters', 'slug': 'glm-output-interpreter.html',      'text': 'glm() Output'},
+    {'group': 'Pickers',      'slug': 'multiple-testing-correction.html', 'text': 'Multiple Testing'},
+    {'group': 'Pickers',      'slug': 'normality-test-picker.html',       'text': 'Normality Test Picker'},
+]
+
+
+def _render_tools_panel(current_slug):
+    """Render the Tools panel content for the sidebar's Tools tab.
+
+    `current_slug` is the path-stripped filename. When a /tools/<slug>.html
+    page is being rendered, we mark that tool as active. For non-tool pages,
+    no item is active and the user lands on the Posts tab by default.
+    """
+    # Normalize current_slug: strip leading /tools/ if present.
+    cur = (current_slug or '').replace('tools/', '')
+    parts = ['<ul class="sidebar-tools-list list-unstyled">']
+    last_group = None
+    for tool in COMPENDIUM_TOOLS:
+        if tool['group'] != last_group:
+            parts.append(
+                f'<li class="sidebar-divider"><span class="subsec-chevron">&#9660;</span> {_esc_html(tool["group"])}</li>'
+            )
+            last_group = tool['group']
+        active_attr = ' class="active"' if tool['slug'] == cur else ''
+        icon = _TOOL_ICONS.get(tool['slug'], '')
+        parts.append(
+            f'<li><a href="/tools/{tool["slug"]}"{active_attr}>'
+            f'<span class="tool-icon">{icon}</span>'
+            f'<span class="tool-label">{tool["text"]}</span>'
+            f'</a></li>'
+        )
+    parts.append('</ul>')
+    return ''.join(parts)
+
+
 def render_sidebar_html(sections, current_slug):
     """Render the sidebar markup at build time.
 
@@ -333,6 +429,10 @@ def render_sidebar_html(sections, current_slug):
     state (visited dots, collapsed subsections). toc.js applies that state
     from localStorage on load so the static markup stays the same for every
     visitor (good for caching and for Ezoic, which strips external JS).
+
+    Sidebar is split into two tab panels — Posts (the curriculum) and
+    Tools (interactive calculators). The active panel is chosen at runtime
+    by toc.js based on URL path + the user's last-pinned tab.
     """
     if not sections:
         return ''
@@ -356,13 +456,33 @@ def render_sidebar_html(sections, current_slug):
         i0, sec0, items0, _ = rendered_sections[0]
         rendered_sections[0] = (i0, sec0, items0, True)
 
+    is_tools_page = (current_slug or '').startswith('tools/')
+
     parts = []
+    # Continue-Reading chip lives ABOVE the tab strip so it's always
+    # visible regardless of which panel is active. It's a page-pointer,
+    # not panel-content.
     parts.append(
         '<div class="continue-chip" data-continue-chip>'
         '<span class="chip-label">Continue reading</span>'
         '<a href="#" data-continue-link></a>'
         '</div>'
     )
+
+    # Posts/Tools tab strip — underline style. Active tab's bottom border
+    # erases the strip's bottom border so the active tab reads as one
+    # continuous unit with the panel below it.
+    posts_tab_class = 'sidebar-tab' + ('' if is_tools_page else ' active')
+    tools_tab_class = 'sidebar-tab' + (' active' if is_tools_page else '')
+    parts.append('<div class="sidebar-tabs" role="tablist">')
+    parts.append(f'<button class="{posts_tab_class}" data-tab="posts" type="button" role="tab">Posts</button>')
+    parts.append(f'<button class="{tools_tab_class}" data-tab="tools" type="button" role="tab">Tools</button>')
+    parts.append('</div>')
+
+    posts_panel_class = 'sidebar-panel' + ('' if is_tools_page else ' active')
+    tools_panel_class = 'sidebar-panel' + (' active' if is_tools_page else '')
+
+    parts.append(f'<div class="{posts_panel_class}" data-panel="posts">')
     parts.append('<ul class="sidebar-menu list-unstyled">')
     for i, section, items, section_active in rendered_sections:
         sec_class = 'sidebar-section expanded' if section_active else 'sidebar-section'
@@ -409,6 +529,12 @@ def render_sidebar_html(sections, current_slug):
     parts.append(
         '<p><a href="https://docs.google.com/forms/d/13GrkCFcNa-TOIllQghsz2SIEbc-YqY9eJX02B19l5Ow/viewform">Chat!</a></p>'
     )
+    parts.append('</div>')
+    parts.append('</div>')  # close posts panel
+
+    # Tools panel
+    parts.append(f'<div class="{tools_panel_class}" data-panel="tools">')
+    parts.append(_render_tools_panel(current_slug))
     parts.append('</div>')
 
     return ''.join(parts)
@@ -1277,7 +1403,7 @@ def render_compendium_page(sections, post_titles_map=None):
     parts.append('<div class="archive-title-block">')
     parts.append('<div class="page-eyebrow">The Compendium · r-statistics.co</div>')
     parts.append('<h1 class="archive-title">The Compendium</h1>')
-    parts.append(f'<p class="archive-tagline">Practical statistics and R, written for working data scientists. Curated reading paths to begin, the full archive of {total_posts} articles to depth.</p>')
+    parts.append('<p class="archive-tagline">Practical statistics and R, written for working data scientists. Curated reading paths to begin, the full archive to depth.</p>')
     parts.append('</div>')
     parts.append('<div class="archive-search-block">')
     parts.append('<form class="archive-search" action="https://www.google.com/search" method="get" target="_blank" rel="noopener">')
@@ -1379,7 +1505,7 @@ def render_compendium_page(sections, post_titles_map=None):
 
     # Footer
     parts.append('<footer class="comp-footer"><div class="comp-footer-inner">')
-    parts.append(f'<p class="colophon">Hand-edited since 2014. © 2014–{datetime.date.today().year} Selva Prabhakaran · {total_posts} articles</p>')
+    parts.append(f'<p class="colophon">Hand-edited since 2014. © 2014–{datetime.date.today().year} Selva Prabhakaran</p>')
     parts.append('<div class="links">')
     parts.append('<a href="/">Home</a>·<a href="/about/">About</a>·<a href="/feed.xml">RSS</a>·<a href="https://github.com/selva86">GitHub</a>')
     parts.append('</div></div></footer>')
@@ -1561,6 +1687,116 @@ html.dark .diff-pill.diff-beginner{background:rgba(110,231,183,0.10);color:#6ee7
 .comp-footer .colophon{font-family:var(--ff-serif);font-style:italic;color:var(--text-soft);margin-bottom:8px;font-size:14px}
 .comp-footer .links a{color:var(--text-soft);margin:0 12px}
 """
+
+
+def patch_tool_pages(sections, asset_hrefs):
+    """Inject the unified masthead + Posts/Tools sidebar into each tool.
+
+    Tool HTMLs in /tools/ are self-contained (their own styles + scripts),
+    not built from template.html. To bring them under the same chrome as
+    tutorial pages we patch each at build time:
+      * Drop the tool's bespoke masthead
+      * Inject the site masthead just after <body>
+      * Wrap the remaining body in a 2-col grid: [sidebar] [main]
+      * Pull in main.css *before* the tool's inline <style> so the tool's
+        own styles still win (they cascade later in the head)
+      * Append toc.js + masthead behavior just before </body>
+
+    The patch is idempotent — re-runs on already-patched files do nothing.
+    """
+    tools_dir = os.path.join(REPO_ROOT, 'tools')
+    if not os.path.isdir(tools_dir):
+        return
+
+    main_css_href = (asset_hrefs or {}).get('main.css', 'css/main.css')
+    toc_js_href = (asset_hrefs or {}).get('toc.js', 'www/toc.js')
+
+    # Layout CSS injected per-tool. Kept tiny — main.css supplies the
+    # masthead + sidebar rules, this just sizes the chrome wrapper.
+    layout_css = (
+        '<style id="tool-chrome-css">'
+        '.tool-chrome{max-width:1280px;margin:0 auto;padding:24px 24px 48px;'
+        'display:grid;grid-template-columns:260px 1fr;gap:32px;align-items:start}'
+        '.tool-chrome-side{position:sticky;top:72px;max-height:calc(100vh - 100px);'
+        'overflow-y:auto;padding-right:8px;font-family:-apple-system,BlinkMacSystemFont,sans-serif}'
+        '.tool-chrome-side #sidebar-nav{padding:0}'
+        '.tool-chrome-main{min-width:0}'
+        '@media(max-width:880px){.tool-chrome{grid-template-columns:1fr;padding:16px}'
+        '.tool-chrome-side{display:none}}'
+        '</style>'
+    )
+
+    masthead_html = (
+        '<header class="site-masthead">'
+        '<div class="site-masthead-inner">'
+        '<a class="masthead-wordmark" href="/">'
+        '<span class="masthead-mark">R</span>'
+        '<span class="masthead-name">r&#8209;statistics<span class="masthead-tld">.co</span></span>'
+        '</a>'
+        '<nav class="masthead-nav">'
+        '<a class="masthead-nav-link" href="/">Home</a>'
+        '<a class="masthead-nav-link" href="/posts/">Compendium</a>'
+        '</nav>'
+        '<div class="masthead-tools">'
+        '<form onsubmit="window.open(\'https://google.com/search?q=\'+document.getElementById(\'tool-search\').value+\'%20site:r-statistics.co\');return false" class="masthead-search">'
+        '<input type="text" id="tool-search" placeholder="Search…" aria-label="Search r-statistics.co">'
+        '</form>'
+        '</div>'
+        '</div></header>'
+    )
+
+    masthead_re = re.compile(
+        r'<header[^>]*class="masthead"[^>]*>.*?</header>',
+        re.IGNORECASE | re.DOTALL,
+    )
+    head_close_re = re.compile(r'</head>', re.IGNORECASE)
+    body_open_re = re.compile(r'<body[^>]*>', re.IGNORECASE)
+    body_close_re = re.compile(r'</body>', re.IGNORECASE)
+
+    for fname in sorted(os.listdir(tools_dir)):
+        if not fname.endswith('.html'):
+            continue
+        path = os.path.join(tools_dir, fname)
+        with open(path, encoding='utf-8') as f:
+            html = f.read()
+
+        # Skip if already patched (idempotent)
+        if 'data-tool-chrome="injected"' in html:
+            continue
+
+        # 1. Inject main.css link BEFORE the tool's inline <style>, so the
+        #    tool's own rules cascade later and win when they collide. Same
+        #    file gets the layout-CSS shim before </head>; that one is fine
+        #    after the tool because it only targets unique chrome classes.
+        first_style_re = re.compile(r'<style[^>]*>', re.IGNORECASE)
+        m = first_style_re.search(html)
+        if m:
+            html = html[:m.start()] + f'<link rel="stylesheet" href="/{main_css_href}">\n' + html[m.start():]
+        html = head_close_re.sub(layout_css + '\n</head>', html, count=1)
+
+        # 2. Strip the tool's bespoke masthead.
+        html = masthead_re.sub('', html, count=1)
+
+        # 3. Insert site masthead + open chrome wrapper just after <body>.
+        sidebar_html = render_sidebar_html(sections or [], current_slug='tools/' + fname)
+        wrapper_open = (
+            f'{masthead_html}'
+            f'<div class="tool-chrome" data-tool-chrome="injected">'
+            f'<aside class="tool-chrome-side"><div id="sidebar-nav">{sidebar_html}</div></aside>'
+            f'<main class="tool-chrome-main">'
+        )
+        html = body_open_re.sub(lambda m: m.group(0) + wrapper_open, html, count=1)
+
+        # 4. Close the wrapper + append toc.js before </body>.
+        wrapper_close = (
+            f'</main></div>'
+            f'<script defer src="/{toc_js_href}"></script>'
+        )
+        html = body_close_re.sub(wrapper_close + '</body>', html, count=1)
+
+        with open(path, 'w', encoding='utf-8') as f:
+            f.write(html)
+        print(f'  Tool chrome: {fname}')
 
 
 def patch_homepage_sidebar(sections):
@@ -1759,6 +1995,7 @@ def main():
     update_sitemap(sorted(post_files))
     generate_feed(sorted(post_files))
     patch_homepage_sidebar(sidebar_sections)
+    patch_tool_pages(sidebar_sections, asset_hrefs)
 
     # Compendium destination page at /posts/.
     compendium_html = render_compendium_page(sidebar_sections)

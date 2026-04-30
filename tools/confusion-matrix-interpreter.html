@@ -1,0 +1,1378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Confusion Matrix Interpreter · r-statistics.co</title>
+<meta name="description" content="Enter a binary or multi-class confusion matrix and get all the metrics — accuracy, precision, recall, F1, MCC, κ, balanced accuracy, LR+/LR− — plus plain-English interpretation and a 'which metric to trust when' decision tree. Free, runs in your browser.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Serif:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/main.min.css?h=6dc6f6d7">
+<style>
+  :root{
+    --c-text:#0d1117;--c-text-soft:#4a5160;--c-text-mute:#757a87;
+    --c-bg:#fafbfc;--c-bg-alt:#f1f3f6;--c-border:#d8dce2;--c-border-soft:#e8eaef;
+    --c-surface:#ffffff;--c-rule:#d8dce2;
+    --c-link:#1d3158;--c-accent:#1d3158;--c-accent-soft:rgba(29,49,88,0.07);--c-accent-deep:#0f1c3a;
+    --c-accent-line:rgba(29,49,88,0.20);
+    --c-success:#1f6f48;--c-success-soft:rgba(31,111,72,0.10);
+    --c-warn:#8b6500;--c-warn-soft:rgba(139,101,0,0.10);
+    --c-danger:#9b1d1d;--c-danger-soft:rgba(155,29,29,0.10);
+    --c-mono:#0d1117;
+    --c-violet:#4a3a8b;--c-violet-soft:rgba(74,58,139,0.08);
+    --shadow-sm:0 1px 2px rgba(13,17,23,0.04);
+    --shadow-md:0 1px 2px rgba(13,17,23,0.04),0 6px 24px rgba(13,17,23,0.045);
+    --shadow-lg:0 1px 3px rgba(13,17,23,0.05),0 12px 40px rgba(13,17,23,0.07);
+    --spring:cubic-bezier(0.34,1.32,0.64,1);--ease:cubic-bezier(0.4,0,0.2,1);
+    --ff-sans:'IBM Plex Sans',-apple-system,sans-serif;
+    --ff-serif:'IBM Plex Serif',Georgia,serif;--ff-mono:'IBM Plex Mono',monospace;
+  }
+  html.dark{
+    --c-text:#e8eaee;--c-text-soft:#b0b5bf;--c-text-mute:#6e7382;
+    --c-bg:#0c0d10;--c-bg-alt:#1a1d22;--c-border:#262a31;--c-border-soft:#1e2228;
+    --c-surface:#14161a;--c-rule:#262a31;
+    --c-link:#92a4d8;--c-accent:#92a4d8;--c-accent-soft:rgba(146,164,216,0.10);--c-accent-deep:#b3c4f0;
+    --c-accent-line:rgba(146,164,216,0.30);
+    --c-success:#7cb89a;--c-success-soft:rgba(124,184,154,0.12);
+    --c-warn:#d4a634;--c-warn-soft:rgba(212,166,52,0.12);
+    --c-danger:#e07b7b;--c-danger-soft:rgba(224,123,123,0.12);
+    --c-mono:#0a0d12;--c-violet-soft:rgba(146,124,200,0.12);
+    --shadow-md:0 1px 2px rgba(0,0,0,0.30),0 6px 24px rgba(0,0,0,0.35);
+  }
+  *,*::before,*::after{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--c-bg);color:var(--c-text);font-family:'IBM Plex Sans',-apple-system,sans-serif;font-size:16px;line-height:1.65}
+  @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:0.01ms!important;transition-duration:0.01ms!important}}
+  a{color:var(--c-link);text-decoration:none;cursor:pointer}
+  a:hover{text-decoration:underline}
+  code{font-family:'IBM Plex Mono',monospace;font-size:0.9em;background:var(--c-bg-alt);padding:1px 5px;border-radius:3px;color:var(--c-mono)}
+  button{font-family:inherit}
+  input,select,textarea{font-family:inherit;font-size:inherit;color:inherit}
+  .container{max-width:1080px;margin:0 auto;padding:0 22px}
+
+  /* Masthead */
+  .masthead{border-bottom:1px solid var(--c-border);padding:14px 0 10px;background:var(--c-bg);position:sticky;top:0;z-index:30}
+  .masthead-inner{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}
+  .site-title{font-weight:700;font-size:18px}
+  .site-title a{color:var(--c-link)}
+  .site-title small{color:var(--c-text-mute);margin-left:6px;font-size:11px;font-weight:400}
+  .masthead-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .mh-btn{background:var(--c-bg-alt);border:1px solid var(--c-border);border-radius:6px;padding:6px 11px;font-size:13px;color:var(--c-text-soft);cursor:pointer}
+  .mh-btn:hover{background:var(--c-bg);border-color:var(--c-text-mute)}
+  .beginner-switch{display:inline-flex;align-items:center;gap:8px;background:var(--c-bg-alt);border:1px solid var(--c-border);border-radius:6px;padding:5px 11px 5px 7px;font-size:12.5px;color:var(--c-text-soft);cursor:pointer;transition:all 0.2s var(--ease)}
+  .beginner-switch:hover{background:var(--c-bg);border-color:var(--c-text-mute)}
+  .beginner-switch .bs-pill{display:inline-block;width:26px;height:14px;background:var(--c-border);border-radius:99px;position:relative;transition:background 0.25s}
+  .beginner-switch .bs-pill::after{content:'';position:absolute;top:2px;left:2px;width:10px;height:10px;background:#fff;border-radius:50%;box-shadow:0 1px 2px rgba(0,0,0,0.15);transition:transform 0.3s var(--spring)}
+  .beginner-switch.on{color:var(--c-link);border-color:var(--c-link)}
+  .beginner-switch.on .bs-pill{background:var(--c-link)}
+  .beginner-switch.on .bs-pill::after{transform:translateX(12px)}
+  .scenario-chip{display:none;align-items:center;gap:8px;background:var(--c-bg-alt);border:1px solid var(--c-border);color:var(--c-text-soft);font-size:12.5px;padding:4px 6px 4px 11px;border-radius:6px;font-weight:500}
+  .scenario-chip.show{display:inline-flex}
+  .scenario-chip .sc-chip-x{background:transparent;border:none;color:var(--c-text-mute);width:18px;height:18px;cursor:pointer;font-size:14px;line-height:1;display:inline-flex;align-items:center;justify-content:center;border-radius:3px}
+  .scenario-chip .sc-chip-x:hover{background:var(--c-border);color:var(--c-text)}
+
+  /* Header */
+  .breadcrumb{font-size:13px;color:var(--c-text-mute);margin:18px 0 6px}
+  .breadcrumb a{color:var(--c-text-mute)}
+  h1.tool-title{font-family:'IBM Plex Serif',Georgia,serif;font-weight:700;font-size:2.2em;line-height:1.15;margin:0 0 8px;letter-spacing:-0.012em}
+  .tool-meta{display:flex;gap:14px;flex-wrap:wrap;font-size:12.5px;color:var(--c-text-mute);margin-bottom:14px}
+  p.lead{font-size:1.05em;color:var(--c-text);font-weight:400;border-left:3px solid var(--c-accent);padding:2px 0 2px 16px;margin:14px 0 24px}
+
+  /* Worked examples — horizontal tabs */
+  .scenarios-section{margin:0 0 22px;border-bottom:1px solid var(--c-border)}
+  .scenarios-label{font-family:'IBM Plex Sans',sans-serif;font-size:11.5px;font-weight:600;color:var(--c-text-mute);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px}
+  .scenarios-row{display:flex;flex-wrap:wrap;gap:0;list-style:none;padding:0;margin:0}
+  .scenario-card{display:inline-flex;align-items:center;padding:9px 14px;background:transparent;border:none;border-bottom:2px solid transparent;border-radius:0;cursor:pointer;font-family:inherit;font-size:13px;font-weight:500;color:var(--c-text-mute);transition:all 0.15s var(--ease);margin-bottom:-1px}
+  .scenario-card:hover{color:var(--c-text)}
+  .scenario-card.active{color:var(--c-link);border-bottom-color:var(--c-accent);font-weight:600}
+  .scenario-name{font-size:13px;font-weight:inherit;color:inherit;white-space:nowrap}
+  .scenario-context{display:none;background:var(--c-bg-alt);border:1px solid var(--c-border);border-left:3px solid var(--c-accent);border-radius:0 8px 8px 0;padding:14px 18px;margin:0 0 16px;animation:fadeSlide 0.32s var(--spring)}
+  html.dark .scenario-context{background:rgba(59,130,246,0.06)}
+  .scenario-context.show{display:block}
+  @keyframes fadeSlide{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
+  .sc-head{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+  .sc-icon{font-size:20px;line-height:1}
+  .sc-title{font-family:'IBM Plex Serif',Georgia,serif;font-weight:600;font-size:16px;color:var(--c-text);flex:1}
+  .sc-clear{background:transparent;border:1px solid var(--c-border);color:var(--c-text-mute);font-size:11.5px;padding:4px 10px;border-radius:6px;cursor:pointer;font-family:inherit}
+  .sc-story{font-size:14px;color:var(--c-text-soft);line-height:1.55;margin:0 0 8px}
+  .sc-meta{display:flex;flex-wrap:wrap;gap:14px;font-size:12.5px;color:var(--c-text-soft)}
+  .sc-meta strong{color:var(--c-text);font-weight:600}
+
+  /* Pre-flight */
+  .preflight{background:var(--c-bg-alt);border:1px solid var(--c-border);border-radius:8px;padding:14px 18px;margin-bottom:18px;font-size:13.5px}
+  .preflight summary{cursor:pointer;font-weight:600;color:var(--c-text);list-style:none;display:flex;align-items:center;gap:8px}
+  .preflight summary::before{content:'▸';font-size:11px;transition:transform 0.2s}
+  .preflight[open] summary::before{transform:rotate(90deg)}
+  .preflight-list{margin:10px 0 4px;padding-left:24px;list-style:decimal;color:var(--c-text-soft)}
+  .preflight-list li{padding:6px 0;line-height:1.55;font-size:13.5px}
+  .preflight-list li strong{color:var(--c-text);font-weight:600}
+  .preflight-list li small{display:block;color:var(--c-text-mute);font-size:12.5px;margin-top:2px;line-height:1.5}
+  .preflight-prose{margin:14px 0 4px;color:var(--c-text-soft);font-size:13.5px;line-height:1.7}
+  .preflight-prose p{margin:0 0 12px}
+  .preflight-prose p:last-child{margin-bottom:0}
+  .preflight-prose strong{color:var(--c-text);font-weight:600}
+  .preflight-prose code{background:var(--c-bg-alt);padding:1px 5px;border-radius:3px;color:var(--c-mono);font-size:0.92em}
+  .preflight-prose .pf-heading{display:block;font-family:'IBM Plex Sans',sans-serif;font-size:11.5px;font-weight:700;color:var(--c-text);text-transform:uppercase;letter-spacing:0.06em;margin-top:18px;margin-bottom:6px}
+  .preflight-prose .pf-heading:first-child{margin-top:4px}
+
+  /* Mode tabs */
+  .mode-tabs{display:flex;gap:0;background:var(--c-bg-alt);border:1px solid var(--c-border);border-radius:8px;margin:0 0 14px;padding:3px}
+  .mode-tab{flex:1;padding:8px 12px;background:transparent;border:none;border-radius:5px;font-size:13px;font-weight:500;color:var(--c-text-mute);cursor:pointer;transition:all 0.15s var(--ease);font-family:inherit}
+  .mode-tab.active{background:var(--c-bg);color:var(--c-text);box-shadow:var(--shadow-sm)}
+  .mode-tab:hover:not(.active){color:var(--c-text)}
+
+  /* Workshop — two-pane layout */
+  .workshop{display:grid;grid-template-columns:440px 1fr;gap:0;border:1px solid var(--c-border);border-radius:10px;overflow:hidden;margin:0 0 22px;background:var(--c-bg)}
+  @media(max-width:980px){.workshop{grid-template-columns:1fr}}
+  .ws-inputs{background:var(--c-bg-alt);padding:22px 22px 24px;border-right:1px solid var(--c-border)}
+  @media(max-width:980px){.ws-inputs{border-right:none;border-bottom:1px solid var(--c-border)}}
+  .ws-output{padding:22px 26px 26px;background:var(--c-bg);min-width:0}
+  .ws-section-tag{font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--c-text-mute);margin:0 0 14px;display:block}
+
+  /* CM grid (manual entry) */
+  .cm-grid{display:grid;gap:6px;margin:8px 0 12px}
+  .cm-cell{padding:10px;background:var(--c-bg);border:1.5px solid var(--c-border);border-radius:6px;text-align:center}
+  .cm-cell input{width:100%;border:none;background:transparent;text-align:center;font-family:'IBM Plex Mono',monospace;font-size:18px;font-weight:600;color:var(--c-text);outline:none;padding:0}
+  .cm-cell input:focus{color:var(--c-link)}
+  .cm-cell.diag{background:var(--c-success-soft);border-color:rgba(22,163,74,0.30)}
+  .cm-cell.off{background:var(--c-danger-soft);border-color:rgba(220,38,38,0.25)}
+  html.dark .cm-cell.diag{background:rgba(22,163,74,0.12)}
+  html.dark .cm-cell.off{background:rgba(220,38,38,0.10)}
+  .cm-cell-label{font-size:10.5px;color:var(--c-text-mute);text-transform:uppercase;letter-spacing:0.04em;margin-top:4px}
+  .cm-axis{font-size:11px;font-weight:700;color:var(--c-text-mute);text-transform:uppercase;letter-spacing:0.06em;text-align:center;padding:4px}
+  .cm-class-label{font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;color:var(--c-text);text-align:center;padding:4px}
+  .cm-class-label input{width:90%;border:1px solid var(--c-border-soft);background:var(--c-bg);text-align:center;font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;border-radius:4px;padding:4px}
+
+  /* Form rows */
+  .form-row{display:flex;flex-direction:column;gap:6px;margin-bottom:12px}
+  .form-row > label{font-size:13px;font-weight:600;color:var(--c-text)}
+  .form-row > label small{font-size:11.5px;color:var(--c-text-mute);font-weight:400;margin-left:4px}
+  .form-row > .form-control{display:flex;gap:6px;align-items:center}
+  .form-row input,.form-row select{padding:7px 10px;font-size:13.5px;border:1px solid var(--c-border);border-radius:5px;background:var(--c-bg);color:var(--c-text);min-width:0}
+  .form-row select{cursor:pointer}
+  .num-row{display:flex;gap:6px;align-items:center}
+  .num-row input{width:64px}
+  .k-pickers{display:flex;gap:4px;flex-wrap:wrap}
+  .k-btn{padding:5px 10px;font-size:12px;border:1px solid var(--c-border);background:var(--c-bg);color:var(--c-text-soft);border-radius:5px;cursor:pointer}
+  .k-btn.active{background:var(--c-accent);color:#fff;border-color:var(--c-accent)}
+
+  /* Paste box */
+  .paste-box{width:100%;min-height:200px;padding:12px 14px;border:1.5px solid var(--c-border);border-radius:8px;background:var(--c-bg);color:var(--c-text);font-family:'IBM Plex Mono',monospace;font-size:12px;line-height:1.55;resize:vertical;tab-size:4;-moz-tab-size:4}
+  .paste-box:focus{outline:none;border-color:var(--c-accent);box-shadow:0 0 0 3px rgba(59,130,246,0.15)}
+  .parse-error{background:var(--c-warn-soft);border-left:3px solid var(--c-warn);padding:10px 14px;border-radius:0 6px 6px 0;font-size:13px;margin:8px 0 0;color:var(--c-text)}
+
+  /* Live summary */
+  .live-summary{background:transparent;border:none;border-left:3px solid var(--c-accent);padding:4px 0 4px 16px;margin:0 0 14px;font-size:1.05em;line-height:1.65;color:var(--c-text);font-family:'IBM Plex Serif',Georgia,serif;font-weight:400}
+  .live-summary strong{color:var(--c-text);font-weight:600}
+
+  /* Decision card */
+  .decision-card{padding:18px 22px;border-radius:8px;margin:0 0 14px;display:flex;align-items:flex-start;gap:14px;border:1px solid;border-left-width:4px}
+  .decision-card.solid{background:var(--c-success-soft);border-color:#16a34a;color:#14532d}
+  .decision-card.weak{background:var(--c-warn-soft);border-color:#d97706;color:#78350f}
+  .decision-card.broken{background:var(--c-danger-soft);border-color:#dc2626;color:#7f1d1d}
+  html.dark .decision-card.solid{background:rgba(22,163,74,0.10);color:#86efac}
+  html.dark .decision-card.weak{background:rgba(245,158,11,0.10);color:#fcd34d}
+  html.dark .decision-card.broken{background:rgba(220,38,38,0.10);color:#fca5a5}
+  .dc-icon{font-size:24px;line-height:1.1;flex:0 0 auto;opacity:0.85}
+  .dc-body{flex:1}
+  .dc-verdict{font-family:'IBM Plex Serif',Georgia,serif;font-size:20px;font-weight:600;letter-spacing:-0.005em;line-height:1.25;margin-bottom:4px}
+  .dc-rationale{font-size:13.5px;line-height:1.55;opacity:0.92}
+
+  /* Metric cards */
+  .metrics-section{margin:0 0 16px}
+  .metrics-section-title{font-family:'IBM Plex Sans',sans-serif;font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--c-text-mute);margin:0 0 8px}
+  .metrics-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:0;border-top:1px solid var(--c-border-soft);border-bottom:1px solid var(--c-border-soft)}
+  .metric-card{padding:12px 14px;border-right:1px solid var(--c-border-soft);background:var(--c-bg);position:relative}
+  .metric-card:last-child{border-right:none}
+  .metric-card .mc-name{font-size:11px;color:var(--c-text-mute);text-transform:uppercase;letter-spacing:0.05em}
+  .metric-card .mc-value{font-family:'IBM Plex Mono',monospace;font-size:18px;font-weight:600;color:var(--c-text);margin-top:4px}
+  .metric-card .mc-aux{font-size:11.5px;color:var(--c-text-mute);margin-top:2px;font-family:'IBM Plex Mono',monospace}
+  .metric-card .mc-bar{height:4px;background:var(--c-border-soft);border-radius:99px;overflow:hidden;margin-top:6px}
+  .metric-card .mc-bar > i{display:block;height:100%;background:var(--c-accent);transition:width 0.4s var(--ease)}
+  .metric-card[data-tone="success"] .mc-bar > i{background:var(--c-success)}
+  .metric-card[data-tone="warn"] .mc-bar > i{background:var(--c-warn)}
+  .metric-card[data-tone="danger"] .mc-bar > i{background:var(--c-danger)}
+
+  /* Heatmap */
+  .heatmap-wrap{margin:0 0 16px;background:var(--c-bg);border:1px solid var(--c-border);border-radius:8px;padding:18px}
+  .heatmap-title{font-size:11px;color:var(--c-text-mute);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px}
+  .heatmap{display:grid;gap:2px;font-family:'IBM Plex Mono',monospace;font-size:12px}
+  .hm-cell{padding:10px;text-align:center;border-radius:4px;background:var(--c-bg-alt);color:var(--c-text);transition:all 0.2s}
+  .hm-axis{font-size:10.5px;color:var(--c-text-mute);text-transform:uppercase;letter-spacing:0.05em;text-align:center;padding:4px}
+
+  /* Decision tree (which metric to trust) */
+  .metric-tree{margin:0 0 14px;background:var(--c-bg);border:1px solid var(--c-border);border-radius:8px;padding:18px 22px}
+  .metric-tree h3{font-family:'IBM Plex Serif',Georgia,serif;font-size:15px;font-weight:600;margin:0 0 10px;color:var(--c-text)}
+  .metric-tree ul{margin:0;padding:0;list-style:none}
+  .metric-tree li{padding:8px 0;border-bottom:1px dashed var(--c-border-soft);font-size:13.5px;line-height:1.55;color:var(--c-text-soft);display:grid;grid-template-columns:minmax(180px,40%) 1fr;gap:14px;align-items:baseline}
+  .metric-tree li:last-child{border-bottom:none}
+  .metric-tree li strong{color:var(--c-text);font-weight:600}
+  .metric-tree li.recommended{background:var(--c-accent-soft);margin:0 -10px;padding-left:10px;padding-right:10px;border-radius:6px;border-bottom:none}
+  html.dark .metric-tree li.recommended{background:rgba(59,130,246,0.10)}
+  .metric-tree li.recommended::before{content:'★ ';color:var(--c-accent-deep);font-weight:700;margin-right:4px}
+
+  /* Diagnostics */
+  .callout{background:var(--c-warn-soft);border:1px solid rgba(245,158,11,0.3);border-left:3px solid var(--c-warn);border-radius:0 6px 6px 0;padding:10px 14px;margin:10px 0;font-size:13px;display:flex;align-items:flex-start;gap:10px;line-height:1.5}
+  .callout.danger{background:var(--c-danger-soft);border-color:rgba(220,38,38,0.3);border-left-color:var(--c-danger)}
+  .callout.success{background:var(--c-success-soft);border-color:rgba(22,163,74,0.3);border-left-color:var(--c-success)}
+  html.dark .callout{background:rgba(245,158,11,0.10);color:var(--c-text)}
+  html.dark .callout.danger{background:rgba(220,38,38,0.10)}
+  html.dark .callout.success{background:rgba(22,163,74,0.10)}
+  .callout-icon{flex:0 0 auto;font-size:14px}
+
+  /* Per-class table for multiclass */
+  table.perclass{width:100%;border-collapse:collapse;font-size:12.5px;margin:10px 0}
+  table.perclass th{text-align:left;padding:8px 10px;font-weight:600;font-size:10.5px;color:var(--c-text-mute);text-transform:uppercase;letter-spacing:0.05em;border-bottom:1px solid var(--c-border)}
+  table.perclass th.num{text-align:right}
+  table.perclass td{padding:8px 10px;border-bottom:1px solid var(--c-border-soft);font-family:'IBM Plex Mono',monospace}
+  table.perclass td.num{text-align:right}
+  table.perclass td.cls-name{font-family:'IBM Plex Sans',sans-serif;font-weight:500}
+
+  /* R code */
+  .r-code-block{margin-top:16px;background:var(--c-mono);color:#e2e8f0;border-radius:8px;padding:14px 18px;font-family:'IBM Plex Mono',monospace;font-size:12.5px;line-height:1.65;overflow-x:auto;position:relative}
+  .r-code-block::before{content:'R';position:absolute;top:8px;right:60px;font-size:9px;font-weight:700;letter-spacing:0.1em;color:#fbbf24;background:rgba(251,191,36,0.15);padding:2px 7px;border-radius:99px}
+  .r-code-block .copy-btn{position:absolute;top:6px;right:8px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.12);color:#cbd5e1;font-size:11px;padding:4px 10px;border-radius:6px;cursor:pointer}
+  .r-code-block .copy-btn:hover{background:rgba(255,255,255,0.16)}
+  .r-code-block .copy-btn.copied{background:var(--c-success);color:#fff;border-color:transparent}
+  .r-code-block .keyword{color:#c084fc}
+  .r-code-block .string{color:#86efac}
+  .r-code-block .comment{color:#94a3b8;font-style:italic}
+  .r-code-block .number{color:#fdba74}
+  .r-code-block .fn{color:#7dd3fc}
+
+  /* Action row */
+  .action-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px;padding-top:14px;border-top:1px solid var(--c-border-soft)}
+  .next-tool{display:inline-flex;align-items:center;gap:6px;background:transparent;border:1px solid var(--c-border);color:var(--c-link);padding:7px 13px;border-radius:6px;font-size:13px;font-weight:500;text-decoration:none;transition:all 0.2s var(--ease);cursor:pointer;font-family:inherit}
+  .next-tool:hover{background:var(--c-bg-alt);border-color:var(--c-link);text-decoration:none}
+
+  /* Editorial sections */
+  .container{counter-reset:section}
+  h2.section-h{display:flex;align-items:baseline;gap:14px;font-family:'IBM Plex Serif',Georgia,serif;font-size:1.4em;font-weight:600;letter-spacing:-0.012em;margin:48px 0 18px;padding-bottom:10px;border-bottom:1px solid var(--c-border)}
+  h2.section-h::before{counter-increment:section;content:counter(section, decimal-leading-zero);font-family:'IBM Plex Mono',monospace;font-size:0.55em;font-weight:500;color:var(--c-text-mute);letter-spacing:0.05em;flex:0 0 auto}
+  .anatomy-step{display:grid;grid-template-columns:minmax(220px,40%) 1fr;gap:24px;align-items:baseline;background:none;border:none;border-radius:0;border-bottom:1px solid var(--c-border-soft);padding:18px 0;margin:0}
+  .anatomy-step:last-child{border-bottom:none}
+  .anatomy-formula{font-family:'IBM Plex Mono',monospace;font-size:13.5px;line-height:1.65;color:var(--c-text);background:var(--c-bg-alt);padding:14px 16px;border-radius:6px;border-left:3px solid var(--c-accent);overflow-x:auto;white-space:pre-wrap}
+  .anatomy-body{font-size:14.5px;line-height:1.75;color:var(--c-text-soft)}
+  .anatomy-body strong{color:var(--c-text);font-weight:600}
+  .anatomy-body code{background:var(--c-bg-alt);padding:1px 6px;border-radius:3px;font-size:0.9em;color:var(--c-mono)}
+  @media(max-width:760px){.anatomy-step{grid-template-columns:1fr;gap:10px}}
+  dl.alt-list{display:grid;grid-template-columns:minmax(200px,42%) 1fr;gap:0;margin:18px 0 0;padding:0;border-top:1px solid var(--c-border)}
+  dl.alt-list .alt-header{font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:0.08em;text-transform:uppercase;color:var(--c-text-mute);font-weight:700;padding:10px 18px 10px 0;border-bottom:1px solid var(--c-border);margin:0}
+  dl.alt-list .alt-header.alt-header-right{padding:10px 0 10px 20px;border-left:1px solid var(--c-border-soft)}
+  dl.alt-list dt{color:var(--c-text);font-weight:500;font-size:13.5px;padding:13px 18px 13px 0;border-bottom:1px solid var(--c-border-soft);border-right:1px solid var(--c-border-soft);line-height:1.55;margin:0}
+  dl.alt-list dd{margin:0;color:var(--c-text-soft);font-size:13.5px;padding:13px 0 13px 20px;border-bottom:1px solid var(--c-border-soft);line-height:1.55}
+  dl.alt-list dd a{font-weight:500}
+  @media(max-width:600px){dl.alt-list{grid-template-columns:1fr}dl.alt-list dt{border-right:none;padding-bottom:4px}dl.alt-list dd{padding-left:0;padding-top:0;padding-bottom:13px}dl.alt-list .alt-header.alt-header-right{display:none}}
+  ul.further-list{list-style:none;padding:0;margin:18px 0 0}
+  ul.further-list li{background:none;border:none;border-radius:0;padding:9px 0;margin:0;font-size:14.5px;line-height:1.7;color:var(--c-text-soft)}
+  ul.further-list li a{font-family:'IBM Plex Serif',Georgia,serif;font-style:italic;font-weight:500;color:var(--c-link)}
+  ul.further-list li a:hover{text-decoration:underline}
+
+  /* Toast */
+  .toast-area{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);z-index:200}
+  .toast{background:var(--c-mono);color:#fff;padding:9px 18px;border-radius:99px;font-size:13px;animation:toastIn 0.3s var(--spring),toastOut 0.3s var(--ease) 2.7s forwards}
+  @keyframes toastIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+  @keyframes toastOut{to{opacity:0;transform:translateY(8px)}}
+</style>
+<style id="tool-chrome-css">.tool-chrome{max-width:1280px;margin:0 auto;padding:24px 24px 48px;display:grid;grid-template-columns:260px 1fr;gap:32px;align-items:start}.tool-chrome-side{position:sticky;top:72px;max-height:calc(100vh - 100px);overflow-y:auto;padding-right:8px;font-family:-apple-system,BlinkMacSystemFont,sans-serif}.tool-chrome-side #sidebar-nav{padding:0}.tool-chrome-main{min-width:0}@media(max-width:880px){.tool-chrome{grid-template-columns:1fr;padding:16px}.tool-chrome-side{display:none}}</style>
+</head>
+<body><header class="site-masthead"><div class="site-masthead-inner"><a class="masthead-wordmark" href="/"><span class="masthead-mark">R</span><span class="masthead-name">r&#8209;statistics<span class="masthead-tld">.co</span></span></a><nav class="masthead-nav"><a class="masthead-nav-link" href="/">Home</a><a class="masthead-nav-link" href="/posts/">Compendium</a></nav><div class="masthead-tools"><form onsubmit="window.open('https://google.com/search?q='+document.getElementById('tool-search').value+'%20site:r-statistics.co');return false" class="masthead-search"><input type="text" id="tool-search" placeholder="Search…" aria-label="Search r-statistics.co"></form></div></div></header><div class="tool-chrome" data-tool-chrome="injected"><aside class="tool-chrome-side"><div id="sidebar-nav"><div class="continue-chip" data-continue-chip><span class="chip-label">Continue reading</span><a href="#" data-continue-link></a></div><div class="sidebar-tabs" role="tablist"><button class="sidebar-tab" data-tab="posts" type="button" role="tab">Posts</button><button class="sidebar-tab active" data-tab="tools" type="button" role="tab">Tools</button></div><div class="sidebar-panel" data-panel="posts"><ul class="sidebar-menu list-unstyled"><li class="sidebar-section expanded"><div class="sidebar-section-header"><span class="sidebar-chevron">&#9656;</span> Learn R<span class="section-meta" data-section-meta></span></div><ul class="sidebar-section-items list-unstyled"><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec0sub1" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Getting Started</li><li data-subkey="sec0sub1"><a href="Is-R-Worth-Learning-in-2026.html"><span class="progress-dot"></span>Is R Worth Learning?</a></li><li data-subkey="sec0sub1"><a href="Install-R-and-RStudio-2026.html"><span class="progress-dot"></span>Install R &amp; RStudio</a></li><li data-subkey="sec0sub1"><a href="RStudio-IDE-Tour.html"><span class="progress-dot"></span>RStudio IDE Tour</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec0sub2" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> R Fundamentals</li><li data-subkey="sec0sub2"><a href="R-Syntax-101.html"><span class="progress-dot"></span>R Syntax 101</a></li><li data-subkey="sec0sub2"><a href="R-Data-Types.html"><span class="progress-dot"></span>R Data Types</a></li><li data-subkey="sec0sub2"><a href="R-Vectors.html"><span class="progress-dot"></span>R Vectors</a></li><li data-subkey="sec0sub2"><a href="R-Matrices.html"><span class="progress-dot"></span>R Matrices</a></li><li data-subkey="sec0sub2"><a href="R-Factors.html"><span class="progress-dot"></span>R Factors</a></li><li data-subkey="sec0sub2"><a href="R-Data-Frames.html"><span class="progress-dot"></span>R Data Frames</a></li><li data-subkey="sec0sub2"><a href="R-Lists.html"><span class="progress-dot"></span>R Lists</a></li><li data-subkey="sec0sub2"><a href="R-Control-Flow.html"><span class="progress-dot"></span>R Control Flow</a></li><li data-subkey="sec0sub2"><a href="R-Special-Values.html"><span class="progress-dot"></span>R Special Values</a></li><li data-subkey="sec0sub2"><a href="R-Type-Coercion.html"><span class="progress-dot"></span>R Type Coercion</a></li><li data-subkey="sec0sub2"><a href="R-Functions.html"><span class="progress-dot"></span>Writing R Functions</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec0sub3" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Working Effectively</li><li data-subkey="sec0sub3"><a href="R-Subsetting.html"><span class="progress-dot"></span>R Subsetting</a></li><li data-subkey="sec0sub3"><a href="Getting-Help-in-R.html"><span class="progress-dot"></span>Getting Help in R</a></li><li data-subkey="sec0sub3"><a href="R-Project-Structure.html"><span class="progress-dot"></span>R Project Structure</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec0sub4" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> R Career &amp; Resources</li><li data-subkey="sec0sub4"><a href="R-vs-Python.html"><span class="progress-dot"></span>R vs Python</a></li><li data-subkey="sec0sub4"><a href="How-to-Learn-R.html"><span class="progress-dot"></span>How to Learn R</a></li><li data-subkey="sec0sub4"><a href="R-for-Excel-Users.html"><span class="progress-dot"></span>R for Excel Users</a></li><li data-subkey="sec0sub4"><a href="R-Interview-Questions.html"><span class="progress-dot"></span>R Interview Questions</a></li><li data-subkey="sec0sub4"><a href="R-Cheat-Sheet.html"><span class="progress-dot"></span>R Cheat Sheet</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec0sub5" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Professional R</li><li data-subkey="sec0sub5"><a href="Data-Ethics-in-R.html"><span class="progress-dot"></span>Data Ethics</a></li><li data-subkey="sec0sub5"><a href="Bias-in-Data-and-Models.html"><span class="progress-dot"></span>Bias in Data &amp; Models</a></li><li data-subkey="sec0sub5"><a href="Reproducibility-Crisis.html"><span class="progress-dot"></span>Reproducibility</a></li><li data-subkey="sec0sub5"><a href="Data-Privacy-in-R.html"><span class="progress-dot"></span>Data Privacy</a></li><li data-subkey="sec0sub5"><a href="Communicating-Uncertainty.html"><span class="progress-dot"></span>Communicating Uncertainty</a></li></ul></li><li class="sidebar-section"><div class="sidebar-section-header"><span class="sidebar-chevron">&#9656;</span> Data Wrangling<span class="section-meta" data-section-meta></span></div><ul class="sidebar-section-items list-unstyled"><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec1sub1" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Import &amp; Setup</li><li data-subkey="sec1sub1"><a href="Importing-Data-in-R.html"><span class="progress-dot"></span>Importing Data</a></li><li data-subkey="sec1sub1"><a href="R-Pipe-Operator.html"><span class="progress-dot"></span>Pipe Operator</a></li><li data-subkey="sec1sub1"><a href="Tidy-Data-in-R.html"><span class="progress-dot"></span>Tidy Data</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec1sub2" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> dplyr Essentials</li><li data-subkey="sec1sub2"><a href="dplyr-filter-select.html"><span class="progress-dot"></span>dplyr filter &amp; select</a></li><li data-subkey="sec1sub2"><a href="dplyr-mutate-rename.html"><span class="progress-dot"></span>dplyr mutate &amp; rename</a></li><li data-subkey="sec1sub2"><a href="dplyr-group-by-summarise.html"><span class="progress-dot"></span>dplyr group_by &amp; summarise</a></li><li data-subkey="sec1sub2"><a href="dplyr-arrange-slice.html"><span class="progress-dot"></span>dplyr arrange &amp; slice</a></li><li data-subkey="sec1sub2"><a href="dplyr-across.html"><span class="progress-dot"></span>dplyr across()</a></li><li data-subkey="sec1sub2"><a href="dplyr-case-when.html"><span class="progress-dot"></span>dplyr case_when()</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec1sub3" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Join &amp; Reshape</li><li data-subkey="sec1sub3"><a href="R-Joins.html"><span class="progress-dot"></span>R Joins</a></li><li data-subkey="sec1sub3"><a href="pivot_longer-pivot_wider-Reshape-Data-in-R.html"><span class="progress-dot"></span>pivot_longer &amp; pivot_wider</a></li><li data-subkey="sec1sub3"><a href="tidyr-separate-unite-Split-Combine-Columns-in-R.html"><span class="progress-dot"></span>separate() &amp; unite()</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec1sub4" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Clean &amp; Quality</li><li data-subkey="sec1sub4"><a href="Missing-Values-in-R-Detect-Count-Remove-Impute-NA.html"><span class="progress-dot"></span>Missing Values (NA)</a></li><li data-subkey="sec1sub4"><a href="Data-Quality-Checking-in-R.html"><span class="progress-dot"></span>Data Quality Checking</a></li><li data-subkey="sec1sub4"><a href="janitor-Package-in-R.html"><span class="progress-dot"></span>janitor Package</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec1sub5" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Strings &amp; Dates</li><li data-subkey="sec1sub5"><a href="stringr-in-R.html"><span class="progress-dot"></span>stringr</a></li><li data-subkey="sec1sub5"><a href="R-Regex-stringr-Pattern-Matching.html"><span class="progress-dot"></span>Regex Patterns</a></li><li data-subkey="sec1sub5"><a href="lubridate-in-R.html"><span class="progress-dot"></span>lubridate</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec1sub6" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Scale &amp; Connect</li><li data-subkey="sec1sub6"><a href="DBI-in-R.html"><span class="progress-dot"></span>DBI &amp; Databases</a></li><li data-subkey="sec1sub6"><a href="DuckDB-in-R.html"><span class="progress-dot"></span>DuckDB &amp; duckplyr</a></li><li data-subkey="sec1sub6"><a href="Web-Scraping-in-R-with-rvest.html"><span class="progress-dot"></span>Web Scraping (rvest)</a></li><li data-subkey="sec1sub6"><a href="REST-APIs-in-R-with-httr2.html"><span class="progress-dot"></span>REST APIs (httr2)</a></li></ul></li><li class="sidebar-section"><div class="sidebar-section-header"><span class="sidebar-chevron">&#9656;</span> Visualization<span class="section-meta" data-section-meta></span></div><ul class="sidebar-section-items list-unstyled"><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec2sub1" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> ggplot2 Foundations</li><li data-subkey="sec2sub1"><a href="ggplot2-Grammar-of-Graphics.html"><span class="progress-dot"></span>Grammar of Graphics</a></li><li data-subkey="sec2sub1"><a href="ggplot2-Getting-Started.html"><span class="progress-dot"></span>ggplot2 Getting Started</a></li><li data-subkey="sec2sub1"><a href="ggplot2-Aesthetics-aes-Map-Data.html"><span class="progress-dot"></span>ggplot2 Aesthetics (aes)</a></li><li data-subkey="sec2sub1"><a href="ggplot2-Colours.html"><span class="progress-dot"></span>ggplot2 Colours</a></li><li data-subkey="sec2sub1"><a href="ggplot2-Scales.html"><span class="progress-dot"></span>ggplot2 Scales</a></li><li data-subkey="sec2sub1"><a href="ggplot2-Themes-in-R.html"><span class="progress-dot"></span>ggplot2 Themes</a></li><li data-subkey="sec2sub1"><a href="ggplot2-Labels-and-Annotations.html"><span class="progress-dot"></span>Labels &amp; Annotations</a></li><li data-subkey="sec2sub1"><a href="ggplot2-Facets.html"><span class="progress-dot"></span>ggplot2 Facets</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec2sub2" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Core Charts</li><li data-subkey="sec2sub2"><a href="ggplot2-Scatter-Plots.html"><span class="progress-dot"></span>Scatter Plots</a></li><li data-subkey="sec2sub2"><a href="ggplot2-Line-Charts.html"><span class="progress-dot"></span>Line Charts</a></li><li data-subkey="sec2sub2"><a href="ggplot2-Bar-Charts.html"><span class="progress-dot"></span>Bar Charts</a></li><li data-subkey="sec2sub2"><a href="ggplot2-Distribution-Charts.html"><span class="progress-dot"></span>Distribution Charts</a></li><li data-subkey="sec2sub2"><a href="Error-Bars-in-R.html"><span class="progress-dot"></span>Error Bars</a></li><li data-subkey="sec2sub2"><a href="geom_smooth-in-R.html"><span class="progress-dot"></span>geom_smooth()</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec2sub3" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Distributions &amp; Groups</li><li data-subkey="sec2sub3"><a href="Violin-Plot-in-R.html"><span class="progress-dot"></span>Violin Plot</a></li><li data-subkey="sec2sub3"><a href="Ridgeline-Plot-in-R.html"><span class="progress-dot"></span>Ridgeline Plot</a></li><li data-subkey="sec2sub3"><a href="Lollipop-Chart-in-R.html"><span class="progress-dot"></span>Lollipop Chart</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec2sub4" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Relationships</li><li data-subkey="sec2sub4"><a href="Bubble-Chart-in-R.html"><span class="progress-dot"></span>Bubble Chart</a></li><li data-subkey="sec2sub4"><a href="Heatmap-in-R.html"><span class="progress-dot"></span>Heatmap in R</a></li><li data-subkey="sec2sub4"><a href="Correlation-Matrix-Plot-in-R.html"><span class="progress-dot"></span>Correlation Matrix</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec2sub5" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Advanced Charts</li><li data-subkey="sec2sub5"><a href="Pie-Donut-Chart-in-R.html"><span class="progress-dot"></span>Pie &amp; Donut Chart</a></li><li data-subkey="sec2sub5"><a href="Treemap-in-R.html"><span class="progress-dot"></span>Treemap</a></li><li data-subkey="sec2sub5"><a href="Waffle-Chart-in-R.html"><span class="progress-dot"></span>Waffle Chart</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec2sub6" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Exploratory Analysis</li><li data-subkey="sec2sub6"><a href="Exploratory-Data-Analysis-in-R.html"><span class="progress-dot"></span>EDA (7-Step Framework)</a></li><li data-subkey="sec2sub6"><a href="Univariate-EDA-in-R.html"><span class="progress-dot"></span>Univariate EDA</a></li><li data-subkey="sec2sub6"><a href="Bivariate-EDA-in-R.html"><span class="progress-dot"></span>Bivariate EDA</a></li><li data-subkey="sec2sub6"><a href="Descriptive-Statistics-in-R.html"><span class="progress-dot"></span>Descriptive Statistics</a></li><li data-subkey="sec2sub6"><a href="Correlation-Analysis-in-R.html"><span class="progress-dot"></span>Correlation Analysis</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec2sub7" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Interactive &amp; Maps</li><li data-subkey="sec2sub7"><a href="Combining-ggplot2-with-plotly.html"><span class="progress-dot"></span>ggplot2 + plotly Interactive</a></li><li data-subkey="sec2sub7"><a href="Interactive-Maps-in-R-with-leaflet.html"><span class="progress-dot"></span>Leaflet Interactive Maps</a></li><li data-subkey="sec2sub7"><a href="Spatial-Data-in-R-with-sf.html"><span class="progress-dot"></span>Spatial Data (sf)</a></li><li data-subkey="sec2sub7"><a href="Choropleth-Maps-in-R.html"><span class="progress-dot"></span>Choropleth Maps (sf)</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec2sub8" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Customization &amp; Reference</li><li data-subkey="sec2sub8"><a href="ggplot2-Legends-in-R.html"><span class="progress-dot"></span>ggplot2 Legends</a></li><li data-subkey="sec2sub8"><a href="ggplot2-Secondary-Axis.html"><span class="progress-dot"></span>Secondary Axis</a></li><li data-subkey="sec2sub8"><a href="ggplot2-Log-Scale.html"><span class="progress-dot"></span>Log Scale</a></li><li data-subkey="sec2sub8"><a href="patchwork-Package.html"><span class="progress-dot"></span>patchwork (Combine Plots)</a></li><li data-subkey="sec2sub8"><a href="Publication-Quality-Figures-in-R.html"><span class="progress-dot"></span>Publication-Ready Figures</a></li><li data-subkey="sec2sub8"><a href="ggplot2-cheatsheet.html"><span class="progress-dot"></span>ggplot2 Quickref</a></li></ul></li><li class="sidebar-section"><div class="sidebar-section-header"><span class="sidebar-chevron">&#9656;</span> Statistics<span class="section-meta" data-section-meta></span></div><ul class="sidebar-section-items list-unstyled"><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec3sub1" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> EDA &amp; Data Quality</li><li data-subkey="sec3sub1"><a href="Automated-EDA-in-R.html"><span class="progress-dot"></span>Automated EDA</a></li><li data-subkey="sec3sub1"><a href="Missing-Data-Visualization-in-R-naniar.html"><span class="progress-dot"></span>Missing Data Viz (naniar)</a></li><li data-subkey="sec3sub1"><a href="Outlier-Detection-in-R.html"><span class="progress-dot"></span>Outlier Detection</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec3sub2" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Probability</li><li data-subkey="sec3sub2"><a href="Sample-Spaces-Events-and-Probability-Axioms-in-R-With-Monte-Carlo-Proof.html"><span class="progress-dot"></span>Probability Axioms</a></li><li data-subkey="sec3sub2"><a href="Conditional-Probability-in-R.html"><span class="progress-dot"></span>Conditional Probability</a></li><li data-subkey="sec3sub2"><a href="Random-Variables-in-R.html"><span class="progress-dot"></span>Random Variables</a></li><li data-subkey="sec3sub2"><a href="Binomial-and-Poisson-Distributions-in-R.html"><span class="progress-dot"></span>Binomial vs Poisson</a></li><li data-subkey="sec3sub2"><a href="Normal-t-F-and-Chi-Squared-Distributions-in-R.html"><span class="progress-dot"></span>Normal, t, F, Chi-Squared</a></li><li data-subkey="sec3sub2"><a href="Central-Limit-Theorem-in-R.html"><span class="progress-dot"></span>Central Limit Theorem</a></li><li data-subkey="sec3sub2"><a href="Sampling-Distributions-in-R.html"><span class="progress-dot"></span>Sampling Distributions</a></li><li data-subkey="sec3sub2"><a href="Law-of-Large-Numbers-vs-CLT-in-R.html"><span class="progress-dot"></span>LLN vs CLT</a></li><li data-subkey="sec3sub2"><a href="What-Is-Probability-Simulation-First-Intuition-in-R-Before-the-Formulas.html"><span class="progress-dot"></span>Probability (Simulation-First)</a></li><li data-subkey="sec3sub2"><a href="Expected-Value-and-Variance-in-R.html"><span class="progress-dot"></span>Expected Value and Variance</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec3sub3" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Inference &amp; Estimation</li><li data-subkey="sec3sub3"><a href="Maximum-Likelihood-Estimation-in-R.html"><span class="progress-dot"></span>Maximum Likelihood Estimation</a></li><li data-subkey="sec3sub3"><a href="Hypothesis-Testing-in-R.html"><span class="progress-dot"></span>Hypothesis Testing</a></li><li data-subkey="sec3sub3"><a href="Sample-Size-Planning-in-R.html"><span class="progress-dot"></span>Sample Size Planning</a></li><li data-subkey="sec3sub3"><a href="Which-Statistical-Test-in-R.html"><span class="progress-dot"></span>Choosing the Right Test</a></li><li data-subkey="sec3sub3"><a href="Statistical-Tests-in-R.html"><span class="progress-dot"></span>Statistical Tests</a></li><li data-subkey="sec3sub3"><a href="Measures-of-Association-in-R.html"><span class="progress-dot"></span>Measures of Association</a></li><li data-subkey="sec3sub3"><a href="Point-Estimation-in-R.html"><span class="progress-dot"></span>Point Estimation</a></li><li data-subkey="sec3sub3"><a href="Confidence-Intervals-in-R.html"><span class="progress-dot"></span>Confidence Intervals</a></li><li data-subkey="sec3sub3"><a href="Type-I-and-Type-II-Errors-in-R.html"><span class="progress-dot"></span>Type I and II Errors</a></li><li data-subkey="sec3sub3"><a href="Statistical-Power-Analysis-in-R.html"><span class="progress-dot"></span>Power Analysis</a></li><li data-subkey="sec3sub3"><a href="Effect-Size-in-R.html"><span class="progress-dot"></span>Effect Size</a></li><li data-subkey="sec3sub3"><a href="t-Tests-in-R.html"><span class="progress-dot"></span>t-Tests</a></li><li data-subkey="sec3sub3"><a href="Proportion-Tests-in-R.html"><span class="progress-dot"></span>Proportion Tests</a></li><li data-subkey="sec3sub3"><a href="Normality-and-Variance-Tests-in-R.html"><span class="progress-dot"></span>Normality &amp; Variance Tests</a></li><li data-subkey="sec3sub3"><a href="Chi-Square-Tests-in-R.html"><span class="progress-dot"></span>Chi-Square Tests</a></li><li data-subkey="sec3sub3"><a href="Wilcoxon-Mann-Whitney-and-Kruskal-Wallis-in-R.html"><span class="progress-dot"></span>Wilcoxon, Mann-Whitney &amp; Kruskal-Wallis</a></li><li data-subkey="sec3sub3"><a href="Multiple-Comparisons-in-R.html"><span class="progress-dot"></span>Multiple Testing Correction</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec3sub4" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Regression</li><li data-subkey="sec3sub4"><a href="Linear-Regression.html"><span class="progress-dot"></span>Linear Regression</a></li><li data-subkey="sec3sub4"><a href="Logistic-Regression-With-R.html"><span class="progress-dot"></span>Logistic Regression</a></li><li data-subkey="sec3sub4"><a href="Variable-Selection-and-Importance-With-R.html"><span class="progress-dot"></span>Feature Selection</a></li><li data-subkey="sec3sub4"><a href="Model-Selection-in-R.html"><span class="progress-dot"></span>Model Selection</a></li><li data-subkey="sec3sub4"><a href="Missing-Value-Treatment-With-R.html"><span class="progress-dot"></span>Missing Value Treatment</a></li><li data-subkey="sec3sub4"><a href="Outlier-Treatment-With-R.html"><span class="progress-dot"></span>Outlier Analysis</a></li><li data-subkey="sec3sub4"><a href="adv-regression-models.html"><span class="progress-dot"></span>Advanced Regression Models</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec3sub5" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Reporting</li><li data-subkey="sec3sub5"><a href="Statistical-Consulting-in-R.html"><span class="progress-dot"></span>Statistical Consulting</a></li><li data-subkey="sec3sub5"><a href="Statistical-Report-Writing-in-R.html"><span class="progress-dot"></span>Statistical Report Writing</a></li><li data-subkey="sec3sub5"><a href="Bootstrap-Confidence-Intervals-in-R.html"><span class="progress-dot"></span>Bootstrap Confidence Intervals</a></li><li data-subkey="sec3sub5"><a href="Reporting-Statistics-in-R.html"><span class="progress-dot"></span>Reporting Statistics</a></li><li data-subkey="sec3sub5"><a href="Correlation-in-R.html"><span class="progress-dot"></span>Correlation (Pearson, Spearman, Kendall)</a></li><li data-subkey="sec3sub5"><a href="Linear-Regression-Assumptions-in-R.html"><span class="progress-dot"></span>Linear Regression Assumptions</a></li><li data-subkey="sec3sub5"><a href="Dummy-Variables-in-R.html"><span class="progress-dot"></span>Dummy Variables in R</a></li><li data-subkey="sec3sub5"><a href="Interaction-Effects-in-R.html"><span class="progress-dot"></span>Interaction Effects</a></li><li data-subkey="sec3sub5"><a href="Regression-Diagnostics-in-R.html"><span class="progress-dot"></span>Regression Diagnostics</a></li><li data-subkey="sec3sub5"><a href="Logistic-Regression-in-R.html"><span class="progress-dot"></span>Logistic Regression (glm + ROC)</a></li><li data-subkey="sec3sub5"><a href="Variable-Selection-in-R.html"><span class="progress-dot"></span>Variable Selection</a></li><li data-subkey="sec3sub5"><a href="Poisson-Regression-in-R.html"><span class="progress-dot"></span>Poisson Regression</a></li><li data-subkey="sec3sub5"><a href="Ridge-and-Lasso-Regression-in-R.html"><span class="progress-dot"></span>Ridge &amp; Lasso Regression</a></li><li data-subkey="sec3sub5"><a href="Polynomial-and-Spline-Regression-in-R.html"><span class="progress-dot"></span>Polynomial &amp; Splines</a></li><li data-subkey="sec3sub5"><a href="Regression-Tables-in-R.html"><span class="progress-dot"></span>Regression Tables (3 packages)</a></li><li data-subkey="sec3sub5"><a href="One-Way-ANOVA-in-R.html"><span class="progress-dot"></span>One-Way ANOVA</a></li><li data-subkey="sec3sub5"><a href="Post-Hoc-Tests-After-ANOVA.html"><span class="progress-dot"></span>Post-Hoc Tests After ANOVA</a></li><li data-subkey="sec3sub5"><a href="Two-Way-ANOVA-in-R.html"><span class="progress-dot"></span>Two-Way ANOVA</a></li><li data-subkey="sec3sub5"><a href="Repeated-Measures-ANOVA-in-R.html"><span class="progress-dot"></span>Repeated Measures ANOVA</a></li><li data-subkey="sec3sub5"><a href="ANCOVA-in-R.html"><span class="progress-dot"></span>ANCOVA</a></li><li data-subkey="sec3sub5"><a href="Experimental-Design-Principles-in-R.html"><span class="progress-dot"></span>Experimental Design in R</a></li><li data-subkey="sec3sub5"><a href="Factorial-Experiments-in-R.html"><span class="progress-dot"></span>Factorial Designs (2^k)</a></li><li data-subkey="sec3sub5"><a href="AB-Testing-in-R.html"><span class="progress-dot"></span>A/B Testing</a></li><li data-subkey="sec3sub5"><a href="MANOVA-in-R.html"><span class="progress-dot"></span>MANOVA</a></li><li data-subkey="sec3sub5"><a href="Mixed-ANOVA-in-R.html"><span class="progress-dot"></span>Mixed ANOVA</a></li><li data-subkey="sec3sub5"><a href="Multivariate-Statistics-in-R.html"><span class="progress-dot"></span>Multivariate Distances &amp; Hotelling's T²</a></li><li data-subkey="sec3sub5"><a href="PCA-in-R.html"><span class="progress-dot"></span>PCA with prcomp()</a></li><li data-subkey="sec3sub5"><a href="Interpreting-PCA-Results-in-R.html"><span class="progress-dot"></span>Interpreting PCA Output</a></li><li data-subkey="sec3sub5"><a href="Exploratory-Factor-Analysis-in-R.html"><span class="progress-dot"></span>Exploratory Factor Analysis</a></li><li data-subkey="sec3sub5"><a href="CFA-and-Structural-Equation-Modeling-in-R.html"><span class="progress-dot"></span>SEM and CFA (lavaan)</a></li><li data-subkey="sec3sub5"><a href="Linear-Discriminant-Analysis-in-R.html"><span class="progress-dot"></span>LDA (Linear Discriminant Analysis)</a></li><li data-subkey="sec3sub5"><a href="Cluster-Analysis-in-R.html"><span class="progress-dot"></span>Clustering (k-Means / HC / DBSCAN)</a></li><li data-subkey="sec3sub5"><a href="Correspondence-Analysis-in-R.html"><span class="progress-dot"></span>Correspondence Analysis</a></li><li data-subkey="sec3sub5"><a href="t-SNE-and-UMAP-in-R.html"><span class="progress-dot"></span>t-SNE and UMAP</a></li><li data-subkey="sec3sub5"><a href="Simple-Linear-Regression-in-R.html"><span class="progress-dot"></span>Simple Linear Regression</a></li><li data-subkey="sec3sub5"><a href="Multiple-Regression-in-R.html"><span class="progress-dot"></span>Multiple Regression</a></li><li data-subkey="sec3sub5"><a href="Robust-Regression-in-R.html"><span class="progress-dot"></span>Robust Regression (rlm)</a></li><li data-subkey="sec3sub5"><a href="factoextra-and-FactoMineR.html"><span class="progress-dot"></span>factoextra (PCA + Clusters)</a></li><li data-subkey="sec3sub5"><a href="Categorical-Data-in-R.html"><span class="progress-dot"></span>Categorical Data (Tables &amp; Mosaic)</a></li><li data-subkey="sec3sub5"><a href="Chi-Square-Test-of-Independence-in-R.html"><span class="progress-dot"></span>Chi-Square Test of Independence</a></li><li data-subkey="sec3sub5"><a href="Chi-Square-Goodness-of-Fit-Test-in-R.html"><span class="progress-dot"></span>Chi-Square Goodness-of-Fit</a></li><li data-subkey="sec3sub5"><a href="Fishers-Exact-Test-in-R.html"><span class="progress-dot"></span>Fisher's Exact Test</a></li><li data-subkey="sec3sub5"><a href="Odds-Ratios-and-Relative-Risk-in-R.html"><span class="progress-dot"></span>Odds Ratios &amp; Relative Risk</a></li><li data-subkey="sec3sub5"><a href="Logistic-Regression-in-R-2.html"><span class="progress-dot"></span>Logistic Regression (Diagnostics)</a></li><li data-subkey="sec3sub5"><a href="Poisson-and-Negative-Binomial-Regression.html"><span class="progress-dot"></span>Poisson &amp; Negative Binomial Regression</a></li><li data-subkey="sec3sub5"><a href="Multinomial-and-Ordinal-Logistic-Regression-in-R.html"><span class="progress-dot"></span>Multinomial &amp; Ordinal Logistic Regression</a></li><li data-subkey="sec3sub5"><a href="When-to-Use-Nonparametric-Tests-in-R.html"><span class="progress-dot"></span>When to Use Nonparametric Tests</a></li><li data-subkey="sec3sub5"><a href="Wilcoxon-Signed-Rank-Test-in-R.html"><span class="progress-dot"></span>Wilcoxon Signed-Rank Test</a></li><li data-subkey="sec3sub5"><a href="Mann-Whitney-U-Test-in-R.html"><span class="progress-dot"></span>Mann-Whitney U Test</a></li><li data-subkey="sec3sub5"><a href="Kruskal-Wallis-Test-in-R-2.html"><span class="progress-dot"></span>Kruskal-Wallis Test</a></li><li data-subkey="sec3sub5"><a href="Friedman-Test-in-R.html"><span class="progress-dot"></span>Friedman Test</a></li><li data-subkey="sec3sub5"><a href="Spearman-and-Kendall-Correlation-in-R.html"><span class="progress-dot"></span>Spearman &amp; Kendall Correlation</a></li><li data-subkey="sec3sub5"><a href="Bootstrap-in-R.html"><span class="progress-dot"></span>Bootstrap (boot package)</a></li><li data-subkey="sec3sub5"><a href="Quantile-Regression-in-R-2.html"><span class="progress-dot"></span>Quantile Regression</a></li><li data-subkey="sec3sub5"><a href="Matrix-Operations-in-R.html"><span class="progress-dot"></span>Matrix Operations in R</a></li><li data-subkey="sec3sub5"><a href="Solving-Linear-Systems-in-R.html"><span class="progress-dot"></span>Solving Linear Systems in R</a></li><li data-subkey="sec3sub5"><a href="Eigenvalues-and-Eigenvectors-in-R.html"><span class="progress-dot"></span>Eigenvalues &amp; Eigenvectors in R</a></li><li data-subkey="sec3sub5"><a href="Singular-Value-Decomposition-in-R.html"><span class="progress-dot"></span>Singular Value Decomposition in R</a></li><li data-subkey="sec3sub5"><a href="Projections-and-the-Hat-Matrix-in-R.html"><span class="progress-dot"></span>Projections &amp; the Hat Matrix</a></li><li data-subkey="sec3sub5"><a href="QR-Decomposition-in-R.html"><span class="progress-dot"></span>QR Decomposition in R</a></li><li data-subkey="sec3sub5"><a href="Quadratic-Forms-in-R.html"><span class="progress-dot"></span>Quadratic Forms</a></li><li data-subkey="sec3sub5"><a href="Matrix-Derivatives-and-the-Hessian-in-R.html"><span class="progress-dot"></span>Matrix Derivatives &amp; Hessian</a></li><li data-subkey="sec3sub5"><a href="Exponential-Family-Distributions-in-R.html"><span class="progress-dot"></span>Exponential Family Distributions</a></li><li data-subkey="sec3sub5"><a href="Sufficient-Statistics-in-R.html"><span class="progress-dot"></span>Sufficient Statistics</a></li><li data-subkey="sec3sub5"><a href="Complete-and-Ancillary-Statistics-in-R.html"><span class="progress-dot"></span>Complete &amp; Ancillary Statistics</a></li><li data-subkey="sec3sub5"><a href="UMVUE-in-R-2.html"><span class="progress-dot"></span>UMVUE (Rao-Blackwell &amp; Lehmann-Scheffé)</a></li><li data-subkey="sec3sub5"><a href="Cramer-Rao-Lower-Bound-in-R-2.html"><span class="progress-dot"></span>Cramér-Rao Lower Bound</a></li><li data-subkey="sec3sub5"><a href="Asymptotic-Theory-in-R-2.html"><span class="progress-dot"></span>Asymptotic Theory</a></li><li data-subkey="sec3sub5"><a href="Neyman-Pearson-Lemma-in-R-2.html"><span class="progress-dot"></span>Neyman-Pearson Lemma</a></li><li data-subkey="sec3sub5"><a href="Likelihood-Ratio-Tests-and-Pivotal-Methods.html"><span class="progress-dot"></span>Likelihood Ratio &amp; Pivotal Methods</a></li><li data-subkey="sec3sub5"><a href="Decision-Theory-in-R.html"><span class="progress-dot"></span>Decision Theory</a></li><li data-subkey="sec3sub5"><a href="Asymptotic-Relative-Efficiency-in-R.html"><span class="progress-dot"></span>Asymptotic Relative Efficiency</a></li></ul></li><li class="sidebar-section"><div class="sidebar-section-header"><span class="sidebar-chevron">&#9656;</span> Time Series<span class="section-meta" data-section-meta></span></div><ul class="sidebar-section-items list-unstyled"><li data-subkey="sec4sub0"><a href="Time-Series-Analysis-With-R.html"><span class="progress-dot"></span>Time Series Analysis</a></li><li data-subkey="sec4sub0"><a href="Time-Series-Forecasting-With-R.html"><span class="progress-dot"></span>Time Series Forecasting</a></li><li data-subkey="sec4sub0"><a href="Time-Series-Forecasting-With-R-part2.html"><span class="progress-dot"></span>More Time Series Forecasting</a></li></ul></li><li class="sidebar-section"><div class="sidebar-section-header"><span class="sidebar-chevron">&#9656;</span> Advanced R<span class="section-meta" data-section-meta></span></div><ul class="sidebar-section-items list-unstyled"><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec5sub1" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Functional Programming</li><li data-subkey="sec5sub1"><a href="Functional-Programming-in-R.html"><span class="progress-dot"></span>Functional Programming</a></li><li data-subkey="sec5sub1"><a href="purrr-map-Variants.html"><span class="progress-dot"></span>purrr map() Variants</a></li><li data-subkey="sec5sub1"><a href="R-Anonymous-Functions.html"><span class="progress-dot"></span>R Anonymous Functions</a></li><li data-subkey="sec5sub1"><a href="R-Function-Factories.html"><span class="progress-dot"></span>R Function Factories</a></li><li data-subkey="sec5sub1"><a href="R-Function-Operators.html"><span class="progress-dot"></span>R Function Operators</a></li><li data-subkey="sec5sub1"><a href="Reduce-Filter-Map-in-R.html"><span class="progress-dot"></span>Reduce, Filter, Map</a></li><li data-subkey="sec5sub1"><a href="Memoization-in-R.html"><span class="progress-dot"></span>Memoization in R</a></li><li data-subkey="sec5sub1"><a href="Writing-Composable-R-Code.html"><span class="progress-dot"></span>Composable R Code</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec5sub2" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> OOP in R</li><li data-subkey="sec5sub2"><a href="OOP-in-R.html"><span class="progress-dot"></span>OOP in R: S3/S4/R6</a></li><li data-subkey="sec5sub2"><a href="S3-Classes-in-R.html"><span class="progress-dot"></span>S3 Classes</a></li><li data-subkey="sec5sub2"><a href="S3-Method-Dispatch-in-R.html"><span class="progress-dot"></span>S3 Method Dispatch</a></li><li data-subkey="sec5sub2"><a href="S4-Classes-in-R.html"><span class="progress-dot"></span>S4 Classes</a></li><li data-subkey="sec5sub2"><a href="S4-Methods-in-R.html"><span class="progress-dot"></span>S4 Methods &amp; Dispatch</a></li><li data-subkey="sec5sub2"><a href="R6-Classes-in-R.html"><span class="progress-dot"></span>R6 Classes</a></li><li data-subkey="sec5sub2"><a href="R6-Advanced.html"><span class="progress-dot"></span>R6 Advanced</a></li><li data-subkey="sec5sub2"><a href="Operator-Overloading-in-R.html"><span class="progress-dot"></span>Operator Overloading</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec5sub3" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> How R Works</li><li data-subkey="sec5sub3"><a href="R-Names-and-Values.html"><span class="progress-dot"></span>R Names &amp; Values</a></li><li data-subkey="sec5sub3"><a href="R-Assignment-Deep-Dive.html"><span class="progress-dot"></span>R Assignment Deep Dive</a></li><li data-subkey="sec5sub3"><a href="R-Memory-lobstr.html"><span class="progress-dot"></span>R Memory &amp; lobstr</a></li><li data-subkey="sec5sub3"><a href="R-Environments.html"><span class="progress-dot"></span>R Environments</a></li><li data-subkey="sec5sub3"><a href="R-Lexical-Scoping.html"><span class="progress-dot"></span>Lexical Scoping</a></li><li data-subkey="sec5sub3"><a href="R-Closures.html"><span class="progress-dot"></span>R Closures</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec5sub4" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Debugging &amp; Performance</li><li data-subkey="sec5sub4"><a href="R-Conditions-System.html"><span class="progress-dot"></span>Conditions System</a></li><li data-subkey="sec5sub4"><a href="R-Debugging.html"><span class="progress-dot"></span>Debugging R Code</a></li><li data-subkey="sec5sub4"><a href="R-Common-Errors.html"><span class="progress-dot"></span>50 Common R Errors</a></li><li data-subkey="sec5sub4"><a href="Parallel-Computing-With-R.html"><span class="progress-dot"></span>Parallel Computing</a></li><li data-subkey="sec5sub4"><a href="Strategies-To-Improve-And-Speedup-R-Code.html"><span class="progress-dot"></span>Speedup R Code</a></li></ul></li><li class="sidebar-section"><div class="sidebar-section-header"><span class="sidebar-chevron">&#9656;</span> Classic Tutorials<span class="section-meta" data-section-meta></span></div><ul class="sidebar-section-items list-unstyled"><li data-subkey="sec6sub0"><a href="R-Tutorial.html"><span class="progress-dot"></span>R Tutorial (Classic)</a></li><li data-subkey="sec6sub0"><a href="ggplot2-Tutorial-With-R.html"><span class="progress-dot"></span>ggplot2 Short Tutorial</a></li><li data-subkey="sec6sub0"><a href="Complete-Ggplot2-Tutorial-Part1-With-R-Code.html"><span class="progress-dot"></span>ggplot2 Tutorial 1 - Intro</a></li><li data-subkey="sec6sub0"><a href="Complete-Ggplot2-Tutorial-Part2-Customizing-Theme-With-R-Code.html"><span class="progress-dot"></span>ggplot2 Tutorial 2 - Theme</a></li><li data-subkey="sec6sub0"><a href="Top50-Ggplot2-Visualizations-MasterList-R-Code.html"><span class="progress-dot"></span>ggplot2 Tutorial 3 - Masterlist</a></li><li data-subkey="sec6sub0"><a href="Association-Mining-With-R.html"><span class="progress-dot"></span>Association Mining</a></li><li data-subkey="sec6sub0"><a href="Multi-Dimensional-Scaling-With-R.html"><span class="progress-dot"></span>Multi Dimensional Scaling</a></li><li data-subkey="sec6sub0"><a href="Optimization-With-R.html"><span class="progress-dot"></span>Optimization</a></li><li data-subkey="sec6sub0"><a href="Information-Value-With-R.html"><span class="progress-dot"></span>InformationValue Package</a></li></ul></li><li class="sidebar-section"><div class="sidebar-section-header"><span class="sidebar-chevron">&#9656;</span> Practice Exercises<span class="section-meta" data-section-meta></span></div><ul class="sidebar-section-items list-unstyled"><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec7sub1" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> R Fundamentals</li><li data-subkey="sec7sub1"><a href="R-Basics-Exercises.html"><span class="progress-dot"></span>R Basics (15 problems)</a></li><li data-subkey="sec7sub1"><a href="R-Vectors-Exercises.html"><span class="progress-dot"></span>R Vectors (12 problems)</a></li><li data-subkey="sec7sub1"><a href="R-Data-Frames-Exercises.html"><span class="progress-dot"></span>R Data Frames (15 problems)</a></li><li data-subkey="sec7sub1"><a href="R-Lists-Exercises.html"><span class="progress-dot"></span>R Lists (10 problems)</a></li><li data-subkey="sec7sub1"><a href="R-Control-Flow-Exercises.html"><span class="progress-dot"></span>R Control Flow (12 problems)</a></li><li data-subkey="sec7sub1"><a href="R-Functions-Exercises.html"><span class="progress-dot"></span>R Functions (10 problems)</a></li><li data-subkey="sec7sub1"><a href="R-String-Exercises.html"><span class="progress-dot"></span>R Strings (10 problems)</a></li><li data-subkey="sec7sub1"><a href="R-Date-Time-Exercises.html"><span class="progress-dot"></span>R Date &amp; Time (10 problems)</a></li><li data-subkey="sec7sub1"><a href="R-Apply-Exercises.html"><span class="progress-dot"></span>R apply Family (12 problems)</a></li><li data-subkey="sec7sub1"><a href="R-Subsetting-Exercises.html"><span class="progress-dot"></span>R Subsetting (10 problems)</a></li><li data-subkey="sec7sub1"><a href="R-Functional-Programming-Exercises.html"><span class="progress-dot"></span>Functional Programming (10 problems)</a></li><li data-subkey="sec7sub1"><a href="R-OOP-Exercises.html"><span class="progress-dot"></span>OOP in R (8 problems)</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec7sub2" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Data Wrangling</li><li data-subkey="sec7sub2"><a href="R-Data-Import-Exercises.html"><span class="progress-dot"></span>Data Import (10 problems)</a></li><li data-subkey="sec7sub2"><a href="dplyr-Exercises.html"><span class="progress-dot"></span>dplyr (15 problems)</a></li><li data-subkey="sec7sub2"><a href="dplyr-filter-select-Exercises.html"><span class="progress-dot"></span>dplyr filter() &amp; select() (12 problems)</a></li><li data-subkey="sec7sub2"><a href="dplyr-group-by-summarise-Exercises.html"><span class="progress-dot"></span>dplyr group_by() &amp; summarise() (10 problems)</a></li><li data-subkey="sec7sub2"><a href="dplyr-Join-Exercises.html"><span class="progress-dot"></span>dplyr Joins (10 problems)</a></li><li data-subkey="sec7sub2"><a href="data-table-Exercises.html"><span class="progress-dot"></span>data.table (12 problems)</a></li><li data-subkey="sec7sub2"><a href="purrr-Exercises.html"><span class="progress-dot"></span>purrr (10 problems)</a></li><li data-subkey="sec7sub2"><a href="tidyr-Reshaping-Exercises.html"><span class="progress-dot"></span>tidyr Reshaping (10 problems)</a></li><li data-subkey="sec7sub2"><a href="Missing-Data-in-R-Exercises.html"><span class="progress-dot"></span>Missing Data in R (10 problems)</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec7sub3" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Visualization</li><li data-subkey="sec7sub3"><a href="ggplot2-Exercises.html"><span class="progress-dot"></span>ggplot2 (15 problems)</a></li><li data-subkey="sec7sub3"><a href="ggplot2-Geom-Exercises.html"><span class="progress-dot"></span>ggplot2 Geoms (12 problems)</a></li><li data-subkey="sec7sub3"><a href="ggplot2-Aesthetics-Exercises.html"><span class="progress-dot"></span>ggplot2 Aesthetics (10 problems)</a></li><li data-subkey="sec7sub3"><a href="ggplot2-Customization-Exercises.html"><span class="progress-dot"></span>ggplot2 Customization (10 problems)</a></li><li data-subkey="sec7sub3"><a href="ggplot2-Facet-Exercises.html"><span class="progress-dot"></span>ggplot2 Facets (8 problems)</a></li><li data-subkey="sec7sub3"><a href="R-Visualization-Project.html"><span class="progress-dot"></span>R Visualization Project (5 charts)</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec7sub4" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Statistics</li><li data-subkey="sec7sub4"><a href="Probability-in-R-Exercises.html"><span class="progress-dot"></span>Probability in R Exercises</a></li><li data-subkey="sec7sub4"><a href="R-Probability-Distributions-Exercises.html"><span class="progress-dot"></span>R Probability Distributions (12 problems)</a></li><li data-subkey="sec7sub4"><a href="Binomial-Distribution-Exercises-in-R.html"><span class="progress-dot"></span>Binomial Distribution Exercises</a></li><li data-subkey="sec7sub4"><a href="Poisson-Distribution-Exercises-in-R.html"><span class="progress-dot"></span>Poisson Distribution Exercises</a></li><li data-subkey="sec7sub4"><a href="Central-Limit-Theorem-Exercises-in-R.html"><span class="progress-dot"></span>Central Limit Theorem Exercises</a></li><li data-subkey="sec7sub4"><a href="Hypothesis-Testing-Exercises-in-R.html"><span class="progress-dot"></span>Hypothesis Testing Exercises</a></li><li data-subkey="sec7sub4"><a href="t-Test-Exercises-in-R.html"><span class="progress-dot"></span>t-Test Exercises (12 problems)</a></li><li data-subkey="sec7sub4"><a href="Chi-Square-Test-Exercises-in-R.html"><span class="progress-dot"></span>Chi-Square Exercises (10 problems)</a></li><li data-subkey="sec7sub4"><a href="Confidence-Interval-Exercises-in-R.html"><span class="progress-dot"></span>Confidence Interval (10 problems)</a></li><li data-subkey="sec7sub4"><a href="Power-Analysis-Exercises-in-R.html"><span class="progress-dot"></span>Power Analysis Exercises (8 problems)</a></li><li data-subkey="sec7sub4"><a href="Nonparametric-Tests-Exercises-in-R.html"><span class="progress-dot"></span>Nonparametric Exercises (10 problems)</a></li><li data-subkey="sec7sub4"><a href="Multiple-Testing-Exercises-in-R.html"><span class="progress-dot"></span>Multiple Testing (8 problems)</a></li><li data-subkey="sec7sub4"><a href="Multiple-Regression-Exercises-in-R.html"><span class="progress-dot"></span>Multiple Regression Exercises</a></li><li data-subkey="sec7sub4"><a href="Logistic-Regression-Exercises-in-R.html"><span class="progress-dot"></span>Logistic Regression Exercises (10 problems)</a></li><li data-subkey="sec7sub4"><a href="Regression-Diagnostics-Exercises-in-R.html"><span class="progress-dot"></span>Regression Diagnostics Exercises</a></li><li data-subkey="sec7sub4"><a href="Ridge-and-Lasso-Exercises-in-R.html"><span class="progress-dot"></span>Ridge &amp; Lasso Exercises</a></li><li data-subkey="sec7sub4"><a href="GLM-Exercises-in-R.html"><span class="progress-dot"></span>GLM Exercises (10 problems)</a></li><li data-subkey="sec7sub4"><a href="ANOVA-Exercises-in-R.html"><span class="progress-dot"></span>ANOVA Exercises (15 problems)</a></li><li data-subkey="sec7sub4"><a href="Post-Hoc-Tests-Exercises-in-R.html"><span class="progress-dot"></span>Post-Hoc Tests Exercises (8 problems)</a></li><li data-subkey="sec7sub4"><a href="Repeated-Measures-Exercises-in-R.html"><span class="progress-dot"></span>Repeated Measures (8 problems)</a></li><li data-subkey="sec7sub4"><a href="Experimental-Design-Exercises-in-R.html"><span class="progress-dot"></span>Experimental Design Exercises (8 problems)</a></li><li data-subkey="sec7sub4"><a href="AB-Testing-Exercises-in-R.html"><span class="progress-dot"></span>A/B Testing Exercises (8 problems)</a></li><li data-subkey="sec7sub4"><a href="Linear-Regression-Exercises-in-R.html"><span class="progress-dot"></span>Linear Regression (15 problems)</a></li><li data-subkey="sec7sub4"><a href="PCA-Exercises-in-R.html"><span class="progress-dot"></span>PCA Exercises (10 problems)</a></li><li data-subkey="sec7sub4"><a href="Cluster-Analysis-Exercises-in-R.html"><span class="progress-dot"></span>Clustering Exercises (10 problems)</a></li><li data-subkey="sec7sub4"><a href="SEM-Exercises-in-R.html"><span class="progress-dot"></span>SEM Exercises (8 problems)</a></li></ul></li></ul><div class="sidebar-subscribe"><p>Stay up-to-date. <a href="https://docs.google.com/forms/d/1xkMYkLNFU9U39Dd8S_2JC0p8B5t6_Yq6zUQjanQQJpY/viewform">Subscribe!</a></p><p><a href="https://docs.google.com/forms/d/13GrkCFcNa-TOIllQghsz2SIEbc-YqY9eJX02B19l5Ow/viewform">Chat!</a></p></div></div><div class="sidebar-panel active" data-panel="tools"><ul class="sidebar-tools-list list-unstyled"><li class="sidebar-divider"><span class="subsec-chevron">&#9660;</span> Calculators</li><li><a href="/tools/ab-test-calculator.html"><span class="tool-icon"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="3.5" width="4" height="9" rx="0.5"/><rect x="9.5" y="3.5" width="4" height="9" rx="0.5"/></svg></span><span class="tool-label">A/B Test Calculator</span></a></li><li><a href="/tools/confidence-interval-calculator.html"><span class="tool-icon"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 4v8M3.5 4H5M3.5 12H5"/><circle cx="8" cy="8" r="1.4" fill="currentColor" stroke="none"/><path d="M12.5 4v8M12.5 4H11M12.5 12H11"/></svg></span><span class="tool-label">Confidence Interval</span></a></li><li><a href="/tools/effect-size-converter.html"><span class="tool-icon"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 5.5h11M11 3l2.5 2.5L11 8"/><path d="M13.5 10.5h-11M5 8l-2.5 2.5L5 13"/></svg></span><span class="tool-label">Effect Size Converter</span></a></li><li><a href="/tools/power-analysis.html"><span class="tool-icon"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 2L4 9h3.5L7 14l5-7H8.5z"/></svg></span><span class="tool-label">Power Analysis</span></a></li><li><a href="/tools/z-score-percentile.html"><span class="tool-icon"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 13c2 0 3-1 4-3s1.5-6 2-6 .5 6 2 6 2.5 0 4 0"/><path d="M2 13.5h12"/></svg></span><span class="tool-label">Z-Score &amp; Percentile</span></a></li><li class="sidebar-divider"><span class="subsec-chevron">&#9660;</span> Interpreters</li><li><a href="/tools/confusion-matrix-interpreter.html" class="active"><span class="tool-icon"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="2.5" width="4.5" height="4.5"/><rect x="9" y="2.5" width="4.5" height="4.5"/><rect x="2.5" y="9" width="4.5" height="4.5"/><rect x="9" y="9" width="4.5" height="4.5"/></svg></span><span class="tool-label">Confusion Matrix</span></a></li><li><a href="/tools/lm-output-interpreter.html"><span class="tool-icon"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 13.5L14 3"/><circle cx="4" cy="11.5" r="1" fill="currentColor" stroke="none"/><circle cx="7.5" cy="9" r="1" fill="currentColor" stroke="none"/><circle cx="11" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg></span><span class="tool-label">lm() Output</span></a></li><li><a href="/tools/glm-output-interpreter.html"><span class="tool-icon"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 13C5 13 5 3 8 3s3 10 6 10"/><path d="M2 13.5h12"/></svg></span><span class="tool-label">glm() Output</span></a></li><li class="sidebar-divider"><span class="subsec-chevron">&#9660;</span> Pickers</li><li><a href="/tools/multiple-testing-correction.html"><span class="tool-icon"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 4l2 2 3-3M2.5 8l2 2 3-3M2.5 12l2 2 3-3"/><path d="M10.5 4h3M10.5 8h3M10.5 12h3"/></svg></span><span class="tool-label">Multiple Testing</span></a></li><li><a href="/tools/normality-test-picker.html"><span class="tool-icon"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 13c2 0 3-1 4-3s1.5-6 2-6 .5 6 2 6 2.5 0 4 0"/><circle cx="13" cy="4" r="1.6" fill="currentColor" stroke="none"/></svg></span><span class="tool-label">Normality Test Picker</span></a></li></ul></div></div></aside><main class="tool-chrome-main">
+
+
+
+<div class="container">
+
+  <div class="breadcrumb"><a href="/">Home</a> <span style="margin:0 6px">›</span> <a href="/tools/">Tools</a> <span style="margin:0 6px">›</span> Confusion Matrix Interpreter</div>
+
+  <h1 class="tool-title">Confusion Matrix Interpreter</h1>
+  <div class="tool-meta">
+    <span>Binary or multi-class</span>
+    <span>·</span>
+    <span>All metrics + which one to trust when</span>
+    <span>·</span>
+    <span>Runs in your browser</span>
+  </div>
+  <p class="lead">Enter a 2×2 (or k×k) confusion matrix; we compute every metric — accuracy with 95% CI, sensitivity, specificity, precision, F1, MCC, Cohen's κ, balanced accuracy, LR+/LR− — translate them into plain English, and tell you <em>which one to trust</em> based on imbalance and which kind of error is more costly.</p>
+
+  <!-- Worked examples -->
+  <div class="scenarios-section">
+    <div class="scenarios-label">Worked examples</div>
+    <div class="scenarios-row">
+      <button class="scenario-card" data-scenario="screening" onclick="loadScenario('screening')">
+        <div class="scenario-name">Rare disease screening</div>
+      </button>
+      <button class="scenario-card" data-scenario="spam" onclick="loadScenario('spam')">
+        <div class="scenario-name">Spam classifier</div>
+      </button>
+      <button class="scenario-card" data-scenario="balanced" onclick="loadScenario('balanced')">
+        <div class="scenario-name">Balanced classes</div>
+      </button>
+      <button class="scenario-card" data-scenario="iris" onclick="loadScenario('iris')">
+        <div class="scenario-name">Iris (3-class)</div>
+      </button>
+      <button class="scenario-card" data-scenario="leak" onclick="loadScenario('leak')">
+        <div class="scenario-name">Suspicious 100%</div>
+      </button>
+      <button class="scenario-card" data-scenario="custom" onclick="loadScenario('custom')">
+        <div class="scenario-name">⚙️ Custom</div>
+      </button>
+    </div>
+  </div>
+
+  <!-- Scenario context -->
+  <div class="scenario-context" id="scenario-context">
+    <div class="sc-head">
+      <span class="sc-icon" id="sc-icon">🩺</span>
+      <span class="sc-title" id="sc-title">Rare disease screening</span>
+      <button class="sc-clear" onclick="clearScenario()">× clear</button>
+    </div>
+    <p class="sc-story" id="sc-story">A diagnostic screen with 2% disease prevalence. The classifier looks accurate at first glance (95%), but balanced accuracy and MCC tell a much more sober story.</p>
+    <div class="sc-meta"><span>📐 <strong>What you'll see:</strong> <span id="sc-takeaway">Accuracy = 95%, but most positives are missed. Recall ≈ 50%, MCC ≈ 0.25 — accuracy is misleading at extreme imbalance.</span></span></div>
+  </div>
+
+  <!-- Notes -->
+  <details class="preflight" id="preflight">
+    <summary><span>How confusion matrix metrics work</span></summary>
+    <div class="preflight-prose">
+      <span class="pf-heading">What it is</span>
+      <p>You've built a classifier — a model that predicts a category. Now you need to know how good it is. A <strong>confusion matrix</strong> is the simplest way to summarize: a table of "predicted vs. actual" counts.</p>
+      <p>For a yes/no classifier, the table has four cells:</p>
+      <p>• <strong>True Positive (TP)</strong>: model said "yes," and it really was yes ✓<br>• <strong>False Positive (FP)</strong>: model said "yes," but it was actually no ✗<br>• <strong>False Negative (FN)</strong>: model said "no," but it was actually yes ✗<br>• <strong>True Negative (TN)</strong>: model said "no," and it was indeed no ✓</p>
+      <p>From those four numbers you can compute every standard metric — accuracy, precision, recall, F1, and so on. Each metric tells a different story. Picking the right one matters, especially when one class is much rarer than the other.</p>
+
+      <span class="pf-heading">How it works</span>
+      <p>Each metric answers a different question:</p>
+      <p>• <strong>Accuracy</strong> = "what fraction did I get right overall?" (TP + TN) / total. Simple, but can be misleading with imbalanced classes.<br>• <strong>Precision</strong> = "when I said yes, was I right?" TP / (TP + FP)<br>• <strong>Recall (sensitivity)</strong> = "when it was really yes, did I catch it?" TP / (TP + FN)<br>• <strong>F1</strong> = a balance between precision and recall. Penalizes imbalance between them.<br>• <strong>MCC (Matthews Correlation)</strong> = a single robust score from −1 to +1. Best one-number summary when classes are skewed.<br>• <strong>Specificity</strong> = "when it was really no, did I correctly say no?"<br>• <strong>Cohen's κ</strong> = "how much better than random guessing?"</p>
+
+      <span class="pf-heading">What you put in</span>
+      <p>Either:</p>
+      <p>• Type the counts directly into a 2×2 (or k×k for multi-class) grid<br>• Paste the output from <code>caret::confusionMatrix()</code> in R</p>
+      <p>For binary classification, pick which class is "positive" — that affects asymmetric metrics like precision and recall.</p>
+
+      <span class="pf-heading">What you get out</span>
+      <p>• Every metric, color-coded (good / warning / bad)<br>• A <strong>"which metric to trust here"</strong> decision tree that highlights the right metric based on your imbalance and error costs<br>• Warnings for imbalanced classes, suspicious 100% accuracy (often data leakage), worse-than-chance performance<br>• For multi-class: per-class metrics plus macro and weighted averages</p>
+
+      <span class="pf-heading">How to interpret it in practice</span>
+      <p>Which metric should you trust? Depends on <strong>two things</strong>: how balanced your classes are, and which error costs more.</p>
+      <p><strong>Balanced classes (close to 50/50):</strong><br>Accuracy + F1 is fine. Both error types are equally costly, both classes are equally common.</p>
+      <p><strong>Imbalanced classes (one class &lt; 20%):</strong><br>Ignore accuracy — it lies. A classifier that always predicts the majority class on 99%-prevalence data scores 99% accuracy and is completely useless. Report <strong>MCC + balanced accuracy + per-class precision/recall</strong> instead.</p>
+      <p><strong>False positives are expensive</strong> (spam blocking real email; biopsies on healthy patients):<br>Emphasize <strong>precision</strong>. Use F0.5 (precision-weighted F).</p>
+      <p><strong>False negatives are expensive</strong> (missing a cancer; missing fraud):<br>Emphasize <strong>recall</strong>. Use F2 (recall-weighted F).</p>
+      <p>If accuracy is suspiciously close to 100%, hunt for a bug. Usual culprits: evaluating on the training set, a feature that's secretly a copy of the label, or duplicate rows between train and test. Real classifiers almost never score 100% on truly held-out data.</p>
+
+      <span class="pf-heading">When to use this</span>
+      <p>Any classification task once you have predicted labels and true labels for a test set:</p>
+      <p>• Spam detection<br>• Medical screening / diagnostics<br>• Fraud detection<br>• Image classification<br>• Churn prediction<br>• Sentiment analysis</p>
+      <p>The model can be logistic regression, random forest, gradient boosting, a neural network, or GPT — the evaluation is the same.</p>
+
+      <span class="pf-heading">Common pitfalls</span>
+      <p><strong>Trusting accuracy on imbalanced data.</strong> The most common rookie mistake — and often the most expensive in production.</p>
+      <p><strong>Optimizing one metric to the exclusion of others.</strong> You can trivially get 100% recall by predicting everything as "yes" — but precision tanks. Watch both.</p>
+      <p><strong>Forgetting AUC needs probabilities, not just labels.</strong> A confusion matrix is at <em>one</em> threshold. AUC integrates over all thresholds and can't be computed from a single matrix.</p>
+      <p><strong>Reporting test results from data the model was tuned on.</strong> Use a held-out set you didn't touch during training or hyperparameter selection.</p>
+    </div>
+  </details>
+
+  <!-- Workshop -->
+  <div class="workshop">
+  <aside class="ws-inputs">
+    <span class="ws-section-tag">Confusion matrix</span>
+
+    <div class="mode-tabs" id="input-mode-tabs">
+      <button class="mode-tab active" data-input-mode="manual" onclick="setInputMode('manual')">Manual entry</button>
+      <button class="mode-tab" data-input-mode="paste" onclick="setInputMode('paste')">Paste R output</button>
+    </div>
+
+    <!-- Manual mode -->
+    <div id="manual-mode">
+      <div class="form-row">
+        <label>Number of classes <small>k = 2 for binary</small></label>
+        <div class="k-pickers" id="k-pickers">
+          <button class="k-btn active" data-k="2" onclick="setK(2)">2</button>
+          <button class="k-btn" data-k="3" onclick="setK(3)">3</button>
+          <button class="k-btn" data-k="4" onclick="setK(4)">4</button>
+          <button class="k-btn" data-k="5" onclick="setK(5)">5</button>
+          <button class="k-btn" data-k="6" onclick="setK(6)">6</button>
+        </div>
+      </div>
+
+      <!-- Dynamic matrix -->
+      <div id="cm-matrix-area"></div>
+
+      <div class="form-row" id="positive-class-row">
+        <label>Positive class <small>(for binary metrics)</small></label>
+        <div class="form-control">
+          <select id="positive-class-sel" onchange="recompute()">
+            <option value="0">First class</option>
+            <option value="1">Second class</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Paste mode -->
+    <div id="paste-mode" style="display:none">
+      <p style="font-size:12.5px;color:var(--c-text-mute);margin:0 0 8px;line-height:1.5">Paste output from <code>caret::confusionMatrix()</code> or any whitespace-separated k×k matrix.</p>
+      <textarea class="paste-box" id="cm-paste" placeholder="          Reference
+Prediction No  Yes
+       No  85    5
+       Yes  3    7" oninput="parsePasteAndRecompute()"></textarea>
+      <div id="paste-errors"></div>
+    </div>
+  </aside>
+
+  <main class="ws-output">
+
+  <!-- Live summary -->
+  <div class="live-summary" id="summary">Enter counts to see metrics and a verdict.</div>
+
+  <!-- Decision card -->
+  <div class="decision-card weak" id="decision-card" style="display:none">
+    <span class="dc-icon" id="dc-icon">📐</span>
+    <div class="dc-body">
+      <div class="dc-verdict" id="dc-verdict">Awaiting input</div>
+      <div class="dc-rationale" id="dc-rationale">Enter counts to compute metrics.</div>
+    </div>
+  </div>
+
+  <!-- Diagnostic callouts -->
+  <div id="callouts-area"></div>
+
+  <!-- Heatmap -->
+  <div class="heatmap-wrap" id="heatmap-wrap" style="display:none">
+    <div class="heatmap-title">Confusion matrix · row-normalized intensity (rows = predicted)</div>
+    <div class="heatmap" id="heatmap"></div>
+  </div>
+
+  <!-- Metric grid: counts / per-class / aggregate -->
+  <div id="metrics-area"></div>
+
+  <!-- Per-class table for multiclass -->
+  <div id="perclass-area"></div>
+
+  <!-- Decision tree -->
+  <div class="metric-tree" id="metric-tree" style="display:none">
+    <h3>Which metric to trust here</h3>
+    <ul id="tree-list"></ul>
+  </div>
+
+  <!-- R code -->
+  <div class="r-code-block" id="r-code-wrap" style="display:none">
+    <button class="copy-btn" onclick="copyCode()">Copy</button>
+    <pre id="r-code"></pre>
+  </div>
+
+  <div class="action-row">
+    <a class="next-tool" href="glm-output-interpreter.html"><span>From a logistic glm? → glm() interpreter →</span></a>
+    <a class="next-tool" href="effect-size-converter.html"><span>Compare to other effect sizes →</span></a>
+    <a class="next-tool" href="multiple-testing-correction.html"><span>Multiple thresholds tested? Correct →</span></a>
+  </div>
+
+  </main>
+  </div>
+
+  <h2 class="section-h">Anatomy of the metrics</h2>
+  <div class="anatomy-step">
+    <div class="anatomy-formula">accuracy = (TP + TN) / N</div>
+    <div class="anatomy-body"><strong>Accuracy.</strong> Fraction of all predictions that are correct. The 95% CI uses the Wilson score interval — narrower and better-behaved than a normal-approximation interval, especially near 0% or 100%.</div>
+  </div>
+  <div class="anatomy-step">
+    <div class="anatomy-formula">precision = TP / (TP + FP)
+recall    = TP / (TP + FN)
+F1        = 2·precision·recall / (precision + recall)</div>
+    <div class="anatomy-body"><strong>Precision and recall.</strong> Precision answers "when the model says positive, is it right?"; recall answers "of the actual positives, how many did we catch?". F1 is their harmonic mean — penalises imbalance between the two. Use <strong>F0.5</strong> when precision matters more, <strong>F2</strong> when recall does.</div>
+  </div>
+  <div class="anatomy-step">
+    <div class="anatomy-formula">MCC = (TP·TN − FP·FN) /
+       √((TP+FP)(TP+FN)(TN+FP)(TN+FN))</div>
+    <div class="anatomy-body"><strong>Matthews Correlation Coefficient.</strong> A correlation between predicted and actual labels — ranges from −1 (perfectly wrong) through 0 (random) to +1 (perfect). Robust to class imbalance; the single best one-number summary when classes are skewed.</div>
+  </div>
+  <div class="anatomy-step">
+    <div class="anatomy-formula">κ = (po − pe) / (1 − pe)</div>
+    <div class="anatomy-body"><strong>Cohen's κ.</strong> Agreement beyond chance. <code>po</code> = observed agreement (= accuracy); <code>pe</code> = expected agreement under independent margins. Landis &amp; Koch: 0–0.2 slight, 0.2–0.4 fair, 0.4–0.6 moderate, 0.6–0.8 substantial, &gt; 0.8 almost perfect.</div>
+  </div>
+  <div class="anatomy-step">
+    <div class="anatomy-formula">LR+ = sensitivity / (1 − specificity)
+LR− = (1 − sensitivity) / specificity</div>
+    <div class="anatomy-body"><strong>Likelihood ratios.</strong> Used in diagnostic medicine to update pre-test probability into post-test probability. LR+ &gt; 10 is "strong evidence for the disease"; LR− &lt; 0.1 is "strong evidence against." Independent of prevalence — that's their charm.</div>
+  </div>
+
+  <h2 class="section-h">When this is the wrong tool</h2>
+  <dl class="alt-list">
+    <dt class="alt-header">If you have…</dt>
+    <dd class="alt-header alt-header-right">Use instead</dd>
+    <dt>Predicted probabilities (not just labels)</dt>
+    <dd>You can compute AUC, calibration, and Brier score — those need probabilities. Tool coming in Batch 8.</dd>
+    <dt>Multi-label outputs (multiple classes per case)</dt>
+    <dd>Different metric set (subset accuracy, Hamming loss). Not v1.</dd>
+    <dt>Regression error (continuous outcome)</dt>
+    <dd>RMSE / MAE / R² calculator (Batch 4).</dd>
+    <dt>From a logistic glm — want to understand coefficients</dt>
+    <dd><a href="glm-output-interpreter.html">glm() interpreter</a> — for the model itself, before you classify.</dd>
+    <dt>Pasted <code>conf_mat()</code> with <code>prop = "row"</code></dt>
+    <dd>Re-paste the raw counts — proportions can't be back-computed without N.</dd>
+  </dl>
+
+  <h2 class="section-h">Further reading</h2>
+  <ul class="further-list">
+    <li><a href="/logistic-regression/">Logistic regression in R, end to end</a> — including how to threshold predicted probabilities into a confusion matrix.</li>
+    <li><a href="/odds-ratio/">Sensitivity, specificity and the prosecutor's fallacy</a> — why LR+ matters for diagnostic tests.</li>
+    <li><a href="/auc-vs-accuracy/">AUC vs accuracy</a> — what each one is and isn't measuring.</li>
+  </ul>
+
+</div>
+
+<div class="toast-area" id="toast-area"></div>
+
+<script>
+function $(id){ return document.getElementById(id); }
+function fmt(x, d){ d = d ?? 4; if (!isFinite(x)) return '—'; return Number(x).toFixed(d).replace(/\.?0+$/,''); }
+function pct(x, d){ d = d ?? 1; if (!isFinite(x)) return '—'; return (x*100).toFixed(d) + '%'; }
+function escapeHtml(s){ return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+// ============================================================
+// State
+// ============================================================
+let inputMode = 'manual';   // 'manual' | 'paste'
+let k = 2;                   // number of classes
+let classNames = ['Pos','Neg'];
+let matrix = [[40,10],[5,45]]; // matrix[i][j] = predicted class i, actual class j
+let positiveIdx = 0;
+let pasteParseError = null;
+
+// ============================================================
+// Matrix UI
+// ============================================================
+function setK(newK){
+  k = newK;
+  document.querySelectorAll('.k-btn').forEach(b => b.classList.toggle('active', parseInt(b.dataset.k) === k));
+  // Resize matrix preserving overlap
+  const m = [];
+  for (let i = 0; i < k; i++){
+    const row = [];
+    for (let j = 0; j < k; j++){
+      row.push((matrix[i] && matrix[i][j] != null) ? matrix[i][j] : 0);
+    }
+    m.push(row);
+  }
+  matrix = m;
+  // Resize class names
+  const defaultNames = k === 2 ? ['Pos','Neg'] : Array.from({length:k}, (_,i)=>'Class '+(i+1));
+  classNames = Array.from({length:k}, (_,i) => classNames[i] || defaultNames[i]);
+  // Show/hide positive-class selector
+  $('positive-class-row').style.display = (k === 2) ? '' : 'none';
+  renderMatrix();
+  recompute();
+}
+
+function renderMatrix(){
+  const area = $('cm-matrix-area');
+  let html = `<div class="form-row" style="margin-bottom:8px"><label>Counts <small>rows = predicted, cols = actual</small></label></div>`;
+  // Header row of class names
+  const colW = k <= 3 ? '1fr' : 'minmax(58px,1fr)';
+  html += `<div class="cm-grid" style="grid-template-columns: 64px repeat(${k}, ${colW})">`;
+  html += `<div class="cm-axis">↓ pred / actual →</div>`;
+  for (let j = 0; j < k; j++){
+    html += `<div class="cm-class-label"><input type="text" data-cn="${j}" value="${escapeHtml(classNames[j])}" oninput="onClassNameInput(${j}, this.value)"></div>`;
+  }
+  for (let i = 0; i < k; i++){
+    html += `<div class="cm-class-label"><input type="text" data-cn="${i}" value="${escapeHtml(classNames[i])}" oninput="onClassNameInput(${i}, this.value)"></div>`;
+    for (let j = 0; j < k; j++){
+      const cls = (i === j) ? 'diag' : 'off';
+      html += `<div class="cm-cell ${cls}"><input type="number" min="0" step="1" value="${matrix[i][j]}" data-i="${i}" data-j="${j}" oninput="onCellInput(${i},${j},this.value)"></div>`;
+    }
+  }
+  html += `</div>`;
+  // Positive class options
+  if (k === 2){
+    const sel = $('positive-class-sel');
+    sel.innerHTML = `<option value="0">${escapeHtml(classNames[0])}</option><option value="1">${escapeHtml(classNames[1])}</option>`;
+    sel.value = String(positiveIdx);
+  }
+  area.innerHTML = html;
+}
+
+function onCellInput(i, j, v){
+  const n = parseInt(v) || 0;
+  matrix[i][j] = Math.max(0, n);
+  recompute();
+}
+function onClassNameInput(idx, v){
+  classNames[idx] = v.trim() || ('Class '+(idx+1));
+  if (k === 2){
+    const sel = $('positive-class-sel');
+    sel.innerHTML = `<option value="0">${escapeHtml(classNames[0])}</option><option value="1">${escapeHtml(classNames[1])}</option>`;
+    sel.value = String(positiveIdx);
+  }
+  recompute();
+}
+
+function setInputMode(m){
+  inputMode = m;
+  document.querySelectorAll('.mode-tab').forEach(t => t.classList.toggle('active', t.dataset.inputMode === m));
+  $('manual-mode').style.display = (m === 'manual') ? '' : 'none';
+  $('paste-mode').style.display = (m === 'paste') ? '' : 'none';
+  if (m === 'paste'){
+    parsePasteAndRecompute();
+  } else {
+    // Re-render matrix UI from current state so it always reflects what's being scored
+    document.querySelectorAll('.k-btn').forEach(b => b.classList.toggle('active', parseInt(b.dataset.k) === k));
+    $('positive-class-row').style.display = (k === 2) ? '' : 'none';
+    renderMatrix();
+    recompute();
+  }
+}
+
+// ============================================================
+// Paste parser (caret-style or generic k×k whitespace)
+// ============================================================
+function parsePasteAndRecompute(){
+  pasteParseError = null;
+  const text = $('cm-paste').value.trim();
+  if (!text){
+    pasteParseError = 'Paste a confusion matrix.';
+    $('paste-errors').innerHTML = `<div class="parse-error">${pasteParseError}</div>`;
+    recompute();
+    return;
+  }
+  // Try caret-style: look for "Prediction" line + class header
+  const lines = text.split(/\r?\n/);
+  // Filter blank lines
+  const rows = [];
+  let header = null;
+  for (const raw of lines){
+    const l = raw.trim();
+    if (!l) continue;
+    if (/Confusion Matrix|Reference|Prediction/i.test(l) && !/^\d/.test(l)){
+      // It's a label line — capture potential header (class names)
+      const tokens = l.split(/\s+/).filter(t => !/^(Confusion|Matrix|and|Statistics|Reference|Prediction)$/i.test(t));
+      if (tokens.length >= 2 && header === null) header = tokens;
+      continue;
+    }
+    if (/^Accuracy|^95\%|^Sensitivity|^Specificity|^Pos Pred|^Neg Pred|^Prevalence|^Detection|^Balanced|^Kappa|^Mcnemar|^P-Value|^No Information/i.test(l)) break;
+    rows.push(l);
+  }
+  // Each row: optionally a leading class label, then k numbers
+  const parsedRows = [];
+  let detectedClassNames = [];
+  for (const r of rows){
+    const tokens = r.split(/\s+/);
+    const numTokens = [];
+    const labelTokens = [];
+    let inNumbers = false;
+    for (const t of tokens){
+      if (/^-?\d+$/.test(t)){ inNumbers = true; numTokens.push(parseInt(t)); }
+      else if (!inNumbers) labelTokens.push(t);
+      else numTokens.push(NaN);  // bad
+    }
+    if (numTokens.length === 0) continue;
+    if (numTokens.some(n => !Number.isFinite(n))){
+      pasteParseError = `Bad row: "${r}"`;
+      break;
+    }
+    parsedRows.push(numTokens);
+    detectedClassNames.push(labelTokens.join(' ') || ('Class '+(parsedRows.length)));
+  }
+  if (parsedRows.length < 2){
+    pasteParseError = pasteParseError || 'Could not find at least 2 matrix rows.';
+    $('paste-errors').innerHTML = `<div class="parse-error">${pasteParseError}</div>`;
+    recompute();
+    return;
+  }
+  const kDetected = parsedRows[0].length;
+  if (parsedRows.length !== kDetected || parsedRows.some(r => r.length !== kDetected)){
+    pasteParseError = `Expected square ${kDetected}×${kDetected} matrix; got ${parsedRows.length} rows.`;
+    $('paste-errors').innerHTML = `<div class="parse-error">${pasteParseError}</div>`;
+    recompute();
+    return;
+  }
+  $('paste-errors').innerHTML = '';
+  k = kDetected;
+  matrix = parsedRows;
+  // Use header tokens if the count matches; else use leading row labels; else default
+  if (header && header.length === k){
+    classNames = header;
+  } else if (detectedClassNames.length === k && detectedClassNames.some(n => !/^Class\s/.test(n))){
+    classNames = detectedClassNames;
+  } else {
+    classNames = Array.from({length:k}, (_,i) => 'Class '+(i+1));
+  }
+  positiveIdx = 0;
+  recompute();
+}
+
+// ============================================================
+// Metric calculations
+// ============================================================
+function totalN(){
+  let n = 0;
+  for (let i = 0; i < k; i++) for (let j = 0; j < k; j++) n += matrix[i][j] || 0;
+  return n;
+}
+
+function binaryStats(pos){
+  const neg = 1 - pos;
+  const TP = matrix[pos][pos] || 0;
+  const FP = matrix[pos][neg] || 0;
+  const FN = matrix[neg][pos] || 0;
+  const TN = matrix[neg][neg] || 0;
+  const N = TP + FP + FN + TN;
+
+  const accuracy = N > 0 ? (TP + TN) / N : NaN;
+  const ci = wilsonCI(TP + TN, N, 0.95);
+  const sensitivity = (TP + FN) > 0 ? TP / (TP + FN) : NaN;
+  const specificity = (TN + FP) > 0 ? TN / (TN + FP) : NaN;
+  const precision   = (TP + FP) > 0 ? TP / (TP + FP) : NaN;
+  const npv         = (TN + FN) > 0 ? TN / (TN + FN) : NaN;
+  const f1          = (precision + sensitivity) > 0 ? 2*precision*sensitivity/(precision+sensitivity) : NaN;
+  const f0_5        = fBeta(precision, sensitivity, 0.5);
+  const f2          = fBeta(precision, sensitivity, 2);
+  const prevalence  = N > 0 ? (TP + FN) / N : NaN;
+  const detRate     = N > 0 ? TP / N : NaN;
+  const detPrev     = N > 0 ? (TP + FP) / N : NaN;
+  const balAcc      = (isFinite(sensitivity) && isFinite(specificity)) ? (sensitivity + specificity)/2 : NaN;
+  // Kappa
+  const po = accuracy;
+  const pe = N > 0 ? (((TP+FP)*(TP+FN) + (FN+TN)*(FP+TN)) / (N*N)) : NaN;
+  const kappa = (1 - pe) > 0 ? (po - pe) / (1 - pe) : NaN;
+  // MCC
+  const mccDenom = Math.sqrt((TP+FP)*(TP+FN)*(TN+FP)*(TN+FN));
+  const mcc = mccDenom > 0 ? (TP*TN - FP*FN) / mccDenom : NaN;
+  // Likelihood ratios
+  const lrPlus  = (1 - specificity) > 0 ? sensitivity / (1 - specificity) : NaN;
+  const lrMinus = specificity > 0 ? (1 - sensitivity) / specificity : NaN;
+  return {TP,FP,FN,TN,N,accuracy,ci,sensitivity,specificity,precision,npv,f1,f0_5,f2,prevalence,detRate,detPrev,balAcc,kappa,mcc,lrPlus,lrMinus};
+}
+
+function fBeta(p, r, beta){
+  const b2 = beta*beta;
+  const denom = b2*p + r;
+  if (!(denom > 0)) return NaN;
+  return (1 + b2) * p * r / denom;
+}
+
+// Wilson score CI
+function wilsonCI(x, n, conf){
+  if (n === 0) return [NaN, NaN];
+  const z = (conf === 0.95) ? 1.959963984540054 : 1.96;
+  const p = x / n;
+  const zsq = z*z;
+  const denom = 1 + zsq/n;
+  const center = p + zsq/(2*n);
+  const half = z * Math.sqrt(p*(1-p)/n + zsq/(4*n*n));
+  return [(center - half) / denom, (center + half) / denom];
+}
+
+function multiclassStats(){
+  const N = totalN();
+  // Per-class one-vs-rest
+  const perClass = [];
+  let correct = 0;
+  for (let i = 0; i < k; i++){
+    const TP = matrix[i][i] || 0;
+    let FP = 0, FN = 0, TN = 0;
+    for (let j = 0; j < k; j++){
+      if (j !== i) FP += matrix[i][j] || 0;
+      if (j !== i) FN += matrix[j][i] || 0;
+    }
+    for (let r = 0; r < k; r++){
+      for (let c = 0; c < k; c++){
+        if (r !== i && c !== i) TN += matrix[r][c] || 0;
+      }
+    }
+    correct += TP;
+    const support = TP + FN;
+    const sensitivity = (TP+FN) > 0 ? TP/(TP+FN) : NaN;
+    const specificity = (TN+FP) > 0 ? TN/(TN+FP) : NaN;
+    const precision   = (TP+FP) > 0 ? TP/(TP+FP) : NaN;
+    const f1          = (precision+sensitivity) > 0 ? 2*precision*sensitivity/(precision+sensitivity) : NaN;
+    perClass.push({name:classNames[i], TP, FP, FN, TN, support, sensitivity, specificity, precision, f1});
+  }
+  const accuracy = N > 0 ? correct / N : NaN;
+  const ci = wilsonCI(correct, N, 0.95);
+  // Macro means (over classes)
+  const finiteMean = arr => {
+    const f = arr.filter(x => isFinite(x));
+    return f.length ? f.reduce((a,b)=>a+b,0) / f.length : NaN;
+  };
+  const macroPrec = finiteMean(perClass.map(x=>x.precision));
+  const macroRecall = finiteMean(perClass.map(x=>x.sensitivity));
+  const macroF1 = finiteMean(perClass.map(x=>x.f1));
+  // Weighted by support
+  const totalSupport = perClass.reduce((a,c)=>a+c.support,0);
+  const wMean = arr => totalSupport > 0 ? perClass.reduce((s,c,i)=>s + (isFinite(arr[i])?arr[i]:0)*c.support, 0)/totalSupport : NaN;
+  const weightedPrec = wMean(perClass.map(x=>x.precision));
+  const weightedRecall = wMean(perClass.map(x=>x.sensitivity));
+  const weightedF1 = wMean(perClass.map(x=>x.f1));
+  // Kappa (general formula)
+  const rowSums = Array(k).fill(0), colSums = Array(k).fill(0);
+  for (let i = 0; i < k; i++) for (let j = 0; j < k; j++){ rowSums[i] += matrix[i][j]; colSums[j] += matrix[i][j]; }
+  const po = accuracy;
+  const pe = N > 0 ? rowSums.reduce((s,r,i)=>s + (r * colSums[i])/(N*N), 0) : NaN;
+  const kappa = (1 - pe) > 0 ? (po - pe) / (1 - pe) : NaN;
+  // Balanced accuracy
+  const balAcc = finiteMean(perClass.map(x => x.sensitivity));
+  return {N, correct, accuracy, ci, perClass, macroPrec, macroRecall, macroF1, weightedPrec, weightedRecall, weightedF1, kappa, balAcc};
+}
+
+// ============================================================
+// Render
+// ============================================================
+function recompute(){
+  // Read positive class
+  if (k === 2){
+    positiveIdx = parseInt($('positive-class-sel').value) || 0;
+  }
+
+  const N = totalN();
+  if (N === 0){
+    $('summary').textContent = 'Enter at least one count.';
+    $('decision-card').style.display = 'none';
+    $('callouts-area').innerHTML = '';
+    $('metrics-area').innerHTML = '';
+    $('perclass-area').innerHTML = '';
+    $('metric-tree').style.display = 'none';
+    $('heatmap-wrap').style.display = 'none';
+    $('r-code-wrap').style.display = 'none';
+    return;
+  }
+
+  // Render heatmap
+  renderHeatmap();
+
+  if (k === 2){
+    renderBinary();
+  } else {
+    renderMulticlass();
+  }
+
+  renderRCode();
+}
+
+function renderHeatmap(){
+  const area = $('heatmap');
+  const wrap = $('heatmap-wrap');
+  if (k > 8){ wrap.style.display = 'none'; return; }
+  wrap.style.display = '';
+  let html = '';
+  // Grid: corner + class labels + matrix cells
+  const cols = `60px repeat(${k}, 1fr)`;
+  area.style.gridTemplateColumns = cols;
+  html += `<div class="hm-axis"></div>`;
+  for (let j = 0; j < k; j++){
+    html += `<div class="hm-axis">${escapeHtml(classNames[j])}</div>`;
+  }
+  // Per-row: row label + cells; intensity = cell / row total
+  for (let i = 0; i < k; i++){
+    html += `<div class="hm-axis">${escapeHtml(classNames[i])}</div>`;
+    let rowTotal = 0;
+    for (let j = 0; j < k; j++) rowTotal += matrix[i][j] || 0;
+    for (let j = 0; j < k; j++){
+      const v = matrix[i][j] || 0;
+      const frac = rowTotal > 0 ? v/rowTotal : 0;
+      const isDiag = (i === j);
+      const hue = isDiag ? '142,76%' : '0,84%';
+      const lightness = 95 - frac * 50;  // 95→45
+      const bg = `hsl(${hue},${lightness}%)`;
+      const fg = frac > 0.55 ? '#fff' : 'var(--c-text)';
+      html += `<div class="hm-cell" style="background:${bg};color:${fg}"><div style="font-weight:600">${v}</div><div style="font-size:10px;opacity:0.75;margin-top:2px">${rowTotal>0?pct(frac,0):'—'}</div></div>`;
+    }
+  }
+  area.innerHTML = html;
+}
+
+function renderBinary(){
+  const s = binaryStats(positiveIdx);
+  const N = s.N;
+  const positiveLabel = classNames[positiveIdx];
+  const negativeLabel = classNames[1-positiveIdx];
+
+  // Live summary
+  let summary = `Of <strong>${N}</strong> cases, accuracy = <strong>${pct(s.accuracy,1)}</strong> [${pct(s.ci[0],1)}, ${pct(s.ci[1],1)}]. `;
+  summary += `When the model says <strong>${escapeHtml(positiveLabel)}</strong>, it's right <strong>${pct(s.precision,1)}</strong> of the time (precision); of actual ${escapeHtml(positiveLabel)} cases, the model catches <strong>${pct(s.sensitivity,1)}</strong> (recall). `;
+  summary += `Prevalence of ${escapeHtml(positiveLabel)} = ${pct(s.prevalence,1)}.`;
+  $('summary').innerHTML = summary;
+
+  // Decision card
+  const dec = decisionForBinary(s);
+  if (dec){
+    const dc = $('decision-card');
+    dc.style.display = '';
+    dc.className = 'decision-card ' + dec.cls;
+    $('dc-icon').textContent = dec.icon;
+    $('dc-verdict').textContent = dec.verdict;
+    $('dc-rationale').textContent = dec.text;
+  }
+
+  // Callouts
+  const callouts = binaryDiagnostics(s);
+  $('callouts-area').innerHTML = callouts.map(c => `<div class="callout ${c.cls||''}"><span class="callout-icon">${c.icon}</span><div>${c.text}</div></div>`).join('');
+
+  // Metric grids: counts | per-class rates | aggregate
+  let html = '';
+  // Counts
+  html += `<div class="metrics-section"><div class="metrics-section-title">Counts (with ${escapeHtml(positiveLabel)} as positive class)</div><div class="metrics-grid">`;
+  html += metricCard('TP', s.TP, '');
+  html += metricCard('FP', s.FP, '');
+  html += metricCard('FN', s.FN, '');
+  html += metricCard('TN', s.TN, '');
+  html += metricCard('N', s.N, '');
+  html += `</div></div>`;
+  // Rates
+  html += `<div class="metrics-section"><div class="metrics-section-title">Per-class rates</div><div class="metrics-grid">`;
+  html += metricCardPct('Sensitivity (recall)', s.sensitivity, 'TP/(TP+FN)');
+  html += metricCardPct('Specificity', s.specificity, 'TN/(TN+FP)');
+  html += metricCardPct('Precision (PPV)', s.precision, 'TP/(TP+FP)');
+  html += metricCardPct('NPV', s.npv, 'TN/(TN+FN)');
+  html += metricCardPct('Prevalence', s.prevalence, '(TP+FN)/N');
+  html += `</div></div>`;
+  // Aggregate
+  html += `<div class="metrics-section"><div class="metrics-section-title">Aggregate</div><div class="metrics-grid">`;
+  html += metricCardPct(`Accuracy <small style="font-size:9px;color:var(--c-text-mute)">95% CI</small>`, s.accuracy, `[${pct(s.ci[0],1)}, ${pct(s.ci[1],1)}]`, toneAccuracy(s));
+  html += metricCardPct('Balanced acc.', s.balAcc, '(sens + spec)/2', toneBal(s.balAcc));
+  html += metricCard('F1', fmt(s.f1,3), 'harmonic mean P&R', toneF1(s.f1));
+  html += metricCard('MCC', fmt(s.mcc,3), '−1 to 1', toneMCC(s.mcc));
+  html += metricCard('Cohen κ', fmt(s.kappa,3), kappaLabel(s.kappa), toneKappa(s.kappa));
+  html += `</div></div>`;
+  // Extra row
+  html += `<div class="metrics-section"><div class="metrics-section-title">Extra metrics</div><div class="metrics-grid">`;
+  html += metricCard('F0.5', fmt(s.f0_5,3), 'precision-weighted');
+  html += metricCard('F2', fmt(s.f2,3), 'recall-weighted');
+  html += metricCard('LR+', fmt(s.lrPlus,2), 'sens / (1−spec)');
+  html += metricCard('LR−', fmt(s.lrMinus,3), '(1−sens) / spec');
+  html += metricCardPct('Detection rate', s.detRate, 'TP/N');
+  html += metricCardPct('Detection prev.', s.detPrev, '(TP+FP)/N');
+  html += `</div></div>`;
+  $('metrics-area').innerHTML = html;
+  $('perclass-area').innerHTML = '';
+
+  // Decision tree
+  $('metric-tree').style.display = '';
+  $('tree-list').innerHTML = decisionTreeBinary(s);
+}
+
+function renderMulticlass(){
+  const s = multiclassStats();
+  const N = s.N;
+  let summary = `Of <strong>${N}</strong> cases across <strong>${k}</strong> classes, overall accuracy = <strong>${pct(s.accuracy,1)}</strong> [${pct(s.ci[0],1)}, ${pct(s.ci[1],1)}]. `;
+  summary += `Macro F1 = <strong>${fmt(s.macroF1,3)}</strong>; weighted F1 = <strong>${fmt(s.weightedF1,3)}</strong>; Cohen κ = <strong>${fmt(s.kappa,3)}</strong>.`;
+  $('summary').innerHTML = summary;
+
+  // Decision
+  const dec = decisionForMulticlass(s);
+  if (dec){
+    const dc = $('decision-card');
+    dc.style.display = '';
+    dc.className = 'decision-card ' + dec.cls;
+    $('dc-icon').textContent = dec.icon;
+    $('dc-verdict').textContent = dec.verdict;
+    $('dc-rationale').textContent = dec.text;
+  }
+
+  // Callouts
+  const callouts = multiclassDiagnostics(s);
+  $('callouts-area').innerHTML = callouts.map(c => `<div class="callout ${c.cls||''}"><span class="callout-icon">${c.icon}</span><div>${c.text}</div></div>`).join('');
+
+  // Metrics grid
+  let html = '';
+  html += `<div class="metrics-section"><div class="metrics-section-title">Aggregate</div><div class="metrics-grid">`;
+  html += metricCardPct(`Overall accuracy <small style="font-size:9px;color:var(--c-text-mute)">95% CI</small>`, s.accuracy, `[${pct(s.ci[0],1)}, ${pct(s.ci[1],1)}]`, toneAccuracy({accuracy:s.accuracy, prevalence:0.5}));
+  html += metricCardPct('Balanced acc.', s.balAcc, 'mean per-class recall', toneBal(s.balAcc));
+  html += metricCard('Cohen κ', fmt(s.kappa,3), kappaLabel(s.kappa), toneKappa(s.kappa));
+  html += `</div></div>`;
+  html += `<div class="metrics-section"><div class="metrics-section-title">Macro vs weighted averages</div><div class="metrics-grid">`;
+  html += metricCardPct('Macro precision', s.macroPrec, 'avg over classes');
+  html += metricCardPct('Macro recall', s.macroRecall, 'avg over classes');
+  html += metricCard('Macro F1', fmt(s.macroF1,3), 'unweighted');
+  html += metricCardPct('Weighted precision', s.weightedPrec, 'support-weighted');
+  html += metricCardPct('Weighted recall', s.weightedRecall, 'support-weighted');
+  html += metricCard('Weighted F1', fmt(s.weightedF1,3), 'support-weighted');
+  html += `</div></div>`;
+  $('metrics-area').innerHTML = html;
+
+  // Per-class table
+  let pcHtml = `<div class="metrics-section"><div class="metrics-section-title">Per-class metrics (one-vs-rest)</div><table class="perclass"><thead><tr><th>Class</th><th class="num">support</th><th class="num">recall</th><th class="num">specificity</th><th class="num">precision</th><th class="num">F1</th></tr></thead><tbody>`;
+  s.perClass.forEach(c => {
+    pcHtml += `<tr><td class="cls-name">${escapeHtml(c.name)}</td><td class="num">${c.support}</td><td class="num">${pct(c.sensitivity,1)}</td><td class="num">${pct(c.specificity,1)}</td><td class="num">${pct(c.precision,1)}</td><td class="num">${fmt(c.f1,3)}</td></tr>`;
+  });
+  pcHtml += `</tbody></table></div>`;
+  $('perclass-area').innerHTML = pcHtml;
+
+  $('metric-tree').style.display = '';
+  $('tree-list').innerHTML = decisionTreeMulticlass(s);
+}
+
+function metricCard(name, value, aux, tone){
+  return `<div class="metric-card" ${tone?`data-tone="${tone}"`:''}><div class="mc-name">${name}</div><div class="mc-value">${value}</div>${aux?`<div class="mc-aux">${aux}</div>`:''}</div>`;
+}
+function metricCardPct(name, val, aux, tone){
+  const v = isFinite(val) ? pct(val,1) : '—';
+  const bar = isFinite(val) ? `<div class="mc-bar"><i style="width:${(val*100).toFixed(1)}%"></i></div>` : '';
+  return `<div class="metric-card" ${tone?`data-tone="${tone}"`:''}><div class="mc-name">${name}</div><div class="mc-value">${v}</div>${aux?`<div class="mc-aux">${aux}</div>`:''}${bar}</div>`;
+}
+
+function toneAccuracy(s){
+  // If imbalanced and accuracy looks high but balanced acc isn't, mark as warn
+  if (!isFinite(s.accuracy)) return null;
+  if (isFinite(s.prevalence) && (s.prevalence < 0.10 || s.prevalence > 0.90) && s.accuracy > 0.85 && isFinite(s.balAcc) && s.balAcc < 0.70) return 'warn';
+  if (s.accuracy > 0.99) return 'warn';
+  if (s.accuracy >= 0.85) return 'success';
+  return null;
+}
+function toneBal(b){ if (!isFinite(b)) return null; if (b >= 0.80) return 'success'; if (b < 0.60) return 'warn'; return null; }
+function toneF1(f){ if (!isFinite(f)) return null; if (f >= 0.80) return 'success'; if (f < 0.50) return 'warn'; return null; }
+function toneMCC(m){ if (!isFinite(m)) return null; if (m >= 0.5) return 'success'; if (m < 0.20) return 'warn'; return null; }
+function toneKappa(kp){ if (!isFinite(kp)) return null; if (kp >= 0.6) return 'success'; if (kp < 0.20) return 'warn'; return null; }
+
+function kappaLabel(kp){
+  if (!isFinite(kp)) return '—';
+  if (kp < 0)    return 'worse than chance';
+  if (kp < 0.2)  return 'slight (Landis & Koch)';
+  if (kp < 0.4)  return 'fair';
+  if (kp < 0.6)  return 'moderate';
+  if (kp < 0.8)  return 'substantial';
+  return 'almost perfect';
+}
+
+// ============================================================
+// Decision logic
+// ============================================================
+function decisionForBinary(s){
+  if (!isFinite(s.accuracy)) return null;
+  // Broken: missing class entirely or near-perfect
+  if (s.TP + s.FN === 0 || s.TN + s.FP === 0){
+    return {cls:'broken', icon:'⛔', verdict:'One class missing', text:`Either no actual positives or no actual negatives in the test data — most metrics are undefined.`};
+  }
+  if (s.TP + s.FP === 0){
+    return {cls:'broken', icon:'⛔', verdict:'Model never predicts positive', text:`Precision is undefined; the classifier never said the positive class. Likely threshold too strict.`};
+  }
+  if (s.FP === 0 && s.FN === 0){
+    return {cls:'broken', icon:'⛔', verdict:'Suspiciously perfect', text:`100% accuracy, 0 errors. Almost always a sign of data leakage, evaluating on the training set, or label contamination — verify the pipeline.`};
+  }
+  // Imbalanced
+  const imbalanced = s.prevalence < 0.10 || s.prevalence > 0.90;
+  // Solid criteria
+  if (s.mcc >= 0.5){
+    return {cls:'solid', icon:'✓', verdict:'Solid classifier', text:`MCC = ${fmt(s.mcc,3)}; balanced accuracy = ${pct(s.balAcc,1)}. Real predictive power well beyond chance.`};
+  }
+  if (s.mcc >= 0.20){
+    return {cls:'solid', icon:'✓', verdict:'Useful but modest', text:`MCC = ${fmt(s.mcc,3)}; the model has real signal, but errors are common. Whether this is "good enough" depends on the cost of each error type.`};
+  }
+  if (s.mcc >= 0){
+    if (imbalanced){
+      return {cls:'weak', icon:'⏳', verdict:'Barely above chance', text:`MCC = ${fmt(s.mcc,3)}, prevalence = ${pct(s.prevalence,1)}. The high accuracy is misleading — the classifier is mostly predicting the majority class.`};
+    }
+    return {cls:'weak', icon:'⏳', verdict:'Marginal performance', text:`MCC = ${fmt(s.mcc,3)} — barely better than guessing.`};
+  }
+  return {cls:'broken', icon:'⛔', verdict:'Worse than chance', text:`MCC = ${fmt(s.mcc,3)} (negative). The classifier is anti-correlated with the truth — flipping the predictions would do better. Check for a label-flip bug.`};
+}
+
+function decisionForMulticlass(s){
+  if (!isFinite(s.accuracy)) return null;
+  if (s.kappa >= 0.60) return {cls:'solid', icon:'✓', verdict:'Substantial agreement', text:`Cohen κ = ${fmt(s.kappa,3)}; macro F1 = ${fmt(s.macroF1,3)}. The classifier has strong real predictive power across classes.`};
+  if (s.kappa >= 0.20) return {cls:'solid', icon:'✓', verdict:'Useful agreement', text:`Cohen κ = ${fmt(s.kappa,3)}; macro F1 = ${fmt(s.macroF1,3)}. Real signal but some classes likely struggle — see per-class table.`};
+  if (s.kappa >= 0) return {cls:'weak', icon:'⏳', verdict:'Marginal performance', text:`Cohen κ = ${fmt(s.kappa,3)} — barely better than chance, even if accuracy looks higher.`};
+  return {cls:'broken', icon:'⛔', verdict:'Worse than chance', text:`Cohen κ = ${fmt(s.kappa,3)} (negative). Predictions are anti-correlated with truth.`};
+}
+
+function binaryDiagnostics(s){
+  const out = [];
+  // Imbalance
+  if (s.prevalence < 0.05 || s.prevalence > 0.95){
+    out.push({icon:'⚖️', cls:'', text:`<strong>Extreme class imbalance</strong> (prevalence = ${pct(s.prevalence,1)}). Raw accuracy is misleading — a "predict majority" classifier would already score ${pct(Math.max(s.prevalence, 1-s.prevalence),1)}. Trust MCC and balanced accuracy.`});
+  } else if (s.prevalence < 0.20 || s.prevalence > 0.80){
+    out.push({icon:'⚖️', cls:'', text:`<strong>Imbalanced classes</strong> (prevalence = ${pct(s.prevalence,1)}). Watch balanced accuracy and MCC alongside raw accuracy.`});
+  }
+  // Suspiciously perfect
+  if (s.FP === 0 && s.FN === 0 && s.N >= 5){
+    out.push({icon:'🚨', cls:'danger', text:`<strong>Suspiciously perfect.</strong> Zero errors on ${s.N} cases. Most likely: data leakage, evaluating on the training set, or duplicate rows in train/test.`});
+  } else if (s.accuracy > 0.99 && s.N >= 50){
+    out.push({icon:'⚠️', cls:'', text:`<strong>Accuracy &gt; 99% on ${s.N} cases.</strong> Plausible only if the task is genuinely easy. Double-check for leakage.`});
+  }
+  // Sensitivity vs specificity asymmetry
+  if (isFinite(s.sensitivity) && isFinite(s.specificity)){
+    if (s.sensitivity < 0.5 && s.specificity > 0.95){
+      out.push({icon:'🎯', cls:'', text:`<strong>Highly conservative classifier.</strong> Specificity = ${pct(s.specificity,1)} but sensitivity only ${pct(s.sensitivity,1)} — the model rarely flags positives. Lower the threshold if false negatives are costly.`});
+    }
+    if (s.specificity < 0.5 && s.sensitivity > 0.95){
+      out.push({icon:'🎯', cls:'', text:`<strong>Highly aggressive classifier.</strong> Sensitivity = ${pct(s.sensitivity,1)} but specificity only ${pct(s.specificity,1)} — many false positives. Raise the threshold if false positives are costly.`});
+    }
+  }
+  // Negative MCC
+  if (isFinite(s.mcc) && s.mcc < 0){
+    out.push({icon:'🔄', cls:'danger', text:`<strong>MCC &lt; 0.</strong> The classifier is doing worse than chance — predictions are anti-correlated with the truth. Look for a label-flip bug.`});
+  }
+  // No predictions of one class
+  if (s.TP + s.FP === 0){
+    out.push({icon:'🚫', cls:'danger', text:`<strong>The model never predicts the positive class.</strong> Threshold may be too strict, or the model collapsed to "always predict negative."`});
+  }
+  if (s.TN + s.FN === 0){
+    out.push({icon:'🚫', cls:'danger', text:`<strong>The model never predicts the negative class.</strong> Threshold may be too lenient.`});
+  }
+  // Very small N
+  if (s.N < 30){
+    out.push({icon:'🔬', cls:'', text:`<strong>Small sample (N = ${s.N}).</strong> Confidence interval on accuracy is wide; treat point estimates as noisy.`});
+  }
+  return out;
+}
+
+function multiclassDiagnostics(s){
+  const out = [];
+  // Highly imbalanced classes
+  const supports = s.perClass.map(c => c.support);
+  const maxS = Math.max(...supports), minS = Math.min(...supports);
+  if (minS > 0 && maxS / minS > 10){
+    out.push({icon:'⚖️', cls:'', text:`<strong>Highly imbalanced classes.</strong> Largest is ${maxS}× the smallest. Macro-averages give every class equal weight; weighted averages reflect frequency — pick deliberately.`});
+  }
+  // Empty class
+  const empty = s.perClass.filter(c => c.support === 0);
+  if (empty.length > 0){
+    out.push({icon:'🚫', cls:'danger', text:`<strong>${empty.length} class${empty.length>1?'es have':' has'} zero support</strong>: ${empty.map(c => `<code>${escapeHtml(c.name)}</code>`).join(', ')}. Per-class metrics are undefined.`});
+  }
+  // Suspiciously perfect
+  if (s.accuracy === 1 && s.N >= 5){
+    out.push({icon:'🚨', cls:'danger', text:`<strong>Suspiciously perfect (100% accuracy).</strong> Look for leakage / training-set evaluation.`});
+  }
+  // Very small N
+  if (s.N < 50){
+    out.push({icon:'🔬', cls:'', text:`<strong>Small sample (N = ${s.N}) for ${k}-class evaluation.</strong> Some per-class estimates may be highly noisy.`});
+  }
+  // Worst per-class F1
+  const finiteF1 = s.perClass.filter(c => isFinite(c.f1));
+  if (finiteF1.length){
+    const worst = finiteF1.reduce((a,b) => a.f1 < b.f1 ? a : b);
+    if (worst.f1 < 0.30){
+      out.push({icon:'🔍', cls:'', text:`<strong>Class <code>${escapeHtml(worst.name)}</code> has F1 = ${fmt(worst.f1,3)}.</strong> The model struggles most with this class — consider class-weighted loss or extra data.`});
+    }
+  }
+  return out;
+}
+
+function decisionTreeBinary(s){
+  // Recommend a metric
+  const rows = [];
+  const imbalanced = (s.prevalence < 0.10 || s.prevalence > 0.90);
+  rows.push({premise:'Classes balanced (prev ~50%) and FP / FN equally costly', recommend:'Accuracy + F1', isReco: !imbalanced && Math.abs(s.precision - s.sensitivity) < 0.10});
+  rows.push({premise:'Imbalanced classes', recommend:'<strong>MCC</strong> or balanced accuracy (raw accuracy is misleading)', isReco: imbalanced});
+  rows.push({premise:'False positives expensive (e.g., spam → blocked email)', recommend:'<strong>Precision</strong> or F0.5', isReco: false});
+  rows.push({premise:'False negatives expensive (e.g., cancer screen)', recommend:'<strong>Recall</strong> or F2', isReco: false});
+  rows.push({premise:'Diagnostic medicine — combine with prior probability', recommend:`<strong>LR+ = ${fmt(s.lrPlus,2)}, LR− = ${fmt(s.lrMinus,3)}</strong>`, isReco: false});
+  rows.push({premise:'Single-number summary, robust to imbalance', recommend:'<strong>MCC</strong>', isReco: imbalanced && (s.mcc !== null)});
+  // Highlight one as primary
+  if (!rows.some(r => r.isReco)){
+    if (imbalanced) rows[1].isReco = true;
+    else rows[0].isReco = true;
+  }
+  return rows.map(r => `<li ${r.isReco?'class="recommended"':''}><div>${r.premise}</div><div>${r.recommend}</div></li>`).join('');
+}
+
+function decisionTreeMulticlass(s){
+  const supports = s.perClass.map(c => c.support);
+  const maxS = Math.max(...supports), minS = Math.min(...supports.filter(x=>x>0)) || 1;
+  const imbalanced = maxS / minS > 5;
+  const rows = [];
+  rows.push({premise:'Treat all classes as equally important', recommend:'<strong>Macro F1</strong> + per-class recall', isReco: !imbalanced});
+  rows.push({premise:'Performance proportional to frequency matters', recommend:'<strong>Weighted F1</strong> + overall accuracy', isReco: imbalanced});
+  rows.push({premise:'Want one number robust to imbalance', recommend:`<strong>Cohen κ = ${fmt(s.kappa,3)}</strong>`, isReco: imbalanced});
+  rows.push({premise:'Classification cost varies by class', recommend:'Per-class table + class-specific F-beta', isReco: false});
+  rows.push({premise:'Diagnostic / human-rater agreement', recommend:'<strong>Cohen κ</strong> with Landis & Koch labels', isReco: false});
+  return rows.map(r => `<li ${r.isReco?'class="recommended"':''}><div>${r.premise}</div><div>${r.recommend}</div></li>`).join('');
+}
+
+// ============================================================
+// R code emission
+// ============================================================
+function renderRCode(){
+  $('r-code-wrap').style.display = '';
+  const matrixR = `<span class="fn">matrix</span>(<span class="fn">c</span>(${matrix.flat().join(', ')}), nrow = ${k}, byrow = <span class="keyword">TRUE</span>, dimnames = <span class="fn">list</span>(Predicted = <span class="fn">c</span>(${classNames.map(n=>'"'+escapeHtml(n)+'"').join(', ')}), Actual = <span class="fn">c</span>(${classNames.map(n=>'"'+escapeHtml(n)+'"').join(', ')})))`;
+  const positiveArg = (k === 2) ? `, positive = <span class="string">"${escapeHtml(classNames[positiveIdx])}"</span>` : '';
+  let code = `<span class="comment"># Reproduce the confusion matrix in R</span>
+cm_table &lt;- ${matrixR}
+
+<span class="keyword">library</span>(<span class="fn">caret</span>)
+cm &lt;- <span class="fn">confusionMatrix</span>(<span class="fn">as.table</span>(cm_table)${positiveArg})
+<span class="fn">print</span>(cm)
+
+<span class="comment"># Or with yardstick (tidymodels)</span>
+<span class="keyword">library</span>(<span class="fn">yardstick</span>)
+<span class="comment"># Build long-format predictions, then:</span>
+<span class="comment"># dat |&gt; conf_mat(truth = actual, estimate = predicted) |&gt; summary()</span>
+${k === 2 ? `
+<span class="comment"># Manual computation</span>
+TP &lt;- cm_table[<span class="number">${positiveIdx+1}</span>, <span class="number">${positiveIdx+1}</span>]; FP &lt;- cm_table[<span class="number">${positiveIdx+1}</span>, <span class="number">${1-positiveIdx+1}</span>]
+FN &lt;- cm_table[<span class="number">${1-positiveIdx+1}</span>, <span class="number">${positiveIdx+1}</span>]; TN &lt;- cm_table[<span class="number">${1-positiveIdx+1}</span>, <span class="number">${1-positiveIdx+1}</span>]
+mcc &lt;- (TP*TN - FP*FN) / <span class="fn">sqrt</span>((TP+FP)*(TP+FN)*(TN+FP)*(TN+FN))
+mcc` : ''}`;
+  $('r-code').innerHTML = code;
+}
+
+// ============================================================
+// Scenarios
+// ============================================================
+const SCENARIOS = {
+  screening: {
+    name:"Rare disease screening", icon:'🩺', k:2,
+    classNames:['Disease','Healthy'],
+    matrix:[[10,40],[10,940]],
+    positiveIdx:0,
+    story:"A diagnostic screen with 2% disease prevalence. Looks accurate at first glance, but balanced accuracy and MCC tell a much more sober story.",
+    takeaway:"Accuracy = 95%, but recall on disease ≈ 50%. MCC ≈ 0.30. Accuracy is misleading at extreme imbalance — trust MCC."
+  },
+  spam: {
+    name:"Spam classifier", icon:'📧', k:2,
+    classNames:['Spam','Ham'],
+    matrix:[[180,15],[20,785]],
+    positiveIdx:0,
+    story:"Spam filter: positive = spam. Catching ham as spam (FP) blocks legitimate email — high precision matters more than recall here.",
+    takeaway:"High precision (~92%) and high specificity. Use F0.5 if false positives are especially costly."
+  },
+  balanced: {
+    name:"Balanced classes", icon:'⚖️', k:2,
+    classNames:['Class A','Class B'],
+    matrix:[[420,80],[60,440]],
+    positiveIdx:0,
+    story:"A roughly balanced binary classifier — neither class is rare. Accuracy and F1 are reasonable summaries here.",
+    takeaway:"Balanced classes; both errors equally common. Standard accuracy and F1 are fine."
+  },
+  iris: {
+    name:"Iris (3-class)", icon:'🌸', k:3,
+    classNames:['setosa','versicolor','virginica'],
+    matrix:[[50,0,0],[0,47,3],[0,3,47]],
+    positiveIdx:0,
+    story:"Classic Iris flower classification — three species, balanced classes. Most errors are between versicolor and virginica.",
+    takeaway:"Macro F1 ≈ weighted F1 ≈ 0.96. High κ. setosa is perfectly separable; versicolor / virginica overlap mildly."
+  },
+  leak: {
+    name:"Suspicious 100%", icon:'🚨', k:2,
+    classNames:['Pos','Neg'],
+    matrix:[[200,0],[0,300]],
+    positiveIdx:0,
+    story:"Zero errors. A textbook signal of data leakage — evaluating on the training set, label included as a feature, or duplicate rows.",
+    takeaway:"Tool should refuse to celebrate this and flag leakage as the most likely cause."
+  },
+  custom: {
+    name:"Custom", icon:'⚙️', k:2,
+    classNames:['Pos','Neg'], matrix:[[40,10],[5,45]], positiveIdx:0,
+    story:"Edit the counts above to your own confusion matrix.",
+    takeaway:"Result depends on your data."
+  }
+};
+
+let activeScenario = null;
+function loadScenario(key){
+  const s = SCENARIOS[key];
+  if (!s) return;
+  activeScenario = (key === 'custom') ? null : s;
+  document.querySelectorAll('.scenario-card').forEach(c => c.classList.toggle('active', c.dataset.scenario === key));
+  k = s.k;
+  classNames = [...s.classNames];
+  matrix = s.matrix.map(r => [...r]);
+  positiveIdx = s.positiveIdx || 0;
+  // Switch to manual mode — setInputMode handles k-btn / positive-class-row / renderMatrix / recompute
+  setInputMode('manual');
+  if (key !== 'custom'){
+    $('sc-icon').textContent = s.icon;
+    $('sc-title').textContent = s.name;
+    $('sc-story').textContent = s.story;
+    $('sc-takeaway').textContent = s.takeaway;
+    $('scenario-context').classList.add('show');
+    $('scenario-chip-icon').textContent = s.icon;
+    $('scenario-chip-name').textContent = s.name;
+    $('scenario-chip').classList.add('show');
+  } else {
+    $('scenario-context').classList.remove('show');
+    $('scenario-chip').classList.remove('show');
+  }
+  recompute();
+  toast(`Loaded: ${s.name}`);
+}
+function clearScenario(){
+  activeScenario = null;
+  document.querySelectorAll('.scenario-card').forEach(c => c.classList.remove('active'));
+  $('scenario-context').classList.remove('show');
+  $('scenario-chip').classList.remove('show');
+  toast('Scenario cleared');
+}
+
+// ============================================================
+// Helpers
+// ============================================================
+function copyCode(){
+  navigator.clipboard.writeText($('r-code').innerText);
+  const btn = document.querySelector('.copy-btn');
+  btn.classList.add('copied'); btn.textContent = '✓ Copied';
+  setTimeout(()=>{btn.classList.remove('copied');btn.textContent='Copy';},1500);
+  toast('R code copied');
+}
+function toast(msg){
+  const t = document.createElement('div'); t.className='toast'; t.textContent=msg;
+  $('toast-area').appendChild(t); setTimeout(()=>t.remove(),3200);
+}
+function toggleBeginner(){
+  document.body.classList.toggle('beginner');
+  $('beginner-toggle').classList.toggle('on');
+  localStorage.setItem('rstat_beginner_mode', document.body.classList.contains('beginner') ? '1' : '0');
+}
+function toggleDark(){
+  document.documentElement.classList.toggle('dark');
+  localStorage.setItem('rstat_dark', document.documentElement.classList.contains('dark') ? '1' : '0');
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  if (localStorage.getItem('rstat_dark') === '1') document.documentElement.classList.add('dark');
+  if (localStorage.getItem('rstat_beginner_mode') === '1') toggleBeginner();
+  loadScenario('screening');
+});
+
+// ============================================================
+// Smoke tests
+// ============================================================
+window.runSmokeTests = function(){
+  const saveK = k, saveM = matrix, saveCN = classNames, savePos = positiveIdx;
+  const tests = [
+    {desc:"Balanced 2x2: accuracy = 0.86", fn:()=>{
+      k=2; matrix=[[420,80],[60,440]]; classNames=['A','B']; positiveIdx=0;
+      return binaryStats(0).accuracy;
+    }, expect:0.86},
+    {desc:"MCC of perfect classifier = 1", fn:()=>{
+      k=2; matrix=[[100,0],[0,100]]; positiveIdx=0;
+      return binaryStats(0).mcc;
+    }, expect:1},
+    {desc:"MCC of label-flipped = -1", fn:()=>{
+      k=2; matrix=[[0,100],[100,0]]; positiveIdx=0;
+      return binaryStats(0).mcc;
+    }, expect:-1},
+    {desc:"Sensitivity formula: 90/(90+10)=0.9", fn:()=>{
+      k=2; matrix=[[90,5],[10,895]]; positiveIdx=0;
+      return binaryStats(0).sensitivity;
+    }, expect:0.9},
+    {desc:"Wilson CI ⊂ [0,1]", fn:()=>{
+      const [lo,hi] = wilsonCI(50, 100, 0.95);
+      return (lo >= 0 && hi <= 1 && lo < hi) ? 1 : 0;
+    }, expect:1},
+    {desc:"Iris multiclass accuracy = 144/150", fn:()=>{
+      k=3; matrix=[[50,0,0],[0,47,3],[0,3,47]]; classNames=['s','vc','vg'];
+      return multiclassStats().accuracy;
+    }, expect:144/150},
+    {desc:"kappaLabel(0.7) = 'substantial'", fn:()=>kappaLabel(0.7)==='substantial'?1:0, expect:1},
+    {desc:"F1 of P=R=0.5 is 0.5", fn:()=>{
+      const p=0.5, r=0.5;
+      return 2*p*r/(p+r);
+    }, expect:0.5}
+  ];
+  console.group('Confusion Matrix Interpreter smoke tests');
+  let pass = 0;
+  tests.forEach(t => {
+    const got = t.fn();
+    const ok = typeof got === 'number' && Math.abs(got - t.expect) < 1e-6;
+    console.log((ok?'✓':'✗')+' '+t.desc+'  got='+got+' expected='+t.expect);
+    if (ok) pass++;
+  });
+  console.log(`${pass}/${tests.length} passed`);
+  // Restore state
+  k=saveK; matrix=saveM; classNames=saveCN; positiveIdx=savePos;
+  console.groupEnd();
+};
+</script>
+</main></div><script defer src="/www/toc.min.js?h=d28a1a80"></script></body>
+</html>
