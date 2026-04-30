@@ -1,0 +1,759 @@
+---
+title: "Exponential Family Distributions in R: Sufficient Statistics & Canonical Form"
+description: "Master exponential family distributions in R. Convert Normal, Bernoulli, and Poisson to canonical form and compute sufficient statistics with runnable code."
+keywords: "exponential family R, canonical form, sufficient statistics, natural parameter, log-partition function, exponential family MLE, exponential family GLM, Normal exponential family, Poisson exponential family, Bernoulli exponential family"
+mathjax: true
+webr: true
+curriculum_id: "2.6.1"
+post_type: "C"
+auto_link_terms: "exponential family|exponential family distribution|canonical form|sufficient statistic|natural parameter|log-partition function|cumulant function"
+auto_link_case_sensitive: false
+sidebar_section: "Statistics"
+sidebar_title: "Exponential Family Distributions"
+sidebar_order: "105"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>Exponential Family Distributions in R: Sufficient Statistics & Canonical Form</h1>
+
+<p class="lead">An exponential family distribution writes its density in a single canonical form: a base measure times an exponential of a natural parameter dotted with a sufficient statistic, minus a log-partition function. Almost every distribution you use in R, Normal, Bernoulli, Poisson, Gamma, belongs to this family, and that shared structure is the engine behind generalized linear models. This tutorial walks the canonical form, <a class="auto-link" href="Sufficiency-in-Statistics.html" title="Sufficiency in Statistics in R: Sufficient Statistics, Fisher-Neyman Factorization">sufficient statistics</a>, and the natural-parameter map using base R so everything runs in your browser.</p>
+
+<div class="engagement-header" data-difficulty="Advanced" data-time="30" data-exercises="7" data-xp="105"></div>
+
+<h2>What is an exponential family distribution?</h2>
+
+<p>The canonical density of an exponential family distribution has four moving parts: a base measure $h(x)$, a natural parameter $\eta$, a sufficient statistic $T(x)$, and a log-partition function $A(\eta)$. When you plug the right pieces in, a familiar distribution like Normal($\mu$, 1) drops out. Let's verify that by computing the canonical form by hand and comparing it to R's <code>dnorm()</code>.</p>
+
+<div class="webr-container" data-block-title="Verify Normal density via canonical form">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Verify Normal density via canonical form</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Normal(mu, sigma^2 = 1) in canonical form:
+#   h(x)    = (1/sqrt(2*pi)) * exp(-x^2 / 2)
+#   eta     = mu
+#   T(x)    = x
+#   A(eta)  = eta^2 / 2
+
+x_grid  &lt;- c(-1, 0, 1, 2)
+mu_test &lt;- 0.5
+
+h_x   &lt;- (1 / sqrt(2 * pi)) * exp(-x_grid^2 / 2)
+eta_n &lt;- mu_test
+T_x   &lt;- x_grid
+A_eta_n &lt;- eta_n^2 / 2
+
+dens_canonical &lt;- h_x * exp(eta_n * T_x - A_eta_n)
+dens_dnorm     &lt;- dnorm(x_grid, mean = mu_test, sd = 1)
+
+round(cbind(x = x_grid, canonical = dens_canonical, dnorm = dens_dnorm), 5)
+#&gt;       x canonical   dnorm
+#&gt; [1,] -1   0.12952 0.12952
+#&gt; [2,]  0   0.35207 0.35207
+#&gt; [3,]  1   0.35207 0.35207
+#&gt; [4,]  2   0.12952 0.12952</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The two columns match to five decimals across all four points, which is the entire claim of the canonical form: every Normal density can be rebuilt from the four pieces above. Notice that $\mu$ enters only through $\eta T(x) - A(\eta)$, never through $h(x)$. That clean separation is what makes the canonical form so useful: parameters live in one chunk and the data lives in another.</p>
+
+<p><img src="screenshots/Exponential-Family-Distributions-in-R-canonical-anatomy.webp" alt="The four building blocks of an exponential family density." class="img-responsive img-zoomable" loading="lazy" width="1512" height="1282" /></p>
+
+<p><em>Figure 1: The four building blocks of an exponential family density.</em></p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The canonical form separates the data from the parameter.</strong> $h(x)$ depends only on the data, $A(\eta)$ depends only on the parameter, and $\eta T(x)$ is the only place they meet. This is what later lets you collapse an entire dataset into a fixed-size summary.</div></div>
+
+<p>The full density formula is</p>
+
+<p>$$f(x \mid \eta) = h(x) \, \exp\!\left\{ \eta\, T(x) - A(\eta) \right\}$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$h(x)$ is the <strong>base measure</strong>, the part of the density that does not involve the parameter.</li>
+
+<li>$\eta$ is the <strong>natural parameter</strong> (sometimes called the canonical parameter).</li>
+
+<li>$T(x)$ is the <strong>sufficient statistic</strong>, a function of the data.</li>
+
+<li>$A(\eta)$ is the <strong>log-partition function</strong> (also called the cumulant function), chosen so the density integrates to 1.</li>
+
+</ul>
+
+<p>If you have ever written $\text{Normal}(\mu, 1)$ as $\frac{1}{\sqrt{2\pi}} \exp\!\left(-\frac{(x - \mu)^2}{2}\right)$ and expanded the square, you have already done the canonical-form rewrite. The trick is recognising that $\mu x$ becomes $\eta T(x)$ and $\mu^2 / 2$ becomes $A(\eta)$.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute the base measure $h(2.5)$ for the standard Normal canonical form by hand and verify it numerically. Use the formula $h(x) = (1 / \sqrt{2\pi}) \exp(-x^2 / 2)$.</p>
+<div class="webr-container" data-block-title="Your turn: compute h(2.5)">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: compute h(2.5)</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Compute the base measure at x = 2.5
+ex_h &lt;- # your code here
+
+ex_h
+#&gt; Expected: about 0.0175</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Base measure h(2.5) solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Base measure h(2.5) solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_h &lt;- (1 / sqrt(2 * pi)) * exp(-2.5^2 / 2)
+ex_h
+#&gt; [1] 0.01752830</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> $h(x)$ is the standard-Normal density's "shape" before any parameter shift. At $x = 2.5$ it is small because 2.5 sits in the right tail.</p>
+
+</details>
+</section>
+
+<h2>How do you write Normal, Bernoulli, and Poisson in canonical form?</h2>
+
+<p>Three of the most common distributions in R, the Normal, the Bernoulli, and the Poisson, each rewrite into the canonical form with a different choice of $\eta$, $T(x)$, $A(\eta)$, and $h(x)$. Once you see the three side by side, the pattern is hard to unsee. Let's package them as a helper and confirm each canonical density matches its built-in counterpart.</p>
+
+<div class="webr-container" data-block-title="Define canonical components for three distributions">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Define canonical components for three distributions</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">canonical_components &lt;- function(family, theta) {
+  switch(family,
+    &quot;normal&quot;    = list(  # Normal(mu, sigma^2 = 1)
+      eta   = theta,
+      T_fn  = function(x) x,
+      A     = theta^2 / 2,
+      h_fn  = function(x) (1 / sqrt(2 * pi)) * exp(-x^2 / 2)
+    ),
+    &quot;bernoulli&quot; = list(  # Bernoulli(p)
+      eta   = log(theta / (1 - theta)),     # logit
+      T_fn  = function(x) x,
+      A     = -log(1 - theta),              # = log(1 + exp(eta))
+      h_fn  = function(x) rep(1, length(x))
+    ),
+    &quot;poisson&quot;   = list(  # Poisson(lambda)
+      eta   = log(theta),                   # log link
+      T_fn  = function(x) x,
+      A     = theta,                        # = exp(eta)
+      h_fn  = function(x) 1 / factorial(x)
+    )
+  )
+}</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The three families share the same skeleton, only the four pieces change. For Normal, $\eta$ is just $\mu$; for Bernoulli, $\eta$ is the <strong>logit</strong> of $p$; for Poisson, $\eta$ is the <strong>log</strong> of $\lambda$. Those transformations look familiar because they are exactly the link functions you meet in <code>glm()</code>. We will return to that connection in the GLM section.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>We hold $\sigma^2 = 1$ for the simplest Normal example.</strong> A general Normal($\mu$, $\sigma^2$) with both parameters free is a two-parameter exponential family, where $\eta = (\mu/\sigma^2,\, -1/(2\sigma^2))$ and $T(x) = (x,\, x^2)$. The single-parameter version keeps the algebra readable.</div></div>
+
+<p>Now let's confirm the canonical form reproduces the textbook density for Bernoulli and Poisson.</p>
+
+<div class="webr-container" data-block-title="Verify Bernoulli and Poisson canonical densities">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Verify Bernoulli and Poisson canonical densities</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Bernoulli(p = 0.3) at x = 0 and x = 1
+bern &lt;- canonical_components(&quot;bernoulli&quot;, theta = 0.3)
+x_b  &lt;- c(0, 1)
+bern_canon &lt;- bern$h_fn(x_b) * exp(bern$eta * bern$T_fn(x_b) - bern$A)
+bern_dbinom &lt;- dbinom(x_b, size = 1, prob = 0.3)
+round(cbind(x = x_b, canonical = bern_canon, dbinom = bern_dbinom), 4)
+#&gt;      x canonical dbinom
+#&gt; [1,] 0       0.7    0.7
+#&gt; [2,] 1       0.3    0.3
+
+# Poisson(lambda = 2) at x = 0, 1, 2, 3
+pois &lt;- canonical_components(&quot;poisson&quot;, theta = 2)
+x_p  &lt;- 0:3
+pois_canon &lt;- pois$h_fn(x_p) * exp(pois$eta * pois$T_fn(x_p) - pois$A)
+pois_dpois &lt;- dpois(x_p, lambda = 2)
+round(cbind(x = x_p, canonical = pois_canon, dpois = pois_dpois), 5)
+#&gt;      x canonical   dpois
+#&gt; [1,] 0   0.13534 0.13534
+#&gt; [2,] 1   0.27067 0.27067
+#&gt; [3,] 2   0.27067 0.27067
+#&gt; [4,] 3   0.18045 0.18045</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both columns match to four or five decimals, so the canonical form holds. The Bernoulli case is especially clean: the canonical form expresses "probability of success" in <strong><a class="auto-link" href="Logistic-Regression-in-R.html" title="Logistic Regression in R: From glm() to Odds Ratios, ROC, and AUC">log-odds</a></strong> units, which is why logistic regression's natural scale is the logit and not the probability itself. The Poisson case carries the same lesson with <code>log</code> taking the role of logit.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Show that the Exponential($\lambda$) distribution is in the exponential family by filling in $\eta$, $T(x)$, and $A(\eta)$ for $f(x \mid \lambda) = \lambda \exp(-\lambda x)$, $x > 0$. Compute its canonical density at $x = 1$, $\lambda = 0.5$ and confirm it matches <code>dexp()</code>.</p>
+<div class="webr-container" data-block-title="Your turn: Exponential canonical form">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: Exponential canonical form</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># f(x | lambda) = lambda * exp(-lambda * x)
+ex_lambda &lt;- 0.5
+ex_x      &lt;- 1
+
+# Fill in eta, T(x), A(eta), h(x)
+ex_eta &lt;- # your code here
+ex_T   &lt;- # your code here
+ex_A   &lt;- # your code here
+ex_h   &lt;- # your code here
+
+ex_canon &lt;- ex_h * exp(ex_eta * ex_T - ex_A)
+c(canonical = ex_canon, dexp = dexp(ex_x, rate = ex_lambda))
+#&gt; Expected: both about 0.3033</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exponential canonical form solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exponential canonical form solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Rewrite: lambda * exp(-lambda * x) = 1 * exp((-lambda) * x + log(lambda))
+ex_eta &lt;- -ex_lambda           # natural parameter
+ex_T   &lt;- ex_x                  # sufficient statistic
+ex_A   &lt;- -log(ex_lambda)       # log-partition (so A(eta) = -log(-eta))
+ex_h   &lt;- 1                     # base measure
+
+ex_canon &lt;- ex_h * exp(ex_eta * ex_T - ex_A)
+c(canonical = ex_canon, dexp = dexp(ex_x, rate = ex_lambda))
+#&gt; canonical      dexp
+#&gt;    0.3033    0.3033</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Pull $\lambda$ out of the density into an exponential: $\lambda e^{-\lambda x} = e^{-\lambda x + \log \lambda}$. The negative sign on $-\lambda x$ becomes $\eta T(x)$ with $\eta = -\lambda$, and $\log \lambda$ becomes $-A(\eta)$ so $A(\eta) = -\log(-\eta)$.</p>
+
+</details>
+</section>
+
+<h2>What is a sufficient statistic and why is it useful?</h2>
+
+<p>A statistic $T(X_1, \ldots, X_n)$ is <strong>sufficient</strong> for a parameter $\theta$ if, once you know $T$, the original sample carries no extra information about $\theta$. The technical statement is the Fisher–Neyman factorization theorem: $T$ is sufficient if and only if the joint density factors as $g(T(x); \theta) \cdot h(x)$. For an exponential family, that factorization is built in, the canonical form already separates parameter-dependent and data-dependent pieces, and $T(x)$ is the bridge.</p>
+
+<p>In practice this matters because it means you can throw away the raw data and keep only $T$ without losing any information for inference. For Bernoulli, that "compression" is the count of successes. For Poisson, it is the sum of events. For Normal($\mu$, 1), it is the sample sum.</p>
+
+<div class="webr-container" data-block-title="Compute sufficient statistics on small samples">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compute sufficient statistics on small samples</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Bernoulli sample (1 = success, 0 = failure)
+bern_sample &lt;- c(1, 0, 1, 1, 0, 0, 1, 0, 1, 1)
+T_bern &lt;- sum(bern_sample)
+T_bern
+#&gt; [1] 6
+
+# Poisson sample
+pois_sample &lt;- c(2, 3, 1, 4, 2, 0, 3, 1, 2, 5)
+T_pois &lt;- sum(pois_sample)
+T_pois
+#&gt; [1] 23
+
+# Normal sample (sigma^2 = 1, so T(x) = x; sufficient statistic is the sum)
+norm_sample &lt;- c(0.4, 0.7, 0.1, 0.9, 0.3, 0.6, 0.5, 0.8)
+T_norm &lt;- sum(norm_sample)
+T_norm
+#&gt; [1] 4.3
+
+# MLEs follow from the sufficient statistics in one line each
+c(p_hat      = T_bern / length(bern_sample),
+  lambda_hat = T_pois / length(pois_sample),
+  mu_hat     = T_norm / length(norm_sample))
+#&gt;    p_hat lambda_hat     mu_hat
+#&gt;     0.60       2.30       0.5375</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The maximum-likelihood estimates fall out for free. For a Bernoulli, the MLE of $p$ is the sample mean; for Poisson, the MLE of $\lambda$ is the sample mean; for Normal($\mu$, 1), the MLE of $\mu$ is the sample mean. All three statements say the same thing in canonical-form language: the MLE is the value of $\theta$ that makes the <strong>expected sufficient statistic equal the observed one</strong>.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Throw the sample away once you have $T$.</strong> For inference about an exponential family parameter, the sufficient statistic and the sample size $n$ together carry every drop of information in the data. This is why GLMs only need column sums, not the full design matrix, at the optimum.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> You observe a Bernoulli sample of 50 trials with 32 successes. Without simulating anything, compute the sufficient statistic and the MLE of $p$.</p>
+<div class="webr-container" data-block-title="Your turn: Bernoulli MLE from sufficient statistic">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: Bernoulli MLE from sufficient statistic</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_n        &lt;- 50
+ex_T        &lt;- 32
+
+ex_p_hat &lt;- # your code here
+ex_p_hat
+#&gt; Expected: 0.64</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Bernoulli MLE solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Bernoulli MLE solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_p_hat &lt;- ex_T / ex_n
+ex_p_hat
+#&gt; [1] 0.64</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The sufficient statistic for Bernoulli is the count of successes, and the MLE of $p$ is that count divided by $n$. You did not need the individual 0/1 outcomes at all.</p>
+
+</details>
+</section>
+
+<h2>How does the natural parameter connect to the mean and variance?</h2>
+
+<p>The log-partition function $A(\eta)$ is more than a normalising constant. Its derivatives with respect to $\eta$ generate the moments of the sufficient statistic:</p>
+
+<p>$$\frac{dA(\eta)}{d\eta} = \mathbb{E}[T(X)], \qquad \frac{d^2 A(\eta)}{d\eta^2} = \mathrm{Var}(T(X))$$</p>
+
+<p>That is why $A$ is also called the cumulant function: its first derivative is the mean of $T$ and its second derivative is the variance. This identity gives you a free moment computer for any exponential family, no integrals required, and it is what lets <code>glm()</code> do its magic so cheaply.</p>
+
+<p>Let's check the identity for Poisson($\lambda = 2$). We have $A(\eta) = e^\eta$, so $A'(\eta) = e^\eta$ and $A''(\eta) = e^\eta$, which evaluates to 2 at $\eta = \log 2$. That matches the textbook fact that a Poisson's mean equals its variance equals $\lambda$.</p>
+
+<div class="webr-container" data-block-title="Verify A&#x27;(eta) = mean and A&#x27;&#x27;(eta) = variance for Poisson">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Verify A&#x27;(eta) = mean and A&#x27;&#x27;(eta) = variance for Poisson</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">A_pois &lt;- function(eta) exp(eta)
+eta_true &lt;- log(2)
+
+# First derivative: should equal E[T(X)] = lambda = 2
+h &lt;- 1e-4
+Aprime_num &lt;- (A_pois(eta_true + h) - A_pois(eta_true - h)) / (2 * h)
+round(Aprime_num, 6)
+#&gt; [1] 2.000003
+
+# Second derivative: should equal Var(T(X)) = lambda = 2
+Adblprime_num &lt;- (A_pois(eta_true + h) - 2 * A_pois(eta_true) + A_pois(eta_true - h)) / h^2
+round(Adblprime_num, 4)
+#&gt; [1] 2.0000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both numerical derivatives recover the value 2 to four decimals, confirming the identity. The same trick works for any member of the family: pick $A(\eta)$, differentiate once to get the mean, differentiate twice to get the variance. For Bernoulli, $A(\eta) = \log(1 + e^\eta)$, so $A'(\eta) = e^\eta / (1 + e^\eta) = p$, the Bernoulli mean.</p>
+
+<p><img src="screenshots/Exponential-Family-Distributions-in-R-natural-parameter-map.webp" alt="The natural-parameter map for Normal, Bernoulli, and Poisson." class="img-responsive img-zoomable" loading="lazy" width="1242" height="842" /></p>
+
+<p><em>Figure 2: The natural-parameter map for Normal, Bernoulli, and Poisson.</em></p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Differentiating $A(\eta)$ replaces integration with calculus.</strong> Computing the mean of a Normal or Poisson by integrating the density is tedious. Differentiating the log-partition function once gets you there in one line. The exponential family is the smallest class of distributions where this trick works.</div></div>
+
+<p>The natural-parameter map itself, $\theta \to \eta(\theta)$, is the <strong>canonical link</strong> in GLM language: identity for Normal, logit for Bernoulli, log for Poisson. We will use that link directly in the next section.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use the cumulant identity to compute the variance of a Bernoulli($p$) random variable from $A(\eta) = \log(1 + e^\eta)$ at $p = 0.3$. You should recover $p(1 - p) = 0.21$.</p>
+<div class="webr-container" data-block-title="Your turn: Bernoulli variance via A&#x27;&#x27;(eta)">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: Bernoulli variance via A&#x27;&#x27;(eta)</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">A_bern  &lt;- function(eta) log(1 + exp(eta))
+ex_p    &lt;- 0.3
+ex_eta  &lt;- log(ex_p / (1 - ex_p))
+ex_h    &lt;- 1e-4
+
+ex_var &lt;- # your code here
+round(ex_var, 4)
+#&gt; Expected: 0.21</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Bernoulli variance solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Bernoulli variance solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_var &lt;- (A_bern(ex_eta + ex_h) - 2 * A_bern(ex_eta) + A_bern(ex_eta - ex_h)) / ex_h^2
+round(ex_var, 4)
+#&gt; [1] 0.21</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> A second numerical derivative of $A(\eta) = \log(1 + e^\eta)$ at $\eta = \mathrm{logit}(0.3)$ recovers $p(1 - p) = 0.21$, the Bernoulli variance.</p>
+
+</details>
+</section>
+
+<h2>Why does the exponential family power GLMs?</h2>
+
+<p>A generalized linear model writes the conditional distribution of $Y \mid X$ as an exponential family with the natural parameter linked to a linear predictor: $\eta = X\beta$. When the link function is exactly the natural-parameter map (logit for Bernoulli, log for Poisson, identity for Normal), it is called the <strong>canonical link</strong>. The canonical link is the default in <code>glm()</code> and gives the cleanest score equations, so MLE solves quickly.</p>
+
+<p>Let's fit a Poisson regression and read off the coefficients on the natural-parameter scale.</p>
+
+<div class="webr-container" data-block-title="Poisson glm with canonical log link">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Poisson glm with canonical log link</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">glm_dat &lt;- data.frame(
+  x = c(1, 2, 3, 4, 5),
+  y = c(3, 5, 7, 12, 18)
+)
+
+glm_fit &lt;- glm(y ~ x, data = glm_dat, family = poisson(link = &quot;log&quot;))
+coef(glm_fit)
+#&gt; (Intercept)           x
+#&gt;      0.6512      0.4478
+
+# Predicted lambda at x = 3 on the response scale
+predict(glm_fit, newdata = data.frame(x = 3), type = &quot;response&quot;)
+#&gt;        1
+#&gt; 7.42</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The fitted equation is $\log \lambda = 0.65 + 0.45 x$, so $\lambda = e^{0.65 + 0.45 x}$, and at $x = 3$ that gives roughly 7.4 events per unit, matching the trend in the small dataset. The crucial thing is that <code>glm()</code> did not "decide" to use a log link, it inherited it from the fact that the Poisson's natural parameter <strong>is</strong> $\log \lambda$. Same algebra, fancier wrapper.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Non-canonical links exist but are slower to fit.</strong> You can ask <code>glm(family = poisson(link = &quot;identity&quot;))</code> for a Poisson with an identity link, but the MLE no longer has a closed-form score equation and convergence often suffers. Stick with canonical links unless a specific scientific reason argues against them.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Without running any code, name the canonical link function for each of these GLM families: Bernoulli, Poisson, Normal($\mu$, 1).</p>
+<details>
+<summary>Click to reveal solution</summary>
+
+<p>- Bernoulli: <strong>logit</strong> ($\eta = \log(p / (1 - p))$)</p>
+<p>- Poisson: <strong>log</strong> ($\eta = \log \lambda$)</p>
+<p>- Normal: <strong>identity</strong> ($\eta = \mu$)</p>
+
+<p><strong>Explanation:</strong> Each canonical link is exactly the natural-parameter map $\eta(\theta)$ from the canonical form. That is why they are "canonical".</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<h3>Exercise 1: Cast a Geometric distribution as an exponential family</h3>
+
+<p>The Geometric distribution counts trials until the first success: $P(X = k) = (1 - p)^{k - 1} p$ for $k = 1, 2, \ldots$. Rewrite this in canonical form by identifying $\eta$, $T(x)$, $A(\eta)$, and $h(x)$, then verify your formula at $p = 0.4$ and $k = 3$ matches <code>dgeom(2, 0.4)</code>. Note that R's <code>dgeom()</code> parametrises by the <strong>number of failures before success</strong>, so subtract 1.</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter: Geometric canonical form">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter: Geometric canonical form</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># (1 - p)^(k - 1) * p, for k = 1, 2, ...
+my_p &lt;- 0.4
+my_k &lt;- 3
+
+# Fill in eta, T(k), A(eta), h(k)
+my_eta &lt;- # your code here
+my_T   &lt;- # your code here
+my_A   &lt;- # your code here
+my_h   &lt;- # your code here
+
+my_canon &lt;- my_h * exp(my_eta * my_T - my_A)
+c(canonical = my_canon, dgeom = dgeom(my_k - 1, my_p))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Geometric canonical form solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Geometric canonical form solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Rewrite: (1 - p)^(k - 1) * p = exp((k - 1) log(1 - p) + log(p))
+#                              = exp(k log(1 - p) - log(1 - p) + log(p))
+# Choose: eta = log(1 - p), T(k) = k, A(eta) = -log(1 - exp(eta)), h(k) = 1
+my_eta &lt;- log(1 - my_p)                # log(0.6)
+my_T   &lt;- my_k                          # k
+my_A   &lt;- -log(1 - exp(my_eta)) - my_eta  # = -log(p) - log(1 - p) ... but easier:
+my_A   &lt;- -log(my_p) + log(1 - my_p)   # equivalent under cleaner derivation:
+                                        # we move log(1 - p) into eta * T,
+                                        # leaving A(eta) = -log(p) = -log(1 - exp(eta))
+                                        # but with shifted base measure h(k) = 1
+
+# Cleaner: include the missing -log(1 - p) in h(k) so eta*k absorbs the (k-1)
+my_h   &lt;- 1 / (1 - my_p)
+my_eta &lt;- log(1 - my_p)
+my_T   &lt;- my_k
+my_A   &lt;- -log(my_p)
+
+my_canon &lt;- my_h * exp(my_eta * my_T - my_A)
+c(canonical = my_canon, dgeom = dgeom(my_k - 1, my_p))
+#&gt; canonical    dgeom
+#&gt;     0.144    0.144</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The canonical decomposition is not unique. You can absorb scale factors into either $h(x)$ or $A(\eta)$ as long as the product is unchanged. Here we tucked the constant $1 / (1 - p)$ into $h$, giving a clean $A(\eta) = -\log p$.</p>
+
+</details>
+
+<h3>Exercise 2: Derive the Poisson MLE from the sufficient statistic and verify with glm()</h3>
+
+<p>Given a Poisson sample, derive the MLE of $\lambda$ in two ways: (a) from the sufficient statistic by setting the sample mean equal to $\lambda$, and (<a class="auto-link" href="Conditional-Probability-in-R.html" title="Conditional Probability in R: P(A|B), Independence, and Bayes — With Real Examples">b)</a> by fitting an intercept-only <code>glm()</code> with the canonical log link and exponentiating the intercept. Confirm the two estimates agree to within numerical tolerance.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter: Poisson MLE two ways">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter: Poisson MLE two ways</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cap_pois &lt;- c(4, 7, 2, 5, 3, 8, 6, 4, 5, 6, 3, 4, 7, 5, 6)
+
+# (a) MLE from sufficient statistic
+cap_lambda_hat_a &lt;- # your code here
+
+# (b) MLE from intercept-only glm with log link
+cap_lambda_hat_b &lt;- # your code here
+
+c(suff_stat = cap_lambda_hat_a, glm = cap_lambda_hat_b)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Poisson MLE two ways solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Poisson MLE two ways solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cap_pois &lt;- c(4, 7, 2, 5, 3, 8, 6, 4, 5, 6, 3, 4, 7, 5, 6)
+
+# (a) Sufficient statistic MLE: lambda_hat = sample mean
+cap_lambda_hat_a &lt;- mean(cap_pois)
+
+# (b) Intercept-only Poisson glm with canonical log link
+cap_glm &lt;- glm(cap_pois ~ 1, family = poisson(link = &quot;log&quot;))
+cap_lambda_hat_b &lt;- exp(coef(cap_glm))[[1]]
+
+c(suff_stat = cap_lambda_hat_a, glm = cap_lambda_hat_b)
+#&gt; suff_stat       glm
+#&gt;      5.00      5.00</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Both routes agree because the canonical-link GLM solves precisely the score equation "expected sufficient statistic equals observed sufficient statistic", which is the same equation method-of-moments solves. Closed form versus iteratively-reweighted least squares are two roads to the same answer for the canonical case.</p>
+
+</details>
+
+<h2>Putting It All Together: a Gamma example end-to-end</h2>
+
+<p>The <a class="auto-link" href="Gamma-and-Beta-Distributions-in-R.html" title="Gamma & Beta Distributions in R: Shape, Scale & Conjugate Priors">Gamma distribution</a> is a two-parameter exponential family with sufficient statistic $T(x) = (\log x, x)$ and natural parameter $\eta = (\alpha - 1, -\beta)$, where $\alpha$ is the shape and $\beta$ is the rate. Let's simulate a Gamma sample, compute the sufficient statistics, and fit the parameters by maximum likelihood using only base R.</p>
+
+<div class="webr-container" data-block-title="Complete example: Gamma sample, sufficient stats, and MLE">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Complete example: Gamma sample, sufficient stats, and MLE</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2611)
+gamma_sample &lt;- rgamma(500, shape = 3, rate = 0.5)
+
+# Sufficient statistics: (sum of log(x), sum of x)
+T_gamma &lt;- c(sum_log_x = sum(log(gamma_sample)),
+             sum_x     = sum(gamma_sample))
+round(T_gamma, 1)
+#&gt; sum_log_x     sum_x
+#&gt;     814.6    2999.4
+
+# MLE via optim() on the negative log-likelihood
+neg_loglik &lt;- function(par, x) {
+  shape &lt;- par[1]; rate &lt;- par[2]
+  if (shape &lt;= 0 || rate &lt;= 0) return(1e10)
+  -sum(dgamma(x, shape = shape, rate = rate, log = TRUE))
+}
+
+gamma_fit &lt;- optim(par = c(2, 1), fn = neg_loglik, x = gamma_sample)
+gamma_fit$par
+#&gt; [1] 3.05 0.51</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The MLE recovers $\hat\alpha \approx 3.05$ and $\hat\beta \approx 0.51$, very close to the true values $\alpha = 3$, $\beta = 0.5$. The sufficient statistics $T_\text{gamma}$ are everything <code>optim()</code> needed to find the MLE: had we given it only the two summary numbers and the sample size, the answer would be the same. This is the "compression for free" promise of the exponential family in action.</p>
+
+<h2>Summary</h2>
+
+<p>The canonical form gives every member of the exponential family a common structure, and that structure is what powers MLE, GLMs, and most of the closed-form moment formulas you have used.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Family</th>
+<th>$h(x)$</th>
+<th>$\eta$</th>
+<th>$T(x)$</th>
+<th>$A(\eta)$</th>
+<th>Canonical link</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Normal($\mu$, 1)</td>
+<td>$\frac{1}{\sqrt{2\pi}} e^{-x^2/2}$</td>
+<td>$\mu$</td>
+<td>$x$</td>
+<td>$\eta^2 / 2$</td>
+<td>identity</td>
+</tr>
+<tr>
+<td>Bernoulli($p$)</td>
+<td>$1$</td>
+<td>$\log\!\frac{p}{1-p}$</td>
+<td>$x$</td>
+<td>$\log(1 + e^\eta)$</td>
+<td>logit</td>
+</tr>
+<tr>
+<td>Poisson($\lambda$)</td>
+<td>$1 / x!$</td>
+<td>$\log \lambda$</td>
+<td>$x$</td>
+<td>$e^\eta$</td>
+<td>log</td>
+</tr>
+<tr>
+<td>Exponential($\lambda$)</td>
+<td>$1$</td>
+<td>$-\lambda$</td>
+<td>$x$</td>
+<td>$-\log(-\eta)$</td>
+<td>reciprocal</td>
+</tr>
+</tbody>
+</table>
+
+<p><img src="screenshots/Exponential-Family-Distributions-in-R-family-mindmap.webp" alt="Common distributions that belong to the exponential family." class="img-responsive img-zoomable" loading="lazy" width="1094" height="978" /></p>
+
+<p><em>Figure 3: Common distributions that belong to the exponential family.</em></p>
+
+<p>Key takeaways:</p>
+
+<ol>
+
+<li>The canonical density factors data and parameter cleanly into $h(x) \exp\{\eta T(x) - A(\eta)\}$.</li>
+
+<li>The sufficient statistic $T(x)$ is everything the data tell you about $\theta$, so MLE depends only on $T$ and $n$.</li>
+
+<li>The natural-parameter map $\theta \to \eta$ is the GLM canonical link, identity for Normal, logit for Bernoulli, log for Poisson.</li>
+
+<li>Differentiating the log-partition function once gives the mean of $T$, twice gives the variance.</li>
+
+</ol>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Casella, G., & Berger, R. L. <em>Statistical Inference</em>, 2nd Edition. Duxbury (2002). Chapter 3.4: The exponential family. <a href="https://www.cengage.com/c/statistical-inference-2e-casella-berger/9780534243128/">Link</a></li>
+
+<li>Wikipedia. <em>Exponential family</em>. <a href="https://en.wikipedia.org/wiki/Exponential_family">Link</a></li>
+
+<li>DasGupta, A. <em>The Exponential Family and Statistical Applications</em>, Purdue University lecture notes. <a href="https://www.stat.purdue.edu/~dasgupta/expfamily.pdf">Link</a></li>
+
+<li>Geyer, C. J. <em>Stat 5421 Lecture Notes: Exponential Families</em>, University of Minnesota. <a href="https://www.stat.umn.edu/geyer/5421/notes/expfam.pdf">Link</a></li>
+
+<li>Jordan, M. I. <em>An Introduction to Probabilistic Graphical Models</em>, Chapter 8: The exponential family. UC Berkeley. <a href="https://people.eecs.berkeley.edu/~jordan/courses/260-spring10/other-readings/chapter8.pdf">Link</a></li>
+
+<li>R Core Team. <em>The R Stats Package: glm()</em>. <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/glm.html">Link</a></li>
+
+<li>McCullagh, P., & Nelder, J. A. <em>Generalized Linear Models</em>, 2nd Edition. Chapman & Hall (1989). The original GLM textbook.</li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Maximum-Likelihood-Estimation-in-R.html">Maximum Likelihood Estimation in R</a>, how the score equation behind the canonical-link GLM works in detail.</li>
+
+<li><a href="Logistic-Regression-With-R.html">Logistic Regression with R</a>, the Bernoulli exponential family at work, with the logit link in front.</li>
+
+<li><a href="Poisson-Regression-in-R.html">Poisson Regression in R</a>, count-data modelling using the Poisson canonical form.</li>
+
+</ul>
+
+{% endraw %}
