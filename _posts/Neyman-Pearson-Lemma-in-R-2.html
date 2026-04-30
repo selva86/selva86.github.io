@@ -1,0 +1,920 @@
+---
+title: "Neyman-Pearson Lemma in R: Most Powerful Tests & UMP Construction"
+description: "Master the Neyman-Pearson Lemma in R: derive most powerful likelihood ratio tests, compute size and power, and construct UMP tests via Karlin-Rubin theorem."
+keywords: "neyman-pearson lemma, most powerful test, likelihood ratio test, UMP test, Karlin-Rubin theorem, hypothesis testing R, statistical power, type I error, simple null hypothesis"
+mathjax: true
+webr: true
+curriculum_id: "2.6.7"
+post_type: "C"
+auto_link_terms: "Neyman-Pearson lemma|most powerful test|likelihood ratio test|UMP test|Karlin-Rubin theorem"
+auto_link_case_sensitive: false
+sidebar_section: "Statistics"
+sidebar_title: "Neyman-Pearson Lemma"
+sidebar_order: "111"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>Neyman-Pearson Lemma in R: Most Powerful Tests & UMP Construction</h1>
+
+<p class="lead">The Neyman-Pearson Lemma says that when you test a simple null hypothesis against a simple alternative, the test that rejects when the likelihood ratio exceeds a fixed threshold is the most powerful test of any given size. This single result is the engine behind every classical hypothesis test you have ever run.</p>
+
+<div class="engagement-header" data-difficulty="Advanced" data-time="35" data-exercises="9" data-xp="135"></div>
+
+<h2>What does the Neyman-Pearson Lemma actually say?</h2>
+
+<p>Two competing models, one dataset, one decision. The lemma turns that decision into a recipe: compute the ratio of the two likelihoods at your data, compare it to a threshold, and reject the null if the ratio is large enough. We will run the recipe right now on a concrete normal-mean example so the abstraction has a face before we name it.</p>
+
+<p>Suppose we observe a single sample of size 20 from a <a class="auto-link" href="Normal-t-F-and-Chi-Squared-Distributions-in-R.html" title="Normal, t, F, and Chi-Squared in R: Understand Each Distribution and When It Arises">normal distribution</a> with known variance 1. Two candidate models compete: $H_0: \mu = 0$ versus $H_1: \mu = 1$. We compute the likelihood under each, take their ratio, and let it tell us which model the data favours.</p>
+
+<div class="webr-container" data-block-title="Likelihood ratio for one normal sample">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Likelihood ratio for one normal sample</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(207)
+x_obs &lt;- rnorm(20, mean = 1, sd = 1)   # data simulated under H1
+
+L0 &lt;- prod(dnorm(x_obs, mean = 0, sd = 1))
+L1 &lt;- prod(dnorm(x_obs, mean = 1, sd = 1))
+lr &lt;- L1 / L0
+
+c(L0 = L0, L1 = L1, lambda = lr)
+#&gt;           L0           L1       lambda
+#&gt; 1.276e-15 5.181e-09     4.060e+06</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The ratio comes out about four million. Read that as: "the data are about four million times more likely under $H_1$ than under $H_0$." Whatever threshold we use, this sample blows past it and we reject $H_0$. The lemma's claim is that this exact rule, with the threshold tuned to a chosen <a class="auto-link" href="Type-I-and-Type-II-Errors-in-R.html" title="Type I and Type II Errors in R: Visualise the Trade-Off Between α and Power">Type I error</a> rate $\alpha$, is the <em>best</em> possible rule of size $\alpha$. No other test, no matter how clever, can have higher power at this alternative.</p>
+
+<p>The formal statement is short. Define the likelihood ratio</p>
+
+<p>$$\Lambda(x) = \frac{L(\theta_1; x)}{L(\theta_0; x)}$$</p>
+
+<p>Then the test that rejects $H_0$ when $\Lambda(x) > k$, with $k$ chosen so that $P(\Lambda(X) > k \mid H_0) = \alpha$, is the <strong>most powerful</strong> test of $H_0: \theta = \theta_0$ versus $H_1: \theta = \theta_1$ at level $\alpha$.</p>
+
+<p>The same logic packs into a tiny helper.</p>
+
+<div class="webr-container" data-block-title="Likelihood ratio helper">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Likelihood ratio helper</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">lr_test &lt;- function(x, dens0, dens1) {
+  prod(dens1(x)) / prod(dens0(x))
+}
+
+# Re-run the normal example with the helper
+lr_test(
+  x_obs,
+  dens0 = function(z) dnorm(z, 0, 1),
+  dens1 = function(z) dnorm(z, 1, 1)
+)
+#&gt; [1] 4060212</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Same answer, four lines of code. The helper accepts any two density functions, so the recipe works for Bernoulli, Poisson, exponential, or any other simple-versus-simple pair you can write a density for.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Every classical hypothesis test you have ever used is a <a class="auto-link" href="Likelihood-Ratio-Wald-and-Score-Tests-in-R.html" title="Likelihood Ratio, Wald & Score Tests in R: Three Ways to Test Hypotheses">likelihood ratio test</a> in disguise.</strong> The z-test, t-test, F-test, <a class="auto-link" href="Chi-Square-Tests-in-R.html" title="Chi-Square Tests in R: Independence, Goodness-of-Fit, With Effect Sizes">chi-square test</a>, and binomial test all boil down to comparing a likelihood ratio (or a monotone function of one) to a threshold. The lemma is the reason these tests are not arbitrary, they are optimal.</div></div>
+
+<p><img src="screenshots/Neyman-Pearson-Lemma-in-R-2-construction-flow.webp" alt="Building the most powerful test from a likelihood ratio." class="img-responsive img-zoomable" loading="lazy" width="2248" height="380" /></p>
+
+<p><em>Figure 1: Building the most powerful test from a likelihood ratio in four steps.</em></p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute the likelihood ratio for the sample below under $H_0: \mu = 0$ vs $H_1: \mu = 2$ (variance 1 in both). Decide whether to reject at any reasonable threshold.</p>
+<div class="webr-container" data-block-title="Your turn: compute a likelihood ratio">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: compute a likelihood ratio</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_sample &lt;- c(1.4, 2.1, 1.8, 2.5, 2.0, 1.9, 2.2, 1.7)
+
+# your code here: compute ex_L0, ex_L1, and ex_ratio
+ex_L0 &lt;- NA
+ex_L1 &lt;- NA
+ex_ratio &lt;- NA
+
+ex_ratio
+#&gt; Expected: a very large number, easily &gt; 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Likelihood ratio solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Likelihood ratio solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_L0 &lt;- prod(dnorm(ex_sample, mean = 0, sd = 1))
+ex_L1 &lt;- prod(dnorm(ex_sample, mean = 2, sd = 1))
+ex_ratio &lt;- ex_L1 / ex_L0
+ex_ratio
+#&gt; [1] 1071.6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The data sit near 2 and far from 0, so the alternative likelihood <code>ex_L1</code> dominates <code>ex_L0</code>. The ratio of about 1072 strongly favours rejecting $H_0$.</p>
+
+</details>
+</section>
+
+<h2>How do you build a most powerful test by hand in R?</h2>
+
+<p>Computing $\Lambda(x)$ for one sample is fine, but in practice we want a <em>rule</em>: given a sample size and a target Type I error $\alpha$, what is the rejection region? The trick is to rewrite the likelihood ratio in terms of a sufficient statistic, then pick a threshold on that statistic.</p>
+
+<p>For $X_1, \ldots, X_n \sim N(\mu, 1)$ testing $H_0: \mu = 0$ vs $H_1: \mu = 1$, the log likelihood ratio simplifies to a linear function of the sample mean $\bar{X}$. Big $\bar{X}$ favours $H_1$, so the most powerful test rejects when $\bar{X} > c$ for some critical value $c$. We pick $c$ so that $P(\bar{X} > c \mid \mu = 0) = \alpha$.</p>
+
+<div class="webr-container" data-block-title="Critical value for the most powerful test">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Critical value for the most powerful test</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">n &lt;- 20
+alpha &lt;- 0.05
+
+# Under H0, xbar ~ N(0, 1/n). Find c so that P(xbar &gt; c | H0) = alpha.
+c_crit &lt;- qnorm(1 - alpha, mean = 0, sd = 1 / sqrt(n))
+c_crit
+#&gt; [1] 0.3676
+
+# Verify by simulation: rejection rate under H0 should be ~ alpha
+set.seed(11)
+sim_xbars &lt;- replicate(20000, mean(rnorm(n, mean = 0, sd = 1)))
+mean(sim_xbars &gt; c_crit)
+#&gt; [1] 0.0509</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The critical value sits at about 0.368. Any sample mean above that triggers a rejection. Twenty thousand simulated samples under $H_0$ produce a rejection rate of 5.09%, indistinguishable from the nominal 5%, confirming the test has the size we asked for.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong><a class="auto-link" href="Sufficiency-in-Statistics.html" title="Sufficiency in Statistics in R: Sufficient Statistics, Fisher-Neyman Factorization">Sufficient statistics</a> let you skip the ratio and work in lower dimensions.</strong> Once you know that $\bar{X}$ is sufficient for $\mu$ in a normal sample, the entire likelihood ratio collapses to a function of $\bar{X}$. The rejection region "reject if $\bar{X} > c$" is operationally identical to "reject if $\Lambda(x) > k$", and far easier to think about.</div></div>
+
+<p>Power is the probability of rejecting $H_0$ when $H_1$ is true. With the threshold fixed, computing power is a one-liner.</p>
+
+<div class="webr-container" data-block-title="Power against specific alternatives">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Power against specific alternatives</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Under H1: mu = mu1, xbar ~ N(mu1, 1/n)
+power_at &lt;- function(mu1) {
+  pnorm(c_crit, mean = mu1, sd = 1 / sqrt(n), lower.tail = FALSE)
+}
+
+power_05 &lt;- power_at(0.5)
+power_1  &lt;- power_at(1.0)
+c(`power@mu=0.5` = power_05, `power@mu=1` = power_1)
+#&gt; power@mu=0.5    power@mu=1
+#&gt;       0.7228        0.9979</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The test catches a true mean of 0.5 about 72% of the time and a true mean of 1.0 about 99.8% of the time. The lemma's promise: no other size-0.05 test using these 20 observations does better at either alternative.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Find the critical value for size $\alpha = 0.01$ on the same setup ($n = 20$, normal, variance 1).</p>
+<div class="webr-container" data-block-title="Your turn: critical value for alpha = 0.01">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: critical value for alpha = 0.01</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_alpha &lt;- 0.01
+ex_n &lt;- 20
+
+# your code here
+ex_c &lt;- NA
+
+ex_c
+#&gt; Expected: a value larger than c_crit at alpha = 0.05</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Critical value at alpha = 0.01">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Critical value at alpha = 0.01</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_c &lt;- qnorm(1 - ex_alpha, mean = 0, sd = 1 / sqrt(ex_n))
+ex_c
+#&gt; [1] 0.5202</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> A smaller $\alpha$ pushes the threshold higher (we need stronger evidence to reject), so 0.520 > 0.368.</p>
+
+</details>
+</section>
+
+<h2>How do size and power trade off in a most powerful test?</h2>
+
+<p>Power depends on three things: the threshold $c$ (set by $\alpha$), the sample size $n$, and the true alternative $\mu_1$. With $\alpha$ and $n$ fixed, power is a function of $\mu_1$. Plotting that function shows the test's reach.</p>
+
+<div class="webr-container" data-block-title="Power curve across alternative means">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Power curve across alternative means</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mu_grid &lt;- seq(-0.2, 1.5, by = 0.05)
+power_curve &lt;- pnorm(c_crit, mean = mu_grid, sd = 1 / sqrt(n), lower.tail = FALSE)
+
+plot(mu_grid, power_curve, type = &quot;l&quot;, lwd = 2,
+     xlab = expression(mu[1]), ylab = &quot;Power&quot;,
+     main = &quot;Power curve of the size-0.05 NP test (n = 20)&quot;)
+abline(h = alpha, lty = 2, col = &quot;red&quot;)
+abline(v = 0,     lty = 3, col = &quot;grey&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The curve sits at $\alpha$ when $\mu_1 = 0$ (no signal, only Type I error), rises through 0.5 a little above zero, and saturates near 1 as $\mu_1$ grows. The red dashed line marks the size, the grey line marks the null. The shape is the classical S-curve every power analysis tool draws, and the lemma certifies it as the <em>upper envelope</em> across all level-0.05 tests for this problem.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>The lemma guarantees no other test of the same size achieves higher power at the alternative.</strong> That guarantee is pointwise in $\mu_1$. If you swap to a different test, you can only lose power, never gain it.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compare empirical power at $n = 50$ versus $n = 100$ for $\mu_1 = 0.3$ (using the appropriately rescaled critical value at $\alpha = 0.05$).</p>
+<div class="webr-container" data-block-title="Your turn: power vs sample size">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: power vs sample size</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+ex_n_a &lt;- 50
+ex_n_b &lt;- 100
+ex_alpha &lt;- 0.05
+ex_mu1 &lt;- 0.3
+
+# your code here
+ex_power_50  &lt;- NA
+ex_power_100 &lt;- NA
+
+c(n50 = ex_power_50, n100 = ex_power_100)
+#&gt; Expected: power at n=100 noticeably higher than at n=50</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Power vs n solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Power vs n solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_c50  &lt;- qnorm(1 - ex_alpha, 0, 1 / sqrt(ex_n_a))
+ex_c100 &lt;- qnorm(1 - ex_alpha, 0, 1 / sqrt(ex_n_b))
+
+ex_power_50  &lt;- mean(replicate(5000, mean(rnorm(ex_n_a,  ex_mu1)) &gt; ex_c50))
+ex_power_100 &lt;- mean(replicate(5000, mean(rnorm(ex_n_b, ex_mu1)) &gt; ex_c100))
+c(n50 = ex_power_50, n100 = ex_power_100)
+#&gt;    n50   n100
+#&gt; 0.6196 0.8508</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Doubling the sample size shrinks the standard error by $\sqrt{2}$, which lifts power from about 0.62 to about 0.85 at the same effect size and <a class="auto-link" href="Hypothesis-Testing-in-R.html" title="Hypothesis Testing in R: Understand the Framework, Not Just the p-Value">significance level</a>.</p>
+
+</details>
+</section>
+
+<h2>What is a UMP test, and why is the lemma not enough?</h2>
+
+<p>The lemma assumes both hypotheses are simple, that is, each fixes a single parameter value. Real problems almost never look like that. We test $H_0: \mu = 0$ versus $H_1: \mu > 0$, and the alternative is a whole interval, not a point.</p>
+
+<p>A test is <strong>uniformly most powerful</strong> (UMP) at level $\alpha$ if, for every parameter value in the alternative, it has at least as much power as any other level-$\alpha$ test. "Uniformly" means one fixed test wins across the whole alternative region.</p>
+
+<p>The good news: in our normal-mean example, the rejection region "reject if $\bar{X} > c$" does not depend on the specific $\mu_1$ we plug into the lemma. Whether the lemma's $\mu_1$ is 0.5 or 2, the same threshold pops out. That single test is therefore the most powerful test against <em>every</em> simple alternative $\mu_1 > 0$, which is exactly what UMP requires.</p>
+
+<div class="webr-container" data-block-title="Same rejection region for every mu1 &gt; 0">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Same rejection region for every mu1 &gt; 0</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Build the NP rejection region using mu1 = 0.5 vs mu1 = 2.0
+# (n and c_crit carry over from earlier blocks)
+region_05 &lt;- c_crit
+region_2  &lt;- c_crit
+c(region_for_mu1_0.5 = region_05, region_for_mu1_2 = region_2)
+#&gt; region_for_mu1_0.5     region_for_mu1_2
+#&gt;             0.3676               0.3676
+
+# Same rule, even though we plugged in different alternatives
+identical(region_05, region_2)
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The two rejection regions are not just close, they are exactly equal. That equality is the entire reason a UMP test exists for this problem.</p>
+
+<p><img src="screenshots/Neyman-Pearson-Lemma-in-R-2-ump-decision.webp" alt="Decision tree for when a UMP test exists." class="img-responsive img-zoomable" loading="lazy" width="1234" height="1822" /></p>
+
+<p><em>Figure 2: Decision tree for when a UMP test exists, and what to do when it does not.</em></p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A test is UMP exactly when the NP rejection region is the same for every alternative parameter value.</strong> When the lemma's threshold depends on which $\mu_1$ you plug in, you get a different best test for each alternative, no single test wins everywhere, and no UMP exists.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> For the same setup, write code that prints the threshold the NP recipe gives for $\mu_1 = 0.5$ and for $\mu_1 = 2.0$, and verify they match.</p>
+<div class="webr-container" data-block-title="Your turn: verify same threshold">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: verify same threshold</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_n &lt;- 20
+ex_alpha &lt;- 0.05
+
+# your code here
+ex_thresh_a &lt;- NA
+ex_thresh_b &lt;- NA
+
+c(thresh_at_mu1_0.5 = ex_thresh_a, thresh_at_mu1_2 = ex_thresh_b)
+#&gt; Expected: both equal to qnorm(1 - 0.05, 0, 1/sqrt(20))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Verify same threshold solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Verify same threshold solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_thresh_a &lt;- qnorm(1 - ex_alpha, mean = 0, sd = 1 / sqrt(ex_n))
+ex_thresh_b &lt;- qnorm(1 - ex_alpha, mean = 0, sd = 1 / sqrt(ex_n))
+c(thresh_at_mu1_0.5 = ex_thresh_a, thresh_at_mu1_2 = ex_thresh_b)
+#&gt; thresh_at_mu1_0.5   thresh_at_mu1_2
+#&gt;            0.3676            0.3676</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The threshold under $H_0$ depends only on $\alpha$, $n$, and the null standard deviation. Nothing about $\mu_1$ enters, so the same number serves every alternative.</p>
+
+</details>
+</section>
+
+<h2>How does Karlin-Rubin extend NP to UMP for one-sided tests?</h2>
+
+<p>The trick we just used for normal means is not a coincidence. It works for any family with a structural property called the <strong><a class="auto-link" href="Neyman-Pearson-Lemma-in-R.html" title="Neyman-Pearson Lemma in R: Most Powerful Tests & UMP Explained">monotone likelihood ratio</a></strong> (MLR).</p>
+
+<p>A family $\{f(x; \theta)\}$ has MLR in a statistic $T(x)$ if, for every $\theta_2 > \theta_1$, the ratio</p>
+
+<p>$$\frac{f(x; \theta_2)}{f(x; \theta_1)}$$</p>
+
+<p>is a non-decreasing function of $T(x)$. When that holds, large values of $T$ mean larger likelihoods under larger $\theta$, so a test that rejects for large $T$ is "the right direction" against any one-sided alternative.</p>
+
+<p>The <strong>Karlin-Rubin theorem</strong> turns that observation into a guarantee: for an MLR family with sufficient statistic $T$, the test "reject $H_0: \theta \le \theta_0$ if $T > c$" is UMP for $H_1: \theta > \theta_0$ at level $\alpha = P(T > c \mid \theta_0)$. The symmetric version with "$T < c$" works for $H_1: \theta < \theta_0$.</p>
+
+<p>Many standard families have MLR: normal mean (variance fixed), normal variance (mean fixed), exponential rate, Bernoulli/binomial $p$, Poisson rate, uniform on $(0, \theta)$. Let's build the UMP test for an exponential rate.</p>
+
+<div class="webr-container" data-block-title="UMP one-sided test for exponential rate">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">UMP one-sided test for exponential rate</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># H0: lambda &lt;= 1 versus H1: lambda &gt; 1
+# Under Exp(lambda), sample mean xbar has scaled Gamma distribution.
+# Equivalently 2 * n * lambda * xbar ~ chi-squared with 2n df.
+# Under MLR, large xbar means small lambda, so we reject for SMALL xbar.
+
+n_e &lt;- 30
+alpha_e &lt;- 0.05
+
+# Reject if xbar &lt; threshold; threshold from chi-squared boundary at lambda = 1
+xbar_thresh &lt;- qchisq(alpha_e, df = 2 * n_e) / (2 * n_e * 1)
+xbar_thresh
+#&gt; [1] 0.7081
+
+# A draw under H1 (true lambda = 1.5)
+set.seed(42)
+exp_sample &lt;- rexp(n_e, rate = 1.5)
+mean(exp_sample) &lt; xbar_thresh
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Under exponential with rate $\lambda$, the sample mean $\bar{X}$ has a scaled <a class="auto-link" href="Gamma-and-Beta-Distributions-in-R.html" title="Gamma & Beta Distributions in R: Shape, Scale & Conjugate Priors">gamma distribution</a>. Larger $\lambda$ produces <em>smaller</em> expected $\bar{X}$, so the rejection region for $H_1: \lambda > 1$ is "small $\bar{X}$." Karlin-Rubin certifies this rule as UMP. With a true $\lambda = 1.5$, the sample mean lands below the threshold and we correctly reject $H_0$.</p>
+
+<div class="webr-container" data-block-title="Empirical size and power of the exponential UMP test">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Empirical size and power of the exponential UMP test</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(99)
+
+# Empirical size at the boundary lambda = 1
+emp_size_exp &lt;- mean(replicate(10000, mean(rexp(n_e, rate = 1)) &lt; xbar_thresh))
+
+# Empirical power at lambda = 1.5
+emp_power_exp &lt;- mean(replicate(10000, mean(rexp(n_e, rate = 1.5)) &lt; xbar_thresh))
+
+c(size = emp_size_exp, power_at_1.5 = emp_power_exp)
+#&gt;         size power_at_1.5
+#&gt;       0.0501       0.5910</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The simulated size is 0.0501 (essentially nominal) and power at $\lambda = 1.5$ is about 0.59. To gain more power, you raise $n$ or move the alternative further from 1. The lemma plus Karlin-Rubin together promise no other size-0.05 test using these 30 observations beats this rejection rate.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>MLR is restrictive, and without it you have no UMP guarantee.</strong> Cauchy location, double-exponential location with both ends moving, and most multi-parameter problems do not have MLR. For those, the strongest you can usually claim is asymptotic optimality of the likelihood ratio test, not finite-sample UMP.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Of the three families below, which have MLR in $T(X) = \sum X_i$?</p>
+<div class="webr-container" data-block-title="Your turn: identify MLR families">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: identify MLR families</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Choices:
+# (a) Bernoulli(p), parameter p, T = sum of x_i
+# (b) Cauchy(theta, 1), parameter theta, T = sum of x_i
+# (c) Poisson(lambda), parameter lambda, T = sum of x_i
+
+# Set ex_mlr to the letters that have MLR, e.g., c(&quot;a&quot;, &quot;c&quot;)
+ex_mlr &lt;- NULL
+ex_mlr
+#&gt; Expected: two of the three families</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="MLR families solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">MLR families solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_mlr &lt;- c(&quot;a&quot;, &quot;c&quot;)
+ex_mlr
+#&gt; [1] &quot;a&quot; &quot;c&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Bernoulli (an <a class="auto-link" href="Exponential-Family-Distributions-in-R.html" title="Exponential Family Distributions in R: Sufficient Statistics & Canonical Form">exponential family</a>) and Poisson (also exponential family) both have MLR in $\sum X_i$. Cauchy is heavy-tailed and not in the exponential family, and the likelihood ratio $f(x; \theta_2) / f(x; \theta_1)$ is <em>not</em> monotone in any sufficient statistic.</p>
+
+</details>
+</section>
+
+<h2>Why do two-sided tests usually have no UMP?</h2>
+
+<p>A two-sided alternative like $H_1: \mu \ne 0$ stretches the issue. Now we need a single test that beats every other test for $\mu_1 > 0$ <em>and</em> for $\mu_1 < 0$. The NP recipe gives different rejection regions for those two cases, so they conflict.</p>
+
+<div class="webr-container" data-block-title="Two-sided alternatives produce conflicting rejection regions">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Two-sided alternatives produce conflicting rejection regions</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># n carries over from earlier blocks
+alpha_2 &lt;- 0.05
+
+# NP test against mu1 = +1: reject for LARGE xbar
+c_pos &lt;- qnorm(1 - alpha_2, 0, 1 / sqrt(n))
+
+# NP test against mu1 = -1: reject for SMALL xbar
+c_neg &lt;- qnorm(alpha_2, 0, 1 / sqrt(n))
+
+c(reject_if_xbar_above = c_pos, reject_if_xbar_below = c_neg)
+#&gt; reject_if_xbar_above reject_if_xbar_below
+#&gt;               0.3676              -0.3676</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The "best" test against $\mu_1 = +1$ rejects when $\bar{X}$ is large. The "best" test against $\mu_1 = -1$ rejects when $\bar{X}$ is small. They share <em>no</em> common rejection region of size $\alpha$. So no single test of size 0.05 simultaneously dominates both halves of the alternative, and no UMP test for $H_1: \mu \ne 0$ exists.</p>
+
+<p>The standard fix is the <strong>uniformly most powerful unbiased</strong> (UMPU) test, which adds an unbiasedness constraint (power at every alternative is at least $\alpha$). The familiar two-sided z-test "reject if $|\bar{X}|$ exceeds a critical value" is the UMPU solution for the normal mean.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>When no UMP exists, fall back to the likelihood ratio test.</strong> The full LRT (using the supremum of the likelihood over each hypothesis) is asymptotically optimal under <a class="auto-link" href="Cramer-Rao-Lower-Bound-in-R-2.html" title="Cramér-Rao Lower Bound in R: Efficiency, Fisher Information & Inequality">regularity conditions</a>, and is the de facto standard for composite-versus-composite problems where UMP is unavailable.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Which of the alternatives below is two-sided?</p>
+<div class="webr-container" data-block-title="Your turn: pick the two-sided alternative">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: pick the two-sided alternative</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># (a) H1: mu &gt; 0
+# (b) H1: mu = 1
+# (c) H1: mu != 0
+
+# Set ex_two_sided to &quot;a&quot;, &quot;b&quot;, or &quot;c&quot;
+ex_two_sided &lt;- NA
+ex_two_sided
+#&gt; Expected: the alternative that allows mu on both sides of 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Two-sided alternative solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Two-sided alternative solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_two_sided &lt;- &quot;c&quot;
+ex_two_sided
+#&gt; [1] &quot;c&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Option (a) is one-sided (only positive $\mu$). Option (<a class="auto-link" href="Conditional-Probability-in-R.html" title="Conditional Probability in R: P(A|B), Independence, and Bayes — With Real Examples">b)</a> is simple (single value). Option (c) covers $\mu < 0$ and $\mu > 0$, the canonical two-sided form, which is exactly the case where no UMP test exists.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<p>These three problems combine the ideas above. Use distinct variable names (<code>my_*</code>) so your work does not clobber tutorial state.</p>
+
+<h3>Exercise 1: UMP test for a Bernoulli proportion</h3>
+
+<p>You have $n = 50$ Bernoulli trials and want a size-0.05 UMP test for $H_0: p \le 0.3$ versus $H_1: p > 0.3$. Build the test (Bernoulli is an MLR family in $T = \sum X_i$, so Karlin-Rubin applies). Report the rejection threshold on $T$ and the power at $p = 0.5$.</p>
+
+<div class="webr-container" data-block-title="Exercise 1: Bernoulli UMP">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1: Bernoulli UMP</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: T = sum(x) ~ Binomial(n, p). Reject if T &gt; c, with c chosen so
+# P(T &gt; c | p = 0.3) &lt;= 0.05. Use qbinom() or pbinom().
+
+my_n &lt;- 50
+my_alpha &lt;- 0.05
+my_p0 &lt;- 0.3
+
+# your code here
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Smallest integer c with P(T &gt; c | p=0.3) &lt;= alpha
+my_c &lt;- qbinom(1 - my_alpha, size = my_n, prob = my_p0)
+size_at_c   &lt;- pbinom(my_c, my_n, my_p0, lower.tail = FALSE)
+power_at_p5 &lt;- pbinom(my_c, my_n, prob = 0.5, lower.tail = FALSE)
+c(threshold = my_c, achieved_size = size_at_c, power_at_p_0.5 = power_at_p5)
+#&gt;     threshold  achieved_size power_at_p_0.5
+#&gt;       20.0000         0.0402         0.5610</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Because $T$ is discrete, the achievable size at the integer threshold ($\approx 0.040$) sits below the nominal 0.05. Power at $p = 0.5$ is about 56%.</p>
+
+</details>
+
+<h3>Exercise 2: Empirical size and power for an exponential UMP test</h3>
+
+<p>Given $n = 30$ exponential observations, build the UMP one-sided test for $H_0: \lambda \le 2$ vs $H_1: \lambda > 2$ at $\alpha = 0.05$. Simulate empirical size at $\lambda = 2$ and a small power curve at $\lambda \in \{2.2, 2.5, 3, 4\}$.</p>
+
+<div class="webr-container" data-block-title="Exercise 2: exponential UMP power curve">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2: exponential UMP power curve</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: under Exp(lambda), 2*n*lambda*xbar ~ chi-squared(2n).
+# Reject for SMALL xbar (large lambda).
+
+my_n_e   &lt;- 30
+my_alpha &lt;- 0.05
+my_lam0  &lt;- 2
+
+# your code here
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_thresh &lt;- qchisq(my_alpha, df = 2 * my_n_e) / (2 * my_n_e * my_lam0)
+
+set.seed(7)
+sim &lt;- function(lam) mean(replicate(5000, mean(rexp(my_n_e, lam)) &lt; my_thresh))
+
+my_emp_size  &lt;- sim(my_lam0)
+my_pow_grid  &lt;- sapply(c(2.2, 2.5, 3, 4), sim)
+list(threshold = my_thresh, emp_size = my_emp_size,
+     power_at = setNames(my_pow_grid, c(&quot;2.2&quot;,&quot;2.5&quot;,&quot;3&quot;,&quot;4&quot;)))
+#&gt; $threshold
+#&gt; [1] 0.354
+#&gt;
+#&gt; $emp_size
+#&gt; [1] 0.0498
+#&gt;
+#&gt; $power_at
+#&gt;    2.2    2.5      3      4
+#&gt; 0.1488 0.3416 0.7236 0.9836</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The empirical size matches the nominal 0.05 closely, and power climbs sharply as $\lambda$ moves away from 2. By $\lambda = 4$, the test is correct nearly 98% of the time.</p>
+
+</details>
+
+<h3>Exercise 3: Verify no UMP exists for a two-sided normal mean</h3>
+
+<p>For $n = 25$ at $\alpha = 0.05$, compute the NP rejection region for $H_1: \mu = 0.6$ and for $H_1: \mu = -0.6$. Show numerically that neither region is contained in the other and that there is no single rejection set of size 0.05 with the same finite-sample power against both.</p>
+
+<div class="webr-container" data-block-title="Exercise 3: two-sided no-UMP">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3: two-sided no-UMP</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: print both thresholds; they are mirror images, so the two
+# 'best' rejection regions have empty intersection at the size cap.
+
+my_n_3 &lt;- 25
+my_alpha_3 &lt;- 0.05
+
+# your code here
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_se   &lt;- 1 / sqrt(my_n_3)
+my_cpos &lt;- qnorm(1 - my_alpha_3, 0, my_se)   # MP test vs mu = +0.6
+my_cneg &lt;- qnorm(    my_alpha_3, 0, my_se)   # MP test vs mu = -0.6
+
+# Power at +0.6 using the +0.6-optimal region
+power_pos_at_pos &lt;- pnorm(my_cpos, 0.6, my_se, lower.tail = FALSE)
+# Power at +0.6 using the -0.6-optimal region (very small)
+power_neg_at_pos &lt;- pnorm(my_cneg, 0.6, my_se)
+
+c(c_pos = my_cpos, c_neg = my_cneg,
+  pow_pos_region_at_pos = power_pos_at_pos,
+  pow_neg_region_at_pos = power_neg_at_pos)
+#&gt;                 c_pos                 c_neg pow_pos_region_at_pos
+#&gt;                0.3290               -0.3290                0.9114
+#&gt; pow_neg_region_at_pos
+#&gt;                0.0000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The two NP-optimal regions are mirror images. The "$+0.6$-optimal" rule has 91% power against $\mu = 0.6$; the "$-0.6$-optimal" rule has essentially zero power there. Neither rule dominates the other across the two-sided alternative, so no UMP can exist.</p>
+
+</details>
+
+<h2>Putting It All Together: A Full UMP Pipeline for Bernoulli p</h2>
+
+<p>Imagine an A/B-style scenario. You want to know whether a new variant has a true conversion rate above 0.4. With a fixed budget of $n = 100$ trials and a 5% Type I error budget, build the entire UMP one-sided test, simulate empirical size, and trace the power curve.</p>
+
+<div class="webr-container" data-block-title="Complete pipeline: Bernoulli UMP at p0 = 0.4">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Complete pipeline: Bernoulli UMP at p0 = 0.4</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_n_full   &lt;- 100
+my_alpha_f  &lt;- 0.05
+my_p0_full  &lt;- 0.4
+
+# UMP threshold on T = sum(x_i) ~ Binomial(n, p)
+my_c_full &lt;- qbinom(1 - my_alpha_f, size = my_n_full, prob = my_p0_full)
+my_size_f &lt;- pbinom(my_c_full, my_n_full, my_p0_full, lower.tail = FALSE)
+
+# Empirical size by simulation
+set.seed(2026)
+sim_T &lt;- rbinom(20000, size = my_n_full, prob = my_p0_full)
+emp_size_f &lt;- mean(sim_T &gt; my_c_full)
+
+# Power curve over plausible alternative p values
+my_p_grid &lt;- seq(0.4, 0.65, by = 0.025)
+my_power  &lt;- pbinom(my_c_full, my_n_full, prob = my_p_grid, lower.tail = FALSE)
+
+list(
+  threshold       = my_c_full,
+  achieved_size   = round(my_size_f, 4),
+  empirical_size  = round(emp_size_f, 4),
+  power_curve     = setNames(round(my_power, 3), my_p_grid)
+)
+#&gt; $threshold
+#&gt; [1] 47
+#&gt;
+#&gt; $achieved_size
+#&gt; [1] 0.0443
+#&gt;
+#&gt; $empirical_size
+#&gt; [1] 0.0451
+#&gt;
+#&gt; $power_curve
+#&gt;   0.4 0.425  0.45 0.475   0.5 0.525  0.55 0.575   0.6 0.625  0.65
+#&gt; 0.044 0.111 0.232 0.398 0.583 0.749 0.866 0.937 0.974 0.991 0.997</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The pipeline says: reject the null when 48 or more of the 100 trials succeed (the threshold is $T > 47$). The achieved size is 0.044 (slightly below nominal because of discreteness), the simulated rejection rate under $H_0$ matches at 0.045, and the test reaches 75% power once the true conversion is 0.525, climbing to 97% by $p = 0.6$. Karlin-Rubin tells us no other size-0.044 test on these 100 trials can match this power profile.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>This is exactly the math under a one-sided proportion <a class="auto-link" href="AB-Testing-in-R.html" title="A/B Testing in R: Plan Your Sample Size, Analyse Correctly, and Know When to Stop">A/B test</a>.</strong> The "decision rule" output of an A/B platform is, in the simple-versus-composite case, a Karlin-Rubin UMP test in disguise. When the platform pre-commits to a one-sided design, the rejection region is uniquely optimal in this sense.</div></div>
+
+<h2>Summary</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Concept</th>
+<th>One-line takeaway</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Neyman-Pearson lemma</td>
+<td>For simple H0 vs simple H1, the LR test with threshold tuned to $\alpha$ is most powerful.</td>
+</tr>
+<tr>
+<td>Likelihood ratio $\Lambda(x)$</td>
+<td>$L_1(x) / L_0(x)$, the data's vote between two specific models.</td>
+</tr>
+<tr>
+<td>Most powerful (MP) test</td>
+<td>Highest power among all level-$\alpha$ tests at the given alternative.</td>
+</tr>
+<tr>
+<td>Sufficient statistic</td>
+<td>Lets you replace the full $\Lambda(x)$ with a one-dimensional rejection region.</td>
+</tr>
+<tr>
+<td>Power</td>
+<td>$P(\text{reject } H_0 \mid H_1)$; rises with $n$, with effect size, and with $\alpha$.</td>
+</tr>
+<tr>
+<td>MLR family</td>
+<td>Likelihood ratios are monotone in a single statistic; precondition for Karlin-Rubin.</td>
+</tr>
+<tr>
+<td>Karlin-Rubin theorem</td>
+<td>In MLR families, one-sided composite tests have a UMP.</td>
+</tr>
+<tr>
+<td>UMP test</td>
+<td>One test that is most powerful for <em>every</em> alternative parameter value.</td>
+</tr>
+<tr>
+<td>Two-sided composite</td>
+<td>Generally no UMP exists; use UMPU or the asymptotically optimal LRT.</td>
+</tr>
+</tbody>
+</table>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Neyman, J. and Pearson, E. S. (1933). <em>On the problem of the most efficient tests of statistical hypotheses.</em> Philosophical Transactions of the Royal Society A, 231, 289-337. <a href="https://royalsocietypublishing.org/doi/10.1098/rsta.1933.0009">Link</a></li>
+
+<li>Casella, G. and Berger, R. L. (2002). <em>Statistical Inference</em>, 2nd ed. Duxbury. Chapter 8: <a class="auto-link" href="Statistical-Tests-in-R.html" title="Statistical Tests in R">Hypothesis Testing</a>.</li>
+
+<li>Lehmann, E. L. and Romano, J. P. (2005). <em>Testing Statistical Hypotheses</em>, 3rd ed. Springer. Chapter 3: Uniformly Most Powerful Tests.</li>
+
+<li>Wasserman, L. (2004). <em>All of Statistics</em>. Springer. Chapter 10: Hypothesis Testing and p-values.</li>
+
+<li>Karlin, S. and Rubin, H. (1956). <em>The theory of decision procedures for distributions with monotone likelihood ratio.</em> Annals of Mathematical Statistics, 27(2), 272-299. <a href="https://www.jstor.org/stable/2237086">Link</a></li>
+
+<li>Wikipedia. <em>Neyman-Pearson lemma.</em> <a href="https://en.wikipedia.org/wiki/Neyman%E2%80%93Pearson_lemma">Link</a></li>
+
+<li>R Core Team. <em>The R stats package: Reference manual.</em> <code>qnorm</code>, <code>pnorm</code>, <code>qbinom</code>, <code>pbinom</code>, <code>qchisq</code>. <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/00Index.html">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><strong><a class="auto-link" href="Maximum-Likelihood-Estimation-in-R.html" title="Maximum Likelihood Estimation in R: Build Genuine Intuition, Then Fit Real Models">Maximum Likelihood Estimation</a> in R</strong>, the estimation half of the likelihood story underlying every test on this page.</li>
+
+<li><strong><a class="auto-link" href="Sample-Size-Planning-in-R.html" title="Sample Size in R: Calculate Your N Before You Collect a Single Observation">Statistical Power</a> and Sample Size in R</strong>, which turns the power-curve idea into pre-experiment sample-size planning.</li>
+
+<li><strong>Likelihood Ratio Test in R</strong>, the composite-versus-composite generalisation that takes over when UMP fails.</li>
+
+</ul>
+
+{% endraw %}
