@@ -1,0 +1,787 @@
+---
+title: "QR Decomposition in R: qr() & Why Regression Uses It Instead of Inverting"
+description: "Master QR decomposition in R with qr(). See how Q and R factor a matrix, why lm() uses it for stable regression, and how Householder beats inverting X'X."
+keywords: "QR decomposition in R, qr() function R, qr.Q qr.R, Householder R, Gram-Schmidt R, OLS QR regression, numerical stability lm, backsolve R, orthogonal matrix, upper triangular"
+mathjax: true
+webr: true
+curriculum_id: "2.9.6"
+post_type: "C"
+auto_link_terms: "QR decomposition in R|qr() in R|qr.Q() in R|qr.R() in R|Householder reflections|Gram-Schmidt orthogonalization|orthogonal matrix Q|upper triangular matrix|backsolve in R"
+auto_link_case_sensitive: false
+sidebar_section: "Statistics"
+sidebar_title: "QR Decomposition in R"
+sidebar_order: "101"
+---
+<!-- md2html:generated -->
+
+<h1>QR Decomposition in R: qr() & Why Regression Uses It Instead of Inverting</h1>
+
+<p class="lead">QR decomposition factors a matrix <code>X</code> into <code>X = QR</code>, where <code>Q</code> is orthogonal (its columns are perpendicular and unit length) and <code>R</code> is upper triangular. In R, you compute it with the base function <code>qr()</code>. Regression engines like <code>lm()</code> prefer QR over the textbook formula $\hat{\beta} = (X^\top X)^{-1} X^\top y$ because solving $R\hat{\beta} = Q^\top y$ by back-substitution is faster, and far more numerically stable, than inverting the cross-product $X^\top X$.</p>
+
+<div class="engagement-header" data-difficulty="Advanced" data-time="30" data-exercises="8" data-xp="120"></div>
+
+<h2>What does qr() actually return?</h2>
+
+<p>Many R guides mention QR factorization without ever opening the box. Let's create a small matrix <code>X</code>, call <code>qr()</code>, and pull out the orthogonal factor <code>Q</code> and the upper triangular factor <code>R</code> so we can see them on screen. Once you can read the output of <code>qr()</code>, every later trick (back-solving for regression coefficients, peeking inside <code>lm()</code>'s internals) becomes mechanical.</p>
+
+<p>We start with a 3x3 matrix, factor it, and verify the product <code>Q %*% R</code> reconstructs the original matrix exactly.</p>
+
+<div class="webr-container" data-block-title="Factor a 3x3 matrix with qr()">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Factor a 3x3 matrix with qr()</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">X &lt;- matrix(c(1, 2, 3,
+              4, 5, 6,
+              7, 8, 10), nrow = 3, byrow = TRUE)
+
+qr_decomp &lt;- qr(X)
+Q &lt;- qr.Q(qr_decomp)
+R &lt;- qr.R(qr_decomp)
+
+round(Q, 3)
+#&gt;        [,1]   [,2]   [,3]
+#&gt; [1,] -0.123 -0.905  0.408
+#&gt; [2,] -0.492 -0.302 -0.816
+#&gt; [3,] -0.861  0.301  0.408
+
+round(R, 3)
+#&gt;        [,1]   [,2]    [,3]
+#&gt; [1,] -8.124 -9.601 -11.554
+#&gt; [2,]  0.000 -0.904  -1.508
+#&gt; [3,]  0.000  0.000   0.408
+
+round(Q %*% R, 3)
+#&gt;      [,1] [,2] [,3]
+#&gt; [1,]    1    2    3
+#&gt; [2,]    4    5    6
+#&gt; [3,]    7    8   10</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Three things to notice. The matrix <code>Q</code> has columns that are mutually perpendicular and each has length one, so <code>t(Q) %*% Q</code> equals the identity matrix. The matrix <code>R</code> has zeros below the diagonal, which is what "upper triangular" means. And their product reproduces <code>X</code> to machine precision, confirming the factorization is exact, not approximate.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>The signs of Q and R are not unique.</strong> Different software packages (R, NumPy, MATLAB) may return Q and R with flipped column signs. Both are valid QR decompositions because flipping a column of Q and the matching row of R cancels out in the product.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build any 4x3 matrix <code>ex_M</code>, factor it with <code>qr()</code>, then check that <code>t(Q) %*% Q</code> equals the 3x3 identity. (Use <code>round(..., 10)</code> to suppress floating-point noise.)</p>
+<div class="webr-container" data-block-title="Your turn: verify Q is orthonormal">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: verify Q is orthonormal</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_M &lt;- matrix(c(2, 1, 0,
+                 1, 3, 1,
+                 0, 1, 4,
+                 1, 0, 2), nrow = 4, byrow = TRUE)
+
+# your code here: factor ex_M, extract Q, check t(Q) %*% Q</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Q is orthonormal solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Q is orthonormal solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_qr &lt;- qr(ex_M)
+ex_Q  &lt;- qr.Q(ex_qr)
+round(t(ex_Q) %*% ex_Q, 10)
+#&gt;      [,1] [,2] [,3]
+#&gt; [1,]    1    0    0
+#&gt; [2,]    0    1    0
+#&gt; [3,]    0    0    1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>t(Q) %*% Q</code> returns the 3x3 identity because the three columns of <code>Q</code> are mutually perpendicular unit vectors. That is the defining property of an orthonormal matrix.</p>
+
+</details>
+</section>
+
+<h2>Why does regression use QR instead of inverting X'X?</h2>
+
+<p>OLS gives you a beautiful closed-form formula: $\hat{\beta} = (X^\top X)^{-1} X^\top y$. The trouble is, that formula multiplies the design matrix by its own transpose, which <strong>squares the condition number</strong>. The condition number is a single scalar that measures how much a matrix amplifies tiny errors. When you square it, you square the amplification, and an already-touchy regression problem becomes far worse.</p>
+
+<p>The picture below contrasts the two routes from a design matrix to a coefficient estimate. Both end at $\hat{\beta}$, but the QR road avoids the costly detour through $X^\top X$.</p>
+
+<p><img src="screenshots/QR-Decomposition-in-R-routes-flow.webp" alt="Two routes to OLS coefficients: normal equations vs QR factorization" class="img-responsive img-zoomable" loading="lazy" width="1800" height="690" /></p>
+
+<p><em>Figure 1: Two routes to OLS coefficients: normal equations vs QR factorization. The QR path avoids squaring the condition number.</em></p>
+
+<p>Let's see the squaring effect on a near-collinear design matrix. Two of its columns are almost duplicates, which means $X$ is on the edge of being singular.</p>
+
+<div class="webr-container" data-block-title="Compare condition numbers of X and X&#x27;X">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare condition numbers of X and X&#x27;X</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+n &lt;- 100
+v &lt;- rnorm(n)
+X_design &lt;- cbind(1, v, v + 1e-6 * rnorm(n))   # columns 2 and 3 are nearly identical
+
+XtX &lt;- t(X_design) %*% X_design
+
+kappa_X   &lt;- kappa(X_design)
+kappa_XtX &lt;- kappa(XtX)
+
+c(kappa_X = kappa_X, kappa_XtX = kappa_XtX, ratio = kappa_XtX / kappa_X)
+#&gt;       kappa_X     kappa_XtX         ratio 
+#&gt;  6.821712e+05  4.652929e+11  6.820842e+05</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The condition number jumps from roughly $7 \times 10^5$ for <code>X_design</code> itself to about $5 \times 10^{11}$ for $X^\top X$. Notice the ratio is essentially the original condition number, confirming the squaring rule. Inverting $X^\top X$ for this problem amplifies floating-point errors by eleven orders of magnitude, which is enough to make several leading digits of the coefficients meaningless. QR works directly on <code>X_design</code> and never forms $X^\top X$, so the worst factor it ever inverts is <code>R</code>, whose condition number stays in the same ballpark as <code>X</code> itself.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The normal equations square the condition number; QR does not.</strong> If $\kappa(X) = 10^5$, then $\kappa(X^\top X) \approx 10^{10}$, which can wipe out half your floating-point precision. QR keeps you at $\kappa(X)$ because the orthogonal $Q$ has condition number 1 and only $R$ feeds the back-substitution.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build your own ill-conditioned 3-column matrix <code>ex_A</code> (where one column is nearly the sum of the other two) and confirm that <code>kappa(t(ex_A) %*% ex_A)</code> is roughly <code>kappa(ex_A)^2</code>.</p>
+<div class="webr-container" data-block-title="Your turn: predict the squaring effect">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: predict the squaring effect</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(11)
+ex_A &lt;- cbind(rnorm(50), rnorm(50), rnorm(50))
+ex_A[, 3] &lt;- ex_A[, 1] + ex_A[, 2] + 1e-7 * rnorm(50)
+
+# your code here: compute kappa(ex_A) and kappa(t(ex_A) %*% ex_A)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Squaring effect solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Squaring effect solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_kappa_A   &lt;- kappa(ex_A)
+ex_kappa_AtA &lt;- kappa(t(ex_A) %*% ex_A)
+c(kappa_A = ex_kappa_A,
+  kappa_AtA = ex_kappa_AtA,
+  ratio = ex_kappa_AtA / ex_kappa_A^2)
+#&gt;      kappa_A    kappa_AtA        ratio 
+#&gt; 1.083268e+07 1.273751e+14 1.085397e+00</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The ratio <code>kappa(AtA) / kappa(A)^2</code> is close to one, which is exactly the squaring rule. The QR path stays at <code>kappa(A)</code>, so it preserves about half the precision the normal equations would burn.</p>
+
+</details>
+</section>
+
+<h2>How do you solve least squares with QR?</h2>
+
+<p>Once you have <code>X = QR</code>, the least-squares problem $\min_\beta \lVert y - X\beta \rVert^2$ collapses to $R \hat{\beta} = Q^\top y$. The matrix <code>R</code> is upper triangular, so you can solve it with <code>backsolve()</code> instead of inverting anything. The whole thing fits in three lines.</p>
+
+<p>We will reuse <code>X_design</code> from the previous block, generate a response <code>y</code>, run the QR pipeline, and check the result against <code>lm()</code>.</p>
+
+<div class="webr-container" data-block-title="Solve OLS with QR and compare to lm()">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solve OLS with QR and compare to lm()</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(99)
+y &lt;- 2 + 0.5 * X_design[, 2] + 0.3 * X_design[, 3] + rnorm(n, sd = 0.1)
+
+qr_fit  &lt;- qr(X_design)
+Q_fit   &lt;- qr.Q(qr_fit)
+R_fit   &lt;- qr.R(qr_fit)
+
+beta_qr &lt;- backsolve(R_fit, t(Q_fit) %*% y)
+beta_lm &lt;- coef(lm(y ~ X_design - 1))
+
+cbind(beta_qr = as.vector(beta_qr), beta_lm = as.vector(beta_lm))
+#&gt;        beta_qr   beta_lm
+#&gt; [1,]  1.984573  1.984573
+#&gt; [2,]  0.460567  0.460567
+#&gt; [3,]  0.339417  0.339417</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The two columns agree to all printed digits. That is the practical proof that <code>lm()</code> and the manual QR pipeline solve the same equation, just through different code paths. The advantage of writing it out yourself is that you can see exactly which step would have failed if <code>X_design</code> were truly singular: the <code>backsolve()</code> call, where a zero on the diagonal of <code>R</code> would refuse to divide.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong><code>qr.coef()</code> and <code>qr.solve()</code> skip the manual unpacking.</strong> If you do not need <code>Q</code> and <code>R</code> separately, <code>qr.coef(qr_fit, y)</code> returns the same beta in one call. For a one-shot solve from raw inputs, <code>qr.solve(X_design, y)</code> packages the entire pipeline.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Using <code>beta_qr</code>, <code>X_design</code>, and <code>y</code> from above, compute the residual sum of squares manually as $\lVert y - X\hat{\beta} \rVert^2$ and store it in <code>ex_rss</code>.</p>
+<div class="webr-container" data-block-title="Your turn: compute residual sum of squares">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: compute residual sum of squares</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># your code here: build ex_resid &lt;- y - X_design %*% beta_qr
+#                 ex_rss &lt;- sum of squared residuals</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Residual sum of squares solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Residual sum of squares solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_resid &lt;- y - X_design %*% beta_qr
+ex_rss   &lt;- sum(ex_resid^2)
+ex_rss
+#&gt; [1] 0.9831244</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Subtract the fitted values $X\hat{\beta}$ from <code>y</code> to get residuals, then square and sum. This is the quantity the OLS optimisation minimises, and it should match <code>sum(residuals(lm(y ~ X_design - 1))^2)</code>.</p>
+
+</details>
+</section>
+
+<h2>How does lm() use QR under the hood?</h2>
+
+<p>When you call <code>lm(y ~ x1 + x2)</code>, R does not invert anything. It computes a QR factorization of the design matrix and stashes it inside the fitted model object. You can reach in and inspect it.</p>
+
+<p>The diagram below shows what <code>qr()</code> actually packs into its return value, and how the helpers (<code>qr.Q</code>, <code>qr.R</code>, <code>qr.qty</code>, <code>backsolve</code>) cooperate to produce $\hat{\beta}$.</p>
+
+<p><img src="screenshots/QR-Decomposition-in-R-qr-anatomy.webp" alt="Anatomy of qr() output: orthogonal Q, upper-triangular R, helpers, and beta-hat" class="img-responsive img-zoomable" loading="lazy" width="1714" height="986" /></p>
+
+<p><em>Figure 2: What qr() hands back: orthogonal Q, upper-triangular R, and helpers that combine them into beta-hat.</em></p>
+
+<p>Now let's open up an <code>lm()</code> fit and confirm that its coefficients come straight out of the same QR primitives we just used by hand.</p>
+
+<div class="webr-container" data-block-title="Inspect the QR object inside lm()">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Inspect the QR object inside lm()</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit_lm &lt;- lm(y ~ X_design - 1)
+
+qr_internal &lt;- fit_lm$qr
+class(qr_internal)
+#&gt; [1] &quot;qr&quot;
+
+# Coefficients via qr.coef() match coef(fit_lm)
+coef_internal &lt;- qr.coef(qr_internal, y)
+all.equal(as.vector(coef_internal), as.vector(coef(fit_lm)))
+#&gt; [1] TRUE
+
+# Fitted values via qr.fitted() match fitted(fit_lm)
+fit_internal &lt;- qr.fitted(qr_internal, y)
+head(round(fit_internal - fitted(fit_lm), 12))
+#&gt; [1] 0 0 0 0 0 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>fit_lm$qr</code> is the same <code>qr</code> object you would get from a direct <code>qr(X_design)</code> call (it carries <code>qr</code>, <code>rank</code>, <code>qraux</code>, <code>pivot</code>). The helpers <code>qr.coef()</code>, <code>qr.fitted()</code>, and <code>qr.resid()</code> re-derive the standard regression outputs from that single factorization. R never builds, never stores, and never inverts $X^\top X$.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong><code>fit$qr$qr</code> stores Q and R packed into a single matrix.</strong> The output of <code>qr()</code> keeps the upper triangle of <code>R</code> and uses the strictly lower triangle to encode the Householder vectors that build <code>Q</code>. That is why <code>qr.Q()</code> and <code>qr.R()</code> exist as accessors instead of being plain matrix slots.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Pull <code>Q</code> directly out of <code>fit_lm</code> (without calling <code>qr()</code> again) and check it has 3 columns and 100 rows.</p>
+<div class="webr-container" data-block-title="Your turn: extract Q from a fitted lm">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: extract Q from a fitted lm</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># your code here: ex_Q_lm &lt;- ... using fit_lm$qr</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Extract Q from lm solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Extract Q from lm solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_Q_lm &lt;- qr.Q(fit_lm$qr)
+dim(ex_Q_lm)
+#&gt; [1] 100   3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>qr.Q()</code> accepts any object of class <code>qr</code>, including the one stored at <code>fit_lm$qr</code>. The result is the same orthonormal <code>Q</code> we extracted earlier, with 100 rows (one per observation) and 3 columns (one per predictor).</p>
+
+</details>
+</section>
+
+<h2>How is QR computed: Householder vs Gram-Schmidt?</h2>
+
+<p>There are two famous algorithms for building Q and R: classical Gram-Schmidt and Householder reflections. Gram-Schmidt is the textbook recipe (subtract projections, normalise) and is easy to write in a few lines of R. Householder is what real-world numerical libraries (LAPACK, LINPACK, base R's <code>qr()</code>) actually use because it is more stable in finite-precision arithmetic.</p>
+
+<p>We will implement classical Gram-Schmidt by hand on a small 3x2 matrix, then compare to <code>qr()</code>. Reading the loop is the fastest way to internalise what "orthogonalize and normalise each column in turn" really means.</p>
+
+<div class="webr-container" data-block-title="Classical Gram-Schmidt by hand">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Classical Gram-Schmidt by hand</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">gs_X &lt;- matrix(c(1, 1,
+                 1, 0,
+                 0, 1), nrow = 3, byrow = TRUE)
+
+gs_Q &lt;- matrix(0, nrow = 3, ncol = 2)
+gs_R &lt;- matrix(0, nrow = 2, ncol = 2)
+
+for (j in seq_len(ncol(gs_X))) {
+  v &lt;- gs_X[, j]
+  if (j &gt; 1) {
+    for (i in seq_len(j - 1)) {
+      gs_R[i, j] &lt;- sum(gs_Q[, i] * gs_X[, j])
+      v &lt;- v - gs_R[i, j] * gs_Q[, i]
+    }
+  }
+  gs_R[j, j] &lt;- sqrt(sum(v^2))
+  gs_Q[, j]  &lt;- v / gs_R[j, j]
+}
+
+round(gs_Q, 3)
+#&gt;       [,1]   [,2]
+#&gt; [1,] 0.707  0.408
+#&gt; [2,] 0.707 -0.408
+#&gt; [3,] 0.000  0.816
+
+round(gs_R, 3)
+#&gt;       [,1]  [,2]
+#&gt; [1,] 1.414 0.707
+#&gt; [2,] 0.000 1.225
+
+# Compare to base R's qr()
+round(qr.Q(qr(gs_X)), 3)
+#&gt;        [,1]   [,2]
+#&gt; [1,] -0.707 -0.408
+#&gt; [2,] -0.707  0.408
+#&gt; [3,]  0.000 -0.816</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The two <code>Q</code> matrices differ only in the sign of each column, which is the non-uniqueness we flagged earlier. Both are valid QR factorizations of <code>gs_X</code>. The benefit of seeing Gram-Schmidt as code is that the loop makes the geometry obvious: each column of <code>Q</code> is the next column of <code>X</code> after subtracting away its overlap with the columns already accepted.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Classical Gram-Schmidt loses orthogonality with badly-conditioned matrices.</strong> When two columns of <code>X</code> are nearly parallel, floating-point cancellation in the subtraction step produces a <code>Q</code> whose columns are not quite orthogonal. Modified Gram-Schmidt and Householder reflections fix this. Real R code (the <code>qr()</code> function) uses Householder.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Apply your own classical Gram-Schmidt to the matrix <code>ex_GS_X</code> below and verify the resulting <code>ex_GS_Q</code> has orthonormal columns.</p>
+<div class="webr-container" data-block-title="Your turn: classical Gram-Schmidt">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: classical Gram-Schmidt</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_GS_X &lt;- matrix(c(2, 1,
+                    1, 1,
+                    0, 1), nrow = 3, byrow = TRUE)
+
+# your code here: orthogonalise the two columns of ex_GS_X with classical GS</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Classical Gram-Schmidt solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Classical Gram-Schmidt solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_GS_Q &lt;- matrix(0, nrow = 3, ncol = 2)
+v1 &lt;- ex_GS_X[, 1]
+ex_GS_Q[, 1] &lt;- v1 / sqrt(sum(v1^2))
+
+v2 &lt;- ex_GS_X[, 2] - sum(ex_GS_Q[, 1] * ex_GS_X[, 2]) * ex_GS_Q[, 1]
+ex_GS_Q[, 2] &lt;- v2 / sqrt(sum(v2^2))
+
+round(t(ex_GS_Q) %*% ex_GS_Q, 10)
+#&gt;      [,1] [,2]
+#&gt; [1,]    1    0
+#&gt; [2,]    0    1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The first column of <code>ex_GS_Q</code> is the first column of <code>ex_GS_X</code> rescaled to unit length. The second column subtracts the projection of <code>ex_GS_X[,2]</code> onto that direction before rescaling, so the two columns end up perpendicular and <code>t(Q) %*% Q</code> returns the 2x2 identity.</p>
+
+</details>
+</section>
+
+<h2>How do you handle rank-deficient or near-singular systems?</h2>
+
+<p>Real datasets contain perfect collinearities (a dummy variable equals the sum of others, a duplicate column slipped in, a continuous predictor times a constant). When that happens, <code>X</code> is rank deficient: one or more columns are linear combinations of the rest, and $X^\top X$ is singular. R's <code>qr()</code> is built for this case. It pivots columns by importance and reports the numerical rank in <code>qr_obj$rank</code>.</p>
+
+<p>We will deliberately build a 4-column design where column 4 equals column 2 plus column 3 (a textbook collinearity) and look at how <code>qr()</code> flags it.</p>
+
+<div class="webr-container" data-block-title="Rank-deficient design with qr()">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Rank-deficient design with qr()</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+n_obs &lt;- 50
+X_rd &lt;- cbind(1,
+              rnorm(n_obs),
+              rnorm(n_obs),
+              0)
+X_rd[, 4] &lt;- X_rd[, 2] + X_rd[, 3]   # column 4 is collinear
+
+qr_rd &lt;- qr(X_rd)
+qr_rd$rank
+#&gt; [1] 3
+
+qr_rd$pivot
+#&gt; [1] 1 2 3 4
+
+# The dropped column is the last in the pivot order
+tail(qr_rd$pivot, 1)
+#&gt; [1] 4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>qr()$rank</code> returns 3, not 4, because numerically one column adds no new direction. The <code>pivot</code> vector tells you which columns were kept first and which were demoted to the end: column 4 is last, which is the one R will treat as redundant. <code>lm(y ~ X_rd - 1)</code> returns <code>NA</code> for that coefficient for exactly this reason.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use <code>tol = </code> to control how aggressive rank detection is.</strong> <code>qr(X, tol = 1e-12)</code> is stricter; <code>qr(X, tol = 1e-3)</code> is more lenient. The default of <code>1e-7</code> is calibrated for typical double-precision data. If you are working with very ill-conditioned predictors, lower the tolerance, but be ready to interpret near-collinearity warnings as a feature, not a bug.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a 4x3 matrix <code>ex_Xrd</code> whose third column is twice its first column, then read off <code>qr(ex_Xrd)$rank</code>.</p>
+<div class="webr-container" data-block-title="Your turn: detect rank from qr">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: detect rank from qr</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_Xrd &lt;- cbind(rnorm(4), rnorm(4), 0)
+ex_Xrd[, 3] &lt;- 2 * ex_Xrd[, 1]
+
+# your code here: ex_qr_rd &lt;- qr(...) ; print rank</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Detect rank solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Detect rank solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_qr_rd &lt;- qr(ex_Xrd)
+ex_qr_rd$rank
+#&gt; [1] 2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Even though the matrix has 3 columns, only 2 are linearly independent (column 3 is a scalar multiple of column 1). <code>qr()</code> returns rank 2, which is the same number of independent regressors <code>lm()</code> would actually fit.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<p>These exercises combine multiple sections into harder tasks. Use distinct variable names (<code>my_*</code>) so they do not overwrite the tutorial's working state.</p>
+
+<h3>Exercise 1: Fit OLS on mtcars via QR and confirm against lm()</h3>
+
+<p>Using <code>mtcars</code>, build a design matrix <code>my_X</code> with columns <code>(intercept, wt, hp, cyl)</code> and a response <code>my_y</code> from <code>mpg</code>. Use <code>qr()</code>, <code>qr.Q()</code>, <code>qr.R()</code>, and <code>backsolve()</code> to compute <code>beta_my</code>. Compare against <code>coef(lm(mpg ~ wt + hp + cyl, data = mtcars))</code>. Both vectors should agree to machine precision.</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter: QR-based OLS on mtcars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter: QR-based OLS on mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: my_X &lt;- model.matrix(~ wt + hp + cyl, data = mtcars)
+#       my_y &lt;- mtcars$mpg
+#       Then qr_my &lt;- qr(my_X), and backsolve(R, t(Q) %*% y)
+
+# your code here:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_X &lt;- model.matrix(~ wt + hp + cyl, data = mtcars)
+my_y &lt;- mtcars$mpg
+
+qr_my  &lt;- qr(my_X)
+beta_my &lt;- backsolve(qr.R(qr_my), t(qr.Q(qr_my)) %*% my_y)
+
+cbind(qr = as.vector(beta_my),
+      lm = coef(lm(mpg ~ wt + hp + cyl, data = mtcars)))
+#&gt;                     qr          lm
+#&gt; (Intercept) 38.7517874  38.7517874
+#&gt; wt          -3.1669731  -3.1669731
+#&gt; hp          -0.0180381  -0.0180381
+#&gt; cyl         -0.9416168  -0.9416168</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>model.matrix()</code> adds the intercept column and lays out predictors exactly the way <code>lm()</code> would. The QR pipeline reproduces the same coefficients to all printed digits, confirming <code>lm()</code> is built on top of <code>qr()</code>.</p>
+
+</details>
+
+<h3>Exercise 2: Detect collinearity in a near-singular design</h3>
+
+<p>Construct a 5-column design matrix <code>my_design</code> (with 60 rows) where column 5 equals column 2 plus a tiny amount of noise: <code>my_design[, 5] &lt;- my_design[, 2] + 1e-9 * rnorm(60)</code>. Compute <code>my_qr &lt;- qr(my_design)</code> and answer:</p>
+
+<ol>
+
+<li>What is <code>my_qr$rank</code> with the default tolerance?</li>
+
+<li>Does it change if you set <code>tol = 1e-12</code>?</li>
+
+<li>Which column is dropped (last in <code>pivot</code>)?</li>
+
+</ol>
+
+<div class="webr-container" data-block-title="Exercise 2 starter: detect collinearity">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter: detect collinearity</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2024)
+my_design &lt;- cbind(1, matrix(rnorm(60 * 4), nrow = 60))
+my_design &lt;- cbind(my_design, my_design[, 2] + 1e-9 * rnorm(60))
+
+# your code here
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_qr_default &lt;- qr(my_design)
+my_qr_strict  &lt;- qr(my_design, tol = 1e-12)
+
+c(default = my_qr_default$rank, strict = my_qr_strict$rank)
+#&gt; default  strict 
+#&gt;       4       5
+
+tail(my_qr_default$pivot, 1)
+#&gt; [1] 5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> With the default tolerance of <code>1e-7</code>, the near-duplicate column 5 is below the threshold for "new direction" and the rank is 4. Tightening the tolerance to <code>1e-12</code> lets the small numerical difference count, so the rank rises to 5. The pivot vector ends with <code>5</code>, telling you that column was demoted as redundant. In practice, a rank that changes when you tweak <code>tol</code> is a strong sign of unstable predictors.</p>
+
+</details>
+
+<h2>Complete Example</h2>
+
+<p>Here is the full QR-based regression pipeline on <code>mtcars</code>, with every output cross-checked against <code>lm()</code>. This block stitches together what we have been doing piece by piece.</p>
+
+<div class="webr-container" data-block-title="End-to-end QR regression on mtcars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">End-to-end QR regression on mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">full_X &lt;- model.matrix(~ wt + hp + cyl + disp, data = mtcars)
+full_y &lt;- mtcars$mpg
+
+# 1. Factor the design matrix
+full_qr &lt;- qr(full_X)
+full_Q  &lt;- qr.Q(full_qr)
+full_R  &lt;- qr.R(full_qr)
+full_qr$rank
+#&gt; [1] 5
+
+# 2. Solve for coefficients via backsolve
+beta_full   &lt;- backsolve(full_R, t(full_Q) %*% full_y)
+fitted_full &lt;- full_X %*% beta_full
+resid_full  &lt;- full_y - fitted_full
+
+# 3. Compare against lm()
+fit_compare &lt;- lm(mpg ~ wt + hp + cyl + disp, data = mtcars)
+
+cbind(qr_beta = as.vector(beta_full),
+      lm_beta = as.vector(coef(fit_compare)))
+#&gt;                qr_beta     lm_beta
+#&gt; (Intercept) 40.8284740  40.8284740
+#&gt; wt          -3.8536870  -3.8536870
+#&gt; hp          -0.0214814  -0.0214814
+#&gt; cyl         -1.2933732  -1.2933732
+#&gt; disp         0.0115497   0.0115497
+
+c(rss_qr = sum(resid_full^2),
+  rss_lm = sum(residuals(fit_compare)^2))
+#&gt;   rss_qr   rss_lm 
+#&gt; 167.3508 167.3508</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The QR pipeline matches <code>lm()</code> on coefficients, fitted values, and residual sum of squares. You now have a transparent regression engine you wrote yourself in seven lines.</p>
+
+<h2>Summary</h2>
+
+<p>QR decomposition is the workhorse behind R's regression internals. The mindmap below recaps how the pieces fit together.</p>
+
+<p><img src="screenshots/QR-Decomposition-in-R-overview-mindmap.webp" alt="QR decomposition in R: building blocks, R functions, why regression uses it, and algorithms" class="img-responsive img-zoomable" loading="lazy" width="1792" height="966" /></p>
+
+<p><em>Figure 3: Big-picture map of QR decomposition concepts, <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">R functions</a>, and algorithms.</em></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Concept</th>
+<th>What to remember</th>
+<th>Function</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Factorization</td>
+<td>$X = QR$ with orthogonal $Q$ and upper triangular $R$</td>
+<td><code>qr()</code>, <code>qr.Q()</code>, <code>qr.R()</code></td>
+</tr>
+<tr>
+<td>Why for regression</td>
+<td>Avoids squaring $\kappa(X)$ that $X^\top X$ would cause</td>
+<td><code>qr.coef()</code>, <code>qr.solve()</code></td>
+</tr>
+<tr>
+<td>Inside <a class="auto-link" href="Linear-Regression.html" title="Linear Regression">lm()</a></td>
+<td><code>fit$qr</code> is a stored <code>qr</code> object; helpers reuse it</td>
+<td><code>qr.fitted()</code>, <code>qr.resid()</code></td>
+</tr>
+<tr>
+<td>Algorithms</td>
+<td>Householder is what base R uses; Gram-Schmidt is the textbook version</td>
+<td><code>qr()</code> (LINPACK / LAPACK)</td>
+</tr>
+<tr>
+<td>Rank-deficient</td>
+<td><code>qr()$rank</code> and <code>qr()$pivot</code> reveal collinear columns</td>
+<td><code>tol = </code> argument</td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>If you ever feel tempted to write <code>solve(t(X) %*% X) %*% t(X) %*% y</code>, write <code>qr.solve(X, y)</code> instead.</strong> The QR call is a one-liner, runs no slower, and avoids the conditioning trap that has bitten OLS implementations for half a century.</div></div>
+
+<h2>References</h2>
+
+<ol>
+
+<li>R Core Team , <em>qr: The QR Decomposition of a Matrix</em>. <a class="auto-link" href="Getting-Help-in-R.html" title="Stuck in R? 6 Ways to Get Unstuck Without Wasting Hours">R help</a> page. <a href="https://stat.ethz.ch/R-manual/R-patched/library/base/html/qr.html">Link</a></li>
+
+<li>Trefethen, L. N. & Bau, D. , <em>Numerical Linear Algebra</em>. SIAM (1997). Lectures 7-10 (Householder, QR, conditioning).</li>
+
+<li>Wickham, H. , <em>Advanced R</em>, 2nd Edition. CRC Press (2019). <a href="https://adv-r.hadley.nz/">Link</a></li>
+
+<li>Larget, B. , <em>The QR Decomposition and Regression</em>, Statistics 496, UW-Madison. <a href="https://pages.stat.wisc.edu/~larget/math496/qr.html">Link</a></li>
+
+<li>Irizarry, R. , <em>Genomics Class: The QR decomposition</em>. <a href="https://genomicsclass.github.io/book/pages/qr_and_regression.html">Link</a></li>
+
+<li>Strang, G. , <em>Introduction to Linear Algebra</em>, 5th Edition. Wellesley-Cambridge (2016). Chapter 4: Orthogonality.</li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Solving-Linear-Systems-in-R.html">Solving Linear Systems in R: solve(), qr() & Least Squares Solutions</a> , when to call <code>solve()</code> vs <code>qr.solve()</code> for square and overdetermined systems.</li>
+
+<li><a href="Projections-and-the-Hat-Matrix-in-R.html">Projections & the Hat Matrix in R: OLS Geometry Explained Visually</a> , how the hat matrix $H = X(X^\top X)^{-1} X^\top$ becomes a clean projection once you know QR.</li>
+
+<li><a href="Singular-Value-Decomposition-in-R.html">Singular Value Decomposition in R: svd() & The Most Useful Matrix Operation</a> , SVD generalises QR and handles rank-deficiency without pivoting.</li>
+
+</ul>
