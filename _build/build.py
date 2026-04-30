@@ -1000,12 +1000,21 @@ def update_sitemap(filenames):
             print(f"  Sitemap: updated lastmod for {len(updated)} entries")
 
 
-def _load_post_meta_map():
-    """Walk _posts/*.html and return {slug -> frontmatter_dict}.
+_ROOT_META_DESC_RE = re.compile(
+    r'<meta\s+name=["\']?[Dd]escription["\']?\s+content=["\']([^"\']*)["\']',
+    re.IGNORECASE,
+)
+_ROOT_TITLE_RE = re.compile(r'<title>([^<]+)</title>', re.IGNORECASE)
 
-    Used by the Compendium renderer to enrich sidebar entries with date,
-    description, and post type. Frontmatter parsing is best-effort; a
-    fragment that fails to parse is skipped (logged as WARN).
+
+def _load_post_meta_map():
+    """Return {slug -> frontmatter_dict} for every published page.
+
+    Walks `_posts/*.html` first (frontmatter-driven, the modern source of
+    truth). For legacy root-only pages — the 42 hand-edited tutorials that
+    pre-date the build pipeline — the function falls back to scraping the
+    root HTML's <meta name="Description"> and <title> tags so the Compendium
+    can still render their cards with real text instead of empty boxes.
     """
     meta = {}
     for path in sorted(os.listdir(POSTS_DIR)):
@@ -1019,6 +1028,48 @@ def _load_post_meta_map():
             meta[slug] = fm
         except Exception:
             continue
+
+    # Legacy root pages — scrape <meta description> for any slug not yet in
+    # the map. We only consider slugs the sidebar actually references, so
+    # we don't pollute the map with random root files like 404.html or about/.
+    sidebar_slugs = set()
+    try:
+        with open(SIDEBAR_PATH, encoding='utf-8') as f:
+            for sec in json.load(f):
+                for it in sec.get('items') or []:
+                    if not it.get('divider') and it.get('href'):
+                        sidebar_slugs.add(it['href'])
+    except Exception:
+        return meta
+
+    for slug in sidebar_slugs:
+        if slug in meta:
+            continue
+        root_path = os.path.join(REPO_ROOT, slug)
+        if not os.path.exists(root_path):
+            continue
+        try:
+            with open(root_path, encoding='utf-8') as f:
+                head = f.read(8000)  # description is always near the top
+        except Exception:
+            continue
+        desc_m = _ROOT_META_DESC_RE.search(head)
+        title_m = _ROOT_TITLE_RE.search(head)
+        legacy = {'post_type': 'C'}
+        if desc_m:
+            legacy['description'] = desc_m.group(1).strip()
+        if title_m:
+            # Strip the trailing site name suffix that legacy pages append.
+            t = title_m.group(1).strip()
+            for sep in (' | ', ' - ', ' · '):
+                if sep in t:
+                    head_part, _, _tail = t.partition(sep)
+                    if head_part:
+                        t = head_part.strip()
+                    break
+            legacy['title'] = t
+        if legacy.get('description') or legacy.get('title'):
+            meta[slug] = legacy
     return meta
 
 
@@ -1108,31 +1159,49 @@ def render_compendium_page(sections, post_titles_map=None):
     reading_time_cache = {}
     bands = []
     for sec in sections:
-        title = sec.get('title', '')
+        section_title = sec.get('title', '')
         items = []
+        current_subsection = ''
         for it in sec.get('items') or []:
             if it.get('divider'):
+                current_subsection = it.get('text', '') or ''
                 continue
             slug = it.get('href') or ''
             if not slug:
                 continue
             info = _info(slug)
-            # Sidebar text wins over frontmatter title for the band card —
-            # it's the curator-chosen short form.
             display_title = it.get('text') or info['title'] or slug
+            # Subtitle = the part of the full frontmatter title that's *not*
+            # already covered by the sidebar label. Most posts follow the
+            # pattern "Topic: Tagline that explains the post" — we strip
+            # everything up to and including the colon and use what's left
+            # as the subtitle. When there is no colon, we fall back to the
+            # full title only if it adds material info beyond the sidebar
+            # label; otherwise suppress it as redundant.
+            subtitle = ''
+            full_title = (info['title'] or '').strip()
+            if full_title:
+                norm_full = re.sub(r'\s+', ' ', full_title.lower())
+                norm_label = re.sub(r'\s+', ' ', display_title.lower())
+                if ':' in full_title:
+                    tail = full_title.split(':', 1)[1].strip()
+                    if tail and tail.lower() != norm_label:
+                        subtitle = tail
+                elif norm_full != norm_label and not norm_full.startswith(norm_label) and not norm_label.startswith(norm_full):
+                    subtitle = full_title
             if slug not in reading_time_cache:
                 reading_time_cache[slug] = compute_reading_time(slug)
             items.append({
                 'date': info['date'],
                 'slug': slug,
                 'title': display_title,
-                'description': info['description'],
+                'subtitle': subtitle,
                 'reading_time': reading_time_cache[slug],
                 'post_type': info['post_type'],
+                'difficulty': _derive_difficulty(section_title, current_subsection),
             })
-        # Sort by date desc when present; missing dates fall to the back.
         items.sort(key=lambda x: (x['date'] or '0000-00-00'), reverse=True)
-        bands.append({'name': title, 'items': items})
+        bands.append({'name': section_title, 'items': items})
 
     # Top story: most recent C post across the whole site.
     dated = [(_info(s)['date'], s) for s in meta_map if _info(s).get('post_type', 'C') == 'C' and _info(s)['date']]
@@ -1189,7 +1258,6 @@ def render_compendium_page(sections, post_titles_map=None):
     parts.append('<nav class="comp-nav">')
     parts.append('<a class="comp-nav-link" href="/">Home</a>')
     parts.append('<a class="comp-nav-link active" href="/posts/">Compendium</a>')
-    parts.append('<a class="comp-nav-link" href="/about/">About</a>')
     parts.append('</nav>')
     parts.append('</div></header>')
 
@@ -1282,10 +1350,17 @@ def render_compendium_page(sections, post_titles_map=None):
             if when:
                 parts.append(f'<span class="band-item-when">{_esc_html(when)}</span>')
             parts.append(f'<h3 class="band-item-title">{_esc_html(it["title"])}</h3>')
-            if it['description']:
-                parts.append(f'<p class="band-item-desc">{_esc_html(it["description"])}</p>')
+            if it.get('subtitle'):
+                parts.append(f'<p class="band-item-subtitle">{_esc_html(it["subtitle"])}</p>')
+            meta_bits = []
+            diff = it.get('difficulty')
+            if diff:
+                diff_class = 'diff-' + diff.lower()
+                meta_bits.append(f'<span class="diff-pill {diff_class}">{diff}</span>')
             if it['reading_time']:
-                parts.append(f'<span class="band-item-meta">{it["reading_time"]} min read</span>')
+                meta_bits.append(f'<span class="rt">{it["reading_time"]} min</span>')
+            if meta_bits:
+                parts.append('<div class="band-item-meta">' + ''.join(meta_bits) + '</div>')
             parts.append('</a>')
         # Pad with empty cells so last row keeps grid alignment
         for _ in range(max(0, 8 - len(items))):
@@ -1301,6 +1376,45 @@ def render_compendium_page(sections, post_titles_map=None):
 
     parts.append('</body></html>')
     return ''.join(parts)
+
+
+_BEGINNER_SUBSECTIONS = re.compile(r'(?i)getting started|fundamentals|basics|intro|first|foundations')
+_ADVANCED_SUBSECTIONS = re.compile(r'(?i)advanced|internals|how r works|performance|debugging|metaprogramming')
+
+
+def _derive_difficulty(section, subsection):
+    """Map (section, subsection) to a difficulty pill label.
+
+    No frontmatter tag exists — we derive from the curator-chosen sidebar
+    structure, which already groups posts by topic ramp. Rules:
+      * Learn R + intro/fundamentals subsections → Beginner
+      * Advanced R section → Advanced
+      * Subsection name matches advanced keywords → Advanced
+      * Subsection name matches beginner keywords → Beginner
+      * Everything else → Intermediate
+    """
+    sec = (section or '').lower()
+    sub = subsection or ''
+    if 'advanced r' in sec:
+        return 'Advanced'
+    if _ADVANCED_SUBSECTIONS.search(sub):
+        return 'Advanced'
+    if 'learn r' in sec and _BEGINNER_SUBSECTIONS.search(sub):
+        return 'Beginner'
+    if 'classic tutorials' in sec:
+        return 'Beginner'
+    if 'practice exercises' in sec:
+        # Exercises follow the difficulty of their parent topic; the sidebar
+        # divider names mirror the section names ("R Fundamentals" etc.) so
+        # we can read difficulty off the same patterns.
+        if _BEGINNER_SUBSECTIONS.search(sub) or 'fundamentals' in sub.lower():
+            return 'Beginner'
+        if _ADVANCED_SUBSECTIONS.search(sub):
+            return 'Advanced'
+        return 'Intermediate'
+    if _BEGINNER_SUBSECTIONS.search(sub):
+        return 'Beginner'
+    return 'Intermediate'
 
 
 def _format_when(date_str):
@@ -1413,7 +1527,7 @@ h1.archive-title{font-family:var(--ff-serif);font-weight:700;font-size:64px;line
 .band-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:0;border-top:1px solid var(--rule-soft);border-bottom:1px solid var(--rule-soft)}
 @media(max-width:980px){.band-grid{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:580px){.band-grid{grid-template-columns:1fr}}
-.band-item{padding:18px 22px;border-right:1px solid var(--rule-soft);border-bottom:1px solid var(--rule-soft);display:flex;flex-direction:column;gap:8px;text-decoration:none;color:inherit;transition:background 0.12s var(--ease);min-height:128px}
+.band-item{padding:20px 22px;border-right:1px solid var(--rule-soft);border-bottom:1px solid var(--rule-soft);display:flex;flex-direction:column;gap:10px;text-decoration:none;color:inherit;transition:background 0.12s var(--ease);min-height:118px}
 .band-item:nth-child(4n){border-right:none}
 @media(max-width:980px){.band-item:nth-child(4n){border-right:1px solid var(--rule-soft)}.band-item:nth-child(2n){border-right:none}}
 @media(max-width:580px){.band-item{border-right:none}}
@@ -1421,10 +1535,17 @@ h1.archive-title{font-family:var(--ff-serif);font-weight:700;font-size:64px;line
 .band-item:hover{background:var(--surface)}
 .band-item-empty{pointer-events:none;background:transparent}
 .band-item-when{font-family:var(--ff-mono);font-size:10.5px;font-weight:500;color:var(--text-mute);letter-spacing:0.05em;text-transform:uppercase}
-.band-item-title{font-family:var(--ff-serif);font-size:15.5px;font-weight:600;line-height:1.3;letter-spacing:-0.005em;color:var(--text);margin:0}
+.band-item-title{font-family:var(--ff-serif);font-size:18px;font-weight:600;line-height:1.25;letter-spacing:-0.012em;color:var(--text);margin:0}
 .band-item:hover .band-item-title{color:var(--accent)}
-.band-item-desc{font-size:13px;line-height:1.45;color:var(--text-soft);margin:0;flex:1;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.band-item-meta{font-family:var(--ff-mono);font-size:10.5px;color:var(--text-mute);letter-spacing:0.04em;margin-top:auto}
+.band-item-subtitle{font-family:var(--ff-sans);font-size:12.5px;line-height:1.4;color:var(--text-soft);margin:0;flex:1;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-weight:400}
+.band-item-meta{display:flex;align-items:center;gap:10px;margin-top:auto}
+.diff-pill{font-family:var(--ff-mono);font-size:10px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;padding:2px 7px;border-radius:3px;line-height:1.3}
+.diff-pill.diff-beginner{background:rgba(31,111,72,0.10);color:var(--success)}
+.diff-pill.diff-intermediate{background:var(--accent-soft);color:var(--accent)}
+.diff-pill.diff-advanced{background:rgba(155,29,29,0.08);color:#9b1d1d}
+html.dark .diff-pill.diff-advanced{background:rgba(255,120,120,0.12);color:#ff9b9b}
+html.dark .diff-pill.diff-beginner{background:rgba(110,231,183,0.10);color:#6ee7b7}
+.band-item-meta .rt{font-family:var(--ff-mono);font-size:11px;color:var(--text-mute);letter-spacing:0.03em}
 .comp-footer{background:var(--surface);border-top:3px double var(--rule-strong);padding:36px 0;font-size:13px;margin-top:64px;color:var(--text-mute);text-align:center}
 .comp-footer-inner{max-width:1280px;margin:0 auto;padding:0 28px}
 .comp-footer .colophon{font-family:var(--ff-serif);font-style:italic;color:var(--text-soft);margin-bottom:8px;font-size:14px}
