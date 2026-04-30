@@ -1000,6 +1000,438 @@ def update_sitemap(filenames):
             print(f"  Sitemap: updated lastmod for {len(updated)} entries")
 
 
+def _load_post_meta_map():
+    """Walk _posts/*.html and return {slug -> frontmatter_dict}.
+
+    Used by the Compendium renderer to enrich sidebar entries with date,
+    description, and post type. Frontmatter parsing is best-effort; a
+    fragment that fails to parse is skipped (logged as WARN).
+    """
+    meta = {}
+    for path in sorted(os.listdir(POSTS_DIR)):
+        if not path.endswith('.html'):
+            continue
+        slug = path
+        full = os.path.join(POSTS_DIR, path)
+        try:
+            with open(full, encoding='utf-8') as f:
+                fm, _ = parse_front_matter(f.read())
+            meta[slug] = fm
+        except Exception:
+            continue
+    return meta
+
+
+# Curated reading paths for /posts/. Each entry references real published
+# slugs. The Compendium renderer drops paths whose articles don't all exist
+# yet (so we never link to a 404), and the path card auto-computes a length
+# string from the article count.
+COMPENDIUM_READING_PATHS = [
+    {
+        'title': 'First week with R',
+        'level': 'Beginner',
+        'snippet': "Foundation — syntax, types, your first analysis. For someone opening RStudio for the first time.",
+        'articles': [
+            ('Is-R-Worth-Learning-in-2026.html', 'Is R worth learning?'),
+            ('Install-R-and-RStudio-2026.html', 'Install R &amp; RStudio'),
+            ('R-Syntax-101.html', 'R syntax 101'),
+            ('R-Vectors.html', 'Working with vectors'),
+            ('R-Data-Frames.html', 'Lists &amp; data frames'),
+        ],
+    },
+    {
+        'title': 'Becoming fluent in dplyr',
+        'level': 'Intermediate',
+        'snippet': "From basic verbs to grouped operations to joins. The data-wrangling stack you'll use every day.",
+        'articles': [
+            ('dplyr-filter-select.html', 'dplyr filter &amp; select'),
+            ('dplyr-mutate-rename.html', 'dplyr mutate &amp; rename'),
+            ('dplyr-group-by-summarise.html', 'dplyr group_by &amp; summarise'),
+            ('dplyr-arrange-slice.html', 'dplyr arrange &amp; slice'),
+            ('R-Joins.html', 'R joins'),
+            ('pivot_longer-pivot_wider-Reshape-Data-in-R.html', 'pivot_longer &amp; pivot_wider'),
+        ],
+    },
+    {
+        'title': 'From t-tests to regression',
+        'level': 'Intermediate',
+        'snippet': "The full progression from comparing two groups to fitting linear models. Everything you'll actually use.",
+        'articles': [
+            ('Hypothesis-Testing-in-R.html', 'Hypothesis testing'),
+            ('t-Tests-in-R.html', 't-Tests in R'),
+            ('One-Way-ANOVA-in-R.html', 'One-way ANOVA'),
+            ('Linear-Regression.html', 'Linear regression'),
+            ('Linear-Regression-Assumptions-in-R.html', 'Regression assumptions'),
+            ('Regression-Diagnostics-in-R.html', 'Regression diagnostics'),
+        ],
+    },
+    {
+        'title': 'Forecasting in production',
+        'level': 'Advanced',
+        'snippet': "Time-series done with discipline — from stationarity to backtesting and what you'll actually deploy.",
+        'articles': [
+            ('Time-Series-Analysis-With-R.html', 'Time series analysis'),
+            ('Time-Series-Forecasting-With-R.html', 'Time series forecasting'),
+            ('Time-Series-Forecasting-With-R-part2.html', 'More forecasting'),
+        ],
+    },
+]
+
+
+def render_compendium_page(sections, post_titles_map=None):
+    """Render posts/index.html — the Compendium destination page.
+
+    Strategy:
+      * Walk _posts/*.html for frontmatter (date, description, post_type).
+      * Build one band per sidebar section, picking the 8 most recently
+        dated posts in each. Falls back to sidebar order if dates are
+        missing.
+      * Top story = the single most recent C-type post by date.
+      * Reading paths come from COMPENDIUM_READING_PATHS; paths whose
+        articles don't all exist yet are dropped silently.
+      * Most-read = curated seed list (no analytics integration yet).
+    """
+    meta_map = _load_post_meta_map()
+
+    def _info(slug):
+        m = meta_map.get(slug, {})
+        return {
+            'slug': slug,
+            'title': m.get('title', ''),
+            'description': m.get('description', ''),
+            'date': m.get('date', ''),
+            'post_type': m.get('post_type', 'C'),
+            'sidebar_section': m.get('sidebar_section', ''),
+        }
+
+    # Bands — one per sidebar section, 8 items by recency.
+    reading_time_cache = {}
+    bands = []
+    for sec in sections:
+        title = sec.get('title', '')
+        items = []
+        for it in sec.get('items') or []:
+            if it.get('divider'):
+                continue
+            slug = it.get('href') or ''
+            if not slug:
+                continue
+            info = _info(slug)
+            # Sidebar text wins over frontmatter title for the band card —
+            # it's the curator-chosen short form.
+            display_title = it.get('text') or info['title'] or slug
+            if slug not in reading_time_cache:
+                reading_time_cache[slug] = compute_reading_time(slug)
+            items.append({
+                'date': info['date'],
+                'slug': slug,
+                'title': display_title,
+                'description': info['description'],
+                'reading_time': reading_time_cache[slug],
+                'post_type': info['post_type'],
+            })
+        # Sort by date desc when present; missing dates fall to the back.
+        items.sort(key=lambda x: (x['date'] or '0000-00-00'), reverse=True)
+        bands.append({'name': title, 'items': items})
+
+    # Top story: most recent C post across the whole site.
+    dated = [(_info(s)['date'], s) for s in meta_map if _info(s).get('post_type', 'C') == 'C' and _info(s)['date']]
+    dated.sort(reverse=True)
+    top_slug = dated[0][1] if dated else None
+    top_info = _info(top_slug) if top_slug else None
+
+    # Last-published date for the strap.
+    last_pub = dated[0][0] if dated else ''
+
+    # Reading paths — drop any whose articles aren't all built.
+    available = set(meta_map.keys())
+    paths = []
+    for p in COMPENDIUM_READING_PATHS:
+        keep = [(slug, label) for slug, label in p['articles'] if slug in available]
+        if not keep:
+            continue
+        paths.append({**p, 'articles': keep})
+
+    # Most-read: curated seed (5 items) — pull only those that actually exist.
+    most_read_seeds = [
+        ('Linear-Regression.html', 'Statistics'),
+        ('ggplot2-Tutorial-With-R.html', 'Visualization'),
+        ('Logistic-Regression-With-R.html', 'Statistics'),
+        ('Time-Series-Analysis-With-R.html', 'Time Series'),
+        ('Top50-Ggplot2-Visualizations-MasterList-R-Code.html', 'Visualization'),
+    ]
+    most_read = []
+    for slug, sec in most_read_seeds:
+        if slug in available:
+            info = _info(slug)
+            most_read.append({'slug': slug, 'title': info['title'] or slug, 'section': sec})
+
+    total_posts = len(meta_map)
+
+    # ---- Render ----
+    parts = []
+    parts.append('<!DOCTYPE html><html lang="en"><head>')
+    parts.append('<meta charset="utf-8">')
+    parts.append('<meta name="viewport" content="width=device-width, initial-scale=1.0">')
+    parts.append('<title>The Compendium · r-statistics.co</title>')
+    parts.append('<meta name="description" content="The full archive of r-statistics.co — twelve years of practical statistics and R, plus curated reading paths to begin.">')
+    parts.append('<link rel="canonical" href="https://r-statistics.co/posts/">')
+    parts.append('<link rel="icon" type="image/png" href="/favicon.png">')
+    parts.append('<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Serif:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">')
+    parts.append('<style>')
+    parts.append(_compendium_css())
+    parts.append('</style>')
+    parts.append('</head><body>')
+
+    # Lightweight masthead — site title + nav back, no global Bootstrap chrome.
+    parts.append('<header class="comp-masthead"><div class="comp-masthead-inner">')
+    parts.append('<a class="comp-wordmark" href="/"><span class="comp-mark">R</span><span>r-statistics<span class="muted">.co</span></span></a>')
+    parts.append('<nav class="comp-nav">')
+    parts.append('<a class="comp-nav-link" href="/">Home</a>')
+    parts.append('<a class="comp-nav-link active" href="/posts/">Compendium</a>')
+    parts.append('<a class="comp-nav-link" href="/about/">About</a>')
+    parts.append('</nav>')
+    parts.append('</div></header>')
+
+    # Hero
+    parts.append('<section class="archive-head"><div class="archive-head-inner">')
+    parts.append('<div class="archive-head-top">')
+    parts.append('<div class="archive-title-block">')
+    parts.append('<div class="page-eyebrow">The Compendium · r-statistics.co</div>')
+    parts.append('<h1 class="archive-title">The Compendium</h1>')
+    parts.append(f'<p class="archive-tagline">Practical statistics and R, written for working data scientists. Curated reading paths to begin, the full archive of {total_posts} articles to depth.</p>')
+    parts.append('</div>')
+    parts.append('<div class="archive-search-block">')
+    parts.append('<form class="archive-search" action="https://www.google.com/search" method="get" target="_blank" rel="noopener">')
+    parts.append('<input type="hidden" name="q" id="searchq">')
+    parts.append('<input type="text" placeholder="Search r-statistics.co…" id="searchinput" oninput="document.getElementById(\'searchq\').value=\'site:r-statistics.co \'+this.value" autocomplete="off">')
+    parts.append('<button type="submit" class="kbd">Go</button>')
+    parts.append('</form>')
+    if last_pub:
+        parts.append(f'<span class="last-published">Last published <strong>{_esc_html(last_pub)}</strong> · all code verified vs R 4.4</span>')
+    parts.append('</div>')
+    parts.append('</div></div></section>')
+
+    # Reading Paths
+    if paths:
+        parts.append('<section class="paths-section">')
+        parts.append('<div class="paths-head">')
+        parts.append('<span class="paths-eyebrow"><span class="accent">●</span>&nbsp;&nbsp;Reading paths · curated sequences for specific goals</span>')
+        parts.append("<span class='paths-tagline'>Where to start when you don't know where to start.</span>")
+        parts.append('</div>')
+        parts.append('<div class="paths-grid">')
+        for p in paths:
+            n = len(p['articles'])
+            parts.append('<div class="path-card">')
+            parts.append(f'<span class="path-eyebrow"><span class="level-pill">{_esc_html(p["level"])}</span><span>{n} articles</span></span>')
+            parts.append(f'<h3 class="path-title">{_esc_html(p["title"])}</h3>')
+            parts.append(f'<p class="path-snippet">{_esc_html(p["snippet"])}</p>')
+            parts.append('<div class="path-articles">')
+            for i, (slug, label) in enumerate(p['articles'][:4]):
+                parts.append(f'<a class="path-article" href="/{slug}"><span class="path-article-num">{i+1}</span><span class="path-article-title">{label}</span></a>')
+            if n > 4:
+                rem = n - 4
+                last_slug = p['articles'][-1][0]
+                parts.append(f'<a class="path-article" href="/{last_slug}"><span class="path-article-num">+{rem}</span><span class="path-article-title">{rem} more in this path…</span></a>')
+            parts.append('</div></div>')
+        parts.append('</div></section>')
+
+    # Top story + Most read
+    if top_info:
+        parts.append('<section class="top-banner">')
+        parts.append('<div class="top-story">')
+        parts.append('<div class="top-story-eyebrow">Latest · just published</div>')
+        parts.append(f'<h2 class="top-story-title"><a href="/{top_slug}">{_esc_html(top_info["title"])}</a></h2>')
+        if top_info['description']:
+            parts.append(f'<p class="top-story-snippet">{_esc_html(top_info["description"])}</p>')
+        parts.append('<div class="top-story-byline">')
+        parts.append('<span>Selva Prabhakaran</span><span class="dot"></span>')
+        parts.append(f'<span>Published {_esc_html(top_info["date"])}</span>')
+        parts.append('</div></div>')
+
+        if most_read:
+            parts.append('<div class="most-read">')
+            parts.append('<div class="most-read-title"><span>Most read</span><span class="trending">↗ trending</span></div>')
+            parts.append('<ol class="mr-list">')
+            for mr in most_read:
+                parts.append(f'<li><a href="/{mr["slug"]}"><div class="mr-title">{_esc_html(mr["title"])}</div><div class="mr-meta">{_esc_html(mr["section"])}</div></a></li>')
+            parts.append('</ol></div>')
+        parts.append('</section>')
+
+    # Topic bands
+    for i, band in enumerate(bands):
+        if not band['items']:
+            continue
+        num = f'{i+1:02d}'
+        items = band['items'][:8]
+        # Pad to 8 for visual rhythm
+        anchor = sections[i].get('items', [{}])[0]
+        all_count = sum(1 for it in (sections[i].get('items') or []) if not it.get('divider'))
+        sec_anchor = '/' + (band['items'][0]['slug'] if band['items'] else '')
+        parts.append('<section class="band">')
+        parts.append('<div class="band-head"><div class="band-head-left">')
+        parts.append(f'<span class="band-num">Section {num}</span>')
+        parts.append(f'<h2 class="band-name">{_esc_html(band["name"])}</h2>')
+        parts.append('</div>')
+        parts.append(f'<a class="band-link" href="{sec_anchor}">All {all_count} in {_esc_html(band["name"])} →</a>')
+        parts.append('</div>')
+        parts.append('<div class="band-grid">')
+        for it in items:
+            when = _format_when(it['date'])
+            parts.append(f'<a class="band-item" href="/{it["slug"]}">')
+            if when:
+                parts.append(f'<span class="band-item-when">{_esc_html(when)}</span>')
+            parts.append(f'<h3 class="band-item-title">{_esc_html(it["title"])}</h3>')
+            if it['description']:
+                parts.append(f'<p class="band-item-desc">{_esc_html(it["description"])}</p>')
+            if it['reading_time']:
+                parts.append(f'<span class="band-item-meta">{it["reading_time"]} min read</span>')
+            parts.append('</a>')
+        # Pad with empty cells so last row keeps grid alignment
+        for _ in range(max(0, 8 - len(items))):
+            parts.append('<div class="band-item band-item-empty"></div>')
+        parts.append('</div></section>')
+
+    # Footer
+    parts.append('<footer class="comp-footer"><div class="comp-footer-inner">')
+    parts.append(f'<p class="colophon">Hand-edited since 2014. © 2014–{datetime.date.today().year} Selva Prabhakaran · {total_posts} articles</p>')
+    parts.append('<div class="links">')
+    parts.append('<a href="/">Home</a>·<a href="/about/">About</a>·<a href="/feed.xml">RSS</a>·<a href="https://github.com/selva86">GitHub</a>')
+    parts.append('</div></div></footer>')
+
+    parts.append('</body></html>')
+    return ''.join(parts)
+
+
+def _format_when(date_str):
+    """Convert YYYY-MM-DD to a relative-time string for the band card."""
+    if not date_str:
+        return ''
+    try:
+        d = datetime.date.fromisoformat(date_str)
+    except Exception:
+        return date_str
+    delta = (datetime.date.today() - d).days
+    if delta <= 0:
+        return 'today'
+    if delta == 1:
+        return 'yesterday'
+    if delta < 30:
+        return f'{delta}d ago'
+    if delta < 365:
+        return f'{delta // 30}mo ago'
+    return f'{delta // 365}y ago'
+
+
+def _compendium_css():
+    """CSS for the Compendium page. Inlined to keep the page self-contained."""
+    return r"""
+:root{--page:#fafbfc;--surface:#ffffff;--surface-alt:#f1f3f6;--rule:#d8dce2;--rule-soft:#e8eaef;--rule-strong:#1a1d23;--text:#0d1117;--text-soft:#4a5160;--text-mute:#757a87;--accent:#1d3158;--accent-bright:#2c4574;--accent-soft:rgba(29,49,88,0.07);--accent-line:rgba(29,49,88,0.20);--success:#1f6f48;--success-soft:rgba(31,111,72,0.10);--ff-sans:'IBM Plex Sans',sans-serif;--ff-serif:'IBM Plex Serif',Georgia,serif;--ff-mono:'IBM Plex Mono',monospace;--shadow-sm:0 1px 2px rgba(13,17,23,0.04);--shadow-md:0 1px 2px rgba(13,17,23,0.04),0 6px 24px rgba(13,17,23,0.045);--ease:cubic-bezier(0.4,0,0.2,1)}
+html.dark{--page:#0c0d10;--surface:#14161a;--surface-alt:#1a1d22;--rule:#262a31;--rule-soft:#1e2228;--rule-strong:#e0e3e9;--text:#e8eaee;--text-soft:#b0b5bf;--text-mute:#6e7382;--accent:#92a4d8;--accent-bright:#b3c4f0;--accent-soft:rgba(146,164,216,0.10);--accent-line:rgba(146,164,216,0.30)}
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:var(--page);color:var(--text);font-family:var(--ff-sans);font-size:15px;line-height:1.6;-webkit-font-smoothing:antialiased}
+::selection{background:var(--accent);color:#fff}
+a{color:var(--text);text-decoration:none}
+a:hover{color:var(--accent)}
+.comp-masthead{position:sticky;top:0;z-index:30;background:rgba(250,251,252,0.85);backdrop-filter:saturate(160%) blur(14px);border-bottom:1px solid var(--rule)}
+html.dark .comp-masthead{background:rgba(12,13,16,0.80)}
+.comp-masthead-inner{max-width:1280px;margin:0 auto;padding:14px 28px;display:flex;align-items:center;gap:32px}
+.comp-wordmark{display:inline-flex;align-items:center;gap:10px;font-family:var(--ff-mono);font-weight:600;font-size:15px;color:var(--text)}
+.comp-mark{width:28px;height:28px;border-radius:6px;background:var(--accent);color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;box-shadow:var(--shadow-sm)}
+.comp-wordmark .muted{color:var(--text-mute)}
+.comp-nav{display:flex;gap:4px;flex:1}
+.comp-nav-link{color:var(--text-soft);font-size:14px;font-weight:500;padding:6px 12px;border-radius:6px}
+.comp-nav-link:hover{background:var(--surface-alt);color:var(--text)}
+.comp-nav-link.active{color:var(--text);background:var(--surface-alt)}
+.archive-head{border-bottom:3px double var(--rule-strong);padding:48px 0 32px}
+.archive-head-inner{max-width:1280px;margin:0 auto;padding:0 28px}
+.archive-head-top{display:flex;justify-content:space-between;align-items:flex-end;gap:48px;flex-wrap:wrap;margin-bottom:24px}
+.archive-title-block{flex:1;max-width:640px}
+.page-eyebrow{font-family:var(--ff-sans);font-size:11.5px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:var(--text-mute);margin-bottom:16px}
+h1.archive-title{font-family:var(--ff-serif);font-weight:700;font-size:64px;line-height:0.95;letter-spacing:-0.03em;margin:0 0 16px;color:var(--text)}
+.archive-tagline{font-family:var(--ff-serif);font-style:italic;font-size:18px;color:var(--text-soft);margin:0;letter-spacing:-0.005em;line-height:1.5;max-width:54ch}
+.archive-search-block{flex:0 0 320px;display:flex;flex-direction:column;gap:10px;align-items:flex-end}
+.archive-search{display:flex;align-items:center;gap:10px;background:var(--surface);border:1.5px solid var(--rule);border-radius:10px;padding:11px 14px;font-size:14px;color:var(--text-mute);min-width:300px;transition:all 0.15s var(--ease)}
+.archive-search:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);color:var(--text)}
+.archive-search input{border:none;outline:none;background:transparent;flex:1;font-family:inherit;font-size:14px;color:var(--text)}
+.archive-search input::placeholder{color:var(--text-mute)}
+.archive-search .kbd{font-family:var(--ff-mono);font-size:12px;padding:4px 10px;background:var(--surface-alt);border:1px solid var(--rule);border-radius:4px;color:var(--text-soft);cursor:pointer}
+.archive-search .kbd:hover{background:var(--accent);color:#fff;border-color:var(--accent)}
+.last-published{font-family:var(--ff-mono);font-size:11.5px;color:var(--text-mute);letter-spacing:0.04em}
+.last-published strong{color:var(--text)}
+.paths-section{max-width:1280px;margin:0 auto;padding:32px 28px 48px;border-bottom:1px solid var(--rule)}
+.paths-head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:18px;flex-wrap:wrap;gap:8px}
+.paths-eyebrow{font-family:var(--ff-sans);font-size:11.5px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:var(--text-mute)}
+.paths-eyebrow .accent{color:var(--accent)}
+.paths-tagline{font-family:var(--ff-serif);font-style:italic;font-size:14px;color:var(--text-mute)}
+.paths-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+@media(max-width:1080px){.paths-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:640px){.paths-grid{grid-template-columns:1fr}}
+.path-card{background:var(--surface);border:1px solid var(--rule);border-radius:12px;padding:18px 20px;display:flex;flex-direction:column;gap:10px;box-shadow:var(--shadow-sm);position:relative;overflow:hidden;transition:all 0.18s var(--ease)}
+.path-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--accent-line);transition:background 0.18s var(--ease)}
+.path-card:hover{border-color:var(--accent-line);box-shadow:var(--shadow-md);transform:translateY(-1px)}
+.path-card:hover::before{background:var(--accent)}
+.path-eyebrow{display:flex;align-items:center;gap:8px;font-family:var(--ff-mono);font-size:10px;font-weight:600;color:var(--text-mute);letter-spacing:0.08em;text-transform:uppercase}
+.path-eyebrow .level-pill{padding:1px 6px;background:var(--accent-soft);color:var(--accent);border-radius:3px;font-weight:700}
+.path-title{font-family:var(--ff-serif);font-size:18px;font-weight:600;line-height:1.25;letter-spacing:-0.01em;color:var(--text);margin:0}
+.path-snippet{font-size:13px;line-height:1.5;color:var(--text-soft);margin:0}
+.path-articles{display:flex;flex-direction:column;gap:4px;margin-top:4px}
+.path-article{display:flex;align-items:center;gap:8px;font-family:var(--ff-mono);font-size:11.5px;color:var(--text-mute);line-height:1.4;text-decoration:none}
+.path-article:hover{color:var(--accent)}
+.path-article:hover .path-article-title{color:var(--accent)}
+.path-article-num{flex:0 0 auto;width:18px;height:18px;border-radius:50%;background:var(--surface-alt);border:1px solid var(--rule);display:inline-flex;align-items:center;justify-content:center;font-size:9.5px;font-weight:600;color:var(--text-soft)}
+.path-article-title{font-family:var(--ff-sans);font-size:12.5px;color:var(--text-soft);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.top-banner{max-width:1280px;margin:0 auto 56px;padding:48px 28px;display:grid;grid-template-columns:2fr 1fr;gap:48px;border-bottom:1px solid var(--rule)}
+@media(max-width:880px){.top-banner{grid-template-columns:1fr;gap:32px}}
+.top-story-eyebrow{font-family:var(--ff-sans);font-size:11px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:var(--accent);margin-bottom:14px}
+.top-story-title{font-family:var(--ff-serif);font-size:42px;font-weight:600;line-height:1.1;letter-spacing:-0.025em;margin:0 0 16px;color:var(--text)}
+.top-story-title a{color:var(--text)}
+.top-story-title a:hover{color:var(--accent)}
+.top-story-snippet{font-family:var(--ff-serif);font-style:italic;font-size:18px;line-height:1.55;color:var(--text-soft);max-width:54ch;margin:0 0 18px}
+.top-story-byline{display:flex;align-items:center;gap:12px;font-size:13px;color:var(--text-mute);font-family:var(--ff-mono)}
+.top-story-byline .dot{width:3px;height:3px;background:var(--text-mute);border-radius:50%}
+.most-read{padding-left:48px;border-left:1px solid var(--rule)}
+@media(max-width:880px){.most-read{padding-left:0;border-left:none;padding-top:24px;border-top:1px solid var(--rule)}}
+.most-read-title{font-family:var(--ff-sans);font-size:11.5px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:var(--text-mute);margin-bottom:14px;display:flex;justify-content:space-between;align-items:center}
+.most-read-title .trending{font-family:var(--ff-mono);font-weight:500;letter-spacing:0;text-transform:none;font-size:11px}
+.mr-list{list-style:none;padding:0;margin:0;counter-reset:mr}
+.mr-list li{counter-increment:mr;padding:12px 0 12px 32px;border-bottom:1px solid var(--rule-soft);position:relative}
+.mr-list li:last-child{border-bottom:none}
+.mr-list li::before{content:counter(mr);position:absolute;left:0;top:14px;font-family:var(--ff-serif);font-size:22px;font-weight:600;color:var(--text-mute);letter-spacing:-0.02em;line-height:1}
+.mr-list a{display:block}
+.mr-list .mr-title{font-family:var(--ff-serif);font-size:15px;font-weight:600;line-height:1.3;color:var(--text);letter-spacing:-0.005em}
+.mr-list a:hover .mr-title{color:var(--accent)}
+.mr-list .mr-meta{font-family:var(--ff-mono);font-size:11px;color:var(--text-mute);margin-top:4px}
+.band{max-width:1280px;margin:0 auto 56px;padding:0 28px}
+.band-head{display:flex;align-items:baseline;justify-content:space-between;padding-bottom:14px;margin-bottom:18px;border-bottom:2px solid var(--rule-strong);flex-wrap:wrap;gap:8px}
+.band-head-left{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
+.band-num{font-family:var(--ff-mono);font-size:11.5px;font-weight:600;color:var(--text-mute);letter-spacing:0.06em;text-transform:uppercase}
+.band-name{font-family:var(--ff-serif);font-size:28px;font-weight:600;letter-spacing:-0.018em;color:var(--text);margin:0;line-height:1}
+.band-link{display:inline-flex;align-items:center;gap:6px;font-family:var(--ff-sans);font-size:13px;font-weight:600;color:var(--accent);text-decoration:none;flex:0 0 auto}
+.band-link:hover{text-decoration:underline}
+.band-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:0;border-top:1px solid var(--rule-soft);border-bottom:1px solid var(--rule-soft)}
+@media(max-width:980px){.band-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:580px){.band-grid{grid-template-columns:1fr}}
+.band-item{padding:18px 22px;border-right:1px solid var(--rule-soft);border-bottom:1px solid var(--rule-soft);display:flex;flex-direction:column;gap:8px;text-decoration:none;color:inherit;transition:background 0.12s var(--ease);min-height:128px}
+.band-item:nth-child(4n){border-right:none}
+@media(max-width:980px){.band-item:nth-child(4n){border-right:1px solid var(--rule-soft)}.band-item:nth-child(2n){border-right:none}}
+@media(max-width:580px){.band-item{border-right:none}}
+.band-item:nth-last-child(-n+4){border-bottom:none}
+.band-item:hover{background:var(--surface)}
+.band-item-empty{pointer-events:none;background:transparent}
+.band-item-when{font-family:var(--ff-mono);font-size:10.5px;font-weight:500;color:var(--text-mute);letter-spacing:0.05em;text-transform:uppercase}
+.band-item-title{font-family:var(--ff-serif);font-size:15.5px;font-weight:600;line-height:1.3;letter-spacing:-0.005em;color:var(--text);margin:0}
+.band-item:hover .band-item-title{color:var(--accent)}
+.band-item-desc{font-size:13px;line-height:1.45;color:var(--text-soft);margin:0;flex:1;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.band-item-meta{font-family:var(--ff-mono);font-size:10.5px;color:var(--text-mute);letter-spacing:0.04em;margin-top:auto}
+.comp-footer{background:var(--surface);border-top:3px double var(--rule-strong);padding:36px 0;font-size:13px;margin-top:64px;color:var(--text-mute);text-align:center}
+.comp-footer-inner{max-width:1280px;margin:0 auto;padding:0 28px}
+.comp-footer .colophon{font-family:var(--ff-serif);font-style:italic;color:var(--text-soft);margin-bottom:8px;font-size:14px}
+.comp-footer .links a{color:var(--text-soft);margin:0 12px}
+"""
+
+
 def patch_homepage_sidebar(sections):
     """Inject the rendered sidebar into index.html.
 
@@ -1196,6 +1628,15 @@ def main():
     update_sitemap(sorted(post_files))
     generate_feed(sorted(post_files))
     patch_homepage_sidebar(sidebar_sections)
+
+    # Compendium destination page at /posts/.
+    compendium_html = render_compendium_page(sidebar_sections)
+    posts_dir = os.path.join(REPO_ROOT, 'posts')
+    if os.path.isdir(posts_dir):
+        compendium_path = os.path.join(posts_dir, 'index.html')
+        with open(compendium_path, 'w', encoding='utf-8') as f:
+            f.write(compendium_html)
+        print(f'  Compendium: {compendium_path}')
 
     if only_target:
         print(f"\nDone. 1 page built (--only {only_target}).")
