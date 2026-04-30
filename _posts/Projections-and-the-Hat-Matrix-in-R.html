@@ -1,0 +1,714 @@
+---
+title: "Projections & the Hat Matrix in R: OLS Geometry Explained Visually"
+description: "Learn the hat matrix and OLS projection in R. Compute H from scratch, verify idempotency, and see fitted values, residuals, and leverage geometrically."
+keywords: "hat matrix, projection matrix, OLS, ordinary least squares, leverage, idempotent matrix, R linear regression, fitted values, residuals, column space"
+mathjax: true
+webr: true
+curriculum_id: "2.9.5"
+post_type: "C"
+auto_link_terms: "hat matrix|projection matrix|OLS projection|leverage values|residual maker matrix|column space of X|orthogonal projection"
+auto_link_case_sensitive: false
+sidebar_section: "Statistics"
+sidebar_title: "Projections & the Hat Matrix"
+sidebar_order: "100"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>Projections & the Hat Matrix in R: OLS Geometry Explained Visually</h1>
+
+<p class="lead">In ordinary least-squares regression, the <strong>hat matrix</strong> $H = X(X^\top X)^{-1} X^\top$ is the projection matrix that turns observed responses $y$ into fitted values $\hat{y} = Hy$. Geometrically, $H$ projects $y$ orthogonally onto the column space of the design matrix $X$. Fitted values are the closest point in that subspace, residuals are perpendicular to it, and every common diagnostic (leverage, <a class="auto-link" href="Regression-Diagnostics-in-R.html" title="Regression Diagnostics in R: 5 Plots That Reveal Model Violations Instantly">Cook's distance</a>, residual degrees of freedom) flows from the geometry of that projection.</p>
+
+<div class="engagement-header" data-difficulty="Advanced" data-time="25" data-exercises="7" data-xp="105"></div>
+
+<h2>How does OLS become a geometric projection?</h2>
+
+<p>Linear regression has two faces. Algebraically, OLS minimises the sum of squared residuals. Geometrically, it projects your response vector onto the subspace spanned by your predictors, and the <strong>hat matrix</strong> is the operator that performs that projection. Let's build it for <code>mtcars</code> and confirm it produces the same fitted values as <code>lm()</code>. We will use base R only, so the numerical recipe stays transparent.</p>
+
+<p>The recipe has three steps. First, assemble the design matrix $X$ (intercept column plus one column per predictor). Second, compute $H = X(X^\top X)^{-1} X^\top$. Third, multiply: $\hat{y} = Hy$.</p>
+
+<div class="webr-container" data-block-title="Build H and recover fitted values">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build H and recover fitted values</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">y &lt;- mtcars$mpg
+X &lt;- cbind(Intercept = 1, wt = mtcars$wt, hp = mtcars$hp)
+H &lt;- X %*% solve(t(X) %*% X) %*% t(X)
+y_hat &lt;- H %*% y
+
+model &lt;- lm(mpg ~ wt + hp, data = mtcars)
+
+head(y_hat, 5)
+#&gt;                       [,1]
+#&gt; Mazda RX4         23.57233
+#&gt; Mazda RX4 Wag     22.58348
+#&gt; Datsun 710        25.27582
+#&gt; Hornet 4 Drive    21.26502
+#&gt; Hornet Sportabout 18.32727
+
+all.equal(as.vector(y_hat), unname(fitted(model)))
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The 32-by-32 hat matrix consumed <code>mpg</code> and produced the exact same fitted values as the textbook function <code>lm()</code>. The all-equal check confirms equality at numerical precision. We never wrote a single <code>solve()</code> for $\beta$, the projection formulation skipped coefficients entirely and went straight to predictions.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The hat matrix replaces algebra with geometry.</strong> Instead of solving the normal equations for $\beta$ and then multiplying $X\beta$, you can think of OLS as a single geometric act: project $y$ onto $\text{col}(X)$. The matrix that performs that projection <em>is</em> the hat matrix.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build the hat matrix for the simpler model <code>mpg ~ wt</code> (one predictor only) and check that the first three fitted values match <code>lm(mpg ~ wt, data = mtcars)</code>. Use distinct names so we don't overwrite <code>H</code>.</p>
+<div class="webr-container" data-block-title="Your turn: H for mpg ~ wt">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: H for mpg ~ wt</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_X1 &lt;- cbind(1, mtcars$wt)
+# your code here: build ex_H1 and ex_yhat1
+ex_H1 &lt;- # ...
+ex_yhat1 &lt;- # ...
+
+# Test:
+head(ex_yhat1, 3)
+#&gt; Expected: 23.28 21.92 24.89 (approximately)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="One-predictor hat matrix solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">One-predictor hat matrix solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_X1 &lt;- cbind(1, mtcars$wt)
+ex_H1 &lt;- ex_X1 %*% solve(t(ex_X1) %*% ex_X1) %*% t(ex_X1)
+ex_yhat1 &lt;- ex_H1 %*% mtcars$mpg
+
+head(ex_yhat1, 3)
+#&gt;                  [,1]
+#&gt; Mazda RX4     23.28261
+#&gt; Mazda RX4 Wag 21.91977
+#&gt; Datsun 710    24.88595
+
+all.equal(as.vector(ex_yhat1), unname(fitted(lm(mpg ~ wt, data = mtcars))))
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The recipe is identical, only $X$ shrinks to two columns. The projection still works.</p>
+
+</details>
+</section>
+
+<h2>What properties make the hat matrix special?</h2>
+
+<p>Three algebraic facts about $H$ do all the heavy lifting in regression theory.</p>
+
+<ol>
+
+<li><strong>Symmetric.</strong> $H^\top = H$. The projection looks the same from either side.</li>
+
+<li><strong>Idempotent.</strong> $H \cdot H = H$. Once you have projected onto $\text{col}(X)$, projecting again does nothing because you are already there.</li>
+
+<li><strong>Trace equals $p$.</strong> $\text{tr}(H) = p$, the number of columns of $X$ (predictors + intercept). The trace counts the dimension of the subspace you project onto.</li>
+
+</ol>
+
+<p>These three properties are the algebraic fingerprint of a projection operator. Let's verify all three on the matrix we just built.</p>
+
+<div class="webr-container" data-block-title="Verify H is symmetric, idempotent, trace = p">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Verify H is symmetric, idempotent, trace = p</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">is_sym &lt;- all.equal(H, t(H))
+H_sq   &lt;- H %*% H
+is_idem &lt;- all.equal(H_sq, H)
+tr_H   &lt;- sum(diag(H))
+
+list(symmetric = is_sym, idempotent = is_idem, trace = tr_H, ncol_X = ncol(X))
+#&gt; $symmetric
+#&gt; [1] TRUE
+#&gt;
+#&gt; $idempotent
+#&gt; [1] TRUE
+#&gt;
+#&gt; $trace
+#&gt; [1] 3
+#&gt;
+#&gt; $ncol_X
+#&gt; [1] 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>All three checks pass. Symmetry and idempotency hold to machine precision. The trace equals 3 because $X$ has 3 columns (intercept, <code>wt</code>, <code>hp</code>). That number, 3, is the <strong>effective dimension of the fitted-value space</strong>, and it shows up everywhere: in the residual degrees of freedom, in adjusted $R^2$, in <a class="auto-link" href="Model-Selection-in-R.html" title="Model Selection in R">AIC</a>.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Idempotency is the geometric statement that you cannot project past the subspace.</strong> Pick any vector $v$, hit it with $H$, and you land in $\text{col}(X)$. Hit it with $H$ again, and you do not move, you are already there. Algebraically, $H(Hv) = H^2 v = Hv$.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> A symmetric idempotent matrix has <a class="auto-link" href="Eigenvalues-and-Eigenvectors-in-R.html" title="Eigenvalues & Eigenvectors in R: eigen(), Why They Power PCA & More">eigenvalues</a> that are exactly 0 or 1, and the count of 1s equals the rank of the projection. Compute the eigenvalues of <code>H</code> and count how many are essentially 1.</p>
+<div class="webr-container" data-block-title="Your turn: count eigenvalues equal to one">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: count eigenvalues equal to one</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_eig &lt;- # eigen(H)$values
+# count how many are within 1e-8 of 1
+
+#&gt; Expected: 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Eigenvalue count solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Eigenvalue count solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_eig &lt;- eigen(H)$values
+sum(abs(ex_eig - 1) &lt; 1e-8)
+#&gt; [1] 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> A rank-$p$ orthogonal projection has $p$ eigenvalues equal to 1 (directions inside $\text{col}(X)$) and $n-p$ eigenvalues equal to 0 (directions in the orthogonal complement). Here $p = 3$, so three eigenvalues are 1 and twenty-nine are 0.</p>
+
+</details>
+</section>
+
+<h2>How does the geometry of projection look in 2D?</h2>
+
+<p>The 32-dimensional projection above is hard to picture. The smallest case that still shows the geometry is a single response vector $y$ in $\mathbb{R}^2$ projected onto a one-dimensional subspace (one predictor through the origin). That fits on a piece of paper, so let's draw it.</p>
+
+<p>We will pick a tilted direction for the column space, place a $y$ vector that is <em>not</em> on that line, and watch the hat matrix push $y$ onto the line. The residual will jump out as a perpendicular segment.</p>
+
+<div class="webr-container" data-block-title="Visualise projection of y onto col(X) in 2D">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Visualise projection of y onto col(X) in 2D</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ggplot2)
+
+geom_X    &lt;- matrix(c(1, 0.4), ncol = 1)   # one predictor, 1-D column space
+geom_H    &lt;- geom_X %*% solve(t(geom_X) %*% geom_X) %*% t(geom_X)
+geom_y    &lt;- c(2, 3.5)
+geom_yhat &lt;- as.vector(geom_H %*% geom_y)
+geom_e    &lt;- geom_y - geom_yhat
+
+geom_yhat
+#&gt; [1] 2.9310 1.1724
+geom_e
+#&gt; [1] -0.9310  2.3276
+sum(geom_yhat * geom_e)
+#&gt; [1] -1.110223e-16
+
+t_line &lt;- seq(-1, 5, by = 0.1)
+line_df &lt;- data.frame(x = t_line * geom_X[1], y = t_line * geom_X[2])
+
+proj_plot &lt;- ggplot() +
+  geom_line(data = line_df, aes(x, y), colour = &quot;grey50&quot;, linewidth = 0.6) +
+  geom_segment(aes(x = 0, y = 0, xend = geom_y[1], yend = geom_y[2]),
+               arrow = arrow(length = unit(0.18, &quot;cm&quot;)), colour = &quot;#3a3a8a&quot;, linewidth = 0.9) +
+  geom_segment(aes(x = 0, y = 0, xend = geom_yhat[1], yend = geom_yhat[2]),
+               arrow = arrow(length = unit(0.18, &quot;cm&quot;)), colour = &quot;#1f8a3a&quot;, linewidth = 0.9) +
+  geom_segment(aes(x = geom_yhat[1], y = geom_yhat[2], xend = geom_y[1], yend = geom_y[2]),
+               linetype = &quot;dashed&quot;, colour = &quot;#b03030&quot;, linewidth = 0.9) +
+  annotate(&quot;text&quot;, x = geom_y[1] + 0.1, y = geom_y[2] + 0.15, label = &quot;y&quot;) +
+  annotate(&quot;text&quot;, x = geom_yhat[1] + 0.25, y = geom_yhat[2] - 0.2, label = &quot;y_hat&quot;) +
+  annotate(&quot;text&quot;, x = (geom_y[1] + geom_yhat[1]) / 2 + 0.25,
+           y = (geom_y[2] + geom_yhat[2]) / 2, label = &quot;e&quot;, colour = &quot;#b03030&quot;) +
+  annotate(&quot;text&quot;, x = 4, y = 4 * 0.4 + 0.25, label = &quot;col(X)&quot;, colour = &quot;grey30&quot;) +
+  coord_fixed(xlim = c(-0.5, 4.5), ylim = c(-0.5, 4.5)) +
+  labs(title = &quot;OLS as orthogonal projection in R^2&quot;,
+       x = NULL, y = NULL) +
+  theme_minimal()
+
+proj_plot</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The blue arrow is the original response $y$. The green arrow is the fitted value $\hat{y}$, sitting on the line $\text{col}(X)$. The red dashed segment is the residual $e = y - \hat{y}$, and it meets the line at a right angle. Numerically, $\hat{y}^\top e \approx 10^{-16}$, orthogonality holds to machine precision.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>The right angle between $\hat{y}$ and $e$ is not approximate, it is exact.</strong> It is the <em>defining</em> property of the OLS solution. Any other point on $\text{col}(X)$ would produce a longer residual segment, by the Pythagorean theorem.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Pick a $y$ that already lies on the column-space line, for example $y = (3, 1.2)$ which is exactly $3 \cdot (1, 0.4)$. Project it and confirm the residual is essentially zero.</p>
+<div class="webr-container" data-block-title="Your turn: project an on-line vector">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: project an on-line vector</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_y_on &lt;- c(3, 1.2)
+# compute ex_res_on = ex_y_on - geom_H %*% ex_y_on
+
+#&gt; Expected: residual close to (0, 0)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="On-line projection solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">On-line projection solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_y_on  &lt;- c(3, 1.2)
+ex_res_on &lt;- ex_y_on - as.vector(geom_H %*% ex_y_on)
+ex_res_on
+#&gt; [1] 4.440892e-16 0.000000e+00</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> A vector that already lies in $\text{col}(X)$ is its own projection. The residual is zero up to floating-point noise.</p>
+
+</details>
+</section>
+
+<h2>What does the diagonal of H tell us about leverage?</h2>
+
+<p>The off-diagonal entries of $H$ describe how much each observation pulls the others. The diagonal entries describe how much each observation pulls <em>itself</em>. That self-influence has a name: <strong>leverage</strong>.</p>
+
+<p>Three facts about leverage are worth memorising. (1) Each $h_{ii}$ lies in $[0, 1]$. (2) The mean leverage is $p/n$, because $\text{tr}(H) = p$. (3) A common rule of thumb flags any observation with $h_{ii} > 2p/n$ as high leverage. Let's compute leverage from <code>H</code>, compare with R's built-in <code>hatvalues()</code>, and find the high-leverage cars.</p>
+
+<div class="webr-container" data-block-title="Leverage values from diag(H) match hatvalues()">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Leverage values from diag(H) match hatvalues()</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">h_diag &lt;- diag(H)
+hat_r  &lt;- hatvalues(model)
+
+all.equal(unname(h_diag), unname(hat_r))
+#&gt; [1] TRUE
+
+n &lt;- nrow(X); p &lt;- ncol(X)
+lev_threshold &lt;- 2 * p / n
+c(mean_h = mean(h_diag), threshold = lev_threshold)
+#&gt;    mean_h threshold
+#&gt;   0.09375   0.18750
+
+high_rows &lt;- which(h_diag &gt; lev_threshold)
+data.frame(car = rownames(mtcars)[high_rows], leverage = round(h_diag[high_rows], 3))
+#&gt;                  car leverage
+#&gt; 1     Toyota Corona    0.218
+#&gt; 2 Lincoln Continental    0.198
+#&gt; 3     Maserati Bora    0.466</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Three cars exceed the $2p/n = 0.1875$ threshold. The Maserati Bora is the standout: leverage $0.47$ means it sits in a corner of predictor space all by itself (extreme <code>wt</code> and <code>hp</code> combination), so the fitted line bends to accommodate it. The mean leverage is exactly $3/32 = 0.09375$, matching $\text{tr}(H)/n$.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>High leverage alone is not bad.</strong> Leverage measures distance in predictor space, not whether a point distorts the fit. A high-leverage point with a small residual is harmless. The danger is leverage <em>combined</em> with a large residual, which is what Cook's distance and <code>dffits</code> capture. Do not delete points just because their leverage is high.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Print the row names from <code>mtcars</code> whose leverage exceeds $3p/n$ (a stricter threshold). Use <code>h_diag</code> and the <code>n</code>, <code>p</code> values already in scope.</p>
+<div class="webr-container" data-block-title="Your turn: stricter leverage threshold">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: stricter leverage threshold</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_high_lev &lt;- # rownames where h_diag &gt; 3 * p / n
+
+#&gt; Expected: a single car (the most extreme one)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Stricter threshold solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Stricter threshold solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_high_lev &lt;- rownames(mtcars)[h_diag &gt; 3 * p / n]
+ex_high_lev
+#&gt; [1] &quot;Maserati Bora&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Tightening the multiplier from 2 to 3 isolates the single most extreme observation. Many practitioners use $2p/n$ as a screen and $3p/n$ as a serious flag.</p>
+
+</details>
+</section>
+
+<h2>How does I − H deliver the residuals?</h2>
+
+<p>If $H$ projects $y$ onto $\text{col}(X)$, then $I - H$ projects $y$ onto the <strong>orthogonal complement</strong>, the subspace of residuals. That gives us a clean second matrix called the <strong>residual maker</strong>:</p>
+
+<p>$$M = I - H, \quad e = My$$</p>
+
+<p>$M$ inherits both projection properties: it is symmetric and idempotent. Its trace, however, is $n - p$, because $\text{tr}(I - H) = n - \text{tr}(H) = n - p$. That number is exactly the <strong>residual degrees of freedom</strong> that R reports for any <code>lm()</code> model. The figure below summarises how $H$ and $M$ split $y$.</p>
+
+<p><img src="screenshots/Projections-and-the-Hat-Matrix-in-R-projection-split.webp" alt="How H and (I − H) split y into orthogonal pieces" class="img-responsive img-zoomable" loading="lazy" width="1942" height="690" /></p>
+
+<p><em>Figure 1: The hat matrix splits y into orthogonal pieces, fitted values Hy and residuals (I − H)y.</em></p>
+
+<div class="webr-container" data-block-title="Residual maker M: residuals and degrees of freedom">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Residual maker M: residuals and degrees of freedom</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">M &lt;- diag(nrow(X)) - H
+e_proj &lt;- M %*% y
+
+all.equal(as.vector(e_proj), unname(residuals(model)))
+#&gt; [1] TRUE
+
+orth_check &lt;- as.numeric(t(y_hat) %*% e_proj)
+tr_M       &lt;- sum(diag(M))
+
+c(orth = orth_check, trace_M = tr_M, n_minus_p = nrow(X) - ncol(X))
+#&gt;          orth      trace_M    n_minus_p
+#&gt; -1.421085e-14 2.900000e+01 2.900000e+01</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Three things to read off this output. First, <code>e_proj</code> matches <code>residuals(model)</code> exactly, the residual maker reproduces R's residual vector. Second, the inner product of fitted values and residuals is essentially zero (orthogonality). Third, $\text{tr}(M) = 29 = 32 - 3$ matches <code>df.residual(model)</code>.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The denominator $n - p$ in $\hat{\sigma}^2 = \text{RSS}/(n-p)$ is exactly $\text{tr}(M)$.</strong> It is not a degrees-of-freedom heuristic, it is the dimension of the subspace your residuals live in. You "spent" $p$ dimensions fitting the model, and what remains is $n - p$ dimensions for residual variation.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Confirm directly that <code>sum(diag(I - H))</code> for our 32-by-32 example equals <code>nrow(X) - ncol(X)</code>. Reuse <code>M</code> and <code>X</code>.</p>
+<div class="webr-container" data-block-title="Your turn: trace of I minus H">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: trace of I minus H</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_tr_M &lt;- # sum(diag(M))
+# compare with nrow(X) - ncol(X)
+
+#&gt; Expected: 29 == 29</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Trace identity solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Trace identity solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_tr_M &lt;- sum(diag(M))
+c(trace = ex_tr_M, n_minus_p = nrow(X) - ncol(X))
+#&gt;     trace n_minus_p
+#&gt;        29        29</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> $\text{tr}(I_n - H) = n - \text{tr}(H) = n - p$. The residual subspace has dimension $n - p$, which is what R calls <code>df.residual</code>.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<p>These two capstones combine the ideas above. Each exercise uses a fresh prefix (<code>my_</code>) so it does not overwrite the variables from the tutorial.</p>
+
+<h3>Exercise 1: Prediction variance from the hat matrix</h3>
+
+<p>For the model <code>mpg ~ wt + hp + cyl</code> on <code>mtcars</code>, build the hat matrix from scratch and compute the prediction variance for a <em>new</em> observation with design row $x_* = (1, 3.0, 110, 6)$. The formula is</p>
+
+<p>$$\widehat{\text{Var}}(\hat{y}_<em>) = \hat{\sigma}^2 \left( 1 + x_</em>^\top (X^\top X)^{-1} x_* \right)$$</p>
+
+<p>Save the result to <code>my_pred_var</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 1: prediction variance">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1: prediction variance</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: build X with cbind(1, ...), compute (X'X)^{-1}, then
+# multiply x_star %*% inv %*% x_star, finally scale by sigma_hat^2 * (1 + ...).
+
+my_X &lt;- # ...
+my_xtxinv &lt;- # ...
+my_xstar &lt;- c(1, 3.0, 110, 6)
+my_sigma2 &lt;- # residual variance from M y or sigma(model)^2
+my_pred_var &lt;- # final scalar
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_y       &lt;- mtcars$mpg
+my_X       &lt;- cbind(1, mtcars$wt, mtcars$hp, mtcars$cyl)
+my_xtxinv  &lt;- solve(t(my_X) %*% my_X)
+my_H       &lt;- my_X %*% my_xtxinv %*% t(my_X)
+my_resid   &lt;- (diag(nrow(my_X)) - my_H) %*% my_y
+my_sigma2  &lt;- sum(my_resid^2) / (nrow(my_X) - ncol(my_X))
+my_xstar   &lt;- c(1, 3.0, 110, 6)
+my_pred_var &lt;- as.numeric(my_sigma2 * (1 + t(my_xstar) %*% my_xtxinv %*% my_xstar))
+my_pred_var
+#&gt; [1] 6.519</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>(X&#x27;X)^{-1}</code> falls out of the hat-matrix formula. The inner $x_<em>^\top (X^\top X)^{-1} x_</em>$ measures how far $x_*$ is from the centre of predictor space, far points have larger prediction variance. Adding the $1$ accounts for the irreducible noise in a fresh observation.</p>
+
+</details>
+
+<h3>Exercise 2: H depends only on the column space, not the columns</h3>
+
+<p>Show numerically that adding a redundant column to $X$ (a linear combination of existing columns) leaves the column space, and therefore $H$, unchanged. Build two design matrices: <code>X1</code> with two columns, and <code>X2</code> that adds a redundant third column equal to the sum of the first two. Compute both hat matrices (use <code>MASS::ginv()</code> for the rank-deficient $X_2$) and confirm <code>all.equal(H1, H2)</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 2: H is column-space invariant">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2: H is column-space invariant</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: H_full_rank = X1 %*% solve(t(X1) %*% X1) %*% t(X1)
+# For X2, use the Moore-Penrose pseudoinverse via MASS::ginv to handle rank deficiency.
+# Compare with all.equal().
+
+my_X1 &lt;- # cbind of two non-collinear columns, e.g., 1 and mtcars$wt
+my_X2 &lt;- # cbind(my_X1, my_X1[,1] + my_X1[,2])  -- redundant column
+# my_H1 &lt;- ...
+# my_H2 &lt;- ...
+# all.equal(my_H1, my_H2)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(MASS)
+my_X1 &lt;- cbind(1, mtcars$wt)
+my_X2 &lt;- cbind(my_X1, my_X1[, 1] + my_X1[, 2])
+
+my_H1 &lt;- my_X1 %*% solve(t(my_X1) %*% my_X1) %*% t(my_X1)
+my_H2 &lt;- my_X2 %*% ginv(t(my_X2) %*% my_X2) %*% t(my_X2)
+
+all.equal(my_H1, my_H2)
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> $H$ depends only on $\text{col}(X)$, not on which spanning set you pick. Adding a redundant column does not enlarge the column space, so the projection is identical. The pseudo-inverse <code>ginv()</code> is needed because $X_2^\top X_2$ is singular when $X_2$ has redundant columns.</p>
+
+</details>
+
+<h2>Complete Example: From scratch to lm() diagnostics</h2>
+
+<p>Let's walk a single <code>mtcars</code> analysis end-to-end, computing every piece by hand from the hat matrix and confirming each one against R's built-ins. This is the workflow you would use on real data to cross-check <code>lm()</code> output.</p>
+
+<div class="webr-container" data-block-title="End-to-end hat-matrix analysis">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">End-to-end hat-matrix analysis</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ce_y    &lt;- mtcars$mpg
+ce_X    &lt;- cbind(1, mtcars$wt, mtcars$hp, mtcars$qsec)
+ce_n    &lt;- nrow(ce_X); ce_p &lt;- ncol(ce_X)
+ce_H    &lt;- ce_X %*% solve(t(ce_X) %*% ce_X) %*% t(ce_X)
+
+ce_yhat &lt;- as.vector(ce_H %*% ce_y)
+ce_resid &lt;- ce_y - ce_yhat
+ce_h     &lt;- diag(ce_H)
+ce_sigma2 &lt;- sum(ce_resid^2) / (ce_n - ce_p)
+ce_cook  &lt;- (ce_h / (1 - ce_h)) * (ce_resid^2 / (ce_p * ce_sigma2))
+
+ce_model &lt;- lm(mpg ~ wt + hp + qsec, data = mtcars)
+
+# Cross-checks
+all.equal(ce_yhat,  unname(fitted(ce_model)))
+#&gt; [1] TRUE
+all.equal(ce_resid, unname(residuals(ce_model)))
+#&gt; [1] TRUE
+all.equal(ce_h,     unname(hatvalues(ce_model)))
+#&gt; [1] TRUE
+all.equal(ce_cook,  unname(cooks.distance(ce_model)))
+#&gt; [1] TRUE
+
+# Top three high-leverage cars
+top_lev &lt;- order(ce_h, decreasing = TRUE)[1:3]
+data.frame(car = rownames(mtcars)[top_lev],
+           leverage = round(ce_h[top_lev], 3),
+           cooks_d  = round(ce_cook[top_lev], 3))
+#&gt;                  car leverage cooks_d
+#&gt; 1      Maserati Bora    0.498   0.222
+#&gt; 2 Lincoln Continental    0.214   0.005
+#&gt; 3   Cadillac Fleetwood   0.198   0.024</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Every quantity matches R's built-in functions to machine precision, fitted values, residuals, <a class="auto-link" href="Multivariate-Outlier-Detection-in-R.html" title="Multivariate Outlier Detection in R: Mahalanobis Distance & Influence">hat values</a>, and Cook's distance. The Maserati Bora keeps the leverage crown even with <code>qsec</code> added; combined with a moderate residual, it has the highest Cook's distance. Lincoln Continental is high-leverage but well-fit, so its Cook's distance is tiny, exactly the leverage-without-influence pattern called out earlier.</p>
+
+<h2>Summary</h2>
+
+<p>The hat matrix is the operator that performs the OLS projection. Once you see that, every regression diagnostic looks like a simple geometric measurement.</p>
+
+<p><img src="screenshots/Projections-and-the-Hat-Matrix-in-R-properties-mindmap.webp" alt="Hat matrix at a glance" class="img-responsive img-zoomable" loading="lazy" width="1868" height="932" /></p>
+
+<p><em>Figure 2: The hat matrix at a glance, definition, algebra, geometry, diagnostics.</em></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Quantity</th>
+<th>Formula</th>
+<th>What it measures</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Fitted values</td>
+<td>$\hat{y} = Hy$</td>
+<td>Projection of $y$ onto $\text{col}(X)$</td>
+</tr>
+<tr>
+<td>Residuals</td>
+<td>$e = (I - H)y$</td>
+<td>Component of $y$ orthogonal to $\text{col}(X)$</td>
+</tr>
+<tr>
+<td>Leverage</td>
+<td>$h_{ii} = (H)_{ii}$</td>
+<td>Self-influence of observation $i$</td>
+</tr>
+<tr>
+<td>Mean leverage</td>
+<td>$p/n = \text{tr}(H)/n$</td>
+<td>Average self-influence</td>
+</tr>
+<tr>
+<td>Residual d.f.</td>
+<td>$n - p = \text{tr}(I - H)$</td>
+<td>Dimension of the residual subspace</td>
+</tr>
+<tr>
+<td>Cook's distance</td>
+<td>$\frac{h_{ii}}{1 - h_{ii}} \cdot \frac{e_i^2}{p \hat\sigma^2}$</td>
+<td>Combined leverage and residual influence</td>
+</tr>
+</tbody>
+</table>
+
+<p>Three properties drive everything: $H$ is <strong>symmetric</strong>, <strong>idempotent</strong>, and has <strong>trace $p$</strong>. That is the algebraic signature of an orthogonal projection. Once you accept that signature, residuals, leverage, and degrees of freedom stop being separate formulas and become facets of one geometric picture.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Hastie, T., Tibshirani, R., Friedman, J., <em>The Elements of Statistical Learning</em>, 2nd Edition. Springer (2009). Chapter 3: Linear Methods for Regression. <a href="https://hastie.su.domains/ElemStatLearn/">Link</a></li>
+
+<li>Wikipedia, Projection matrix. <a href="https://en.wikipedia.org/wiki/Projection_matrix">Link</a></li>
+
+<li>Strang, G., <em>Introduction to Linear Algebra</em>, 5th Edition. Wellesley-Cambridge Press (2016). Chapter 4: Orthogonality.</li>
+
+<li>R Core Team, <code>?hatvalues</code> and <code>?influence.measures</code>. <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/influence.measures.html">Link</a></li>
+
+<li>Faraway, J., <em>Linear Models with R</em>, 2nd Edition. CRC Press (2014). Chapter 6: Diagnostics.</li>
+
+<li>MIT OpenCourseWare, 18.06 Linear Algebra, Lecture 16: Projection matrices and least squares. <a href="https://ocw.mit.edu/courses/18-06-linear-algebra-spring-2010/resources/lecture-16-projection-matrices-and-least-squares/">Link</a></li>
+
+<li>Belsley, D. A., Kuh, E., Welsch, R. E., <em><a class="auto-link" href="Linear-Regression-Assumptions-in-R.html" title="Linear Regression Assumptions in R: Test All 5 and Know What to Do When They Fail">Regression Diagnostics</a>: Identifying Influential Data and Sources of Collinearity</em>. Wiley (1980).</li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><strong><a href="Linear-Regression.html">Linear Regression in R</a></strong>, the practical <code>lm()</code> workflow, <a class="auto-link" href="Standardized-vs-Unstandardized-Coefficients-in-R.html" title="Standardized vs Unstandardized Coefficients in R: When Each Matters: Which Is Right for You?">coefficient interpretation</a>, and <code>summary.lm()</code> output.</li>
+
+<li><strong><a href="Outlier-Treatment-With-R.html">Outlier Treatment in R</a></strong>, Cook's distance, leverage thresholds, and how to handle influential points.</li>
+
+<li><strong><a href="Singular-Value-Decomposition-in-R.html">Singular Value Decomposition in R</a></strong>, what to do when $X^\top X$ is singular and the standard hat-matrix formula breaks down.</li>
+
+</ul>
+
+{% endraw %}
