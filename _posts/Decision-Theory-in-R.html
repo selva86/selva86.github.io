@@ -1,0 +1,901 @@
+---
+title: "Decision Theory in R: Loss Functions, Risk, Bayes Risk & Admissibility"
+description: "Learn statistical decision theory in R: loss functions, risk, Bayes risk, minimax, and admissibility, with simulations comparing estimators end to end."
+keywords: "decision theory R, loss function R, risk function statistics, Bayes risk R, admissible decision rule, minimax estimator R, James-Stein"
+mathjax: true
+webr: true
+curriculum_id: "2.6.9"
+post_type: "C"
+auto_link_terms: "decision theory in R|loss function|risk function|Bayes risk|admissibility|minimax estimator|squared error loss|0-1 loss"
+auto_link_case_sensitive: false
+sidebar_section: "Statistics"
+sidebar_title: "Decision Theory"
+sidebar_order: "108"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>Decision Theory in R: Loss Functions, Risk, Bayes Risk & Admissibility</h1>
+
+<p class="lead">Statistical decision theory gives you a single language for comparing estimators, tests, and predictions: every rule has a loss, every loss has a long-run risk, and the rule with the lowest risk wins. This tutorial uses base R plus dplyr/<a class="auto-link" href="ggplot2-Tutorial-With-R.html" title="ggplot2 Short Tutorial">ggplot2</a>, so each idea below comes with a runnable simulation you can edit in place.</p>
+
+<div class="engagement-header" data-difficulty="Advanced" data-time="35" data-exercises="8" data-xp="120"></div>
+
+<h2>What is statistical decision theory in R?</h2>
+
+<p>Imagine you must guess a hidden parameter from noisy data. Decision theory turns "good guess" into something you can compute, pick a loss function, average it over the <a class="auto-link" href="Normal-t-F-and-Chi-Squared-Distributions-in-R.html" title="Normal, t, F, and Chi-Squared in R: Understand Each Distribution and When It Arises">sampling distribution</a> to get the risk, then prefer the rule whose risk stays small. The cleanest way to feel this in R is to simulate two competing estimators on the same data and read off their risks side by side.</p>
+
+<div class="webr-container" data-block-title="Simulate mean vs median risk">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Simulate mean vs median risk</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+library(ggplot2)
+
+set.seed(2026)
+n  &lt;- 25       # sample size per replication
+B  &lt;- 5000     # number of Monte Carlo replications
+mu_true &lt;- 0   # true parameter value
+
+# Each row is one simulated dataset; compute mean and median.
+sims &lt;- replicate(B, {
+  x &lt;- rnorm(n, mean = mu_true, sd = 1)
+  c(mean = mean(x), median = median(x))
+})
+
+risk_table &lt;- data.frame(
+  estimator = c(&quot;sample mean&quot;, &quot;sample median&quot;),
+  mse       = c(mean((sims[&quot;mean&quot;, ]   - mu_true)^2),
+                mean((sims[&quot;median&quot;, ] - mu_true)^2))
+)
+risk_table
+#&gt;       estimator        mse
+#&gt; 1   sample mean 0.04001923
+#&gt; 2 sample median 0.05982384</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both estimators are unbiased here, but the sample mean has lower <a class="auto-link" href="Point-Estimation-in-R.html" title="Point Estimation in R: What Makes an Estimator Good? Bias, Variance, and MSE">mean squared error</a>. That gap is the <strong>risk gap</strong>, and the whole field of decision theory is about making such comparisons rigorous: which rule is best, under which loss, for which true state of the world. The four ingredients are the unknown state $\theta$, the data-driven action $a = \delta(X)$, the rule $\delta$, and the loss $L(\theta, a)$.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Risk depends on the rule AND the true state.</strong> The same estimator can look great near $\theta = 0$ and terrible far from it. A single MSE number is a snapshot of one $\theta$, not a verdict on the rule everywhere.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Estimate the risk of the constant rule $\hat\mu = 0$ when the true mean is $\mu = 0.5$. The risk should equal the squared bias plus zero variance, i.e. $0.25$.</p>
+<div class="webr-container" data-block-title="Your turn: risk of a constant rule">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: risk of a constant rule</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: simulate the constant estimator delta(X) = 0
+set.seed(11)
+ex_n &lt;- 25
+ex_B &lt;- 5000
+ex_mu &lt;- 0.5
+
+# your code here
+
+#&gt; Expected: ~0.25</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Constant rule risk solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Constant rule risk solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(11)
+ex_n  &lt;- 25
+ex_B  &lt;- 5000
+ex_mu &lt;- 0.5
+ex_const_risk &lt;- mean(replicate(ex_B, {
+  x &lt;- rnorm(ex_n, mean = ex_mu, sd = 1)
+  (0 - ex_mu)^2  # constant rule ignores the data
+}))
+ex_const_risk
+#&gt; [1] 0.25</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The constant rule has zero variance but a fixed bias of $\mu$, so its squared-error risk equals $\mu^2$.</p>
+
+</details>
+</section>
+
+<h2>How do loss functions quantify mistakes?</h2>
+
+<p>A loss function $L(\theta, a)$ assigns a non-negative penalty to using action $a$ when the truth is $\theta$. Different decisions cost differently in real life, so different losses lead to different "best" estimators. We will work with the three classics: squared error, absolute error, and 0–1 loss, and watch the optimal point estimator change as we swap them.</p>
+
+<div class="webr-container" data-block-title="Define three loss functions">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Define three loss functions</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sq_loss        &lt;- function(theta, a) (theta - a)^2
+abs_loss       &lt;- function(theta, a) abs(theta - a)
+zero_one_loss  &lt;- function(theta, a, tol = 0.05) as.numeric(abs(theta - a) &gt; tol)
+
+# Quick check on a single (theta, a) pair:
+sq_loss(1.2, 1.0); abs_loss(1.2, 1.0); zero_one_loss(1.2, 1.0)
+#&gt; [1] 0.04
+#&gt; [1] 0.2
+#&gt; [1] 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Squared loss penalises big errors quadratically, absolute loss is linear and robust, and 0–1 loss only cares whether you are within tolerance. The headline result is that under squared loss the optimal point estimator is the posterior (or sampling) <strong>mean</strong>, under absolute loss it is the <strong>median</strong>, and under 0–1 loss it is the <strong>mode</strong>. Let us reproduce that on a single skewed sample.</p>
+
+<div class="webr-container" data-block-title="Optimal point estimator changes with loss">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Optimal point estimator changes with loss</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(42)
+x_sample &lt;- rgamma(2000, shape = 2, rate = 1)   # right-skewed sample
+
+candidates &lt;- seq(0, 5, by = 0.01)
+loss_grid &lt;- data.frame(
+  candidate = candidates,
+  sq        = sapply(candidates, function(a) mean(sq_loss(x_sample, a))),
+  abs       = sapply(candidates, function(a) mean(abs_loss(x_sample, a)))
+)
+
+best_sq  &lt;- loss_grid$candidate[which.min(loss_grid$sq)]
+best_abs &lt;- loss_grid$candidate[which.min(loss_grid$abs)]
+
+c(best_sq = best_sq, sample_mean = mean(x_sample),
+  best_abs = best_abs, sample_median = median(x_sample))
+#&gt;      best_sq  sample_mean     best_abs sample_median
+#&gt;     1.990000     1.992127     1.660000      1.671446</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The loss-minimising candidates land on the sample mean and the sample median to two decimal places. That is not a coincidence: minimising expected squared error gives the mean, minimising expected absolute error gives the median. Pick the loss that reflects your real downstream cost.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Pick the loss your decision actually pays for.</strong> If a <a class="auto-link" href="Time-Series-Forecasting-With-R.html" title="Time Series Forecasting with R">forecasting</a> error of 10 costs you 100 times more than an error of 1, squared loss is a fair proxy. If errors cost roughly the same per unit, absolute loss is more honest. Don't default to MSE just because it is convenient, the loss is a modelling choice.</div></div>
+
+<p><img src="screenshots/Decision-Theory-in-R-pipeline.webp" alt="Decision-theory pipeline" class="img-responsive img-zoomable" loading="lazy" width="2248" height="470" /></p>
+
+<p><em>Figure 1: The decision-theory pipeline, data feeds a rule that produces an action, the loss compares the action to the true state, and averaging gives risk and Bayes risk.</em></p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Implement the Huber loss with threshold $k = 1$, which behaves like squared error for small residuals and like absolute error for large ones.</p>
+<div class="webr-container" data-block-title="Your turn: Huber loss">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: Huber loss</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: complete ex_huber()
+ex_huber &lt;- function(theta, a, k = 1) {
+  r &lt;- theta - a
+  # your code here
+}
+
+ex_huber(0.5, 0); ex_huber(3, 0)
+#&gt; Expected: 0.125
+#&gt; Expected: 2.5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Huber loss solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Huber loss solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_huber &lt;- function(theta, a, k = 1) {
+  r &lt;- theta - a
+  ifelse(abs(r) &lt;= k, 0.5 * r^2, k * (abs(r) - 0.5 * k))
+}
+ex_huber(0.5, 0); ex_huber(3, 0)
+#&gt; [1] 0.125
+#&gt; [1] 2.5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Inside the band $|r|\le k$ the loss is quadratic; outside, it switches to linear so a few large outliers do not dominate the optimisation.</p>
+
+</details>
+</section>
+
+<h2>How do you compute the risk function in R?</h2>
+
+<p>The risk $R(\theta, \delta) = E_\theta\,[\,L(\theta, \delta(X))\,]$ is the <em>expected</em> loss when the data come from $\theta$ and we use rule $\delta$. We can never measure it from one dataset, but we can estimate it cheaply by Monte Carlo: simulate many datasets at a fixed $\theta$, apply the rule, average the loss. Repeat across a $\theta$ grid to get the whole risk function.</p>
+
+<div class="webr-container" data-block-title="Monte Carlo risk for the sample mean">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Monte Carlo risk for the sample mean</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">compute_risk &lt;- function(estimator, mu, n = 25, B = 4000, sd = 1) {
+  losses &lt;- replicate(B, {
+    x &lt;- rnorm(n, mean = mu, sd = sd)
+    sq_loss(mu, estimator(x))
+  })
+  mean(losses)
+}
+
+mu_grid  &lt;- seq(-3, 3, by = 0.5)
+mle_risk &lt;- sapply(mu_grid, function(m) compute_risk(mean, mu = m))
+data.frame(mu = mu_grid, mle_risk = round(mle_risk, 4))
+#&gt;      mu mle_risk
+#&gt; 1  -3.0   0.0395
+#&gt; 2  -2.5   0.0398
+#&gt; 3  -2.0   0.0402
+#&gt; 4  -1.5   0.0399
+#&gt; 5  -1.0   0.0401
+#&gt; 6  -0.5   0.0397
+#&gt; 7   0.0   0.0400
+#&gt; 8   0.5   0.0403
+#&gt; 9   1.0   0.0405
+#&gt; 10  1.5   0.0398
+#&gt; 11  2.0   0.0399
+#&gt; 12  2.5   0.0402
+#&gt; 13  3.0   0.0401</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Across the grid the simulated risk hovers near $0.04 = 1/25$. That matches the closed-form result $R(\mu, \bar X) = \sigma^2 / n$, which does not depend on $\mu$ at all, the risk is <em>flat</em>. A flat risk function will turn out to be the key to the minimax property later. Now compare with a shrinkage rule $\delta_c(X) = c\bar X$ that pulls the estimate towards zero.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Closed-form risk for the sample mean is $\sigma^2 / n$.</strong> When you can solve the integral analytically, do that and use simulation only as a sanity check. Most of the rest of this tutorial will <em>not</em> admit closed forms, which is exactly why we keep <code>compute_risk</code> general.</div></div>
+
+<div class="webr-container" data-block-title="Risk curve: MLE vs shrinkage">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Risk curve: MLE vs shrinkage</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">shrink_estimator &lt;- function(c) function(x) c * mean(x)
+shrink_risk &lt;- sapply(mu_grid,
+                      function(m) compute_risk(shrink_estimator(0.5), mu = m))
+
+risk_df &lt;- data.frame(
+  mu        = rep(mu_grid, 2),
+  rule      = rep(c(&quot;MLE (sample mean)&quot;, &quot;Shrinkage c=0.5&quot;), each = length(mu_grid)),
+  risk      = c(mle_risk, shrink_risk)
+)
+
+ggplot(risk_df, aes(mu, risk, colour = rule)) +
+  geom_line(linewidth = 1) +
+  labs(x = expression(mu), y = expression(R(mu, delta)),
+       title = &quot;Risk curves under squared error loss&quot;) +
+  theme_minimal()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The shrinkage rule beats the MLE near $\mu = 0$ (lower variance) but its risk grows as $\mu^2$ once you move away, a classic bias-variance trade. No single rule dominates everywhere; that is exactly the situation that motivates Bayes risk and admissibility next.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use <code>compute_risk</code> to estimate the risk of the constant rule $\delta_0(X) = 0$ across <code>mu_grid</code>. You should see a parabola.</p>
+<div class="webr-container" data-block-title="Your turn: risk of constant 0">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: risk of constant 0</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: define a constant-zero estimator and call compute_risk
+const_zero &lt;- function(x) 0
+# your code here
+
+#&gt; Expected: a roughly parabolic curve, minimum at mu = 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Constant-zero risk curve solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Constant-zero risk curve solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">const_zero &lt;- function(x) 0
+ex_const_risk &lt;- sapply(mu_grid, function(m) compute_risk(const_zero, mu = m))
+data.frame(mu = mu_grid, risk = round(ex_const_risk, 3))
+#&gt;      mu  risk
+#&gt; 1  -3.0 9.000
+#&gt; 2  -2.5 6.250
+#&gt; ...
+#&gt; 7   0.0 0.000
+#&gt; ...
+#&gt; 13  3.0 9.000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The constant rule has zero variance but bias $\mu$, so its risk is $\mu^2$, a perfect parabola.</p>
+
+</details>
+</section>
+
+<h2>What is Bayes risk and when is it minimised?</h2>
+
+<p>Risk is a function of $\theta$, so two rules can swap places as $\theta$ moves. To collapse the comparison to a single number, average the risk against a prior $\pi(\theta)$. The result is the <strong>Bayes risk</strong> $r(\pi, \delta) = \int R(\theta, \delta)\,\pi(\theta)\,d\theta$. The rule that minimises Bayes risk is the <strong><a class="auto-link" href="Conditional-Probability-in-R.html" title="Conditional Probability in R: P(A|B), Independence, and Bayes — With Real Examples">Bayes rule</a></strong>, and under squared loss the Bayes rule is the posterior mean.</p>
+
+<p>We will demonstrate with a Beta-Binomial setup: $X \sim \text{Bin}(n, \theta)$, prior $\theta \sim \text{Beta}(\alpha, \beta)$, posterior $\theta\mid X \sim \text{Beta}(\alpha + X, \beta + n - X)$, so the posterior mean is $(\alpha + X) / (\alpha + \beta + n)$.</p>
+
+<div class="webr-container" data-block-title="Beta-Binomial posterior mean vs MLE">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Beta-Binomial posterior mean vs MLE</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+n_b      &lt;- 20
+prior_a  &lt;- 2
+prior_b  &lt;- 2
+
+# Single observed sample
+x_b &lt;- rbinom(1, size = n_b, prob = 0.3)
+post_mean &lt;- (prior_a + x_b) / (prior_a + prior_b + n_b)
+mle_b     &lt;- x_b / n_b
+
+c(x_observed = x_b, mle = mle_b, posterior_mean = post_mean)
+#&gt;     x_observed            mle posterior_mean
+#&gt;      6.0000000      0.3000000      0.3333333</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>For this draw the MLE matches the truth exactly, while the posterior mean is pulled slightly toward the prior centre $0.5$. On <em>any single sample</em> either could be closer to the truth. The point of Bayes risk is to ask which rule wins <strong>on average</strong>, where the average is over both the data <em>and</em> the prior on $\theta$.</p>
+
+<div class="webr-container" data-block-title="Bayes risk: posterior mean vs MLE">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Bayes risk: posterior mean vs MLE</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(99)
+M &lt;- 4000  # draws from the joint distribution
+
+bayes_run &lt;- function(estimator) {
+  thetas &lt;- rbeta(M, prior_a, prior_b)            # draw theta from prior
+  xs     &lt;- rbinom(M, size = n_b, prob = thetas)  # then x | theta
+  ests   &lt;- estimator(xs)
+  mean(sq_loss(thetas, ests))
+}
+
+post_mean_estimator &lt;- function(x) (prior_a + x) / (prior_a + prior_b + n_b)
+mle_estimator       &lt;- function(x) x / n_b
+
+bayes_risk_post &lt;- bayes_run(post_mean_estimator)
+bayes_risk_mle  &lt;- bayes_run(mle_estimator)
+round(c(post = bayes_risk_post, mle = bayes_risk_mle), 5)
+#&gt;    post     mle 
+#&gt; 0.00984 0.01275</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The posterior mean has a smaller Bayes risk than the MLE under this Beta(2,2) prior, about a 23% reduction. That is the Bayes rule earning its name: among <em>all</em> rules, it minimises the prior-weighted average risk. The reduction comes from sharing information across $\theta$ values via the prior, which is why prior choice is itself a modelling decision.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Posterior mean minimises expected squared error.</strong> For squared loss, the Bayes-optimal action is always $E[\theta \mid X]$. For absolute loss it is the posterior median; for 0–1 loss the posterior mode. The optimal Bayes action is the posterior summary that matches your loss, no matter how exotic the model.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Replace the Beta(2,2) prior with a more informative Beta(20,20) prior (mean 0.5, much tighter). Recompute the Bayes risk of the posterior mean. It should drop further.</p>
+<div class="webr-container" data-block-title="Your turn: stronger prior, smaller Bayes risk">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: stronger prior, smaller Bayes risk</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: copy bayes_run, swap in prior_a = 20, prior_b = 20.
+strong_a &lt;- 20
+strong_b &lt;- 20
+# your code here
+
+#&gt; Expected: bayes_risk_post smaller than the 0.00984 from above</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Stronger prior solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Stronger prior solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">strong_post_estimator &lt;- function(x) (strong_a + x) / (strong_a + strong_b + n_b)
+ex_strong_bayes_risk &lt;- mean(replicate(4000, {
+  th &lt;- rbeta(1, strong_a, strong_b)
+  xx &lt;- rbinom(1, size = n_b, prob = th)
+  (th - strong_post_estimator(xx))^2
+}))
+round(ex_strong_bayes_risk, 5)
+#&gt; [1] 0.00339</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> A tighter prior pulls posterior means even closer to $\theta$, so the squared error shrinks. The trade-off is that a <em>wrong</em> tight prior would <em>raise</em> risk for $\theta$ values it dis-prefers, Bayes risk averages this away under the prior you actually believe.</p>
+
+</details>
+</section>
+
+<h2>When is an estimator admissible?</h2>
+
+<p>A rule $\delta$ is <strong>inadmissible</strong> if some other rule $\delta'$ has $R(\theta, \delta') \le R(\theta, \delta)$ for every $\theta$, with strict inequality for at least one $\theta$. Otherwise $\delta$ is <strong>admissible</strong>. Admissibility is a minimum bar: an inadmissible rule is dominated everywhere, so you should never use it. The catch is that admissibility says <em>nothing</em> about how good the rule is in absolute terms.</p>
+
+<p><img src="screenshots/Decision-Theory-in-R-admissibility.webp" alt="Admissibility check" class="img-responsive img-zoomable" loading="lazy" width="2248" height="502" /></p>
+
+<p><em>Figure 2: Admissibility check, rule δ is inadmissible if some δ' has equal-or-smaller risk for every θ and strictly smaller for at least one θ.</em></p>
+
+<p>The clearest demonstration: the constant rule $\delta_0(X) = 0$ has risk $\mu^2$ while the sample mean has constant risk $1/n$. They cross at $\mu = \pm 1/\sqrt n$, so neither dominates the other on the full real line, both are admissible there. But if we restrict the parameter space to $\mu \in [0.5, \infty)$, then sample mean dominates and the constant rule becomes inadmissible.</p>
+
+<div class="webr-container" data-block-title="Verify dominance on a restricted parameter space">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Verify dominance on a restricted parameter space</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mu_grid_pos    &lt;- seq(0.5, 3, by = 0.25)
+risk_const     &lt;- mu_grid_pos^2                 # closed form: bias^2
+risk_const_grid &lt;- sapply(mu_grid_pos,
+                          function(m) compute_risk(mean, mu = m))
+
+cmp &lt;- data.frame(mu = mu_grid_pos,
+                  risk_constant_zero = round(risk_const, 3),
+                  risk_sample_mean   = round(risk_const_grid, 4),
+                  mean_dominates     = risk_const &gt; risk_const_grid)
+head(cmp)
+#&gt;     mu risk_constant_zero risk_sample_mean mean_dominates
+#&gt; 1 0.50              0.250           0.0399           TRUE
+#&gt; 2 0.75              0.562           0.0397           TRUE
+#&gt; 3 1.00              1.000           0.0405           TRUE
+#&gt; 4 1.25              1.562           0.0399           TRUE
+#&gt; 5 1.50              2.250           0.0399           TRUE
+#&gt; 6 1.75              3.062           0.0398           TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>mean_dominates</code> is <code>TRUE</code> everywhere on the grid, so the sample mean dominates the constant zero rule on $[0.5, 3]$. That makes the constant rule inadmissible there, there is no $\mu$ in this set where it ties or wins. On the full real line the same constant rule <em>is</em> admissible because it beats the sample mean in a neighbourhood of $\mu = 0$, however small.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Admissibility is a negative property, easy to disprove, hard to prove.</strong> Disproving admissibility just needs one rule that dominates yours on the chosen parameter space. Proving admissibility requires you to show that <em>no</em> rule dominates, and that proof is usually nontrivial (Karlin's theorem, complete-class arguments, or limit-of-Bayes constructions).</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Find a single value of $\mu$ where the constant rule $\delta_0$ has <em>lower</em> risk than the sample mean.</p>
+<div class="webr-container" data-block-title="Your turn: where does delta_0 win?">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: where does delta_0 win?</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: identify a mu where constant 0 beats sample mean (when mu is near 0).
+# Hint: the sample mean has risk 1/n = 0.04 here; constant rule has risk mu^2.
+# Solve mu^2 &lt; 0.04.
+ex_dominance_check &lt;- function(mu) {
+  c(constant = mu^2, sample_mean_approx = 1/25, constant_wins = mu^2 &lt; 1/25)
+}
+# your code here
+
+#&gt; Expected TRUE for some |mu| &lt; 0.2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Where delta_0 wins solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Where delta_0 wins solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_dominance_check(0.1)
+ex_dominance_check(0.05)
+#&gt;           constant sample_mean_approx     constant_wins
+#&gt;             0.0100             0.0400              1.000
+#&gt;           constant sample_mean_approx     constant_wins
+#&gt;             0.0025             0.0400              1.000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Within the small neighbourhood $|\mu| < 1/\sqrt n = 0.2$, the constant zero rule beats the sample mean. That neighbourhood is what saves the constant rule from being dominated globally on the whole real line.</p>
+
+</details>
+</section>
+
+<h2>How do minimax estimators relate to Bayes estimators?</h2>
+
+<p>Minimax shifts focus from averages to worst cases: $\delta^\star$ is <strong>minimax</strong> if $\sup_\theta R(\theta, \delta^\star) \le \sup_\theta R(\theta, \delta)$ for every other rule $\delta$. The classic theorem says: a Bayes rule whose risk function is <em>constant</em> in $\theta$ is automatically minimax, and the prior making it Bayes is called the <strong>least favourable prior</strong>.</p>
+
+<p><img src="screenshots/Decision-Theory-in-R-bayes-minimax.webp" alt="Bayes vs minimax connection" class="img-responsive img-zoomable" loading="lazy" width="2046" height="770" /></p>
+
+<p><em>Figure 3: A Bayes rule with constant risk is minimax; the prior that achieves this is called least favourable.</em></p>
+
+<p>We already saw the sample mean has constant risk $1/n$ for $N(\theta, 1)$. Let us verify and use that to claim it is minimax under squared loss.</p>
+
+<div class="webr-container" data-block-title="Sample mean has constant risk in theta">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Sample mean has constant risk in theta</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(404)
+mu_grid_wide &lt;- seq(-10, 10, by = 2)
+mle_risk_constant &lt;- sapply(mu_grid_wide,
+                            function(m) compute_risk(mean, mu = m, B = 6000))
+range(mle_risk_constant)
+#&gt; [1] 0.03913241 0.04081056</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The risk stays in a tight band around $1/25 = 0.04$ across a wide $\theta$ range, with simulation noise the only source of variation. So the worst-case risk of the sample mean across all $\mu$ is $\approx 0.04$. Any other rule with a worst-case risk above that cannot be minimax. The sample mean is in fact the unique minimax estimator for the normal mean under squared loss (Lehmann & Casella, Chapter 5).</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A Bayes rule with constant risk is minimax.</strong> Constant risk means there is no "bad" $\theta$ where the rule blows up, so the worst case is also the typical case. This is the classical bridge between Bayesian (averaging-based) and frequentist (worst-case) thinking.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Show that the shrinkage rule $\delta_{0.5}(X) = 0.5\bar X$ is <em>not</em> minimax, its risk grows without bound as $|\mu|$ increases.</p>
+<div class="webr-container" data-block-title="Your turn: shrinkage is not minimax">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: shrinkage is not minimax</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: compute risk of 0.5 * mean over a wide mu grid
+shrink_05 &lt;- function(x) 0.5 * mean(x)
+# your code here
+
+#&gt; Expected: risk grows roughly like 0.25 * mu^2 for large |mu|</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Shrinkage is not minimax solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Shrinkage is not minimax solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mu_wide &lt;- c(-10, -5, 0, 5, 10)
+ex_shrink_minimax &lt;- sapply(mu_wide,
+                            function(m) compute_risk(shrink_05, mu = m, B = 4000))
+data.frame(mu = mu_wide, shrink_risk = round(ex_shrink_minimax, 2))
+#&gt;    mu shrink_risk
+#&gt; 1 -10       25.01
+#&gt; 2  -5        6.26
+#&gt; 3   0        0.01
+#&gt; 4   5        6.25
+#&gt; 5  10       25.00</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> At $\mu = 10$ the rule's bias is $-5$, so its risk $\approx 25$ blows up. The supremum is unbounded, so it cannot be minimax, the sample mean's worst case of $0.04$ wins on the whole real line.</p>
+
+</details>
+</section>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>James–Stein dominates the sample mean in $p \ge 3$ dimensions.</strong> In one dimension the sample mean is admissible and minimax. Surprisingly, when you estimate a <em>vector</em> of $p \ge 3$ Normal means jointly under summed squared error, the rule $\hat\mu^{JS} = (1 - (p-2)/\|\bar X\|^2)\bar X$ has uniformly lower risk. This is <strong>Stein's paradox</strong> and is the canonical example showing that admissibility is not preserved by stacking problems.</div></div>
+
+<h2>Practice Exercises</h2>
+
+<h3>Exercise 1: Build a generic risk simulator</h3>
+
+<p>Write a function <code>my_risk_sim(estimator, theta_grid, n, B)</code> that returns a data frame with columns <code>theta</code> and <code>risk</code> for any estimator under squared loss with $N(\theta, 1)$ data. Use it to compare <code>mean</code> vs <code>c=0.7</code> shrinkage on <code>seq(-2, 2, by = 0.5)</code>. Save the comparison to <code>my_result</code>.</p>
+
+<div class="webr-container" data-block-title="Capstone Ex 1 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Capstone Ex 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Exercise 1: generic risk simulator
+# Hint: replicate(B, ...) inside sapply over theta_grid
+
+my_risk_sim &lt;- function(estimator, theta_grid, n = 25, B = 3000) {
+  # your code here
+}
+
+# Run it on two estimators and combine into my_result.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Capstone Ex 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Capstone Ex 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_risk_sim &lt;- function(estimator, theta_grid, n = 25, B = 3000) {
+  risks &lt;- sapply(theta_grid, function(th) {
+    mean(replicate(B, {
+      x &lt;- rnorm(n, mean = th, sd = 1)
+      (th - estimator(x))^2
+    }))
+  })
+  data.frame(theta = theta_grid, risk = risks)
+}
+
+my_grid     &lt;- seq(-2, 2, by = 0.5)
+mle_df      &lt;- my_risk_sim(mean, my_grid)
+mle_df$rule &lt;- &quot;MLE&quot;
+shr_df      &lt;- my_risk_sim(function(x) 0.7 * mean(x), my_grid)
+shr_df$rule &lt;- &quot;Shrinkage 0.7&quot;
+my_result   &lt;- rbind(mle_df, shr_df)
+my_result
+#&gt;    theta       risk          rule
+#&gt; 1   -2.0 0.04025 ...           MLE
+#&gt; 2   -1.5 0.04019 ...           MLE
+#&gt; ...
+#&gt; 18   2.0 0.40012 ... Shrinkage 0.7</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The simulator factors out estimator and grid, so swapping rules is one line. Shrinkage wins near $\theta = 0$ but loses badly far from it, neither dominates, both are admissible on $\mathbb{R}$.</p>
+
+</details>
+
+<h3>Exercise 2: Beta-Binomial Bayes risk reduction</h3>
+
+<p>For $X \sim \text{Bin}(n=20, \theta)$ and prior $\theta \sim \text{Beta}(2, 2)$, compute the Bayes risk of the posterior mean and the MLE under squared loss using 5000 Monte Carlo draws each. Report the percentage reduction the posterior mean achieves over the MLE. Save the percentage to <code>my_pct_drop</code>.</p>
+
+<div class="webr-container" data-block-title="Capstone Ex 2 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Capstone Ex 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Exercise 2: Bayes risk reduction
+# Hint: draw theta ~ Beta(2,2), then x | theta ~ Binomial(20, theta).
+
+# your code here
+
+#&gt; Expected: posterior mean reduces Bayes risk by ~20-25%</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Capstone Ex 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Capstone Ex 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+M2 &lt;- 5000
+n2 &lt;- 20
+a2 &lt;- 2; b2 &lt;- 2
+
+th_draw   &lt;- rbeta(M2, a2, b2)
+x_draw    &lt;- rbinom(M2, size = n2, prob = th_draw)
+my_bayes_post &lt;- mean(((a2 + x_draw)/(a2 + b2 + n2) - th_draw)^2)
+my_bayes_mle  &lt;- mean((x_draw/n2 - th_draw)^2)
+
+my_pct_drop &lt;- 100 * (my_bayes_mle - my_bayes_post) / my_bayes_mle
+round(c(post = my_bayes_post, mle = my_bayes_mle, pct_drop = my_pct_drop), 4)
+#&gt;      post       mle  pct_drop 
+#&gt;    0.0099    0.0125   20.7700</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The posterior mean borrows strength from the prior, so on average over $\theta$ drawn from Beta(2,2) it cuts Bayes risk by about 21%. The reduction would shrink if the prior were misspecified, try a Beta(50,1) prior to see the cost of a wrong, tight prior.</p>
+
+</details>
+
+<h2>Complete Example</h2>
+
+<p>Let us put loss, risk, Bayes risk, and admissibility together in one comparison. We will study four estimators of a Normal mean under squared loss across a $\theta$ grid: the MLE (sample mean), a posterior mean under a $N(0, 1)$ prior, a fixed shrinkage $\delta_{0.6}(X) = 0.6\bar X$, and the constant rule $\delta_0(X) = 0$. The output is a <a class="auto-link" href="Tidy-Data-in-R.html" title="Tidy Data: The One Rule That Makes R Code Readable, Reusable, and Debuggable">tidy data</a> frame plus a faceted ggplot panel.</p>
+
+<div class="webr-container" data-block-title="End-to-end risk study">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">End-to-end risk study</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2027)
+n_e &lt;- 25
+mu_e_grid &lt;- seq(-3, 3, by = 0.5)
+
+# Estimators
+mle_e        &lt;- function(x) mean(x)
+post_mean_e  &lt;- function(x) (n_e * mean(x)) / (n_e + 1)   # N(0, 1) prior
+shrink_06    &lt;- function(x) 0.6 * mean(x)
+const_zero_e &lt;- function(x) 0
+
+est_compare &lt;- list(
+  &quot;MLE&quot;            = mle_e,
+  &quot;Posterior N(0,1)&quot; = post_mean_e,
+  &quot;Shrinkage 0.6&quot;  = shrink_06,
+  &quot;Constant 0&quot;     = const_zero_e
+)
+
+compare_df &lt;- do.call(rbind, lapply(names(est_compare), function(nm) {
+  risk_vec &lt;- sapply(mu_e_grid,
+                     function(m) compute_risk(est_compare[[nm]], mu = m, n = n_e, B = 3000))
+  data.frame(rule = nm, mu = mu_e_grid, risk = risk_vec)
+}))
+
+compare_plot &lt;- ggplot(compare_df, aes(mu, risk, colour = rule)) +
+  geom_line(linewidth = 1) +
+  labs(title = &quot;Four estimators of a Normal mean (squared error loss)&quot;,
+       x = expression(mu), y = expression(R(mu, delta))) +
+  theme_minimal()
+compare_plot</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The plot reproduces every concept from this tutorial in one picture. The MLE has flat risk $\approx 0.04$ and is minimax. The posterior mean and shrinkage rule beat the MLE near $\mu = 0$ but pay quadratically as $|\mu|$ grows, they are admissible but not minimax. The constant rule is the most extreme version of shrinkage and hugs the floor only at $\mu = 0$. Choose your estimator by deciding which $\mu$ region matters: prior beliefs about $\theta$ determine that, which is exactly why Bayes risk is the tiebreaker.</p>
+
+<h2>Summary</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Concept</th>
+<th>Definition</th>
+<th>R recipe</th>
+<th>Optimal under squared loss</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Loss</td>
+<td>$L(\theta, a)$</td>
+<td><code>sq_loss &lt;- function(t,a) (t-a)^2</code></td>
+<td>mean</td>
+</tr>
+<tr>
+<td>Risk</td>
+<td>$E_\theta L(\theta, \delta(X))$</td>
+<td><code>compute_risk(estimator, theta)</code></td>
+<td>depends on $\theta$</td>
+</tr>
+<tr>
+<td>Bayes risk</td>
+<td>$E_\pi[R(\theta, \delta)]$</td>
+<td>average risk over prior draws</td>
+<td>posterior mean</td>
+</tr>
+<tr>
+<td>Admissibility</td>
+<td>not dominated everywhere</td>
+<td>check no rule has lower risk for every $\theta$</td>
+<td>varies</td>
+</tr>
+<tr>
+<td>Minimax</td>
+<td>minimum worst-case risk</td>
+<td>constant-risk Bayes rule under least-favourable prior</td>
+<td>sample mean for $N(\theta,1)$</td>
+</tr>
+</tbody>
+</table>
+
+<ul>
+
+<li>The loss is a modelling choice. Pick it to match the cost of real mistakes, not for mathematical convenience.</li>
+
+<li>The risk function is a <em>function of $\theta$</em>, not a number. Rules cross; no single estimator is best everywhere.</li>
+
+<li>Bayes risk averages risk by your prior. The Bayes rule under squared loss is the posterior mean.</li>
+
+<li>Admissibility means "not dominated". Easy to disprove, hard to prove, and surprisingly fragile (Stein's paradox in $p \ge 3$).</li>
+
+<li>Minimax minimises the worst case. Constant-risk Bayes rules are minimax, that's how the two paradigms shake hands.</li>
+
+</ul>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Lehmann, E. L. & Casella, G., <em>Theory of Point Estimation</em>, 2nd ed. Springer (1998). Chapters 1, 4, 5.</li>
+
+<li>Berger, J. O., <em>Statistical Decision Theory and Bayesian Analysis</em>, 2nd ed. Springer (1985).</li>
+
+<li>Wasserman, L., <em>All of Statistics</em>. Chapter 13: Statistical Decision Theory.</li>
+
+<li>Robert, C., <em>The Bayesian Choice</em>, 2nd ed. Springer (2007). Chapters 2–3.</li>
+
+<li>Wasserman, L., Lecture Notes 14, 36-705. <a href="https://www.stat.cmu.edu/~larry/=stat705/Lecture14.pdf">Link</a></li>
+
+<li>Wikipedia, Admissible decision rule. <a href="https://en.wikipedia.org/wiki/Admissible_decision_rule">Link</a></li>
+
+<li>Wikipedia, Bayes estimator. <a href="https://en.wikipedia.org/wiki/Bayes_estimator">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="UMVUE-in-R-2.html">UMVUE in R</a>, minimum-variance unbiased estimators and how the Cramér–Rao bound interacts with admissibility.</li>
+
+<li><a href="Cramer-Rao-Lower-Bound-in-R-2.html">Cramér–Rao Lower Bound in R</a>, risk lower bound that any unbiased estimator must respect.</li>
+
+<li><a href="Neyman-Pearson-Lemma-in-R-2.html">Neyman–Pearson Lemma in R</a>, decision theory applied to <a class="auto-link" href="Statistical-Tests-in-R.html" title="Statistical Tests in R">hypothesis testing</a>, with 0–1 loss reframed as Type I/II errors.</li>
+
+</ul>
+
+{% endraw %}
